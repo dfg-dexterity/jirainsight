@@ -30,24 +30,80 @@ function spDateStr(date) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(date);
 }
 
-// janela: 'hoje' | '7d' | '30d'
-export function rangeFor(janela) {
-  const now = new Date();
-  const endDate = spDateStr(now);
-  const dias = janela === 'hoje' ? 0 : janela === '30d' ? 29 : 6;
-  const start = new Date(now.getTime() - dias * 86400000);
-  const startDate = spDateStr(start);
-  return {
-    janela,
-    startDate,                                  // YYYY-MM-DD
-    endDate,                                     // YYYY-MM-DD
-    startISO: `${startDate}T00:00:00-03:00`,     // limite inferior para filtrar eventos
-    geradoEm: now.toISOString(),
-  };
+// Meio-dia (12:00) no fuso de São Paulo para uma data 'YYYY-MM-DD'. Usado para
+// aritmética de dias e dia-da-semana sem risco de virada por fuso (SP = -03:00 fixo).
+function spNoon(dateStr) {
+  return new Date(`${dateStr}T12:00:00-03:00`);
+}
+function addDays(dateStr, n) {
+  const t = spNoon(dateStr);
+  t.setUTCDate(t.getUTCDate() + n);
+  return spDateStr(t);
+}
+function weekdaySP(dateStr) {
+  return spNoon(dateStr).getUTCDay(); // 0=domingo … 6=sábado
+}
+function primeiroDiaMes(dateStr) {
+  return `${dateStr.slice(0, 8)}01`;
 }
 
+// Janelas suportadas. Além das três originais (hoje/7d/30d), agora há recortes
+// por semana e por mês (atual e anterior) — ver normalizaJanela.
+const JANELAS = new Set([
+  'hoje', 'ontem', '7d', '30d',
+  'estaSemana', 'semanaPassada', 'esteMes', 'mesPassado',
+]);
+
 export function normalizaJanela(j) {
-  return j === 'hoje' || j === '30d' ? j : '7d';
+  return JANELAS.has(j) ? j : '7d';
+}
+
+// Resolve o intervalo [startDate, endDate] (datas YYYY-MM-DD no fuso de SP) para
+// a janela pedida. Semana começa na segunda-feira.
+export function rangeFor(janela) {
+  const now = new Date();
+  const hoje = spDateStr(now);
+  let startDate;
+  let endDate;
+
+  switch (janela) {
+    case 'hoje':
+      startDate = hoje; endDate = hoje; break;
+    case 'ontem':
+      startDate = addDays(hoje, -1); endDate = startDate; break;
+    case '30d':
+      startDate = addDays(hoje, -29); endDate = hoje; break;
+    case 'estaSemana': {
+      const off = (weekdaySP(hoje) + 6) % 7;       // segunda = 0
+      startDate = addDays(hoje, -off); endDate = hoje; break;
+    }
+    case 'semanaPassada': {
+      const off = (weekdaySP(hoje) + 6) % 7;
+      const segAtual = addDays(hoje, -off);
+      startDate = addDays(segAtual, -7);            // segunda anterior
+      endDate = addDays(segAtual, -1);              // domingo anterior
+      break;
+    }
+    case 'esteMes':
+      startDate = primeiroDiaMes(hoje); endDate = hoje; break;
+    case 'mesPassado': {
+      endDate = addDays(primeiroDiaMes(hoje), -1);  // último dia do mês anterior
+      startDate = primeiroDiaMes(endDate);
+      break;
+    }
+    case '7d':
+    default:
+      startDate = addDays(hoje, -6); endDate = hoje; break;
+  }
+
+  return {
+    janela,
+    startDate,                                   // YYYY-MM-DD (limite inferior)
+    endDate,                                      // YYYY-MM-DD (limite superior, inclusivo)
+    startISO: `${startDate}T00:00:00-03:00`,      // limite inferior para filtrar eventos
+    endISO: `${endDate}T23:59:59-03:00`,          // limite superior para filtrar eventos
+    geradoEm: now.toISOString(),
+  };
 }
 
 // ---------------------------------------------------------------------------

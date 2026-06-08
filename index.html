@@ -4,10 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Dexterity · Insights de Uso (Jira + Clockwork)</title>
-<script>
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
+<!-- Ícone do app. Para usar o logo oficial, basta substituir public/logo.svg. -->
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <style>
   /* Fontes oficiais da Dexterity: caso possua os webfonts, coloque em /public/fonts
      e descomente os @font-face abaixo. Sem eles, usamos fallbacks neutros. */
@@ -16,7 +14,7 @@
 
   :root{
     --offwhite:#F7F3E7; --grafite:#4D4D4D; --cerceta:#009994; --roxo:#98569A;
-    --amarelo:#FFA436; --musgo:#597C59;
+    --amarelo:#FFA436; --musgo:#597C59; --err:#C0504A;
     --linha:#E3DDCB; --cartao:#FFFFFF; --sombra:0 1px 2px rgba(77,77,77,.06),0 8px 24px rgba(77,77,77,.06);
     --titulo:'Proxima Soft','Saira Condensed','Oswald','Arial Narrow',system-ui,sans-serif;
     --corpo:'Boston','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
@@ -30,6 +28,7 @@
   header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
     padding-bottom:18px;border-bottom:2px solid var(--grafite);margin-bottom:22px}
   .brand{display:flex;align-items:center;gap:12px}
+  .brand img{display:block;width:40px;height:40px}
   .brand h1{font-family:var(--titulo);font-weight:700;letter-spacing:.5px;
     text-transform:uppercase;font-size:24px;margin:0;line-height:1}
   .brand small{display:block;font-family:var(--corpo);text-transform:none;letter-spacing:0;
@@ -43,7 +42,10 @@
   .btn{border:1px solid var(--linha);background:var(--cartao);border-radius:8px;
     padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:13px;color:var(--grafite)}
   .btn:hover{border-color:var(--grafite)}
-  .atualizado{font-size:12px;color:#8a857a}
+  .atualizado{font-size:12px;color:#8a857a;width:100%}
+
+  .hdr-sel{display:flex;flex-direction:column;gap:3px}
+  .hdr-sel span{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#8a857a}
 
   .filtros{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:22px}
   .campo{display:flex;flex-direction:column;gap:4px}
@@ -53,11 +55,13 @@
   .check{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;padding-bottom:7px}
 
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
+  .kpis.ts-kpis{grid-template-columns:repeat(4,1fr)}
   .kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:16px;
     box-shadow:var(--sombra)}
   .kpi .v{font-family:var(--titulo);font-size:30px;font-weight:700;line-height:1;letter-spacing:.5px}
   .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#8a857a;margin-top:8px}
   .kpi.t{border-top:3px solid var(--cerceta)} .kpi.a{border-top:3px solid var(--roxo)}
+  .kpi.w{border-top:3px solid var(--amarelo)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:18px;
@@ -92,6 +96,37 @@
   .col .b{width:100%;background:var(--cerceta);border-radius:6px 6px 0 0;min-height:2px}
   .col .cl{font-size:10px;color:#8a857a;white-space:nowrap}
 
+  /* ---- Timesheet (matriz pessoa × dia) ---- */
+  .ts-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#8a857a;margin-bottom:12px}
+  .ts-legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;
+    vertical-align:-1px;border:1px solid var(--linha)}
+  .ts-legend .sw.ok{background:rgba(89,124,89,.5)}
+  .ts-legend .sw.parcial{background:rgba(255,164,54,.6)}
+  .ts-legend .sw.vazio{background:rgba(192,80,74,.5)}
+  .ts-legend .sw.fds{background:#E3DDCB}
+  .ts-legend .sw.hoje{background:#fff;border-color:var(--cerceta)}
+  .ts-wrap{overflow-x:auto;border:1px solid var(--linha);border-radius:10px}
+  table.ts{width:auto;min-width:100%;border-collapse:collapse;font-size:12px}
+  table.ts th,table.ts td{border:1px solid var(--linha);padding:6px 8px;text-align:center;
+    white-space:nowrap}
+  table.ts thead th{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:#8a857a;
+    background:#FBF8EF;position:sticky;top:0;z-index:2}
+  table.ts .ts-nome{text-align:left;position:sticky;left:0;background:var(--cartao);z-index:1;
+    max-width:190px;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  table.ts thead .ts-nome{z-index:3}
+  table.ts .num{text-align:right;font-variant-numeric:tabular-nums}
+  .ts-d .dnum{display:block;font-weight:700;color:var(--grafite);font-size:12px}
+  .ts-d .dsem{display:block;font-size:9px}
+  .ts-d.fds{background:#F0EBDB;color:#b3ad9d}
+  .ts-d.hoje{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .ts-c{font-variant-numeric:tabular-nums;font-weight:600;color:var(--grafite)}
+  .ts-c.ok{background:rgba(89,124,89,.18);color:#3f5a3f}
+  .ts-c.parcial{background:rgba(255,164,54,.20);color:#9a6412}
+  .ts-c.vazio{background:rgba(192,80,74,.16);color:#a23b35;font-weight:700}
+  .ts-c.fds{background:#F4F0E2;color:#c2bcab}
+  .ts-c.hoje{background:#fff;color:#0a6b67;font-weight:700}
+  .ts-lac.tem-lacuna{color:#a23b35;font-weight:700}
+
   .estado{padding:40px;text-align:center;color:#8a857a}
   .erro{background:#fff;border:1px solid #e7b4b4;color:#9c3b3b;border-radius:10px;padding:14px 16px;
     margin-bottom:18px;font-size:13px}
@@ -99,7 +134,8 @@
     font-size:12px;color:#8a857a;line-height:1.6}
 
   @media (max-width:880px){
-    .kpis{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr}
+    .kpis{grid-template-columns:repeat(2,1fr)} .kpis.ts-kpis{grid-template-columns:repeat(2,1fr)}
+    .grid{grid-template-columns:1fr}
     .barrow{grid-template-columns:110px 1fr 56px}
   }
 </style>
@@ -108,27 +144,31 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <!-- Aproximação do ícone Dexterity (3 pétalas Grafite + 1 Verde Cerceta).
-           Para o logo oficial, troque por /logo.svg. -->
-      <svg width="40" height="40" viewBox="0 0 100 100" aria-hidden="true">
-        <g transform="translate(50,50)">
-          <ellipse cx="0" cy="-22" rx="13" ry="26" fill="#009994"/>
-          <ellipse cx="22" cy="0" rx="13" ry="26" fill="#4D4D4D" transform="rotate(90)"/>
-          <ellipse cx="0" cy="22" rx="13" ry="26" fill="#4D4D4D"/>
-          <ellipse cx="-22" cy="0" rx="13" ry="26" fill="#4D4D4D" transform="rotate(90)"/>
-        </g>
-      </svg>
+      <!-- Logo Dexterity. Substitua public/logo.svg pelo arquivo oficial para trocar
+           cabeçalho e favicon de uma vez (nenhuma alteração de código necessária). -->
+      <img src="/logo.svg" alt="Dexterity" width="40" height="40" />
       <div>
         <h1>Insights de Uso</h1>
         <small>Dexterity IT · Jira + Clockwork</small>
       </div>
     </div>
     <div class="spacer"></div>
-    <div class="seg" id="seg-janela" role="group" aria-label="Janela">
-      <button data-j="hoje">Hoje</button>
-      <button data-j="7d" aria-pressed="true">7 dias</button>
-      <button data-j="30d">30 dias</button>
+    <div class="seg" id="seg-vista" role="group" aria-label="Visão">
+      <button data-v="resumo" aria-pressed="true">Resumo</button>
+      <button data-v="timesheet">Timesheet</button>
     </div>
+    <label class="hdr-sel"><span>Período</span>
+      <select id="f-periodo">
+        <option value="hoje">Hoje</option>
+        <option value="ontem">Ontem</option>
+        <option value="estaSemana">Esta semana</option>
+        <option value="semanaPassada">Semana passada</option>
+        <option value="7d" selected>Últimos 7 dias</option>
+        <option value="esteMes">Este mês</option>
+        <option value="mesPassado">Mês passado</option>
+        <option value="30d">Últimos 30 dias</option>
+      </select>
+    </label>
     <button class="btn" id="btn-refresh">Atualizar</button>
     <div class="atualizado" id="atualizado"></div>
   </header>
@@ -136,6 +176,7 @@
   <div id="erro-box"></div>
 
   <div class="filtros">
+    <div class="campo"><label>Pessoa</label><select id="f-pessoa"></select></div>
     <div class="campo"><label>Categoria</label><select id="f-categoria"></select></div>
     <div class="campo"><label>Projeto</label><select id="f-projeto"></select></div>
     <div class="campo"><label>Tipo</label><select id="f-tipo"></select></div>
@@ -149,16 +190,19 @@
     <strong>Fontes:</strong> tempo (horas, faturável) vem do Clockwork; atividade
     (tickets, alterações, transições, comentários) vem do changelog do Jira — a atribuição
     é por <em>autor da alteração</em>, não por responsável.
-    <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; o changelog
-    embutido cobre alterações recentes da janela; concluídas são agregadas (sem atribuição
-    individual nesta versão). Dados em cache por alguns minutos no servidor.
+    <br><strong>Timesheet:</strong> a lacuna ("horários não preenchidos") compara as horas
+    apontadas no Clockwork com a meta de <em>8h por dia útil (seg–sex)</em>; fins de semana e o
+    dia de hoje não entram no cálculo da lacuna.
+    <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
+    agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
   </footer>
 </div>
 
 <script>
 const cores = { cerceta:'#009994', roxo:'#98569A', amarelo:'#FFA436', musgo:'#597C59', grafite:'#4D4D4D' };
 const RE_ROTINA = /rotina|reuni/i;
-const estado = { janela:'7d', tempo:null, atividade:null, cache:{} };
+const META_DIA_SEG = 8 * 3600;            // meta de 8h/dia útil para a timesheet
+const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, cache:{} };
 
 const fmtH = (seg) => {
   const h = Math.floor(seg/3600), m = Math.round((seg%3600)/60);
@@ -170,21 +214,31 @@ const pct = (n,d) => d ? Math.round(n/d*100) : 0;
 const el = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
 const esc = (s) => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-async function carrega(janela){
-  if (estado.cache[janela]) { estado.tempo=estado.cache[janela].tempo; estado.atividade=estado.cache[janela].atividade; return; }
+// ---- Datas (fuso America/Sao_Paulo no cliente, aritmética em UTC nas strings) ----
+const hojeSP = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
+function proxDia(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+1)).toISOString().slice(0,10); }
+function listaDias(a,b){ if(!a||!b) return []; const out=[]; let d=a, g=0; while(d<=b && g++<400){ out.push(d); d=proxDia(d); } return out; }
+function diaSemana(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d,12)).getUTCDay(); } // 0=dom … 6=sáb
+const ehUtil = (s) => { const w=diaSemana(s); return w>=1 && w<=5; };
+
+async function carrega(periodo){
+  if (estado.cache[periodo]) { estado.tempo=estado.cache[periodo].tempo; estado.atividade=estado.cache[periodo].atividade; return; }
   const [t,a] = await Promise.all([
-    fetch(`/api/tempo?janela=${janela}`).then(r=>r.json()),
-    fetch(`/api/atividade?janela=${janela}`).then(r=>r.json()),
+    fetch(`/api/tempo?janela=${periodo}`).then(r=>r.json()),
+    fetch(`/api/atividade?janela=${periodo}`).then(r=>r.json()),
   ]);
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);
   if (a.erro) throw new Error('Atividade (Jira): '+a.erro);
-  estado.tempo=t; estado.atividade=a; estado.cache[janela]={tempo:t,atividade:a};
+  estado.tempo=t; estado.atividade=a; estado.cache[periodo]={tempo:t,atividade:a};
 }
 
 function projetosUnidos(){
   const m = {};
   Object.assign(m, (estado.atividade&&estado.atividade.projetos)||{}, (estado.tempo&&estado.tempo.projetos)||{});
   return m;
+}
+function pessoasUnidas(){
+  return Object.assign({}, (estado.atividade&&estado.atividade.pessoas)||{}, (estado.tempo&&estado.tempo.pessoas)||{});
 }
 
 function preencheFiltros(){
@@ -199,11 +253,18 @@ function preencheFiltros(){
   preserva('f-projeto', `<option value="">Todos os projetos</option>` +
     Object.keys(projs).sort().map(k=>`<option value="${esc(k)}">${esc(k)} — ${esc(projs[k].nome||'')}</option>`).join(''));
   preserva('f-tipo', opt(tipos,'Todos os tipos'));
+
+  const pessoas = Object.entries(pessoasUnidas())
+    .map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  preserva('f-pessoa', `<option value="">Todas as pessoas</option>` +
+    pessoas.map(([a,n])=>`<option value="${esc(a)}">${esc(n)}</option>`).join(''));
 }
 function preserva(id, html){ const s=document.getElementById(id); const v=s.value; s.innerHTML=html; if([...s.options].some(o=>o.value===v)) s.value=v; }
 
 function filtros(){
   return {
+    pessoa: document.getElementById('f-pessoa').value,
     categoria: document.getElementById('f-categoria').value,
     projeto: document.getElementById('f-projeto').value,
     tipo: document.getElementById('f-tipo').value,
@@ -221,7 +282,7 @@ function passa(p, t, projs, f){
 function agrega(){
   const f = filtros();
   const projs = projetosUnidos();
-  const pessoasNome = Object.assign({}, estado.atividade.pessoas, estado.tempo.pessoas);
+  const pessoasNome = pessoasUnidas();
 
   // ---- Tempo (Clockwork) ----
   const seg = {};                 // accountId -> segundos
@@ -230,6 +291,7 @@ function agrega(){
   const porCategoria={}, porProjeto={}, porDia={};
   (estado.tempo.worklogs||[]).forEach(w=>{
     if(!passa(w.p,w.t,projs,f)) return;
+    if(f.pessoa && w.a!==f.pessoa) return;
     seg[w.a]=(seg[w.a]||0)+w.s; segTot+=w.s;
     if(w.f){ segFat[w.a]=(segFat[w.a]||0)+w.s; segFatTot+=w.s; }
     const cat=(projs[w.p]&&projs[w.p].categoria)||'Sem categoria';
@@ -244,6 +306,7 @@ function agrega(){
   const tipoIssues={}; // tipo -> set de issues
   (estado.atividade.eventos||[]).forEach(e=>{
     if(!passa(e.p,e.t,projs,f)) return;
+    if(f.pessoa && e.a!==f.pessoa) return;
     if(e.e==='alteracao'){ alter[e.a]=(alter[e.a]||0)+1; (tickets[e.a]=tickets[e.a]||new Set()).add(e.k); tocadasGlobais.add(e.k); }
     if(e.e==='transicao'){ trans[e.a]=(trans[e.a]||0)+1; transTot++; (tickets[e.a]=tickets[e.a]||new Set()).add(e.k); tocadasGlobais.add(e.k); }
     if(e.e==='comentario'){ coment[e.a]=(coment[e.a]||0)+1; (tickets[e.a]=tickets[e.a]||new Set()).add(e.k); tocadasGlobais.add(e.k); }
@@ -251,7 +314,7 @@ function agrega(){
     (tipoIssues[e.t]=tipoIssues[e.t]||new Set()).add(e.k);
   });
 
-  // ---- Concluídas (agregado, respeita categoria/projeto) ----
+  // ---- Concluídas (agregado; sem atribuição por pessoa) ----
   const concPorProj = estado.atividade.meta.concluidasPorProjeto||{};
   let concl=0;
   Object.keys(concPorProj).forEach(k=>{
@@ -259,6 +322,7 @@ function agrega(){
     if(f.categoria){ const c=(projs[k]&&projs[k].categoria)||'Sem categoria'; if(c!==f.categoria) return; }
     concl+=concPorProj[k];
   });
+  if(f.pessoa) concl=null;   // não há atribuição individual de concluídas
 
   // ---- Tabela por pessoa ----
   const ids=new Set([...Object.keys(seg),...Object.keys(tickets)]);
@@ -289,6 +353,10 @@ function barlist(obj, fmt, cor, limite){
 }
 
 function render(){
+  return estado.vista==='timesheet' ? renderTimesheet() : renderResumo();
+}
+
+function renderResumo(){
   const d=agrega();
   const cont=document.getElementById('conteudo');
   const k=d.kpi;
@@ -328,7 +396,7 @@ function render(){
       <div class="kpi t"><div class="v">${k.fatPct}%</div><div class="l">Faturável</div></div>
       <div class="kpi a"><div class="v">${k.tocadas}</div><div class="l">Tickets tocados</div></div>
       <div class="kpi a"><div class="v">${k.transTot}</div><div class="l">Transições</div></div>
-      <div class="kpi a"><div class="v">${k.concl}</div><div class="l">Concluídas</div></div>
+      <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
     </div>
     <div class="grid">
       <div class="card full"><h2>Por pessoa</h2>${tabela}</div>
@@ -341,12 +409,119 @@ function render(){
   </div>`));
 }
 
+function renderTimesheet(){
+  const cont=document.getElementById('conteudo');
+  const f=filtros();
+  // A timesheet conta TODAS as horas apontadas (não esconde rotinas/reuniões),
+  // pois elas também são tempo preenchido. Os demais filtros continuam valendo.
+  const ft=Object.assign({}, f, {ocultar:false});
+  const projs=projetosUnidos();
+  const pessoasNome=pessoasUnidas();
+  const meta=estado.tempo.meta||{};
+  const dias=listaDias(meta.startDate, meta.endDate);
+  const hoje=hojeSP();
+
+  const cel={}; const ativos=new Set();   // pessoa -> dia -> segundos
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!passa(w.p,w.t,projs,ft)) return;
+    if(f.pessoa && w.a!==f.pessoa) return;
+    const dia=(w.d||'').slice(0,10); if(!dia) return;
+    (cel[w.a]=cel[w.a]||{})[dia]=((cel[w.a]&&cel[w.a][dia])||0)+w.s;
+    ativos.add(w.a);
+  });
+  // Pessoas com atividade no Jira mas sem horas no Clockwork também aparecem
+  // (são exatamente as lacunas que queremos enxergar).
+  (estado.atividade.eventos||[]).forEach(e=>{
+    if(!passa(e.p,e.t,projs,ft)) return;
+    if(f.pessoa && e.a!==f.pessoa) return;
+    ativos.add(e.a);
+  });
+
+  if(!ativos.size || !dias.length){
+    cont.replaceChildren(el(`<div><div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    return;
+  }
+
+  const linhas=[...ativos].map(a=>{
+    const porDia=cel[a]||{};
+    let tot=0, lacuna=0, vazios=0, parciais=0;
+    dias.forEach(d=>{
+      const s=porDia[d]||0; tot+=s;
+      if(!ehUtil(d) || d===hoje) return;           // fds e hoje não contam lacuna
+      if(s<=0){ vazios++; lacuna+=META_DIA_SEG; }
+      else if(s<META_DIA_SEG){ parciais++; lacuna+=(META_DIA_SEG-s); }
+    });
+    return { a, nome:(pessoasNome[a]&&pessoasNome[a].nome)||a, porDia, tot, lacuna, vazios, parciais };
+  }).sort((x,y)=> (y.lacuna-x.lacuna) || (y.tot-x.tot) || x.nome.localeCompare(y.nome,'pt'));
+
+  const horasTot=linhas.reduce((s,l)=>s+l.tot,0);
+  const lacunaTot=linhas.reduce((s,l)=>s+l.lacuna,0);
+  const vaziosTot=linhas.reduce((s,l)=>s+l.vazios,0);
+
+  const semana=['dom','seg','ter','qua','qui','sex','sáb'];
+  const thDias=dias.map(d=>{
+    const w=diaSemana(d), fds=(w===0||w===6);
+    return `<th class="ts-d${fds?' fds':''}${d===hoje?' hoje':''}" title="${esc(d)}">
+      <span class="dnum">${d.slice(8,10)}</span><span class="dsem">${semana[w]}</span></th>`;
+  }).join('');
+
+  const corpo=linhas.map(l=>{
+    const cells=dias.map(d=>{
+      const s=l.porDia[d]||0, w=diaSemana(d), fds=(w===0||w===6);
+      let cls='ts-c', txt='';
+      if(fds){ cls+=' fds'; txt=s>0?fmtH(s):'·'; }
+      else if(d===hoje){ cls+=' hoje'; txt=s>0?fmtH(s):'hoje'; }
+      else if(s<=0){ cls+=' vazio'; txt='—'; }
+      else if(s<META_DIA_SEG){ cls+=' parcial'; txt=fmtH(s); }
+      else { cls+=' ok'; txt=fmtH(s); }
+      return `<td class="${cls}" title="${esc(l.nome)} · ${esc(d)} · ${s>0?fmtH(s):'sem apontamento'}">${txt}</td>`;
+    }).join('');
+    const alerta=l.lacuna>0?'tem-lacuna':'';
+    return `<tr>
+      <th class="ts-nome" title="${esc(l.nome)}">${esc(l.nome)}</th>
+      <td class="num">${fmtH(l.tot)}</td>
+      <td class="num ts-lac ${alerta}">${l.lacuna>0?('−'+fmtH(l.lacuna)):'ok'}</td>
+      ${cells}</tr>`;
+  }).join('');
+
+  cont.replaceChildren(el(`<div>
+    <div class="kpis ts-kpis">
+      <div class="kpi t"><div class="v">${fmtH(horasTot)}</div><div class="l">Horas apontadas</div></div>
+      <div class="kpi w"><div class="v">${fmtH(lacunaTot)}</div><div class="l">Horas não preenchidas</div></div>
+      <div class="kpi w"><div class="v">${vaziosTot}</div><div class="l">Dias úteis sem apontamento</div></div>
+      <div class="kpi a"><div class="v">${linhas.length}</div><div class="l">Pessoas</div></div>
+    </div>
+    <div class="card full">
+      <h2>Timesheet · horários não preenchidos
+        <span>${esc(meta.startDate||'')} → ${esc(meta.endDate||'')} · meta 8h seg–sex</span></h2>
+      <div class="ts-legend">
+        <span><i class="sw ok"></i>≥ 8h</span>
+        <span><i class="sw parcial"></i>parcial</span>
+        <span><i class="sw vazio"></i>não preenchido</span>
+        <span><i class="sw fds"></i>fim de semana</span>
+        <span><i class="sw hoje"></i>hoje</span>
+      </div>
+      <div class="ts-wrap">
+        <table class="ts">
+          <thead><tr>
+            <th class="ts-nome">Pessoa</th>
+            <th class="num">Total</th>
+            <th class="num">Lacuna</th>
+            ${thDias}
+          </tr></thead>
+          <tbody>${corpo}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`));
+}
+
 async function recarrega(){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
   cont.innerHTML='<div class="estado">Carregando dados…</div>';
   try{
-    await carrega(estado.janela);
+    await carrega(estado.periodo);
     document.getElementById('atualizado').textContent =
       'Atualizado em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
     preencheFiltros(); render();
@@ -358,13 +533,14 @@ async function recarrega(){
 }
 
 // Eventos de UI
-document.getElementById('seg-janela').addEventListener('click', (ev)=>{
+document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   const b=ev.target.closest('button'); if(!b) return;
   [...ev.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false'));
-  estado.janela=b.dataset.j; recarrega();
+  estado.vista=b.dataset.v; render();
 });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.janela]; recarrega(); });
-['f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
+document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; recarrega(); });
+['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
   document.getElementById(id).addEventListener('change', render));
 
 recarrega();
