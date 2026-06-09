@@ -68,7 +68,7 @@ export default async function handler(req, res) {
         };
       }
       const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
-      const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—' };
+      const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', issueKey: '' };
       if (!projetos[m.projetoKey]) {
         projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
       }
@@ -79,6 +79,7 @@ export default async function handler(req, res) {
         p: m.projetoKey,
         t: m.tipo,
         f: ehFaturavel(m.tipo) ? 1 : 0,
+        k: m.issueKey || (w.issue && w.issue.key) || '',
       });
     }
 

@@ -175,6 +175,7 @@ export async function jiraResolveIssues(ids) {
         projetoNome: proj.name || '—',
         categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
         tipo: (f.issuetype && f.issuetype.name) || '—',
+        issueKey: it.key || '',
       };
     }
   }

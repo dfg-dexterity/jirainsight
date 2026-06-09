@@ -249,7 +249,7 @@
     .mt-form .campo,.mt-form select,.mt-form input,.mt-form .btn{width:100%}
     /* força rolagem (em vez de espremer) nas tabelas largas */
     .scroll-x table{min-width:560px}
-    .ts-wrap > table:not(.ts){min-width:660px}
+    .ts-wrap > table:not(.ts){min-width:720px}
     .scroll-x .cols{min-width:520px}
   }
 </style>
@@ -933,14 +933,16 @@ function renderRanking(){
   </div>`));
 }
 
-// Agrega os tickets (issues) tocados no Jira no período, respeitando os filtros.
+// Agrega os tickets (issues) do período: horas (Clockwork) + atividade (Jira).
 function calcTickets(){
   const f=filtros(); const projs=projetosUnidos(); const pessoasNome=pessoasUnidas();
   const mapa={};
+  const get=(k,p,t)=> mapa[k] || (mapa[k]={ k, p:p||'—', t:t||'—', autores:{}, alter:0, trans:0, coment:0, criado:0, total:0, seg:0, ultima:'' });
+  // Atividade do Jira (changelog/comentários/criações)
   (estado.atividade.eventos||[]).forEach(e=>{
     if(!passa(e.p,e.t,projs,f)) return;
     if(f.pessoa && e.a!==f.pessoa) return;
-    const t = mapa[e.k] || (mapa[e.k]={ k:e.k, p:e.p, t:e.t, autores:{}, alter:0, trans:0, coment:0, criado:0, total:0, ultima:'' });
+    const t=get(e.k, e.p, e.t);
     if(e.e==='alteracao') t.alter++;
     else if(e.e==='transicao') t.trans++;
     else if(e.e==='comentario') t.coment++;
@@ -949,8 +951,18 @@ function calcTickets(){
     if(pessoasNome[e.a]) t.autores[e.a]=pessoasNome[e.a].nome;
     const dia=(e.d||'').slice(0,10); if(dia>t.ultima) t.ultima=dia;
   });
+  // Horas do Clockwork (agora com o código da issue)
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!w.k) return;                                  // worklog sem issue resolvida
+    if(!passa(w.p,w.t,projs,f)) return;
+    if(f.pessoa && w.a!==f.pessoa) return;
+    const t=get(w.k, w.p, w.t);
+    t.seg+=w.s;
+    if(pessoasNome[w.a]) t.autores[w.a]=pessoasNome[w.a].nome;
+    const dia=(w.d||'').slice(0,10); if(dia>t.ultima) t.ultima=dia;
+  });
   const linhas=Object.values(mapa)
-    .sort((x,y)=> (x.ultima<y.ultima?1:x.ultima>y.ultima?-1:0) || (y.total-x.total) || x.k.localeCompare(y.k));
+    .sort((x,y)=> (y.seg-x.seg) || (x.ultima<y.ultima?1:x.ultima>y.ultima?-1:0) || (y.total-x.total) || x.k.localeCompare(y.k));
   return { linhas, projs };
 }
 
@@ -958,7 +970,7 @@ function renderTickets(){
   const cont=document.getElementById('conteudo');
   const { linhas, projs } = calcTickets();
   if(!linhas.length){
-    cont.replaceChildren(el('<div><div class="estado">Sem tickets para os filtros atuais. (A aba Tickets vem da atividade do Jira no período.)</div></div>'));
+    cont.replaceChildren(el('<div><div class="estado">Sem tickets para os filtros atuais.</div></div>'));
     return;
   }
   const nomeProj=(k)=> (projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
@@ -969,6 +981,7 @@ function renderTickets(){
       <td><a href="${url}" target="_blank" rel="noopener" title="Abrir ${esc(l.k)} no Jira">${esc(l.k)} ↗</a></td>
       <td title="${esc(nomeProj(l.p))}">${esc(l.p)}</td>
       <td>${esc(l.t)}</td>
+      <td class="num">${l.seg?fmtH(l.seg):'—'}</td>
       <td title="${esc(quem.join(', '))}">${quem.length}</td>
       <td class="num">${l.alter}</td>
       <td class="num">${l.trans}</td>
@@ -977,18 +990,19 @@ function renderTickets(){
       <td>${esc(l.ultima)}</td>
     </tr>`;
   }).join('');
+  const horasTot=linhas.reduce((s,l)=>s+l.seg,0);
   cont.replaceChildren(el(`<div>
     <div class="kpis ts-kpis">
-      <div class="kpi a"><div class="v">${linhas.length}</div><div class="l">Tickets tocados</div></div>
+      <div class="kpi a"><div class="v">${linhas.length}</div><div class="l">Tickets no período</div></div>
+      <div class="kpi t"><div class="v">${fmtH(horasTot)}</div><div class="l">Horas apontadas</div></div>
       <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.total,0)}</div><div class="l">Atividades</div></div>
       <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.trans,0)}</div><div class="l">Transições</div></div>
-      <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.criado,0)}</div><div class="l">Criados</div></div>
     </div>
     <div class="card full">
-      <h2>Tickets do Jira <span>clique no código para abrir o ticket em outra aba</span></h2>
+      <h2>Tickets do Jira <span>horas + atividade · clique no código para abrir no Jira</span></h2>
       <div class="ts-wrap">
         <table><thead><tr>
-          <th>Ticket</th><th>Projeto</th><th>Tipo</th><th class="num">Pessoas</th>
+          <th>Ticket</th><th>Projeto</th><th>Tipo</th><th class="num">Horas</th><th class="num">Pessoas</th>
           <th class="num">Alter.</th><th class="num">Transições</th><th class="num">Coment.</th>
           <th class="num">Criado</th><th>Última</th>
         </tr></thead><tbody>${rows}</tbody></table>
@@ -1033,8 +1047,8 @@ function exportaCSV(){
     baixaCSV(`ranking_${per}.csv`, [head, ...rows]);
   } else if(estado.vista==='tickets'){
     const { linhas } = calcTickets();
-    const head=['Ticket','Link','Projeto','Tipo','Pessoas','Alterações','Transições','Comentários','Criado','Última atividade'];
-    const rows=linhas.map(l=>[l.k, `${jiraBase()}/browse/${l.k}`, l.p, l.t,
+    const head=['Ticket','Link','Projeto','Tipo','Horas','Pessoas','Alterações','Transições','Comentários','Criado','Última atividade'];
+    const rows=linhas.map(l=>[l.k, `${jiraBase()}/browse/${l.k}`, l.p, l.t, dec(l.seg),
       Object.values(l.autores).join(', '), l.alter, l.trans, l.coment, l.criado, l.ultima]);
     baixaCSV(`tickets_${per}.csv`, [head, ...rows]);
   } else {
@@ -1098,6 +1112,44 @@ function abreMetas(){
   `);
 }
 
+// ---- Estado na URL (links compartilháveis) ----
+const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d'];
+const VISTAS=['resumo','timesheet','ranking','tickets'];
+let _pendentesURL=null;
+function leURL(){
+  const p=new URLSearchParams(location.search);
+  estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
+  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'resumo';
+  _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
+    tipo:p.get('tipo')||'', mostrarRotinas:p.get('rot')==='1' };
+}
+function sincronizaControlesURL(){
+  const sel=document.getElementById('f-periodo');
+  if([...sel.options].some(o=>o.value===estado.periodo)) sel.value=estado.periodo;
+  [...document.getElementById('seg-vista').children]
+    .forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===estado.vista?'true':'false'));
+}
+function aplicaPendentes(){
+  if(!_pendentesURL) return;
+  const set=(id,val)=>{ const s=document.getElementById(id); if(val && [...s.options].some(o=>o.value===val)) s.value=val; };
+  set('f-pessoa',_pendentesURL.pessoa); set('f-categoria',_pendentesURL.categoria);
+  set('f-projeto',_pendentesURL.projeto); set('f-tipo',_pendentesURL.tipo);
+  document.getElementById('f-ocultar').checked = !_pendentesURL.mostrarRotinas;
+  _pendentesURL=null;
+}
+function estadoParaURL(){
+  const f=filtros(); const p=new URLSearchParams();
+  if(estado.periodo!=='7d') p.set('p',estado.periodo);
+  if(estado.vista!=='resumo') p.set('v',estado.vista);
+  if(f.pessoa) p.set('u',f.pessoa);
+  if(f.categoria) p.set('cat',f.categoria);
+  if(f.projeto) p.set('proj',f.projeto);
+  if(f.tipo) p.set('tipo',f.tipo);
+  if(!f.ocultar) p.set('rot','1');
+  const qs=p.toString();
+  history.replaceState(null,'', qs ? ('?'+qs) : location.pathname);
+}
+
 async function recarrega(){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
@@ -1106,7 +1158,7 @@ async function recarrega(){
     await carrega(estado.periodo);
     document.getElementById('atualizado').textContent =
       'Atualizado em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
-    preencheFiltros(); render();
+    preencheFiltros(); aplicaPendentes(); render(); estadoParaURL();
   }catch(e){
     cont.innerHTML='';
     document.getElementById('erro-box').innerHTML =
@@ -1118,12 +1170,12 @@ async function recarrega(){
 document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   const b=ev.target.closest('button'); if(!b) return;
   [...ev.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false'));
-  estado.vista=b.dataset.v; render();
+  estado.vista=b.dataset.v; render(); estadoParaURL();
 });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
 document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
-  document.getElementById(id).addEventListener('change', render));
+  document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
@@ -1151,6 +1203,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-del-aus')){ cfg.ausencias.splice(Number(t.getAttribute('data-del-aus')),1); salvaCfg(); render(); abreMetas(); }
 });
 
+leURL();
+sincronizaControlesURL();
 recarrega();
 </script>
 </body>
