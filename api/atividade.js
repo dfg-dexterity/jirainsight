@@ -15,6 +15,11 @@ export default async function handler(req, res) {
 
     const r = rangeFor(janela);
     const inicio = new Date(r.startISO).getTime();
+    const fim = new Date(r.endISO).getTime();   // limite superior (janelas passadas)
+    const naJanela = (iso) => {
+      const t = new Date(iso).getTime();
+      return t >= inicio && t <= fim;
+    };
 
     // Issues atualizadas na janela, com changelog e campos mínimos.
     const { issues, pages, truncado } = await jiraSearchAll({
@@ -54,13 +59,13 @@ export default async function handler(req, res) {
       }
 
       // Criação dentro da janela -> atribui ao reporter.
-      if (f.created && new Date(f.created).getTime() >= inicio) {
+      if (f.created && naJanela(f.created)) {
         const a = registraPessoa(f.reporter);
         if (a) eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'criado', d: f.created });
       }
 
       // Concluídas (agregado, sem atribuição individual em v1).
-      if (f.resolutiondate && new Date(f.resolutiondate).getTime() >= inicio) {
+      if (f.resolutiondate && naJanela(f.resolutiondate)) {
         concluidasTotal += 1;
         concluidasPorProj[pk] = (concluidasPorProj[pk] || 0) + 1;
       }
@@ -68,7 +73,7 @@ export default async function handler(req, res) {
       // Comentários na janela.
       const coments = (f.comment && f.comment.comments) || [];
       for (const c of coments) {
-        if (c.created && new Date(c.created).getTime() >= inicio) {
+        if (c.created && naJanela(c.created)) {
           const a = registraPessoa(c.author);
           if (a) eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'comentario', d: c.created });
         }
@@ -77,7 +82,7 @@ export default async function handler(req, res) {
       // Changelog: cada history = uma ação de um usuário.
       const histories = (it.changelog && it.changelog.histories) || [];
       for (const h of histories) {
-        if (!h.created || new Date(h.created).getTime() < inicio) continue;
+        if (!h.created || !naJanela(h.created)) continue;
         const a = registraPessoa(h.author);
         if (!a) continue;
         const items = h.items || [];
