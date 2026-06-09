@@ -52,6 +52,7 @@ function primeiroDiaMes(dateStr) {
 const JANELAS = new Set([
   'hoje', 'ontem', '7d', '30d',
   'estaSemana', 'semanaPassada', 'esteMes', 'mesPassado',
+  'esteAno', 'anoPassado',
 ]);
 
 export function normalizaJanela(j) {
@@ -90,6 +91,12 @@ export function rangeFor(janela) {
       endDate = addDays(primeiroDiaMes(hoje), -1);  // último dia do mês anterior
       startDate = primeiroDiaMes(endDate);
       break;
+    }
+    case 'esteAno':
+      startDate = `${hoje.slice(0, 4)}-01-01`; endDate = hoje; break;
+    case 'anoPassado': {
+      const y = Number(hoje.slice(0, 4)) - 1;
+      startDate = `${y}-01-01`; endDate = `${y}-12-31`; break;
     }
     case '7d':
     default:
@@ -163,7 +170,7 @@ export async function jiraResolveIssues(ids) {
     const lote = unicos.slice(i, i + 100);
     const { issues } = await jiraSearchAll({
       jql: `id in (${lote.join(',')})`,
-      fields: ['project', 'issuetype'],
+      fields: ['project', 'issuetype', 'summary'],
       pageSize: 100,
       maxPages: 1,
     });
@@ -176,10 +183,39 @@ export async function jiraResolveIssues(ids) {
         categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
         tipo: (f.issuetype && f.issuetype.name) || '—',
         issueKey: it.key || '',
+        resumo: f.summary || '',
       };
     }
   }
   return mapa;
+}
+
+// Lista os usuários HUMANOS e ATIVOS do Jira (accountType "atlassian" e active=true).
+// Isso exclui automaticamente apps/integrações (accountType "app", ex.: "Microsoft 365
+// for Jira", "Automation for Jira") e clientes do JSM (accountType "customer").
+// Serve de "elenco" para o ranking/timesheet: quem está ativo no Jira aparece mesmo
+// sem ter apontado horas no período (assim ninguém some por não ter lançado nada).
+export async function jiraUsuariosAtivos() {
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const out = {};
+  const max = 100;
+  for (let startAt = 0, page = 0; page < 30; page += 1, startAt += max) {
+    const resp = await fetch(`${base}/rest/api/3/users/search?startAt=${startAt}&maxResults=${max}`, { headers });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Jira users ${resp.status}: ${txt.slice(0, 300)}`);
+    }
+    const lote = await resp.json();
+    if (!Array.isArray(lote) || lote.length === 0) break;
+    for (const u of lote) {
+      if (u.accountType !== 'atlassian') continue;     // só pessoas (exclui app/customer)
+      if (u.active === false) continue;                // só ativos
+      out[u.accountId] = { nome: u.displayName || u.accountId, email: u.emailAddress || '' };
+    }
+    if (lote.length < max) break;
+  }
+  return out;
 }
 
 // Heurística de faturável a partir do nome do tipo de issue.
