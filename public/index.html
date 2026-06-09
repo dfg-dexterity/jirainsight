@@ -346,8 +346,25 @@ function carregaCfg(){
     return Object.assign({ metaGlobalH:8, metasPessoa:{}, ausencias:[] }, c); }catch(e){}
   return { metaGlobalH:8, metasPessoa:{}, ausencias:[] };
 }
-function salvaCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} }
+function salvaCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} salvaCfgRemota(); }
 let cfg = carregaCfg();
+let cfgShared = false;   // true quando a config vem/vai para o servidor (time)
+// Carrega a config compartilhada do servidor (se configurado); senão, mantém a local.
+async function carregaCfgRemota(){
+  try{
+    const j = await fetch('/api/config').then(r=>r.json());
+    if(j && j.configurado){
+      cfgShared = true;
+      if(j.data && typeof j.data==='object' && Object.keys(j.data).length)
+        cfg = Object.assign({ metaGlobalH:8, metasPessoa:{}, ausencias:[] }, j.data);
+    }
+  }catch(e){ /* mantém local */ }
+}
+// Salva no servidor (quando compartilhado). Dispara junto com o salvar local.
+function salvaCfgRemota(){
+  if(!cfgShared) return;
+  try{ fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg) }); }catch(e){}
+}
 // Meta diária (em segundos) de uma pessoa: override individual ou meta global.
 function metaSegDe(a){
   const h = (a && cfg.metasPessoa[a]!=null) ? cfg.metasPessoa[a] : cfg.metaGlobalH;
@@ -1077,7 +1094,9 @@ function abreMetas(){
 
   abreModal(`
     <h2>Metas e ausências</h2>
-    <div class="muted small">As configurações ficam salvas só neste navegador.</div>
+    <div class="muted small">${cfgShared
+      ? '✓ Configuração compartilhada com o time (salva no servidor).'
+      : 'Salva só neste navegador. Para valer para o time, configure o servidor (Supabase) — veja instruções.'}</div>
 
     <div class="mt-sec">
       <h3>Meta global por dia útil</h3>
@@ -1205,7 +1224,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
 
 leURL();
 sincronizaControlesURL();
-recarrega();
+(async ()=>{ await carregaCfgRemota(); recarrega(); })();
 </script>
 </body>
 </html>
