@@ -127,6 +127,37 @@
   .ts-c.hoje{background:#fff;color:#0a6b67;font-weight:700}
   .ts-lac.tem-lacuna{color:#a23b35;font-weight:700}
 
+  /* ---- Horas por pessoa e projeto (barras empilhadas) ---- */
+  .pp-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#8a857a;margin-bottom:12px}
+  .pp-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .pp-legend span{white-space:nowrap}
+  .pp-list{display:flex;flex-direction:column;gap:10px}
+  .pp-row{display:grid;grid-template-columns:150px 1fr 64px;gap:10px;align-items:center}
+  .pp-nome{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pp-track{background:#F0EBDB;border-radius:6px;height:16px;overflow:hidden}
+  .pp-stack{display:flex;height:100%;border-radius:6px;overflow:hidden}
+  .pp-stack span{display:block;height:100%}
+  .pp-val{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+
+  /* ---- Ranking de apontamento ---- */
+  .rk-list{display:flex;flex-direction:column;gap:12px}
+  .rk-row{display:grid;grid-template-columns:34px 1fr 158px;gap:12px;align-items:center}
+  .rk-pos{font-family:var(--titulo);font-size:20px;font-weight:700;color:#b3ad9d;text-align:center}
+  .rk-main{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .rk-top{display:flex;align-items:center;gap:8px}
+  .rk-nome{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rk-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#fff;
+    padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .rk-badge.ok{background:var(--musgo)} .rk-badge.warn{background:var(--amarelo)}
+  .rk-badge.bad{background:var(--err)} .rk-badge.na{background:#b3ad9d}
+  .rk-bar{background:#F0EBDB;border-radius:999px;height:10px;overflow:hidden}
+  .rk-fill{height:100%;border-radius:999px}
+  .rk-fill.ok{background:var(--musgo)} .rk-fill.warn{background:var(--amarelo)}
+  .rk-fill.bad{background:var(--err)} .rk-fill.na{background:#cdc6b4}
+  .rk-meta{text-align:right}
+  .rk-pct{font-family:var(--titulo);font-size:20px;font-weight:700;line-height:1}
+  .rk-sub{font-size:11px;color:#8a857a;font-variant-numeric:tabular-nums}
+
   .estado{padding:40px;text-align:center;color:#8a857a}
   .erro{background:#fff;border:1px solid #e7b4b4;color:#9c3b3b;border-radius:10px;padding:14px 16px;
     margin-bottom:18px;font-size:13px}
@@ -137,6 +168,8 @@
     .kpis{grid-template-columns:repeat(2,1fr)} .kpis.ts-kpis{grid-template-columns:repeat(2,1fr)}
     .grid{grid-template-columns:1fr}
     .barrow{grid-template-columns:110px 1fr 56px}
+    .pp-row{grid-template-columns:110px 1fr 56px}
+    .rk-row{grid-template-columns:28px 1fr 120px}
   }
 </style>
 </head>
@@ -156,6 +189,7 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button data-v="resumo" aria-pressed="true">Resumo</button>
       <button data-v="timesheet">Timesheet</button>
+      <button data-v="ranking">Ranking</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -200,6 +234,9 @@
 
 <script>
 const cores = { cerceta:'#009994', roxo:'#98569A', amarelo:'#FFA436', musgo:'#597C59', grafite:'#4D4D4D' };
+// Paleta para diferenciar projetos nas barras empilhadas (marca + tons de apoio).
+const PALETA = ['#009994','#98569A','#FFA436','#597C59','#2F8F8C','#7A4480','#C77F2E','#46663F'];
+const COR_OUTROS = '#cdc6b4';
 const RE_ROTINA = /rotina|reuni/i;
 const META_DIA_SEG = 8 * 3600;            // meta de 8h/dia útil para a timesheet
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, cache:{} };
@@ -353,7 +390,50 @@ function barlist(obj, fmt, cor, limite){
 }
 
 function render(){
-  return estado.vista==='timesheet' ? renderTimesheet() : renderResumo();
+  if(estado.vista==='timesheet') return renderTimesheet();
+  if(estado.vista==='ranking') return renderRanking();
+  return renderResumo();
+}
+
+// Barras empilhadas: quanto cada pessoa trabalhou em cada projeto (respeita filtros).
+function cardPessoaProjeto(){
+  const f=filtros(); const projs=projetosUnidos(); const pessoasNome=pessoasUnidas();
+  const porPessoa={}, totProj={};
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!passa(w.p,w.t,projs,f)) return;
+    if(f.pessoa && w.a!==f.pessoa) return;
+    (porPessoa[w.a]=porPessoa[w.a]||{})[w.p]=((porPessoa[w.a]&&porPessoa[w.a][w.p])||0)+w.s;
+    totProj[w.p]=(totProj[w.p]||0)+w.s;
+  });
+  const ativos=Object.keys(porPessoa);
+  if(!ativos.length) return '<div class="estado">Sem horas para os filtros atuais.</div>';
+
+  const orden=Object.entries(totProj).sort((a,b)=>b[1]-a[1]);
+  const top=orden.slice(0,PALETA.length).map(([k])=>k);
+  const corDe={}; top.forEach((k,i)=>corDe[k]=PALETA[i]);
+  const nomeProj=(k)=> (projs[k]&&projs[k].nome) ? `${k} — ${projs[k].nome}` : k;
+
+  const linhas=ativos.map(a=>{
+    const segs=porPessoa[a]; const tot=Object.values(segs).reduce((s,v)=>s+v,0);
+    return { nome:(pessoasNome[a]&&pessoasNome[a].nome)||a, segs, tot };
+  }).sort((x,y)=>y.tot-x.tot);
+  const maxTot=Math.max(1,...linhas.map(l=>l.tot));
+
+  const rows=linhas.map(l=>{
+    const partes=[]; let outros=0;
+    top.forEach(k=>{ if(l.segs[k]) partes.push([nomeProj(k),l.segs[k],corDe[k]]); });
+    Object.keys(l.segs).forEach(k=>{ if(!top.includes(k)) outros+=l.segs[k]; });
+    if(outros>0) partes.push(['Outros projetos',outros,COR_OUTROS]);
+    const stack=partes.map(([k,v,c])=>
+      `<span style="width:${v/l.tot*100}%;background:${c}" title="${esc(k)} · ${fmtH(v)}"></span>`).join('');
+    return `<div class="pp-row"><div class="pp-nome" title="${esc(l.nome)}">${esc(l.nome)}</div>
+      <div class="pp-track"><div class="pp-stack" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
+      <div class="pp-val">${fmtH(l.tot)}</div></div>`;
+  }).join('');
+
+  const legenda=top.map(k=>`<span><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
+    + (orden.length>top.length?`<span><i style="background:${COR_OUTROS}"></i>Outros</span>`:'');
+  return `<div class="pp-legend">${legenda}</div><div class="pp-list">${rows}</div>`;
 }
 
 function renderResumo(){
@@ -400,6 +480,8 @@ function renderResumo(){
     </div>
     <div class="grid">
       <div class="card full"><h2>Por pessoa</h2>${tabela}</div>
+      <div class="card full"><h2>Horas por pessoa e projeto
+        <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
       <div class="card"><h2>Horas · faturável vs não</h2>${split}</div>
       <div class="card"><h2>Horas por categoria</h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8)}</div>
       <div class="card"><h2>Atividade por tipo <span>tickets distintos</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8)}</div>
@@ -512,6 +594,96 @@ function renderTimesheet(){
           <tbody>${corpo}</tbody>
         </table>
       </div>
+    </div>
+  </div>`));
+}
+
+function renderRanking(){
+  const cont=document.getElementById('conteudo');
+  const f=filtros();
+  const ft=Object.assign({}, f, {ocultar:false});   // conta todas as horas apontadas
+  const projs=projetosUnidos();
+  const pessoasNome=pessoasUnidas();
+  const meta=estado.tempo.meta||{};
+  const dias=listaDias(meta.startDate, meta.endDate);
+  const hoje=hojeSP();
+  const diasUteis=dias.filter(d=>ehUtil(d) && d!==hoje);   // dias "cobráveis" (fechados)
+  const esperado=diasUteis.length*META_DIA_SEG;            // meta por pessoa
+
+  const cel={}; const ativos=new Set();
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!passa(w.p,w.t,projs,ft)) return;
+    if(f.pessoa && w.a!==f.pessoa) return;
+    const dia=(w.d||'').slice(0,10); if(!dia) return;
+    (cel[w.a]=cel[w.a]||{})[dia]=((cel[w.a]&&cel[w.a][dia])||0)+w.s; ativos.add(w.a);
+  });
+  (estado.atividade.eventos||[]).forEach(e=>{
+    if(!passa(e.p,e.t,projs,ft)) return;
+    if(f.pessoa && e.a!==f.pessoa) return; ativos.add(e.a);
+  });
+  if(!ativos.size){
+    cont.replaceChildren(el('<div><div class="estado">Sem dados para os filtros atuais.</div></div>'));
+    return;
+  }
+
+  const linhas=[...ativos].map(a=>{
+    const porDia=cel[a]||{}; let tot=0, lacuna=0;
+    dias.forEach(d=>{ const s=porDia[d]||0; tot+=s;
+      if(!ehUtil(d) || d===hoje) return;
+      if(s<META_DIA_SEG) lacuna+=(META_DIA_SEG-s);
+    });
+    const cumprido=Math.max(0, esperado-lacuna);
+    const pctv=esperado?Math.round(cumprido/esperado*100):null;
+    let status='ok';
+    if(pctv==null) status='na';
+    else if(pctv>=90) status='ok'; else if(pctv>=60) status='warn'; else status='bad';
+    return { nome:(pessoasNome[a]&&pessoasNome[a].nome)||a, tot, lacuna, cumprido, pctv, status };
+  }).sort((x,y)=> (y.lacuna-x.lacuna) || (y.tot-x.tot) || x.nome.localeCompare(y.nome,'pt'));
+
+  const apontTot=linhas.reduce((s,l)=>s+l.tot,0);
+  const faltaTot=linhas.reduce((s,l)=>s+l.lacuna,0);
+  const emDia=linhas.filter(l=>l.status==='ok').length;
+  const atras=linhas.filter(l=>l.status==='warn'||l.status==='bad').length;
+  const baseTot=esperado*linhas.length;
+  const pctGeral=baseTot?Math.round((baseTot-faltaTot)/baseTot*100):null;
+
+  const rotulo={ok:'Em dia',warn:'Atrasado',bad:'Crítico',na:'—'};
+  const rows=linhas.map((l,i)=>{
+    const w=l.pctv==null?0:Math.min(100,l.pctv);
+    const sub=l.pctv==null ? `${fmtH(l.tot)} apontadas`
+      : `${fmtH(l.cumprido)} / ${fmtH(esperado)} · ${l.lacuna>0?('faltam '+fmtH(l.lacuna)):'em dia'}`;
+    return `<div class="rk-row">
+      <div class="rk-pos">${i+1}</div>
+      <div class="rk-main">
+        <div class="rk-top"><span class="rk-nome" title="${esc(l.nome)}">${esc(l.nome)}</span>
+          <span class="rk-badge ${l.status}">${rotulo[l.status]}</span></div>
+        <div class="rk-bar"><div class="rk-fill ${l.status}" style="width:${w}%"></div></div>
+      </div>
+      <div class="rk-meta"><div class="rk-pct">${l.pctv==null?'—':l.pctv+'%'}</div>
+        <div class="rk-sub">${sub}</div></div>
+    </div>`;
+  }).join('');
+
+  const aviso = esperado ? '' :
+    '<div class="estado" style="padding:14px">Este período ainda não tem dias úteis fechados (a meta só conta dias seg–sex já passados). Mostrando apenas as horas apontadas.</div>';
+
+  cont.replaceChildren(el(`<div>
+    <div class="kpis ts-kpis">
+      <div class="kpi t"><div class="v">${pctGeral==null?'—':pctGeral+'%'}</div><div class="l">Apontamento geral</div></div>
+      <div class="kpi w"><div class="v">${fmtH(faltaTot)}</div><div class="l">Horas faltando</div></div>
+      <div class="kpi t"><div class="v">${emDia}</div><div class="l">Pessoas em dia</div></div>
+      <div class="kpi w"><div class="v">${atras}</div><div class="l">Pessoas atrasadas</div></div>
+    </div>
+    <div class="card full">
+      <h2>Ranking de apontamento
+        <span>${esc(meta.startDate||'')} → ${esc(meta.endDate||'')} · meta ${diasUteis.length}×8h = ${fmtH(esperado)} por pessoa</span></h2>
+      <div class="ts-legend">
+        <span><i class="sw ok"></i>Em dia (≥ 90%)</span>
+        <span><i class="sw parcial"></i>Atrasado (60–89%)</span>
+        <span><i class="sw vazio"></i>Crítico (&lt; 60%)</span>
+      </div>
+      ${aviso}
+      <div class="rk-list">${rows}</div>
     </div>
   </div>`));
 }
