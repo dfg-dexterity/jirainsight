@@ -203,12 +203,54 @@
   footer{margin-top:28px;padding-top:16px;border-top:1px solid var(--linha);
     font-size:12px;color:#8a857a;line-height:1.6}
 
+  /* Rolagem horizontal para tabelas largas (timesheet, tickets, por pessoa) */
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* ---- Tablet / iPad ---- */
   @media (max-width:880px){
+    .wrap{padding:18px 14px 56px}
     .kpis{grid-template-columns:repeat(2,1fr)} .kpis.ts-kpis{grid-template-columns:repeat(2,1fr)}
     .grid{grid-template-columns:1fr}
     .barrow{grid-template-columns:110px 1fr 56px}
     .pp-row{grid-template-columns:110px 1fr 56px}
     .rk-row{grid-template-columns:28px 1fr 120px}
+    header{gap:10px}
+    .hdr-sel{flex:1 1 160px}
+    .hdr-sel select{width:100%}
+    .filtros{gap:10px}
+    .campo{flex:1 1 150px}
+    select{min-width:0;width:100%}
+  }
+
+  /* ---- Celular ---- */
+  @media (max-width:600px){
+    .wrap{padding:14px 12px 48px}
+    .brand h1{font-size:20px}
+    .brand img{width:34px;height:34px}
+    .spacer{display:none}
+    header{gap:8px}
+    .seg{width:100%;overflow-x:auto}
+    .seg button{flex:1 0 auto;white-space:nowrap;padding:8px 12px}
+    .hdr-sel{flex:1 1 100%}
+    #btn-metas,#btn-csv,#btn-refresh{flex:1 1 30%}
+    .atualizado{order:9}
+    .filtros{flex-direction:column;align-items:stretch}
+    .campo{width:100%}
+    .check{padding-bottom:0}
+    .kpis,.kpis.ts-kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+    .kpi{padding:13px}
+    .kpi .v{font-size:24px}
+    .card{padding:14px}
+    .rk-row{grid-template-columns:24px 1fr 108px;gap:8px}
+    .rk-pct{font-size:18px}
+    .det-kpis{grid-template-columns:1fr}
+    .modal{padding:16px}
+    .mt-form{flex-direction:column;align-items:stretch}
+    .mt-form .campo,.mt-form select,.mt-form input,.mt-form .btn{width:100%}
+    /* força rolagem (em vez de espremer) nas tabelas largas */
+    .scroll-x table{min-width:560px}
+    .ts-wrap > table:not(.ts){min-width:660px}
+    .scroll-x .cols{min-width:520px}
   }
 </style>
 </head>
@@ -655,7 +697,7 @@ function renderResumo(){
       <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
     </div>
     <div class="grid">
-      <div class="card full"><h2>Por pessoa</h2>${tabela}</div>
+      <div class="card full"><h2>Por pessoa</h2><div class="scroll-x">${tabela}</div></div>
       <div class="card full"><h2>Horas por pessoa e projeto
         <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
       <div class="card full"><h2>Faturável por pessoa
@@ -664,7 +706,7 @@ function renderResumo(){
       <div class="card"><h2>Horas por categoria</h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8)}</div>
       <div class="card"><h2>Atividade por tipo <span>tickets distintos</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8)}</div>
       <div class="card"><h2>Top projetos por horas <span>passe o mouse p/ ver o nome</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,(k)=>{const p=d.projs[k];return p&&p.nome?`${k} — ${p.nome}`:k;})}</div>
-      <div class="card full"><h2>Horas por dia</h2>${colunas}</div>
+      <div class="card full"><h2>Horas por dia</h2><div class="scroll-x">${colunas}</div></div>
     </div>
   </div>`));
 }
