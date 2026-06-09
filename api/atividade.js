@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     // Issues atualizadas na janela, com changelog e campos mínimos.
     const { issues, pages, truncado } = await jiraSearchAll({
       jql: `updated >= "${r.startDate}" ORDER BY updated ASC`,
-      fields: ['project', 'issuetype', 'created', 'reporter', 'resolutiondate', 'comment'],
+      fields: ['project', 'issuetype', 'created', 'reporter', 'resolutiondate', 'comment', 'summary'],
       expand: 'changelog',
       pageSize: 100,
     });
@@ -32,6 +32,7 @@ export default async function handler(req, res) {
     const eventos = [];            // {k,p,t,a,e,d}
     const pessoas = {};            // accountId -> {nome,email}
     const projetos = {};           // key -> {nome,categoria}
+    const resumos = {};            // issueKey -> título (summary) da issue
     const concluidasPorProj = {};  // key -> n
     let concluidasTotal = 0;
 
@@ -57,6 +58,7 @@ export default async function handler(req, res) {
           categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
         };
       }
+      if (f.summary && !resumos[it.key]) resumos[it.key] = f.summary;
 
       // Criação dentro da janela -> atribui ao reporter.
       if (f.created && naJanela(f.created)) {
@@ -105,6 +107,7 @@ export default async function handler(req, res) {
       },
       pessoas,
       projetos,
+      resumos,
       eventos,
     };
     return json(res, 200, cacheSet(ck, payload));

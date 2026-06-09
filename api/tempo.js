@@ -55,6 +55,7 @@ export default async function handler(req, res) {
 
     const pessoas = {};   // accountId -> {nome,email}
     const projetos = {};  // key -> {nome,categoria}
+    const resumos = {};   // issueKey -> título (summary) da issue
     const worklogs = [];  // {a,s,d,p,t,f}
 
     for (const w of brutos) {
@@ -68,10 +69,12 @@ export default async function handler(req, res) {
         };
       }
       const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
-      const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', issueKey: '' };
+      const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', issueKey: '', resumo: '' };
       if (!projetos[m.projetoKey]) {
         projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
       }
+      const ik = m.issueKey || (w.issue && w.issue.key) || '';
+      if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
       worklogs.push({
         a: aid,
         s: Number(w.timeSpentSeconds || 0),
@@ -87,6 +90,7 @@ export default async function handler(req, res) {
       meta: { ...r, totalWorklogs: worklogs.length },
       pessoas,
       projetos,
+      resumos,
       worklogs,
     };
     return json(res, 200, cacheSet(ck, payload));
