@@ -287,6 +287,9 @@ const cores = { cerceta:'#009994', roxo:'#98569A', amarelo:'#FFA436', musgo:'#59
 const PALETA = ['#009994','#98569A','#FFA436','#597C59','#2F8F8C','#7A4480','#C77F2E','#46663F'];
 const COR_OUTROS = '#cdc6b4';
 const RE_ROTINA = /rotina|reuni/i;
+// Usuários técnicos / apps do Jira a esconder (não são pessoas). Para esconder
+// outros, acrescente o nome aqui separado por | (ex.: |meu bot).
+const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira/i;
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, cache:{} };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
@@ -334,7 +337,18 @@ async function carrega(periodo){
   ]);
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);
   if (a.erro) throw new Error('Atividade (Jira): '+a.erro);
+  removeUsuariosTecnicos(t, a);
   estado.tempo=t; estado.atividade=a; estado.cache[periodo]={tempo:t,atividade:a};
+}
+
+// Remove apps/bots do Jira (Automation, BigGantt…) dos dados antes de usar,
+// para que não apareçam em nenhuma visão nem no filtro de Pessoa.
+function removeUsuariosTecnicos(t, a){
+  const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
+  const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));
+  if(!bots.size) return;
+  if(t){ if(t.worklogs) t.worklogs = t.worklogs.filter(w=>!bots.has(w.a)); if(t.pessoas) bots.forEach(id=>delete t.pessoas[id]); }
+  if(a){ if(a.eventos)  a.eventos  = a.eventos.filter(e=>!bots.has(e.a));  if(a.pessoas) bots.forEach(id=>delete a.pessoas[id]); }
 }
 
 function projetosUnidos(){
