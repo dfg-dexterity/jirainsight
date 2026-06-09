@@ -229,6 +229,7 @@
       <button data-v="resumo" aria-pressed="true">Resumo</button>
       <button data-v="timesheet">Timesheet</button>
       <button data-v="ranking">Ranking</button>
+      <button data-v="tickets">Tickets</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -290,6 +291,10 @@ const RE_ROTINA = /rotina|reuni/i;
 // Usuários técnicos / apps do Jira a esconder (não são pessoas). Para esconder
 // outros, acrescente o nome aqui separado por | (ex.: |meu bot).
 const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira/i;
+// Base do Jira para montar os links dos tickets (/browse/CHAVE). Se a instância
+// mudar, troque aqui. (Usa o que vier do servidor em meta.jiraBase, se existir.)
+const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
+const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, cache:{} };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
@@ -461,19 +466,20 @@ function agrega(){
   };
 }
 
-function barlist(obj, fmt, cor, limite){
+function barlist(obj, fmt, cor, limite, titleFn){
   const ent=Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,limite||8);
   const max=Math.max(1,...ent.map(e=>e[1]));
   if(!ent.length) return '<div class="estado">Sem dados para os filtros atuais.</div>';
-  return `<div class="barlist">`+ent.map(([k,v])=>`
-    <div class="barrow"><div class="nome" title="${esc(k)}">${esc(k)}</div>
+  return `<div class="barlist">`+ent.map(([k,v])=>{ const tit=titleFn?titleFn(k):k; return `
+    <div class="barrow"><div class="nome" title="${esc(tit)}">${esc(k)}</div>
       <div class="track"><div class="fill" style="width:${Math.max(2,v/max*100)}%;background:${cor}"></div></div>
-      <div class="val">${fmt(v)}</div></div>`).join('')+`</div>`;
+      <div class="val">${fmt(v)}</div></div>`; }).join('')+`</div>`;
 }
 
 function render(){
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
+  if(estado.vista==='tickets') return renderTickets();
   return renderResumo();
 }
 
@@ -513,7 +519,7 @@ function cardPessoaProjeto(){
       <div class="pp-val">${fmtH(l.tot)}</div></div>`;
   }).join('');
 
-  const legenda=top.map(k=>`<span><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
+  const legenda=top.map(k=>`<span title="${esc(nomeProj(k))}"><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
     + (orden.length>top.length?`<span><i style="background:${COR_OUTROS}"></i>Outros</span>`:'');
   return `<div class="pp-legend">${legenda}</div><div class="pp-list">${rows}</div>`;
 }
@@ -657,7 +663,7 @@ function renderResumo(){
       <div class="card"><h2>Horas · faturável vs não</h2>${split}</div>
       <div class="card"><h2>Horas por categoria</h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8)}</div>
       <div class="card"><h2>Atividade por tipo <span>tickets distintos</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8)}</div>
-      <div class="card"><h2>Top projetos por horas</h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8)}</div>
+      <div class="card"><h2>Top projetos por horas <span>passe o mouse p/ ver o nome</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,(k)=>{const p=d.projs[k];return p&&p.nome?`${k} — ${p.nome}`:k;})}</div>
       <div class="card full"><h2>Horas por dia</h2>${colunas}</div>
     </div>
   </div>`));
@@ -885,6 +891,70 @@ function renderRanking(){
   </div>`));
 }
 
+// Agrega os tickets (issues) tocados no Jira no período, respeitando os filtros.
+function calcTickets(){
+  const f=filtros(); const projs=projetosUnidos(); const pessoasNome=pessoasUnidas();
+  const mapa={};
+  (estado.atividade.eventos||[]).forEach(e=>{
+    if(!passa(e.p,e.t,projs,f)) return;
+    if(f.pessoa && e.a!==f.pessoa) return;
+    const t = mapa[e.k] || (mapa[e.k]={ k:e.k, p:e.p, t:e.t, autores:{}, alter:0, trans:0, coment:0, criado:0, total:0, ultima:'' });
+    if(e.e==='alteracao') t.alter++;
+    else if(e.e==='transicao') t.trans++;
+    else if(e.e==='comentario') t.coment++;
+    else if(e.e==='criado') t.criado++;
+    t.total++;
+    if(pessoasNome[e.a]) t.autores[e.a]=pessoasNome[e.a].nome;
+    const dia=(e.d||'').slice(0,10); if(dia>t.ultima) t.ultima=dia;
+  });
+  const linhas=Object.values(mapa)
+    .sort((x,y)=> (x.ultima<y.ultima?1:x.ultima>y.ultima?-1:0) || (y.total-x.total) || x.k.localeCompare(y.k));
+  return { linhas, projs };
+}
+
+function renderTickets(){
+  const cont=document.getElementById('conteudo');
+  const { linhas, projs } = calcTickets();
+  if(!linhas.length){
+    cont.replaceChildren(el('<div><div class="estado">Sem tickets para os filtros atuais. (A aba Tickets vem da atividade do Jira no período.)</div></div>'));
+    return;
+  }
+  const nomeProj=(k)=> (projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
+  const rows=linhas.map(l=>{
+    const url=`${jiraBase()}/browse/${encodeURIComponent(l.k)}`;
+    const quem=Object.values(l.autores);
+    return `<tr>
+      <td><a href="${url}" target="_blank" rel="noopener" title="Abrir ${esc(l.k)} no Jira">${esc(l.k)} ↗</a></td>
+      <td title="${esc(nomeProj(l.p))}">${esc(l.p)}</td>
+      <td>${esc(l.t)}</td>
+      <td title="${esc(quem.join(', '))}">${quem.length}</td>
+      <td class="num">${l.alter}</td>
+      <td class="num">${l.trans}</td>
+      <td class="num">${l.coment}</td>
+      <td class="num">${l.criado}</td>
+      <td>${esc(l.ultima)}</td>
+    </tr>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="kpis ts-kpis">
+      <div class="kpi a"><div class="v">${linhas.length}</div><div class="l">Tickets tocados</div></div>
+      <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.total,0)}</div><div class="l">Atividades</div></div>
+      <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.trans,0)}</div><div class="l">Transições</div></div>
+      <div class="kpi a"><div class="v">${linhas.reduce((s,l)=>s+l.criado,0)}</div><div class="l">Criados</div></div>
+    </div>
+    <div class="card full">
+      <h2>Tickets do Jira <span>clique no código para abrir o ticket em outra aba</span></h2>
+      <div class="ts-wrap">
+        <table><thead><tr>
+          <th>Ticket</th><th>Projeto</th><th>Tipo</th><th class="num">Pessoas</th>
+          <th class="num">Alter.</th><th class="num">Transições</th><th class="num">Coment.</th>
+          <th class="num">Criado</th><th>Última</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>
+  </div>`));
+}
+
 // ---- Modal ----
 function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
@@ -919,6 +989,12 @@ function exportaCSV(){
     const rows=linhas.map((l,i)=>[i+1, l.nome, dec(l.tot), dec(l.esperadoP), dec(l.lacuna),
       l.pctv==null?'':l.pctv, rot[l.status]]);
     baixaCSV(`ranking_${per}.csv`, [head, ...rows]);
+  } else if(estado.vista==='tickets'){
+    const { linhas } = calcTickets();
+    const head=['Ticket','Link','Projeto','Tipo','Pessoas','Alterações','Transições','Comentários','Criado','Última atividade'];
+    const rows=linhas.map(l=>[l.k, `${jiraBase()}/browse/${l.k}`, l.p, l.t,
+      Object.values(l.autores).join(', '), l.alter, l.trans, l.coment, l.criado, l.ultima]);
+    baixaCSV(`tickets_${per}.csv`, [head, ...rows]);
   } else {
     const d=agrega();
     const head=['Pessoa','Horas','Faturável %','Tickets','Alterações','Transições','Comentários'];
