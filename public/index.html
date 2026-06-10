@@ -1901,8 +1901,12 @@ function renderPlanejarForm(){
         <textarea class="pl-texto" id="pl-texto" placeholder="Levantar requisitos com o cliente ; agendar reunião inicial
 Configurar ambiente de homologação
 Criar massa de testes ; usar dados do projeto anterior">${esc(pl.texto)}</textarea></div>
-      <div class="pl-dica"><span id="pl-contador">${nLinhas}</span> ticket(s) na lista · máximo 100 por lote.</div>
-      <button class="btn primario" id="pl-validar">Validar e revisar →</button>
+      <div class="pl-dica"><span id="pl-contador">${nLinhas}</span> ticket(s) na lista · máximo 100 por lote.
+        Tem uma planilha? Use <strong>📋 Colar do Excel / CSV</strong> (com colunas Resumo, Descrição, Tipo, Responsável).</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="pl-importar">📋 Colar do Excel / CSV</button>
+        <button class="btn primario" id="pl-validar">Validar e revisar →</button>
+      </div>
       <div class="ap-fb" id="pl-fb" hidden></div>
     </div>
   </div>`));
@@ -2016,6 +2020,139 @@ async function criaLote(){
     if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
     renderPlanejar();
   }
+}
+// ---- Importação de CSV / colar do Excel ----
+// Aceita TAB (colagem do Excel), ";" ou "," . Colunas: Resumo, Descrição, Tipo, Responsável.
+function detectaDelim(text){
+  const linha=(text.split('\n').find(l=>l.trim())||'');
+  if(linha.includes('\t')) return '\t';
+  const pv=(linha.match(/;/g)||[]).length, vg=(linha.match(/,/g)||[]).length;
+  if(pv>0 && pv>=vg) return ';';
+  if(vg>0) return ',';
+  return '\t';                                 // coluna única (só resumos)
+}
+// Parser com suporte a campos entre aspas (que podem conter o delimitador e quebras de linha).
+function parseDelimitado(text, delim){
+  const rows=[]; let row=[], field='', inQ=false, i=0;
+  const fimCampo=()=>{ row.push(field); field=''; };
+  const fimLinha=()=>{ fimCampo(); rows.push(row); row=[]; };
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i+=2; continue; } inQ=false; i++; continue; }
+      field+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===delim){ fimCampo(); i++; continue; }
+    if(c==='\r'){ i++; continue; }
+    if(c==='\n'){ fimLinha(); i++; continue; }
+    field+=c; i++;
+  }
+  if(field!==''||row.length){ fimLinha(); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+const RE_HEAD=/resumo|summary|t[ií]tulo|title|assunto|descri|description|tipo|type|respons|assignee|atribu/i;
+function temCabecalho(rows){
+  if(!rows.length) return false;
+  return rows[0].some(c=>RE_HEAD.test(String(c).trim()));
+}
+function mapeiaColunas(header){
+  const idx={resumo:0,descricao:1,tipo:2,resp:3};
+  if(header){
+    const acha=(re)=>header.findIndex(h=>re.test(String(h).trim()));
+    idx.resumo=Math.max(0,acha(/resumo|summary|t[ií]tulo|title|assunto/i));
+    idx.descricao=acha(/descri|description/i);
+    idx.tipo=acha(/tipo|type/i);
+    idx.resp=acha(/respons|assignee|atribu/i);
+  }
+  return idx;
+}
+function tipoIdPorNome(nome){
+  const n=String(nome).trim().toLowerCase(); if(!n) return '';
+  const t=tiposDisponiveis().find(x=>(x.nome||'').toLowerCase()===n);
+  return t?t.id:'';
+}
+function respIdPorNome(nome){
+  const n=String(nome).trim().toLowerCase(); if(!n) return '';
+  const ent=Object.entries(pessoasUnidas());
+  let hit=ent.find(([a,o])=>((o&&o.nome)||'').toLowerCase()===n)
+      || ent.find(([a,o])=>((o&&o.email)||'').toLowerCase()===n)
+      || (n.length>=3 ? ent.find(([a,o])=>((o&&o.nome)||'').toLowerCase().includes(n)) : null);
+  return hit?hit[0]:'';
+}
+// Texto colado -> { itens, avisos } usando o destino atual (projeto/tipo/responsável padrão).
+function importaDeTexto(text, comHeader){
+  const pl=estado.planejar;
+  const rows0=parseDelimitado(text, detectaDelim(text));
+  if(!rows0.length) return { itens:[], avisos:[] };
+  let header=null, rows=rows0;
+  if(comHeader){ header=rows0[0].map(c=>String(c).trim()); rows=rows0.slice(1); }
+  const idx=mapeiaColunas(header);
+  const avisos=new Set();
+  const itens=rows.map(r=>{
+    const get=(i)=> (i>=0 && i<r.length) ? String(r[i]).trim() : '';
+    let tipoId=pl.tipoId;
+    if(idx.tipo>=0){ const nm=get(idx.tipo); if(nm){ const id=tipoIdPorNome(nm);
+      if(id) tipoId=id; else avisos.add(`Tipo “${nm}” não existe neste destino — usando o padrão.`); } }
+    let respId=pl.respId;
+    if(idx.resp>=0){ const nm=get(idx.resp); if(nm){ const id=respIdPorNome(nm);
+      if(id) respId=id; else avisos.add(`Responsável “${nm}” não encontrado — usando o padrão.`); } }
+    return { resumo:get(idx.resumo), descricao:idx.descricao>=0?get(idx.descricao):'',
+      tipoId, respId, paiKey:(pl.modo==='epico'?pl.paiKey:'')||'' };
+  }).filter(it=>it.resumo);
+  return { itens, avisos:[...avisos] };
+}
+
+// Modal de importação (colar do Excel / CSV) com pré-visualização.
+function abreImportar(){
+  abreModal(`
+    <h2>Colar do Excel / importar CSV</h2>
+    <div class="muted small">Cole direto do Excel (Ctrl/Cmd+V) ou um CSV. Colunas, nesta ordem:
+      <strong>Resumo</strong>, Descrição, Tipo, Responsável. Só o <strong>Resumo</strong> é obrigatório;
+      Tipo/Responsável em branco usam o padrão do formulário. Uma linha = um ticket.</div>
+    <textarea id="pl-csv" class="pl-texto" style="min-height:170px;margin-top:10px"
+      placeholder="Resumo&#9;Descrição&#9;Tipo&#9;Responsável&#10;Levantar requisitos&#9;reunião inicial&#9;Tarefa&#9;Ana&#10;Configurar ambiente&#9;&#9;Tarefa&#9;Julian"></textarea>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="pl-csv-head"> Primeira linha é cabeçalho</label>
+    <div id="pl-csv-prev" class="pl-dica" style="margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn" id="pl-csv-cancel">Cancelar</button>
+      <button class="btn primario" id="pl-csv-import" disabled>Importar para revisão</button>
+    </div>`);
+  setTimeout(()=>{ const ta=document.getElementById('pl-csv'); if(ta) ta.focus(); atualizaPreviewCSV(); }, 30);
+}
+function atualizaPreviewCSV(){
+  const ta=document.getElementById('pl-csv'), cb=document.getElementById('pl-csv-head'),
+        prev=document.getElementById('pl-csv-prev'), btn=document.getElementById('pl-csv-import');
+  if(!ta||!prev) return;
+  const text=ta.value;
+  if(cb && !cb.hasAttribute('data-touched')){                   // sugere cabeçalho automaticamente
+    cb.checked=temCabecalho(parseDelimitado(text, detectaDelim(text)));
+  }
+  const { itens, avisos }=importaDeTexto(text, cb&&cb.checked);
+  if(btn) btn.disabled=!itens.length;
+  if(!itens.length){ prev.innerHTML='<span class="muted small">Cole os dados acima para pré-visualizar.</span>'; return; }
+  const nomeTipo=(id)=>{ const t=tiposDisponiveis().find(x=>x.id===id); return t?t.nome:'(padrão)'; };
+  const nomeResp=(id)=>{ const o=pessoasUnidas()[id]; return o?(o.nome||id):'—'; };
+  const amostra=itens.slice(0,4).map(it=>`<tr><td>${esc(it.resumo)}</td><td>${esc(it.descricao||'—')}</td>
+    <td>${esc(nomeTipo(it.tipoId))}</td><td>${esc(it.respId?nomeResp(it.respId):'—')}</td></tr>`).join('');
+  prev.innerHTML=`<div><strong>${itens.length}</strong> ticket(s) detectado(s).</div>`+
+    (avisos.length?`<div class="aviso" style="margin:8px 0">${avisos.map(esc).join('<br>')}</div>`:'')+
+    `<div class="ts-wrap" style="margin-top:8px"><table class="pl-rev"><thead><tr>
+       <th>Resumo</th><th>Descrição</th><th>Tipo</th><th>Responsável</th></tr></thead>
+       <tbody>${amostra}</tbody></table></div>`+
+    (itens.length>4?`<div class="muted small" style="margin-top:4px">…e mais ${itens.length-4}.</div>`:'');
+}
+function confirmaImportacao(){
+  const ta=document.getElementById('pl-csv'), cb=document.getElementById('pl-csv-head');
+  if(!ta) return;
+  const { itens }=importaDeTexto(ta.value, cb&&cb.checked);
+  if(!itens.length) return;
+  if(itens.length>100){ const prev=document.getElementById('pl-csv-prev');
+    if(prev) prev.innerHTML=`<div class="aviso">São ${itens.length} linhas — o máximo é 100 por lote. Reduza a seleção.</div>`; return; }
+  estado.planejar.itens=itens;                 // vai direto para a revisão
+  estado.planejar.resultados=null;
+  fechaModal();
+  renderPlanejar();
 }
 // ======================================================================================
 
@@ -2259,6 +2396,14 @@ document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete es
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 
+// Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.
+document.getElementById('modal-body').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='pl-csv') atualizaPreviewCSV();
+});
+document.getElementById('modal-body').addEventListener('change', (e)=>{
+  if(e.target && e.target.id==='pl-csv-head'){ e.target.setAttribute('data-touched','1'); atualizaPreviewCSV(); }
+});
+
 // Modal: fechar
 document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
@@ -2313,6 +2458,12 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     if(!itens.length) return mostra('Digite pelo menos um ticket (uma linha por ticket).');
     if(itens.length>100) return mostra(`São ${itens.length} linhas — o máximo é 100 por lote.`);
     pl.itens=itens; renderPlanejar();
+  }
+  else if(t.id==='pl-importar'){
+    const fb=document.getElementById('pl-fb');
+    if(!pl.projeto||!pl.tipoId){ if(fb){ fb.hidden=false; fb.className='ap-fb err';
+      fb.textContent='Escolha o projeto e o tipo de ticket antes de colar a planilha.'; } return; }
+    abreImportar();
   }
   else if(t.id==='pl-voltar'){ pl.itens=null; renderPlanejar(); }
   else if(t.id==='pl-criar'){ criaLote(); }
@@ -2383,6 +2534,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
   else if(t.id==='ap-id-sair'){ limpaIdApontar(); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
+  else if(t.id==='pl-csv-import'){ confirmaImportacao(); }
+  else if(t.id==='pl-csv-cancel'){ fechaModal(); }
 });
 
 leURL();
