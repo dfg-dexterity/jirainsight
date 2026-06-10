@@ -271,6 +271,29 @@
     .ap-filtros{flex-direction:column;align-items:stretch}
   }
 
+  /* ---- Planejar (criação de tickets em lote) ---- */
+  .pl-texto{width:100%;min-height:150px;font-family:var(--corpo);font-size:13px;padding:10px 12px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);
+    resize:vertical;box-sizing:border-box;line-height:1.6}
+  .pl-grid{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+  .pl-grid select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:170px;max-width:320px}
+  .pl-dica{font-size:12px;color:#8a857a;margin:6px 0 12px;line-height:1.6}
+  .pl-destino{background:#eef6f6;border:1px solid #cfe5e4;border-radius:10px;padding:10px 14px;
+    margin-bottom:12px;font-size:13px}
+  table.pl-rev{width:100%;border-collapse:collapse;font-size:13px}
+  table.pl-rev th,table.pl-rev td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
+  table.pl-rev input,table.pl-rev select{font-family:var(--corpo);font-size:12.5px;padding:6px 8px;
+    border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite);width:100%;box-sizing:border-box}
+  tr.pl-row-err input.pl-resumo{border-color:#e7b4b4;background:#fff7f7}
+  .pl-st{font-size:14px;white-space:nowrap}
+  .pl-st.ok{color:#3f5a3f} .pl-st.err{color:#a23b35} .pl-st.warn{color:#9a6412}
+  .pl-res-item{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dashed var(--linha);font-size:13px}
+  .pl-res-item a{font-weight:700;white-space:nowrap}
+  .pl-res-ok{font-family:var(--titulo);font-size:24px;font-weight:700;color:#3f5a3f;margin:6px 0 12px}
+  @media (max-width:600px){ .pl-grid{flex-direction:column;align-items:stretch}
+    .pl-grid select{max-width:none} table.pl-rev{font-size:12px} }
+
   /* ---- Tooltip flutuante (segue o cursor) ---- */
   .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
     background:rgba(40,40,40,.96);color:#fff;border-radius:8px;padding:8px 10px;
@@ -365,6 +388,7 @@
       <button data-v="ranking">Ranking</button>
       <button data-v="tickets">Tickets</button>
       <button data-v="apontar">⏱ Apontar</button>
+      <button data-v="planejar">📝 Planejar</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -407,6 +431,9 @@
     apontadas no Clockwork com a meta por dia útil (padrão <em>8h, seg–sex</em>, ajustável em
     <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
     Clique no nome de qualquer pessoa para ver o detalhe.
+    <br><strong>Planejar:</strong> cria tickets em lote (com validação antes) direto no projeto ou dentro
+    de um épico/história — o relator é quem cria. <strong>Teams:</strong> com o webhook configurado, o
+    ranking diário de apontamento é enviado ao canal automaticamente nos dias úteis.
     <br><strong>Apontar:</strong> mostra os chamados abertos com vencimento até a data escolhida e permite
     registrar horas e <em>mover o status</em> direto no Jira — tudo criado <em>no usuário de quem opera</em>
     (cada pessoa se identifica uma vez com seu token de API; fica salvo só no navegador dela). As horas
@@ -438,7 +465,11 @@ const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
-  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false } };
+  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false },
+  // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
+  planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', paiKey:'', texto:'',
+    itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
+    carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -731,12 +762,14 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 }
 
 function render(){
-  // A tela Apontar tem filtros próprios (vencimento/status); esconde os globais.
-  const fg=document.querySelector('.filtros'); if(fg) fg.style.display=(estado.vista==='apontar')?'none':'';
+  // Apontar/Planejar têm controles próprios; esconde os filtros globais.
+  const fg=document.querySelector('.filtros');
+  if(fg) fg.style.display=(estado.vista==='apontar'||estado.vista==='planejar')?'none':'';
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
   if(estado.vista==='apontar') return renderApontar();
+  if(estado.vista==='planejar') return renderPlanejar();
   return renderResumo();
 }
 
@@ -1005,6 +1038,12 @@ function renderResumo(){
       <div class="card full"><h2>Faturável por pessoa
         <span>% faturável de cada um</span></h2>${cardFaturavelPessoa()}</div>
       <div class="card"><h2>Horas · faturável vs não</h2>${split}</div>
+      <div class="card"><h2>Uso do Jira <span>no período</span></h2>${(()=>{
+        const soma=(c)=>d.pessoas.reduce((s,p)=>s+(p[c]||0),0);
+        return barlist({ 'Chamados criados':soma('criado'), 'Atualizações (alterações)':soma('alter'),
+          'Comentários':soma('coment'), 'Transições de status':k.transTot,
+          'Concluídos':(k.concl==null?0:k.concl) },(v)=>v,cores.amarelo,6);
+      })()}</div>
       <div class="card"><h2>Horas por categoria <span>clique para detalhar</span></h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8,null,null,{drill:(k)=>({type:'categoria',key:k})})}</div>
       <div class="card"><h2>Atividade por tipo <span>tickets distintos · clique p/ detalhar</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8,null,null,{tip2Fn:(k,v)=>`${v} tickets`,drill:(k)=>({type:'tipo',key:k})})}</div>
       <div class="card"><h2>Top projetos por horas <span>passe o mouse no código · clique p/ detalhar</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,nomeProjResumo,nomeProjResumo,{drill:(k)=>({type:'projeto',key:k})})}</div>
@@ -1718,6 +1757,268 @@ async function executaTransicao(btn){
 }
 // ======================================================================================
 
+// ============================ PLANEJAR (criação em lote) =============================
+// Tipos disponíveis conforme o destino: filho de história = sub-tarefas; filho de
+// épico ou criação direta no projeto = tipos padrão (nível 0, não sub-tarefa).
+function tiposDisponiveis(){
+  const pl=estado.planejar;
+  const proj=(pl.projetos||[]).find(p=>p.key===pl.projeto);
+  if(!proj) return [];
+  const paiEhHistoria = pl.modo==='epico' && pl.paiKey &&
+    ((pl.epicosPorProj[pl.projeto]||{}).historias||[]).some(h=>h.k===pl.paiKey);
+  return proj.tipos.filter(t=> paiEhHistoria ? t.subtarefa : (!t.subtarefa && t.nivel===0));
+}
+// Garante que o tipo selecionado é válido para o destino atual.
+function ajustaTipo(){
+  const pl=estado.planejar; const tipos=tiposDisponiveis();
+  if(!tipos.some(t=>t.id===pl.tipoId)) pl.tipoId=(tipos[0]&&tipos[0].id)||'';
+}
+
+// Valida um item da revisão ('' = ok).
+function validaItemPl(it){
+  const r=(it.resumo||'').trim();
+  if(!r) return 'Resumo vazio';
+  if(r.length>255) return `Resumo com ${r.length} caracteres (máx. 255)`;
+  return '';
+}
+
+// Texto do formulário -> itens da revisão (uma linha = um ticket; "resumo ; descrição").
+function montaItens(){
+  const pl=estado.planejar;
+  return pl.texto.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const i=l.indexOf(';');
+    return {
+      resumo:(i>=0?l.slice(0,i):l).trim(),
+      descricao:(i>=0?l.slice(i+1):'').trim(),
+      tipoId:pl.tipoId, respId:pl.respId,
+      paiKey:(pl.modo==='epico'?pl.paiKey:'')||'',
+    };
+  });
+}
+
+function renderPlanejar(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+
+  // Projetos (com tipos) carregam uma vez.
+  if(!pl.projetos){
+    if(pl.projetosErro){
+      cont.replaceChildren(el(`<div class="erro"><strong>Falha ao carregar os projetos.</strong> ${esc(pl.projetosErro)}
+        <button class="btn" id="pl-tentar" style="margin-left:10px">Tentar de novo</button></div>`));
+      return;
+    }
+    if(!pl.carregandoProjetos){
+      pl.carregandoProjetos=true;
+      fetch('/api/projetos').then(r=>r.json()).then(j=>{
+        pl.carregandoProjetos=false;
+        if(j.erro) pl.projetosErro=j.erro; else pl.projetos=j.projetos||[];
+        if(estado.vista==='planejar') renderPlanejar();
+      }).catch(e=>{ pl.carregandoProjetos=false; pl.projetosErro=String(e.message||e);
+        if(estado.vista==='planejar') renderPlanejar(); });
+    }
+    cont.replaceChildren(el('<div class="estado">Carregando projetos do Jira…</div>'));
+    return;
+  }
+
+  if(pl.resultados) return renderPlanejarResultado();
+  if(pl.itens) return renderPlanejarRevisao();
+  renderPlanejarForm();
+}
+
+function renderPlanejarForm(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+  const id=idApontar();
+
+  // Épicos/histórias do projeto (modo épico) carregam sob demanda.
+  if(pl.modo==='epico' && pl.projeto && !pl.epicosPorProj[pl.projeto] && !pl.carregandoEpicos){
+    pl.carregandoEpicos=true;
+    fetch(`/api/epicos?projeto=${encodeURIComponent(pl.projeto)}`).then(r=>r.json()).then(j=>{
+      pl.carregandoEpicos=false;
+      pl.epicosPorProj[pl.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
+      if(estado.vista==='planejar') renderPlanejar();
+    }).catch(e=>{ pl.carregandoEpicos=false;
+      pl.epicosPorProj[pl.projeto]={epicos:[],historias:[],erro:String(e.message||e)};
+      if(estado.vista==='planejar') renderPlanejar(); });
+  }
+  ajustaTipo();
+
+  const faixaId = id
+    ? `<div class="ap-id">📝 Criando como <strong>${esc(id.nome||id.email)}</strong>
+         <span class="muted small">(os tickets terão você como relator)</span>
+         <span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+    : `<div class="ap-id sem">Para criar tickets, identifique-se uma única vez (e-mail + token de API do Jira).
+         <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+
+  const optProjetos='<option value="">— escolha —</option>'+pl.projetos.map(p=>
+    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+  const tipos=tiposDisponiveis();
+  const optTipos=tipos.length?tipos.map(t=>
+    `<option value="${escA(t.id)}" ${pl.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')
+    :'<option value="">—</option>';
+  const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
+    `<option value="${escA(a)}" ${pl.respId===a?'selected':''}>${esc(n)}</option>`).join('');
+
+  // Seleção de pai (modo épico)
+  let campoPai='';
+  if(pl.modo==='epico'){
+    const ep=pl.epicosPorProj[pl.projeto];
+    if(!pl.projeto) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>escolha o projeto</option></select></div>';
+    else if(!ep) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>carregando…</option></select></div>';
+    else if(ep.erro) campoPai=`<div class="campo"><label>Épico / História</label><select disabled><option>erro: ${esc(ep.erro)}</option></select></div>`;
+    else {
+      const og=(rot,lista)=>lista.length?`<optgroup label="${escA(rot)}">${lista.map(x=>
+        `<option value="${escA(x.k)}" ${pl.paiKey===x.k?'selected':''}>${esc(x.k)} — ${esc(x.resumo.slice(0,60))}</option>`).join('')}</optgroup>`:'';
+      campoPai=`<div class="campo"><label>Épico / História (pai)</label><select id="pl-pai">
+        <option value="">— direto no projeto —</option>
+        ${og('Épicos',ep.epicos)}${og('Histórias (vira sub-tarefa)',ep.historias)}</select></div>`;
+    }
+  }
+
+  const nLinhas=pl.texto.split('\n').map(l=>l.trim()).filter(Boolean).length;
+  const modoDica = pl.modo==='epico'
+    ? 'Os tickets serão criados <strong>dentro do épico/história</strong> escolhido (sob história = sub-tarefas).'
+    : 'Os tickets serão criados direto no projeto, com o tipo e responsável padrão abaixo.';
+
+  cont.replaceChildren(el(`<div>
+    ${faixaId}
+    <div class="card full">
+      <h2>Planejamento Jira <span>criação de tickets em lote</span></h2>
+      <div class="ap-chips" style="margin-bottom:12px">
+        <button class="chip" aria-pressed="${pl.modo==='lote'}" data-pl-modo="lote">Criação em lote</button>
+        <button class="chip" aria-pressed="${pl.modo==='epico'}" data-pl-modo="epico">Planejamento de épico</button>
+      </div>
+      <div class="pl-dica">${modoDica}</div>
+      <div class="pl-grid">
+        <div class="campo"><label>Projeto</label><select id="pl-projeto">${optProjetos}</select></div>
+        ${campoPai}
+        <div class="campo"><label>Tipo de ticket</label><select id="pl-tipo" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
+        <div class="campo"><label>Responsável (padrão)</label><select id="pl-resp">${optResp}</select></div>
+      </div>
+      <div class="campo"><label>Tickets — um por linha <span class="muted">(use “;” para separar resumo ; descrição)</span></label>
+        <textarea class="pl-texto" id="pl-texto" placeholder="Levantar requisitos com o cliente ; agendar reunião inicial
+Configurar ambiente de homologação
+Criar massa de testes ; usar dados do projeto anterior">${esc(pl.texto)}</textarea></div>
+      <div class="pl-dica"><span id="pl-contador">${nLinhas}</span> ticket(s) na lista · máximo 100 por lote.</div>
+      <button class="btn primario" id="pl-validar">Validar e revisar →</button>
+      <div class="ap-fb" id="pl-fb" hidden></div>
+    </div>
+  </div>`));
+}
+
+function renderPlanejarRevisao(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+  const id=idApontar();
+  const tipos=tiposDisponiveis();
+  const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+
+  // Validação + duplicados (aviso, não bloqueia).
+  const contagem={};
+  pl.itens.forEach(it=>{ const r=(it.resumo||'').trim().toLowerCase(); if(r) contagem[r]=(contagem[r]||0)+1; });
+  let nErros=0;
+  const linhas=pl.itens.map((it,i)=>{
+    const erro=validaItemPl(it); if(erro) nErros++;
+    const dup=!erro && contagem[(it.resumo||'').trim().toLowerCase()]>1;
+    const st=erro?`<span class="pl-st err" data-tip="${escA(erro)}">✕</span>`
+      : dup?`<span class="pl-st warn" data-tip="Resumo repetido na lista">⚠</span>`
+      : `<span class="pl-st ok">✓</span>`;
+    const optT=tipos.map(t=>`<option value="${escA(t.id)}" ${it.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('');
+    const optR='<option value="">—</option>'+pessoas.map(([a,n])=>
+      `<option value="${escA(a)}" ${it.respId===a?'selected':''}>${esc(n)}</option>`).join('');
+    return `<tr class="${erro?'pl-row-err':''}">
+      <td class="muted">${i+1}</td>
+      <td style="min-width:220px"><input class="pl-resumo" data-pl-i="${i}" value="${escA(it.resumo)}"></td>
+      <td style="min-width:160px"><input class="pl-desc" data-pl-i="${i}" value="${escA(it.descricao)}" placeholder="—"></td>
+      <td><select class="pl-tipo-row" data-pl-i="${i}">${optT}</select></td>
+      <td><select class="pl-resp-row" data-pl-i="${i}">${optR}</select></td>
+      <td>${st}</td>
+      <td><button class="btn" data-pl-del="${i}">remover</button></td>
+    </tr>`;
+  }).join('');
+
+  const projs=pl.projetos||[];
+  const pj=projs.find(p=>p.key===pl.projeto);
+  const ep=pl.epicosPorProj[pl.projeto]||{epicos:[],historias:[]};
+  const pai=[...(ep.epicos||[]),...(ep.historias||[])].find(x=>x.k===pl.paiKey);
+  const destino=`Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>`+
+    (pl.modo==='epico'&&pai?` · dentro de <strong>${esc(pai.k)}</strong> <span class="muted">(${esc(pai.resumo.slice(0,60))})</span>`:'');
+  const prontos=pl.itens.length-nErros;
+  const podeCriar = prontos>0 && nErros===0 && !pl.criando;
+
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>Revisão antes de criar <span>${prontos} pronto(s)${nErros?` · ${nErros} com erro`:''}</span></h2>
+      <div class="pl-destino">${destino}</div>
+      ${nErros?'<div class="aviso">Corrija (ou remova) os itens marcados com ✕ para liberar a criação.</div>':''}
+      <div class="ts-wrap"><table class="pl-rev">
+        <thead><tr><th>#</th><th>Resumo</th><th>Descrição</th><th>Tipo</th><th>Responsável</th><th></th><th></th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn" id="pl-voltar">← Voltar e editar</button>
+        <button class="btn primario" id="pl-criar" ${podeCriar?'':'disabled'}>
+          ${pl.criando?'Criando…':`Criar ${prontos} ticket(s) em lote`}</button>
+        ${id?'':'<button class="btn" data-ap-act="config-id">Identificar-se para criar</button>'}
+      </div>
+      <div class="ap-fb" id="pl-fb" hidden></div>
+    </div>
+  </div>`));
+}
+
+function renderPlanejarResultado(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+  const r=pl.resultados;
+  const links=(r.criados||[]).map(c=>`<div class="pl-res-item">
+    <a href="${jiraBase()}/browse/${encodeURIComponent(c.key)}" target="_blank" rel="noopener">${esc(c.key)} ↗</a>
+    <span>${esc(c.resumo)}</span></div>`).join('');
+  const erros=(r.erros||[]).map(e=>`<div class="pl-res-item"><span class="pl-st err">✕</span>
+    <span>${esc(e.resumo||('item '+(e.indice+1)))} — <span class="muted">${esc(e.erro)}</span></span></div>`).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>Resultado da criação</h2>
+      <div class="pl-res-ok">✓ ${(r.criados||[]).length} ticket(s) criado(s)</div>
+      ${links||'<div class="muted small">Nenhum ticket criado.</div>'}
+      ${erros?`<div class="sec" style="margin-top:16px">Falhas (${r.erros.length})</div>${erros}`:''}
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn primario" id="pl-novo">Criar mais tickets</button>
+      </div>
+    </div>
+  </div>`));
+}
+
+// Envia o lote validado para o servidor.
+async function criaLote(){
+  const pl=estado.planejar;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  if(pl.criando) return;
+  pl.criando=true; renderPlanejar();
+  try{
+    const itens=pl.itens.map(it=>({ projeto:pl.projeto, tipoId:it.tipoId, resumo:it.resumo,
+      descricao:it.descricao, respId:it.respId, paiKey:it.paiKey }));
+    const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({itens,email:id.email,token:id.token})}).then(r=>r.json());
+    pl.criando=false;
+    if(j.erro){ const fb=document.getElementById('pl-fb');
+      if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=j.erro; }
+      renderPlanejar(); return; }
+    // Junta o resumo aos erros (para exibir o que falhou).
+    (j.erros||[]).forEach(e=>{ const it=pl.itens[e.indice]; if(it) e.resumo=it.resumo; });
+    pl.resultados=j; pl.itens=null;
+    estado.cache={};            // os painéis verão os tickets novos
+    renderPlanejar();
+  }catch(e){
+    pl.criando=false;
+    const fb=document.getElementById('pl-fb');
+    if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
+    renderPlanejar();
+  }
+}
+// ======================================================================================
+
 // ---- Modal ----
 function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
@@ -1872,7 +2173,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos'];
 let _pendentesURL=null;
@@ -1997,6 +2298,52 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       .then(()=>{ if(estado.vista==='apontar') renderApontar(); })
       .catch(()=>{ t.disabled=false; t.textContent='Atualizar lista'; }); }
 });
+// ---- Tela Planejar: cliques e edições ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const pl=estado.planejar;
+  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-tentar'){ pl.projetosErro=''; renderPlanejar(); }
+  else if(t.id==='pl-validar'){
+    const fb=document.getElementById('pl-fb');
+    const mostra=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
+    if(!pl.projeto) return mostra('Escolha o projeto.');
+    if(!pl.tipoId) return mostra('Escolha o tipo de ticket.');
+    const itens=montaItens();
+    if(!itens.length) return mostra('Digite pelo menos um ticket (uma linha por ticket).');
+    if(itens.length>100) return mostra(`São ${itens.length} linhas — o máximo é 100 por lote.`);
+    pl.itens=itens; renderPlanejar();
+  }
+  else if(t.id==='pl-voltar'){ pl.itens=null; renderPlanejar(); }
+  else if(t.id==='pl-criar'){ criaLote(); }
+  else if(t.hasAttribute('data-pl-del')){ pl.itens.splice(Number(t.getAttribute('data-pl-del')),1);
+    if(!pl.itens.length) pl.itens=null; renderPlanejar(); }
+  else if(t.id==='pl-novo'){ pl.resultados=null; pl.texto=''; renderPlanejar(); }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
+  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-tipo'){ pl.tipoId=t.value; }
+  else if(t.id==='pl-resp'){ pl.respId=t.value; }
+  else if(t.id==='pl-pai'){ pl.paiKey=t.value; ajustaTipo(); renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]){ pl.itens[i].resumo=t.value; renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-desc')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].descricao=t.value; }
+  else if(t.classList&&t.classList.contains('pl-tipo-row')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].tipoId=t.value; }
+  else if(t.classList&&t.classList.contains('pl-resp-row')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].respId=t.value; }
+});
+// O texto do lote não re-renderiza a cada tecla — só guarda e atualiza o contador.
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='pl-texto'){
+    estado.planejar.texto=e.target.value;
+    const c=document.getElementById('pl-contador');
+    if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
+  }
+});
+
 // Busca da tela Apontar (mantém o foco ao re-renderizar).
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   if(e.target && e.target.id==='ap-busca'){
