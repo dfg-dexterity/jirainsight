@@ -23,6 +23,19 @@ export function cacheSet(key, val) {
   return val;
 }
 
+// Variante com TTL próprio (minutos) — para dados que precisam ficar mais frescos.
+export function cacheSetTTL(key, val, minutos) {
+  _cache.set(key, { val, exp: Date.now() + minutos * 60 * 1000 });
+  return val;
+}
+
+// Remove do cache desta instância as chaves que começam com o prefixo.
+// Best-effort: instâncias "frias" não compartilham cache, mas na prática o
+// usuário que acabou de apontar tende a bater na mesma instância quente.
+export function cacheClear(prefix) {
+  [..._cache.keys()].forEach((k) => { if (k.startsWith(prefix)) _cache.delete(k); });
+}
+
 // ---------------------------------------------------------------------------
 // Datas no fuso America/Sao_Paulo (Brasil sem horário de verão = -03:00 fixo).
 // ---------------------------------------------------------------------------
