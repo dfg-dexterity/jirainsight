@@ -216,6 +216,52 @@
   .tk-group-sel select{min-width:170px}
   .tk-nome{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+  /* ---- Apontar (apontamento rápido) ---- */
+  .ap-id{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eef6f6;
+    border:1px solid #cfe5e4;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .ap-id strong{color:#0a6b67}
+  .ap-id .btn{padding:5px 10px}
+  .ap-id.sem{background:#FFF6E9;border-color:#f0d6a8;color:#8a5a12}
+  .ap-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .ap-filtros .campo input[type=date],.ap-filtros .campo input[type=search]{font-family:var(--corpo);
+    font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .ap-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--linha);background:var(--cartao);border-radius:999px;padding:5px 12px;
+    font-size:12px;cursor:pointer;color:var(--grafite);font-family:var(--corpo)}
+  .chip:hover{border-color:var(--grafite)}
+  .chip[aria-pressed="true"]{background:var(--grafite);color:var(--offwhite);border-color:var(--grafite)}
+  .ap-lista{display:flex;flex-direction:column;gap:12px}
+  .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px;background:var(--cartao);
+    display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease}
+  .ap-row:hover{box-shadow:var(--sombra)}
+  .ap-row.feito{border-color:#cfe0cf;background:#f6faf6}
+  .ap-l1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .ap-l1 a{font-weight:700;white-space:nowrap}
+  .ap-resumo{font-size:13.5px}
+  .ap-l2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 9px;
+    font-size:11px;background:#F0EBDB;color:#6b6657;white-space:nowrap}
+  .badge.venc-passado{background:rgba(192,80,74,.14);color:#a23b35;font-weight:700}
+  .badge.venc-hoje{background:rgba(255,164,54,.18);color:#9a6412;font-weight:700}
+  .badge.sem-horas{background:rgba(192,80,74,.10);color:#a23b35}
+  .badge.com-horas{background:rgba(89,124,89,.14);color:#3f5a3f}
+  .ap-log{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--linha);padding-top:10px}
+  .ap-log input[type=text],.ap-log input[type=date]{font-family:var(--corpo);font-size:13px;padding:7px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .ap-tempo{width:84px;text-align:center}
+  .ap-coment{flex:1;min-width:150px}
+  .btn.primario{background:var(--cerceta);border-color:var(--cerceta);color:#fff;font-weight:600}
+  .btn.primario:hover{filter:brightness(1.06)}
+  .btn[disabled]{opacity:.55;cursor:default}
+  .ap-fb{font-size:12px;font-weight:600;width:100%}
+  .ap-fb.ok{color:#3f5a3f} .ap-fb.err{color:#a23b35}
+  .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
+  @media (max-width:600px){
+    .ap-log{flex-direction:column;align-items:stretch}
+    .ap-tempo{width:100%}
+    .ap-filtros{flex-direction:column;align-items:stretch}
+  }
+
   /* ---- Tooltip flutuante (segue o cursor) ---- */
   .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
     background:rgba(40,40,40,.96);color:#fff;border-radius:8px;padding:8px 10px;
@@ -309,6 +355,7 @@
       <button data-v="timesheet">Timesheet</button>
       <button data-v="ranking">Ranking</button>
       <button data-v="tickets">Tickets</button>
+      <button data-v="apontar">⏱ Apontar</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -351,6 +398,9 @@
     apontadas no Clockwork com a meta por dia útil (padrão <em>8h, seg–sex</em>, ajustável em
     <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
     Clique no nome de qualquer pessoa para ver o detalhe.
+    <br><strong>Apontar:</strong> mostra os chamados abertos com vencimento até a data escolhida e permite
+    registrar horas direto no Jira — o worklog é criado <em>no usuário de quem aponta</em> (cada pessoa se
+    identifica uma vez com seu token de API; fica salvo só no navegador dela) e aparece no Clockwork.
     <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
   </footer>
@@ -376,7 +426,9 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 // mudar, troque aqui. (Usa o que vier do servidor em meta.jiraBase, se existir.)
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
-const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{} };
+const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
+  // Tela "Apontar": data-limite de vencimento, filtro, busca e cache por data.
+  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', porData:{}, carregando:false } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -669,9 +721,12 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 }
 
 function render(){
+  // A tela Apontar tem filtros próprios (vencimento/status); esconde os globais.
+  const fg=document.querySelector('.filtros'); if(fg) fg.style.display=(estado.vista==='apontar')?'none':'';
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
+  if(estado.vista==='apontar') return renderApontar();
   return renderResumo();
 }
 
@@ -1363,6 +1418,235 @@ function renderTickets(){
   const sel=document.getElementById('tk-group'); if(sel) sel.value=group;
 }
 
+// ============================ APONTAR (apontamento rápido) ============================
+function somaDias(s,n){ let d=s; for(let i=0;i<n;i++) d=proxDia(d); return d; }
+const fmtBR = (iso) => iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}` : '';
+
+// Identidade de quem aponta: e-mail + token de API do Jira, salvos SÓ neste navegador.
+// (A API do Jira atribui o worklog ao usuário autenticado — por isso cada pessoa usa
+// o próprio token; o token do painel não serve para apontar em nome de outros.)
+const ID_KEY='dexterity_apontar_id_v1';
+function idApontar(){ try{ const o=JSON.parse(localStorage.getItem(ID_KEY)); if(o&&o.email&&o.token) return o; }catch(e){} return null; }
+function salvaIdApontar(o){ try{ localStorage.setItem(ID_KEY, JSON.stringify(o)); }catch(e){} }
+function limpaIdApontar(){ try{ localStorage.removeItem(ID_KEY); }catch(e){} }
+
+// Converte texto de tempo em segundos: "1h30", "2h", "30m", "1:30", "1,5" (=horas).
+function parseTempo(str){
+  if(str==null) return null;
+  const s=String(str).trim().toLowerCase().replace(/\s+/g,'').replace(',','.');
+  if(!s) return null;
+  let m;
+  if((m=s.match(/^(\d+):([0-5]?\d)$/))) return (+m[1])*3600+(+m[2])*60;
+  if((m=s.match(/^(\d+(?:\.\d+)?)h(?:([0-5]?\d)m?)?$/))) return Math.round((+m[1])*3600)+((+m[2]||0)*60);
+  if((m=s.match(/^(\d+(?:\.\d+)?)m(?:in)?$/))) return Math.round((+m[1])*60);
+  if((m=s.match(/^(\d+(?:\.\d+)?)$/))) return Math.round((+m[1])*3600);
+  return null;
+}
+
+async function carregaVenc(ate, forca){
+  const ap=estado.apontar;
+  if(!forca && ap.porData[ate]) return ap.porData[ate];
+  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`);
+  const j=await r.json();
+  if(j.erro) throw new Error(j.erro);
+  ap.porData[ate]=j;
+  return j;
+}
+
+function renderApontar(){
+  const cont=document.getElementById('conteudo');
+  const ap=estado.apontar;
+  if(!ap.ate) ap.ate=hojeSP();
+
+  const dados=ap.porData[ap.ate];
+  if(!dados){
+    if(!ap.carregando){
+      ap.carregando=true;
+      carregaVenc(ap.ate).then(()=>{ ap.carregando=false; if(estado.vista==='apontar') renderApontar(); })
+        .catch(e=>{ ap.carregando=false;
+          cont.replaceChildren(el(`<div class="erro"><strong>Falha ao buscar os chamados.</strong> ${esc(e.message||e)}</div>`)); });
+    }
+    cont.replaceChildren(el('<div class="estado">Buscando chamados com vencimento até '+esc(fmtBR(ap.ate))+'…</div>'));
+    return;
+  }
+
+  const hoje=dados.meta.hoje||hojeSP();
+  const id=idApontar();
+  const projs=dados.projetos||{};
+  const nomeProj=(k)=>(projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
+
+  // ---- KPIs sobre a lista completa ----
+  const todos=dados.tickets||[];
+  const vencidos=todos.filter(t=>t.venc&&t.venc<hoje);
+  const semHoras=todos.filter(t=>!t.seg);
+  const venceHoje=todos.filter(t=>t.venc===hoje);
+
+  // ---- Filtros da tela ----
+  let lista=todos;
+  if(ap.fil==='semhoras') lista=lista.filter(t=>!t.seg);
+  else if(ap.fil==='vencidos') lista=lista.filter(t=>t.venc&&t.venc<hoje);
+  if(ap.soMeus && id && id.accountId) lista=lista.filter(t=>t.respId===id.accountId);
+  if(ap.busca){ const q=ap.busca.toLowerCase();
+    lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.p+' '+(t.resp||'')).toLowerCase().includes(q)); }
+
+  // ---- Faixa de identidade ----
+  const faixaId = id
+    ? `<div class="ap-id">⏱ Apontando como <strong>${esc(id.nome||id.email)}</strong>
+         <span class="muted small">(worklog criado no seu usuário do Jira — aparece no Clockwork)</span>
+         <span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+    : `<div class="ap-id sem">Para apontar, identifique-se uma única vez (e-mail + token de API do Jira — 2 minutos).
+         <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+
+  // ---- Barra de filtros ----
+  const chipsData=[['Hoje',hoje],['Amanhã',somaDias(hoje,1)],['+7 dias',somaDias(hoje,7)]];
+  const filtros=`<div class="ap-filtros">
+    <div class="campo"><label>Vencimento até</label>
+      <input type="date" id="ap-ate" value="${escA(ap.ate)}"></div>
+    <div class="campo"><label>Atalhos</label><div class="ap-chips">${
+      chipsData.map(([r,d])=>`<button class="chip" aria-pressed="${ap.ate===d}" data-ap-ate="${escA(d)}">${r}</button>`).join('')}</div></div>
+    <div class="campo"><label>Mostrar</label><div class="ap-chips">
+      <button class="chip" aria-pressed="${ap.fil==='todos'}" data-ap-fil="todos">Todos</button>
+      <button class="chip" aria-pressed="${ap.fil==='semhoras'}" data-ap-fil="semhoras">Sem horas apontadas</button>
+      <button class="chip" aria-pressed="${ap.fil==='vencidos'}" data-ap-fil="vencidos">Vencidos</button></div></div>
+    ${id?`<label class="check" style="padding-bottom:9px"><input type="checkbox" id="ap-meus" ${ap.soMeus?'checked':''}> Só os meus</label>`:''}
+    <div class="campo"><label>Buscar</label>
+      <input type="search" id="ap-busca" placeholder="código, resumo, projeto…" value="${escA(ap.busca)}"></div>
+    <div class="campo"><label>&nbsp;</label><button class="btn" id="ap-refresh">Atualizar lista</button></div>
+  </div>`;
+
+  // ---- Linhas ----
+  const badgeVenc=(v)=>{
+    if(!v) return '';
+    if(v<hoje){ const d=Math.round((new Date(hoje)-new Date(v))/86400000);
+      return `<span class="badge venc-passado">⚠ venceu ${fmtBR(v)} (há ${d}d)</span>`; }
+    if(v===hoje) return `<span class="badge venc-hoje">vence hoje</span>`;
+    return `<span class="badge">vence ${fmtBR(v)}</span>`;
+  };
+  const rows=lista.map(t=>{
+    const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+    const horas = t.seg ? `<span class="badge com-horas">${fmtH(t.seg)} apontadas</span>`
+                        : `<span class="badge sem-horas">sem horas apontadas</span>`;
+    const logCtrl = id ? `
+      <div class="ap-log">
+        <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
+        <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
+        <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
+        <input type="text" class="ap-coment" placeholder="comentário (opcional)" aria-label="Comentário">
+        <button class="btn primario" data-ap-key="${escA(t.k)}">Apontar</button>
+        <div class="ap-fb" hidden></div>
+      </div>` : '';
+    return `<div class="ap-row" data-k="${escA(t.k)}">
+      <div class="ap-l1">
+        <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
+        <span class="ap-resumo">${esc(t.resumo||'')}</span>
+      </div>
+      <div class="ap-l2">
+        <span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span>
+        <span class="badge">${esc(t.t)}</span>
+        <span class="badge">${esc(t.status)}</span>
+        ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
+        ${badgeVenc(t.venc)}
+        ${horas}
+        ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
+      </div>
+      ${logCtrl}
+    </div>`;
+  }).join('');
+
+  const vazio = lista.length ? '' :
+    `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
+     ${ap.soMeus&&id?'<br><span class="small">Dica: desmarque “Só os meus” para ver os chamados de todo o time.</span>':''}</div>`;
+
+  cont.replaceChildren(el(`<div>
+    ${faixaId}
+    <div class="kpis ts-kpis">
+      <div class="kpi a"><div class="v">${todos.length}</div><div class="l">Chamados até ${fmtBR(ap.ate)}</div></div>
+      <div class="kpi w"><div class="v">${vencidos.length}</div><div class="l">Vencidos</div></div>
+      <div class="kpi w"><div class="v">${semHoras.length}</div><div class="l">Sem horas apontadas</div></div>
+      <div class="kpi t"><div class="v">${venceHoje.length}</div><div class="l">Vencem hoje</div></div>
+    </div>
+    <div class="card full">
+      <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''}</span></h2>
+      ${filtros}
+      <div class="ap-lista">${rows}</div>
+      ${vazio}
+    </div>
+  </div>`));
+}
+
+// Modal de identificação (uma vez por navegador).
+function abreIdentidade(){
+  const id=idApontar()||{};
+  abreModal(`
+    <h2>Identificação para apontar</h2>
+    <div class="muted small">O apontamento é criado <strong>no seu usuário do Jira</strong> (vale para Clockwork,
+      ranking e timesheet). Para isso você precisa de um token de API — é grátis e leva 2 minutos:</div>
+    <ol class="ap-passos">
+      <li>Abra <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">id.atlassian.com → Tokens de API ↗</a></li>
+      <li>Clique em <strong>Criar token de API</strong>, dê um nome (ex.: “Apontamento”) e copie o token.</li>
+      <li>Cole abaixo com o seu e-mail do Jira e clique em <strong>Validar e salvar</strong>.</li>
+    </ol>
+    <div class="mt-form" style="margin-top:14px">
+      <div class="campo" style="flex:1;min-width:220px"><label>Seu e-mail do Jira</label>
+        <input type="text" id="ap-id-email" value="${escA(id.email||'')}" placeholder="voce@dexterity.com.br"></div>
+      <div class="campo" style="flex:1;min-width:220px"><label>Token de API</label>
+        <input type="password" id="ap-id-token" value="" placeholder="cole o token aqui"></div>
+      <button class="btn primario" id="ap-id-validar">Validar e salvar</button>
+    </div>
+    <div class="ap-fb" id="ap-id-fb" hidden></div>
+    <div class="muted small" style="margin-top:12px">O token fica salvo <strong>apenas neste navegador</strong> e é
+      usado só para criar os seus worklogs. ${id.email?'<button class="btn" id="ap-id-sair" style="margin-left:6px">Esquecer minhas credenciais</button>':''}</div>
+  `);
+}
+
+// Valida e-mail+token no servidor e salva a identidade.
+async function validaIdentidade(){
+  const email=document.getElementById('ap-id-email').value.trim();
+  const token=document.getElementById('ap-id-token').value.trim();
+  const fb=document.getElementById('ap-id-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!email||!token){ fb.classList.add('err'); fb.textContent='Preencha o e-mail e o token.'; return; }
+  fb.textContent='Validando…';
+  try{
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({validar:true,email,token})}).then(r=>r.json());
+    if(j.ok){ salvaIdApontar({email:j.email||email,token,nome:j.nome||email,accountId:j.accountId||''});
+      fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); },700);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
+}
+
+// Envia o apontamento de uma linha e dá o feedback inline.
+async function fazApontamento(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-key');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const tempoEl=row.querySelector('.ap-tempo'), dataEl=row.querySelector('.ap-data'),
+        comEl=row.querySelector('.ap-coment'), fb=row.querySelector('.ap-fb');
+  const seg=parseTempo(tempoEl.value);
+  fb.hidden=false; fb.className='ap-fb';
+  if(seg==null){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; tempoEl.focus(); return; }
+  if(seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo fora do limite (mínimo 1m, máximo 24h).'; tempoEl.focus(); return; }
+  const inicio=dataEl.value||hojeSP();
+  btn.disabled=true; fb.textContent='Apontando…';
+  try{
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({issue:k,segundos:seg,inicio,comentario:comEl.value.trim(),email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}).`;
+      row.classList.add('feito'); tempoEl.value=''; comEl.value='';
+      // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
+      const dados=estado.apontar.porData[estado.apontar.ate];
+      const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.seg=(t.seg||0)+seg;
+      const horasEl=row.querySelector('.badge.sem-horas,.badge.com-horas');
+      if(horasEl&&t){ horasEl.className='badge com-horas'; horasEl.textContent=`${fmtH(t.seg)} apontadas`; }
+      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
+  btn.disabled=false;
+}
+// ======================================================================================
+
 // ---- Modal ----
 function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
@@ -1413,6 +1697,12 @@ function exportaCSV(){
         Object.values(l.autores).join(', '), l.alter, l.trans, l.coment, l.criado, l.ultima]);
       baixaCSV(`tickets_${per}.csv`, [head, ...rows]);
     }
+  } else if(estado.vista==='apontar'){
+    const ap=estado.apontar; const dados=ap.porData[ap.ate];
+    if(!dados) return;
+    const head=['Ticket','Resumo','Projeto','Tipo','Status','Vencimento','Responsável','Horas apontadas (h)'];
+    const rows=(dados.tickets||[]).map(t=>[t.k, t.resumo, t.p, t.t, t.status, t.venc, t.resp, dec(t.seg||0)]);
+    baixaCSV(`vencimentos_${ap.ate}.csv`, [head, ...rows]);
   } else {
     const d=agrega();
     const head=['Pessoa','Horas','Faturável %','Tickets','Alterações','Transições','Comentários'];
@@ -1511,14 +1801,19 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
+const APFILTROS=['todos','semhoras','vencidos'];
 let _pendentesURL=null;
 function leURL(){
   const p=new URLSearchParams(location.search);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
   estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'resumo';
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
+  const ap=estado.apontar;
+  ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';
+  ap.fil = APFILTROS.includes(p.get('fil')) ? p.get('fil') : 'todos';
+  ap.soMeus = p.get('meus')!=='0';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'', mostrarRotinas:p.get('rot')==='1' };
 }
@@ -1541,6 +1836,10 @@ function estadoParaURL(){
   if(estado.periodo!=='7d') p.set('p',estado.periodo);
   if(estado.vista!=='resumo') p.set('v',estado.vista);
   if(estado.vista==='tickets' && estado.tkGroup) p.set('g',estado.tkGroup);
+  if(estado.vista==='apontar'){ const ap=estado.apontar;
+    if(ap.ate && ap.ate!==hojeSP()) p.set('ate',ap.ate);
+    if(ap.fil!=='todos') p.set('fil',ap.fil);
+    if(!ap.soMeus) p.set('meus','0'); }
   if(f.pessoa) p.set('u',f.pessoa);
   if(f.categoria) p.set('cat',f.categoria);
   if(f.projeto) p.set('proj',f.projeto);
@@ -1600,6 +1899,40 @@ document.addEventListener('click', (e)=>{
 // Agrupamento da visão Tickets (o select é re-renderizado a cada render).
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='tk-group'){ estado.tkGroup=e.target.value; render(); estadoParaURL(); }
+  if(e.target && e.target.id==='ap-ate'){ const v=e.target.value;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(v)){ estado.apontar.ate=v; renderApontar(); estadoParaURL(); } }
+  if(e.target && e.target.id==='ap-meus'){ estado.apontar.soMeus=e.target.checked; renderApontar(); estadoParaURL(); }
+});
+
+// ---- Tela Apontar: cliques (chips, identidade, enviar) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ap-ate')){ estado.apontar.ate=t.getAttribute('data-ap-ate'); renderApontar(); estadoParaURL(); }
+  else if(t.hasAttribute('data-ap-fil')){ estado.apontar.fil=t.getAttribute('data-ap-fil'); renderApontar(); estadoParaURL(); }
+  else if(t.hasAttribute('data-ap-chip')){ const row=t.closest('.ap-row');
+    const inp=row&&row.querySelector('.ap-tempo'); if(inp){ inp.value=t.getAttribute('data-ap-chip'); inp.focus(); } }
+  else if(t.hasAttribute('data-ap-key')){ fazApontamento(t); }
+  else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
+  else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
+    carregaVenc(estado.apontar.ate,true)
+      .then(()=>{ if(estado.vista==='apontar') renderApontar(); })
+      .catch(()=>{ t.disabled=false; t.textContent='Atualizar lista'; }); }
+});
+// Busca da tela Apontar (mantém o foco ao re-renderizar).
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='ap-busca'){
+    estado.apontar.busca=e.target.value; renderApontar();
+    const nb=document.getElementById('ap-busca');
+    if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
+  }
+});
+// Enter no campo de tempo/comentário envia o apontamento da linha.
+document.getElementById('conteudo').addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter'||!e.target.classList) return;
+  if(e.target.classList.contains('ap-tempo')||e.target.classList.contains('ap-coment')){
+    const row=e.target.closest('.ap-row'); const b=row&&row.querySelector('[data-ap-key]');
+    if(b){ e.preventDefault(); fazApontamento(b); }
+  }
 });
 
 // Ações dentro do painel de Metas (delegação no corpo do modal).
@@ -1622,6 +1955,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
     salvaCfg(); render(); abreMetas(); }
   else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
+  else if(t.id==='ap-id-validar'){ validaIdentidade(); }
+  else if(t.id==='ap-id-sair'){ limpaIdApontar(); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
 });
 
 leURL();
