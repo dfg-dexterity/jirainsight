@@ -216,6 +216,33 @@
   .tk-group-sel select{min-width:170px}
   .tk-nome{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+  /* ---- Tooltip flutuante (segue o cursor) ---- */
+  .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
+    background:rgba(40,40,40,.96);color:#fff;border-radius:8px;padding:8px 10px;
+    box-shadow:0 6px 24px rgba(0,0,0,.28);font-size:12px;line-height:1.35;
+    transform:translateZ(0);transition:opacity .08s ease}
+  .tip .tip-t{font-weight:700}
+  .tip .tip-s{color:#d6d2c6;margin-top:2px;font-variant-numeric:tabular-nums}
+  .tip .tip-k{color:#9fe6e3;font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+
+  /* ---- Interatividade: realce + cursor + animação ---- */
+  [data-drill]{cursor:pointer}
+  .barrow,.col,.hm-cell,.pp-stack span,.split span{transition:transform .12s ease,filter .12s ease,opacity .12s ease}
+  .barrow[data-drill]:hover .fill{filter:brightness(1.08)}
+  .barrow[data-drill]:hover .nome{color:var(--cerceta)}
+  .col[data-drill]:hover .b{filter:brightness(1.08)}
+  .col[data-drill]:hover{transform:translateY(-2px)}
+  .pp-stack span[data-drill]:hover{filter:brightness(1.12)}
+  .hm-cell[data-drill]:hover{transform:translateY(-2px);box-shadow:var(--sombra)}
+  .split span[data-drill]:hover{filter:brightness(1.08)}
+  .codigo-proj{cursor:help;border-bottom:1px dotted #b3ad9d}
+  @keyframes barGrow{from{transform:scaleX(0);opacity:.4}to{transform:scaleX(1);opacity:1}}
+  @keyframes colGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  .anima .fill{transform-origin:left center;animation:barGrow .5s cubic-bezier(.22,1,.36,1) both}
+  .anima .rk-fill{transform-origin:left center;animation:barGrow .5s cubic-bezier(.22,1,.36,1) both}
+  .anima .col .b{transform-origin:bottom center;animation:colGrow .5s cubic-bezier(.22,1,.36,1) both}
+  @media (prefers-reduced-motion:reduce){ .anima .fill,.anima .rk-fill,.anima .col .b{animation:none} }
+
   /* ---- Tablet / iPad ---- */
   @media (max-width:880px){
     .wrap{padding:18px 14px 56px}
@@ -398,6 +425,34 @@ const fmtH = (seg) => {
 const pct = (n,d) => d ? Math.round(n/d*100) : 0;
 const el = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
 const esc = (s) => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Escape para VALOR de atributo (inclui aspas). O texto é lido de volta com getAttribute
+// e renderizado via textContent, então não há injeção.
+const escA = (s) => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---- Tooltip flutuante moderno (segue o cursor) ----
+// Qualquer elemento com data-tip mostra o tooltip; data-tip2 é a 2ª linha; data-tipk a 3ª (dica).
+let _tipEl=null;
+function _tip(){ if(!_tipEl){ _tipEl=document.createElement('div'); _tipEl.className='tip'; document.body.appendChild(_tipEl); } return _tipEl; }
+function mostraTip(t1,t2,t3,x,y){
+  const t=_tip(); t.innerHTML='';
+  const a=document.createElement('div'); a.className='tip-t'; a.textContent=t1; t.appendChild(a);
+  if(t2){ const b=document.createElement('div'); b.className='tip-s'; b.textContent=t2; t.appendChild(b); }
+  if(t3){ const c=document.createElement('div'); c.className='tip-k'; c.textContent=t3; t.appendChild(c); }
+  t.style.display='block'; posicionaTip(x,y);
+}
+function posicionaTip(x,y){ const t=_tip(); const w=t.offsetWidth, h=t.offsetHeight, m=14;
+  let nx=x+m, ny=y+m;
+  if(nx+w+8>window.innerWidth) nx=x-w-m; if(nx<6) nx=6;
+  if(ny+h+8>window.innerHeight) ny=y-h-m; if(ny<6) ny=6;
+  t.style.left=nx+'px'; t.style.top=ny+'px';
+}
+function escondeTip(){ if(_tipEl) _tipEl.style.display='none'; }
+document.addEventListener('mousemove', (e)=>{
+  const t=e.target.closest && e.target.closest('[data-tip]');
+  if(t){ mostraTip(t.getAttribute('data-tip'), t.getAttribute('data-tip2'), t.getAttribute('data-tipk'), e.clientX, e.clientY); }
+  else escondeTip();
+}, {passive:true});
+document.addEventListener('scroll', escondeTip, {passive:true, capture:true});
 
 // ---- Datas (fuso America/Sao_Paulo no cliente, aritmética em UTC nas strings) ----
 const hojeSP = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
@@ -594,12 +649,21 @@ function agrega(){
 // labelFn(k) define o texto VISÍVEL (default = a própria chave); titleFn(k) o tooltip.
 // Mostrar o nome no próprio rótulo evita depender do "passar o mouse" (que não existe
 // em telas de toque, como iPad/celular).
-function barlist(obj, fmt, cor, limite, titleFn, labelFn){
+// opts (opcional): { tip2Fn(k,v), drill(k)->{type,key} }. Mostra tooltip flutuante e,
+// quando há drill, deixa a linha clicável (cursor + realce) para abrir o detalhe.
+function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
+  opts=opts||{};
   const ent=Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,limite||8);
   const max=Math.max(1,...ent.map(e=>e[1]));
   if(!ent.length) return '<div class="estado">Sem dados para os filtros atuais.</div>';
-  return `<div class="barlist">`+ent.map(([k,v])=>{ const tit=titleFn?titleFn(k):k; const lbl=labelFn?labelFn(k):k; return `
-    <div class="barrow"><div class="nome" title="${esc(tit)}">${esc(lbl)}</div>
+  return `<div class="barlist anima">`+ent.map(([k,v])=>{
+    const tit=titleFn?titleFn(k):k; const lbl=labelFn?labelFn(k):k;
+    const t2=opts.tip2Fn?opts.tip2Fn(k,v):fmt(v);
+    const dr=opts.drill?opts.drill(k):null;
+    const da=dr?` data-drill="${escA(dr.type)}" data-key="${escA(dr.key)}" data-tipk="clique para detalhar"`:'';
+    return `
+    <div class="barrow"${da} data-tip="${escA(tit)}" data-tip2="${escA(t2)}">
+      <div class="nome">${esc(lbl)}</div>
       <div class="track"><div class="fill" style="width:${Math.max(2,v/max*100)}%;background:${cor}"></div></div>
       <div class="val">${fmt(v)}</div></div>`; }).join('')+`</div>`;
 }
@@ -637,17 +701,19 @@ function cardPessoaProjeto(){
 
   const rows=linhas.map(l=>{
     const partes=[]; let outros=0;
-    top.forEach(k=>{ if(l.segs[k]) partes.push([nomeProj(k),l.segs[k],corDe[k]]); });
+    top.forEach(k=>{ if(l.segs[k]) partes.push([nomeProj(k),l.segs[k],corDe[k],k]); });
     Object.keys(l.segs).forEach(k=>{ if(!top.includes(k)) outros+=l.segs[k]; });
-    if(outros>0) partes.push(['Outros projetos',outros,COR_OUTROS]);
-    const stack=partes.map(([k,v,c])=>
-      `<span style="width:${v/l.tot*100}%;background:${c}" title="${esc(k)} · ${fmtH(v)}"></span>`).join('');
-    return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</div>
-      <div class="pp-track"><div class="pp-stack" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
+    if(outros>0) partes.push(['Outros projetos',outros,COR_OUTROS,null]);
+    const stack=partes.map(([nm,v,c,rawK])=>{
+      const dr=rawK?` data-drill="projeto" data-key="${escA(rawK)}" data-tipk="clique para detalhar o projeto"`:'';
+      return `<span${dr} style="width:${v/l.tot*100}%;background:${c}" data-tip="${escA(nm)}" data-tip2="${escA(fmtH(v))}"></span>`;
+    }).join('');
+    return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" data-tip="${escA(l.nome)}" data-tipk="clique para ver a pessoa">${esc(l.nome)}</div>
+      <div class="pp-track"><div class="pp-stack anima" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
       <div class="pp-val">${fmtH(l.tot)}</div></div>`;
   }).join('');
 
-  const legenda=top.map(k=>`<span title="${esc(nomeProj(k))}"><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
+  const legenda=top.map(k=>`<span data-drill="projeto" data-key="${escA(k)}" data-tip="${escA(nomeProj(k))}" data-tipk="clique para detalhar"><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
     + (orden.length>top.length?`<span><i style="background:${COR_OUTROS}"></i>Outros</span>`:'');
   return `<div class="pp-legend">${legenda}</div><div class="pp-list">${rows}</div>`;
 }
@@ -669,10 +735,10 @@ function cardFaturavelPessoa(){
   const maxTot=Math.max(1,...linhas.map(l=>l.tot));
   const rows=linhas.map(l=>{
     const stack=
-      `<span style="width:${l.fat/l.tot*100}%;background:${cores.musgo}" title="Faturável · ${fmtH(l.fat)}"></span>`+
-      `<span style="width:${l.nao/l.tot*100}%;background:${cores.amarelo}" title="Não faturável · ${fmtH(l.nao)}"></span>`;
-    return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</div>
-      <div class="pp-track"><div class="pp-stack" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
+      `<span style="width:${l.fat/l.tot*100}%;background:${cores.musgo}" data-tip="Faturável" data-tip2="${escA(fmtH(l.fat))}"></span>`+
+      `<span style="width:${l.nao/l.tot*100}%;background:${cores.amarelo}" data-tip="Não faturável" data-tip2="${escA(fmtH(l.nao))}"></span>`;
+    return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" data-tip="${escA(l.nome)}" data-tipk="clique para ver a pessoa">${esc(l.nome)}</div>
+      <div class="pp-track"><div class="pp-stack anima" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
       <div class="pp-val">${pct(l.fat,l.tot)}%</div></div>`;
   }).join('');
   const leg=`<div class="pp-legend"><span><i style="background:${cores.musgo}"></i>Faturável</span>`+
@@ -740,6 +806,90 @@ function abrePessoa(a){
   `);
 }
 
+// ---- Drill-down: agrega worklogs/eventos sob um predicado, herdando os filtros ----
+function agregaPred(predW, predE){
+  const f=filtros(); const projs=projetosUnidos(); const pessoasNome=pessoasUnidas();
+  const porPessoa={}, porProjeto={}, porTipo={}, porDia={}; let tot=0, fat=0; const tickets=new Set();
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!passa(w.p,w.t,projs,f)) return; if(f.pessoa&&w.a!==f.pessoa) return;
+    if(predW && !predW(w)) return;
+    tot+=w.s; if(w.f) fat+=w.s;
+    porPessoa[w.a]=(porPessoa[w.a]||0)+w.s; porProjeto[w.p]=(porProjeto[w.p]||0)+w.s;
+    porTipo[w.t]=(porTipo[w.t]||0)+w.s; const dd=(w.d||'').slice(0,10); if(dd) porDia[dd]=(porDia[dd]||0)+w.s;
+    if(w.k) tickets.add(w.k);
+  });
+  (estado.atividade.eventos||[]).forEach(e=>{
+    if(!passa(e.p,e.t,projs,f)) return; if(f.pessoa&&e.a!==f.pessoa) return;
+    if(predE && !predE(e)) return; if(e.k) tickets.add(e.k);
+  });
+  return { f, projs, pessoasNome, porPessoa, porProjeto, porTipo, porDia, tot, fat, tickets };
+}
+// Bloco padrão de um detalhe (KPIs + tendência + barras). `secoes` controla o que mostrar.
+function blocoDetalhe(d, secoes){
+  const projs=d.projs, pn=d.pessoasNome;
+  const nomeProj=(k)=> (projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
+  const pessoasBar=()=>{
+    const ent=Object.entries(d.porPessoa).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    const max=Math.max(1,...ent.map(e=>e[1]));
+    if(!ent.length) return '<div class="muted small">Sem horas no recorte.</div>';
+    return `<div class="barlist anima">`+ent.map(([a,v])=>{ const nm=(pn[a]&&pn[a].nome)||a;
+      return `<div class="barrow" data-pessoa="${escA(a)}" data-tip="${escA(nm)}" data-tip2="${escA(fmtH(v))}" data-tipk="clique para ver a pessoa">
+        <div class="nome">${esc(nm)}</div>
+        <div class="track"><div class="fill" style="width:${Math.max(2,v/max*100)}%;background:${cores.cerceta}"></div></div>
+        <div class="val">${fmtH(v)}</div></div>`; }).join('')+`</div>`;
+  };
+  const meta=estado.tempo&&estado.tempo.meta||{};
+  const vals=listaDias(meta.startDate,meta.endDate).map(x=>d.porDia[x]||0);
+  let html=`<div class="det-kpis">
+    <div class="kpi t"><div class="v">${fmtH(d.tot)}</div><div class="l">Horas apontadas</div></div>
+    <div class="kpi t"><div class="v">${d.tot?pct(d.fat,d.tot):0}%</div><div class="l">Faturável</div></div>
+    <div class="kpi a"><div class="v">${d.tickets.size}</div><div class="l">Tickets</div></div>
+  </div>`;
+  if(secoes.includes('trend') && vals.some(v=>v)) html+=`<div class="sec">Tendência — horas por dia</div>${sparkline(vals)}`;
+  if(secoes.includes('pessoa')) html+=`<div class="sec" style="margin-top:16px">Por pessoa</div>${pessoasBar()}`;
+  if(secoes.includes('projeto')) html+=`<div class="sec" style="margin-top:16px">Por projeto</div>${barlist(d.porProjeto,fmtH,cores.cerceta,10,nomeProj,nomeProj,{drill:(k)=>({type:'projeto',key:k})})}`;
+  if(secoes.includes('tipo')) html+=`<div class="sec" style="margin-top:16px">Por tipo</div>${barlist(d.porTipo,fmtH,cores.roxo,10,null,null,{drill:(k)=>({type:'tipo',key:k})})}`;
+  return html;
+}
+const _periodoRotulo=()=>{ const m=estado.tempo&&estado.tempo.meta||{}; return `${m.startDate||''} → ${m.endDate||''}`; };
+function abreProjeto(p){
+  const projs=projetosUnidos(); const nome=(projs[p]&&projs[p].nome)?projs[p].nome:p;
+  const d=agregaPred(w=>w.p===p, e=>e.p===p);
+  abreModal(`<h2>${esc(p)} — ${esc(nome)}</h2><div class="muted small">Projeto · ${esc(_periodoRotulo())}</div>
+    ${blocoDetalhe(d,['trend','pessoa','tipo'])}`);
+}
+function abreCategoria(c){
+  const projs=projetosUnidos(); const cat=(p)=>(projs[p]&&projs[p].categoria)||'Sem categoria';
+  const d=agregaPred(w=>cat(w.p)===c, e=>cat(e.p)===c);
+  abreModal(`<h2>${esc(c)}</h2><div class="muted small">Categoria · ${esc(_periodoRotulo())}</div>
+    ${blocoDetalhe(d,['trend','projeto','pessoa'])}`);
+}
+function abreTipo(tp){
+  const d=agregaPred(w=>w.t===tp, e=>e.t===tp);
+  abreModal(`<h2>${esc(tp)}</h2><div class="muted small">Tipo de issue · ${esc(_periodoRotulo())}</div>
+    ${blocoDetalhe(d,['trend','pessoa','projeto'])}`);
+}
+function abreDia(dia){
+  const semana=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const fer=nomeFeriado(dia);
+  const d=agregaPred(w=>(w.d||'').slice(0,10)===dia, e=>(e.d||'').slice(0,10)===dia);
+  abreModal(`<h2>${esc(dia)}</h2><div class="muted small">${esc(semana[diaSemana(dia)])}${fer?(' · feriado: '+esc(fer)):''}</div>
+    ${blocoDetalhe(d,['pessoa','projeto','tipo'])}`);
+}
+function abreMes(ym){
+  const [y,mm]=ym.split('-');
+  const d=agregaPred(w=>(w.d||'').slice(0,7)===ym, e=>(e.d||'').slice(0,7)===ym);
+  abreModal(`<h2>${esc(MESES_PT[(+mm)-1]||ym)} ${esc(y)}</h2><div class="muted small">Apontamentos do mês</div>
+    ${blocoDetalhe(d,['pessoa','projeto','tipo'])}`);
+}
+function drill(type,key){
+  if(type==='projeto') abreProjeto(key);
+  else if(type==='categoria') abreCategoria(key);
+  else if(type==='tipo') abreTipo(key);
+  else if(type==='dia') abreDia(key);
+  else if(type==='mes') abreMes(key);
+}
+
 function renderResumo(){
   const d=agrega();
   const cont=document.getElementById('conteudo');
@@ -760,8 +910,8 @@ function renderResumo(){
   const totFat=d.fat.fatura+d.fat.nao;
   const split = totFat ? `
     <div class="split">
-      <span style="width:${pct(d.fat.fatura,totFat)}%;background:${cores.musgo}">${pct(d.fat.fatura,totFat)}%</span>
-      <span style="width:${pct(d.fat.nao,totFat)}%;background:${cores.amarelo}">${pct(d.fat.nao,totFat)}%</span>
+      <span style="width:${pct(d.fat.fatura,totFat)}%;background:${cores.musgo}" data-tip="Faturável" data-tip2="${escA(fmtH(d.fat.fatura))}">${pct(d.fat.fatura,totFat)}%</span>
+      <span style="width:${pct(d.fat.nao,totFat)}%;background:${cores.amarelo}" data-tip="Não faturável" data-tip2="${escA(fmtH(d.fat.nao))}">${pct(d.fat.nao,totFat)}%</span>
     </div>
     <div class="legend">
       <span><i style="background:${cores.musgo}"></i>Faturável · ${fmtH(d.fat.fatura)}</span>
@@ -770,9 +920,9 @@ function renderResumo(){
 
   const dias=Object.keys(d.porDia).sort();
   const maxDia=Math.max(1,...dias.map(x=>d.porDia[x]));
-  const colunas = dias.length ? `<div class="cols">${dias.map(x=>`
-    <div class="col"><div class="b" style="height:${d.porDia[x]/maxDia*140}px"
-      title="${fmtH(d.porDia[x])}"></div><div class="cl">${x.slice(5)}</div></div>`).join('')}</div>`
+  const colunas = dias.length ? `<div class="cols anima">${dias.map(x=>`
+    <div class="col" data-drill="dia" data-key="${escA(x)}" data-tip="${escA(x)}" data-tip2="${escA(fmtH(d.porDia[x]))}" data-tipk="clique para detalhar o dia">
+      <div class="b" style="height:${d.porDia[x]/maxDia*140}px"></div><div class="cl">${x.slice(5)}</div></div>`).join('')}</div>`
     : '<div class="estado">Sem horas no período.</div>';
 
   cont.replaceChildren(el(`<div>
@@ -790,9 +940,9 @@ function renderResumo(){
       <div class="card full"><h2>Faturável por pessoa
         <span>% faturável de cada um</span></h2>${cardFaturavelPessoa()}</div>
       <div class="card"><h2>Horas · faturável vs não</h2>${split}</div>
-      <div class="card"><h2>Horas por categoria</h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8)}</div>
-      <div class="card"><h2>Atividade por tipo <span>tickets distintos</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8)}</div>
-      <div class="card"><h2>Top projetos por horas <span>código — nome do projeto</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,nomeProjResumo,nomeProjResumo)}</div>
+      <div class="card"><h2>Horas por categoria <span>clique para detalhar</span></h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8,null,null,{drill:(k)=>({type:'categoria',key:k})})}</div>
+      <div class="card"><h2>Atividade por tipo <span>tickets distintos · clique p/ detalhar</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8,null,null,{tip2Fn:(k,v)=>`${v} tickets`,drill:(k)=>({type:'tipo',key:k})})}</div>
+      <div class="card"><h2>Top projetos por horas <span>passe o mouse no código · clique p/ detalhar</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,nomeProjResumo,nomeProjResumo,{drill:(k)=>({type:'projeto',key:k})})}</div>
       <div class="card full"><h2>Horas por dia</h2><div class="scroll-x">${colunas}</div></div>
     </div>
   </div>`));
@@ -965,7 +1115,7 @@ function cardHeatSemana(){
   const cells=[1,2,3,4,5].map(wd=>{
     const a=agg[wd], rate=a.c?a.e/a.c:0, p=Math.round(rate*100);
     const bg=`rgba(192,80,74,${(0.10+rate*0.62).toFixed(2)})`;
-    return `<div class="hm-cell" style="background:${bg}" title="${nomes[wd-1]}: ${p}% sem apontamento (${a.e}/${a.c})">
+    return `<div class="hm-cell" style="background:${bg}" data-tip="${escA(nomes[wd-1])}" data-tip2="${escA(`${p}% sem apontamento (${a.e}/${a.c})`)}">
       <div class="hm-wd">${nomes[wd-1]}</div><div class="hm-v">${p}%</div></div>`;
   }).join('');
   return `<div class="hm-row">${cells}</div>
@@ -989,9 +1139,9 @@ function cardPorMes(){
   const rot=(ym)=>{ const [y,mm]=ym.split('-'); return `${MESES_PT[(+mm)-1]}/${y.slice(2)}`; };
   const totalH=fmtH(meses.reduce((s,m)=>s+porMes[m],0));
   const dica = meses.length<2 ? '<div class="muted small" style="margin-top:8px">Dica: escolha <strong>Este ano</strong> no período para ver mês a mês.</div>' : '';
-  return `<div class="scroll-x"><div class="cols">${meses.map(m=>`
-    <div class="col"><div class="b" style="height:${porMes[m]/max*140}px;background:${cores.roxo}"
-      title="${rot(m)} · ${fmtH(porMes[m])}"></div><div class="cl">${rot(m)}</div></div>`).join('')}</div></div>
+  return `<div class="scroll-x"><div class="cols anima">${meses.map(m=>`
+    <div class="col" data-drill="mes" data-key="${escA(m)}" data-tip="${escA(rot(m))}" data-tip2="${escA(fmtH(porMes[m]))}" data-tipk="clique para detalhar o mês">
+      <div class="b" style="height:${porMes[m]/max*140}px;background:${cores.roxo}"></div><div class="cl">${rot(m)}</div></div>`).join('')}</div></div>
     <div class="muted small" style="margin-top:8px">Total no período: <strong>${totalH}</strong>.</div>${dica}`;
 }
 
@@ -1159,10 +1309,12 @@ function renderTickets(){
     const rotG={projeto:'Projeto',tipo:'Tipo',categoria:'Categoria',pessoa:'Pessoa'}[group]||'Grupo';
     const corpo=rows.map(r=>{
       const cel = group==='pessoa'
-          ? `<td data-pessoa="${esc(r.chave)}" title="${esc(r.nome)}">${esc(r.nome)}</td>`
+          ? `<td data-pessoa="${escA(r.chave)}" data-tip="${escA(r.nome)}" data-tipk="clique para ver a pessoa">${esc(r.nome)}</td>`
         : group==='projeto'
-          ? `<td title="${esc(nomeProj(r.chave))}">${esc(nomeProj(r.chave))}</td>`
-          : `<td>${esc(r.chave)}</td>`;
+          ? `<td data-drill="projeto" data-key="${escA(r.chave)}" data-tip="${escA(nomeProj(r.chave))}" data-tipk="clique para detalhar">${esc(nomeProj(r.chave))}</td>`
+        : group==='categoria'
+          ? `<td data-drill="categoria" data-key="${escA(r.chave)}" data-tip="${escA(r.chave)}" data-tipk="clique para detalhar">${esc(r.chave)}</td>`
+          : `<td data-drill="tipo" data-key="${escA(r.chave)}" data-tip="${escA(r.chave)}" data-tipk="clique para detalhar">${esc(r.chave)}</td>`;
       return `<tr>${cel}
         <td class="num">${r.tickets}</td>
         <td class="num">${r.seg?fmtH(r.seg):'—'}</td>
@@ -1182,8 +1334,8 @@ function renderTickets(){
       return `<tr>
         <td><a href="${url}" target="_blank" rel="noopener" title="Abrir ${esc(l.k)} no Jira">${esc(l.k)} ↗</a></td>
         <td class="tk-nome" title="${esc(l.nome)}">${l.nome?esc(l.nome):'<span class="muted">—</span>'}</td>
-        <td title="${esc(nomeProj(l.p))}">${esc(l.p)}</td>
-        <td>${esc(l.t)}</td>
+        <td><span class="codigo-proj" data-drill="projeto" data-key="${escA(l.p)}" data-tip="${escA(nomeProj(l.p))}" data-tipk="clique para detalhar">${esc(l.p)}</span></td>
+        <td><span data-drill="tipo" data-key="${escA(l.t)}" data-tip="${escA(l.t)}" data-tipk="clique para detalhar">${esc(l.t)}</span></td>
         <td class="num">${l.seg?fmtH(l.seg):'—'}</td>
         <td title="${esc(quem.join(', '))}">${quem.length}</td>
         <td class="num">${l.alter}</td>
@@ -1437,9 +1589,13 @@ document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaModal(); });
 
-// Clique em nome de pessoa (qualquer visão) abre o detalhe.
-document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest('[data-pessoa]'); if(t) abrePessoa(t.getAttribute('data-pessoa'));
+// Drill-down e clique em pessoa (vale em qualquer visão E dentro dos modais,
+// permitindo navegação encadeada: projeto → pessoa → projeto…).
+document.addEventListener('click', (e)=>{
+  const dr=e.target.closest && e.target.closest('[data-drill]');
+  if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
+  const pz=e.target.closest && e.target.closest('[data-pessoa]');
+  if(pz){ escondeTip(); abrePessoa(pz.getAttribute('data-pessoa')); }
 });
 // Agrupamento da visão Tickets (o select é re-renderizado a cada render).
 document.getElementById('conteudo').addEventListener('change', (e)=>{
