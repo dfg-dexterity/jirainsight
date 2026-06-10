@@ -245,6 +245,15 @@
   .badge.venc-hoje{background:rgba(255,164,54,.18);color:#9a6412;font-weight:700}
   .badge.sem-horas{background:rgba(192,80,74,.10);color:#a23b35}
   .badge.com-horas{background:rgba(89,124,89,.14);color:#3f5a3f}
+  .badge.st-btn{cursor:pointer;border:1px dashed #b3ad9d;background:#fff;font-family:var(--corpo);font-size:11px}
+  .badge.st-btn:hover{border-color:var(--grafite)}
+  .ap-trans{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#FBF8EF;
+    border:1px dashed var(--linha);border-radius:8px;padding:8px 10px;font-size:12px}
+  .ap-trans-rot{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#8a857a}
+  .chip.st-done{border-color:#cfe0cf;color:#3f5a3f;font-weight:600}
+  .chip.st-indeterminate{border-color:#f0d6a8;color:#9a6412}
+  .ap-filtros select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:140px}
   .ap-log{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--linha);padding-top:10px}
   .ap-log input[type=text],.ap-log input[type=date]{font-family:var(--corpo);font-size:13px;padding:7px 10px;
     border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
@@ -399,8 +408,9 @@
     <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
     Clique no nome de qualquer pessoa para ver o detalhe.
     <br><strong>Apontar:</strong> mostra os chamados abertos com vencimento até a data escolhida e permite
-    registrar horas direto no Jira — o worklog é criado <em>no usuário de quem aponta</em> (cada pessoa se
-    identifica uma vez com seu token de API; fica salvo só no navegador dela) e aparece no Clockwork.
+    registrar horas e <em>mover o status</em> direto no Jira — tudo criado <em>no usuário de quem opera</em>
+    (cada pessoa se identifica uma vez com seu token de API; fica salvo só no navegador dela). As horas
+    aparecem no Clockwork; as transições respeitam o workflow e as permissões de cada um.
     <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
   </footer>
@@ -427,8 +437,8 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
-  // Tela "Apontar": data-limite de vencimento, filtro, busca e cache por data.
-  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', porData:{}, carregando:false } };
+  // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
+  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -1482,9 +1492,12 @@ function renderApontar(){
   const venceHoje=todos.filter(t=>t.venc===hoje);
 
   // ---- Filtros da tela ----
+  const catDe=(pk)=>(projs[pk]&&projs[pk].categoria)||'Sem categoria';
   let lista=todos;
   if(ap.fil==='semhoras') lista=lista.filter(t=>!t.seg);
   else if(ap.fil==='vencidos') lista=lista.filter(t=>t.venc&&t.venc<hoje);
+  if(ap.cat) lista=lista.filter(t=>catDe(t.p)===ap.cat);
+  if(ap.proj) lista=lista.filter(t=>t.p===ap.proj);
   if(ap.soMeus && id && id.accountId) lista=lista.filter(t=>t.respId===id.accountId);
   if(ap.busca){ const q=ap.busca.toLowerCase();
     lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.p+' '+(t.resp||'')).toLowerCase().includes(q)); }
@@ -1508,6 +1521,14 @@ function renderApontar(){
       <button class="chip" aria-pressed="${ap.fil==='todos'}" data-ap-fil="todos">Todos</button>
       <button class="chip" aria-pressed="${ap.fil==='semhoras'}" data-ap-fil="semhoras">Sem horas apontadas</button>
       <button class="chip" aria-pressed="${ap.fil==='vencidos'}" data-ap-fil="vencidos">Vencidos</button></div></div>
+    <div class="campo"><label>Categoria</label><select id="ap-cat">
+      <option value="">Todas</option>${
+      [...new Set(Object.values(projs).map(p=>p.categoria||'Sem categoria'))].sort((a,b)=>a.localeCompare(b,'pt'))
+        .map(c=>`<option value="${escA(c)}" ${ap.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="campo"><label>Projeto</label><select id="ap-proj">
+      <option value="">Todos</option>${
+      Object.keys(projs).filter(k=>!ap.cat||catDe(k)===ap.cat).sort()
+        .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(k)} — ${esc(projs[k].nome||'')}</option>`).join('')}</select></div>
     ${id?`<label class="check" style="padding-bottom:9px"><input type="checkbox" id="ap-meus" ${ap.soMeus?'checked':''}> Só os meus</label>`:''}
     <div class="campo"><label>Buscar</label>
       <input type="search" id="ap-busca" placeholder="código, resumo, projeto…" value="${escA(ap.busca)}"></div>
@@ -1543,7 +1564,8 @@ function renderApontar(){
       <div class="ap-l2">
         <span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span>
         <span class="badge">${esc(t.t)}</span>
-        <span class="badge">${esc(t.status)}</span>
+        ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
+            :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
         ${badgeVenc(t.venc)}
         ${horas}
@@ -1644,6 +1666,55 @@ async function fazApontamento(btn){
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
   btn.disabled=false;
+}
+
+// Abre/fecha o painel de transições de status de um chamado (lazy: busca no clique).
+async function toggleTransicoes(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-st');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const aberto=row.querySelector('.ap-trans');
+  if(aberto){ aberto.remove(); return; }                 // segundo clique fecha
+  const area=document.createElement('div'); area.className='ap-trans';
+  area.innerHTML='<span class="muted small">Carregando transições…</span>';
+  row.querySelector('.ap-l2').after(area);
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({listar:true,issue:k,email:id.email,token:id.token})}).then(r=>r.json());
+    if(!j.ok){ area.innerHTML=`<span class="ap-fb err">${esc(j.erro||'Falha ao listar transições.')}</span>`; return; }
+    if(!(j.transicoes||[]).length){ area.innerHTML='<span class="muted small">Nenhuma transição disponível para você neste ticket.</span>'; return; }
+    area.innerHTML='<span class="ap-trans-rot">Mover para:</span>'+j.transicoes.map(tr=>
+      `<button class="chip st-${escA(tr.categoria)}" data-ap-trans="${escA(tr.id)}"
+         data-ap-trans-issue="${escA(k)}" data-ap-trans-nome="${escA(tr.para||tr.nome)}"
+         data-ap-trans-cat="${escA(tr.categoria)}"
+         data-tip="${escA(tr.nome+(tr.para&&tr.para!==tr.nome?' → '+tr.para:''))}">${esc(tr.para||tr.nome)}</button>`).join('');
+  }catch(e){ area.innerHTML=`<span class="ap-fb err">Erro de rede: ${esc(e.message||e)}</span>`; }
+}
+
+// Executa a transição escolhida e atualiza a linha.
+async function executaTransicao(btn){
+  const row=btn.closest('.ap-row'); const area=btn.closest('.ap-trans'); if(!row||!area) return;
+  const k=btn.getAttribute('data-ap-trans-issue');
+  const tid=btn.getAttribute('data-ap-trans');
+  const novo=btn.getAttribute('data-ap-trans-nome');
+  const catg=btn.getAttribute('data-ap-trans-cat');
+  const id=idApontar(); if(!id) return;
+  [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
+  btn.textContent='Movendo…';
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({issue:k,transitionId:tid,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      const stBtn=row.querySelector('[data-ap-st]'); if(stBtn) stBtn.textContent=`${novo} ▾`;
+      const dados=estado.apontar.porData[estado.apontar.ate];
+      const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.status=novo;
+      const fechou=(catg==='done');
+      if(fechou) row.classList.add('feito');
+      area.innerHTML=`<span class="ap-fb ok">✓ Status atualizado para “${esc(novo)}”${fechou?' — concluído (sai da lista ao atualizar)':''}.</span>`;
+      setTimeout(()=>{ area.remove(); }, 3000);
+      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+    } else { area.innerHTML=`<span class="ap-fb err">${esc(j.erro||'Falha ao mover o ticket.')}</span>`; }
+  }catch(e){ area.innerHTML=`<span class="ap-fb err">Erro de rede: ${esc(e.message||e)}</span>`; }
 }
 // ======================================================================================
 
@@ -1814,6 +1885,8 @@ function leURL(){
   ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';
   ap.fil = APFILTROS.includes(p.get('fil')) ? p.get('fil') : 'todos';
   ap.soMeus = p.get('meus')!=='0';
+  ap.cat = p.get('acat')||'';
+  ap.proj = p.get('aproj')||'';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'', mostrarRotinas:p.get('rot')==='1' };
 }
@@ -1839,7 +1912,9 @@ function estadoParaURL(){
   if(estado.vista==='apontar'){ const ap=estado.apontar;
     if(ap.ate && ap.ate!==hojeSP()) p.set('ate',ap.ate);
     if(ap.fil!=='todos') p.set('fil',ap.fil);
-    if(!ap.soMeus) p.set('meus','0'); }
+    if(!ap.soMeus) p.set('meus','0');
+    if(ap.cat) p.set('acat',ap.cat);
+    if(ap.proj) p.set('aproj',ap.proj); }
   if(f.pessoa) p.set('u',f.pessoa);
   if(f.categoria) p.set('cat',f.categoria);
   if(f.projeto) p.set('proj',f.projeto);
@@ -1902,6 +1977,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='ap-ate'){ const v=e.target.value;
     if(/^\d{4}-\d{2}-\d{2}$/.test(v)){ estado.apontar.ate=v; renderApontar(); estadoParaURL(); } }
   if(e.target && e.target.id==='ap-meus'){ estado.apontar.soMeus=e.target.checked; renderApontar(); estadoParaURL(); }
+  if(e.target && e.target.id==='ap-cat'){ estado.apontar.cat=e.target.value; estado.apontar.proj=''; renderApontar(); estadoParaURL(); }
+  if(e.target && e.target.id==='ap-proj'){ estado.apontar.proj=e.target.value; renderApontar(); estadoParaURL(); }
 });
 
 // ---- Tela Apontar: cliques (chips, identidade, enviar) ----
@@ -1912,6 +1989,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-chip')){ const row=t.closest('.ap-row');
     const inp=row&&row.querySelector('.ap-tempo'); if(inp){ inp.value=t.getAttribute('data-ap-chip'); inp.focus(); } }
   else if(t.hasAttribute('data-ap-key')){ fazApontamento(t); }
+  else if(t.hasAttribute('data-ap-st')){ escondeTip(); toggleTransicoes(t); }
+  else if(t.hasAttribute('data-ap-trans')){ escondeTip(); executaTransicao(t); }
   else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
   else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
     carregaVenc(estado.apontar.ate,true)
