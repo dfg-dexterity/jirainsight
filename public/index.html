@@ -1905,6 +1905,7 @@ Criar massa de testes ; usar dados do projeto anterior">${esc(pl.texto)}</textar
         Tem uma planilha? Use <strong>📋 Colar do Excel / CSV</strong> (com colunas Resumo, Descrição, Tipo, Responsável).</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn" id="pl-importar">📋 Colar do Excel / CSV</button>
+        <button class="btn" id="pl-modelo">⬇ Baixar modelo (.csv)</button>
         <button class="btn primario" id="pl-validar">Validar e revisar →</button>
       </div>
       <div class="ap-fb" id="pl-fb" hidden></div>
@@ -2103,13 +2104,28 @@ function importaDeTexto(text, comHeader){
   return { itens, avisos:[...avisos] };
 }
 
+// Baixa um modelo .csv (UTF-8 + BOM, separado por ";") pronto para o Excel: o time
+// preenche, copia as células e cola de volta no importador.
+function baixaModeloPlanejar(){
+  const tipos=tiposDisponiveis();
+  const tEx=(tipos.find(x=>x.id===estado.planejar.tipoId)||tipos[0]||{}).nome||'Tarefa';
+  const head=['Resumo','Descrição','Tipo','Responsável'];
+  const exemplos=[
+    ['Levantar requisitos com o cliente','Agendar reunião inicial',tEx,''],
+    ['Configurar ambiente de homologação','',tEx,''],
+    ['Criar massa de testes','Usar dados do projeto anterior',tEx,''],
+  ];
+  baixaCSV('modelo_planejamento_jira.csv',[head,...exemplos]);
+}
+
 // Modal de importação (colar do Excel / CSV) com pré-visualização.
 function abreImportar(){
   abreModal(`
     <h2>Colar do Excel / importar CSV</h2>
     <div class="muted small">Cole direto do Excel (Ctrl/Cmd+V) ou um CSV. Colunas, nesta ordem:
       <strong>Resumo</strong>, Descrição, Tipo, Responsável. Só o <strong>Resumo</strong> é obrigatório;
-      Tipo/Responsável em branco usam o padrão do formulário. Uma linha = um ticket.</div>
+      Tipo/Responsável em branco usam o padrão do formulário. Uma linha = um ticket.
+      <button class="btn" id="pl-csv-modelo" style="margin-left:6px;padding:3px 9px">⬇ Baixar modelo (.csv)</button></div>
     <textarea id="pl-csv" class="pl-texto" style="min-height:170px;margin-top:10px"
       placeholder="Resumo&#9;Descrição&#9;Tipo&#9;Responsável&#10;Levantar requisitos&#9;reunião inicial&#9;Tarefa&#9;Ana&#10;Configurar ambiente&#9;&#9;Tarefa&#9;Julian"></textarea>
     <label class="check" style="margin-top:8px"><input type="checkbox" id="pl-csv-head"> Primeira linha é cabeçalho</label>
@@ -2465,6 +2481,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       fb.textContent='Escolha o projeto e o tipo de ticket antes de colar a planilha.'; } return; }
     abreImportar();
   }
+  else if(t.id==='pl-modelo'){ baixaModeloPlanejar(); }
   else if(t.id==='pl-voltar'){ pl.itens=null; renderPlanejar(); }
   else if(t.id==='pl-criar'){ criaLote(); }
   else if(t.hasAttribute('data-pl-del')){ pl.itens.splice(Number(t.getAttribute('data-pl-del')),1);
@@ -2535,6 +2552,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
   else if(t.id==='ap-id-sair'){ limpaIdApontar(); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
   else if(t.id==='pl-csv-import'){ confirmaImportacao(); }
+  else if(t.id==='pl-csv-modelo'){ baixaModeloPlanejar(); }
   else if(t.id==='pl-csv-cancel'){ fechaModal(); }
 });
 
