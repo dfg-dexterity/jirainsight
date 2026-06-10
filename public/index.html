@@ -104,6 +104,7 @@
   .ts-legend .sw.parcial{background:rgba(255,164,54,.6)}
   .ts-legend .sw.vazio{background:rgba(192,80,74,.5)}
   .ts-legend .sw.fds{background:#E3DDCB}
+  .ts-legend .sw.fer{background:#efe2f3}
   .ts-legend .sw.aus{background:#dfe3ea}
   .ts-legend .sw.hoje{background:#fff;border-color:var(--cerceta)}
   .ts-wrap{overflow-x:auto;border:1px solid var(--linha);border-radius:10px}
@@ -119,12 +120,14 @@
   .ts-d .dnum{display:block;font-weight:700;color:var(--grafite);font-size:12px}
   .ts-d .dsem{display:block;font-size:9px}
   .ts-d.fds{background:#F0EBDB;color:#b3ad9d}
+  .ts-d.fer{background:#f3ecf6;color:#8a6e90}
   .ts-d.hoje{outline:2px solid var(--cerceta);outline-offset:-2px}
   .ts-c{font-variant-numeric:tabular-nums;font-weight:600;color:var(--grafite)}
   .ts-c.ok{background:rgba(89,124,89,.18);color:#3f5a3f}
   .ts-c.parcial{background:rgba(255,164,54,.20);color:#9a6412}
   .ts-c.vazio{background:rgba(192,80,74,.16);color:#a23b35;font-weight:700}
   .ts-c.fds{background:#F4F0E2;color:#c2bcab}
+  .ts-c.fer{background:#f3ecf6;color:#8a6e90;font-style:italic}
   .ts-c.aus{background:#eef0f4;color:#8a93a5;font-style:italic}
   .ts-c.hoje{background:#fff;color:#0a6b67;font-weight:700}
   .ts-lac.tem-lacuna{color:#a23b35;font-weight:700}
@@ -187,7 +190,7 @@
   .modal h2{font-family:var(--titulo);text-transform:uppercase;font-size:18px;margin:0 0 4px;letter-spacing:.5px}
   .modal-x{position:absolute;top:8px;right:12px;border:0;background:transparent;font-size:26px;
     line-height:1;color:#8a857a;cursor:pointer}
-  .modal input[type=number],.modal input[type=date],.modal select{font-family:var(--corpo);font-size:13px;
+  .modal input[type=number],.modal input[type=date],.modal input[type=text],.modal select{font-family:var(--corpo);font-size:13px;
     padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
   .mt-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--linha)}
   .mt-sec h3{font-family:var(--titulo);text-transform:uppercase;font-size:13px;letter-spacing:.5px;margin:0 0 8px}
@@ -319,7 +322,7 @@
     é por <em>autor da alteração</em>, não por responsável.
     <br><strong>Timesheet / Ranking:</strong> a lacuna ("horários não preenchidos") compara as horas
     apontadas no Clockwork com a meta por dia útil (padrão <em>8h, seg–sex</em>, ajustável em
-    <em>Metas</em>, inclusive por pessoa); fins de semana, ausências e o dia de hoje não contam.
+    <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
     Clique no nome de qualquer pessoa para ver o detalhe.
     <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
@@ -350,10 +353,11 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
-    return Object.assign({ metaGlobalH:8, metasPessoa:{}, ausencias:[] }, c); }catch(e){}
-  return { metaGlobalH:8, metasPessoa:{}, ausencias:[] };
+    return Object.assign(cfgDefaults(), c); }catch(e){}
+  return cfgDefaults();
 }
 function salvaCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} salvaCfgRemota(); }
 let cfg = carregaCfg();
@@ -365,7 +369,7 @@ async function carregaCfgRemota(){
     if(j && j.configurado){
       cfgShared = true;
       if(j.data && typeof j.data==='object' && Object.keys(j.data).length)
-        cfg = Object.assign({ metaGlobalH:8, metasPessoa:{}, ausencias:[] }, j.data);
+        cfg = Object.assign(cfgDefaults(), j.data);
     }
   }catch(e){ /* mantém local */ }
 }
@@ -401,6 +405,46 @@ function proxDia(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Dat
 function listaDias(a,b){ if(!a||!b) return []; const out=[]; let d=a, g=0; while(d<=b && g++<400){ out.push(d); d=proxDia(d); } return out; }
 function diaSemana(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d,12)).getUTCDay(); } // 0=dom … 6=sáb
 const ehUtil = (s) => { const w=diaSemana(s); return w>=1 && w<=5; };
+
+// ---- Feriados nacionais brasileiros (calculados — sem depender de internet) ----
+// Inclui os fixos + os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) via Páscoa
+// (algoritmo de Meeus/Butcher). Ajustável em Metas: dá p/ adicionar feriados
+// municipais/estaduais (feriadosExtra) e remover os facultativos (feriadosRemovidos).
+function _pascoa(ano){
+  const a=ano%19, b=Math.floor(ano/100), c=ano%100, d=Math.floor(b/4), e=b%4,
+    f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30,
+    i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451),
+    mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1;
+  return new Date(Date.UTC(ano, mes-1, dia));
+}
+function _isoUTC(d){ return d.toISOString().slice(0,10); }
+function _addDataDias(d,n){ const x=new Date(d); x.setUTCDate(x.getUTCDate()+n); return x; }
+function feriadosNacionais(ano){
+  const p=_pascoa(ano); const f={};
+  f[`${ano}-01-01`]='Confraternização Universal';
+  f[_isoUTC(_addDataDias(p,-48))]='Carnaval';
+  f[_isoUTC(_addDataDias(p,-47))]='Carnaval';
+  f[_isoUTC(_addDataDias(p,-2))]='Sexta-feira Santa';
+  f[`${ano}-04-21`]='Tiradentes';
+  f[`${ano}-05-01`]='Dia do Trabalho';
+  f[_isoUTC(_addDataDias(p,60))]='Corpus Christi';
+  f[`${ano}-09-07`]='Independência';
+  f[`${ano}-10-12`]='Nossa Senhora Aparecida';
+  f[`${ano}-11-02`]='Finados';
+  f[`${ano}-11-15`]='Proclamação da República';
+  if(ano>=2024) f[`${ano}-11-20`]='Consciência Negra';
+  f[`${ano}-12-25`]='Natal';
+  return f;   // { 'YYYY-MM-DD': nome }
+}
+const _ferCache={};
+function feriadosDoAno(ano){ return _ferCache[ano] || (_ferCache[ano]=feriadosNacionais(ano)); }
+// Nome do feriado nesse dia (considerando extras/removidos da config); '' se não for.
+function nomeFeriado(dia){
+  if((cfg.feriadosRemovidos||[]).includes(dia)) return '';
+  const ex=cfg.feriadosExtra||{}; if(ex[dia]) return ex[dia];
+  return feriadosDoAno(+dia.slice(0,4))[dia] || '';
+}
+const ehFeriado = (dia) => !!nomeFeriado(dia);
 
 async function carrega(periodo){
   if (estado.cache[periodo]) { const c=estado.cache[periodo];
@@ -662,7 +706,7 @@ function dadosPessoa(a){
     tot+=w.s; if(w.f) fat+=w.s;
   });
   let lacuna=0;
-  dias.forEach(d=>{ if(!ehUtil(d)||d===hoje||ehAusencia(a,d)) return;
+  dias.forEach(d=>{ if(!ehUtil(d)||d===hoje||ehAusencia(a,d)||ehFeriado(d)) return;
     const s=porDia[d]||0, m=metaSegDe(a); if(s<m) lacuna+=(m-s); });
   return { nome:(pessoasNome[a]&&pessoasNome[a].nome)||a, meta, dias, porDia, porProj, tot, fat, lacuna };
 }
@@ -791,7 +835,7 @@ function calcTimesheet(){
     let tot=0, lacuna=0, vazios=0, parciais=0, esperado=0;
     dias.forEach(d=>{
       const s=porDia[d]||0; tot+=s;
-      if(!ehUtil(d) || d===hoje || ehAusencia(a,d)) return;  // fds/hoje/ausência não contam
+      if(!ehUtil(d) || d===hoje || ehAusencia(a,d) || ehFeriado(d)) return;  // fds/hoje/ausência/feriado não contam
       const m=metaSegDe(a); esperado+=m;
       if(s<=0){ vazios++; lacuna+=m; }
       else if(s<m){ parciais++; lacuna+=(m-s); }
@@ -805,7 +849,7 @@ function calcTimesheet(){
 // Aviso: quem não apontou no último dia útil fechado do período.
 function cardNaoApontou(){
   const { dias, hoje, linhas } = calcTimesheet();
-  const uteis = dias.filter(d => ehUtil(d) && d!==hoje);
+  const uteis = dias.filter(d => ehUtil(d) && !ehFeriado(d) && d!==hoje);
   if(!uteis.length || !linhas.length) return '';
   const ultimo = uteis[uteis.length-1];
   const faltam = linhas.filter(l => !ehAusencia(l.a, ultimo) && !(l.porDia[ultimo] > 0));
@@ -830,22 +874,25 @@ function renderTimesheet(){
 
   const semana=['dom','seg','ter','qua','qui','sex','sáb'];
   const thDias=dias.map(d=>{
-    const w=diaSemana(d), fds=(w===0||w===6);
-    return `<th class="ts-d${fds?' fds':''}${d===hoje?' hoje':''}" title="${esc(d)}">
+    const w=diaSemana(d), fds=(w===0||w===6), fer=(!fds&&ehFeriado(d));
+    const tit=fer?`${d} · ${nomeFeriado(d)}`:d;
+    return `<th class="ts-d${fds?' fds':''}${fer?' fer':''}${d===hoje?' hoje':''}" title="${esc(tit)}">
       <span class="dnum">${d.slice(8,10)}</span><span class="dsem">${semana[w]}</span></th>`;
   }).join('');
 
   const corpo=linhas.map(l=>{
     const cells=dias.map(d=>{
-      const s=l.porDia[d]||0, w=diaSemana(d), fds=(w===0||w===6), m=metaSegDe(l.a);
+      const s=l.porDia[d]||0, w=diaSemana(d), fds=(w===0||w===6), m=metaSegDe(l.a), fer=(!fds&&ehFeriado(d));
       let cls='ts-c', txt='';
       if(ehAusencia(l.a,d)){ cls+=' aus'; txt=s>0?fmtH(s):'aus'; }
       else if(fds){ cls+=' fds'; txt=s>0?fmtH(s):'·'; }
+      else if(fer){ cls+=' fer'; txt=s>0?fmtH(s):'fer'; }
       else if(d===hoje){ cls+=' hoje'; txt=s>0?fmtH(s):'hoje'; }
       else if(s<=0){ cls+=' vazio'; txt='—'; }
       else if(s<m){ cls+=' parcial'; txt=fmtH(s); }
       else { cls+=' ok'; txt=fmtH(s); }
-      return `<td class="${cls}" title="${esc(l.nome)} · ${esc(d)} · ${s>0?fmtH(s):'sem apontamento'}">${txt}</td>`;
+      const tFer=fer?` · ${nomeFeriado(d)}`:'';
+      return `<td class="${cls}" title="${esc(l.nome)} · ${esc(d)}${esc(tFer)} · ${s>0?fmtH(s):'sem apontamento'}">${txt}</td>`;
     }).join('');
     const alerta=l.lacuna>0?'tem-lacuna':'';
     return `<tr>
@@ -871,6 +918,7 @@ function renderTimesheet(){
         <span><i class="sw parcial"></i>parcial</span>
         <span><i class="sw vazio"></i>não preenchido</span>
         <span><i class="sw fds"></i>fim de semana</span>
+        <span><i class="sw fer"></i>feriado</span>
         <span><i class="sw aus"></i>ausência</span>
         <span><i class="sw hoje"></i>hoje</span>
       </div>
@@ -909,7 +957,7 @@ function cardHeatSemana(){
   const nomes=['seg','ter','qua','qui','sex'];
   const agg={1:{e:0,c:0},2:{e:0,c:0},3:{e:0,c:0},4:{e:0,c:0},5:{e:0,c:0}};
   dias.forEach(d=>{
-    const wd=diaSemana(d); if(wd<1||wd>5||d===hoje) return;
+    const wd=diaSemana(d); if(wd<1||wd>5||d===hoje||ehFeriado(d)) return;
     linhas.forEach(l=>{ if(ehAusencia(l.a,d)) return; agg[wd].c++; if(!(l.porDia[d]>0)) agg[wd].e++; });
   });
   const temDados=[1,2,3,4,5].some(wd=>agg[wd].c>0);
@@ -960,7 +1008,7 @@ function renderRanking(){
   const emDia=linhas.filter(l=>l.status==='ok').length;
   const atras=linhas.filter(l=>l.status==='warn'||l.status==='bad').length;
   const pctGeral=espTot?Math.round((espTot-faltaTot)/espTot*100):null;
-  const diasUteis=dias.filter(d=>ehUtil(d) && d!==hoje);
+  const diasUteis=dias.filter(d=>ehUtil(d) && !ehFeriado(d) && d!==hoje);
 
   const rotulo={ok:'Em dia',warn:'Atrasado',bad:'Crítico',na:'—'};
   const rows=linhas.map((l,i)=>{
@@ -1237,6 +1285,27 @@ function abreMetas(){
        <button class="btn" data-del-aus="${i}">remover</button></div>`).join('')
     : '<div class="muted small">Nenhuma ausência cadastrada.</div>';
 
+  // Feriados do(s) ano(s) abrangidos pelo período atual.
+  const metaP=(estado.tempo&&estado.tempo.meta)||{};
+  const anosF=new Set();
+  if(metaP.startDate&&metaP.endDate){ for(let y=+metaP.startDate.slice(0,4); y<=+metaP.endDate.slice(0,4); y++) anosF.add(y); }
+  if(!anosF.size) anosF.add(+hojeSP().slice(0,4));
+  const semAbrev=['dom','seg','ter','qua','qui','sex','sáb'];
+  const ferLista=[];
+  [...anosF].sort().forEach(y=>{ const base=feriadosDoAno(y);
+    Object.keys(base).forEach(iso=>{ if(!(cfg.feriadosRemovidos||[]).includes(iso)) ferLista.push([iso, base[iso], false]); }); });
+  Object.entries(cfg.feriadosExtra||{}).forEach(([iso,nome])=>{ if(anosF.has(+iso.slice(0,4))) ferLista.push([iso, nome, true]); });
+  ferLista.sort((a,b)=> a[0]<b[0]?-1:a[0]>b[0]?1:0);
+  const listaF = ferLista.length ? ferLista.map(([iso,nome,extra])=>
+    `<div class="mt-item"><span>${esc(iso)} <span class="muted small">(${semAbrev[diaSemana(iso)]})</span> — ${esc(nome)}${extra?' <span class="muted small">· personalizado</span>':''}</span>
+       <button class="btn" data-del-fer="${esc(iso)}">remover</button></div>`).join('')
+    : '<div class="muted small">Nenhum feriado para o período.</div>';
+  const remF=(cfg.feriadosRemovidos||[]).filter(iso=>anosF.has(+iso.slice(0,4))).sort();
+  const listaRem = remF.length ? '<div class="muted small" style="margin-top:8px">Removidos (não contam mais como feriado):</div>'+
+    remF.map(iso=>`<div class="mt-item"><span class="muted">${esc(iso)}</span>
+       <button class="btn" data-restore-fer="${esc(iso)}">restaurar</button></div>`).join('') : '';
+  const anosTxt=[...anosF].sort().join(', ');
+
   abreModal(`
     <h2>Metas e ausências</h2>
     <div class="muted small">${cfgShared
@@ -1271,6 +1340,18 @@ function abreMetas(){
         <div class="campo"><label>De</label><input type="date" id="mt-aus-de"></div>
         <div class="campo"><label>Até</label><input type="date" id="mt-aus-ate"></div>
         <button class="btn" id="mt-add-aus">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="mt-sec">
+      <h3>Feriados nacionais — ${esc(anosTxt)}</h3>
+      <div class="muted small">Não contam como dia útil no timesheet/ranking. Remova os facultativos (Carnaval/Corpus Christi) se o time trabalha nesses dias, ou adicione feriados municipais/estaduais.</div>
+      ${listaF}
+      ${listaRem}
+      <div class="mt-form">
+        <div class="campo"><label>Data</label><input type="date" id="mt-fer-data"></div>
+        <div class="campo"><label>Nome (opcional)</label><input type="text" id="mt-fer-nome" placeholder="Feriado municipal"></div>
+        <button class="btn" id="mt-add-fer">Adicionar feriado</button>
       </div>
     </div>
   `);
@@ -1376,6 +1457,15 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='mt-add-aus'){ const a=val('mt-aus-pessoa'), de=val('mt-aus-de'), ate=val('mt-aus-ate');
     if(a&&de&&ate){ cfg.ausencias.push({a, de, ate:(ate<de?de:ate)}); salvaCfg(); render(); abreMetas(); } }
   else if(t.hasAttribute('data-del-aus')){ cfg.ausencias.splice(Number(t.getAttribute('data-del-aus')),1); salvaCfg(); render(); abreMetas(); }
+  else if(t.id==='mt-add-fer'){ const de=val('mt-fer-data'), nm=(val('mt-fer-nome')||'').trim();
+    if(de){ cfg.feriadosExtra=cfg.feriadosExtra||{}; cfg.feriadosExtra[de]=nm||'Feriado';
+      cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==de); salvaCfg(); render(); abreMetas(); } }
+  else if(t.hasAttribute('data-del-fer')){ const iso=t.getAttribute('data-del-fer'); cfg.feriadosExtra=cfg.feriadosExtra||{};
+    if(cfg.feriadosExtra[iso]!=null){ delete cfg.feriadosExtra[iso]; }
+    else { cfg.feriadosRemovidos=cfg.feriadosRemovidos||[]; if(!cfg.feriadosRemovidos.includes(iso)) cfg.feriadosRemovidos.push(iso); }
+    salvaCfg(); render(); abreMetas(); }
+  else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
+    cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
 });
 
 leURL();
