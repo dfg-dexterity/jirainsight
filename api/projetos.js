@@ -1,6 +1,12 @@
-// GET /api/projetos -> projetos do Jira com seus tipos de issue (para o Planejar).
-// Usa o token do painel (leitura). Cache de 30 min — estrutura muda raramente.
-import { cacheGet, cacheSetTTL, jiraBase, json } from './_lib/util.js';
+// Projetos e épicos para o módulo Planejar (num só endpoint, para caber no limite de
+// Serverless Functions do plano Hobby da Vercel). Leitura via conta de serviço.
+//
+// GET /api/projetos            -> projetos do Jira com seus tipos de issue
+// GET /api/projetos?epicos=KEY -> épicos e histórias ABERTOS do projeto KEY
+import { cacheGet, cacheSetTTL, jiraBase, jiraSearchAll, json } from './_lib/util.js';
+
+const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
+const RE_HISTORIA = /story|hist[oó]ria/i;
 
 function jiraAuthHeader() {
   const email = process.env.JIRA_EMAIL;
@@ -9,8 +15,57 @@ function jiraAuthHeader() {
   return 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
 }
 
+// GET /api/projetos?epicos=KEY -> { projeto, epicos, historias }
+async function listarEpicos(projeto, res) {
+  if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
+  const ck = `epicos:${projeto}`;
+  const cached = cacheGet(ck);
+  if (cached) return json(res, 200, cached);
+
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projeto)}`, { headers });
+  if (!rp.ok) {
+    const t = await rp.text();
+    return json(res, rp.status === 404 ? 404 : 500, { erro: `Jira ${rp.status}: ${t.slice(0, 200)}` });
+  }
+  const pdata = await rp.json();
+  const tipos = pdata.issueTypes || [];
+  const idsEpico = tipos.filter((t) => t.hierarchyLevel === 1).map((t) => t.id);
+  const idsHistoria = tipos
+    .filter((t) => !t.subtask && t.hierarchyLevel !== 1 && RE_HISTORIA.test(t.name || ''))
+    .map((t) => t.id);
+
+  const ids = [...idsEpico, ...idsHistoria];
+  const epicos = [];
+  const historias = [];
+  if (ids.length) {
+    const { issues } = await jiraSearchAll({
+      jql: `project = ${projeto} AND issuetype in (${ids.join(',')}) AND statusCategory != Done ORDER BY created DESC`,
+      fields: ['summary', 'issuetype', 'status'],
+      pageSize: 100,
+      maxPages: 3,
+    });
+    for (const it of issues) {
+      const f = it.fields || {};
+      const item = {
+        k: it.key,
+        resumo: f.summary || '',
+        status: (f.status && f.status.name) || '',
+        tipo: (f.issuetype && f.issuetype.name) || '',
+      };
+      if (idsEpico.includes(f.issuetype && f.issuetype.id)) epicos.push(item);
+      else historias.push(item);
+    }
+  }
+  return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias }, 10));
+}
+
 export default async function handler(req, res) {
   try {
+    const epicosDe = String((req.query && req.query.epicos) || '').trim().toUpperCase();
+    if (epicosDe) return await listarEpicos(epicosDe, res);
+
     const ck = 'projetos:tipos';
     const cached = cacheGet(ck);
     if (cached) return json(res, 200, cached);
