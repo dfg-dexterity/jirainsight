@@ -5,21 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Insights de Uso · Jira + Clockwork</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Fonte "72" do SAP Fiori (com fallback Arial/Helvetica, que é bem próximo). -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
-  /* Tema: visual moderno e amigável (neutros frios + índigo/esmeralda/âmbar, fonte Inter).
-     Os NOMES das variáveis foram mantidos do tema anterior para não tocar nos componentes:
-     --cerceta = cor primária (índigo) · --roxo = violeta · --amarelo = âmbar
-     --musgo = verde (ok) · --err = vermelho · --grafite = texto · --offwhite = fundo. */
+@font-face{font-family:'72';font-style:normal;font-weight:400;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/npm/@sap-theming/theming-base-content@11/content/Base/baseLib/sap_horizon/fonts/72-Regular-full.woff2') format('woff2');}
+@font-face{font-family:'72';font-style:normal;font-weight:600;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/npm/@sap-theming/theming-base-content@11/content/Base/baseLib/sap_horizon/fonts/72-Bold-full.woff2') format('woff2');}
+@font-face{font-family:'72';font-style:normal;font-weight:700;font-display:swap;
+  src:url('https://cdn.jsdelivr.net/npm/@sap-theming/theming-base-content@11/content/Base/baseLib/sap_horizon/fonts/72-Bold-full.woff2') format('woff2');}
+</style>
+<style>
+  /* Tema: SAP Fiori (Horizon). Os NOMES das variáveis foram mantidos para não tocar
+     nos componentes — os valores é que mudam para a paleta Fiori:
+     --cerceta = azul primário (#0070F2) · --musgo = verde (positivo) · --amarelo =
+     laranja (crítico) · --err = vermelho (negativo) · --roxo = violeta de apoio. */
   :root{
-    --offwhite:#F6F7FB; --grafite:#334155; --cerceta:#6366F1; --roxo:#8B5CF6;
-    --amarelo:#F59E0B; --musgo:#10B981; --err:#EF4444;
-    --linha:#E5E9F2; --cartao:#FFFFFF;
-    --sombra:0 1px 2px rgba(15,23,42,.04),0 10px 30px rgba(15,23,42,.06);
-    --titulo:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
-    --corpo:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
+    --offwhite:#F5F6F7; --grafite:#1D2D3E; --cerceta:#0070F2; --roxo:#7858FF;
+    --amarelo:#E76500; --musgo:#188918; --err:#BB0000;
+    --linha:#D9D9D9; --cartao:#FFFFFF;
+    --sombra:0 0 0 1px rgba(34,54,79,.02), 0 1px 4px rgba(34,54,79,.10);
+    --titulo:'72','72full',Arial,Helvetica,sans-serif;
+    --corpo:'72','72full',Arial,Helvetica,sans-serif;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--offwhite);color:var(--grafite);font-family:var(--corpo);
@@ -27,30 +34,30 @@
   a{color:var(--cerceta)}
   .wrap{max-width:min(1520px,95vw);margin:0 auto;padding:clamp(16px,2.4vw,28px) clamp(12px,2vw,24px) 64px}
 
-  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-    padding-bottom:16px;border-bottom:1px solid var(--linha);margin-bottom:22px}
-  .brand{display:flex;align-items:center;gap:12px}
-  .brand .mark{width:42px;height:42px;border-radius:13px;flex:0 0 auto;
-    background:linear-gradient(135deg,#6366F1,#8B5CF6);display:flex;align-items:center;
-    justify-content:center;font-size:20px;box-shadow:0 6px 16px rgba(99,102,241,.35)}
-  .brand h1{font-family:var(--titulo);font-weight:800;letter-spacing:-.3px;
-    font-size:21px;margin:0;line-height:1.15;color:#0F172A}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding-bottom:0;border-bottom:1px solid var(--linha);margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:10px;padding-bottom:10px}
+  .brand .mark{width:34px;height:34px;border-radius:6px;flex:0 0 auto;background:var(--cerceta);
+    display:flex;align-items:center;justify-content:center;font-size:17px}
+  .brand h1{font-family:var(--titulo);font-weight:700;letter-spacing:0;
+    font-size:18px;margin:0;line-height:1.2;color:var(--grafite)}
   .brand small{display:block;font-family:var(--corpo);letter-spacing:0;
-    font-size:12px;color:#64748B;font-weight:500;margin-top:1px}
+    font-size:12px;color:#556B82;font-weight:400;margin-top:1px}
   .spacer{flex:1}
 
-  .seg{display:inline-flex;background:#EAEDF5;border-radius:12px;padding:4px;gap:2px}
-  .seg button{border:0;background:transparent;color:#64748B;font-family:var(--corpo);
-    font-size:13px;font-weight:600;padding:7px 13px;cursor:pointer;border-radius:9px;
-    transition:color .12s ease,background .12s ease}
-  .seg button:hover{color:#0F172A}
-  .seg button[aria-pressed="true"]{background:#fff;color:#0F172A;
-    box-shadow:0 1px 2px rgba(15,23,42,.08),0 3px 8px rgba(15,23,42,.06)}
-  .btn{border:1px solid #E2E8F0;background:var(--cartao);border-radius:10px;
-    padding:7px 13px;cursor:pointer;font-family:var(--corpo);font-size:13px;font-weight:500;
-    color:var(--grafite);transition:border-color .12s ease,background .12s ease,box-shadow .12s ease}
-  .btn:hover{border-color:#CBD5E1;background:#F8FAFC;box-shadow:0 1px 3px rgba(15,23,42,.06)}
-  select:focus,input:focus,textarea:focus{outline:2px solid #C7D2FE;outline-offset:1px;border-color:var(--cerceta)}
+  /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
+  .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
+  .seg button{border:0;background:transparent;color:#556B82;font-family:var(--corpo);
+    font-size:14px;font-weight:600;padding:10px 12px;cursor:pointer;border-radius:0;
+    border-bottom:3px solid transparent;margin-bottom:-1px;transition:color .12s ease,border-color .12s ease}
+  .seg button:hover{color:var(--cerceta)}
+  .seg button[aria-pressed="true"]{background:transparent;color:var(--cerceta);border-bottom-color:var(--cerceta);box-shadow:none}
+  /* Botões Fiori: transparentes (toolbar) com texto azul; .primario = emphasized (azul cheio) */
+  .btn{border:1px solid transparent;background:transparent;border-radius:6px;
+    padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:14px;font-weight:600;
+    color:var(--cerceta);transition:background .12s ease,border-color .12s ease}
+  .btn:hover{background:#EAF1FB}
+  select:focus,input:focus,textarea:focus,button:focus-visible{outline:1px dotted var(--cerceta);outline-offset:1px}
   .atualizado{font-size:12px;color:#64748B;width:100%}
 
   .hdr-sel{display:flex;flex-direction:column;gap:3px}
@@ -65,23 +72,23 @@
 
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
   .kpis.ts-kpis{grid-template-columns:repeat(4,1fr)}
-  .kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:16px;padding:16px;
+  .kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:8px;padding:16px;
     box-shadow:var(--sombra)}
   /* KPIs clicáveis (filtros da tela Apontar) */
   .kpi[data-ap-fil]{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
-  .kpi[data-ap-fil]:hover{transform:translateY(-2px);border-color:#C7D2FE}
+  .kpi[data-ap-fil]:hover{transform:translateY(-1px);border-color:#7AA7E8}
   .kpi[data-ap-fil][aria-pressed="true"]{border-color:var(--cerceta);
-    box-shadow:0 0 0 3px rgba(99,102,241,.18),var(--sombra)}
+    box-shadow:0 0 0 2px rgba(0,112,242,.20),var(--sombra)}
   .kpi .v{font-family:var(--titulo);font-size:clamp(26px,2.4vw,40px);font-weight:700;line-height:1;letter-spacing:.5px}
   .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#64748B;margin-top:8px}
   .kpi.t{border-top:3px solid var(--cerceta)} .kpi.a{border-top:3px solid var(--roxo)}
   .kpi.w{border-top:3px solid var(--amarelo)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .card{background:var(--cartao);border:1px solid var(--linha);border-radius:16px;padding:18px;
+  .card{background:var(--cartao);border:1px solid var(--linha);border-radius:8px;padding:18px;
     box-shadow:var(--sombra)}
   .card.full{grid-column:1 / -1}
-  .card h2{font-family:var(--titulo);letter-spacing:-.2px;color:#0F172A;
+  .card h2{font-family:var(--titulo);letter-spacing:0;color:var(--grafite);
     font-size:15px;margin:0 0 14px;font-weight:700}
   .card h2 span{font-family:var(--corpo);letter-spacing:0;
     font-size:12px;color:#64748B;font-weight:400;margin-left:8px}
@@ -146,7 +153,7 @@
   .ts-c.fds{background:#F1F4FA;color:#A5B0C2}
   .ts-c.fer{background:#F5F3FF;color:#7C3AED;font-style:italic}
   .ts-c.aus{background:#F1F5F9;color:#64748B;font-style:italic}
-  .ts-c.hoje{background:#fff;color:#4338CA;font-weight:700}
+  .ts-c.hoje{background:#fff;color:#0064D9;font-weight:700}
   .ts-lac.tem-lacuna{color:#B91C1C;font-weight:700}
 
   /* ---- Horas por pessoa e projeto (barras empilhadas) ---- */
@@ -202,15 +209,15 @@
   .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);display:flex;align-items:flex-start;
     justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
   .modal-bg[hidden]{display:none}
-  .modal{background:var(--cartao);border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);
+  .modal{background:var(--cartao);border-radius:8px;box-shadow:0 24px 70px rgba(34,54,79,.30);
     max-width:760px;width:100%;padding:22px;position:relative}
-  .modal h2{font-family:var(--titulo);font-size:18px;margin:0 0 4px;letter-spacing:-.2px;color:#0F172A;font-weight:800}
+  .modal h2{font-family:var(--titulo);font-size:18px;margin:0 0 4px;letter-spacing:0;color:var(--grafite);font-weight:700}
   .modal-x{position:absolute;top:8px;right:12px;border:0;background:transparent;font-size:26px;
     line-height:1;color:#64748B;cursor:pointer}
   .modal input[type=number],.modal input[type=date],.modal input[type=text],.modal select{font-family:var(--corpo);font-size:13px;
     padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
   .mt-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--linha)}
-  .mt-sec h3{font-family:var(--titulo);font-size:13.5px;font-weight:700;color:#0F172A;letter-spacing:-.1px;margin:0 0 8px}
+  .mt-sec h3{font-family:var(--titulo);font-size:13.5px;font-weight:700;color:var(--grafite);letter-spacing:0;margin:0 0 8px}
   .mt-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;
     border-bottom:1px dashed var(--linha);font-size:13px}
   .mt-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
@@ -234,9 +241,9 @@
   .tk-nome{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ---- Apontar (apontamento rápido) ---- */
-  .ap-id{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#EEF2FF;
-    border:1px solid #C7D2FE;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
-  .ap-id strong{color:#4338CA}
+  .ap-id{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#EAF1FB;
+    border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .ap-id strong{color:#0064D9}
   .ap-id .btn{padding:5px 10px}
   .ap-id.sem{background:#FFF8EB;border-color:#FDE68A;color:#92400E}
   .ap-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
@@ -297,7 +304,7 @@
   .pl-grid select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:170px;max-width:320px}
   .pl-dica{font-size:12px;color:#64748B;margin:6px 0 12px;line-height:1.6}
-  .pl-destino{background:#EEF2FF;border:1px solid #C7D2FE;border-radius:10px;padding:10px 14px;
+  .pl-destino{background:#EAF1FB;border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;
     margin-bottom:12px;font-size:13px}
   table.pl-rev{width:100%;border-collapse:collapse;font-size:13px}
   table.pl-rev th,table.pl-rev td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
@@ -322,6 +329,33 @@
   .rc-resumo{max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rc-foot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px}
   .rc-foot .muted{font-weight:600;color:var(--grafite)}
+
+  /* ---- Tour guiado (coach marks) ---- */
+  .tour-hl{position:absolute;z-index:90;border-radius:8px;box-shadow:0 0 0 9999px rgba(34,54,79,.55);
+    border:2px solid var(--cerceta);pointer-events:none;transition:all .2s ease}
+  .tour-pop{position:fixed;z-index:91;max-width:330px;background:var(--cartao);border:1px solid var(--linha);
+    border-radius:8px;box-shadow:0 12px 40px rgba(34,54,79,.30);padding:16px}
+  .tour-pop h3{margin:0 0 6px;font-size:15px;color:var(--grafite)}
+  .tour-pop p{margin:0 0 12px;font-size:13px;color:#475E74;line-height:1.5}
+  .tour-nav{display:flex;align-items:center;gap:8px}
+  .tour-step{font-size:12px;color:#64748B;flex:1}
+
+  /* ---- Ajuda & feedback ---- */
+  .help-sec{border:1px solid var(--linha);border-radius:8px;margin-top:10px;overflow:hidden}
+  .help-sec>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:13.5px;background:#F5F6F7;list-style:none}
+  .help-sec>summary::-webkit-details-marker{display:none}
+  .help-sec>summary::after{content:'▾';float:right;color:#64748B}
+  .help-sec[open]>summary::after{content:'▴'}
+  .help-body{padding:10px 14px;font-size:13px;line-height:1.6;color:#374A5E}
+  .help-body ul{margin:6px 0;padding-left:18px}
+  .help-body b{color:var(--grafite)}
+  .fb-tipos{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px}
+  .fb-grid{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .fb-grid input[type=text],.fb-grid textarea,.fb-grid select{width:100%;box-sizing:border-box;
+    font-family:var(--corpo);font-size:13px;padding:8px 10px;border:1px solid #89919A;border-radius:4px;
+    background:var(--cartao);color:var(--grafite)}
+  .fb-grid textarea{min-height:96px;resize:vertical;line-height:1.5}
+  .fb-grid label{font-size:12px;color:#556B82;font-weight:600;margin-bottom:-4px}
 
   /* ---- Tooltip flutuante (segue o cursor) ---- */
   .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
@@ -435,6 +469,7 @@
     <button class="btn" id="btn-metas">Metas</button>
     <button class="btn" id="btn-csv">Exportar CSV</button>
     <button class="btn" id="btn-refresh">Atualizar</button>
+    <button class="btn" id="btn-ajuda" aria-label="Ajuda e feedback">? Ajuda</button>
     <div class="atualizado" id="atualizado"></div>
   </header>
 
@@ -481,9 +516,9 @@
 <script>
 // As CHAVES seguem o tema antigo (para não tocar nos usos); os valores são o tema novo:
 // cerceta = índigo (primária) · roxo = violeta · amarelo = âmbar · musgo = esmeralda.
-const cores = { cerceta:'#6366F1', roxo:'#8B5CF6', amarelo:'#F59E0B', musgo:'#10B981', grafite:'#334155' };
-// Paleta para diferenciar projetos nas barras empilhadas.
-const PALETA = ['#6366F1','#10B981','#F59E0B','#0EA5E9','#8B5CF6','#F43F5E','#14B8A6','#84CC16'];
+const cores = { cerceta:'#0070F2', roxo:'#7858FF', amarelo:'#E76500', musgo:'#188918', grafite:'#1D2D3E' };
+// Paleta (cores qualitativas do Fiori) para diferenciar projetos nas barras empilhadas.
+const PALETA = ['#0070F2','#188918','#E76500','#7858FF','#049F9A','#D20A0A','#7CB342','#C0399F'];
 const COR_OUTROS = '#CBD5E1';
 const RE_ROTINA = /rotina|reuni/i;
 // Usuários técnicos / apps do Jira a esconder (não são pessoas). Para esconder
@@ -502,7 +537,9 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
-    movendo:false, resultado:null, taskId:'' } };
+    movendo:false, resultado:null, taskId:'' },
+  // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
+  ajuda:{ projetos:null } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -2398,6 +2435,185 @@ async function verificaMover(){
 }
 // ======================================================================================
 
+// ============================ AJUDA, TOUR E FEEDBACK =================================
+const FB_PREFIXO = { duvida:'Dúvida', sugestao:'Sugestão', bug:'Bug' };
+
+function abreAjuda(){
+  const id=idApontar();
+  const projs=(estado.ajuda.projetos) || (estado.planejar&&estado.planejar.projetos) || null;
+  const projOpts = projs
+    ? '<option value="">— escolha o projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome)}</option>`).join('')
+    : '<option value="">carregando projetos…</option>';
+  abreModal(`
+    <h2>Ajuda &amp; Feedback</h2>
+    <div class="muted small">Como o aplicativo funciona, um tour guiado na tela e os canais para dúvidas, sugestões e bugs.</div>
+    <div style="margin-top:12px"><button class="btn primario" id="aj-tour">▶ Iniciar tour guiado na tela</button></div>
+
+    <details class="help-sec" open><summary>Visão geral</summary><div class="help-body">
+      O painel cruza o <b>Jira</b> (atividade, tickets, status) com o <b>Clockwork</b> (horas apontadas) para
+      acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
+      e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
+    </div></details>
+    <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
+      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira e top projetos.</li>
+      <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
+      <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
+      <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
+      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas e mova o status.</li>
+      <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
+      <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
+    </ul></div></details>
+    <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
+      Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
+      ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
+      <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
+    </div></details>
+    <details class="help-sec"><summary>Planejar (criar tickets em lote)</summary><div class="help-body">
+      Na aba <b>📝 Planejar</b>: escolha projeto, tipo e responsável; digite <b>um ticket por linha</b> (use “;” para
+      “resumo ; descrição”) ou <b>cole do Excel/CSV</b>. Revise (erros destacados) e crie — o resultado lista os
+      tickets criados com links. Há também o modo <b>Planejamento de épico</b> (cria como filhos/sub-tarefas).
+    </div></details>
+    <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
+      Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
+      O <b>tipo</b> é mantido e o <b>status</b> é preservado quando existe no destino.
+    </div></details>
+    <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
+      No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências e feriados nacionais (com Carnaval,
+      Sexta-feira Santa e Corpus Christi). Fim de semana, feriado, ausência e hoje não contam na lacuna.
+    </div></details>
+
+    <div class="mt-sec">
+      <h3>Falar com a gente</h3>
+      <div class="muted small">Cria um ticket no Jira no seu usuário, com o resumo prefixado (ex.: “Sugestão: …”).
+        ${id?`Você é <b>${esc(id.nome||id.email)}</b>.`:'<span style="color:var(--err)">Identifique-se para enviar.</span>'}</div>
+      <div class="fb-tipos">
+        <button class="chip fb-tipo" data-fb="duvida" aria-pressed="false">❓ Dúvida</button>
+        <button class="chip fb-tipo" data-fb="sugestao" aria-pressed="true">💡 Sugestão</button>
+        <button class="chip fb-tipo" data-fb="bug" aria-pressed="false">🐞 Bug</button>
+      </div>
+      <div class="fb-grid">
+        <div><label>Título</label><input type="text" id="fb-titulo" maxlength="200" placeholder="Resumo curto da ${''}dúvida/sugestão/bug"></div>
+        <div><label>Detalhes</label><textarea id="fb-detalhes" placeholder="Descreva com o máximo de contexto (passos, tela, comportamento esperado…)"></textarea></div>
+        <div><label>Projeto destino</label><select id="fb-projeto">${projOpts}</select></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primario" id="fb-enviar" ${id?'':'disabled'}>Enviar</button>
+          ${id?'':'<button class="btn" data-ap-act="config-id">Identificar-se</button>'}
+        </div>
+        <div class="ap-fb" id="fb-msg" hidden></div>
+      </div>
+    </div>
+  `);
+  // Carrega os projetos (para o destino) se ainda não tiver, e restaura a última escolha.
+  const restaura=()=>{ const sel=document.getElementById('fb-projeto'); if(!sel) return;
+    let saved=''; try{ saved=localStorage.getItem('dexterity_fb_proj')||''; }catch(e){}
+    if(saved && [...sel.options].some(o=>o.value===saved)) sel.value=saved; };
+  if(!projs){
+    fetch('/api/projetos').then(r=>r.json()).then(j=>{
+      estado.ajuda.projetos=j.projetos||[];
+      const sel=document.getElementById('fb-projeto');
+      if(sel) sel.innerHTML='<option value="">— escolha o projeto —</option>'+estado.ajuda.projetos.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+      restaura();
+    }).catch(()=>{});
+  } else restaura();
+}
+
+function tipoFeedback(projKey, tipo){
+  const projs=(estado.ajuda.projetos)||(estado.planejar&&estado.planejar.projetos)||[];
+  const p=projs.find(x=>x.key===projKey); if(!p) return '';
+  const tipos=(p.tipos||[]).filter(t=>!t.subtarefa && t.nivel===0);
+  const byName=(re)=>tipos.find(t=>re.test(t.nome||''));
+  let t = tipo==='bug' ? (byName(/bug|defeito/i)||byName(/task|tarefa/i)||byName(/melhoria|story|hist/i))
+                       : (byName(/task|tarefa/i)||byName(/melhoria|story|hist/i));
+  if(!t) t=tipos[0];
+  return t?t.id:'';
+}
+
+async function enviaFeedback(){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const tipoEl=document.querySelector('.fb-tipo[aria-pressed="true"]');
+  const tipo=tipoEl?tipoEl.getAttribute('data-fb'):'sugestao';
+  const titulo=(document.getElementById('fb-titulo').value||'').trim();
+  const detalhes=(document.getElementById('fb-detalhes').value||'').trim();
+  const projeto=document.getElementById('fb-projeto').value;
+  const msg=document.getElementById('fb-msg'); msg.hidden=false; msg.className='ap-fb';
+  if(!projeto){ msg.classList.add('err'); msg.textContent='Escolha o projeto destino.'; return; }
+  if(!titulo){ msg.classList.add('err'); msg.textContent='Dê um título.'; return; }
+  const tipoId=tipoFeedback(projeto,tipo);
+  if(!tipoId){ msg.classList.add('err'); msg.textContent='Não encontrei um tipo de ticket nesse projeto.'; return; }
+  try{ localStorage.setItem('dexterity_fb_proj',projeto); }catch(e){}
+  const pref=FB_PREFIXO[tipo];
+  const resumo=`${pref}: ${titulo}`;
+  const descricao=`${pref}: ${titulo}\n\n${detalhes}`;
+  const btn=document.getElementById('fb-enviar'); btn.disabled=true; msg.textContent='Enviando…';
+  try{
+    const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({itens:[{projeto,tipoId,resumo,descricao}],email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok && j.criados && j.criados.length){
+      const c=j.criados[0];
+      msg.classList.add('ok');
+      msg.innerHTML=`✓ ${esc(pref)} registrado: <a href="${jiraBase()}/browse/${encodeURIComponent(c.key)}" target="_blank" rel="noopener">${esc(c.key)} ↗</a>`;
+      document.getElementById('fb-titulo').value=''; document.getElementById('fb-detalhes').value='';
+      estado.cache={};
+    } else {
+      const err=(j.erros&&j.erros[0]&&j.erros[0].erro)||j.erro||'Falha ao criar o ticket.';
+      msg.classList.add('err'); msg.textContent=err;
+    }
+  }catch(e){ msg.classList.add('err'); msg.textContent='Erro de rede: '+(e.message||e); }
+  btn.disabled=false;
+}
+
+// ---- Tour guiado (coach marks) ----
+const TOUR=[
+  {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
+  {sel:'#seg-vista',titulo:'Visões',texto:'Navegue pelas abas: Resumo, Timesheet, Ranking, Tickets, ⏱ Apontar, 📝 Planejar e 🔀 Reclassificar.'},
+  {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
+  {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
+  {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
+  {sel:'#btn-csv',titulo:'Exportar',texto:'Baixe a visão atual em CSV/Excel.'},
+  {sel:'#btn-ajuda',titulo:'Ajuda & Feedback',texto:'Volte aqui quando quiser: este tour, as instruções e os canais de dúvida, sugestão e bug.'},
+];
+let _tourI=0;
+function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e.remove());
+  window.removeEventListener('resize',_tourReposi); window.removeEventListener('scroll',_tourReposi,true); }
+function _tourReposi(){ if(document.querySelector('.tour-pop')) posicionaTour(); }
+function iniciaTour(){
+  fechaModal(); estado.vista='resumo';
+  const seg=document.getElementById('seg-vista');
+  if(seg)[...seg.children].forEach(b=>b.setAttribute('aria-pressed', b.dataset.v==='resumo'?'true':'false'));
+  render(); estadoParaURL();
+  _tourI=0; setTimeout(mostraTour,160);
+}
+function mostraTour(){
+  fimTour();
+  if(_tourI>=TOUR.length) return;
+  const passo=TOUR[_tourI]; const alvo=document.querySelector(passo.sel);
+  if(!alvo){ _tourI++; return mostraTour(); }
+  alvo.scrollIntoView({block:'center',behavior:'smooth'});
+  const hl=document.createElement('div'); hl.className='tour-hl'; document.body.appendChild(hl);
+  const pop=document.createElement('div'); pop.className='tour-pop';
+  pop.innerHTML=`<h3>${esc(passo.titulo)}</h3><p>${esc(passo.texto)}</p>
+    <div class="tour-nav"><span class="tour-step">${_tourI+1} de ${TOUR.length}</span>
+      ${_tourI>0?'<button class="btn" id="tour-prev">Anterior</button>':''}
+      <button class="btn" id="tour-fim">Fechar</button>
+      <button class="btn primario" id="tour-next">${_tourI===TOUR.length-1?'Concluir':'Próximo →'}</button></div>`;
+  document.body.appendChild(pop);
+  setTimeout(posicionaTour,200);
+  window.addEventListener('resize',_tourReposi); window.addEventListener('scroll',_tourReposi,true);
+}
+function posicionaTour(){
+  const passo=TOUR[_tourI]; const alvo=document.querySelector(passo.sel);
+  const hl=document.querySelector('.tour-hl'); const pop=document.querySelector('.tour-pop');
+  if(!alvo||!hl||!pop) return;
+  const r=alvo.getBoundingClientRect(); const pad=6;
+  hl.style.top=(window.scrollY+r.top-pad)+'px'; hl.style.left=(window.scrollX+r.left-pad)+'px';
+  hl.style.width=(r.width+pad*2)+'px'; hl.style.height=(r.height+pad*2)+'px';
+  const pw=pop.offsetWidth, ph=pop.offsetHeight; let top=r.bottom+10, left=r.left;
+  if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-10);
+  if(left+pw>window.innerWidth-8) left=window.innerWidth-pw-8; if(left<8) left=8;
+  pop.style.top=top+'px'; pop.style.left=left+'px';
+}
+// ======================================================================================
+
 // ---- Modal ----
 function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
@@ -2637,6 +2853,14 @@ document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete es
 
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
+document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
+// Navegação do tour guiado (botões ficam soltos no body).
+document.addEventListener('click', (e)=>{
+  const t=e.target.closest && e.target.closest('button'); if(!t) return;
+  if(t.id==='tour-next'){ _tourI+=1; if(_tourI>=TOUR.length) fimTour(); else mostraTour(); }
+  else if(t.id==='tour-prev'){ _tourI=Math.max(0,_tourI-1); mostraTour(); }
+  else if(t.id==='tour-fim'){ fimTour(); }
+});
 
 // ---- Tela Reclassificar: cliques, seleção e busca ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
@@ -2683,7 +2907,7 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
 // Modal: fechar
 document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fimTour(); fechaModal(); } });
 
 // Drill-down e clique em pessoa (vale em qualquer visão E dentro dos modais,
 // permitindo navegação encadeada: projeto → pessoa → projeto…).
@@ -2818,6 +3042,11 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='pl-csv-cancel'){ fechaModal(); }
   else if(t.id==='rc-confirmar'){ executaMover(); }
   else if(t.id==='rc-cancelar'){ fechaModal(); }
+  else if(t.id==='aj-tour'){ iniciaTour(); }
+  else if(t.classList && t.classList.contains('fb-tipo')){
+    document.querySelectorAll('.fb-tipo').forEach(c=>c.setAttribute('aria-pressed', c===t?'true':'false')); }
+  else if(t.id==='fb-enviar'){ enviaFeedback(); }
+  else if(t.getAttribute('data-ap-act')==='config-id'){ abreIdentidade(); }
 });
 
 leURL();
