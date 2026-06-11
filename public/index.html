@@ -1882,7 +1882,7 @@ function renderPlanejarForm(){
   // Épicos/histórias do projeto (modo épico) carregam sob demanda.
   if(pl.modo==='epico' && pl.projeto && !pl.epicosPorProj[pl.projeto] && !pl.carregandoEpicos){
     pl.carregandoEpicos=true;
-    fetch(`/api/epicos?projeto=${encodeURIComponent(pl.projeto)}`).then(r=>r.json()).then(j=>{
+    fetch(`/api/projetos?epicos=${encodeURIComponent(pl.projeto)}`).then(r=>r.json()).then(j=>{
       pl.carregandoEpicos=false;
       pl.epicosPorProj[pl.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
       if(estado.vista==='planejar') renderPlanejar();
@@ -2375,7 +2375,7 @@ async function executaMover(){
   const fb=document.getElementById('rc-mfb');
   if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Enviando para o Jira…'; }
   try{
-    const j=await fetch('/api/mover',{method:'POST',headers:{'Content-Type':'application/json'},
+    const j=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({alvo:rc.alvo,itens,email:id.email,token:id.token})}).then(r=>r.json());
     rc.movendo=false;
     if(j.erro){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro; } return; }
@@ -2390,7 +2390,7 @@ async function verificaMover(){
   const fb=document.getElementById('rc-fb');
   if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Consultando o Jira…'; }
   try{
-    const j=await fetch('/api/mover',{method:'POST',headers:{'Content-Type':'application/json'},
+    const j=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({taskId:rc.taskId,email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok===false){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro||'Ainda processando.'; } return; }
     rc.resultado=j; renderReclass();
