@@ -312,6 +312,17 @@
   @media (max-width:600px){ .pl-grid{flex-direction:column;align-items:stretch}
     .pl-grid select{max-width:none} table.pl-rev{font-size:12px} }
 
+  /* ---- Reclassificar (mover reuniões) ---- */
+  .rc-tab{width:100%;border-collapse:collapse;font-size:13px}
+  .rc-tab th,.rc-tab td{padding:8px 10px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:middle}
+  .rc-tab th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;font-weight:600}
+  .rc-tab th.c,.rc-tab td.c{width:36px;text-align:center}
+  .rc-tab tbody tr:hover{background:#F8FAFC}
+  .rc-tab input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--cerceta)}
+  .rc-resumo{max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rc-foot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .rc-foot .muted{font-weight:600;color:var(--grafite)}
+
   /* ---- Tooltip flutuante (segue o cursor) ---- */
   .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
     background:rgba(15,23,42,.95);color:#fff;border-radius:10px;padding:8px 10px;
@@ -405,6 +416,7 @@
       <button data-v="tickets">Tickets</button>
       <button data-v="apontar">⏱ Apontar</button>
       <button data-v="planejar">📝 Planejar</button>
+      <button data-v="reclassificar">🔀 Reclassificar</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -487,7 +499,10 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', paiKey:'', texto:'',
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
-    carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false } };
+    carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
+  // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
+  reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
+    movendo:false, resultado:null, taskId:'' } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -780,14 +795,15 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 }
 
 function render(){
-  // Apontar/Planejar têm controles próprios; esconde os filtros globais.
+  // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(estado.vista==='apontar'||estado.vista==='planejar')?'none':'';
+  if(fg) fg.style.display=(['apontar','planejar','reclassificar'].includes(estado.vista))?'none':'';
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
+  if(estado.vista==='reclassificar') return renderReclass();
   return renderResumo();
 }
 
@@ -2205,6 +2221,183 @@ function confirmaImportacao(){
 }
 // ======================================================================================
 
+// ====================== RECLASSIFICAR (mover tickets de reunião) ======================
+function carregaReunioes(forca){
+  const rc=estado.reclass;
+  rc.carregando=true; rc.erro='';
+  fetch(`/api/reunioes?projeto=${encodeURIComponent(rc.origem)}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{
+      rc.carregando=false;
+      if(j.erro){ rc.erro=j.erro; }
+      else { rc.dados=j; rc.sel={};
+        if(!rc.alvo && (j.alvos||[]).length) rc.alvo=j.alvos[0].key;
+        if(rc.alvo && !(j.alvos||[]).some(a=>a.key===rc.alvo)) rc.alvo=(j.alvos[0]&&j.alvos[0].key)||''; }
+      if(estado.vista==='reclassificar') renderReclass();
+    }).catch(e=>{ rc.carregando=false; rc.erro=String(e.message||e); if(estado.vista==='reclassificar') renderReclass(); });
+}
+
+function renderReclass(){
+  const cont=document.getElementById('conteudo');
+  const rc=estado.reclass;
+  if(rc.resultado) return renderReclassResultado();
+  if(!rc.dados && !rc.carregando && !rc.erro) carregaReunioes(false);
+  if(rc.erro){
+    cont.replaceChildren(el(`<div class="erro"><strong>Falha ao carregar.</strong> ${esc(rc.erro)}
+      <button class="btn" id="rc-retry" style="margin-left:10px">Tentar de novo</button></div>`));
+    return;
+  }
+  if(!rc.dados){ cont.replaceChildren(el(`<div class="estado">Buscando reuniões abertas em ${esc(rc.origem)}…</div>`)); return; }
+
+  const d=rc.dados;
+  const id=idApontar();
+  const alvos=d.alvos||[];
+  const alvoNome=(k)=>{ const a=alvos.find(x=>x.key===k); return a?`${a.key} — ${a.nome}`:k; };
+
+  // Lista filtrada por busca.
+  let lista=d.tickets||[];
+  if(rc.busca){ const q=rc.busca.toLowerCase();
+    lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.status).toLowerCase().includes(q)); }
+  const nSel=Object.keys(rc.sel).filter(id=>rc.sel[id]).length;
+  const todosVis = lista.length>0 && lista.every(t=>rc.sel[t.id]);
+
+  const faixaId = id
+    ? `<div class="ap-id">🔀 Movendo como <strong>${esc(id.nome||id.email)}</strong>
+         <span class="muted small">(precisa de permissão de mover na origem e criar no destino)</span>
+         <span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+    : `<div class="ap-id sem">Para mover tickets, identifique-se uma vez (e-mail + token de API do Jira).
+         <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+
+  if(!d.tickets.length){
+    cont.replaceChildren(el(`<div>${faixaId}
+      <div class="card full"><h2>Reclassificar reuniões <span>projeto ${esc(d.projeto)}</span></h2>
+        <div class="estado">${esc(d.aviso||`Nenhuma reunião aberta em ${d.projeto}.`)}</div></div></div>`));
+    return;
+  }
+
+  const optAlvo=alvos.length
+    ? alvos.map(a=>`<option value="${escA(a.key)}" ${rc.alvo===a.key?'selected':''}>${esc(a.key)} — ${esc(a.nome)}</option>`).join('')
+    : '<option value="">— nenhum projeto destino com esse tipo —</option>';
+
+  const rows=lista.map(t=>`<tr>
+      <td class="c"><input type="checkbox" class="rc-chk" data-id="${escA(t.id)}" ${rc.sel[t.id]?'checked':''} aria-label="selecionar ${escA(t.k)}"></td>
+      <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
+      <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
+      <td><span class="badge">${esc(t.status)}</span></td>
+      <td><span class="badge">${esc(t.tipo)}</span></td>
+    </tr>`).join('');
+
+  const podeMover = nSel>0 && rc.alvo && id && !rc.movendo;
+
+  cont.replaceChildren(el(`<div>
+    ${faixaId}
+    <div class="card full">
+      <h2>Reclassificar reuniões <span>${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)} · move para outro projeto mantendo tipo e status</span></h2>
+      <div class="ap-filtros">
+        <div class="campo"><label>Projeto destino</label><select id="rc-alvo" ${alvos.length?'':'disabled'}>${optAlvo}</select></div>
+        <div class="campo"><label>Buscar</label><input type="search" id="rc-busca" placeholder="código, resumo, status…" value="${escA(rc.busca)}"></div>
+        <div class="campo"><label>&nbsp;</label><button class="btn" id="rc-refresh">Atualizar lista</button></div>
+      </div>
+      <div class="muted small" style="margin:0 0 10px">O <strong>tipo</strong> é mantido (mesmo nome no destino) e o <strong>status</strong> é preservado quando existe no fluxo do destino (senão vai para o status inicial).</div>
+      <div class="ts-wrap"><table class="rc-tab">
+        <thead><tr>
+          <th class="c"><input type="checkbox" id="rc-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
+          <th>Ticket</th><th>Resumo</th><th>Status</th><th>Tipo</th>
+        </tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="rc-foot">
+        <span class="muted" id="rc-count">${nSel} selecionado(s)</span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn primario" id="rc-mover" ${podeMover?'':'disabled'}>
+          Mover ${nSel||''} para ${rc.alvo?esc(rc.alvo):'…'} →</button>
+      </div>
+      <div class="ap-fb" id="rc-fb" hidden></div>
+    </div>
+  </div>`));
+}
+
+function renderReclassResultado(){
+  const cont=document.getElementById('conteudo');
+  const rc=estado.reclass; const r=rc.resultado;
+  if(r.status==='andamento'){
+    cont.replaceChildren(el(`<div><div class="card full">
+      <h2>Movimentação em andamento</h2>
+      <div class="estado">O Jira está processando a movimentação (${esc(String(r.progresso||0))}%).
+        Isso pode levar alguns segundos.</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn primario" id="rc-verificar">Verificar agora</button>
+        <button class="btn" id="rc-voltar">Voltar à lista</button></div>
+      <div class="ap-fb" id="rc-fb" hidden></div></div></div>`));
+    return;
+  }
+  const movidos=r.movidos||[];
+  const links=movidos.map(m=>`<div class="pl-res-item">
+    <a href="${jiraBase()}/browse/${encodeURIComponent(m.key)}" target="_blank" rel="noopener">${esc(m.key)} ↗</a>
+    <span>${esc(m.resumo||'')}</span></div>`).join('');
+  cont.replaceChildren(el(`<div><div class="card full">
+    <h2>Resultado da reclassificação</h2>
+    <div class="pl-res-ok">✓ ${movidos.length} ticket(s) movido(s) para ${esc(rc.alvo)}</div>
+    ${links||'<div class="muted small">Nenhum ticket movido.</div>'}
+    ${r.invalidos?`<div class="aviso" style="margin-top:12px">${r.invalidos} item(ns) não puderam ser movidos (sem acesso ou inválidos).</div>`:''}
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn primario" id="rc-voltar">Voltar à lista</button></div>
+  </div></div>`));
+}
+
+// Confirma e dispara a movimentação.
+function confirmaMover(){
+  const rc=estado.reclass; const id=idApontar();
+  if(!id){ abreIdentidade(); return; }
+  const ids=Object.keys(rc.sel).filter(x=>rc.sel[x]);
+  if(!ids.length || !rc.alvo) return;
+  const alvoNm=(()=>{ const a=(rc.dados.alvos||[]).find(x=>x.key===rc.alvo); return a?`${a.key} — ${a.nome}`:rc.alvo; })();
+  abreModal(`
+    <h2>Confirmar reclassificação</h2>
+    <div class="muted small">Você vai mover <strong>${ids.length}</strong> reunião(ões) de
+      <strong>${esc(rc.origem)}</strong> para <strong>${esc(alvoNm)}</strong>.</div>
+    <ul class="ap-passos">
+      <li>O <strong>tipo</strong> (reunião) é mantido no destino.</li>
+      <li>O <strong>status</strong> é preservado quando existe no fluxo do destino; senão vai para o status inicial.</li>
+      <li>O <strong>código do ticket muda</strong> para o prefixo do projeto destino (a operação é reversível movendo de volta).</li>
+    </ul>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" id="rc-cancelar">Cancelar</button>
+      <button class="btn primario" id="rc-confirmar">Mover ${ids.length} ticket(s)</button>
+    </div>
+    <div class="ap-fb" id="rc-mfb" hidden></div>`);
+}
+
+async function executaMover(){
+  const rc=estado.reclass; const id=idApontar(); if(!id) return;
+  const sel=Object.keys(rc.sel).filter(x=>rc.sel[x]);
+  const tks=(rc.dados.tickets||[]);
+  const itens=sel.map(idv=>{ const t=tks.find(x=>String(x.id)===String(idv)); return t?{id:t.id,tipo:t.tipo}:null; }).filter(Boolean);
+  if(!itens.length) return;
+  rc.movendo=true;
+  const fb=document.getElementById('rc-mfb');
+  if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Enviando para o Jira…'; }
+  try{
+    const j=await fetch('/api/mover',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({alvo:rc.alvo,itens,email:id.email,token:id.token})}).then(r=>r.json());
+    rc.movendo=false;
+    if(j.erro){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro; } return; }
+    if(j.ok===false){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro||'Falha ao mover.'; } return; }
+    rc.taskId=j.taskId||''; rc.resultado=j; rc.dados=null; estado.cache={};
+    fechaModal(); renderReclass();
+  }catch(e){ rc.movendo=false; if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } }
+}
+
+async function verificaMover(){
+  const rc=estado.reclass; const id=idApontar(); if(!id||!rc.taskId) return;
+  const fb=document.getElementById('rc-fb');
+  if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Consultando o Jira…'; }
+  try{
+    const j=await fetch('/api/mover',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({taskId:rc.taskId,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok===false){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro||'Ainda processando.'; } return; }
+    rc.resultado=j; renderReclass();
+  }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } }
+}
+// ======================================================================================
+
 // ---- Modal ----
 function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
@@ -2359,7 +2552,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje'];
 let _pendentesURL=null;
@@ -2444,6 +2637,40 @@ document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete es
 
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
+
+// ---- Tela Reclassificar: cliques, seleção e busca ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const rc=estado.reclass;
+  if(t.id==='rc-retry'){ rc.erro=''; rc.dados=null; renderReclass(); }
+  else if(t.id==='rc-refresh'){ rc.dados=null; carregaReunioes(true); }
+  else if(t.id==='rc-mover'){ confirmaMover(); }
+  else if(t.id==='rc-verificar'){ verificaMover(); }
+  else if(t.id==='rc-voltar'){ rc.resultado=null; rc.taskId=''; rc.dados=null; renderReclass(); }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const rc=estado.reclass; const t=e.target; if(!t) return;
+  if(t.id==='rc-alvo'){ rc.alvo=t.value; renderReclass(); }
+  else if(t.id==='rc-all'){
+    let lista=(rc.dados&&rc.dados.tickets)||[];
+    if(rc.busca){ const q=rc.busca.toLowerCase(); lista=lista.filter(x=>(x.k+' '+x.resumo+' '+x.status).toLowerCase().includes(q)); }
+    lista.forEach(x=>{ if(t.checked) rc.sel[x.id]=true; else delete rc.sel[x.id]; });
+    renderReclass();
+  } else if(t.classList && t.classList.contains('rc-chk')){
+    const idv=t.getAttribute('data-id');
+    if(t.checked) rc.sel[idv]=true; else delete rc.sel[idv];
+    const n=Object.keys(rc.sel).filter(x=>rc.sel[x]).length;
+    const c=document.getElementById('rc-count'); if(c) c.textContent=n+' selecionado(s)';
+    const b=document.getElementById('rc-mover');
+    if(b){ b.disabled=!(n>0 && rc.alvo && idApontar()); b.textContent=`Mover ${n||''} para ${rc.alvo||'…'} →`; }
+  }
+});
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='rc-busca'){
+    estado.reclass.busca=e.target.value; renderReclass();
+    const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
+  }
+});
 
 // Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.
 document.getElementById('modal-body').addEventListener('input', (e)=>{
@@ -2589,6 +2816,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='pl-csv-import'){ confirmaImportacao(); }
   else if(t.id==='pl-csv-modelo'){ baixaModeloPlanejar(); }
   else if(t.id==='pl-csv-cancel'){ fechaModal(); }
+  else if(t.id==='rc-confirmar'){ executaMover(); }
+  else if(t.id==='rc-cancelar'){ fechaModal(); }
 });
 
 leURL();
