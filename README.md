@@ -39,6 +39,8 @@ public/
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: ranking diário e aviso de convites de reunião |
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
+| `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
+| `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
 
 ### Convites de reunião (apontamento em grupo)
 

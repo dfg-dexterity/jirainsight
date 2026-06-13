@@ -335,6 +335,22 @@
   .pl-hist-row a{font-weight:700;white-space:nowrap}
   .pl-hist-res{flex:1;min-width:140px}
   .pl-hist-row .btn{padding:4px 10px;font-size:12px}
+  /* ---- Resumo de atividades por IA ---- */
+  .ia-card{background:linear-gradient(180deg,#F6F9FF, var(--cartao))}
+  .ia-geral{background:#EEF4FF;border:1px solid #C7DBFF;border-radius:10px;padding:12px 14px;
+    font-size:13.5px;line-height:1.6;color:#1D2D3E;margin-bottom:14px}
+  .ia-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .ia-pessoa{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);
+    border-left-width:5px;border-left-color:#CBD5E1}
+  .ia-pessoa.ia-positivo{border-left-color:#10B981}
+  .ia-pessoa.ia-neutro{border-left-color:#94A3B8}
+  .ia-pessoa.ia-atencao{border-left-color:#F59E0B}
+  .ia-nome{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:700;
+    font-size:14px;margin-bottom:6px;color:var(--grafite)}
+  .ia-nome [data-pessoa]{cursor:pointer}
+  .ia-nome [data-pessoa]:hover{text-decoration:underline}
+  .ia-sinal{font-size:13px}
+  .ia-texto{font-size:13px;line-height:1.6;color:#334155}
   table.pl-rev{width:100%;border-collapse:collapse;font-size:13px}
   table.pl-rev th,table.pl-rev td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
   table.pl-rev input,table.pl-rev select{font-family:var(--corpo);font-size:12.5px;padding:6px 8px;
@@ -573,7 +589,9 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
-  ajuda:{ projetos:null } };
+  ajuda:{ projetos:null },
+  // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
+  analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -1137,6 +1155,7 @@ function renderResumo(){
       <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
     </div>
     <div class="grid">
+      <div class="card full ia-card">${cardAnaliseIA()}</div>
       <div class="card full"><h2>Por pessoa</h2><div class="scroll-x">${tabela}</div></div>
       <div class="card full"><h2>Horas por pessoa e projeto
         <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
@@ -1156,6 +1175,106 @@ function renderResumo(){
     </div>
   </div>`));
 }
+
+// ---------------- Resumo de atividades por IA (Claude) ----------------
+// Chave de cache: período + filtros atuais (se mudar, o resumo é regerado).
+function chaveAnaliseIA(){ return estado.periodo+'|'+JSON.stringify(filtros()); }
+
+// Monta o payload com as MÉTRICAS já agregadas (mesmas da tela) + cadência diária.
+function payloadAnaliseIA(){
+  const d=agrega();
+  const ts=calcTimesheet();
+  const porPessoaTs={}; ts.linhas.forEach(l=>{ porPessoaTs[l.a]=l; });
+  const diasUteis=ts.dias.filter(x=>ehUtil(x)&&!ehFeriado(x)&&x!==ts.hoje).length;
+  const sel=document.getElementById('f-periodo');
+  const label=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
+
+  const pessoas=d.pessoas.map(p=>{
+    const l=porPessoaTs[p.a];
+    const diasComApont=l?Object.keys(l.porDia||{}).filter(x=>(l.porDia[x]||0)>0 && ts.dias.includes(x)).length:0;
+    const metaPct=(l&&l.esperado>0)?Math.round(l.tot/l.esperado*100):null;
+    return {
+      id:p.a, nome:p.nome,
+      horas:+(p.seg/3600).toFixed(1),
+      faturavelPct:p.seg?pct(p.segFat,p.seg):0,
+      tickets:p.tickets, alteracoes:p.alter, transicoes:p.trans,
+      comentarios:p.coment, criados:p.criado,
+      diasComApontamento:diasComApont, diasUteisEsperados:diasUteis,
+      metaPct:(metaPct==null?0:metaPct),
+    };
+  });
+  const equipe={
+    horasTotais:+(d.kpi.segTot/3600).toFixed(1), faturavelPct:d.kpi.fatPct,
+    ticketsTocados:d.kpi.tocadas, transicoes:d.kpi.transTot,
+    concluidas:(d.kpi.concl==null?0:d.kpi.concl),
+    criados:d.pessoas.reduce((s,p)=>s+(p.criado||0),0),
+    comentarios:d.pessoas.reduce((s,p)=>s+(p.coment||0),0),
+  };
+  return { periodo:{ label, diasUteis }, equipe, pessoas };
+}
+
+function cardAnaliseIA(){
+  const a=estado.analiseIA;
+  const atual=(a.chave===chaveAnaliseIA());
+  const cab=`<h2>🧠 Resumo das atividades (IA)
+    <span>análise automática de cada pessoa no período selecionado</span></h2>`;
+
+  if(a.carregando) return `${cab}<div class="estado">Analisando as atividades do período…</div>`;
+
+  if(a.configurado===false)
+    return `${cab}<div class="aviso">${esc(a.erro||'Resumo por IA não configurado.')}
+      <br><span class="small">Um administrador precisa definir a variável <strong>ANTHROPIC_API_KEY</strong> nas configurações da Vercel.</span></div>`;
+
+  if(a.erro && atual)
+    return `${cab}<div class="erro">${esc(a.erro)}</div>
+      <div style="margin-top:10px"><button class="btn primario" id="ia-gerar">Tentar de novo</button></div>`;
+
+  if(!atual || !a.pessoas){
+    return `${cab}
+      <div class="muted small">Gera, com IA, um resumo das atividades de cada pessoa (cadência de apontamento,
+        tickets, transições, colaboração por comentários…) com base nos números desta tela.</div>
+      <div style="margin-top:12px"><button class="btn primario" id="ia-gerar">✨ Gerar resumo das atividades</button></div>`;
+  }
+
+  // Resultado pronto: mapa id->nome para exibir.
+  const nomes=pessoasUnidas();
+  const nomeDe=(id)=>(nomes[id]&&nomes[id].nome)||id;
+  const ic={positivo:'🟢', neutro:'⚪', atencao:'🟠'};
+  const cards=(a.pessoas||[]).map(p=>`
+    <div class="ia-pessoa ia-${esc(p.sinal)}">
+      <div class="ia-nome"><span data-pessoa="${escA(p.id)}">${esc(nomeDe(p.id))}</span>
+        <span class="ia-sinal" data-tip="${p.sinal==='positivo'?'Em dia e ativo':p.sinal==='atencao'?'Merece atenção':'Mediano'}">${ic[p.sinal]||'⚪'}</span></div>
+      <div class="ia-texto">${esc(p.resumo)}</div>
+    </div>`).join('');
+
+  return `${cab}
+    ${a.geral?`<div class="ia-geral">${esc(a.geral)}</div>`:''}
+    <div class="ia-grid">${cards||'<div class="estado">Sem pessoas para resumir.</div>'}</div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="ia-gerar">↻ Atualizar resumo</button>
+      <span class="muted small">Gerado por IA a partir dos números desta tela — confira antes de decisões.</span>
+    </div>`;
+}
+
+async function geraAnaliseIA(){
+  const a=estado.analiseIA;
+  if(a.carregando) return;
+  const chave=chaveAnaliseIA();
+  a.carregando=true; a.erro=''; if(estado.vista==='resumo') renderResumo();
+  try{
+    const body=payloadAnaliseIA();
+    if(!body.pessoas.length){ a.carregando=false; a.erro='Sem dados para os filtros atuais.'; a.chave=chave;
+      if(estado.vista==='resumo') renderResumo(); return; }
+    const j=await fetch('/api/resumo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)}).then(r=>r.json());
+    a.carregando=false; a.chave=chave;
+    if(j.configurado===false){ a.configurado=false; a.erro=j.erro||''; }
+    else if(j.ok){ a.configurado=true; a.geral=j.geral||''; a.pessoas=j.pessoas||[]; a.erro=''; }
+    else { a.erro=j.erro||'Falha ao gerar o resumo.'; a.pessoas=null; }
+  }catch(e){ a.carregando=false; a.chave=chave; a.erro='Erro de rede: '+(e.message||e); a.pessoas=null; }
+  if(estado.vista==='resumo') renderResumo();
+}
+// ----------------------------------------------------------------------
 
 // Calcula a matriz pessoa × dia (segundos) e a lacuna por pessoa, respeitando a
 // meta individual e as ausências. Reutilizado por timesheet, ranking, "não
@@ -2726,7 +2845,7 @@ function abreAjuda(){
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
     <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
-      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira e top projetos.</li>
+      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
@@ -2758,6 +2877,14 @@ function abreAjuda(){
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
       O <b>tipo</b> é mantido e o <b>status</b> é preservado quando existe no destino.
+    </div></details>
+    <details class="help-sec"><summary>Resumo das atividades por IA</summary><div class="help-body">
+      Na aba <b>Resumo</b>, o card <b>🧠 Resumo das atividades (IA)</b> gera, sob demanda, uma análise
+      em texto de <b>cada pessoa</b> no período: cadência de apontamento (horas, média por dia útil, dias sem
+      apontar vs. a meta), volume e tipo de atividade (tickets, alterações, transições, criações) e a
+      colaboração (comentários). Cada pessoa recebe um sinal 🟢/⚪/🟠. Respeita os <b>filtros e o período</b> atuais
+      (filtre por uma pessoa para um resumo individual). O resumo é só uma leitura dos números desta tela —
+      confira antes de qualquer decisão. <i>Requer a chave de IA configurada pelo administrador.</i>
     </div></details>
     <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
       No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências e feriados nacionais (com Carnaval,
@@ -3153,6 +3280,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='rc-mover'){ confirmaMover(); }
   else if(t.id==='rc-verificar'){ verificaMover(); }
   else if(t.id==='rc-voltar'){ rc.resultado=null; rc.taskId=''; rc.dados=null; renderReclass(); }
+  else if(t.id==='ia-gerar'){ geraAnaliseIA(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const rc=estado.reclass; const t=e.target; if(!t) return;
