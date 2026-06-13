@@ -256,13 +256,23 @@
   .chip:hover{border-color:#A5B4FC;background:#F8FAFF}
   .chip[aria-pressed="true"]{background:var(--cerceta);color:#fff;border-color:var(--cerceta)}
   .ap-lista{display:flex;flex-direction:column;gap:12px}
-  .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px;background:var(--cartao);
-    display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease}
+  .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px 14px 14px 16px;background:var(--cartao);
+    display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease;border-left-width:5px}
   .ap-row:hover{box-shadow:var(--sombra)}
   .ap-row.feito{border-color:#A7F3D0;background:#F0FDF4}
+  /* Faixa lateral: verde = já tem horas apontadas · âmbar = ainda sem horas. */
+  .ap-row.tem-horas{border-left-color:#10B981}
+  .ap-row.zero-horas{border-left-color:#F59E0B}
   .ap-l1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
   .ap-l1 a{font-weight:700;white-space:nowrap}
   .ap-resumo{font-size:13.5px}
+  .ap-horas{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 11px;
+    font-size:12px;font-weight:700;white-space:nowrap;align-self:center}
+  .ap-horas.tem{background:rgba(16,185,129,.16);color:#047857;border:1px solid #A7F3D0}
+  .ap-horas.zero{background:rgba(245,158,11,.16);color:#B45309;border:1px solid #FDE68A}
+  .ap-log-info{width:100%;font-size:12px;line-height:1.5;color:#64748B}
+  .ap-log-info.tem{color:#047857}
+  .ap-log-info.zero{color:#B45309}
   .ap-l2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
   .badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 9px;
     font-size:11px;background:#EEF1F8;color:#64748B;white-space:nowrap}
@@ -315,6 +325,16 @@
   .pl-dica{font-size:12px;color:#64748B;margin:6px 0 12px;line-height:1.6}
   .pl-destino{background:#EAF1FB;border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;
     margin-bottom:12px;font-size:13px}
+  /* ---- Histórias dentro do épico (modo épico) ---- */
+  .pl-hist{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin:0 0 14px;background:#F8FAFD}
+  .pl-hist-cab{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#475569;font-weight:700;margin-bottom:8px}
+  .pl-hist-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 8px;border-radius:8px;
+    border:1px solid transparent;font-size:13px}
+  .pl-hist-row + .pl-hist-row{border-top:1px dashed var(--linha)}
+  .pl-hist-row.sel{background:#EEF7FF;border-color:#A6C8F0}
+  .pl-hist-row a{font-weight:700;white-space:nowrap}
+  .pl-hist-res{flex:1;min-width:140px}
+  .pl-hist-row .btn{padding:4px 10px;font-size:12px}
   table.pl-rev{width:100%;border-collapse:collapse;font-size:13px}
   table.pl-rev th,table.pl-rev td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
   table.pl-rev input,table.pl-rev select{font-family:var(--corpo);font-size:12.5px;padding:6px 8px;
@@ -544,7 +564,9 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
   apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false,
     convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
-  planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', paiKey:'', texto:'',
+  // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
+  // (histórias vão direto no épico; sub-tarefas vão dentro da história escolhida).
+  planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', epicoKey:'', historiaKey:'', texto:'',
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
@@ -1692,13 +1714,19 @@ function renderApontar(){
     if(v===hoje) return `<span class="badge venc-hoje">vence hoje</span>`;
     return `<span class="badge">vence ${fmtBR(v)}</span>`;
   };
+  // Indicador de horas já apontadas no ticket (total, somando todos os usuários).
+  const pilulaHoras=(seg)=> seg
+    ? `<span class="ap-horas tem" data-tip="Total de horas já apontadas neste ticket (todos os usuários)">⏱ ${fmtH(seg)} já apontadas</span>`
+    : `<span class="ap-horas zero" data-tip="Este ticket ainda não tem horas apontadas">⏱ sem horas ainda</span>`;
+  const infoLog=(seg)=> seg
+    ? `⏱ <strong>${fmtH(seg)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`
+    : '⏱ Este ticket ainda <strong>não tem horas</strong> apontadas — registre o seu tempo abaixo.';
   const rows=lista.map(t=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
-    const horas = t.seg ? `<span class="badge com-horas">${fmtH(t.seg)} apontadas</span>`
-                        : `<span class="badge sem-horas">sem horas apontadas</span>`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
       <div class="ap-log">
+        <div class="ap-log-info ${t.seg?'tem':'zero'}">${infoLog(t.seg)}</div>
         <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
         <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
         <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
@@ -1707,10 +1735,12 @@ function renderApontar(){
         ${ehReuniao?`<button class="btn" data-ap-grupo="${escA(t.k)}" data-tip="Apontar esta reunião para o time inteiro ou para algumas pessoas">👥 em grupo</button>`:''}
         <div class="ap-fb" hidden></div>
       </div>` : '';
-    return `<div class="ap-row" data-k="${escA(t.k)}">
+    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}" data-k="${escA(t.k)}">
       <div class="ap-l1">
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
+        <span class="spacer"></span>
+        ${pilulaHoras(t.seg)}
       </div>
       <div class="ap-l2">
         <span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span>
@@ -1719,7 +1749,6 @@ function renderApontar(){
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
         ${badgeVenc(t.venc)}
-        ${horas}
         ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
       </div>
       ${logCtrl}
@@ -1817,8 +1846,14 @@ async function fazApontamento(btn){
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
       const dados=estado.apontar.porData[estado.apontar.ate];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.seg=(t.seg||0)+seg;
-      const horasEl=row.querySelector('.badge.sem-horas,.badge.com-horas');
-      if(horasEl&&t){ horasEl.className='badge com-horas'; horasEl.textContent=`${fmtH(t.seg)} apontadas`; }
+      const novoTotal=t?t.seg:seg;
+      // Reflete o novo total na pílula do título, na faixa lateral e no aviso do campo.
+      row.classList.remove('zero-horas'); row.classList.add('tem-horas');
+      const pil=row.querySelector('.ap-horas');
+      if(pil){ pil.className='ap-horas tem'; pil.textContent=`⏱ ${fmtH(novoTotal)} já apontadas`; }
+      const info=row.querySelector('.ap-log-info');
+      if(info){ info.className='ap-log-info tem';
+        info.innerHTML=`⏱ <strong>${fmtH(novoTotal)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`; }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
@@ -2044,15 +2079,27 @@ async function enviaReuniaoGrupo(){
 // ======================================================================================
 
 // ============================ PLANEJAR (criação em lote) =============================
-// Tipos disponíveis conforme o destino: filho de história = sub-tarefas; filho de
-// épico ou criação direta no projeto = tipos padrão (nível 0, não sub-tarefa).
+// Tipos disponíveis conforme o destino: dentro de uma história = sub-tarefas; dentro
+// de um épico (ou direto no projeto) = tipos padrão (nível 0, não sub-tarefa).
 function tiposDisponiveis(){
   const pl=estado.planejar;
   const proj=(pl.projetos||[]).find(p=>p.key===pl.projeto);
   if(!proj) return [];
-  const paiEhHistoria = pl.modo==='epico' && pl.paiKey &&
-    ((pl.epicosPorProj[pl.projeto]||{}).historias||[]).some(h=>h.k===pl.paiKey);
+  const paiEhHistoria = pl.modo==='epico' && !!pl.historiaKey;
   return proj.tipos.filter(t=> paiEhHistoria ? t.subtarefa : (!t.subtarefa && t.nivel===0));
+}
+// Ticket-pai efetivo no modo épico: a história (se escolhida) ou o épico.
+function paiEfetivo(){
+  const pl=estado.planejar;
+  if(pl.modo!=='epico') return '';
+  return pl.historiaKey || pl.epicoKey || '';
+}
+// Histórias (abertas) que já pertencem ao épico selecionado.
+function historiasDoEpico(){
+  const pl=estado.planejar;
+  const ep=pl.epicosPorProj[pl.projeto];
+  if(!ep||!pl.epicoKey) return [];
+  return (ep.historias||[]).filter(h=>h.epico===pl.epicoKey);
 }
 // Garante que o tipo selecionado é válido para o destino atual.
 function ajustaTipo(){
@@ -2077,7 +2124,7 @@ function montaItens(){
       resumo:(i>=0?l.slice(0,i):l).trim(),
       descricao:(i>=0?l.slice(i+1):'').trim(),
       tipoId:pl.tipoId, respId:pl.respId,
-      paiKey:(pl.modo==='epico'?pl.paiKey:'')||'',
+      paiKey:paiEfetivo(),
     };
   });
 }
@@ -2147,26 +2194,44 @@ function renderPlanejarForm(){
   const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
     `<option value="${escA(a)}" ${pl.respId===a?'selected':''}>${esc(n)}</option>`).join('');
 
-  // Seleção de pai (modo épico)
+  // Seleção de épico e, dentro dele, história (modo épico).
   let campoPai='';
+  let painelHist='';
   if(pl.modo==='epico'){
     const ep=pl.epicosPorProj[pl.projeto];
-    if(!pl.projeto) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>escolha o projeto</option></select></div>';
-    else if(!ep) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>carregando…</option></select></div>';
-    else if(ep.erro) campoPai=`<div class="campo"><label>Épico / História</label><select disabled><option>erro: ${esc(ep.erro)}</option></select></div>`;
+    if(!pl.projeto) campoPai='<div class="campo"><label>Épico</label><select disabled><option>escolha o projeto</option></select></div>';
+    else if(!ep) campoPai='<div class="campo"><label>Épico</label><select disabled><option>carregando…</option></select></div>';
+    else if(ep.erro) campoPai=`<div class="campo"><label>Épico</label><select disabled><option>erro: ${esc(ep.erro)}</option></select></div>`;
     else {
-      const og=(rot,lista)=>lista.length?`<optgroup label="${escA(rot)}">${lista.map(x=>
-        `<option value="${escA(x.k)}" ${pl.paiKey===x.k?'selected':''}>${esc(x.k)} — ${esc(x.resumo.slice(0,60))}</option>`).join('')}</optgroup>`:'';
-      campoPai=`<div class="campo"><label>Épico / História (pai)</label><select id="pl-pai">
-        <option value="">— direto no projeto —</option>
-        ${og('Épicos',ep.epicos)}${og('Histórias (vira sub-tarefa)',ep.historias)}</select></div>`;
+      const optEp='<option value="">— escolha o épico —</option>'+(ep.epicos||[]).map(e=>
+        `<option value="${escA(e.k)}" ${pl.epicoKey===e.k?'selected':''}>${esc(e.k)} — ${esc(e.resumo.slice(0,55))}${e.nHistorias?` · ${e.nHistorias} história(s)`:''}</option>`).join('');
+      campoPai=`<div class="campo"><label>Épico</label><select id="pl-epico">${optEp}</select></div>`;
+      if(pl.epicoKey){
+        const hs=historiasDoEpico();
+        const optH='<option value="">— criar direto no épico (história/tarefa) —</option>'+hs.map(h=>
+          `<option value="${escA(h.k)}" ${pl.historiaKey===h.k?'selected':''}>${esc(h.k)} — ${esc(h.resumo.slice(0,55))}</option>`).join('');
+        campoPai+=`<div class="campo"><label>Criar dentro de</label><select id="pl-historia">${optH}</select></div>`;
+        painelHist=`<div class="pl-hist">
+          <div class="pl-hist-cab">📚 Histórias abertas neste épico <span class="muted">(${hs.length})</span></div>
+          ${hs.length? hs.map(h=>`<div class="pl-hist-row${pl.historiaKey===h.k?' sel':''}">
+              <a href="${jiraBase()}/browse/${encodeURIComponent(h.k)}" target="_blank" rel="noopener">${esc(h.k)} ↗</a>
+              <span class="pl-hist-res">${esc(h.resumo)}</span>
+              <span class="badge">${esc(h.status)}</span>
+              <span class="spacer"></span>
+              <button class="btn${pl.historiaKey===h.k?' primario':''}" data-pl-hist="${escA(h.k)}">${pl.historiaKey===h.k?'✓ planejando aqui':'planejar sub-tarefas aqui →'}</button>
+            </div>`).join('')
+            : '<div class="muted small">Nenhuma história aberta neste épico ainda. Deixe em “criar direto no épico” e liste as histórias abaixo para criá-las; depois entre em cada uma para detalhar as sub-tarefas.</div>'}
+        </div>`;
+      }
     }
   }
 
   const nLinhas=pl.texto.split('\n').map(l=>l.trim()).filter(Boolean).length;
-  const modoDica = pl.modo==='epico'
-    ? 'Os tickets serão criados <strong>dentro do épico/história</strong> escolhido (sob história = sub-tarefas).'
-    : 'Os tickets serão criados direto no projeto, com o tipo e responsável padrão abaixo.';
+  let modoDica;
+  if(pl.modo!=='epico') modoDica='Os tickets serão criados direto no projeto, com o tipo e responsável padrão abaixo.';
+  else if(!pl.epicoKey) modoDica='Escolha o <strong>épico</strong>. Você poderá criar as <strong>histórias dentro dele</strong> e, depois, entrar em cada história para planejar as <strong>sub-tarefas</strong>.';
+  else if(pl.historiaKey) modoDica=`Os itens abaixo viram <strong>sub-tarefas</strong> dentro da história <strong>${esc(pl.historiaKey)}</strong>.`;
+  else modoDica=`Os itens abaixo são criados <strong>dentro do épico ${esc(pl.epicoKey)}</strong> (como histórias/tarefas). Para detalhar uma história em sub-tarefas, selecione-a em “Criar dentro de” (ou no botão da lista).`;
 
   cont.replaceChildren(el(`<div>
     ${faixaId}
@@ -2183,6 +2248,7 @@ function renderPlanejarForm(){
         <div class="campo"><label>Tipo de ticket</label><select id="pl-tipo" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
         <div class="campo"><label>Responsável (padrão)</label><select id="pl-resp">${optResp}</select></div>
       </div>
+      ${painelHist}
       <div class="campo"><label>Tickets — um por linha <span class="muted">(use “;” para separar resumo ; descrição)</span></label>
         <textarea class="pl-texto" id="pl-texto" placeholder="Levantar requisitos com o cliente ; agendar reunião inicial
 Configurar ambiente de homologação
@@ -2234,9 +2300,14 @@ function renderPlanejarRevisao(){
   const projs=pl.projetos||[];
   const pj=projs.find(p=>p.key===pl.projeto);
   const ep=pl.epicosPorProj[pl.projeto]||{epicos:[],historias:[]};
-  const pai=[...(ep.epicos||[]),...(ep.historias||[])].find(x=>x.k===pl.paiKey);
-  const destino=`Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>`+
-    (pl.modo==='epico'&&pai?` · dentro de <strong>${esc(pai.k)}</strong> <span class="muted">(${esc(pai.resumo.slice(0,60))})</span>`:'');
+  const epico=(ep.epicos||[]).find(x=>x.k===pl.epicoKey);
+  const hist=(ep.historias||[]).find(x=>x.k===pl.historiaKey);
+  let destino=`Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>`;
+  if(pl.modo==='epico'&&epico){
+    destino+=` · épico <strong>${esc(epico.k)}</strong> <span class="muted">(${esc(epico.resumo.slice(0,50))})</span>`;
+    if(hist) destino+=` · sub-tarefas em <strong>${esc(hist.k)}</strong> <span class="muted">(${esc(hist.resumo.slice(0,50))})</span>`;
+    else destino+=' · como <strong>histórias/tarefas do épico</strong>';
+  }
   const prontos=pl.itens.length-nErros;
   const podeCriar = prontos>0 && nErros===0 && !pl.criando;
 
@@ -2385,7 +2456,7 @@ function importaDeTexto(text, comHeader){
     if(idx.resp>=0){ const nm=get(idx.resp); if(nm){ const id=respIdPorNome(nm);
       if(id) respId=id; else avisos.add(`Responsável “${nm}” não encontrado — usando o padrão.`); } }
     return { resumo:get(idx.resumo), descricao:idx.descricao>=0?get(idx.descricao):'',
-      tipoId, respId, paiKey:(pl.modo==='epico'?pl.paiKey:'')||'' };
+      tipoId, respId, paiKey:paiEfetivo() };
   }).filter(it=>it.resumo);
   return { itens, avisos:[...avisos] };
 }
@@ -2678,7 +2749,11 @@ function abreAjuda(){
     <details class="help-sec"><summary>Planejar (criar tickets em lote)</summary><div class="help-body">
       Na aba <b>📝 Planejar</b>: escolha projeto, tipo e responsável; digite <b>um ticket por linha</b> (use “;” para
       “resumo ; descrição”) ou <b>cole do Excel/CSV</b>. Revise (erros destacados) e crie — o resultado lista os
-      tickets criados com links. Há também o modo <b>Planejamento de épico</b> (cria como filhos/sub-tarefas).
+      tickets criados com links.<br>
+      <b>Planejamento de épico (dois níveis):</b> escolha o <b>épico</b> — a tela mostra as <b>histórias já abertas
+      nele</b>. Deixando em <b>“criar direto no épico”</b>, os itens viram <b>histórias/tarefas do épico</b>; escolhendo
+      uma história (no seletor ou no botão <i>planejar sub-tarefas aqui</i>), os itens viram <b>sub-tarefas</b> dela.
+      Assim dá para planejar primeiro as histórias do épico e depois detalhar cada uma.
     </div></details>
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
@@ -3161,7 +3236,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest('button'); if(!t) return;
   const pl=estado.planejar;
-  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.hasAttribute('data-pl-hist')){ const k=t.getAttribute('data-pl-hist');
+    pl.historiaKey=(pl.historiaKey===k?'':k); ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-tentar'){ pl.projetosErro=''; renderPlanejar(); }
   else if(t.id==='pl-validar'){
     const fb=document.getElementById('pl-fb');
@@ -3188,10 +3265,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
-  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-tipo'){ pl.tipoId=t.value; }
   else if(t.id==='pl-resp'){ pl.respId=t.value; }
-  else if(t.id==='pl-pai'){ pl.paiKey=t.value; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
     if(pl.itens&&pl.itens[i]){ pl.itens[i].resumo=t.value; renderPlanejar(); } }
   else if(t.classList&&t.classList.contains('pl-desc')){ const i=+t.getAttribute('data-pl-i');
