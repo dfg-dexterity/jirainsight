@@ -4,5 +4,8 @@
   "private": true,
   "type": "module",
   "description": "Painel de insights de uso do Jira + Clockwork (Dexterity IT)",
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
 }
