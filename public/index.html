@@ -256,13 +256,23 @@
   .chip:hover{border-color:#A5B4FC;background:#F8FAFF}
   .chip[aria-pressed="true"]{background:var(--cerceta);color:#fff;border-color:var(--cerceta)}
   .ap-lista{display:flex;flex-direction:column;gap:12px}
-  .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px;background:var(--cartao);
-    display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease}
+  .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px 14px 14px 16px;background:var(--cartao);
+    display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease;border-left-width:5px}
   .ap-row:hover{box-shadow:var(--sombra)}
   .ap-row.feito{border-color:#A7F3D0;background:#F0FDF4}
+  /* Faixa lateral: verde = já tem horas apontadas · âmbar = ainda sem horas. */
+  .ap-row.tem-horas{border-left-color:#10B981}
+  .ap-row.zero-horas{border-left-color:#F59E0B}
   .ap-l1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
   .ap-l1 a{font-weight:700;white-space:nowrap}
   .ap-resumo{font-size:13.5px}
+  .ap-horas{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 11px;
+    font-size:12px;font-weight:700;white-space:nowrap;align-self:center}
+  .ap-horas.tem{background:rgba(16,185,129,.16);color:#047857;border:1px solid #A7F3D0}
+  .ap-horas.zero{background:rgba(245,158,11,.16);color:#B45309;border:1px solid #FDE68A}
+  .ap-log-info{width:100%;font-size:12px;line-height:1.5;color:#64748B}
+  .ap-log-info.tem{color:#047857}
+  .ap-log-info.zero{color:#B45309}
   .ap-l2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
   .badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 9px;
     font-size:11px;background:#EEF1F8;color:#64748B;white-space:nowrap}
@@ -290,6 +300,15 @@
   .ap-fb{font-size:12px;font-weight:600;width:100%}
   .ap-fb.ok{color:#047857} .ap-fb.err{color:#B91C1C}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
+  /* ---- Convites de reunião (apontamento em grupo) ---- */
+  .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
+  .cv-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px solid var(--linha);
+    border-radius:10px;padding:10px 12px;background:var(--cartao);font-size:13px}
+  .cv-row.feito{border-color:#A7F3D0;background:#F0FDF4}
+  .cv-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .rg-pessoas{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px 12px;
+    max-height:230px;overflow:auto;border:1px solid var(--linha);border-radius:8px;padding:10px;margin-top:6px}
+  .rg-pessoas .check{padding-bottom:2px}
   @media (max-width:600px){
     .ap-log{flex-direction:column;align-items:stretch}
     .ap-tempo{width:100%}
@@ -306,6 +325,32 @@
   .pl-dica{font-size:12px;color:#64748B;margin:6px 0 12px;line-height:1.6}
   .pl-destino{background:#EAF1FB;border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;
     margin-bottom:12px;font-size:13px}
+  /* ---- Histórias dentro do épico (modo épico) ---- */
+  .pl-hist{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin:0 0 14px;background:#F8FAFD}
+  .pl-hist-cab{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#475569;font-weight:700;margin-bottom:8px}
+  .pl-hist-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 8px;border-radius:8px;
+    border:1px solid transparent;font-size:13px}
+  .pl-hist-row + .pl-hist-row{border-top:1px dashed var(--linha)}
+  .pl-hist-row.sel{background:#EEF7FF;border-color:#A6C8F0}
+  .pl-hist-row a{font-weight:700;white-space:nowrap}
+  .pl-hist-res{flex:1;min-width:140px}
+  .pl-hist-row .btn{padding:4px 10px;font-size:12px}
+  /* ---- Resumo de atividades por IA ---- */
+  .ia-card{background:linear-gradient(180deg,#F6F9FF, var(--cartao))}
+  .ia-geral{background:#EEF4FF;border:1px solid #C7DBFF;border-radius:10px;padding:12px 14px;
+    font-size:13.5px;line-height:1.6;color:#1D2D3E;margin-bottom:14px}
+  .ia-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .ia-pessoa{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);
+    border-left-width:5px;border-left-color:#CBD5E1}
+  .ia-pessoa.ia-positivo{border-left-color:#10B981}
+  .ia-pessoa.ia-neutro{border-left-color:#94A3B8}
+  .ia-pessoa.ia-atencao{border-left-color:#F59E0B}
+  .ia-nome{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:700;
+    font-size:14px;margin-bottom:6px;color:var(--grafite)}
+  .ia-nome [data-pessoa]{cursor:pointer}
+  .ia-nome [data-pessoa]:hover{text-decoration:underline}
+  .ia-sinal{font-size:13px}
+  .ia-texto{font-size:13px;line-height:1.6;color:#334155}
   table.pl-rev{width:100%;border-collapse:collapse;font-size:13px}
   table.pl-rev th,table.pl-rev td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top}
   table.pl-rev input,table.pl-rev select{font-family:var(--corpo);font-size:12.5px;padding:6px 8px;
@@ -413,7 +458,7 @@
     #btn-metas,#btn-csv,#btn-refresh{flex:1 1 30%}
     .atualizado{order:9}
     .filtros{flex-direction:column;align-items:stretch}
-    .campo{width:100%}
+    .campo{width:100%;flex:0 0 auto}
     .check{padding-bottom:0}
     .kpis,.kpis.ts-kpis{grid-template-columns:repeat(2,1fr);gap:10px}
     .kpi{padding:13px}
@@ -500,7 +545,8 @@
     <br><strong>Apontar:</strong> mostra os chamados abertos com vencimento até a data escolhida e permite
     registrar horas e <em>mover o status</em> direto no Jira — tudo criado <em>no usuário de quem opera</em>
     (cada pessoa se identifica uma vez com seu token de API; fica salvo só no navegador dela). As horas
-    aparecem no Clockwork; as transições respeitam o workflow e as permissões de cada um.
+    aparecem no Clockwork; as transições respeitam o workflow e as permissões de cada um. Reuniões podem ser
+    apontadas <em>para várias pessoas de uma vez</em>: quem organizou dispara o convite e cada um confirma com 1 clique.
     <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
   </footer>
@@ -530,16 +576,22 @@ const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
-  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false },
+  // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
+  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false,
+    convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
-  planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', paiKey:'', texto:'',
+  // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
+  // (histórias vão direto no épico; sub-tarefas vão dentro da história escolhida).
+  planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', epicoKey:'', historiaKey:'', texto:'',
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
-  ajuda:{ projetos:null } };
+  ajuda:{ projetos:null },
+  // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
+  analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
@@ -1103,6 +1155,7 @@ function renderResumo(){
       <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
     </div>
     <div class="grid">
+      <div class="card full ia-card">${cardAnaliseIA()}</div>
       <div class="card full"><h2>Por pessoa</h2><div class="scroll-x">${tabela}</div></div>
       <div class="card full"><h2>Horas por pessoa e projeto
         <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
@@ -1122,6 +1175,106 @@ function renderResumo(){
     </div>
   </div>`));
 }
+
+// ---------------- Resumo de atividades por IA (Claude) ----------------
+// Chave de cache: período + filtros atuais (se mudar, o resumo é regerado).
+function chaveAnaliseIA(){ return estado.periodo+'|'+JSON.stringify(filtros()); }
+
+// Monta o payload com as MÉTRICAS já agregadas (mesmas da tela) + cadência diária.
+function payloadAnaliseIA(){
+  const d=agrega();
+  const ts=calcTimesheet();
+  const porPessoaTs={}; ts.linhas.forEach(l=>{ porPessoaTs[l.a]=l; });
+  const diasUteis=ts.dias.filter(x=>ehUtil(x)&&!ehFeriado(x)&&x!==ts.hoje).length;
+  const sel=document.getElementById('f-periodo');
+  const label=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
+
+  const pessoas=d.pessoas.map(p=>{
+    const l=porPessoaTs[p.a];
+    const diasComApont=l?Object.keys(l.porDia||{}).filter(x=>(l.porDia[x]||0)>0 && ts.dias.includes(x)).length:0;
+    const metaPct=(l&&l.esperado>0)?Math.round(l.tot/l.esperado*100):null;
+    return {
+      id:p.a, nome:p.nome,
+      horas:+(p.seg/3600).toFixed(1),
+      faturavelPct:p.seg?pct(p.segFat,p.seg):0,
+      tickets:p.tickets, alteracoes:p.alter, transicoes:p.trans,
+      comentarios:p.coment, criados:p.criado,
+      diasComApontamento:diasComApont, diasUteisEsperados:diasUteis,
+      metaPct:(metaPct==null?0:metaPct),
+    };
+  });
+  const equipe={
+    horasTotais:+(d.kpi.segTot/3600).toFixed(1), faturavelPct:d.kpi.fatPct,
+    ticketsTocados:d.kpi.tocadas, transicoes:d.kpi.transTot,
+    concluidas:(d.kpi.concl==null?0:d.kpi.concl),
+    criados:d.pessoas.reduce((s,p)=>s+(p.criado||0),0),
+    comentarios:d.pessoas.reduce((s,p)=>s+(p.coment||0),0),
+  };
+  return { periodo:{ label, diasUteis }, equipe, pessoas };
+}
+
+function cardAnaliseIA(){
+  const a=estado.analiseIA;
+  const atual=(a.chave===chaveAnaliseIA());
+  const cab=`<h2>🧠 Resumo das atividades (IA)
+    <span>análise automática de cada pessoa no período selecionado</span></h2>`;
+
+  if(a.carregando) return `${cab}<div class="estado">Analisando as atividades do período…</div>`;
+
+  if(a.configurado===false)
+    return `${cab}<div class="aviso">${esc(a.erro||'Resumo por IA não configurado.')}
+      <br><span class="small">Um administrador precisa definir a variável <strong>ANTHROPIC_API_KEY</strong> nas configurações da Vercel.</span></div>`;
+
+  if(a.erro && atual)
+    return `${cab}<div class="erro">${esc(a.erro)}</div>
+      <div style="margin-top:10px"><button class="btn primario" id="ia-gerar">Tentar de novo</button></div>`;
+
+  if(!atual || !a.pessoas){
+    return `${cab}
+      <div class="muted small">Gera, com IA, um resumo das atividades de cada pessoa (cadência de apontamento,
+        tickets, transições, colaboração por comentários…) com base nos números desta tela.</div>
+      <div style="margin-top:12px"><button class="btn primario" id="ia-gerar">✨ Gerar resumo das atividades</button></div>`;
+  }
+
+  // Resultado pronto: mapa id->nome para exibir.
+  const nomes=pessoasUnidas();
+  const nomeDe=(id)=>(nomes[id]&&nomes[id].nome)||id;
+  const ic={positivo:'🟢', neutro:'⚪', atencao:'🟠'};
+  const cards=(a.pessoas||[]).map(p=>`
+    <div class="ia-pessoa ia-${esc(p.sinal)}">
+      <div class="ia-nome"><span data-pessoa="${escA(p.id)}">${esc(nomeDe(p.id))}</span>
+        <span class="ia-sinal" data-tip="${p.sinal==='positivo'?'Em dia e ativo':p.sinal==='atencao'?'Merece atenção':'Mediano'}">${ic[p.sinal]||'⚪'}</span></div>
+      <div class="ia-texto">${esc(p.resumo)}</div>
+    </div>`).join('');
+
+  return `${cab}
+    ${a.geral?`<div class="ia-geral">${esc(a.geral)}</div>`:''}
+    <div class="ia-grid">${cards||'<div class="estado">Sem pessoas para resumir.</div>'}</div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="ia-gerar">↻ Atualizar resumo</button>
+      <span class="muted small">Gerado por IA a partir dos números desta tela — confira antes de decisões.</span>
+    </div>`;
+}
+
+async function geraAnaliseIA(){
+  const a=estado.analiseIA;
+  if(a.carregando) return;
+  const chave=chaveAnaliseIA();
+  a.carregando=true; a.erro=''; if(estado.vista==='resumo') renderResumo();
+  try{
+    const body=payloadAnaliseIA();
+    if(!body.pessoas.length){ a.carregando=false; a.erro='Sem dados para os filtros atuais.'; a.chave=chave;
+      if(estado.vista==='resumo') renderResumo(); return; }
+    const j=await fetch('/api/resumo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)}).then(r=>r.json());
+    a.carregando=false; a.chave=chave;
+    if(j.configurado===false){ a.configurado=false; a.erro=j.erro||''; }
+    else if(j.ok){ a.configurado=true; a.geral=j.geral||''; a.pessoas=j.pessoas||[]; a.erro=''; }
+    else { a.erro=j.erro||'Falha ao gerar o resumo.'; a.pessoas=null; }
+  }catch(e){ a.carregando=false; a.chave=chave; a.erro='Erro de rede: '+(e.message||e); a.pessoas=null; }
+  if(estado.vista==='resumo') renderResumo();
+}
+// ----------------------------------------------------------------------
 
 // Calcula a matriz pessoa × dia (segundos) e a lacuna por pessoa, respeitando a
 // meta individual e as ausências. Reutilizado por timesheet, ranking, "não
@@ -1617,9 +1770,34 @@ function renderApontar(){
   const faixaId = id
     ? `<div class="ap-id">⏱ Apontando como <strong>${esc(id.nome||id.email)}</strong>
          <span class="muted small">(worklog criado no seu usuário do Jira — aparece no Clockwork)</span>
-         <span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+         <span class="spacer"></span>
+         <button class="btn" data-ap-act="grupo" data-tip="Reunião? Aponte para o time inteiro ou para algumas pessoas de uma vez">👥 Apontar reunião p/ várias pessoas</button>
+         <button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
     : `<div class="ap-id sem">Para apontar, identifique-se uma única vez (e-mail + token de API do Jira — 2 minutos).
          <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+
+  // ---- Convites de reunião aguardando a confirmação desta pessoa ----
+  if(id && id.accountId && ap.convites===null && !ap.convitesBusca) buscaConvites();
+  const cvs=ap.convites||[];
+  const bannerConvites = (id && cvs.length) ? `
+    <div class="card full cv-card">
+      <h2>📥 Apontamentos de reunião aguardando você <span>${cvs.length} convite(s) — confirme com 1 clique (o worklog sai no seu usuário)</span></h2>
+      <div class="cv-lista">${cvs.map(c=>`
+        <div class="cv-row" data-cv-id="${escA(c.id)}">
+          <a href="${jiraBase()}/browse/${encodeURIComponent(c.issue)}" target="_blank" rel="noopener"><strong>${esc(c.issue)}</strong> ↗</a>
+          <span class="ap-resumo">${esc(c.resumo||'')}</span>
+          <span class="badge com-horas">${fmtH(c.segundos)}</span>
+          <span class="badge">${fmtBR(c.inicio)}</span>
+          ${c.comentario?`<span class="badge" data-tip="${escA(c.comentario)}">💬</span>`:''}
+          <span class="badge" data-tip="Quem convidou">por ${esc(c.criadoPor||'?')}</span>
+          <span class="spacer"></span>
+          <button class="btn primario" data-cv-conf="${escA(c.id)}">✓ Apontar ${fmtH(c.segundos)}</button>
+          <button class="btn" data-cv-rec="${escA(c.id)}" data-tip="Não participei / não vou apontar">✕</button>
+          <div class="ap-fb" hidden></div>
+        </div>`).join('')}
+      </div>
+      ${cvs.length>1?`<div style="margin-top:10px"><button class="btn primario" id="cv-todos">✓ Confirmar todos (${cvs.length})</button></div>`:''}
+    </div>` : '';
 
   // ---- Barra de filtros ----
   const chipsData=[['Hoje',hoje],['Amanhã',somaDias(hoje,1)],['+7 dias',somaDias(hoje,7)]];
@@ -1655,23 +1833,33 @@ function renderApontar(){
     if(v===hoje) return `<span class="badge venc-hoje">vence hoje</span>`;
     return `<span class="badge">vence ${fmtBR(v)}</span>`;
   };
+  // Indicador de horas já apontadas no ticket (total, somando todos os usuários).
+  const pilulaHoras=(seg)=> seg
+    ? `<span class="ap-horas tem" data-tip="Total de horas já apontadas neste ticket (todos os usuários)">⏱ ${fmtH(seg)} já apontadas</span>`
+    : `<span class="ap-horas zero" data-tip="Este ticket ainda não tem horas apontadas">⏱ sem horas ainda</span>`;
+  const infoLog=(seg)=> seg
+    ? `⏱ <strong>${fmtH(seg)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`
+    : '⏱ Este ticket ainda <strong>não tem horas</strong> apontadas — registre o seu tempo abaixo.';
   const rows=lista.map(t=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
-    const horas = t.seg ? `<span class="badge com-horas">${fmtH(t.seg)} apontadas</span>`
-                        : `<span class="badge sem-horas">sem horas apontadas</span>`;
+    const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
       <div class="ap-log">
+        <div class="ap-log-info ${t.seg?'tem':'zero'}">${infoLog(t.seg)}</div>
         <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
         <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
         <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
         <input type="text" class="ap-coment" placeholder="comentário (opcional)" aria-label="Comentário">
         <button class="btn primario" data-ap-key="${escA(t.k)}">Apontar</button>
+        ${ehReuniao?`<button class="btn" data-ap-grupo="${escA(t.k)}" data-tip="Apontar esta reunião para o time inteiro ou para algumas pessoas">👥 em grupo</button>`:''}
         <div class="ap-fb" hidden></div>
       </div>` : '';
-    return `<div class="ap-row" data-k="${escA(t.k)}">
+    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}" data-k="${escA(t.k)}">
       <div class="ap-l1">
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
+        <span class="spacer"></span>
+        ${pilulaHoras(t.seg)}
       </div>
       <div class="ap-l2">
         <span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span>
@@ -1680,7 +1868,6 @@ function renderApontar(){
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
         ${badgeVenc(t.venc)}
-        ${horas}
         ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
       </div>
       ${logCtrl}
@@ -1693,6 +1880,7 @@ function renderApontar(){
 
   cont.replaceChildren(el(`<div>
     ${faixaId}
+    ${bannerConvites}
     <div class="kpis ts-kpis">
       <div class="kpi a" data-ap-fil="todos" aria-pressed="${ap.fil==='todos'}" data-tip="Mostrar todos" data-tipk="clique para filtrar">
         <div class="v">${todos.length}</div><div class="l">Chamados até ${fmtBR(ap.ate)}</div></div>
@@ -1748,6 +1936,7 @@ async function validaIdentidade(){
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({validar:true,email,token})}).then(r=>r.json());
     if(j.ok){ salvaIdApontar({email:j.email||email,token,nome:j.nome||email,accountId:j.accountId||''});
+      estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
       setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); },700);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
@@ -1776,8 +1965,14 @@ async function fazApontamento(btn){
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
       const dados=estado.apontar.porData[estado.apontar.ate];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.seg=(t.seg||0)+seg;
-      const horasEl=row.querySelector('.badge.sem-horas,.badge.com-horas');
-      if(horasEl&&t){ horasEl.className='badge com-horas'; horasEl.textContent=`${fmtH(t.seg)} apontadas`; }
+      const novoTotal=t?t.seg:seg;
+      // Reflete o novo total na pílula do título, na faixa lateral e no aviso do campo.
+      row.classList.remove('zero-horas'); row.classList.add('tem-horas');
+      const pil=row.querySelector('.ap-horas');
+      if(pil){ pil.className='ap-horas tem'; pil.textContent=`⏱ ${fmtH(novoTotal)} já apontadas`; }
+      const info=row.querySelector('.ap-log-info');
+      if(info){ info.className='ap-log-info tem';
+        info.innerHTML=`⏱ <strong>${fmtH(novoTotal)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`; }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
@@ -1841,18 +2036,189 @@ async function executaTransicao(btn){
     } else { area.innerHTML=`<span class="ap-fb err">${esc(j.erro||'Falha ao mover o ticket.')}</span>`; }
   }catch(e){ area.innerHTML=`<span class="ap-fb err">Erro de rede: ${esc(e.message||e)}</span>`; }
 }
+
+// ---------------- Reunião em grupo: convites de apontamento ----------------
+// Quem organizou a reunião dispara um convite (ticket + tempo + dia + pessoas);
+// cada convidado confirma com 1 clique e o worklog é criado NO USUÁRIO DELE.
+function buscaConvites(){
+  const id=idApontar(); if(!id||!id.accountId) return;
+  const ap=estado.apontar; ap.convitesBusca=true;
+  fetch(`/api/apontar?convites=1&accountId=${encodeURIComponent(id.accountId)}`)
+    .then(r=>r.json())
+    .then(j=>{ ap.convites=(j&&j.convites)||[]; ap.convitesBusca=false;
+      if(ap.convites.length && estado.vista==='apontar') renderApontar(); })
+    .catch(()=>{ ap.convites=[]; ap.convitesBusca=false; });
+}
+
+// Confirma (ou recusa) um convite do banner. Confirmação = worklog no próprio usuário.
+async function respondeConvite(btn, recusa){
+  const row=btn.closest('.cv-row'); if(!row) return;
+  const cid=btn.getAttribute(recusa?'data-cv-rec':'data-cv-conf');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const fb=row.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
+  fb.textContent=recusa?'Recusando…':'Apontando…';
+  try{
+    const corpo=recusa?{recusarConvite:cid}:{confirmarConvite:cid};
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({...corpo,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      row.classList.add('feito');
+      fb.classList.add('ok');
+      fb.textContent=recusa?'Convite recusado.':`✓ ${fmtH(j.segundos||0)} apontadas em ${j.issue||''} (${fmtBR(j.inicio||'')}).`;
+      estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
+      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, recusa?600:1400);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
+      [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
+    [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+}
+
+// Confirma todos os convites pendentes, um a um.
+async function confirmaTodosConvites(btn){
+  btn.disabled=true;
+  const botoes=[...document.querySelectorAll('[data-cv-conf]')];
+  for(const b of botoes){ if(!b.disabled) await respondeConvite(b,false); }
+}
+
+// Times salvos (presets de pessoas) — só neste navegador, de quem organiza.
+const RG_TIMES_KEY='dexterity_rg_times_v1', RG_SEL_KEY='dexterity_rg_sel_v1';
+function rgTimes(){ try{ const t=JSON.parse(localStorage.getItem(RG_TIMES_KEY)); if(t&&typeof t==='object') return t; }catch(e){} return {}; }
+function rgSalvaTimes(t){ try{ localStorage.setItem(RG_TIMES_KEY, JSON.stringify(t)); }catch(e){} }
+function rgSelecionados(){ return [...document.querySelectorAll('#rg-pessoas input[data-rg-p]:checked')].map(c=>c.getAttribute('data-rg-p')); }
+function rgAplicaSelecao(ids){ const set=new Set(ids||[]);
+  document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=set.has(c.getAttribute('data-rg-p')); }); }
+function rgRenderTimes(){
+  const cont=document.getElementById('rg-times'); if(!cont) return;
+  const times=rgTimes(); const nomes=Object.keys(times).sort((a,b)=>a.localeCompare(b,'pt'));
+  cont.innerHTML = nomes.length
+    ? nomes.map(n=>`<span style="display:inline-flex;align-items:center;gap:2px">
+        <button class="chip" data-rg-time="${escA(n)}" data-tip="Selecionar as ${times[n].length} pessoa(s) deste time">${esc(n)} (${times[n].length})</button>
+        <button class="chip" data-rg-time-del="${escA(n)}" data-tip="Excluir este time salvo">×</button></span>`).join('')
+    : '<span class="muted small">Nenhum time salvo ainda — selecione as pessoas e salve com um nome para reusar.</span>';
+}
+
+// Modal "apontar reunião para várias pessoas" (preKey opcional = ticket pré-escolhido).
+function abreReuniaoGrupo(preKey){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const hoje=hojeSP();
+  let ultima=[]; try{ ultima=JSON.parse(localStorage.getItem(RG_SEL_KEY))||[]; }catch(e){}
+  const marcar=new Set(ultima.length?ultima:[id.accountId]);
+  const pessoas=Object.entries(estado.usuarios||{})
+    .filter(([a,p])=>!RE_EXCLUIR.test(p.nome||''))
+    .sort((x,y)=>(x[1].nome||'').localeCompare(y[1].nome||'','pt'));
+  const lista = pessoas.length
+    ? pessoas.map(([a,p])=>`<label class="check"><input type="checkbox" data-rg-p="${escA(a)}" ${marcar.has(a)?'checked':''}> ${esc(p.nome||a)}${a===id.accountId?' <span class="muted small">(você)</span>':''}</label>`).join('')
+    : '<span class="muted small">Carregando pessoas…</span>';
+  abreModal(`
+    <h2>👥 Apontar reunião para várias pessoas</h2>
+    <div class="muted small">Você aponta o seu na hora; os demais recebem um <strong>convite</strong> e confirmam com
+      <strong>1 clique</strong> na aba ⏱ Apontar — o worklog de cada um sai <strong>no usuário da própria pessoa</strong>.</div>
+    <div class="mt-form" style="margin-top:14px">
+      <div class="campo"><label>Ticket da reunião</label>
+        <input type="text" id="rg-issue" value="${escA(preKey||'')}" placeholder="RDF-123" style="width:130px;text-transform:uppercase"></div>
+      <div class="campo"><label>Tempo</label>
+        <input type="text" id="rg-tempo" value="1h" placeholder="1h30" style="width:84px;text-align:center"></div>
+      <div class="campo"><label>Atalhos</label><div class="ap-chips">${
+        ['30m','1h','1h30','2h'].map(c=>`<button class="chip" data-rg-chip="${c}">${c}</button>`).join('')}</div></div>
+      <div class="campo"><label>Dia da reunião</label>
+        <input type="date" id="rg-data" value="${escA(hoje)}" max="${escA(hoje)}"></div>
+    </div>
+    <div class="campo" style="margin-top:10px"><label>Comentário (opcional, vai no worklog de todos)</label>
+      <input type="text" id="rg-coment" placeholder="ex.: Reunião semanal de status" style="width:100%;box-sizing:border-box"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <strong style="font-size:13px">Quem participou</strong>
+      <button class="chip" id="rg-todos">marcar todos</button>
+      <button class="chip" id="rg-nenhum">desmarcar todos</button>
+      <span class="spacer"></span>
+      <span id="rg-times" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
+    </div>
+    <div class="rg-pessoas" id="rg-pessoas">${lista}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <input type="text" id="rg-time-nome" placeholder="nome do time (ex.: Sustentação)" style="width:200px">
+      <button class="chip" id="rg-time-salvar" data-tip="Salva a seleção atual como um time para reusar">💾 Salvar seleção como time</button>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primario" id="rg-enviar">Apontar / convidar →</button>
+      <label class="check" style="padding-bottom:0"><input type="checkbox" id="rg-teams" checked> avisar no canal do Teams</label>
+    </div>
+    <div class="ap-fb" id="rg-fb" hidden></div>
+  `);
+  rgRenderTimes();
+  // Elenco ainda não carregado (ex.: entrou direto na aba Apontar): busca agora.
+  if(!pessoas.length){
+    fetch('/api/usuarios').then(r=>r.json()).then(j=>{
+      estado.usuarios=Object.assign({}, j.pessoas||{}, estado.usuarios||{});
+      const cont=document.getElementById('rg-pessoas'); if(!cont) return;
+      cont.innerHTML=Object.entries(estado.usuarios).filter(([a,p])=>!RE_EXCLUIR.test(p.nome||''))
+        .sort((x,y)=>(x[1].nome||'').localeCompare(y[1].nome||'','pt'))
+        .map(([a,p])=>`<label class="check"><input type="checkbox" data-rg-p="${escA(a)}" ${marcar.has(a)?'checked':''}> ${esc(p.nome||a)}${a===id.accountId?' <span class="muted small">(você)</span>':''}</label>`).join('');
+    }).catch(()=>{});
+  }
+}
+
+// Envia o convite do grupo (e o apontamento do organizador, se ele se marcou).
+async function enviaReuniaoGrupo(){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const issue=(document.getElementById('rg-issue').value||'').trim().toUpperCase();
+  const seg=parseTempo(document.getElementById('rg-tempo').value);
+  const inicio=document.getElementById('rg-data').value||hojeSP();
+  const comentario=(document.getElementById('rg-coment').value||'').trim();
+  const avisarTeams=!!(document.getElementById('rg-teams')||{}).checked;
+  const ids=rgSelecionados();
+  const fb=document.getElementById('rg-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(issue)){ fb.classList.add('err'); fb.textContent='Informe o ticket (ex.: RDF-123).'; return; }
+  if(seg==null||seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; return; }
+  if(!ids.length){ fb.classList.add('err'); fb.textContent='Selecione pelo menos uma pessoa.'; return; }
+  try{ localStorage.setItem(RG_SEL_KEY, JSON.stringify(ids)); }catch(e){}
+  const pessoas=ids.map(a=>({accountId:a, nome:(estado.usuarios[a]&&estado.usuarios[a].nome)||a}));
+  const btn=document.getElementById('rg-enviar'); btn.disabled=true; fb.textContent='Enviando…';
+  try{
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({convidar:true,issue,segundos:seg,inicio,comentario,pessoas,avisarTeams,
+        email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      const partes=[];
+      if(j.proprio) partes.push(j.proprio.ok?'seu apontamento foi registrado':`o seu falhou (${j.proprio.erro})`);
+      if(j.diretos) partes.push(`${j.diretos} apontado(s) direto via Clockwork`);
+      if(j.pendentes) partes.push(`${j.pendentes} convite(s) aguardando confirmação`);
+      fb.classList.add('ok');
+      fb.textContent=`✓ ${j.issue}: ${partes.join(' · ')||'nada a fazer'}.`;
+      estado.cache={};
+      // Atualiza o total do ticket na lista (otimista), como no apontamento individual.
+      if(j.proprio&&j.proprio.ok){
+        const dados=estado.apontar.porData[estado.apontar.ate];
+        const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
+      }
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, 2200);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); btn.disabled=false; }
+}
 // ======================================================================================
 
 // ============================ PLANEJAR (criação em lote) =============================
-// Tipos disponíveis conforme o destino: filho de história = sub-tarefas; filho de
-// épico ou criação direta no projeto = tipos padrão (nível 0, não sub-tarefa).
+// Tipos disponíveis conforme o destino: dentro de uma história = sub-tarefas; dentro
+// de um épico (ou direto no projeto) = tipos padrão (nível 0, não sub-tarefa).
 function tiposDisponiveis(){
   const pl=estado.planejar;
   const proj=(pl.projetos||[]).find(p=>p.key===pl.projeto);
   if(!proj) return [];
-  const paiEhHistoria = pl.modo==='epico' && pl.paiKey &&
-    ((pl.epicosPorProj[pl.projeto]||{}).historias||[]).some(h=>h.k===pl.paiKey);
+  const paiEhHistoria = pl.modo==='epico' && !!pl.historiaKey;
   return proj.tipos.filter(t=> paiEhHistoria ? t.subtarefa : (!t.subtarefa && t.nivel===0));
+}
+// Ticket-pai efetivo no modo épico: a história (se escolhida) ou o épico.
+function paiEfetivo(){
+  const pl=estado.planejar;
+  if(pl.modo!=='epico') return '';
+  return pl.historiaKey || pl.epicoKey || '';
+}
+// Histórias (abertas) que já pertencem ao épico selecionado.
+function historiasDoEpico(){
+  const pl=estado.planejar;
+  const ep=pl.epicosPorProj[pl.projeto];
+  if(!ep||!pl.epicoKey) return [];
+  return (ep.historias||[]).filter(h=>h.epico===pl.epicoKey);
 }
 // Garante que o tipo selecionado é válido para o destino atual.
 function ajustaTipo(){
@@ -1877,7 +2243,7 @@ function montaItens(){
       resumo:(i>=0?l.slice(0,i):l).trim(),
       descricao:(i>=0?l.slice(i+1):'').trim(),
       tipoId:pl.tipoId, respId:pl.respId,
-      paiKey:(pl.modo==='epico'?pl.paiKey:'')||'',
+      paiKey:paiEfetivo(),
     };
   });
 }
@@ -1947,26 +2313,44 @@ function renderPlanejarForm(){
   const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
     `<option value="${escA(a)}" ${pl.respId===a?'selected':''}>${esc(n)}</option>`).join('');
 
-  // Seleção de pai (modo épico)
+  // Seleção de épico e, dentro dele, história (modo épico).
   let campoPai='';
+  let painelHist='';
   if(pl.modo==='epico'){
     const ep=pl.epicosPorProj[pl.projeto];
-    if(!pl.projeto) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>escolha o projeto</option></select></div>';
-    else if(!ep) campoPai='<div class="campo"><label>Épico / História</label><select disabled><option>carregando…</option></select></div>';
-    else if(ep.erro) campoPai=`<div class="campo"><label>Épico / História</label><select disabled><option>erro: ${esc(ep.erro)}</option></select></div>`;
+    if(!pl.projeto) campoPai='<div class="campo"><label>Épico</label><select disabled><option>escolha o projeto</option></select></div>';
+    else if(!ep) campoPai='<div class="campo"><label>Épico</label><select disabled><option>carregando…</option></select></div>';
+    else if(ep.erro) campoPai=`<div class="campo"><label>Épico</label><select disabled><option>erro: ${esc(ep.erro)}</option></select></div>`;
     else {
-      const og=(rot,lista)=>lista.length?`<optgroup label="${escA(rot)}">${lista.map(x=>
-        `<option value="${escA(x.k)}" ${pl.paiKey===x.k?'selected':''}>${esc(x.k)} — ${esc(x.resumo.slice(0,60))}</option>`).join('')}</optgroup>`:'';
-      campoPai=`<div class="campo"><label>Épico / História (pai)</label><select id="pl-pai">
-        <option value="">— direto no projeto —</option>
-        ${og('Épicos',ep.epicos)}${og('Histórias (vira sub-tarefa)',ep.historias)}</select></div>`;
+      const optEp='<option value="">— escolha o épico —</option>'+(ep.epicos||[]).map(e=>
+        `<option value="${escA(e.k)}" ${pl.epicoKey===e.k?'selected':''}>${esc(e.k)} — ${esc(e.resumo.slice(0,55))}${e.nHistorias?` · ${e.nHistorias} história(s)`:''}</option>`).join('');
+      campoPai=`<div class="campo"><label>Épico</label><select id="pl-epico">${optEp}</select></div>`;
+      if(pl.epicoKey){
+        const hs=historiasDoEpico();
+        const optH='<option value="">— criar direto no épico (história/tarefa) —</option>'+hs.map(h=>
+          `<option value="${escA(h.k)}" ${pl.historiaKey===h.k?'selected':''}>${esc(h.k)} — ${esc(h.resumo.slice(0,55))}</option>`).join('');
+        campoPai+=`<div class="campo"><label>Criar dentro de</label><select id="pl-historia">${optH}</select></div>`;
+        painelHist=`<div class="pl-hist">
+          <div class="pl-hist-cab">📚 Histórias abertas neste épico <span class="muted">(${hs.length})</span></div>
+          ${hs.length? hs.map(h=>`<div class="pl-hist-row${pl.historiaKey===h.k?' sel':''}">
+              <a href="${jiraBase()}/browse/${encodeURIComponent(h.k)}" target="_blank" rel="noopener">${esc(h.k)} ↗</a>
+              <span class="pl-hist-res">${esc(h.resumo)}</span>
+              <span class="badge">${esc(h.status)}</span>
+              <span class="spacer"></span>
+              <button class="btn${pl.historiaKey===h.k?' primario':''}" data-pl-hist="${escA(h.k)}">${pl.historiaKey===h.k?'✓ planejando aqui':'planejar sub-tarefas aqui →'}</button>
+            </div>`).join('')
+            : '<div class="muted small">Nenhuma história aberta neste épico ainda. Deixe em “criar direto no épico” e liste as histórias abaixo para criá-las; depois entre em cada uma para detalhar as sub-tarefas.</div>'}
+        </div>`;
+      }
     }
   }
 
   const nLinhas=pl.texto.split('\n').map(l=>l.trim()).filter(Boolean).length;
-  const modoDica = pl.modo==='epico'
-    ? 'Os tickets serão criados <strong>dentro do épico/história</strong> escolhido (sob história = sub-tarefas).'
-    : 'Os tickets serão criados direto no projeto, com o tipo e responsável padrão abaixo.';
+  let modoDica;
+  if(pl.modo!=='epico') modoDica='Os tickets serão criados direto no projeto, com o tipo e responsável padrão abaixo.';
+  else if(!pl.epicoKey) modoDica='Escolha o <strong>épico</strong>. Você poderá criar as <strong>histórias dentro dele</strong> e, depois, entrar em cada história para planejar as <strong>sub-tarefas</strong>.';
+  else if(pl.historiaKey) modoDica=`Os itens abaixo viram <strong>sub-tarefas</strong> dentro da história <strong>${esc(pl.historiaKey)}</strong>.`;
+  else modoDica=`Os itens abaixo são criados <strong>dentro do épico ${esc(pl.epicoKey)}</strong> (como histórias/tarefas). Para detalhar uma história em sub-tarefas, selecione-a em “Criar dentro de” (ou no botão da lista).`;
 
   cont.replaceChildren(el(`<div>
     ${faixaId}
@@ -1983,6 +2367,7 @@ function renderPlanejarForm(){
         <div class="campo"><label>Tipo de ticket</label><select id="pl-tipo" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
         <div class="campo"><label>Responsável (padrão)</label><select id="pl-resp">${optResp}</select></div>
       </div>
+      ${painelHist}
       <div class="campo"><label>Tickets — um por linha <span class="muted">(use “;” para separar resumo ; descrição)</span></label>
         <textarea class="pl-texto" id="pl-texto" placeholder="Levantar requisitos com o cliente ; agendar reunião inicial
 Configurar ambiente de homologação
@@ -2034,9 +2419,14 @@ function renderPlanejarRevisao(){
   const projs=pl.projetos||[];
   const pj=projs.find(p=>p.key===pl.projeto);
   const ep=pl.epicosPorProj[pl.projeto]||{epicos:[],historias:[]};
-  const pai=[...(ep.epicos||[]),...(ep.historias||[])].find(x=>x.k===pl.paiKey);
-  const destino=`Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>`+
-    (pl.modo==='epico'&&pai?` · dentro de <strong>${esc(pai.k)}</strong> <span class="muted">(${esc(pai.resumo.slice(0,60))})</span>`:'');
+  const epico=(ep.epicos||[]).find(x=>x.k===pl.epicoKey);
+  const hist=(ep.historias||[]).find(x=>x.k===pl.historiaKey);
+  let destino=`Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>`;
+  if(pl.modo==='epico'&&epico){
+    destino+=` · épico <strong>${esc(epico.k)}</strong> <span class="muted">(${esc(epico.resumo.slice(0,50))})</span>`;
+    if(hist) destino+=` · sub-tarefas em <strong>${esc(hist.k)}</strong> <span class="muted">(${esc(hist.resumo.slice(0,50))})</span>`;
+    else destino+=' · como <strong>histórias/tarefas do épico</strong>';
+  }
   const prontos=pl.itens.length-nErros;
   const podeCriar = prontos>0 && nErros===0 && !pl.criando;
 
@@ -2185,7 +2575,7 @@ function importaDeTexto(text, comHeader){
     if(idx.resp>=0){ const nm=get(idx.resp); if(nm){ const id=respIdPorNome(nm);
       if(id) respId=id; else avisos.add(`Responsável “${nm}” não encontrado — usando o padrão.`); } }
     return { resumo:get(idx.resumo), descricao:idx.descricao>=0?get(idx.descricao):'',
-      tipoId, respId, paiKey:(pl.modo==='epico'?pl.paiKey:'')||'' };
+      tipoId, respId, paiKey:paiEfetivo() };
   }).filter(it=>it.resumo);
   return { itens, avisos:[...avisos] };
 }
@@ -2455,11 +2845,11 @@ function abreAjuda(){
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
     <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
-      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira e top projetos.</li>
+      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas e mova o status.</li>
+      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas, mova o status e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
     </ul></div></details>
@@ -2468,14 +2858,33 @@ function abreAjuda(){
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
     </div></details>
+    <details class="help-sec"><summary>Reunião do time (apontar para várias pessoas)</summary><div class="help-body">
+      Participou de uma reunião com mais gente? Na aba <b>⏱ Apontar</b>, use <b>👥 Apontar reunião p/ várias
+      pessoas</b> (ou o botão <b>👥 em grupo</b> nos chamados de reunião): escolha o ticket, o tempo, o dia e
+      <b>quem participou</b> (dá para <b>salvar a seleção como time</b> e reusar). Você aponta o seu na hora; os
+      demais recebem um <b>convite</b> e confirmam com <b>1 clique</b> no topo da aba ⏱ Apontar — o worklog de cada
+      um sai <b>no usuário da própria pessoa</b>. Com o webhook configurado, o canal do Teams recebe o aviso.
+    </div></details>
     <details class="help-sec"><summary>Planejar (criar tickets em lote)</summary><div class="help-body">
       Na aba <b>📝 Planejar</b>: escolha projeto, tipo e responsável; digite <b>um ticket por linha</b> (use “;” para
       “resumo ; descrição”) ou <b>cole do Excel/CSV</b>. Revise (erros destacados) e crie — o resultado lista os
-      tickets criados com links. Há também o modo <b>Planejamento de épico</b> (cria como filhos/sub-tarefas).
+      tickets criados com links.<br>
+      <b>Planejamento de épico (dois níveis):</b> escolha o <b>épico</b> — a tela mostra as <b>histórias já abertas
+      nele</b>. Deixando em <b>“criar direto no épico”</b>, os itens viram <b>histórias/tarefas do épico</b>; escolhendo
+      uma história (no seletor ou no botão <i>planejar sub-tarefas aqui</i>), os itens viram <b>sub-tarefas</b> dela.
+      Assim dá para planejar primeiro as histórias do épico e depois detalhar cada uma.
     </div></details>
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
       O <b>tipo</b> é mantido e o <b>status</b> é preservado quando existe no destino.
+    </div></details>
+    <details class="help-sec"><summary>Resumo das atividades por IA</summary><div class="help-body">
+      Na aba <b>Resumo</b>, o card <b>🧠 Resumo das atividades (IA)</b> gera, sob demanda, uma análise
+      em texto de <b>cada pessoa</b> no período: cadência de apontamento (horas, média por dia útil, dias sem
+      apontar vs. a meta), volume e tipo de atividade (tickets, alterações, transições, criações) e a
+      colaboração (comentários). Cada pessoa recebe um sinal 🟢/⚪/🟠. Respeita os <b>filtros e o período</b> atuais
+      (filtre por uma pessoa para um resumo individual). O resumo é só uma leitura dos números desta tela —
+      confira antes de qualquer decisão. <i>Requer a chave de IA configurada pelo administrador.</i>
     </div></details>
     <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
       No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências e feriados nacionais (com Carnaval,
@@ -2871,6 +3280,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='rc-mover'){ confirmaMover(); }
   else if(t.id==='rc-verificar'){ verificaMover(); }
   else if(t.id==='rc-voltar'){ rc.resultado=null; rc.taskId=''; rc.dados=null; renderReclass(); }
+  else if(t.id==='ia-gerar'){ geraAnaliseIA(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const rc=estado.reclass; const t=e.target; if(!t) return;
@@ -2939,6 +3349,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-key')){ fazApontamento(t); }
   else if(t.hasAttribute('data-ap-st')){ escondeTip(); toggleTransicoes(t); }
   else if(t.hasAttribute('data-ap-trans')){ escondeTip(); executaTransicao(t); }
+  else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
+  else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
+  else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
+  else if(t.hasAttribute('data-cv-rec')){ escondeTip(); respondeConvite(t,true); }
+  else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
   else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
   else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
     carregaVenc(estado.apontar.ate,true)
@@ -2949,7 +3364,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest('button'); if(!t) return;
   const pl=estado.planejar;
-  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.hasAttribute('data-pl-hist')){ const k=t.getAttribute('data-pl-hist');
+    pl.historiaKey=(pl.historiaKey===k?'':k); ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-tentar'){ pl.projetosErro=''; renderPlanejar(); }
   else if(t.id==='pl-validar'){
     const fb=document.getElementById('pl-fb');
@@ -2976,10 +3393,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
-  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.paiKey=''; ajustaTipo(); renderPlanejar(); }
+  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-tipo'){ pl.tipoId=t.value; }
   else if(t.id==='pl-resp'){ pl.respId=t.value; }
-  else if(t.id==='pl-pai'){ pl.paiKey=t.value; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
     if(pl.itens&&pl.itens[i]){ pl.itens[i].resumo=t.value; renderPlanejar(); } }
   else if(t.classList&&t.classList.contains('pl-desc')){ const i=+t.getAttribute('data-pl-i');
@@ -3036,7 +3454,19 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
-  else if(t.id==='ap-id-sair'){ limpaIdApontar(); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
+  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; fechaModal(); if(estado.vista==='apontar') renderApontar(); }
+  else if(t.id==='rg-enviar'){ enviaReuniaoGrupo(); }
+  else if(t.hasAttribute('data-rg-chip')){ const i=document.getElementById('rg-tempo'); if(i) i.value=t.getAttribute('data-rg-chip'); }
+  else if(t.id==='rg-todos'){ document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=true; }); }
+  else if(t.id==='rg-nenhum'){ document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=false; }); }
+  else if(t.id==='rg-time-salvar'){ const n=(document.getElementById('rg-time-nome').value||'').trim();
+    const ids=rgSelecionados();
+    if(!n||!ids.length){ const fb=document.getElementById('rg-fb');
+      if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Dê um nome ao time e selecione as pessoas antes de salvar.'; } return; }
+    const ts=rgTimes(); ts[n]=ids; rgSalvaTimes(ts); rgRenderTimes();
+    document.getElementById('rg-time-nome').value=''; }
+  else if(t.hasAttribute('data-rg-time')){ rgAplicaSelecao(rgTimes()[t.getAttribute('data-rg-time')]||[]); }
+  else if(t.hasAttribute('data-rg-time-del')){ const ts=rgTimes(); delete ts[t.getAttribute('data-rg-time-del')]; rgSalvaTimes(ts); rgRenderTimes(); }
   else if(t.id==='pl-csv-import'){ confirmaImportacao(); }
   else if(t.id==='pl-csv-modelo'){ baixaModeloPlanejar(); }
   else if(t.id==='pl-csv-cancel'){ fechaModal(); }

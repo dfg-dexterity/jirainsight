@@ -36,6 +36,21 @@ public/
 | `CLOCKWORK_API_TOKEN` | sim | token da API do Clockwork (Pro) |
 | `CACHE_TTL_MIN` | não | minutos de cache no servidor (padrão 20) |
 | `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como não faturável (padrão `n[aã]o.?fatur`) |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
+| `TEAMS_WEBHOOK_URL` | não | webhook do canal: ranking diário e aviso de convites de reunião |
+| `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
+| `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
+| `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
+
+### Convites de reunião (apontamento em grupo)
+
+Reuniões que valem para várias pessoas: quem organizou usa **👥 Apontar reunião
+p/ várias pessoas** na aba ⏱ Apontar (o próprio worklog sai na hora) e os demais
+confirmam o convite com **1 clique** — o worklog de cada um é criado **com o token
+da própria pessoa**, preservando o modelo de segurança. Os convites ficam na tabela
+`jirainsight_convites` do Supabase (colunas: grupo, issue, resumo, segundos, inicio,
+comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
+worklog_id, erro).
 
 ### Onde gerar os tokens
 - **Jira:** id.atlassian.com → Manage profile → Security → Create and manage API tokens.

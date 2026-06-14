@@ -42,21 +42,30 @@ async function listarEpicos(projeto, res) {
   if (ids.length) {
     const { issues } = await jiraSearchAll({
       jql: `project = ${projeto} AND issuetype in (${ids.join(',')}) AND statusCategory != Done ORDER BY created DESC`,
-      fields: ['summary', 'issuetype', 'status'],
+      fields: ['summary', 'issuetype', 'status', 'parent'],
       pageSize: 100,
       maxPages: 3,
     });
     for (const it of issues) {
       const f = it.fields || {};
+      const ehEpico = idsEpico.includes(f.issuetype && f.issuetype.id);
       const item = {
         k: it.key,
         resumo: f.summary || '',
         status: (f.status && f.status.name) || '',
         tipo: (f.issuetype && f.issuetype.name) || '',
       };
-      if (idsEpico.includes(f.issuetype && f.issuetype.id)) epicos.push(item);
-      else historias.push(item);
+      if (ehEpico) { item.nHistorias = 0; epicos.push(item); }
+      else {
+        // Épico-pai da história (Jira novo: o pai de uma história é o épico).
+        item.epico = (f.parent && f.parent.key) || '';
+        historias.push(item);
+      }
     }
+    // Conta quantas histórias (abertas) cada épico já tem, para mostrar contexto.
+    const porEpico = {};
+    historias.forEach((h) => { if (h.epico) porEpico[h.epico] = (porEpico[h.epico] || 0) + 1; });
+    epicos.forEach((e) => { e.nHistorias = porEpico[e.k] || 0; });
   }
   return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias }, 10));
 }
