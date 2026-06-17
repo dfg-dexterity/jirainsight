@@ -125,18 +125,47 @@ export default async function handler(req, res) {
     const ehAusente = (a) => (cfg.ausencias || []).some((x) => x.a === a && dia >= x.de && dia <= x.ate);
     const metaSeg = (a) => Math.max(0, Number((cfg.metasPessoa || {})[a] != null ? cfg.metasPessoa[a] : cfg.metaGlobalH) || 0) * 3600;
 
+    // Uma linha por pessoa ativa (com meta no dia), ordenada por quem mais precisa
+    // apontar (maior lacuna primeiro) — espelha a aba "Ranking" do painel.
     const linhas = Object.keys(pessoas)
       .filter((a) => !ehAusente(a))
-      .map((a) => ({ a, nome: pessoas[a].nome, seg: porPessoa[a] || 0, meta: metaSeg(a) }))
-      .sort((x, y) => (y.seg - x.seg) || x.nome.localeCompare(y.nome, 'pt'));
-    const comHoras = linhas.filter((l) => l.seg > 0);
-    const semHoras = linhas.filter((l) => l.seg <= 0 && l.meta > 0);
+      .map((a) => {
+        const seg = porPessoa[a] || 0;
+        const meta = metaSeg(a);
+        const pct = meta ? Math.round((seg / meta) * 100) : null;
+        const lacuna = Math.max(0, meta - seg);
+        return { a, nome: pessoas[a].nome, seg, meta, pct, lacuna };
+      })
+      .filter((l) => l.meta > 0)
+      .sort((x, y) => (y.lacuna - x.lacuna) || (x.pct - y.pct) || x.nome.localeCompare(y.nome, 'pt'));
 
-    const medalhas = ['🥇', '🥈', '🥉'];
-    const linhasTxt = comHoras.map((l, i) => {
-      const pctv = l.meta ? Math.round((l.seg / l.meta) * 100) : null;
-      const ic = i < 3 ? medalhas[i] : (pctv != null && pctv < 60 ? '🔸' : '•');
-      return `${ic} **${l.nome}** — ${fmtH(l.seg)}${pctv != null ? ` (${pctv}% da meta)` : ''}`;
+    // KPIs do dia (cabeçalho do cartão).
+    const totMeta = linhas.reduce((s, l) => s + l.meta, 0);
+    const totApontado = linhas.reduce((s, l) => s + Math.min(l.seg, l.meta), 0);  // capado na meta p/ o % geral
+    const pctGeral = totMeta ? Math.round((totApontado / totMeta) * 100) : 0;
+    const lacunaTotal = linhas.reduce((s, l) => s + l.lacuna, 0);
+    const nEmDia = linhas.filter((l) => l.pct != null && l.pct >= 90).length;
+    const nAtrasadas = linhas.length - nEmDia;
+
+    const statusDe = (pct) => (pct == null ? { ic: '⚪', nome: '—' }
+      : pct >= 90 ? { ic: '🟢', nome: 'Em dia' }
+        : pct >= 60 ? { ic: '🟡', nome: 'Atrasado' }
+          : { ic: '🔴', nome: 'Crítico' });
+
+    const MAX_LINHAS = 40;
+    const linhasTxt = linhas.slice(0, MAX_LINHAS).map((l, i) => {
+      const s = statusDe(l.pct);
+      const falta = l.lacuna > 0 ? ` · faltam ${fmtH(l.lacuna)}` : ' · ✓ meta batida';
+      return `${s.ic} **${i + 1}. ${l.nome}** — ${s.nome} · ${l.pct}% · ${fmtH(l.seg)}/${fmtH(l.meta)}${falta}`;
+    });
+    if (linhas.length > MAX_LINHAS) linhasTxt.push(`_…e mais ${linhas.length - MAX_LINHAS} pessoa(s)._`);
+
+    // Coluna de KPI (número grande + rótulo), no estilo dos cards do painel.
+    const kpiCol = (valor, rotulo) => ({
+      type: 'Column', width: 'stretch', items: [
+        { type: 'TextBlock', text: valor, size: 'ExtraLarge', weight: 'Bolder', horizontalAlignment: 'Center', spacing: 'None' },
+        { type: 'TextBlock', text: rotulo, size: 'Small', isSubtle: true, wrap: true, horizontalAlignment: 'Center', spacing: 'None' },
+      ],
     });
 
     const [criados, resolvidos] = await Promise.all([
@@ -144,22 +173,24 @@ export default async function handler(req, res) {
       contaJQL(`resolutiondate >= "${dia}" AND resolutiondate <= "${dia} 23:59"`),
     ]);
 
-    const titulo = `📊 Ranking de apontamento — ${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
+    const ddmm = `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
     const blocos = [
-      { type: 'TextBlock', size: 'Large', weight: 'Bolder', text: titulo },
-      { type: 'TextBlock', wrap: true, text: linhasTxt.length ? linhasTxt.join('\n\n') : '_Ninguém apontou horas nesse dia._' },
+      { type: 'TextBlock', size: 'Large', weight: 'Bolder', text: `📊 Apontamento de horas — ${ddmm}` },
+      { type: 'TextBlock', isSubtle: true, wrap: true, spacing: 'None', text: `Status do último dia útil · meta padrão ${cfg.metaGlobalH}h/dia` },
+      { type: 'ColumnSet', spacing: 'Medium', columns: [
+        kpiCol(`${pctGeral}%`, 'Apontamento geral'),
+        kpiCol(fmtH(lacunaTotal), 'Horas faltando'),
+        kpiCol(String(nEmDia), 'Pessoas em dia'),
+        kpiCol(String(nAtrasadas), 'Pessoas atrasadas'),
+      ] },
+      { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', text: 'Ranking — quem mais precisa apontar' },
+      { type: 'TextBlock', wrap: true, text: linhasTxt.length ? linhasTxt.join('\n\n') : '_Ninguém com meta no período._' },
     ];
-    if (semHoras.length) {
-      blocos.push({
-        type: 'TextBlock', wrap: true, color: 'Attention',
-        text: `🔴 **Sem apontamento:** ${semHoras.map((l) => l.nome).join(', ')}`,
-      });
-    }
     const uso = [];
     if (criados != null) uso.push(`Chamados criados: **${criados}**`);
     if (resolvidos != null) uso.push(`Resolvidos: **${resolvidos}**`);
-    if (uso.length) blocos.push({ type: 'TextBlock', wrap: true, isSubtle: true, text: `Uso do Jira no dia · ${uso.join(' · ')}` });
-    blocos.push({ type: 'TextBlock', isSubtle: true, size: 'Small', text: 'Enviado automaticamente pelo painel Insights de Uso (Jira + Clockwork).' });
+    if (uso.length) blocos.push({ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'Medium', text: `Uso do Jira no dia · ${uso.join(' · ')}` });
+    blocos.push({ type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Enviado automaticamente pelo painel Insights de Uso (Jira + Clockwork).' });
 
     const cartao = {
       type: 'message',
@@ -180,7 +211,7 @@ export default async function handler(req, res) {
     const okEnvio = r.status >= 200 && r.status < 300;
     return json(res, 200, {
       enviado: okEnvio, dia, status: r.status,
-      pessoas: comHoras.length, semApontamento: semHoras.length,
+      pessoas: linhas.length, emDia: nEmDia, atrasadas: nAtrasadas, pctGeral,
       ...(okEnvio ? {} : { erro: (await r.text()).slice(0, 300) }),
     });
   } catch (err) {
