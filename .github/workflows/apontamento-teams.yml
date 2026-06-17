@@ -1,0 +1,46 @@
+name: Relatório de apontamento no Teams
+
+# Dispara o endpoint /api/teams, que monta o ranking de apontamento do último dia
+# útil e o envia ao canal do Teams (precisa de TEAMS_WEBHOOK_URL configurada na Vercel).
+# O cron da Vercel exige plano Pro; o GitHub Actions é gratuito e cobre o agendamento.
+
+on:
+  schedule:
+    # 11:00 UTC = 08:00 em America/Sao_Paulo (UTC-3, o Brasil não tem horário de verão).
+    # Seg–sex; o próprio endpoint pula feriados nacionais (a menos que ?forcar=1).
+    - cron: '0 11 * * 1-5'
+  workflow_dispatch:          # permite disparar manualmente para testar (aba Actions → Run workflow)
+    inputs:
+      dry:
+        description: 'dry=1 apenas monta o cartão (não envia ao Teams)'
+        required: false
+        default: '0'
+
+# Evita execuções sobrepostas se uma demorar.
+concurrency:
+  group: apontamento-teams
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /api/teams
+        env:
+          # URL do endpoint em produção. Defina o secret TEAMS_CRON_URL para sobrescrever
+          # (ex.: domínio próprio). Sem ele, usa o padrão abaixo.
+          URL: ${{ secrets.TEAMS_CRON_URL }}
+          # Opcional: se você definiu CRON_SECRET na Vercel, crie o MESMO valor como
+          # secret do repositório para o endpoint aceitar a chamada.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DRY: ${{ github.event.inputs.dry }}
+        run: |
+          set -euo pipefail
+          URL="${URL:-https://jirainsight.vercel.app/api/teams}"
+          if [ "${DRY:-0}" = "1" ]; then URL="${URL}?dry=1"; fi
+          AUTH=()
+          if [ -n "${CRON_SECRET:-}" ]; then AUTH=(-H "Authorization: Bearer ${CRON_SECRET}"); fi
+          echo "GET ${URL%%\?*}"
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' "${AUTH[@]}" "$URL")
+          echo "HTTP $code"; cat /tmp/resp.json; echo
+          test "$code" -ge 200 && test "$code" -lt 300

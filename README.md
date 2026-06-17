@@ -37,7 +37,8 @@ public/
 | `CACHE_TTL_MIN` | não | minutos de cache no servidor (padrão 20) |
 | `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como não faturável (padrão `n[aã]o.?fatur`) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
-| `TEAMS_WEBHOOK_URL` | não | webhook do canal: ranking diário e aviso de convites de reunião |
+| `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
+| `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
 | `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
 | `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
@@ -51,6 +52,23 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 `jirainsight_convites` do Supabase (colunas: grupo, issue, resumo, segundos, inicio,
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
+
+### Relatório diário de apontamento no Teams (8h)
+
+O endpoint **`/api/teams`** monta um cartão (KPIs: apontamento geral, horas faltando,
+pessoas em dia/atrasadas + ranking de quem mais precisa apontar, com selos
+🟢 Em dia / 🟡 Atrasado / 🔴 Crítico) referente ao **último dia útil** e o envia ao canal.
+
+- **Webhook:** crie um *Workflow* "Postar em um canal quando uma solicitação de webhook
+  for recebida" no Teams e cole a URL em `TEAMS_WEBHOOK_URL` na Vercel.
+- **Agendamento (08:00):** o cron da Vercel exige plano Pro, então o disparo é feito pelo
+  GitHub Actions em `.github/workflows/apontamento-teams.yml` (cron `0 11 * * 1-5` = 08:00
+  America/São_Paulo, seg–sex; o endpoint pula feriados). Para proteger o endpoint, defina
+  `CRON_SECRET` na Vercel **e** o mesmo valor como *secret* do repositório no GitHub
+  (Settings → Secrets and variables → Actions). Opcional: secret `TEAMS_CRON_URL` para
+  apontar a um domínio próprio.
+- **Testar:** aba **Actions** → *Relatório de apontamento no Teams* → **Run workflow**
+  (use `dry=1` para só montar o cartão sem enviar), ou abra `/api/teams?dry=1`.
 
 ### Onde gerar os tokens
 - **Jira:** id.atlassian.com → Manage profile → Security → Create and manage API tokens.
