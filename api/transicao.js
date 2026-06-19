@@ -1,16 +1,30 @@
-// POST /api/transicao — lista/executa transições de STATUS ou REAGENDA o vencimento
-// de um ticket do Jira, com as credenciais da própria pessoa (mesmo modelo do
-// /api/apontar): a mudança fica registrada no usuário de quem operou, e só quem tem
-// permissão no projeto consegue.
+// POST /api/transicao — lista/executa transições de STATUS, REAGENDA o vencimento,
+// COMENTA ou TRANSFERE (assignee) um ticket do Jira, com as credenciais da própria
+// pessoa (mesmo modelo do /api/apontar): a mudança fica registrada no usuário de quem
+// operou, e só quem tem permissão no projeto consegue.
 //
 // Corpos aceitos:
-//   { listar:true, issue, email, token }            -> { ok, transicoes:[{id,nome,para,categoria}] }
-//   { issue, transitionId, email, token }           -> executa a transição de status
-//   { reagendar:true, issue, duedate, email, token } -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' para remover)
+//   { listar:true, issue, email, token }             -> { ok, transicoes:[{id,nome,para,categoria}] }
+//   { issue, transitionId, email, token }            -> executa a transição de status
+//   { reagendar:true, issue, duedate, email, token }  -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' p/ remover)
+//   { comentar:true, issue, texto, email, token }     -> adiciona um comentário ao chamado
+//   { atribuir:true, issue, accountId, email, token } -> transfere o responsável (accountId vazio/null = sem responsável)
 import { jiraBase, cacheClear, json } from './_lib/util.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+// Texto simples -> ADF (um parágrafo por linha), para o corpo do comentário.
+function adf(texto) {
+  return {
+    type: 'doc',
+    version: 1,
+    content: String(texto).split('\n').map((l) => ({
+      type: 'paragraph',
+      content: l ? [{ type: 'text', text: l }] : [],
+    })),
+  };
+}
 
 function lerBody(req) {
   return new Promise((resolve) => {
@@ -69,6 +83,36 @@ export default async function handler(req, res) {
       cacheClear('venc:');
       cacheClear('atividade:');
       return json(res, 200, { ok: true, issue, duedate });
+    }
+
+    // ---- Modo comentar: adiciona um comentário ao chamado ----
+    if (b.comentar) {
+      const texto = String(b.texto || '').trim();
+      if (!texto) return json(res, 400, { erro: 'Comentário vazio.' });
+      if (texto.length > 30000) return json(res, 400, { erro: 'Comentário longo demais.' });
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/comment`, {
+        method: 'POST', headers, body: JSON.stringify({ body: adf(texto) }),
+      });
+      if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para comentar neste chamado.' });
+      if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
+      if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
+      cacheClear('atividade:');
+      return json(res, 200, { ok: true, issue });
+    }
+
+    // ---- Modo atribuir: transfere o responsável (assignee) do chamado ----
+    if (b.atribuir) {
+      const accountId = String(b.accountId || '').trim();
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/assignee`, {
+        method: 'PUT', headers, body: JSON.stringify({ accountId: accountId || null }),   // null = sem responsável
+      });
+      if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para transferir este chamado.' });
+      if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
+      if (r.status === 400) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Não foi possível atribuir (a pessoa pode não ter acesso ao projeto). ${t.slice(0, 160)}` }); }
+      if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
+      cacheClear('venc:');
+      cacheClear('atividade:');
+      return json(res, 200, { ok: true, issue, accountId });
     }
 
     const url = `${base}/rest/api/3/issue/${encodeURIComponent(issue)}/transitions`;

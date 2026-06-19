@@ -53,6 +53,15 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
 
+### Comentar e transferir na aba ⏱ Apontar
+
+Os chamados ficam **agrupados por projeto** (cabeçalho com código + nome). Em cada
+chamado dá para **💬 comentar** e **transferir o responsável** (para outra pessoa,
+para mim ou remover), além de apontar horas, mover status e reagendar. Comentário e
+transferência usam o **token da própria pessoa** via `POST /api/transicao` nos modos
+`{ comentar:true, issue, texto }` e `{ atribuir:true, issue, accountId }` (accountId
+vazio = sem responsável).
+
 ### Reprogramar vencimentos (aba ⏱ Apontar)
 
 Na aba Apontar dá para **reagendar a data de vencimento** de qualquer chamado

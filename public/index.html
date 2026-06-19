@@ -285,6 +285,18 @@
   .ap-reag .ap-reag-data{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite)}
   .chip.primario-chip{background:var(--cerceta);color:#fff;border-color:var(--cerceta);font-weight:600}
+  /* Cabeçalho de grupo por projeto na lista de apontar */
+  .ap-proj-head{display:flex;align-items:center;gap:8px;margin:18px 0 2px;padding:7px 12px;
+    background:#EAF1FB;border:1px solid #A6C8F0;border-radius:9px}
+  .ap-lista .ap-proj-head:first-child{margin-top:0}
+  .ap-proj-cod{font-weight:700;color:#0064D9;font-size:13px}
+  .ap-proj-nome{color:var(--grafite);font-size:13px}
+  .ap-proj-cont{font-size:11px;color:#64748B}
+  .ap-resp-panel .ap-resp-sel{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:260px}
+  .ap-coment-panel{align-items:flex-start}
+  .ap-coment-txt{flex:1 1 100%;min-width:200px;font-family:var(--corpo);font-size:13px;padding:8px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);resize:vertical;box-sizing:border-box}
   .badge.st-btn{cursor:pointer;border:1px dashed #94A3B8;background:#fff;font-family:var(--corpo);font-size:11px}
   .badge.st-btn:hover{border-color:var(--grafite)}
   .ap-trans{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#F8FAFD;
@@ -1867,7 +1879,11 @@ function renderApontar(){
   const infoLog=(seg)=> seg
     ? `⏱ <strong>${fmtH(seg)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`
     : '⏱ Este ticket ainda <strong>não tem horas</strong> apontadas — registre o seu tempo abaixo.';
-  const rows=lista.map(t=>{
+  // Responsável: clicável (abre o painel de transferência) quando identificado.
+  const respBtn=(t)=> t.resp
+    ? `<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
+    : `<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`;
+  const linhaTicket=(t)=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
@@ -1889,16 +1905,28 @@ function renderApontar(){
         ${pilulaHoras(t.seg)}
       </div>
       <div class="ap-l2">
-        <span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span>
         <span class="badge">${esc(t.t)}</span>
         ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
         ${id?reagBtn(t):badgeVenc(t.venc)}
-        ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
+        ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
+        ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
       </div>
       ${logCtrl}
     </div>`;
+  };
+  // Agrupa por projeto para deixar claro a que projeto cada chamado pertence.
+  const porProj={};
+  lista.forEach(t=>{ (porProj[t.p]=porProj[t.p]||[]).push(t); });
+  const rows=Object.keys(porProj).sort((a,b)=>a.localeCompare(b)).map(pk=>{
+    const grupo=porProj[pk];
+    const cab=`<div class="ap-proj-head">
+      <span class="ap-proj-cod">${esc(pk)}</span>
+      <span class="ap-proj-nome">${esc((projs[pk]&&projs[pk].nome)||'')}</span>
+      <span class="spacer"></span>
+      <span class="ap-proj-cont">${grupo.length} chamado(s)</span></div>`;
+    return cab + grupo.map(linhaTicket).join('');
   }).join('');
 
   const vazio = lista.length ? '' :
@@ -2121,6 +2149,98 @@ async function executaReagendar(btn){
       if(saiu){ row.style.transition='opacity .5s ease'; row.style.opacity='.35'; }
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, saiu?1100:850);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao reagendar.';
+      [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
+    [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+}
+
+// ---------------- Transferir responsável (assignee) ----------------
+function toggleTransferir(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-resp');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const aberto=row.querySelector('.ap-resp-panel'); if(aberto){ aberto.remove(); return; }
+  const dados=estado.apontar.porData[chaveVenc()];
+  const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
+  const pessoas=Object.entries(pessoasUnidas()).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||''))
+    .sort((x,y)=>((x[1]&&x[1].nome)||'').localeCompare((y[1]&&y[1].nome)||'','pt'));
+  const opts='<option value="">— escolha a pessoa —</option>'+pessoas.map(([a,p])=>
+    `<option value="${escA(a)}" ${t&&t.respId===a?'selected':''}>${esc((p&&p.nome)||a)}</option>`).join('');
+  const area=document.createElement('div'); area.className='ap-trans ap-resp-panel';
+  area.innerHTML=`<span class="ap-trans-rot">Transferir para:</span>
+    <select class="ap-resp-sel" aria-label="Nova pessoa responsável">${opts}</select>
+    <button class="chip primario-chip" data-ap-resp-do="${escA(k)}">Transferir</button>
+    ${id.accountId?`<button class="chip" data-ap-resp-do="${escA(k)}" data-mim="1" data-tip="Atribuir para mim">para mim</button>`:''}
+    <button class="chip" data-ap-resp-do="${escA(k)}" data-limpar="1" data-tip="Deixar sem responsável">remover responsável</button>
+    <div class="ap-fb" hidden></div>`;
+  row.querySelector('.ap-l2').after(area);
+}
+async function executaTransferir(btn){
+  const row=btn.closest('.ap-row'); const area=btn.closest('.ap-resp-panel'); if(!row||!area) return;
+  const k=btn.getAttribute('data-ap-resp-do');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const ap=estado.apontar;
+  const limpar=btn.getAttribute('data-limpar')==='1';
+  const aMim=btn.getAttribute('data-mim')==='1';
+  const sel=area.querySelector('.ap-resp-sel');
+  const accountId = limpar ? '' : (aMim ? id.accountId : ((sel&&sel.value)||''));
+  const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!limpar && !accountId){ fb.classList.add('err'); fb.textContent='Escolha uma pessoa.'; return; }
+  [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
+  fb.textContent='Transferindo…';
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({atribuir:true,issue:k,accountId,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      const nomes=pessoasUnidas();
+      const novoNome = accountId ? ((nomes[accountId]&&nomes[accountId].nome)||(aMim?(id.nome||id.email):accountId)) : '';
+      const dados=ap.porData[chaveVenc()];
+      const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
+      if(t){ t.respId=accountId||''; t.resp=novoNome||''; }
+      estado.cache={};
+      // Some da lista se o filtro "Só os meus" estiver ligado e não for mais minha.
+      const saiu = ap.soMeus && id.accountId && (accountId!==id.accountId);
+      if(saiu && dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);
+      fb.classList.add('ok'); fb.textContent = accountId?`✓ ${k} transferido para ${novoNome}.`:`✓ ${k} sem responsável.`;
+      row.classList.add('feito');
+      if(saiu){ row.style.transition='opacity .5s ease'; row.style.opacity='.35'; }
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, saiu?1100:850);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao transferir.';
+      [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
+    [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+}
+
+// ---------------- Comentar no chamado ----------------
+function toggleComentar(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-coment');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const aberto=row.querySelector('.ap-coment-panel'); if(aberto){ aberto.remove(); return; }
+  const area=document.createElement('div'); area.className='ap-trans ap-coment-panel';
+  area.innerHTML=`<span class="ap-trans-rot">Comentar em ${esc(k)}:</span>
+    <textarea class="ap-coment-txt" rows="2" placeholder="Escreva um comentário para o chamado…" aria-label="Comentário"></textarea>
+    <button class="chip primario-chip" data-ap-coment-do="${escA(k)}">Enviar comentário</button>
+    <div class="ap-fb" hidden></div>`;
+  row.querySelector('.ap-l2').after(area);
+  const ta=area.querySelector('.ap-coment-txt'); if(ta) ta.focus();
+}
+async function executaComentar(btn){
+  const area=btn.closest('.ap-coment-panel'); if(!area) return;
+  const k=btn.getAttribute('data-ap-coment-do');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const ta=area.querySelector('.ap-coment-txt'); const texto=((ta&&ta.value)||'').trim();
+  const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!texto){ fb.classList.add('err'); fb.textContent='Escreva algo antes de enviar.'; if(ta) ta.focus(); return; }
+  [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
+  fb.textContent='Enviando…';
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){ fb.classList.add('ok'); fb.textContent=`✓ Comentário enviado em ${k}.`;
+      if(ta) ta.value=''; estado.cache={};
+      setTimeout(()=>{ const a=area; if(a) a.remove(); }, 2500);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao comentar.';
       [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
     [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
@@ -2938,7 +3058,7 @@ function abreAjuda(){
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas, mova o status, <b>reagende o vencimento</b> e aponte reuniões para várias pessoas.</li>
+      <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b> e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
     </ul></div></details>
@@ -2946,6 +3066,12 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
+    </div></details>
+    <details class="help-sec"><summary>Comentar e transferir o responsável</summary><div class="help-body">
+      Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> (cabeçalho com o código e o nome do
+      projeto). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira;
+      <b>👤 responsável ▾</b> abre o seletor para <b>transferir</b> o chamado para outra pessoa (ou <b>para mim</b> /
+      <b>remover responsável</b>). Tudo é gravado no Jira com o seu usuário e respeita as permissões.
     </div></details>
     <details class="help-sec"><summary>Reprogramar / reagendar vencimentos</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>, clique no <b>📅 vencimento</b> de um chamado (vencido ou não) para abrir o painel de
@@ -3453,6 +3579,10 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-trans')){ escondeTip(); executaTransicao(t); }
   else if(t.hasAttribute('data-ap-venc')){ escondeTip(); toggleReagendar(t); }
   else if(t.hasAttribute('data-ap-reag')){ escondeTip(); executaReagendar(t); }
+  else if(t.hasAttribute('data-ap-resp')){ escondeTip(); toggleTransferir(t); }
+  else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
+  else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
+  else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
   else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
   else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
   else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
