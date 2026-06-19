@@ -280,6 +280,11 @@
   .badge.venc-hoje{background:rgba(245,158,11,.18);color:#B45309;font-weight:700}
   .badge.sem-horas{background:rgba(239,68,68,.10);color:#B91C1C}
   .badge.com-horas{background:rgba(16,185,129,.14);color:#047857}
+  .badge.sem-venc{background:#EEF1F8;color:#64748B;font-style:italic}
+  button.badge.st-btn.sem-venc{border:1px dashed #94A3B8;background:#fff;font-style:normal}
+  .ap-reag .ap-reag-data{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .chip.primario-chip{background:var(--cerceta);color:#fff;border-color:var(--cerceta);font-weight:600}
   .badge.st-btn{cursor:pointer;border:1px dashed #94A3B8;background:#fff;font-family:var(--corpo);font-size:11px}
   .badge.st-btn:hover{border-color:var(--grafite)}
   .ap-trans{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#F8FAFD;
@@ -577,7 +582,7 @@ const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.ativida
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
-  apontar:{ ate:'', fil:'todos', soMeus:true, busca:'', cat:'', proj:'', porData:{}, carregando:false,
+  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false,
     convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
@@ -1716,13 +1721,22 @@ function parseTempo(str){
   return null;
 }
 
+// Cache da lista por (data-limite × incluir-sem-vencimento).
+function chaveVenc(){ const ap=estado.apontar; return (ap.ate||hojeSP())+'|'+(ap.semVenc?1:0); }
+// Próxima segunda-feira (atalho "Próxima semana") a partir de hoje (fuso SP).
+function proximaSegunda(){
+  const h=hojeSP(); const wd=new Date(h+'T12:00:00-03:00').getUTCDay();   // 0=dom … 6=sáb
+  const diff=((1-wd+7)%7)||7;                                            // dias até a próxima segunda (sempre futura)
+  return somaDias(h, diff);
+}
 async function carregaVenc(ate, forca){
   const ap=estado.apontar;
-  if(!forca && ap.porData[ate]) return ap.porData[ate];
-  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`);
+  const key=ate+'|'+(ap.semVenc?1:0);
+  if(!forca && ap.porData[key]) return ap.porData[key];
+  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${forca?'&nocache=1':''}`);
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
-  ap.porData[ate]=j;
+  ap.porData[key]=j;
   return j;
 }
 
@@ -1731,7 +1745,7 @@ function renderApontar(){
   const ap=estado.apontar;
   if(!ap.ate) ap.ate=hojeSP();
 
-  const dados=ap.porData[ap.ate];
+  const dados=ap.porData[chaveVenc()];
   if(!dados){
     if(!ap.carregando){
       ap.carregando=true;
@@ -1753,6 +1767,7 @@ function renderApontar(){
   const vencidos=todos.filter(t=>t.venc&&t.venc<hoje);
   const semHoras=todos.filter(t=>!t.seg);
   const venceHoje=todos.filter(t=>t.venc===hoje);
+  const semVenc=todos.filter(t=>!t.venc);
 
   // ---- Filtros da tela ----
   const catDe=(pk)=>(projs[pk]&&projs[pk].categoria)||'Sem categoria';
@@ -1760,6 +1775,7 @@ function renderApontar(){
   if(ap.fil==='semhoras') lista=lista.filter(t=>!t.seg);
   else if(ap.fil==='vencidos') lista=lista.filter(t=>t.venc&&t.venc<hoje);
   else if(ap.fil==='vencehoje') lista=lista.filter(t=>t.venc===hoje);
+  else if(ap.fil==='semvenc') lista=lista.filter(t=>!t.venc);
   if(ap.cat) lista=lista.filter(t=>catDe(t.p)===ap.cat);
   if(ap.proj) lista=lista.filter(t=>t.p===ap.proj);
   if(ap.soMeus && id && id.accountId) lista=lista.filter(t=>t.respId===id.accountId);
@@ -1810,7 +1826,8 @@ function renderApontar(){
       <button class="chip" aria-pressed="${ap.fil==='todos'}" data-ap-fil="todos">Todos</button>
       <button class="chip" aria-pressed="${ap.fil==='semhoras'}" data-ap-fil="semhoras">Sem horas apontadas</button>
       <button class="chip" aria-pressed="${ap.fil==='vencidos'}" data-ap-fil="vencidos">Vencidos</button>
-      <button class="chip" aria-pressed="${ap.fil==='vencehoje'}" data-ap-fil="vencehoje">Vencem hoje</button></div></div>
+      <button class="chip" aria-pressed="${ap.fil==='vencehoje'}" data-ap-fil="vencehoje">Vencem hoje</button>
+      <button class="chip" aria-pressed="${ap.fil==='semvenc'}" data-ap-fil="semvenc" data-tip="Chamados abertos sem data de vencimento — para programar">Sem vencimento</button></div></div>
     <div class="campo"><label>Categoria</label><select id="ap-cat">
       <option value="">Todas</option>${
       [...new Set(Object.values(projs).map(p=>p.categoria||'Sem categoria'))].sort((a,b)=>a.localeCompare(b,'pt'))
@@ -1820,6 +1837,7 @@ function renderApontar(){
       Object.keys(projs).filter(k=>!ap.cat||catDe(k)===ap.cat).sort()
         .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(k)} — ${esc(projs[k].nome||'')}</option>`).join('')}</select></div>
     ${id?`<label class="check" style="padding-bottom:9px"><input type="checkbox" id="ap-meus" ${ap.soMeus?'checked':''}> Só os meus</label>`:''}
+    <label class="check" style="padding-bottom:9px" data-tip="Traz também os chamados abertos que ainda não têm data de vencimento, para você programá-los"><input type="checkbox" id="ap-semvenc" ${ap.semVenc?'checked':''}> Incluir sem vencimento</label>
     <div class="campo"><label>Buscar</label>
       <input type="search" id="ap-busca" placeholder="código, resumo, projeto…" value="${escA(ap.busca)}"></div>
     <div class="campo"><label>&nbsp;</label><button class="btn" id="ap-refresh">Atualizar lista</button></div>
@@ -1827,11 +1845,20 @@ function renderApontar(){
 
   // ---- Linhas ----
   const badgeVenc=(v)=>{
-    if(!v) return '';
+    if(!v) return '<span class="badge sem-venc">sem vencimento</span>';
     if(v<hoje){ const d=Math.round((new Date(hoje)-new Date(v))/86400000);
       return `<span class="badge venc-passado">⚠ venceu ${fmtBR(v)} (há ${d}d)</span>`; }
     if(v===hoje) return `<span class="badge venc-hoje">vence hoje</span>`;
     return `<span class="badge">vence ${fmtBR(v)}</span>`;
+  };
+  // Versão clicável (abre o painel de reagendar) — só para quem está identificado.
+  const reagBtn=(t)=>{
+    if(!t.venc) return `<button class="badge st-btn sem-venc" data-ap-venc="${escA(t.k)}" data-tip="Sem data — clique para definir o vencimento">📅 definir vencimento ▾</button>`;
+    let cls='', txt='';
+    if(t.venc<hoje){ const d=Math.round((new Date(hoje)-new Date(t.venc))/86400000); cls=' venc-passado'; txt=`⚠ venceu ${fmtBR(t.venc)} (há ${d}d)`; }
+    else if(t.venc===hoje){ cls=' venc-hoje'; txt='vence hoje'; }
+    else txt=`vence ${fmtBR(t.venc)}`;
+    return `<button class="badge st-btn${cls}" data-ap-venc="${escA(t.k)}" data-tip="Vencimento — clique para reagendar">📅 ${txt} ▾</button>`;
   };
   // Indicador de horas já apontadas no ticket (total, somando todos os usuários).
   const pilulaHoras=(seg)=> seg
@@ -1867,7 +1894,7 @@ function renderApontar(){
         ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
-        ${badgeVenc(t.venc)}
+        ${id?reagBtn(t):badgeVenc(t.venc)}
         ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
       </div>
       ${logCtrl}
@@ -1890,9 +1917,11 @@ function renderApontar(){
         <div class="v">${semHoras.length}</div><div class="l">Sem horas apontadas</div></div>
       <div class="kpi t" data-ap-fil="vencehoje" aria-pressed="${ap.fil==='vencehoje'}" data-tip="Só os que vencem hoje" data-tipk="clique para filtrar">
         <div class="v">${venceHoje.length}</div><div class="l">Vencem hoje</div></div>
+      ${ap.semVenc?`<div class="kpi a" data-ap-fil="semvenc" aria-pressed="${ap.fil==='semvenc'}" data-tip="Só os sem data de vencimento" data-tipk="clique para filtrar">
+        <div class="v">${semVenc.length}</div><div class="l">Sem vencimento</div></div>`:''}
     </div>
     <div class="card full">
-      <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''}</span></h2>
+      <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)}${ap.semVenc?' (+ sem vencimento)':''} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''} · clique no 📅 para reagendar</span></h2>
       ${filtros}
       <div class="ap-lista">${rows}</div>
       ${vazio}
@@ -1963,7 +1992,7 @@ async function fazApontamento(btn){
       fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}).`;
       row.classList.add('feito'); tempoEl.value=''; comEl.value='';
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
-      const dados=estado.apontar.porData[estado.apontar.ate];
+      const dados=estado.apontar.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.seg=(t.seg||0)+seg;
       const novoTotal=t?t.seg:seg;
       // Reflete o novo total na pílula do título, na faixa lateral e no aviso do campo.
@@ -2017,7 +2046,7 @@ async function executaTransicao(btn){
       body:JSON.stringify({issue:k,transitionId:tid,email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
       const stBtn=row.querySelector('[data-ap-st]'); if(stBtn) stBtn.textContent=`${novo} ▾`;
-      const dados=estado.apontar.porData[estado.apontar.ate];
+      const dados=estado.apontar.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.status=novo;
       const fechou=(catg==='done');
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
@@ -2035,6 +2064,66 @@ async function executaTransicao(btn){
       }
     } else { area.innerHTML=`<span class="ap-fb err">${esc(j.erro||'Falha ao mover o ticket.')}</span>`; }
   }catch(e){ area.innerHTML=`<span class="ap-fb err">Erro de rede: ${esc(e.message||e)}</span>`; }
+}
+
+// ---------------- Reagendar: muda a data de vencimento do chamado ----------------
+// Abre/fecha o painel de reagendamento (lazy, sob a linha) — espelha toggleTransicoes.
+function toggleReagendar(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-venc');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const aberto=row.querySelector('.ap-reag'); if(aberto){ aberto.remove(); return; }
+  const dados=estado.apontar.porData[chaveVenc()];
+  const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
+  const hoje=(dados&&dados.meta&&dados.meta.hoje)||hojeSP();
+  const temData=!!(t&&t.venc);
+  const area=document.createElement('div'); area.className='ap-trans ap-reag';
+  area.innerHTML=`<span class="ap-trans-rot">Reagendar para:</span>
+    <button class="chip" data-ap-reag="HOJE" data-ap-reag-k="${escA(k)}">Hoje</button>
+    <button class="chip" data-ap-reag="AMANHA" data-ap-reag-k="${escA(k)}">Amanhã</button>
+    <button class="chip" data-ap-reag="PROX" data-ap-reag-k="${escA(k)}" data-tip="Próxima segunda-feira">Próxima semana</button>
+    <input type="date" class="ap-reag-data" value="${escA(temData?t.venc:hoje)}" aria-label="Nova data de vencimento">
+    <button class="chip primario-chip" data-ap-reag="DATA" data-ap-reag-k="${escA(k)}">aplicar data</button>
+    ${temData?`<button class="chip" data-ap-reag="LIMPAR" data-ap-reag-k="${escA(k)}" data-tip="Tirar a data de vencimento">remover data</button>`:''}
+    <div class="ap-fb" hidden></div>`;
+  row.querySelector('.ap-l2').after(area);
+}
+
+// Aplica a nova data (ou remove) via /api/transicao (modo reagendar), com o token da pessoa.
+async function executaReagendar(btn){
+  const row=btn.closest('.ap-row'); const area=btn.closest('.ap-reag'); if(!row||!area) return;
+  const k=btn.getAttribute('data-ap-reag-k'); const acao=btn.getAttribute('data-ap-reag');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const ap=estado.apontar; const hoje=hojeSP();
+  const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  let nova=null;
+  if(acao==='HOJE') nova=hoje;
+  else if(acao==='AMANHA') nova=somaDias(hoje,1);
+  else if(acao==='PROX') nova=proximaSegunda();
+  else if(acao==='LIMPAR') nova=null;
+  else if(acao==='DATA'){ const inp=area.querySelector('.ap-reag-data'); nova=(inp&&inp.value)||'';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(nova)){ fb.classList.add('err'); fb.textContent='Escolha uma data válida.'; return; } }
+  [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
+  fb.textContent='Reagendando…';
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reagendar:true,issue:k,duedate:nova,email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){
+      const dados=ap.porData[chaveVenc()];
+      const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.venc=nova||'';
+      estado.cache={};
+      // Sai da lista se deixou de pertencer à janela atual (sem data e não estamos incluindo sem-data; ou venc além da data-limite).
+      const saiu=(!nova && !ap.semVenc) || (nova && nova>ap.ate);
+      if(saiu && dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);
+      fb.classList.add('ok');
+      fb.textContent = nova ? `✓ ${k} reagendado para ${fmtBR(nova)}.` : `✓ Vencimento de ${k} removido.`;
+      row.classList.add('feito');
+      if(saiu){ row.style.transition='opacity .5s ease'; row.style.opacity='.35'; }
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, saiu?1100:850);
+    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao reagendar.';
+      [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
+    [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
 }
 
 // ---------------- Reunião em grupo: convites de apontamento ----------------
@@ -2188,7 +2277,7 @@ async function enviaReuniaoGrupo(){
       estado.cache={};
       // Atualiza o total do ticket na lista (otimista), como no apontamento individual.
       if(j.proprio&&j.proprio.ok){
-        const dados=estado.apontar.porData[estado.apontar.ate];
+        const dados=estado.apontar.porData[chaveVenc()];
         const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
       }
       setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, 2200);
@@ -2849,7 +2938,7 @@ function abreAjuda(){
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas, mova o status e aponte reuniões para várias pessoas.</li>
+      <li><b>⏱ Apontar</b> — chamados vencendo/vencidos: aponte horas, mova o status, <b>reagende o vencimento</b> e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
     </ul></div></details>
@@ -2857,6 +2946,13 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
+    </div></details>
+    <details class="help-sec"><summary>Reprogramar / reagendar vencimentos</summary><div class="help-body">
+      Na aba <b>⏱ Apontar</b>, clique no <b>📅 vencimento</b> de um chamado (vencido ou não) para abrir o painel de
+      reagendamento, com atalhos <b>Hoje</b>, <b>Amanhã</b> e <b>Próxima semana</b>, um campo de <b>data</b> livre e
+      <b>remover data</b>. Para programar tarefas que ainda <b>não têm vencimento</b>, marque <b>Incluir sem
+      vencimento</b> (ou o filtro <b>Sem vencimento</b>) — elas aparecem com o botão <b>📅 definir vencimento</b>.
+      A mudança é gravada no Jira com o seu usuário e respeita suas permissões.
     </div></details>
     <details class="help-sec"><summary>Reunião do time (apontar para várias pessoas)</summary><div class="help-body">
       Participou de uma reunião com mais gente? Na aba <b>⏱ Apontar</b>, use <b>👥 Apontar reunião p/ várias
@@ -3074,7 +3170,7 @@ function exportaCSV(){
       baixaCSV(`tickets_${per}.csv`, [head, ...rows]);
     }
   } else if(estado.vista==='apontar'){
-    const ap=estado.apontar; const dados=ap.porData[ap.ate];
+    const ap=estado.apontar; const dados=ap.porData[chaveVenc()];
     if(!dados) return;
     const head=['Ticket','Resumo','Projeto','Tipo','Status','Vencimento','Responsável','Horas apontadas (h)'];
     const rows=(dados.tickets||[]).map(t=>[t.k, t.resumo, t.p, t.t, t.status, t.venc, t.resp, dec(t.seg||0)]);
@@ -3179,7 +3275,7 @@ function abreMetas(){
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
 const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
-const APFILTROS=['todos','semhoras','vencidos','vencehoje'];
+const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
 function leURL(){
   const p=new URLSearchParams(location.search);
@@ -3190,6 +3286,7 @@ function leURL(){
   ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';
   ap.fil = APFILTROS.includes(p.get('fil')) ? p.get('fil') : 'todos';
   ap.soMeus = p.get('meus')!=='0';
+  ap.semVenc = p.get('sv')==='1' || ap.fil==='semvenc';
   ap.cat = p.get('acat')||'';
   ap.proj = p.get('aproj')||'';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
@@ -3217,6 +3314,7 @@ function estadoParaURL(){
   if(estado.vista==='apontar'){ const ap=estado.apontar;
     if(ap.ate && ap.ate!==hojeSP()) p.set('ate',ap.ate);
     if(ap.fil!=='todos') p.set('fil',ap.fil);
+    if(ap.semVenc && ap.fil!=='semvenc') p.set('sv','1');
     if(!ap.soMeus) p.set('meus','0');
     if(ap.cat) p.set('acat',ap.cat);
     if(ap.proj) p.set('aproj',ap.proj); }
@@ -3333,6 +3431,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='ap-ate'){ const v=e.target.value;
     if(/^\d{4}-\d{2}-\d{2}$/.test(v)){ estado.apontar.ate=v; renderApontar(); estadoParaURL(); } }
   if(e.target && e.target.id==='ap-meus'){ estado.apontar.soMeus=e.target.checked; renderApontar(); estadoParaURL(); }
+  if(e.target && e.target.id==='ap-semvenc'){ estado.apontar.semVenc=e.target.checked;
+    if(!e.target.checked && estado.apontar.fil==='semvenc') estado.apontar.fil='todos'; renderApontar(); estadoParaURL(); }
   if(e.target && e.target.id==='ap-cat'){ estado.apontar.cat=e.target.value; estado.apontar.proj=''; renderApontar(); estadoParaURL(); }
   if(e.target && e.target.id==='ap-proj'){ estado.apontar.proj=e.target.value; renderApontar(); estadoParaURL(); }
 });
@@ -3341,7 +3441,9 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   // Filtro de exibição: serve para os chips E para os cards de KPI do topo.
   const fl=e.target.closest && e.target.closest('[data-ap-fil]');
-  if(fl){ escondeTip(); estado.apontar.fil=fl.getAttribute('data-ap-fil'); renderApontar(); estadoParaURL(); return; }
+  if(fl){ escondeTip(); const v=fl.getAttribute('data-ap-fil'); estado.apontar.fil=v;
+    if(v==='semvenc' && !estado.apontar.semVenc) estado.apontar.semVenc=true;   // precisa carregar os sem-data
+    renderApontar(); estadoParaURL(); return; }
   const t=e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-ap-ate')){ estado.apontar.ate=t.getAttribute('data-ap-ate'); renderApontar(); estadoParaURL(); }
   else if(t.hasAttribute('data-ap-chip')){ const row=t.closest('.ap-row');
@@ -3349,6 +3451,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-key')){ fazApontamento(t); }
   else if(t.hasAttribute('data-ap-st')){ escondeTip(); toggleTransicoes(t); }
   else if(t.hasAttribute('data-ap-trans')){ escondeTip(); executaTransicao(t); }
+  else if(t.hasAttribute('data-ap-venc')){ escondeTip(); toggleReagendar(t); }
+  else if(t.hasAttribute('data-ap-reag')){ escondeTip(); executaReagendar(t); }
   else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
   else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
   else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }

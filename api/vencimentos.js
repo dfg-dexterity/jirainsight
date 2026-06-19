@@ -16,14 +16,17 @@ export default async function handler(req, res) {
   try {
     const q = req.query || {};
     const ate = RE_DATA.test(q.ate || '') ? q.ate : hojeSP();
-    const ck = `venc:${ate}`;
+    const semVenc = q.incluirSemVenc === '1';          // também trazer chamados SEM data de vencimento
+    const ck = `venc:${ate}:${semVenc ? 'sv' : 'nv'}`;
     if (q.nocache !== '1') {
       const cached = cacheGet(ck);
       if (cached) return json(res, 200, cached);
     }
 
+    // Vencidos/vencendo até a data; opcionalmente também os SEM vencimento (para programar).
+    const filtroVenc = semVenc ? `(duedate <= "${ate}" OR duedate IS EMPTY)` : `duedate <= "${ate}"`;
     const { issues, truncado } = await jiraSearchAll({
-      jql: `duedate <= "${ate}" AND statusCategory != Done ORDER BY duedate ASC`,
+      jql: `${filtroVenc} AND statusCategory != Done ORDER BY duedate ASC`,
       fields: ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority', 'timespent'],
       pageSize: 100,
       maxPages: 5,                       // até 500 chamados em aberto
@@ -55,7 +58,7 @@ export default async function handler(req, res) {
       };
     });
 
-    const payload = { meta: { ate, hoje: hojeSP(), total: tickets.length, truncado }, projetos, tickets };
+    const payload = { meta: { ate, hoje: hojeSP(), total: tickets.length, truncado, semVenc }, projetos, tickets };
     return json(res, 200, cacheSetTTL(ck, payload, 5));   // TTL curto: tela de ação
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });

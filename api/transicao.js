@@ -1,13 +1,16 @@
-// POST /api/transicao — lista ou executa transições de STATUS de um ticket do Jira,
-// com as credenciais da própria pessoa (mesmo modelo do /api/apontar): a mudança fica
-// registrada no usuário de quem moveu, e só quem tem permissão no projeto consegue.
+// POST /api/transicao — lista/executa transições de STATUS ou REAGENDA o vencimento
+// de um ticket do Jira, com as credenciais da própria pessoa (mesmo modelo do
+// /api/apontar): a mudança fica registrada no usuário de quem operou, e só quem tem
+// permissão no projeto consegue.
 //
 // Corpos aceitos:
-//   { listar:true, issue, email, token }          -> { ok, transicoes:[{id,nome,para,categoria}] }
-//   { issue, transitionId, email, token }         -> executa a transição
+//   { listar:true, issue, email, token }            -> { ok, transicoes:[{id,nome,para,categoria}] }
+//   { issue, transitionId, email, token }           -> executa a transição de status
+//   { reagendar:true, issue, duedate, email, token } -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' para remover)
 import { jiraBase, cacheClear, json } from './_lib/util.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 function lerBody(req) {
   return new Promise((resolve) => {
@@ -44,6 +47,30 @@ export default async function handler(req, res) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     };
+    // ---- Modo reagendar: muda a data de vencimento (duedate) do ticket ----
+    if (b.reagendar) {
+      let duedate = null;                               // null limpa a data
+      const raw = b.duedate == null ? '' : String(b.duedate).trim();
+      if (raw) {
+        if (!RE_DATA.test(raw)) return json(res, 400, { erro: 'Data inválida.' });
+        duedate = raw;
+      }
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}`, {
+        method: 'PUT', headers, body: JSON.stringify({ fields: { duedate } }),
+      });
+      if (r.status === 401 || r.status === 403) {
+        return json(res, 200, { ok: false, erro: 'Sem permissão para alterar este ticket.' });
+      }
+      if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
+      if (!r.ok) {                                      // sucesso = 204 No Content
+        const t = await r.text();
+        return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` });
+      }
+      cacheClear('venc:');
+      cacheClear('atividade:');
+      return json(res, 200, { ok: true, issue, duedate });
+    }
+
     const url = `${base}/rest/api/3/issue/${encodeURIComponent(issue)}/transitions`;
 
     // ---- Modo listagem: quais movimentos o workflow permite para ESTE usuário ----
