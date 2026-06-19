@@ -53,6 +53,13 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
 
+### Navegação e novidades
+
+- **Logo (canto superior esquerdo):** clicável — volta para o início (aba Resumo).
+- **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
+- **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
+- **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
+
 ### Comentar e transferir na aba ⏱ Apontar
 
 Os chamados ficam **agrupados por projeto** (cabeçalho com código + nome). Em cada

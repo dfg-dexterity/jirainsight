@@ -49,11 +49,13 @@ export default async function handler(req, res) {
         resumo: f.summary || '',
         p: pk,
         t: (f.issuetype && f.issuetype.name) || '—',
+        tIcon: (f.issuetype && f.issuetype.iconUrl) || '',   // ícone do tipo (épico/tarefa/bug…) no Jira
         status: (f.status && f.status.name) || '—',
         venc: f.duedate || '',
         respId: ass.accountId || '',
         resp: ass.displayName || '',
         prio: (f.priority && f.priority.name) || '',
+        prioIcon: (f.priority && f.priority.iconUrl) || '',  // ícone da prioridade no Jira
         seg: Number(f.timespent || 0),   // segundos já apontados no ticket (total)
       };
     });
