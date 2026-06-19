@@ -36,9 +36,24 @@
 
   header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     padding-bottom:0;border-bottom:1px solid var(--linha);margin-bottom:20px}
-  .brand{display:flex;align-items:center;gap:10px;padding-bottom:10px}
+  .brand{display:flex;align-items:center;gap:10px;padding-bottom:10px;cursor:pointer;border-radius:8px}
+  .brand:hover{opacity:.85}
+  .brand:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
   .brand .mark{width:34px;height:34px;border-radius:6px;flex:0 0 auto;background:var(--cerceta);
     display:flex;align-items:center;justify-content:center;font-size:17px}
+  /* Botão "voltar ao topo" (flutuante) */
+  #to-top{position:fixed;right:18px;bottom:18px;z-index:40;border:1px solid var(--cerceta);background:var(--cerceta);
+    color:#fff;font-family:var(--corpo);font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;
+    cursor:pointer;box-shadow:0 8px 24px rgba(34,54,79,.28)}
+  #to-top[hidden]{display:none}
+  #to-top:hover{filter:brightness(1.06)}
+  /* Indicador e lista de Novidades */
+  .nov-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#D20A0A;margin-left:5px;vertical-align:middle}
+  .nov-dot[hidden]{display:none}
+  .nov-lista{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .nov-item{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px dashed var(--linha);font-size:13px;line-height:1.5}
+  .nov-data{flex:0 0 auto;font-size:11px;color:#64748B;font-variant-numeric:tabular-nums}
+  .nov-txt{color:var(--grafite)}
   .brand h1{font-family:var(--titulo);font-weight:700;letter-spacing:0;
     font-size:18px;margin:0;line-height:1.2;color:var(--grafite)}
   .brand small{display:block;font-family:var(--corpo);letter-spacing:0;
@@ -285,13 +300,21 @@
   .ap-reag .ap-reag-data{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite)}
   .chip.primario-chip{background:var(--cerceta);color:#fff;border-color:var(--cerceta);font-weight:600}
-  /* Cabeçalho de grupo por projeto na lista de apontar */
-  .ap-proj-head{display:flex;align-items:center;gap:8px;margin:18px 0 2px;padding:7px 12px;
-    background:#EAF1FB;border:1px solid #A6C8F0;border-radius:9px}
+  /* Cabeçalho de grupo por projeto (clicável: expande/recolhe) na aba Apontar */
+  .ap-proj-head{display:flex;width:100%;text-align:left;align-items:center;gap:8px;margin:18px 0 2px;padding:8px 12px;
+    background:#EAF1FB;border:1px solid #A6C8F0;border-radius:9px;cursor:pointer;font-family:var(--corpo);
+    transition:background .12s ease}
+  .ap-proj-head:hover{background:#E1ECFB}
   .ap-lista .ap-proj-head:first-child{margin-top:0}
+  .ap-proj-chev{color:#0064D9;font-size:12px;transition:transform .15s ease}
+  .ap-proj-head.recolhido .ap-proj-chev{transform:rotate(-90deg)}
   .ap-proj-cod{font-weight:700;color:#0064D9;font-size:13px}
   .ap-proj-nome{color:var(--grafite);font-size:13px}
   .ap-proj-cont{font-size:11px;color:#64748B}
+  .ap-grp-bar{display:flex;align-items:center;gap:8px;margin:0 0 4px}
+  /* Ícones do Jira (tipo/prioridade) dentro dos badges */
+  .ji-ic{width:14px;height:14px;object-fit:contain;vertical-align:-2px;border-radius:2px}
+  .tipo-badge,.prio-badge{gap:5px}
   .ap-resp-panel .ap-resp-sel{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:260px}
   .ap-coment-panel{align-items:flex-start}
@@ -497,7 +520,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="brand">
+    <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar ao início (Resumo)">
       <div class="mark" aria-hidden="true">📊</div>
       <div>
         <h1>Insights de Uso</h1>
@@ -531,6 +554,7 @@
     <button class="btn" id="btn-metas">Metas</button>
     <button class="btn" id="btn-csv">Exportar CSV</button>
     <button class="btn" id="btn-refresh">Atualizar</button>
+    <button class="btn" id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
     <button class="btn" id="btn-ajuda" aria-label="Ajuda e feedback">? Ajuda</button>
     <div class="atualizado" id="atualizado"></div>
   </header>
@@ -576,6 +600,8 @@
   </div>
 </div>
 
+<button id="to-top" aria-label="Voltar ao topo" title="Voltar ao topo" hidden>↑ Topo</button>
+
 <script>
 // As CHAVES seguem o tema antigo (para não tocar nos usos); os valores são o tema novo:
 // cerceta = índigo (primária) · roxo = violeta · amarelo = âmbar · musgo = esmeralda.
@@ -594,7 +620,7 @@ const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.ativida
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
-  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false,
+  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false, recolhidos:{},
     convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
@@ -1905,10 +1931,10 @@ function renderApontar(){
         ${pilulaHoras(t.seg)}
       </div>
       <div class="ap-l2">
-        <span class="badge">${esc(t.t)}</span>
+        <span class="badge tipo-badge" data-tip="Tipo: ${escA(t.t)}">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t)}</span>
         ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
             :`<span class="badge">${esc(t.status)}</span>`}
-        ${t.prio?`<span class="badge">${esc(t.prio)}</span>`:''}
+        ${t.prio?`<span class="badge prio-badge" data-tip="Prioridade: ${escA(t.prio)}">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
@@ -1916,18 +1942,26 @@ function renderApontar(){
       ${logCtrl}
     </div>`;
   };
-  // Agrupa por projeto para deixar claro a que projeto cada chamado pertence.
+  // Agrupa por projeto; cada cabeçalho é clicável para expandir/recolher o grupo.
   const porProj={};
   lista.forEach(t=>{ (porProj[t.p]=porProj[t.p]||[]).push(t); });
-  const rows=Object.keys(porProj).sort((a,b)=>a.localeCompare(b)).map(pk=>{
+  const chavesProj=Object.keys(porProj).sort((a,b)=>a.localeCompare(b));
+  const rows=chavesProj.map(pk=>{
     const grupo=porProj[pk];
-    const cab=`<div class="ap-proj-head">
+    const recolhido=!!ap.recolhidos[pk];
+    const cab=`<button class="ap-proj-head${recolhido?' recolhido':''}" data-ap-projtoggle="${escA(pk)}" aria-expanded="${!recolhido}" data-tip="${escA(nomeProj(pk))} — clique para ${recolhido?'expandir':'recolher'}">
+      <span class="ap-proj-chev">▾</span>
       <span class="ap-proj-cod">${esc(pk)}</span>
       <span class="ap-proj-nome">${esc((projs[pk]&&projs[pk].nome)||'')}</span>
       <span class="spacer"></span>
-      <span class="ap-proj-cont">${grupo.length} chamado(s)</span></div>`;
-    return cab + grupo.map(linhaTicket).join('');
+      <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
+    return cab + (recolhido?'':grupo.map(linhaTicket).join(''));
   }).join('');
+  const barraGrupos = chavesProj.length>1
+    ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>
+        <button class="chip" id="ap-expandir">▾ Expandir todos</button>
+        <button class="chip" id="ap-recolher">▸ Recolher todos</button></div>`
+    : '';
 
   const vazio = lista.length ? '' :
     `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
@@ -1951,6 +1985,7 @@ function renderApontar(){
     <div class="card full">
       <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)}${ap.semVenc?' (+ sem vencimento)':''} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''} · clique no 📅 para reagendar</span></h2>
       ${filtros}
+      ${barraGrupos}
       <div class="ap-lista">${rows}</div>
       ${vazio}
     </div>
@@ -3067,9 +3102,15 @@ function abreAjuda(){
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
     </div></details>
+    <details class="help-sec"><summary>Navegação, novidades e ícones</summary><div class="help-body">
+      <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início (Resumo)</b>. <b>✨ Novidades</b> (no topo):
+      abre o que há de novo no painel — um pontinho vermelho avisa quando há algo que você ainda não viu.
+      <b>↑ Topo</b>: botão flutuante que aparece ao rolar e leva de volta ao topo. Na aba <b>⏱ Apontar</b>, os
+      chamados aparecem com os <b>ícones do Jira</b> de tipo (épico/tarefa/bug…) e prioridade, para diferenciar de relance.
+    </div></details>
     <details class="help-sec"><summary>Comentar e transferir o responsável</summary><div class="help-body">
-      Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> (cabeçalho com o código e o nome do
-      projeto). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira;
+      Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> — clique no <b>cabeçalho do projeto</b>
+      para <b>expandir/recolher</b> o grupo (ou use “Expandir/Recolher todos”). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira;
       <b>👤 responsável ▾</b> abre o seletor para <b>transferir</b> o chamado para outra pessoa (ou <b>para mim</b> /
       <b>remover responsável</b>). Tudo é gravado no Jira com o seu usuário e respeita as permissões.
     </div></details>
@@ -3251,6 +3292,41 @@ function abreModal(html){
   document.getElementById('modal').hidden=false;
 }
 function fechaModal(){ document.getElementById('modal').hidden=true; }
+
+// Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
+// logo (voltar ao início) e por links internos.
+function vaiPara(v){
+  estado.vista=v;
+  const seg=document.getElementById('seg-vista');
+  if(seg) [...seg.children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.v===v?'true':'false'));
+  render(); estadoParaURL();
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+// ---- Novidades (o que há de novo no app) ----
+const NOVIDADES=[
+  ['2026-06-19','⏱ Apontar: chamados <b>agrupados por projeto</b> (clique no cabeçalho para expandir/recolher; “Expandir/Recolher todos”).'],
+  ['2026-06-19','⏱ Apontar: <b>ícones do Jira</b> para tipo (épico/tarefa/bug…) e prioridade, facilitando a diferenciação.'],
+  ['2026-06-19','⏱ Apontar: <b>💬 comentar</b> e <b>👤 transferir o responsável</b> (outra pessoa / para mim / remover) direto no chamado.'],
+  ['2026-06-19','⏱ Apontar: <b>reprogramar vencimentos</b> com atalhos Hoje / Amanhã / Próxima semana e incluir chamados <b>sem vencimento</b>.'],
+  ['2026-06-14','📊 <b>Relatório diário no Teams às 8h</b> com KPIs e ranking de apontamento.'],
+  ['2026-06-13','🧠 Resumo: <b>resumo das atividades por IA</b>, por pessoa.'],
+  ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
+  ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
+];
+const NOV_VER='2026-06-19';   // marca da última leva de novidades (reacende o indicador quando muda)
+function abreNovidades(){
+  try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
+  const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
+  abreModal(`<h2>✨ Novidades</h2>
+    <div class="muted small">O que há de novo no painel — o histórico completo fica no manual.</div>
+    <div class="nov-lista">${NOVIDADES.map(([d,txt])=>`<div class="nov-item">
+      <span class="nov-data">${esc(d)}</span><span class="nov-txt">${txt}</span></div>`).join('')}</div>`);
+}
+function marcaNovidade(){
+  let visto=''; try{ visto=localStorage.getItem('jirainsight_nov_visto')||''; }catch(e){}
+  const dot=document.getElementById('nov-dot'); if(dot) dot.hidden = (visto===NOV_VER);
+}
 
 // ---- Exportar CSV (da visão atual) ----
 function baixaCSV(nome, linhas){
@@ -3487,6 +3563,16 @@ document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete es
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
+document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
+// Logo no canto superior esquerdo volta para o início (Resumo).
+document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('resumo'));
+document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('resumo'); } });
+// Botão "voltar ao topo": aparece após rolar a página.
+(function(){ const b=document.getElementById('to-top'); if(!b) return;
+  const upd=()=>{ b.hidden=(window.scrollY||document.documentElement.scrollTop)<400; };
+  window.addEventListener('scroll', upd, { passive:true }); upd();
+  b.addEventListener('click', ()=>window.scrollTo({ top:0, behavior:'smooth' })); })();
+marcaNovidade();
 // Navegação do tour guiado (botões ficam soltos no body).
 document.addEventListener('click', (e)=>{
   const t=e.target.closest && e.target.closest('button'); if(!t) return;
@@ -3583,6 +3669,12 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
   else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
   else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
+  else if(t.hasAttribute('data-ap-projtoggle')){ escondeTip(); const pk=t.getAttribute('data-ap-projtoggle');
+    estado.apontar.recolhidos[pk]=!estado.apontar.recolhidos[pk]; renderApontar(); }
+  else if(t.id==='ap-expandir'){ estado.apontar.recolhidos={}; renderApontar(); }
+  else if(t.id==='ap-recolher'){ const r={};
+    [...document.querySelectorAll('[data-ap-projtoggle]')].forEach(b=>{ r[b.getAttribute('data-ap-projtoggle')]=true; });
+    estado.apontar.recolhidos=r; renderApontar(); }
   else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
   else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
   else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
