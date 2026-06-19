@@ -142,10 +142,11 @@ async function clockworkDireto({ issue, segundos, inicio, comentario, accountId 
   }
 }
 
-// Aviso no canal do Teams (mesmo webhook do ranking diário). Melhor esforço.
+// Aviso no canal do Teams (mesmo webhook do ranking diário). Retorna o status para
+// o organizador saber se foi enviado / não está configurado / falhou.
 async function avisaTeams(req, { issue, resumo, segundos, inicio, nomes, criadoPor }) {
   const webhook = process.env.TEAMS_WEBHOOK_URL || '';
-  if (!webhook) return;
+  if (!webhook) return 'nao-configurado';
   const h = Math.floor(segundos / 3600), m = Math.round((segundos % 3600) / 60);
   const tempo = h && m ? `${h}h${String(m).padStart(2, '0')}` : (h ? `${h}h` : `${m}m`);
   const dia = `${inicio.slice(8, 10)}/${inicio.slice(5, 7)}`;
@@ -167,8 +168,10 @@ async function avisaTeams(req, { issue, resumo, segundos, inicio, nomes, criadoP
     }],
   };
   try {
-    await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartao) });
-  } catch (e) { /* aviso é melhor-esforço; o convite já foi criado */ }
+    const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartao) });
+    if (r.status >= 200 && r.status < 300) return 'enviado';
+    return `erro Teams ${r.status}: ${(await r.text()).slice(0, 150)}`;
+  } catch (e) { return `erro Teams: ${String(e && e.message ? e.message : e).slice(0, 150)}`; }
 }
 
 // ---------------- GET: convites pendentes da pessoa ----------------
@@ -259,8 +262,10 @@ async function criarConvites(req, res, b, base, headers, me) {
   if (proprio && proprio.ok) { cacheClear('tempo:'); cacheClear('venc:'); }
   if (diretos) { cacheClear('tempo:'); cacheClear('venc:'); }
 
-  if (b.avisarTeams !== false && pendentesNomes.length) {
-    await avisaTeams(req, {
+  let teams = 'nao-tentado';
+  if (b.avisarTeams === false) teams = 'desligado';
+  else if (pendentesNomes.length) {
+    teams = await avisaTeams(req, {
       issue, resumo, segundos, inicio, nomes: pendentesNomes, criadoPor: me.nome || me.email,
     });
   }
@@ -272,6 +277,7 @@ async function criarConvites(req, res, b, base, headers, me) {
     total: pessoas.length,
     pendentes: pendentesNomes.length,
     diretos,
+    teams,
     proprio: proprio ? { ok: proprio.ok, erro: proprio.ok ? '' : proprio.erro } : null,
     ...(erroDireto ? { erroDireto } : {}),
   });

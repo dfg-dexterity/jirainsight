@@ -67,6 +67,8 @@
     border-bottom:3px solid transparent;margin-bottom:-1px;transition:color .12s ease,border-color .12s ease}
   .seg button:hover{color:var(--cerceta)}
   .seg button[aria-pressed="true"]{background:transparent;color:var(--cerceta);border-bottom-color:var(--cerceta);box-shadow:none}
+  .seg button .tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
+    padding:0 4px;margin-left:5px;border-radius:999px;background:#D20A0A;color:#fff;font-size:11px;font-weight:700;vertical-align:middle}
   /* Botões Fiori: transparentes (toolbar) com texto azul; .primario = emphasized (azul cheio) */
   .btn{border:1px solid transparent;background:transparent;border-radius:6px;
     padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:14px;font-weight:600;
@@ -2029,6 +2031,7 @@ async function validaIdentidade(){
       body:JSON.stringify({validar:true,email,token})}).then(r=>r.json());
     if(j.ok){ salvaIdApontar({email:j.email||email,token,nome:j.nome||email,accountId:j.accountId||''});
       estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
+      buscaConvites();                 // atualiza o selo de convites pendentes na aba
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
       setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); },700);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
@@ -2284,12 +2287,22 @@ async function executaComentar(btn){
 // ---------------- Reunião em grupo: convites de apontamento ----------------
 // Quem organizou a reunião dispara um convite (ticket + tempo + dia + pessoas);
 // cada convidado confirma com 1 clique e o worklog é criado NO USUÁRIO DELE.
+// Pinta um selo com o nº de convites pendentes no botão da aba ⏱ Apontar (visível
+// de qualquer aba, para quem está identificado).
+function pintaBadgeConvites(n){
+  const btn=document.querySelector('#seg-vista [data-v="apontar"]'); if(!btn) return;
+  let b=btn.querySelector('.tab-badge');
+  if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; btn.appendChild(b); }
+    b.textContent=n; b.title=n+' convite(s) de reunião aguardando você'; }
+  else if(b){ b.remove(); }
+}
 function buscaConvites(){
-  const id=idApontar(); if(!id||!id.accountId) return;
+  const id=idApontar(); if(!id||!id.accountId){ pintaBadgeConvites(0); return; }
   const ap=estado.apontar; ap.convitesBusca=true;
   fetch(`/api/apontar?convites=1&accountId=${encodeURIComponent(id.accountId)}`)
     .then(r=>r.json())
     .then(j=>{ ap.convites=(j&&j.convites)||[]; ap.convitesBusca=false;
+      pintaBadgeConvites(ap.convites.length);
       if(ap.convites.length && estado.vista==='apontar') renderApontar(); })
     .catch(()=>{ ap.convites=[]; ap.convitesBusca=false; });
 }
@@ -2311,6 +2324,7 @@ async function respondeConvite(btn, recusa){
       fb.classList.add('ok');
       fb.textContent=recusa?'Convite recusado.':`✓ ${fmtH(j.segundos||0)} apontadas em ${j.issue||''} (${fmtBR(j.inicio||'')}).`;
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
+      pintaBadgeConvites(estado.apontar.convites.length);
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
@@ -2427,15 +2441,22 @@ async function enviaReuniaoGrupo(){
       if(j.proprio) partes.push(j.proprio.ok?'seu apontamento foi registrado':`o seu falhou (${j.proprio.erro})`);
       if(j.diretos) partes.push(`${j.diretos} apontado(s) direto via Clockwork`);
       if(j.pendentes) partes.push(`${j.pendentes} convite(s) aguardando confirmação`);
+      // Aviso no Teams: deixa claro se foi enviado / não está configurado / falhou.
+      if(avisarTeams && j.pendentes){
+        if(j.teams==='enviado') partes.push('avisado no Teams');
+        else if(j.teams==='nao-configurado') partes.push('⚠ Teams não configurado (defina TEAMS_WEBHOOK_URL)');
+        else if(j.teams && /^erro/i.test(j.teams)) partes.push('⚠ falha ao avisar no Teams');
+      }
       fb.classList.add('ok');
-      fb.textContent=`✓ ${j.issue}: ${partes.join(' · ')||'nada a fazer'}.`;
+      fb.innerHTML=`✓ <strong>${esc(j.issue)}</strong>: ${esc(partes.join(' · ')||'nada a fazer')}.
+        ${j.pendentes?'<br><span class="muted small">Os convidados veem o convite no topo da aba ⏱ Apontar (precisam estar identificados com o token do Jira) e confirmam com 1 clique.</span>':''}`;
       estado.cache={};
       // Atualiza o total do ticket na lista (otimista), como no apontamento individual.
       if(j.proprio&&j.proprio.ok){
         const dados=estado.apontar.porData[chaveVenc()];
         const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
       }
-      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, 2200);
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, j.teams==='nao-configurado'?4200:2600);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); btn.disabled=false; }
 }
@@ -3780,7 +3801,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
-  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; fechaModal(); if(estado.vista==='apontar') renderApontar(); }
+  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; pintaBadgeConvites(0); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
   else if(t.id==='rg-enviar'){ enviaReuniaoGrupo(); }
   else if(t.hasAttribute('data-rg-chip')){ const i=document.getElementById('rg-tempo'); if(i) i.value=t.getAttribute('data-rg-chip'); }
   else if(t.id==='rg-todos'){ document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=true; }); }
@@ -3808,6 +3829,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
 leURL();
 sincronizaControlesURL();
 (async ()=>{ await carregaCfgRemota(); recarrega(); })();
+if(idApontar()) buscaConvites();   // mostra o selo de convites pendentes já no carregamento
 </script>
 </body>
 </html>
