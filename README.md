@@ -53,6 +53,16 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
 
+### Reprogramar vencimentos (aba ⏱ Apontar)
+
+Na aba Apontar dá para **reagendar a data de vencimento** de qualquer chamado
+(clique no 📅 do vencimento) com atalhos **Hoje / Amanhã / Próxima semana**, data
+livre ou **remover data**. Marque **Incluir sem vencimento** para também trazer os
+chamados abertos **sem data** e programá-los. A escrita usa o **token da própria
+pessoa** (mesmo modelo do apontamento) via `POST /api/transicao` no modo
+`{ reagendar:true, issue, duedate }`; a listagem com sem-data usa
+`GET /api/vencimentos?incluirSemVenc=1`.
+
 ### Relatório diário de apontamento no Teams (8h)
 
 O endpoint **`/api/teams`** monta um cartão (KPIs: apontamento geral, horas faltando,
