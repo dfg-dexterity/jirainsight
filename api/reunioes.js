@@ -9,6 +9,7 @@ import {
 } from './_lib/util.js';
 
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
+const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_REUNI = /reuni/i;
 
 function authSvc() {
@@ -156,7 +157,8 @@ async function mover(req, res) {
     for (const it of itens) {
       const id = String((it && it.id) || '').trim();
       const tipoNome = String((it && it.tipo) || '').trim().toLowerCase();
-      if (!/^\d+$/.test(id)) return json(res, 400, { erro: 'Item inválido.' });
+      // Aceita id numérico OU chave do issue (ex.: RDF-123) — o bulk move do Jira aceita ambos.
+      if (!/^\d+$/.test(id) && !RE_ISSUE.test(id)) return json(res, 400, { erro: 'Item inválido.' });
       const tId = nomeParaId[tipoNome];
       if (!tId) { faltam.add((it && it.tipo) || tipoNome); continue; }
       const chave = `${alvo},${tId}`;
