@@ -340,7 +340,14 @@
   .btn.primario:hover{filter:brightness(1.06)}
   .btn[disabled]{opacity:.55;cursor:default}
   .ap-fb{font-size:12px;font-weight:600;width:100%}
-  .ap-fb.ok{color:#047857} .ap-fb.err{color:#B91C1C}
+  .ap-fb.ok{color:#047857} .ap-fb.err{color:#B91C1C} .ap-fb.warn{color:#B45309}
+  /* Painel "minhas horas por dia" */
+  .mh-grid{display:flex;gap:8px;flex-wrap:wrap}
+  .mh-dia{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;min-width:96px;background:var(--cartao)}
+  .mh-dia.over{border-color:#FDE68A;background:#FFF8EB}
+  .mh-data{font-size:11px;color:#64748B;text-transform:capitalize}
+  .mh-h{font-size:16px;font-weight:700;color:var(--grafite);margin-top:2px}
+  .mh-dia.over .mh-h{color:#B45309}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -622,7 +629,7 @@ const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.ativida
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
-  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false, recolhidos:{},
+  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
     convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
@@ -779,6 +786,7 @@ async function carrega(periodo){
   Object.keys(usuarios).forEach(id=>{ if(RE_EXCLUIR.test((usuarios[id]&&usuarios[id].nome)||'')) delete usuarios[id]; });
   removeUsuariosTecnicos(t, a);
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
+  estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
   estado.cache[periodo]={tempo:t,atividade:a,usuarios,avisoAtiv:aviso};
 }
 
@@ -1780,6 +1788,50 @@ async function carregaVenc(ate, forca){
   return j;
 }
 
+// Horas que EU (usuário identificado) já apontei por dia, no período carregado,
+// somadas ao acumulador otimista do que foi apontado nesta sessão pela aba Apontar.
+function minhasHorasPorDia(){
+  const id=idApontar(); const out={};
+  if(id && id.accountId){
+    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
+      if(w.a!==id.accountId) return; const d=(w.d||'').slice(0,10); if(!d) return;
+      out[d]=(out[d]||0)+(Number(w.s)||0);
+    });
+  }
+  const ex=estado.apontar.extraPorDia||{};
+  Object.keys(ex).forEach(d=>{ out[d]=(out[d]||0)+ex[d]; });
+  return out;
+}
+// Registra (otimista) o que acabei de apontar, para o painel refletir na hora.
+function registraExtraDia(dia, seg){
+  if(!dia||!seg) return;
+  const ap=estado.apontar; ap.extraPorDia=ap.extraPorDia||{};
+  ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
+}
+const _diaSemana=(d)=>{ try{ return new Date(d+'T12:00:00-03:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.',''); }catch(e){ return ''; } };
+function htmlPainelHoras(){
+  const id=idApontar(); if(!id||!id.accountId) return '';
+  const metaSeg=metaSegDe(id.accountId)||8*3600;
+  const porDia=minhasHorasPorDia();
+  const dias=Object.keys(porDia).filter(d=>porDia[d]>0).sort((a,b)=>b.localeCompare(a)).slice(0,12);
+  const over=dias.filter(d=>porDia[d]>metaSeg);
+  return `<div class="card full mh-card" id="mh-card">
+    <h2>⏱ Minhas horas por dia <span>período selecionado · meta ${fmtH(metaSeg)}/dia</span></h2>
+    ${over.length?`<div class="aviso">⚠ Você passou da meta de <strong>${fmtH(metaSeg)}/dia</strong> em: ${over.map(d=>`${esc(fmtBR(d))} (<strong>${fmtH(porDia[d])}</strong>)`).join(' · ')}.</div>`:''}
+    <div class="mh-grid">${dias.length?dias.map(d=>{
+      const seg=porDia[d], ov=seg>metaSeg;
+      return `<div class="mh-dia${ov?' over':''}" data-tip="${ov?`acima da meta de ${fmtH(metaSeg)}`:'dentro da meta'}">
+        <div class="mh-data">${esc(_diaSemana(d))} ${esc(fmtBR(d))}</div>
+        <div class="mh-h">${fmtH(seg)}${ov?' ⚠':''}</div></div>`;
+    }).join(''):'<div class="muted small">Você ainda não tem horas apontadas no período selecionado.</div>'}</div>
+  </div>`;
+}
+// Atualiza só o painel (sem re-renderizar a lista) após um apontamento.
+function atualizaPainelHoras(){
+  const alvo=document.getElementById('mh-card'); if(!alvo) return;
+  const novo=el(htmlPainelHoras()); if(novo) alvo.replaceWith(novo);
+}
+
 function renderApontar(){
   const cont=document.getElementById('conteudo');
   const ap=estado.apontar;
@@ -1973,6 +2025,7 @@ function renderApontar(){
   cont.replaceChildren(el(`<div>
     ${faixaId}
     ${bannerConvites}
+    ${htmlPainelHoras()}
     <div class="kpis ts-kpis">
       <div class="kpi a" data-ap-fil="todos" aria-pressed="${ap.fil==='todos'}" data-tip="Mostrar todos" data-tipk="clique para filtrar">
         <div class="v">${todos.length}</div><div class="l">Chamados até ${fmtBR(ap.ate)}</div></div>
@@ -2056,7 +2109,6 @@ async function fazApontamento(btn){
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({issue:k,segundos:seg,inicio,comentario:comEl.value.trim(),email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
-      fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}).`;
       row.classList.add('feito'); tempoEl.value=''; comEl.value='';
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
       const dados=estado.apontar.porData[chaveVenc()];
@@ -2069,6 +2121,13 @@ async function fazApontamento(btn){
       const info=row.querySelector('.ap-log-info');
       if(info){ info.className='ap-log-info tem';
         info.innerHTML=`⏱ <strong>${fmtH(novoTotal)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`; }
+      // Painel "minhas horas por dia": registra e avisa se passou da meta diária.
+      registraExtraDia(inicio, seg); atualizaPainelHoras();
+      const meuId=idApontar(); const metaSeg=metaSegDe(meuId&&meuId.accountId)||8*3600;
+      const totalDia=minhasHorasPorDia()[inicio]||0;
+      if(totalDia>metaSeg){ fb.className='ap-fb warn';
+        fb.textContent=`⚠ ${fmtH(seg)} apontadas em ${k}. Você já tem ${fmtH(totalDia)} em ${fmtBR(inicio)} — acima da meta de ${fmtH(metaSeg)}/dia.`; }
+      else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`; }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
@@ -2406,6 +2465,7 @@ async function respondeConvite(btn, recusa){
       fb.textContent=recusa?'Convite recusado.':`✓ ${fmtH(j.segundos||0)} apontadas em ${j.issue||''} (${fmtBR(j.inicio||'')}).`;
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
       pintaBadgeConvites(estado.apontar.convites.length);
+      if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos); atualizaPainelHoras(); }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
@@ -2536,6 +2596,7 @@ async function enviaReuniaoGrupo(){
       if(j.proprio&&j.proprio.ok){
         const dados=estado.apontar.porData[chaveVenc()];
         const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
+        registraExtraDia(inicio, seg); atualizaPainelHoras();
       }
       setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, j.teams==='nao-configurado'?4200:2600);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
@@ -3203,6 +3264,8 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
+      No topo, o painel <b>⏱ Minhas horas por dia</b> mostra quanto você já apontou em cada dia do período e
+      <b>avisa quando um dia passa da meta</b> (padrão 8h/dia, ajustável em Metas).
     </div></details>
     <details class="help-sec"><summary>Navegação, novidades e ícones</summary><div class="help-body">
       <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início (Resumo)</b>. <b>✨ Novidades</b> (no topo):

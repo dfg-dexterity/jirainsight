@@ -60,6 +60,13 @@ worklog_id, erro).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### Minhas horas por dia (aba ⏱ Apontar)
+
+No topo da aba, quem está identificado vê um painel **⏱ Minhas horas por dia** com o
+total que já apontou em cada dia do período carregado, destacando (⚠) e avisando os
+dias que passam da **meta diária** (padrão 8h, ajustável em Metas / por pessoa). Ao
+apontar, o painel atualiza na hora e o feedback avisa se aquele dia excedeu a meta.
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
