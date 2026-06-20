@@ -317,8 +317,8 @@
   /* Ícones do Jira (tipo/prioridade) dentro dos badges */
   .ji-ic{width:14px;height:14px;object-fit:contain;vertical-align:-2px;border-radius:2px}
   .tipo-badge,.prio-badge{gap:5px}
-  .ap-resp-panel .ap-resp-sel{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
-    border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:260px}
+  .ap-resp-panel .ap-resp-sel,.ap-mover-panel .ap-mover-sel{font-family:var(--corpo);font-size:13px;padding:6px 9px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:280px}
   .ap-coment-panel{align-items:flex-start}
   .ap-coment-txt{flex:1 1 100%;min-width:200px;font-family:var(--corpo);font-size:13px;padding:8px 10px;
     border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);resize:vertical;box-sizing:border-box}
@@ -1940,6 +1940,7 @@ function renderApontar(){
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
+        ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
       </div>
       ${logCtrl}
     </div>`;
@@ -2282,6 +2283,86 @@ async function executaComentar(btn){
       [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
     [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
+}
+
+// ---------------- Reclassificar: mover o chamado para outro projeto ----------------
+// Carrega (uma vez) a lista de projetos com seus tipos; reaproveita o cache do Planejar.
+let _projetosPromise=null;
+function garanteProjetos(){
+  if(estado.planejar && estado.planejar.projetos) return Promise.resolve(estado.planejar.projetos);
+  if(!_projetosPromise){
+    _projetosPromise=fetch('/api/projetos').then(r=>r.json()).then(j=>{
+      const ps=j.projetos||[];
+      if(estado.planejar && !estado.planejar.projetos) estado.planejar.projetos=ps;
+      return ps;
+    });
+  }
+  return _projetosPromise;
+}
+function toggleReclass(btn){
+  const row=btn.closest('.ap-row'); if(!row) return;
+  const k=btn.getAttribute('data-ap-mover');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const aberto=row.querySelector('.ap-mover-panel'); if(aberto){ aberto.remove(); return; }
+  const dados=estado.apontar.porData[chaveVenc()];
+  const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
+  const area=document.createElement('div'); area.className='ap-trans ap-mover-panel';
+  area.innerHTML=`<span class="ap-trans-rot">Mover para o projeto:</span>
+    <select class="ap-mover-sel" aria-label="Projeto destino" disabled><option>carregando projetos…</option></select>
+    <button class="chip primario-chip" data-ap-mover-do="${escA(k)}" disabled>Mover →</button>
+    <div class="ap-fb" hidden></div>`;
+  row.querySelector('.ap-l2').after(area);
+  garanteProjetos().then(ps=>{
+    if(!area.isConnected) return;
+    const tipo=((t&&t.t)||'').toLowerCase();
+    const validos=ps.filter(p=>p.key!==(t&&t.p) && (p.tipos||[]).some(tp=>(tp.nome||'').toLowerCase()===tipo))
+      .sort((a,b)=>a.key.localeCompare(b.key));
+    const sel=area.querySelector('.ap-mover-sel'); const moverBtn=area.querySelector('[data-ap-mover-do]');
+    const fb=area.querySelector('.ap-fb');
+    if(!validos.length){
+      sel.innerHTML='<option value="">— nenhum projeto compatível —</option>';
+      fb.hidden=false; fb.className='ap-fb';
+      fb.innerHTML=`<span class="muted small">Nenhum projeto destino tem o tipo “${esc((t&&t.t)||'')}”. O destino precisa ter um tipo com o mesmo nome.</span>`;
+      return;
+    }
+    sel.innerHTML='<option value="">— escolha o projeto —</option>'+validos.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    sel.disabled=false; moverBtn.disabled=false;
+  }).catch(()=>{ const sel=area.querySelector('.ap-mover-sel'); if(sel){ sel.innerHTML='<option>erro ao carregar projetos</option>'; } });
+}
+async function executaReclass(btn){
+  const row=btn.closest('.ap-row'); const area=btn.closest('.ap-mover-panel'); if(!row||!area) return;
+  const k=btn.getAttribute('data-ap-mover-do');
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const sel=area.querySelector('.ap-mover-sel'); const alvo=(sel&&sel.value)||'';
+  const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!alvo){ fb.classList.add('err'); fb.textContent='Escolha o projeto destino.'; return; }
+  const dados=estado.apontar.porData[chaveVenc()];
+  const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
+  const tipo=(t&&t.t)||'';
+  const trava=(v)=>[...area.querySelectorAll('button,select')].forEach(b=>{ b.disabled=v; });
+  trava(true); fb.textContent='Movendo… (pode levar alguns segundos)';
+  try{
+    let j=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({alvo,itens:[{id:k,tipo}],email:id.email,token:id.token})}).then(r=>r.json());
+    let tentativas=0;
+    while(j.ok && j.status==='andamento' && j.taskId && tentativas<8){
+      await new Promise(r=>setTimeout(r,2500)); tentativas++;
+      j=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({taskId:j.taskId,email:id.email,token:id.token})}).then(r=>r.json());
+    }
+    if(j.ok && j.status==='completo'){
+      const mov=j.movidos&&j.movidos[0]; const novaChave=(mov&&mov.key)||'';
+      if(dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);   // mudou de projeto/chave: sai da lista
+      estado.cache={};
+      fb.classList.add('ok'); fb.textContent=`✓ ${k} movido para ${alvo}${(novaChave&&novaChave!==k)?` (agora ${novaChave})`:''}.`;
+      row.classList.add('feito'); row.style.transition='opacity .5s ease'; row.style.opacity='.35';
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, 1300);
+    } else if(j.ok && j.status==='andamento'){
+      fb.textContent='Ainda em andamento no Jira — atualize a lista em instantes.'; trava(false);
+    } else {
+      fb.classList.add('err'); fb.textContent=j.erro||'Falha ao mover o chamado.'; trava(false);
+    }
+  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); trava(false); }
 }
 
 // ---------------- Reunião em grupo: convites de apontamento ----------------
@@ -3114,7 +3195,7 @@ function abreAjuda(){
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b> e aponte reuniões para várias pessoas.</li>
+      <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b>, <b>mova de projeto</b> e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
     </ul></div></details>
@@ -3133,7 +3214,8 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> — clique no <b>cabeçalho do projeto</b>
       para <b>expandir/recolher</b> o grupo (ou use “Expandir/Recolher todos”). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira;
       <b>👤 responsável ▾</b> abre o seletor para <b>transferir</b> o chamado para outra pessoa (ou <b>para mim</b> /
-      <b>remover responsável</b>). Tudo é gravado no Jira com o seu usuário e respeita as permissões.
+      <b>remover responsável</b>); <b>🔀 mover</b> <b>reclassifica</b> o chamado para <b>outro projeto</b> (mostra só os
+      destinos que têm um tipo com o mesmo nome — ex.: Tarefa/Bug). Tudo é gravado no Jira com o seu usuário e respeita as permissões.
     </div></details>
     <details class="help-sec"><summary>Reprogramar / reagendar vencimentos</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>, clique no <b>📅 vencimento</b> de um chamado (vencido ou não) para abrir o painel de
@@ -3690,6 +3772,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
   else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
   else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
+  else if(t.hasAttribute('data-ap-mover')){ escondeTip(); toggleReclass(t); }
+  else if(t.hasAttribute('data-ap-mover-do')){ executaReclass(t); }
   else if(t.hasAttribute('data-ap-projtoggle')){ escondeTip(); const pk=t.getAttribute('data-ap-projtoggle');
     estado.apontar.recolhidos[pk]=!estado.apontar.recolhidos[pk]; renderApontar(); }
   else if(t.id==='ap-expandir'){ estado.apontar.recolhidos={}; renderApontar(); }

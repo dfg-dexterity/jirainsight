@@ -60,6 +60,13 @@ worklog_id, erro).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### Reclassificar (mover de projeto) na aba ⏱ Apontar
+
+Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
+apontamento. O seletor mostra só os **destinos compatíveis** (que têm um tipo com o
+mesmo nome do chamado). Reusa o *bulk move* do Jira via `POST /api/reunioes`
+(`{ alvo, itens:[{id, tipo}] }`, aceitando a **chave** do issue), com o token da pessoa.
+
 ### Comentar e transferir na aba ⏱ Apontar
 
 Os chamados ficam **agrupados por projeto** (cabeçalho com código + nome). Em cada
