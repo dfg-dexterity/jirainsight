@@ -60,6 +60,15 @@ worklog_id, erro).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### ⚙️ Administração — Contratos & Valores
+
+Aba **Admin**: cadastro de **clientes/contratos** que destrava AMS e Receita.
+Para cada contrato: **cliente**, **tipo** (AMS mensal / bolsa de horas / projeto),
+**horas contratadas**, **valor-hora (R$)**, **vigência** e os **projetos do Jira**
+mapeados ao cliente. Cada card mostra um **preview de consumo** (horas apontadas nos
+projetos no período + valor estimado). Fica salvo em `cfg.contratos` (compartilhado
+via Supabase / `/api/config`).
+
 ### 🚨 Central de Alertas
 
 Aba **Alertas**: motor de alertas **acionáveis** montado a partir dos dados que já
