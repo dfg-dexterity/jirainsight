@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Acompanhamento AMS · Dexterity</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+  :root{ --offwhite:#F5F6F7; --grafite:#1D2D3E; --cerceta:#0070F2; --teal:#17A398;
+    --amarelo:#E76500; --musgo:#188918; --err:#BB0000; --linha:#D9D9D9; --cartao:#fff;
+    --sombra:0 0 0 1px rgba(34,54,79,.02), 0 1px 4px rgba(34,54,79,.10); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--offwhite);color:var(--grafite);
+    font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px clamp(14px,3vw,28px) 56px}
+  header{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--linha);padding-bottom:14px;margin-bottom:20px}
+  header img{width:38px;height:38px}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  header .sub{font-size:12.5px;color:#64748B;margin-top:2px}
+  header .ciclo{margin-left:auto;font-size:12.5px;color:#64748B;text-align:right}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:15px 16px;box-shadow:var(--sombra);border-top:3px solid var(--teal)}
+  .kpi.warn{border-top-color:var(--amarelo)} .kpi.bad{border-top-color:var(--err)} .kpi.ok{border-top-color:var(--musgo)}
+  .kpi .v{font-size:clamp(22px,2.4vw,30px);font-weight:700;line-height:1.05}
+  .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:7px}
+  .kpi .s{font-size:12px;color:#64748B;margin-top:3px}
+  .card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:18px;box-shadow:var(--sombra);margin-bottom:16px}
+  .card h2{font-size:14px;margin:0 0 14px;font-weight:700}
+  .bar{position:relative;background:#EEF1F8;border-radius:7px;height:20px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:7px}
+  .bar-l{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-top:7px;flex-wrap:wrap;color:#475569}
+  .months{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
+  .mc{border:1px solid var(--linha);border-radius:8px;padding:9px 10px;text-align:center}
+  .mc .mm{font-size:11px;color:#64748B} .mc .mh{font-weight:700;font-size:15px;margin-top:2px}
+  .mc.lo{border-color:#E7B100;background:#FEFBEB} .mc.hi{border-color:#D20A0A;background:#FEF2F2}
+  .cham{display:flex;flex-direction:column;gap:10px}
+  .cham-row{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center}
+  .cham-row .m{font-size:12px;color:#64748B}
+  .cham-bars{display:flex;flex-direction:column;gap:4px}
+  .cham-bars .b{height:11px;border-radius:4px;display:flex;align-items:center;min-width:2px}
+  .cham-bars .b span{font-size:10px;color:#fff;padding:0 6px;white-space:nowrap}
+  .legend{display:flex;gap:16px;font-size:12px;color:#64748B;margin-top:4px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .barlist{display:flex;flex-direction:column;gap:11px}
+  .blrow{font-size:13px}
+  .blrow .top{display:flex;justify-content:space-between;gap:10px}
+  .blrow .t{background:#EEF1F8;border-radius:6px;height:9px;margin-top:4px;overflow:hidden}
+  .blrow .t i{display:block;height:100%;background:var(--teal);border-radius:6px}
+  .blrow .val{font-variant-numeric:tabular-nums;font-weight:600}
+  .note{font-size:12px;color:#64748B;margin-top:8px}
+  .estado{padding:46px;text-align:center;color:#64748B}
+  .foot{margin-top:24px;font-size:11.5px;color:#94A3B8;text-align:center}
+  @media (max-width:720px){ .kpis{grid-template-columns:repeat(2,1fr)} header .ciclo{margin-left:0;flex-basis:100%;text-align:left} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="/logo.svg" alt="Dexterity">
+    <div>
+      <h1 id="titulo">Acompanhamento AMS</h1>
+      <div class="sub" id="sub">carregando…</div>
+    </div>
+    <div class="ciclo" id="ciclo"></div>
+  </header>
+  <div id="conteudo"><div class="estado">Carregando o painel…</div></div>
+  <div class="foot">Painel somente-leitura · Dexterity IT · atualizado a cada acesso</div>
+</div>
+<script>
+const fmtH=(seg)=>{ const h=Math.floor((seg||0)/3600), m=Math.round(((seg||0)%3600)/60);
+  return h&&m?`${h}h${String(m).padStart(2,'0')}`:h?`${h}h`:`${m}m`; };
+const fmtBRL=(v)=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const labelMes=(ym)=>{ const [y,m]=ym.split('-'); return `${MESES[(+m)-1]}/${y.slice(2)}`; };
+const APUR={mensal:'mensal',trimestral:'trimestral',semestral:'semestral',anual:'anual'};
+
+function erro(msg){
+  document.getElementById('sub').textContent='';
+  document.getElementById('conteudo').innerHTML=`<div class="card"><div class="estado">${esc(msg)}</div></div>`;
+}
+
+function render(d){
+  document.getElementById('titulo').textContent=`Acompanhamento AMS — ${d.cliente||'Cliente'}`;
+  document.getElementById('sub').textContent=`Apuração ${APUR[d.apuracao]||d.apuracao} · banco de horas dentro do ciclo`;
+  const c=d.ciclo||{}; const meses=c.meses||[];
+  document.getElementById('ciclo').innerHTML = meses.length
+    ? `Ciclo vigente<br><strong>${esc(labelMes(meses[0]))}${meses.length>1?'–'+esc(labelMes(meses[meses.length-1])):''}</strong>` : '';
+
+  const H=d.horas||{}; const V=d.valor||{}; const CH=d.chamados||{};
+  const pool=H.contratadasCiclo||0; const cons=H.consumidoSeg||0; const consH=cons/3600;
+  const pct=pool?Math.round(consH/pool*100):0;
+  const over=H.excedenteSeg>0;
+  const corBar=over?'var(--err)':(pct>=85?'var(--amarelo)':'var(--teal)');
+  const kClass=over?'bad':(pct>=85?'warn':'ok');
+
+  // KPIs
+  const kpis=`<div class="kpis">
+    <div class="kpi ${kClass}"><div class="v">${pct}%</div><div class="l">Consumo do ciclo</div><div class="s">${fmtH(cons)} de ${pool}h</div></div>
+    <div class="kpi ok"><div class="v">${fmtH(H.bancoSeg||0)}</div><div class="l">Banco de horas</div><div class="s">disponível no ciclo</div></div>
+    <div class="kpi ${over?'bad':''}"><div class="v">${over?fmtH(H.excedenteSeg):'0h'}</div><div class="l">Excedente</div><div class="s">${over&&V.hora?fmtBRL(V.excedente)+' a autorizar':'dentro do pacote'}</div></div>
+    <div class="kpi"><div class="v">${CH.abertosTotal||0}/${CH.fechadosTotal||0}</div><div class="l">Chamados (abertos/fechados)</div><div class="s">no ciclo</div></div>
+  </div>`;
+
+  // Barra de horas
+  const w=pool?Math.min(100,consH/pool*100):0;
+  const horasCard=`<div class="card"><h2>Horas do ciclo</h2>
+    <div class="bar"><i style="width:${w.toFixed(1)}%;background:${corBar}"></i></div>
+    <div class="bar-l"><span><strong>${fmtH(cons)}</strong> consumidas de <strong>${pool}h</strong> contratadas (${pct}%)</span>
+      <span>${over?`excedente <strong>${fmtH(H.excedenteSeg)}</strong>`:`banco <strong>${fmtH(H.bancoSeg||0)}</strong> disponível`}</span></div>
+    ${meses.length>1?`<div style="font-weight:600;margin:14px 0 2px;font-size:13px">Por mês no ciclo${H.minMes||H.tetoMes?` <span style="color:#64748B;font-weight:400">(mín ${H.minMes||'–'}h · teto ${H.tetoMes||'–'}h)</span>`:''}</div>
+      <div class="months">${meses.map(ym=>{
+        const seg=(H.porMes&&H.porMes[ym])||0, mh=seg/3600, lo=H.minMes&&mh<H.minMes, hi=H.tetoMes&&mh>H.tetoMes;
+        return `<div class="mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMes(ym))}</div><div class="mh">${fmtH(seg)}</div>
+          ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín</div>`:'')}</div>`;
+      }).join('')}</div>`:''}
+    ${over?`<div class="note">⚠ O consumo passou das ${pool}h do ciclo. O excedente é tratado mediante autorização prévia e faturado junto com o ciclo.</div>`
+      :`<div class="note">O banco de horas vale até o fim do ciclo e não acumula para o próximo.</div>`}
+  </div>`;
+
+  // Chamados abertos/fechados por mês
+  const maxC=Math.max(1,...meses.map(m=>Math.max((CH.abertosPorMes&&CH.abertosPorMes[m])||0,(CH.fechadosPorMes&&CH.fechadosPorMes[m])||0)));
+  const chamCard=`<div class="card"><h2>Chamados por período</h2>
+    <div class="legend"><span><i style="background:var(--cerceta)"></i>Abertos</span><span><i style="background:var(--musgo)"></i>Fechados</span></div>
+    <div class="cham" style="margin-top:10px">${meses.map(ym=>{
+      const ab=(CH.abertosPorMes&&CH.abertosPorMes[ym])||0, fe=(CH.fechadosPorMes&&CH.fechadosPorMes[ym])||0;
+      return `<div class="cham-row"><div class="m">${esc(labelMes(ym))}</div>
+        <div class="cham-bars">
+          <div class="b" style="width:${Math.max(2,ab/maxC*100)}%;background:var(--cerceta)"><span>${ab}</span></div>
+          <div class="b" style="width:${Math.max(2,fe/maxC*100)}%;background:var(--musgo)"><span>${fe}</span></div>
+        </div></div>`;
+    }).join('')}</div>
+    <div class="bar-l" style="margin-top:10px"><span>Total no ciclo: <strong>${CH.abertosTotal||0}</strong> abertos · <strong>${CH.fechadosTotal||0}</strong> fechados</span></div>
+  </div>`;
+
+  // Por causa (labels/componentes)
+  const causa=(CH.porCausa||[]);
+  const maxCa=Math.max(1,...causa.map(x=>x.n));
+  const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:#64748B;font-size:12px">(componentes / labels)</span></h2>
+    <div class="barlist">${causa.map(x=>`<div class="blrow"><div class="top"><span>${esc(x.nome)}</span><span class="val">${x.n}</span></div>
+      <div class="t"><i style="width:${Math.max(3,x.n/maxCa*100)}%"></i></div></div>`).join('')}</div></div>`:'';
+
+  document.getElementById('conteudo').innerHTML = kpis + horasCard + chamCard + causaCard;
+}
+
+(function(){
+  const tok=new URLSearchParams(location.search).get('c');
+  if(!tok){ erro('Link inválido. Solicite o link de acompanhamento à equipe Dexterity.'); return; }
+  fetch('/api/config?portal='+encodeURIComponent(tok)).then(r=>r.json()).then(d=>{
+    if(!d || d.ok===false || d.erro){ erro(d&&d.erro?d.erro:'Não foi possível carregar o painel.'); return; }
+    render(d);
+  }).catch(e=>erro('Falha ao carregar: '+(e&&e.message?e.message:e)));
+})();
+</script>
+</body>
+</html>

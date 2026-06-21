@@ -126,6 +126,26 @@ serverless; consome `cfg.contratos` + worklogs):
 
 Ainda: card **"Horas sem contrato"** (projetos com horas não mapeados a nenhum contrato).
 
+### 🌐 Painel do cliente (portal read-only)
+
+Página pública **`/portal.html?c=<token>`** para o **cliente acompanhar as horas** do contrato
+AMS, **somente leitura** e **escopada por token** (cada contrato tem o seu link). O acesso e a
+filtragem dos dados são **no servidor**: o token identifica o contrato e a API só devolve os
+dados **daquele cliente** — nunca de outros.
+
+- **Gerar o link:** na aba **⚙️ Admin**, cada contrato tem **🔗 Gerar link do cliente** (cria/rotaciona
+  o `portalToken`, salvo em `cfg.contratos`); botão **copiar** e **novo** (invalida o anterior).
+- **O que o cliente vê:** consumo do **ciclo vigente** × horas contratadas (banco de horas /
+  excedente), consumo **por mês** (mín/teto), **chamados abertos × fechados por período** e a
+  **classificação por componentes/labels** (causa). Tudo do ciclo de apuração corrente.
+- **API:** `GET /api/config?portal=<token>` (consolidado no endpoint de config — **sem nova
+  função serverless**): lê o contrato no Supabase, busca worklogs do ciclo (Clockwork) e
+  contagens do Jira **só dos projetos do cliente**.
+
+> **Atenção (deploy):** se o projeto na Vercel estiver com **Password Protection** global, o
+> cliente não consegue abrir o `/portal.html` (a senha bloqueia tudo). Para liberar o portal,
+> use um deploy/rota sem a proteção global — o **token do link** é o controle de acesso do portal.
+
 ### 🚨 Central de Alertas
 
 Aba **Alertas**: motor de alertas **acionáveis** montado a partir dos dados que já
