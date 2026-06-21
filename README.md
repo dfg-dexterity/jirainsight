@@ -55,7 +55,7 @@ scripts/
 | `JIRA_API_TOKEN` | sim | token de API do Jira |
 | `CLOCKWORK_API_TOKEN` | sim | token da API do Clockwork (Pro) |
 | `CACHE_TTL_MIN` | não | minutos de cache no servidor (padrão 20) |
-| `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como não faturável (padrão `n[aã]o.?fatur`) |
+| `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como **não faturável** — testada no **nome _e_ na descrição** do tipo de issue (padrão `n[aã]o.{0,4}fatur`, que cobre "não faturável", "não-faturavel" e "não é faturável") |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
 | `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
@@ -78,16 +78,16 @@ worklog_id, erro).
 Aba **Visão Geral** (a **tela inicial** do painel): responde, num só lugar, "como está a
 entrega?" — reaproveitando os dados que já temos (sem nova função serverless):
 
-- **KPIs executivos:** apontamento do time (% da meta), horas apontadas, **receita estimada**
-  (dos contratos), alertas críticos, pessoas em dia e tickets vencidos.
+- **KPIs executivos:** apontamento do time (% da meta), horas apontadas, alertas críticos,
+  pessoas em dia e tickets vencidos. *(Os indicadores de **AMS/contratos** vivem só na aba
+  **AMS & Governança** — ver abaixo — e não aparecem mais na Visão Geral.)*
 - **🚦 Saúde da entrega:** vencidos · vencem hoje · sem responsável · abaixo da meta (cada
   cartão leva à aba correspondente).
 - **⏱ Apontamento do time:** donut da meta + **gráfico de área (horas por dia)** + lista de
   "quem mais precisa apontar".
-- **🚨 Alertas críticos** (top do motor de alertas) e **💰 Receita & contratos** (consumo /
-  esgotamento por cliente) — ambos com link para o detalhe.
+- **🚨 Alertas críticos** (top do motor de alertas) com link para o detalhe.
 
-Cada bloco é **acionável**: clicar leva direto à aba de detalhe (Alertas, Timesheet, Receita…).
+Cada bloco é **acionável**: clicar leva direto à aba de detalhe (Alertas, Timesheet…).
 
 ### Gráficos modernos e interativos
 
@@ -118,9 +118,10 @@ Botão **🌙/☀️** no topo alterna entre claro e escuro; a preferência fica
 ### 🩺 Score de saúde da entrega
 
 Na **Visão Geral**, um **score 0–100** (donut + componentes) resume a saúde da operação:
-média ponderada de **Apontamento** (30%), **Prazos** (vencidos/vencem hoje, 25%), **Alertas**
-críticos (25%) e **AMS** (esgotamento de contratos, 20%). Faixas: ≥80 **Saudável** · 60–79
-**Atenção** · <60 **Crítico**. Cada componente é clicável e leva ao detalhe.
+média ponderada de **Apontamento** (40%), **Prazos** (vencidos/vencem hoje, 30%) e **Alertas**
+críticos (30%). Faixas: ≥80 **Saudável** · 60–79 **Atenção** · <60 **Crítico**. Cada componente
+é clicável e leva ao detalhe. *(O componente de AMS saiu do score — AMS é exclusivo da aba
+AMS & Governança.)*
 
 ### 🖨 Exportar PDF
 
@@ -131,20 +132,36 @@ dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
 
 ### Navegação e novidades
 
-- **Menu por função:** o topo é organizado em **📊 Visão Geral** (inicial) + 3 grupos com
-  dropdown — **Análise** (Resumo, Timesheet, Ranking, Tickets), **⏱ Operação** (Apontar,
-  Planejar, Reclassificar) e **💰 AMS & Governança** (Receita, Alertas, Admin). O grupo da
-  aba ativa fica sublinhado; o selo de convites aparece também no cabeçalho de **Operação**.
+- **Menu por função:** o topo é organizado em **Visão Geral** (inicial) + 3 grupos com
+  dropdown — **Análise** (Resumo, Timesheet, Ranking, Tickets), **Operação** (Apontar,
+  Planejar, Reclassificar) e **AMS & Governança** (Receita, Alertas, Admin). Cada item usa
+  **ícones de linha** (SVG monocromático, sprite `#ic-*`) em vez de emojis, para um visual mais
+  profissional. O grupo da aba ativa fica sublinhado; o selo de convites aparece também no
+  cabeçalho de **Operação**.
 - **Logo (canto superior esquerdo):** a **marca Dexterity** (pinwheel oficial em SVG, `public/logo.svg`) — clicável, volta para o início (Visão Geral).
 - **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
+
+### 🏅 Ranking — reforço visual
+
+No **Ranking de apontamento**, quem está **em dia** ganha um destaque **comemorativo**
+(estrelinhas que cintilam + medalha pulsante, em dourado) e quem **não apontou nada** no
+período ganha um efeito de **decepção** (cinza dessaturado + "chuvinha" + leve balanço). Tudo em
+CSS e **respeita `prefers-reduced-motion`** (sem animação para quem pediu menos movimento).
+
+> O filtro global **"Ocultar rotinas e reuniões automáticas"** foi **removido** (não fazia
+> sentido manter): as horas de rotinas/reuniões agora entram normalmente nas visões.
 
 ### ⚙️ Administração — Contratos & Valores
 
 Aba **Admin**: cadastro de **clientes/contratos** que destrava AMS e Receita.
 Para cada contrato: **cliente**, **tipo** (AMS / bolsa de horas / projeto),
 **valor-hora (R$)**, **vigência** e os **projetos do Jira** mapeados ao cliente.
+
+> **Só projetos da categoria AMS** aparecem para mapear (categoria do Jira que contém
+> "AMS", ex.: *"DAMS | Dexterity - AMS"*). Projetos já marcados num contrato continuam
+> listados mesmo que sejam de outra categoria (não se perde mapeamento antigo).
 
 Para o tipo **AMS** há um bloco extra de parâmetros do contrato:
 
@@ -165,17 +182,29 @@ Aba **Receita** — duas seções, conforme o tipo de contrato (tudo sem nova fu
 serverless; consome `cfg.contratos` + worklogs):
 
 **🛠️ AMS — apuração por ciclo (banco de horas).** Para cada contrato AMS, calcula o
-**ciclo de apuração vigente** (alinhado ao mês de início da vigência) e busca os worklogs
+**ciclo de apuração selecionado** (alinhado ao mês de início da vigência) e busca os worklogs
 **desse ciclo** via `GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
 
+- **Navegador de ciclos** (◀ anterior · vigente · próximo ▶) — a apuração é sempre **por
+  ciclo trimestral** (ou o ciclo do contrato), não pela janela do topo; dá para revisar ciclos
+  passados. *(O período do topo não faz sentido para AMS e é ignorado nesta seção.)*
 - **Consumo do ciclo × horas contratadas** (ex.: Xh de 60h, %), com selo em risco/esgotado;
+- **Faturável × não faturável** no ciclo (split + KPI), classificado pela **descrição do tipo**
+  do chamado no Jira (ex.: tipo cuja descrição diz "não faturável");
+- **Horas por tipo de issue** com **drill-down**: clique no tipo → lista de **chamados** →
+  link direto para o **Jira** (`/browse/CHAVE`);
 - **Banco de horas** (saldo disponível até o fim do ciclo) e **excedente** (acima do pacote
   → requer **autorização prévia** e é faturado junto com o ciclo);
 - **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente;
 - **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
-- KPIs do conjunto: faturamento do ciclo, horas no ciclo, banco de horas e nº em excedente.
+- **🖨 PDF da apuração** (por contrato): documento com o **valor apurado** referenciando o
+  contrato + a **memória de apontamentos por chamado** (cada chamado com suas linhas de
+  worklog: data, pessoa e horas) — pronto para "Salvar como PDF";
+- KPIs do conjunto: faturamento do ciclo, horas no ciclo, **faturáveis/não faturáveis**,
+  banco de horas e nº em excedente.
 
-> O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo.
+> O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo. O consumo do
+> ciclo soma **todas** as horas; o split faturável/não faturável é informativo.
 
 **💰 Bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado, projeção pelo
 **período selecionado**: horas contratadas × consumidas, **% de esgotamento + projeção**
@@ -306,9 +335,10 @@ senha. Todos do time acessam o painel com a mesma senha. (Recurso de planos pago
 
 ## Limitações conhecidas (v1)
 
-- **Faturável** é inferido pelo nome do tipo de issue (ajustável via `NAO_FATURAVEL_REGEX`).
-  Se preferir usar o atributo de billable do próprio Clockwork, dá para evoluir lendo as
-  *worklog properties* (requer mapear a chave do atributo no Clockwork).
+- **Faturável** é inferido pelo **nome _e_ pela descrição** do tipo de issue (ex.: tipo
+  "Tarefas ADM - Não Faturavel" cuja descrição é "Atividades administrativa não faturavel"),
+  ajustável via `NAO_FATURAVEL_REGEX`. Se preferir usar o atributo de billable do próprio
+  Clockwork, dá para evoluir lendo as *worklog properties* (requer mapear a chave do atributo).
 - O **changelog embutido** na busca cobre as alterações recentes — adequado para janelas de
   até 30 dias. Para histórico profundo, evoluir para `/rest/api/3/issue/{key}/changelog`.
 - O campo de **comentários** retorna os mais recentes da issue; em issues muito comentadas

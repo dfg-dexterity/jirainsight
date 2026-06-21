@@ -195,6 +195,7 @@ export async function jiraResolveIssues(ids) {
         projetoNome: proj.name || '—',
         categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
         tipo: (f.issuetype && f.issuetype.name) || '—',
+        tipoDesc: (f.issuetype && f.issuetype.description) || '',
         issueKey: it.key || '',
         resumo: f.summary || '',
       };
@@ -231,12 +232,14 @@ export async function jiraUsuariosAtivos() {
   return out;
 }
 
-// Heurística de faturável a partir do nome do tipo de issue.
-// Os tipos da Dexterity já distinguem (ex.: "Tarefas ADM - Não Faturavel").
-// Pode ser sobrescrita via env NAO_FATURAVEL_REGEX.
-const RE_NAO_FATURAVEL = new RegExp(process.env.NAO_FATURAVEL_REGEX || 'n[aã]o.?fatur', 'i');
-export function ehFaturavel(tipo) {
-  return !RE_NAO_FATURAVEL.test(tipo || '');
+// Heurística de faturável a partir do tipo de issue. Considera tanto o NOME do tipo
+// (ex.: "Tarefas ADM - Não Faturavel") quanto a DESCRIÇÃO do tipo no Jira (ex.:
+// "Atividades administrativa não faturavel") — a descrição é a fonte de verdade
+// configurada na Dexterity. Pode ser sobrescrita via env NAO_FATURAVEL_REGEX.
+// O padrão tolera variações como "não faturável", "não-faturavel" e "não é faturável".
+const RE_NAO_FATURAVEL = new RegExp(process.env.NAO_FATURAVEL_REGEX || 'n[aã]o.{0,4}fatur', 'i');
+export function ehFaturavel(tipo, descricaoTipo) {
+  return !RE_NAO_FATURAVEL.test(`${tipo || ''} ${descricaoTipo || ''}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -274,11 +277,11 @@ export async function worklogsEnriquecidos(startDate, endDate) {
     if (!aid) continue;
     if (!pessoas[aid]) pessoas[aid] = { nome: author.displayName || aid, email: author.emailAddress || author.email || '' };
     const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
-    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', issueKey: '', resumo: '' };
+    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', tipoDesc: '', issueKey: '', resumo: '' };
     if (!projetos[m.projetoKey]) projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
     const ik = m.issueKey || (w.issue && w.issue.key) || '';
     if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
-    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo) ? 1 : 0, k: ik });
+    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik });
   }
   return { pessoas, projetos, resumos, worklogs };
 }
