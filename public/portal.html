@@ -75,6 +75,9 @@
   .tsc-read .r i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
   .tsc-read .r span{color:#b8c6da;margin-right:8px} .tsc-read .r b{margin-left:auto;font-variant-numeric:tabular-nums}
   @media (prefers-reduced-motion:reduce){ .tsc-line,.tsc-area{animation:none;stroke-dashoffset:0;opacity:1} }
+  .tm{width:100%} .tm-svg{width:100%;height:auto;display:block;max-height:380px}
+  .tm-svg g{transition:opacity .12s} .tm-svg:hover g{opacity:.8} .tm-svg:hover g:hover{opacity:1}
+  .tm-n{fill:#fff;font-weight:700;font-size:17px} .tm-v{fill:rgba(255,255,255,.86);font-size:14px}
   @media (max-width:720px){ .kpis{grid-template-columns:repeat(2,1fr)} header .ciclo{margin-left:0;flex-basis:100%;text-align:left} }
 </style>
 </head>
@@ -96,6 +99,33 @@ const fmtH=(seg)=>{ const h=Math.floor((seg||0)/3600), m=Math.round(((seg||0)%36
   return h&&m?`${h}h${String(m).padStart(2,'0')}`:h?`${h}h`:`${m}m`; };
 const fmtBRL=(v)=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const escA=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PALETA=['#17A398','#0070F2','#E76500','#7858FF','#188918','#D20A0A','#7CB342','#C0399F'];
+// Treemap (squarified) — área proporcional ao valor, com rótulo por célula.
+function treemap(items, opts){
+  opts=opts||{}; const fmt=opts.fmt||(v=>String(v));
+  items=(items||[]).filter(i=>(+i.valor)>0).slice().sort((a,b)=>b.valor-a.valor);
+  if(!items.length) return '<div class="estado">Sem dados.</div>';
+  const W=1000,H=opts.h||380; const total=items.reduce((s,i)=>s+(+i.valor),0)||1;
+  const nodes=items.map(it=>({it, area:(+it.valor)/total*(W*H)}));
+  let x=0,y=0,w=W,h=H,i=0; const placed=[];
+  const worst=(row,side)=>{ const s=row.reduce((a,n)=>a+n.area,0),mx=Math.max(...row.map(n=>n.area)),mn=Math.min(...row.map(n=>n.area));
+    return Math.max((side*side*mx)/(s*s),(s*s)/(side*side*mn)); };
+  while(i<nodes.length){ const side=Math.min(w,h); let row=[nodes[i]],j=i+1,cur=worst(row,side);
+    while(j<nodes.length){ const t=row.concat(nodes[j]); const wt=worst(t,side); if(wt<=cur){ row=t; cur=wt; j++; } else break; }
+    const s=row.reduce((a,n)=>a+n.area,0);
+    if(w>=h){ const thick=s/h; let yy=y; row.forEach(n=>{ const hh=n.area/thick; placed.push({it:n.it,x,y:yy,w:thick,h:hh}); yy+=hh; }); x+=thick; w-=thick; }
+    else { const thick=s/w; let xx=x; row.forEach(n=>{ const ww=n.area/thick; placed.push({it:n.it,x:xx,y,w:ww,h:thick}); xx+=ww; }); y+=thick; h-=thick; }
+    i=j; }
+  const rects=placed.map((p,idx)=>{ const c=p.it.cor||PALETA[idx%PALETA.length];
+    const showName=p.w>130&&p.h>34, showVal=p.w>56&&p.h>24, px=p.x+11, py=p.y+24, maxch=Math.floor((p.w-18)/8.6);
+    const nm=String(p.it.nome||''); const nmS=nm.length>maxch?nm.slice(0,Math.max(1,maxch-1))+'…':nm;
+    return `<g><rect x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" width="${Math.max(0,p.w-2).toFixed(1)}" height="${Math.max(0,p.h-2).toFixed(1)}" rx="6" fill="${c}"><title>${esc(nm)}: ${esc(fmt(p.it.valor))}</title></rect>
+      ${showName?`<text class="tm-n" x="${px.toFixed(1)}" y="${py.toFixed(1)}">${esc(nmS)}</text>`:''}
+      ${showVal?`<text class="tm-v" x="${px.toFixed(1)}" y="${(py+(showName?20:0)).toFixed(1)}">${esc(fmt(p.it.valor))}</text>`:''}</g>`;
+  }).join('');
+  return `<div class="tm"><svg viewBox="0 0 ${W} ${H}" class="tm-svg" preserveAspectRatio="xMidYMid meet">${rects}</svg></div>`;
+}
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const labelMes=(ym)=>{ const [y,m]=ym.split('-'); return `${MESES[(+m)-1]}/${y.slice(2)}`; };
 const APUR={mensal:'mensal',trimestral:'trimestral',semestral:'semestral',anual:'anual'};
@@ -228,12 +258,10 @@ function render(d){
       }).join('')}</div>${totFoot}</div>`;
   }
 
-  // Por causa (labels/componentes)
+  // Por causa (labels/componentes) — treemap proporcional
   const causa=(CH.porCausa||[]);
-  const maxCa=Math.max(1,...causa.map(x=>x.n));
-  const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:#64748B;font-size:12px">(componentes / labels)</span></h2>
-    <div class="barlist">${causa.map(x=>`<div class="blrow"><div class="top"><span>${esc(x.nome)}</span><span class="val">${x.n}</span></div>
-      <div class="t"><i style="width:${Math.max(3,x.n/maxCa*100)}%"></i></div></div>`).join('')}</div></div>`:'';
+  const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:#64748B;font-size:12px">(componentes / labels · área = nº de chamados)</span></h2>
+    ${treemap(causa.map(x=>({nome:x.nome,valor:x.n})),{fmt:(v)=>v+' chamado'+(v===1?'':'s')})}</div>`:'';
 
   document.getElementById('conteudo').innerHTML = kpis + horasCard + chamCard + causaCard;
 }

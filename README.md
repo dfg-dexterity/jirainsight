@@ -81,6 +81,10 @@ estilo "Bloomberg":
 - Aplicado em **Horas por dia** (Visão Geral + Resumo, com **clique = drill-down do dia**) e no
   **burn-up do ciclo de AMS** (consumo acumulado × pacote contratado) na aba Receita.
 
+**Treemap interativo** (`treemap()`, squarified) para distribuição — área proporcional ao valor,
+rótulo por célula, realce no hover e clique para drill-down. Usado em **Top projetos por horas** e
+**Atividade por tipo** (Resumo) e na **classificação por causa** (portal do cliente).
+
 Complementam: **donut/medidor** para metas e **barras com realce** (a barra focada destaca, as
 demais esmaecem) clicáveis para drill-down.
 
