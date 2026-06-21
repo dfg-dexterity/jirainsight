@@ -9,7 +9,17 @@
 <style>
   :root{ --offwhite:#F5F6F7; --grafite:#1D2D3E; --cerceta:#0070F2; --teal:#17A398;
     --amarelo:#E76500; --musgo:#188918; --err:#BB0000; --linha:#D9D9D9; --cartao:#fff;
+    --muted:#64748B; --muted2:#94A3B8; --trilho:#EEF1F8; --linha2:#E2E8F0; --texto2:#475569;
+    --tintlo:#FEFBEB; --tinthi:#FEF2F2;
     --sombra:0 0 0 1px rgba(34,54,79,.02), 0 1px 4px rgba(34,54,79,.10); }
+  /* Modo escuro automático (segue a preferência do sistema do cliente). */
+  @media (prefers-color-scheme:dark){ :root{
+    --offwhite:#0E1726; --grafite:#E6EDF6; --cartao:#16212F; --linha:#2B3A4D; --linha2:#2B3A4D;
+    --teal:#2BB6AA; --cerceta:#4D9BFF; --amarelo:#F0883E; --musgo:#2EA043; --err:#F2555A;
+    --muted:#93A4BA; --muted2:#7E90A6; --trilho:#22303F; --texto2:#B7C3D3;
+    --tintlo:#33270F; --tinthi:#3A1715;
+    --sombra:0 0 0 1px rgba(0,0,0,.25), 0 2px 10px rgba(0,0,0,.5); color-scheme:dark; }
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--offwhite);color:var(--grafite);
     font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;line-height:1.5;
@@ -18,55 +28,55 @@
   header{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--linha);padding-bottom:14px;margin-bottom:20px}
   header img{width:38px;height:38px}
   header h1{font-size:18px;margin:0;font-weight:700}
-  header .sub{font-size:12.5px;color:#64748B;margin-top:2px}
-  header .ciclo{margin-left:auto;font-size:12.5px;color:#64748B;text-align:right}
+  header .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  header .ciclo{margin-left:auto;font-size:12.5px;color:var(--muted);text-align:right}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
   .kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:15px 16px;box-shadow:var(--sombra);border-top:3px solid var(--teal)}
   .kpi.warn{border-top-color:var(--amarelo)} .kpi.bad{border-top-color:var(--err)} .kpi.ok{border-top-color:var(--musgo)}
   .kpi .v{font-size:clamp(22px,2.4vw,30px);font-weight:700;line-height:1.05}
-  .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:7px}
-  .kpi .s{font-size:12px;color:#64748B;margin-top:3px}
+  .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-top:7px}
+  .kpi .s{font-size:12px;color:var(--muted);margin-top:3px}
   .card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:18px;box-shadow:var(--sombra);margin-bottom:16px}
   .card h2{font-size:14px;margin:0 0 14px;font-weight:700}
-  .bar{position:relative;background:#EEF1F8;border-radius:7px;height:20px;overflow:hidden}
+  .bar{position:relative;background:var(--trilho);border-radius:7px;height:20px;overflow:hidden}
   .bar i{display:block;height:100%;border-radius:7px}
-  .bar-l{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-top:7px;flex-wrap:wrap;color:#475569}
+  .bar-l{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-top:7px;flex-wrap:wrap;color:var(--texto2)}
   .months{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
   .mc{border:1px solid var(--linha);border-radius:8px;padding:9px 10px;text-align:center}
-  .mc .mm{font-size:11px;color:#64748B} .mc .mh{font-weight:700;font-size:15px;margin-top:2px}
-  .mc.lo{border-color:#E7B100;background:#FEFBEB} .mc.hi{border-color:#D20A0A;background:#FEF2F2}
+  .mc .mm{font-size:11px;color:var(--muted)} .mc .mh{font-weight:700;font-size:15px;margin-top:2px}
+  .mc.lo{border-color:#E7B100;background:var(--tintlo)} .mc.hi{border-color:#D20A0A;background:var(--tinthi)}
   .cham{display:flex;flex-direction:column;gap:10px}
   .cham-row{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center}
-  .cham-row .m{font-size:12px;color:#64748B}
+  .cham-row .m{font-size:12px;color:var(--muted)}
   .cham-bars{display:flex;flex-direction:column;gap:4px}
   .cham-bars .b{height:11px;border-radius:4px;display:flex;align-items:center;min-width:2px}
   .cham-bars .b span{font-size:10px;color:#fff;padding:0 6px;white-space:nowrap}
-  .legend{display:flex;gap:16px;font-size:12px;color:#64748B;margin-top:4px}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:4px}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
   .barlist{display:flex;flex-direction:column;gap:11px}
   .blrow{font-size:13px}
   .blrow .top{display:flex;justify-content:space-between;gap:10px}
-  .blrow .t{background:#EEF1F8;border-radius:6px;height:9px;margin-top:4px;overflow:hidden}
+  .blrow .t{background:var(--trilho);border-radius:6px;height:9px;margin-top:4px;overflow:hidden}
   .blrow .t i{display:block;height:100%;background:var(--teal);border-radius:6px}
   .blrow .val{font-variant-numeric:tabular-nums;font-weight:600}
-  .note{font-size:12px;color:#64748B;margin-top:8px}
-  .estado{padding:46px;text-align:center;color:#64748B}
-  .foot{margin-top:24px;font-size:11.5px;color:#94A3B8;text-align:center}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .estado{padding:46px;text-align:center;color:var(--muted)}
+  .foot{margin-top:24px;font-size:11.5px;color:var(--muted2);text-align:center}
   /* Série temporal premium (crosshair + readout) */
   .tsc{--tsc-h:240px;width:100%}
-  .tsc-legend{display:flex;gap:16px;font-size:12px;color:#64748B;margin-bottom:8px;flex-wrap:wrap}
+  .tsc-legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
   .tsc-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
   .tsc-plot{position:relative;height:var(--tsc-h)}
   .tsc-svg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible}
-  .tsc-grid{stroke:#E2E8F0;stroke-width:1}
-  .tsc-meta{stroke:#94A3B8;stroke-width:1.4;stroke-dasharray:5 4}
+  .tsc-grid{stroke:var(--linha2);stroke-width:1}
+  .tsc-meta{stroke:var(--muted2);stroke-width:1.4;stroke-dasharray:5 4}
   .tsc-line{stroke-dasharray:2600;stroke-dashoffset:2600;animation:acDraw 1s ease forwards}
   .tsc-area{opacity:0;animation:acFade .8s ease .25s forwards}
   @keyframes acDraw{to{stroke-dashoffset:0}} @keyframes acFade{to{opacity:1}}
-  .tsc-yl{position:absolute;left:0;transform:translateY(-50%);font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums;width:40px;text-align:right}
-  .tsc-xl{position:absolute;bottom:2px;transform:translateX(-50%);font-size:11px;color:#94A3B8;white-space:nowrap}
-  .tsc-cross{position:absolute;top:14px;bottom:30px;width:1px;background:#94A3B8;opacity:0;transition:opacity .1s}
-  .tsc-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid;transform:translate(-50%,-50%);opacity:0;transition:opacity .1s;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .tsc-yl{position:absolute;left:0;transform:translateY(-50%);font-size:11px;color:var(--muted2);font-variant-numeric:tabular-nums;width:40px;text-align:right}
+  .tsc-xl{position:absolute;bottom:2px;transform:translateX(-50%);font-size:11px;color:var(--muted2);white-space:nowrap}
+  .tsc-cross{position:absolute;top:14px;bottom:30px;width:1px;background:var(--muted2);opacity:0;transition:opacity .1s}
+  .tsc-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--cartao);border:2px solid;transform:translate(-50%,-50%);opacity:0;transition:opacity .1s;box-shadow:0 1px 4px rgba(0,0,0,.18)}
   .tsc.on .tsc-cross,.tsc.on .tsc-dot{opacity:1}
   .tsc-read{position:absolute;top:6px;transform:translateX(-50%);background:#0f1f33;color:#fff;border-radius:9px;padding:8px 11px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .1s;white-space:nowrap;box-shadow:0 10px 28px rgba(15,31,51,.32);z-index:5;min-width:118px}
   .tsc.on .tsc-read{opacity:1} .tsc-read.flip{transform:translateX(-100%) translateX(-12px)}
@@ -220,7 +230,7 @@ function render(d){
     <div class="bar"><i style="width:${w.toFixed(1)}%;background:${corBar}"></i></div>
     <div class="bar-l"><span><strong>${fmtH(cons)}</strong> consumidas de <strong>${pool}h</strong> contratadas (${pct}%)</span>
       <span>${over?`excedente <strong>${fmtH(H.excedenteSeg)}</strong>`:`banco <strong>${fmtH(H.bancoSeg||0)}</strong> disponível`}</span></div>
-    ${meses.length>1?`<div style="font-weight:600;margin:14px 0 2px;font-size:13px">Por mês no ciclo${H.minMes||H.tetoMes?` <span style="color:#64748B;font-weight:400">(mín ${H.minMes||'–'}h · teto ${H.tetoMes||'–'}h)</span>`:''}</div>
+    ${meses.length>1?`<div style="font-weight:600;margin:14px 0 2px;font-size:13px">Por mês no ciclo${H.minMes||H.tetoMes?` <span style="color:var(--muted);font-weight:400">(mín ${H.minMes||'–'}h · teto ${H.tetoMes||'–'}h)</span>`:''}</div>
       <div class="months">${meses.map(ym=>{
         const seg=(H.porMes&&H.porMes[ym])||0, mh=seg/3600, lo=H.minMes&&mh<H.minMes, hi=H.tetoMes&&mh>H.tetoMes;
         return `<div class="mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMes(ym))}</div><div class="mh">${fmtH(seg)}</div>
@@ -238,7 +248,7 @@ function render(d){
       <span>Backlog líquido: <strong style="color:${liq>0?'#B45309':'#188918'}">${liq>0?'+':''}${liq}</strong></span></div>`;
   let chamCard;
   if(sem.length>=2){
-    chamCard=`<div class="card"><h2>Chamados por período <span style="font-weight:400;color:#64748B;font-size:12px">(semanal)</span></h2>
+    chamCard=`<div class="card"><h2>Chamados por período <span style="font-weight:400;color:var(--muted);font-size:12px">(semanal)</span></h2>
       ${tsChart([
         {nome:'Abertos',cor:'#0070F2',vals:sem.map(s=>({x:s.ini,v:s.ab})),tipo:'area'},
         {nome:'Fechados',cor:'#188918',vals:sem.map(s=>({x:s.ini,v:s.fe})),tipo:'line'}
@@ -260,7 +270,7 @@ function render(d){
 
   // Por causa (labels/componentes) — treemap proporcional
   const causa=(CH.porCausa||[]);
-  const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:#64748B;font-size:12px">(componentes / labels · área = nº de chamados)</span></h2>
+  const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:var(--muted);font-size:12px">(componentes / labels · área = nº de chamados)</span></h2>
     ${treemap(causa.map(x=>({nome:x.nome,valor:x.n})),{fmt:(v)=>v+' chamado'+(v===1?'':'s')})}</div>`:'';
 
   document.getElementById('conteudo').innerHTML = kpis + horasCard + chamCard + causaCard;

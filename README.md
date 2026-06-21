@@ -7,24 +7,44 @@ vs. não-faturável. Janelas: hoje, 7 dias e 30 dias.
 
 ## Como funciona (arquitetura)
 
-Front estático (`public/index.html`, sem build) + duas funções serverless no Vercel:
+Front estático (`public/`, **sem build**) + funções serverless no Vercel. O Vercel
+serve `public/` na raiz e cada arquivo em `api/*.js` vira um endpoint.
 
-- `GET /api/tempo` — lê os apontamentos do **Clockwork** na janela, resolve projeto/tipo
-  de cada issue no Jira e classifica faturável. (métrica de **tempo**)
-- `GET /api/atividade` — lê issues atualizadas no **Jira** com o changelog embutido e
-  monta eventos atribuídos ao **autor da alteração**. (métrica de **atividade**)
+**Leitura** (conta de serviço, via variáveis de ambiente — nunca no navegador):
 
-Os tokens ficam só nas variáveis de ambiente do servidor — nunca no navegador.
-Como o front e as funções são servidos pelo mesmo domínio, não há problema de CORS.
+- `GET /api/tempo` — apontamentos do **Clockwork** na janela; resolve projeto/tipo no Jira e classifica faturável.
+- `GET /api/atividade` — issues atualizadas no **Jira** com changelog → eventos por **autor da alteração**.
+- `GET /api/vencimentos` — issues com vencimento/sem responsável (central de alertas).
+- `GET /api/projetos`, `GET /api/usuarios` — metadados (projetos/pessoas) para filtros e formulários.
+- `GET|POST /api/config` — config compartilhada do time (metas/ausências/contratos) e o **painel do cliente** (`?portal=<token>`). A **gravação exige token do Jira** (cabeçalhos `X-Jira-Email`/`X-Jira-Token`).
+- `POST /api/resumo` — resumo executivo por IA (Anthropic).
+- `POST /api/teams` — relatório diário de apontamento no Teams (cron via GitHub Actions).
+
+**Escrita com o token da própria pessoa** (enviado por requisição, nunca persistido):
+
+- `POST /api/apontar` — apontamento (Clockwork) + convites de reunião.
+- `POST /api/transicao` — transição de status, reagendar, atribuir, comentar.
+- `POST /api/criar` — criação de issues (planejamento em lote).
+- `POST /api/reunioes` — mover/reclassificar issues entre projetos/tipos.
+
+Os tokens de serviço ficam só nas variáveis de ambiente do servidor — nunca no navegador
+(a chave do Supabase também é usada apenas no servidor). Front e funções no mesmo domínio: sem CORS.
 
 ```
 api/
-  _lib/util.js     datas (America/Sao_Paulo), cache, fetch do Jira, heurística faturável
-  tempo.js         Clockwork -> horas por pessoa/projeto/categoria/dia + faturável
-  atividade.js     Jira changelog -> eventos por pessoa
+  _lib/util.js     datas (America/Sao_Paulo), cache, fetch do Jira/Clockwork, heurística faturável
+  tempo.js atividade.js vencimentos.js projetos.js usuarios.js   (leitura)
+  config.js resumo.js teams.js                                   (config/IA/cron)
+  apontar.js transicao.js criar.js reunioes.js                   (escrita c/ token da pessoa)
 public/
-  index.html       dashboard (marca Dexterity, gráficos em CSS/SVG, filtros)
+  index.html       dashboard (marca Dexterity, gráficos em CSS/SVG, modo escuro, filtros)
+  portal.html      painel somente-leitura do cliente (AMS), escopado por token
+scripts/
+  check-syntax.mjs gate de sintaxe (npm run check) — roda na CI antes do deploy
 ```
+
+> Sem build não há bundler para pegar erros: rode **`npm run check`** (ou deixe a CI rodar)
+> para validar a sintaxe de `api/**` e do JS embutido nos HTML antes de publicar.
 
 ## Variáveis de ambiente
 

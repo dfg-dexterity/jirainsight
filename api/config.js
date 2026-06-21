@@ -25,6 +25,27 @@ function lerBody(req) {
   });
 }
 
+// ---- Autenticação da escrita: exige um token de API do Jira válido ----
+// A config é compartilhada pelo time; qualquer pessoa autenticada do Jira pode editar,
+// mas a gravação não pode ser anônima (senão qualquer um sobrescreve metas/contratos/tokens).
+async function validaJira(req) {
+  const email = String((req.headers['x-jira-email'] || '')).trim();
+  const token = String((req.headers['x-jira-token'] || '')).trim();
+  if (!email || !email.includes('@') || !token) {
+    return { ok: false, erro: 'Autenticação necessária: configure suas credenciais do Jira (aba Apontar).' };
+  }
+  const base = jiraBase();
+  if (!base) return { ok: false, erro: 'Jira não configurado no servidor.' };
+  const auth = 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
+  try {
+    const r = await fetch(`${base}/rest/api/3/myself`, { headers: { Authorization: auth, Accept: 'application/json' } });
+    if (r.status === 401 || r.status === 403) return { ok: false, erro: 'Credenciais do Jira inválidas.' };
+    if (!r.ok) return { ok: false, erro: `Jira ${r.status}` };
+    const me = await r.json();
+    return { ok: true, accountId: me.accountId || '', email: me.emailAddress || email };
+  } catch (e) { return { ok: false, erro: 'Falha ao validar no Jira.' }; }
+}
+
 // ---- AMS: ciclo de apuração vigente (espelha a lógica do front) ----
 const AMS_MESES = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
 function spHoje() {
@@ -168,8 +189,14 @@ export default async function handler(req, res) {
     if (token) return await portal(req, res, base, headers, token);
 
     if (req.method === 'POST') {
+      const auth = await validaJira(req);
+      if (!auth.ok) return json(res, 401, { configurado: true, ok: false, erro: auth.erro });
       const body = await lerBody(req);
-      const data = (body && typeof body === 'object') ? body : {};
+      const data = (body && typeof body === 'object' && !Array.isArray(body)) ? body : {};
+      // Guarda de tamanho: a config do time é pequena; rejeita payloads anômalos.
+      if (JSON.stringify(data).length > 262144) {
+        return json(res, 413, { configurado: true, ok: false, erro: 'Configuração grande demais.' });
+      }
       const payload = [{ id: ID, data, updated_at: new Date().toISOString() }];
       const r = await fetch(`${base}/rest/v1/${TABELA}?on_conflict=id`, {
         method: 'POST',
