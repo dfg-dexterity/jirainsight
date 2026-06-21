@@ -43,7 +43,7 @@ function ehUtilBR(s, extras, removidos) {
 async function configCompartilhada() {
   const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_ANON_KEY || '';
-  const def = { metaGlobalH: 8, metasPessoa: {}, ausencias: [], feriadosExtra: {}, feriadosRemovidos: [] };
+  const def = { metaGlobalH: 8, metasPessoa: {}, ausencias: [], feriadosExtra: {}, feriadosRemovidos: [], ocultos: [] };
   if (!base || !key) return def;
   try {
     const r = await fetch(`${base}/rest/v1/jirainsight_config?id=eq.default&select=data`,
@@ -122,13 +122,14 @@ export default async function handler(req, res) {
     for (let i = 0; i < 10 && !ehUtilBR(dia, extras, removidos); i += 1) dia = addDias(dia, -1);
 
     const [porPessoa, pessoas] = await Promise.all([worklogsDoDia(dia), jiraUsuariosAtivos()]);
+    const ocultos = new Set((cfg.ocultos || []).map((o) => o.a));   // usuários externos: fora do relatório
     const ehAusente = (a) => (cfg.ausencias || []).some((x) => x.a === a && dia >= x.de && dia <= x.ate);
     const metaSeg = (a) => Math.max(0, Number((cfg.metasPessoa || {})[a] != null ? cfg.metasPessoa[a] : cfg.metaGlobalH) || 0) * 3600;
 
     // Uma linha por pessoa ativa (com meta no dia), ordenada por quem mais precisa
     // apontar (maior lacuna primeiro) — espelha a aba "Ranking" do painel.
     const linhas = Object.keys(pessoas)
-      .filter((a) => !ehAusente(a))
+      .filter((a) => !ehAusente(a) && !ocultos.has(a))
       .map((a) => {
         const seg = porPessoa[a] || 0;
         const meta = metaSeg(a);

@@ -60,6 +60,14 @@ worklog_id, erro).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### Ocultar usuários externos
+
+No botão **Metas → "Usuários externos (ocultar do time)"** dá para marcar pessoas
+(ex.: colaboradores/clientes externos) que **não devem aparecer** em nenhuma visão —
+ranking, timesheet, resumo, seletores e no relatório do Teams. Fica salvo em
+`cfg.ocultos` (compartilhado via Supabase); os dados dessas pessoas são removidos no
+carregamento (`removeUsuariosTecnicos`) e no `/api/teams`.
+
 ### Minhas horas por dia (aba ⏱ Apontar)
 
 No topo da aba, quem está identificado vê um painel **⏱ Minhas horas por dia** com o
