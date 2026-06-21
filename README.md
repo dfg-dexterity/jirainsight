@@ -188,14 +188,15 @@ serverless; consome `cfg.contratos` + worklogs):
 - **Navegador de ciclos** (◀ anterior · vigente · próximo ▶) — a apuração é sempre **por
   ciclo trimestral** (ou o ciclo do contrato), não pela janela do topo; dá para revisar ciclos
   passados. *(O período do topo não faz sentido para AMS e é ignorado nesta seção.)*
-- **Consumo do ciclo × horas contratadas** (ex.: Xh de 60h, %), com selo em risco/esgotado;
+- **Consumo faturável do ciclo × horas contratadas** (ex.: Xh de 60h, %), com selo em
+  risco/esgotado — **só as horas faturáveis consomem o pacote** (o total fica como contexto);
 - **Faturável × não faturável** no ciclo (split + KPI), classificado pela **descrição do tipo**
   do chamado no Jira (ex.: tipo cuja descrição diz "não faturável");
 - **Horas por tipo de issue** com **drill-down**: clique no tipo → lista de **chamados** →
   link direto para o **Jira** (`/browse/CHAVE`);
-- **Banco de horas** (saldo disponível até o fim do ciclo) e **excedente** (acima do pacote
-  → requer **autorização prévia** e é faturado junto com o ciclo);
-- **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente;
+- **Banco de horas** (saldo faturável disponível até o fim do ciclo) e **excedente** (horas
+  faturáveis acima do pacote → requer **autorização prévia** e é faturado junto com o ciclo);
+- **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente faturável;
 - **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
 - **🖨 PDF da apuração** (por contrato): documento com o **valor apurado** referenciando o
   contrato + a **memória de apontamentos por chamado** (cada chamado com suas linhas de
@@ -203,8 +204,10 @@ serverless; consome `cfg.contratos` + worklogs):
 - KPIs do conjunto: faturamento do ciclo, horas no ciclo, **faturáveis/não faturáveis**,
   banco de horas e nº em excedente.
 
-> O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo. O consumo do
-> ciclo soma **todas** as horas; o split faturável/não faturável é informativo.
+> O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo. **Só as horas
+> faturáveis consomem o pacote/excedente**; as não faturáveis (ex.: "Tarefas ADM") ficam fora
+> da apuração — continuam visíveis como indicador (split/KPI) e na memória do PDF, mas não
+> entram no banco de horas nem no excedente.
 
 **💰 Bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado, projeção pelo
 **período selecionado**: horas contratadas × consumidas, **% de esgotamento + projeção**

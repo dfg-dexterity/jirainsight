@@ -210,25 +210,27 @@ function render(d){
     ? `Ciclo vigente<br><strong>${esc(labelMes(meses[0]))}${meses.length>1?'–'+esc(labelMes(meses[meses.length-1])):''}</strong>` : '';
 
   const H=d.horas||{}; const V=d.valor||{}; const CH=d.chamados||{};
-  const pool=H.contratadasCiclo||0; const cons=H.consumidoSeg||0; const consH=cons/3600;
-  const pct=pool?Math.round(consH/pool*100):0;
+  // Só as horas faturáveis consomem o pacote; o total do ciclo entra como contexto.
+  const pool=H.contratadasCiclo||0; const cons=H.consumidoSeg||0;
+  const fat=H.faturavelSeg!=null?H.faturavelSeg:cons; const fatH=fat/3600;
+  const pct=pool?Math.round(fatH/pool*100):0;
   const over=H.excedenteSeg>0;
   const corBar=over?'var(--err)':(pct>=85?'var(--amarelo)':'var(--teal)');
   const kClass=over?'bad':(pct>=85?'warn':'ok');
 
   // KPIs
   const kpis=`<div class="kpis">
-    <div class="kpi ${kClass}"><div class="v">${pct}%</div><div class="l">Consumo do ciclo</div><div class="s">${fmtH(cons)} de ${pool}h</div></div>
+    <div class="kpi ${kClass}"><div class="v">${pct}%</div><div class="l">Consumo do ciclo</div><div class="s">${fmtH(fat)} faturáveis de ${pool}h</div></div>
     <div class="kpi ok"><div class="v">${fmtH(H.bancoSeg||0)}</div><div class="l">Banco de horas</div><div class="s">disponível no ciclo</div></div>
     <div class="kpi ${over?'bad':''}"><div class="v">${over?fmtH(H.excedenteSeg):'0h'}</div><div class="l">Excedente</div><div class="s">${over&&V.hora?fmtBRL(V.excedente)+' a autorizar':'dentro do pacote'}</div></div>
     <div class="kpi"><div class="v">${CH.abertosTotal||0}/${CH.fechadosTotal||0}</div><div class="l">Chamados (abertos/fechados)</div><div class="s">no ciclo</div></div>
   </div>`;
 
   // Barra de horas
-  const w=pool?Math.min(100,consH/pool*100):0;
+  const w=pool?Math.min(100,fatH/pool*100):0;
   const horasCard=`<div class="card"><h2>Horas do ciclo</h2>
     <div class="bar"><i style="width:${w.toFixed(1)}%;background:${corBar}"></i></div>
-    <div class="bar-l"><span><strong>${fmtH(cons)}</strong> consumidas de <strong>${pool}h</strong> contratadas (${pct}%)</span>
+    <div class="bar-l"><span><strong>${fmtH(fat)}</strong> faturáveis de <strong>${pool}h</strong> contratadas (${pct}%)${cons!==fat?` · ${fmtH(cons)} no total`:''}</span>
       <span>${over?`excedente <strong>${fmtH(H.excedenteSeg)}</strong>`:`banco <strong>${fmtH(H.bancoSeg||0)}</strong> disponível`}</span></div>
     ${meses.length>1?`<div style="font-weight:600;margin:14px 0 2px;font-size:13px">Por mês no ciclo${H.minMes||H.tetoMes?` <span style="color:var(--muted);font-weight:400">(mín ${H.minMes||'–'}h · teto ${H.tetoMes||'–'}h)</span>`:''}</div>
       <div class="months">${meses.map(ym=>{

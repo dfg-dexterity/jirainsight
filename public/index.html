@@ -3990,11 +3990,12 @@ function amsLabelCiclo(cyc){ if(!cyc.meses.length) return '';
 // Consumo do ciclo (worklogs do intervalo carregados em estado.ams), por mês.
 function amsConsumoCiclo(c, cyc){
   const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
-  let seg=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
+  // seg = todas as horas do ciclo; segFat = só as faturáveis (estas consomem o pacote/excedente).
+  let seg=0, segFat=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
   wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
     if(!dia||dia<cyc.start||dia>cyc.end) return;
-    const s=Number(w.s)||0; seg+=s; const ym=dia.slice(0,7); if(ym in porMes) porMes[ym]+=s; });
-  return { seg, porMes };
+    const s=Number(w.s)||0; seg+=s; if(w.f) segFat+=s; const ym=dia.slice(0,7); if(ym in porMes) porMes[ym]+=s; });
+  return { seg, segFat, porMes };
 }
 // Data de referência do ciclo em exibição (vazio = hoje/ciclo vigente).
 function amsRefSel(){ return (estado.ams&&estado.ams.ref) || hojeSP(); }
@@ -4237,7 +4238,8 @@ function renderReceita(){
     </div>` : '';
   const amsCard=(c)=>{
     const cyc=amsCicloVigente(c,refSel); const cons=amsConsumoCiclo(c,cyc);
-    const pool=amsHorasCiclo(c); const h=cons.seg/3600; const vh=Number(c.valorHora)||0;
+    // Só horas faturáveis consomem o pacote/excedente; o total fica como contexto.
+    const pool=amsHorasCiclo(c); const h=cons.segFat/3600; const vh=Number(c.valorHora)||0;
     const pctv=pool?Math.round(h/pool*100):0;
     const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
     const parcela=pool*vh, valExced=excedente*vh;
@@ -4251,9 +4253,9 @@ function renderReceita(){
     // Burn-up: consumo acumulado por dia no ciclo (com linha do pacote contratado).
     const ateDia=cyc.end<hoje?cyc.end:hoje;
     const setP=new Set(c.projetos||[]); const wlAms=(estado.ams&&estado.ams.dados)||[]; const porDiaC={};
-    wlAms.forEach(w=>{ if(!setP.has(w.p)) return; const dd=(w.d||'').slice(0,10); if(dd>=cyc.start&&dd<=ateDia) porDiaC[dd]=(porDiaC[dd]||0)+(Number(w.s)||0); });
+    wlAms.forEach(w=>{ if(!setP.has(w.p)||!w.f) return; const dd=(w.d||'').slice(0,10); if(dd>=cyc.start&&dd<=ateDia) porDiaC[dd]=(porDiaC[dd]||0)+(Number(w.s)||0); });
     let acc=0; const burn=listaDias(cyc.start,ateDia).map(dd=>{ acc+=(porDiaC[dd]||0); return {x:dd,v:acc}; });
-    const burnChart = burn.length>1 ? tsChart([{nome:'Consumo acumulado',cor,vals:burn,tipo:'area'}],
+    const burnChart = burn.length>1 ? tsChart([{nome:'Consumo faturável acumulado',cor,vals:burn,tipo:'area'}],
       {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),metaY:{v:pool*3600},altura:'180px'}) : '';
     const mesesHtml=cyc.meses.map(ym=>{
       const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
@@ -4283,8 +4285,8 @@ function renderReceita(){
         <span class="ciclo">Ciclo ${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</span>
         <button class="btn ams-pdf" data-ams-pdf="${escA(c.id)}" title="Exportar a apuração deste contrato em PDF">PDF da apuração</button></div>
       <div class="ams-bar"><div class="ams-track"><div class="ams-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div></div>
-        <div class="ams-bar-l"><span><strong>${fmtH(cons.seg)}</strong> de ${pool}h no ciclo (${pctv}%)</span>
-          <span class="muted">${excedente>0?`excedente ${fmtH(Math.round(excedente*3600))}`:`banco ${fmtH(Math.round(banco*3600))} disponível`}</span></div></div>
+        <div class="ams-bar-l"><span><strong>${fmtH(cons.segFat)}</strong> faturáveis de ${pool}h no ciclo (${pctv}%)</span>
+          <span class="muted">${cons.seg!==cons.segFat?`${fmtH(cons.seg)} no total · `:''}${excedente>0?`excedente ${fmtH(Math.round(excedente*3600))}`:`banco ${fmtH(Math.round(banco*3600))} disponível`}</span></div></div>
       <div class="ams-kpis">
         <div class="ams-k"><div class="v">${fmtH(Math.round(banco*3600))}</div><div class="l">Banco de horas</div></div>
         <div class="ams-k"><div class="v ${excedente>0?'over':''}">${excedente>0?fmtH(Math.round(excedente*3600)):'0h'}</div><div class="l">Excedente (autorizar)</div></div>
@@ -4296,7 +4298,7 @@ function renderReceita(){
         <div class="ams-fat-l"><span><b style="color:#188918">${fmtH(pt.segFat)}</b> faturáveis</span>
           <span><b style="color:#C77700">${fmtH(pt.segNao)}</b> não faturáveis</span>
           <span class="muted">${fatPct}% faturável no ciclo</span></div></div>
-      ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h)</span></div>${burnChart}`:''}
+      ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo faturável no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h; só horas faturáveis consomem o pacote)</span></div>${burnChart}`:''}
       <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
       <div class="ams-months">${mesesHtml}</div>
       <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(clique no tipo para ver os chamados → Jira)</span></div>
@@ -4315,7 +4317,7 @@ function renderReceita(){
     } else {
       let tReceita=0,tCons=0,tBanco=0,nExced=0,tFat=0,tNao=0;
       const cards=amsList.map(c=>{
-        const cyc=amsCicloVigente(c,refSel), cons=amsConsumoCiclo(c,cyc), pool=amsHorasCiclo(c), h=cons.seg/3600, vh=Number(c.valorHora)||0;
+        const cyc=amsCicloVigente(c,refSel), cons=amsConsumoCiclo(c,cyc), pool=amsHorasCiclo(c), h=cons.segFat/3600, vh=Number(c.valorHora)||0;
         const exc=Math.max(0,h-pool); tReceita+=(pool+exc)*vh; tCons+=cons.seg; tBanco+=Math.max(0,pool-h)*3600; if(exc>0) nExced++;
         const pt=amsPorTipo(c,cyc); tFat+=pt.segFat; tNao+=pt.segNao;
         return amsCard(c);
@@ -4331,7 +4333,7 @@ function renderReceita(){
         </div>
         <div class="card full"><h2>AMS — apuração por ciclo <span>${amsList.length} contrato(s) · banco de horas</span></h2>
           ${amsNav}
-          <div class="muted small" style="margin:8px 0 12px">Consumo do <strong>ciclo de apuração selecionado</strong> de cada contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
+          <div class="muted small" style="margin:8px 0 12px">Consumo do <strong>ciclo de apuração selecionado</strong> de cada contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong> (as não faturáveis ficam fora da apuração). O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
           ${cards}</div>`;
     }
   }
@@ -4841,6 +4843,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-21','🧮 <b>AMS — só horas faturáveis consomem o pacote</b>: o banco de horas, o excedente e o faturamento do ciclo passam a considerar <b>apenas as horas faturáveis</b>; as não faturáveis (ex.: "Tarefas ADM") ficam fora da apuração (continuam visíveis como indicador e na memória do PDF).'],
   ['2026-06-21','🛠️ <b>AMS & Governança renovado</b> — apuração <b>por ciclo trimestral</b> (com navegador de ciclos), <b>horas por tipo de issue</b> com drill-down até o chamado no Jira, indicador <b>faturável × não faturável</b> (pela descrição do tipo) e <b>PDF da apuração por contrato</b> (valor apurado + memória de apontamentos por chamado).'],
   ['2026-06-21','⚙️ <b>Admin</b>: ao mapear um contrato AMS aparecem <b>só projetos da categoria AMS</b>.'],
   ['2026-06-21','🏅 <b>Ranking</b>: quem está em dia ganha destaque comemorativo (estrelas) e quem não apontou, um efeito de decepção (respeita <i>reduced-motion</i>).'],
@@ -4864,7 +4867,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-21.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-21.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5163,7 +5166,8 @@ function pdfApuracaoAMS(id){
   const c=(cfg.contratos||[]).find(x=>x.id===id); if(!c) return;
   const doc=document.getElementById('print-doc'); if(!doc) return;
   const cyc=amsCicloVigente(c,amsRefSel()); const cons=amsConsumoCiclo(c,cyc);
-  const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0; const h=cons.seg/3600;
+  // Só horas faturáveis consomem o pacote/excedente; o total do ciclo entra como contexto.
+  const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0; const h=cons.segFat/3600;
   const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
   const parcela=pool*vh, valExced=excedente*vh, total=parcela+valExced;
   const pctv=pool?Math.round(h/pool*100):0;
@@ -5206,8 +5210,8 @@ function pdfApuracaoAMS(id){
       ${c.obs?`<tr><th>Observações</th><td colspan="3">${esc(c.obs)}</td></tr>`:''}
     </tbody></table>
     <div class="doc-kpis">
-      ${linhaKpi(fmtH(cons.seg),`Horas no ciclo (${pctv}% de ${pool}h)`)}
-      ${linhaKpi(fmtH(pt.segFat),`Faturáveis (${fatPct}%)`,'good')}
+      ${linhaKpi(fmtH(cons.seg),'Horas no ciclo (total)')}
+      ${linhaKpi(fmtH(pt.segFat),`Faturáveis · ${pctv}% de ${pool}h`,'good')}
       ${linhaKpi(fmtH(pt.segNao),'Não faturáveis','warn')}
       ${linhaKpi(fmtH(Math.round(banco*3600)),'Banco de horas')}
       ${linhaKpi(excedente>0?fmtH(Math.round(excedente*3600)):'0h','Excedente',excedente>0?'bad':'')}
@@ -5218,7 +5222,7 @@ function pdfApuracaoAMS(id){
     ${tiposOrd.length?tiposTab:'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
     <h3>Memória de apontamentos por chamado <span class="doc-h3s">${chs.length} chamado(s) · ${fmtH(pt.seg)}</span></h3>
     ${memoria||'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
-    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo painel Insights de Uso (Jira + Clockwork) da Dexterity IT.</div>
+    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong>; as não faturáveis aparecem na memória apenas como registro. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo painel Insights de Uso (Jira + Clockwork) da Dexterity IT.</div>
   </div>`;
   document.body.classList.add('doc-print');
   const prev=document.title; document.title=`Apuração AMS — ${c.cliente||''} — ${amsLabelCiclo(cyc)}`;
