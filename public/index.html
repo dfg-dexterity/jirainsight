@@ -671,7 +671,7 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -807,7 +807,8 @@ async function carrega(periodo){
     a = { meta:{ ...(t.meta||{}), concluidasPorProjeto:{}, concluidasTotal:0 }, pessoas:{}, projetos:{}, resumos:{}, eventos:[] };
   }
   const usuarios = (u && u.pessoas && typeof u.pessoas==='object') ? u.pessoas : {};
-  Object.keys(usuarios).forEach(id=>{ if(RE_EXCLUIR.test((usuarios[id]&&usuarios[id].nome)||'')) delete usuarios[id]; });
+  const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
+  Object.keys(usuarios).forEach(id=>{ if(RE_EXCLUIR.test((usuarios[id]&&usuarios[id].nome)||'') || ocultos.has(id)) delete usuarios[id]; });
   removeUsuariosTecnicos(t, a);
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
   estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
@@ -819,6 +820,7 @@ async function carrega(periodo){
 function removeUsuariosTecnicos(t, a){
   const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
   const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));
+  (cfg.ocultos||[]).forEach(o=>bots.add(o.a));   // usuários externos marcados como "ocultar"
   if(!bots.size) return;
   if(t){ if(t.worklogs) t.worklogs = t.worklogs.filter(w=>!bots.has(w.a)); if(t.pessoas) bots.forEach(id=>delete t.pessoas[id]); }
   if(a){ if(a.eventos)  a.eventos  = a.eventos.filter(e=>!bots.has(e.a));  if(a.pessoas) bots.forEach(id=>delete a.pessoas[id]); }
@@ -3395,8 +3397,9 @@ function abreAjuda(){
       confira antes de qualquer decisão. <i>Requer a chave de IA configurada pelo administrador.</i>
     </div></details>
     <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
-      No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências e feriados nacionais (com Carnaval,
-      Sexta-feira Santa e Corpus Christi). Fim de semana, feriado, ausência e hoje não contam na lacuna.
+      No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências, feriados nacionais (com Carnaval,
+      Sexta-feira Santa e Corpus Christi) e <b>usuários externos a ocultar</b> (somem de todas as visões).
+      Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
 
     <div class="mt-sec">
@@ -3645,6 +3648,10 @@ function abreMetas(){
     `<div class="mt-item"><span>${esc(nomeDe(x.a))} — ${esc(x.de)} → ${esc(x.ate)}</span>
        <button class="btn" data-del-aus="${i}">remover</button></div>`).join('')
     : '<div class="muted small">Nenhuma ausência cadastrada.</div>';
+  const listaOc=(cfg.ocultos||[]).length ? cfg.ocultos.map((o,i)=>
+    `<div class="mt-item"><span>${esc(o.nome||o.a)}</span>
+       <button class="btn" data-del-oculto="${i}">reexibir</button></div>`).join('')
+    : '<div class="muted small">Nenhum usuário externo ocultado.</div>';
 
   // Feriados do(s) ano(s) abrangidos pelo período atual.
   const metaP=(estado.tempo&&estado.tempo.meta)||{};
@@ -3701,6 +3708,16 @@ function abreMetas(){
         <div class="campo"><label>De</label><input type="date" id="mt-aus-de"></div>
         <div class="campo"><label>Até</label><input type="date" id="mt-aus-ate"></div>
         <button class="btn" id="mt-add-aus">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="mt-sec">
+      <h3>Usuários externos (ocultar do time)</h3>
+      <div class="muted small">Pessoas marcadas aqui <strong>não aparecem em nenhuma visão</strong> (ranking, timesheet, resumo, seletores). Use para colaboradores/clientes externos. Vale para o time todo quando a config é compartilhada.</div>
+      ${listaOc}
+      <div class="mt-form">
+        <div class="campo"><label>Pessoa</label><select id="mt-oc-pessoa">${optP}</select></div>
+        <button class="btn" id="mt-add-oculto">Ocultar pessoa</button>
       </div>
     </div>
 
@@ -4022,6 +4039,12 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='mt-add-aus'){ const a=val('mt-aus-pessoa'), de=val('mt-aus-de'), ate=val('mt-aus-ate');
     if(a&&de&&ate){ cfg.ausencias.push({a, de, ate:(ate<de?de:ate)}); salvaCfg(); render(); abreMetas(); } }
   else if(t.hasAttribute('data-del-aus')){ cfg.ausencias.splice(Number(t.getAttribute('data-del-aus')),1); salvaCfg(); render(); abreMetas(); }
+  else if(t.id==='mt-add-oculto'){ const a=val('mt-oc-pessoa');
+    if(a){ const nome=(pessoasUnidas()[a]&&pessoasUnidas()[a].nome)||a; cfg.ocultos=cfg.ocultos||[];
+      if(!cfg.ocultos.some(o=>o.a===a)) cfg.ocultos.push({a,nome});
+      salvaCfg(); estado.cache={}; recarrega(); abreMetas(); } }
+  else if(t.hasAttribute('data-del-oculto')){ cfg.ocultos.splice(Number(t.getAttribute('data-del-oculto')),1);
+    salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
   else if(t.id==='mt-add-fer'){ const de=val('mt-fer-data'), nm=(val('mt-fer-nome')||'').trim();
     if(de){ cfg.feriadosExtra=cfg.feriadosExtra||{}; cfg.feriadosExtra[de]=nm||'Feriado';
       cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==de); salvaCfg(); render(); abreMetas(); } }
