@@ -148,7 +148,8 @@ dados **daquele cliente** — nunca de outros.
 - **Gerar o link:** na aba **⚙️ Admin**, cada contrato tem **🔗 Gerar link do cliente** (cria/rotaciona
   o `portalToken`, salvo em `cfg.contratos`); botão **copiar** e **novo** (invalida o anterior).
 - **O que o cliente vê:** consumo do **ciclo vigente** × horas contratadas (banco de horas /
-  excedente), consumo **por mês** (mín/teto), **chamados abertos × fechados por período** e a
+  excedente), consumo **por mês** (mín/teto), **série temporal semanal de chamados abertos ×
+  fechados** (gráfico premium com crosshair/leitura ao passar o mouse) + **backlog líquido**, e a
   **classificação por componentes/labels** (causa). Tudo do ciclo de apuração corrente.
 - **API:** `GET /api/config?portal=<token>` (consolidado no endpoint de config — **sem nova
   função serverless**): lê o contrato no Supabase, busca worklogs do ciclo (Clockwork) e
