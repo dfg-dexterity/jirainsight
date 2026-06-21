@@ -486,6 +486,14 @@
   .tsc-read .r{display:flex;align-items:center;gap:7px;line-height:1.7}
   .tsc-read .r i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
   .tsc-read .r span{color:#b8c6da;margin-right:8px} .tsc-read .r b{margin-left:auto;font-variant-numeric:tabular-nums}
+  /* Treemap interativo */
+  .tm{width:100%}
+  .tm-svg{width:100%;height:auto;display:block;max-height:clamp(300px,42vh,460px)}
+  .tm-cell{cursor:default} .tm-cell[data-drill]{cursor:pointer}
+  .tm-cell rect{transition:opacity .12s ease}
+  .tm:hover .tm-cell{opacity:.78} .tm:hover .tm-cell:hover{opacity:1}
+  .tm-n{fill:#fff;font-weight:700;font-size:17px;font-family:var(--corpo)}
+  .tm-v{fill:rgba(255,255,255,.86);font-size:14px;font-family:var(--corpo)}
   /* Donut / gauge */
   .donut-wrap{display:flex;justify-content:center;align-items:center}
   .donut{width:clamp(118px,15vh,158px);height:auto}
@@ -1306,6 +1314,41 @@ function donut(pctv, label, cor){
     <text class="donut-lbl" x="50" y="65" text-anchor="middle">${esc(label||'')}</text></svg></div>`;
 }
 
+// Treemap (squarified) interativo: áreas proporcionais ao valor, rótulo por célula,
+// hover (realce + tooltip) e clique para drill-down. items:[{nome,valor,cor?,drill?}].
+function treemap(items, opts){
+  opts=opts||{}; const fmt=opts.fmt||(v=>String(v));
+  items=(items||[]).filter(i=>(+i.valor)>0).slice().sort((a,b)=>b.valor-a.valor);
+  if(!items.length) return '<div class="estado">Sem dados para os filtros atuais.</div>';
+  const W=1000, H=opts.h||440;
+  const total=items.reduce((s,i)=>s+(+i.valor),0)||1;
+  const nodes=items.map(it=>({it, area:(+it.valor)/total*(W*H)}));
+  let x=0,y=0,w=W,h=H,i=0; const placed=[];
+  const worst=(row,side)=>{ const s=row.reduce((a,n)=>a+n.area,0),mx=Math.max(...row.map(n=>n.area)),mn=Math.min(...row.map(n=>n.area));
+    return Math.max((side*side*mx)/(s*s),(s*s)/(side*side*mn)); };
+  while(i<nodes.length){
+    const side=Math.min(w,h); let row=[nodes[i]],j=i+1,cur=worst(row,side);
+    while(j<nodes.length){ const t=row.concat(nodes[j]); const wt=worst(t,side); if(wt<=cur){ row=t; cur=wt; j++; } else break; }
+    const s=row.reduce((a,n)=>a+n.area,0);
+    if(w>=h){ const thick=s/h; let yy=y; row.forEach(n=>{ const hh=n.area/thick; placed.push({it:n.it,x,y:yy,w:thick,h:hh}); yy+=hh; }); x+=thick; w-=thick; }
+    else { const thick=s/w; let xx=x; row.forEach(n=>{ const ww=n.area/thick; placed.push({it:n.it,x:xx,y,w:ww,h:thick}); xx+=ww; }); y+=thick; h-=thick; }
+    i=j;
+  }
+  const rects=placed.map((p,idx)=>{
+    const c=p.it.cor||PALETA[idx%PALETA.length];
+    const showName=p.w>140&&p.h>34, showVal=p.w>64&&p.h>24;
+    const px=p.x+11, py=p.y+24, maxch=Math.floor((p.w-18)/8.6);
+    const nm=String(p.it.nome||''); const nmS=nm.length>maxch?nm.slice(0,Math.max(1,maxch-1))+'…':nm;
+    const dr=p.it.drill?` data-drill="${escA(p.it.drill.type)}" data-key="${escA(p.it.drill.key)}" data-tipk="clique para detalhar"`:'';
+    return `<g class="tm-cell"${dr} data-tip="${escA(nm)}" data-tip2="${escA(fmt(p.it.valor))}">
+      <rect x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" width="${Math.max(0,p.w-2).toFixed(1)}" height="${Math.max(0,p.h-2).toFixed(1)}" rx="6" fill="${c}"/>
+      ${showName?`<text class="tm-n" x="${px.toFixed(1)}" y="${py.toFixed(1)}">${esc(nmS)}</text>`:''}
+      ${showVal?`<text class="tm-v" x="${px.toFixed(1)}" y="${(py+(showName?20:0)).toFixed(1)}">${esc(fmt(p.it.valor))}</text>`:''}
+    </g>`;
+  }).join('');
+  return `<div class="tm"><svg viewBox="0 0 ${W} ${H}" class="tm-svg" preserveAspectRatio="xMidYMid meet">${rects}</svg></div>`;
+}
+
 // ===== Motor de gráficos premium interativos (SVG, sem dependências) =====
 // Série temporal multi-séries com crosshair que segue o cursor, leitura ("readout")
 // ao passar o mouse, gridlines, linha de meta e animação. Toda a interação usa um
@@ -1728,8 +1771,8 @@ function renderResumo(){
           'Concluídos':(k.concl==null?0:k.concl) },(v)=>v,cores.amarelo,6);
       })()}</div>
       <div class="card"><h2>Horas por categoria <span>clique para detalhar</span></h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8,null,null,{drill:(k)=>({type:'categoria',key:k})})}</div>
-      <div class="card"><h2>Atividade por tipo <span>tickets distintos · clique p/ detalhar</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8,null,null,{tip2Fn:(k,v)=>`${v} tickets`,drill:(k)=>({type:'tipo',key:k})})}</div>
-      <div class="card"><h2>Top projetos por horas <span>passe o mouse no código · clique p/ detalhar</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,nomeProjResumo,nomeProjResumo,{drill:(k)=>({type:'projeto',key:k})})}</div>
+      <div class="card"><h2>Atividade por tipo <span>treemap · clique p/ detalhar</span></h2>${treemap(Object.entries(d.porTipo).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,v])=>({nome:k,valor:v,drill:{type:'tipo',key:k}})),{fmt:(v)=>v+' tickets'})}</div>
+      <div class="card full"><h2>Top projetos por horas <span>treemap · área = horas · clique p/ detalhar</span></h2>${treemap(Object.entries(d.porProjeto).sort((a,b)=>b[1]-a[1]).slice(0,14).map(([k,v])=>({nome:nomeProjResumo(k),valor:v,drill:{type:'projeto',key:k}})),{fmt:fmtH})}</div>
       <div class="card full"><h2>Horas por dia <span>clique num ponto para detalhar</span></h2>${colunas}</div>
     </div>
   </div>`));
