@@ -71,10 +71,18 @@ Cada bloco é **acionável**: clicar leva direto à aba de detalhe (Alertas, Tim
 
 ### Gráficos modernos e interativos
 
-Os gráficos usam **área com gradiente e animação de traçado**, **donut/medidor** para metas e
-**barras com realce** ao passar o mouse (a barra focada destaca, as demais esmaecem). Pontos do
-gráfico de área e barras seguem **clicáveis para drill-down**. Tudo respeita
-`prefers-reduced-motion`.
+Motor de **séries temporais premium** feito à mão em SVG (sem dependências/CDN — `tsChart()`),
+estilo "Bloomberg":
+
+- **Crosshair** que segue o cursor + **readout** flutuante (data + valor de cada série), com
+  pontos destacados e **multi-séries** (linha/área, gradiente, linha de meta tracejada).
+- Posicionamento dos overlays por **porcentagem do viewBox** (não distorce ao esticar) e
+  **animação de traçado** que respeita `prefers-reduced-motion`. **Toque** suportado.
+- Aplicado em **Horas por dia** (Visão Geral + Resumo, com **clique = drill-down do dia**) e no
+  **burn-up do ciclo de AMS** (consumo acumulado × pacote contratado) na aba Receita.
+
+Complementam: **donut/medidor** para metas e **barras com realce** (a barra focada destaca, as
+demais esmaecem) clicáveis para drill-down.
 
 ### Navegação e novidades
 

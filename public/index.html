@@ -449,6 +449,31 @@
   .ac-xl{fill:#94A3B8;font-size:11px;font-family:var(--corpo)}
   @keyframes acDraw{to{stroke-dashoffset:0}}
   @keyframes acFade{to{opacity:1}}
+  /* Série temporal premium (crosshair + readout) */
+  .tsc{--tsc-h:clamp(180px,26vh,260px);width:100%}
+  .tsc-legend{display:flex;gap:16px;font-size:12px;color:#64748B;margin-bottom:8px;flex-wrap:wrap}
+  .tsc-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .tsc-plot{position:relative;height:var(--tsc-h)}
+  .tsc-drill .tsc-plot{cursor:pointer}
+  .tsc-svg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible}
+  .tsc-grid{stroke:#E2E8F0;stroke-width:1}
+  .tsc-meta{stroke:#94A3B8;stroke-width:1.4;stroke-dasharray:5 4}
+  .tsc-line{stroke-dasharray:2600;stroke-dashoffset:2600;animation:acDraw 1s ease forwards}
+  .tsc-area{opacity:0;animation:acFade .8s ease .25s forwards}
+  .tsc-yl{position:absolute;left:0;transform:translateY(-50%);font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums;width:40px;text-align:right}
+  .tsc-xl{position:absolute;bottom:2px;transform:translateX(-50%);font-size:11px;color:#94A3B8;white-space:nowrap}
+  .tsc-cross{position:absolute;top:14px;bottom:30px;width:1px;background:#94A3B8;opacity:0;transition:opacity .1s}
+  .tsc-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid;transform:translate(-50%,-50%);opacity:0;transition:opacity .1s;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .tsc.on .tsc-cross,.tsc.on .tsc-dot{opacity:1}
+  .tsc-read{position:absolute;top:6px;transform:translateX(-50%);background:#0f1f33;color:#fff;border-radius:9px;
+    padding:8px 11px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .1s;white-space:nowrap;
+    box-shadow:0 10px 28px rgba(15,31,51,.32);z-index:5;min-width:118px}
+  .tsc.on .tsc-read{opacity:1}
+  .tsc-read.flip{transform:translateX(-100%) translateX(-12px)}
+  .tsc-read .h{font-weight:700;margin-bottom:5px;font-size:11.5px;color:#cfe0f5;letter-spacing:.3px}
+  .tsc-read .r{display:flex;align-items:center;gap:7px;line-height:1.7}
+  .tsc-read .r i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+  .tsc-read .r span{color:#b8c6da;margin-right:8px} .tsc-read .r b{margin-left:auto;font-variant-numeric:tabular-nums}
   /* Donut / gauge */
   .donut-wrap{display:flex;justify-content:center;align-items:center}
   .donut{width:clamp(118px,15vh,158px);height:auto}
@@ -1104,6 +1129,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 }
 
 function render(){
+  _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
   if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
@@ -1251,6 +1277,105 @@ function donut(pctv, label, cor){
     <text class="donut-pct" x="50" y="49" text-anchor="middle" dominant-baseline="middle">${p}%</text>
     <text class="donut-lbl" x="50" y="65" text-anchor="middle">${esc(label||'')}</text></svg></div>`;
 }
+
+// ===== Motor de gráficos premium interativos (SVG, sem dependências) =====
+// Série temporal multi-séries com crosshair que segue o cursor, leitura ("readout")
+// ao passar o mouse, gridlines, linha de meta e animação. Toda a interação usa um
+// registro em memória + um único handler global; o posicionamento dos overlays é por
+// PORCENTAGEM (derivada do viewBox), então não distorce mesmo com a SVG esticada.
+const _TSC = {}; let _tscSeq = 0;
+function _tscReset(){ for(const k in _TSC) delete _TSC[k]; }
+function _tscNice(v){ if(v<=0) return 1; const e=Math.pow(10,Math.floor(Math.log10(v))); const f=v/e;
+  const n=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10; return n*e; }
+function _tscSmooth(P){ if(!P.length) return ''; let d=`M ${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+  for(let i=0;i<P.length-1;i++){ const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||P[i+1];
+    const c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6,c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+    d+=` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`; }
+  return d; }
+// series: [{nome,cor,vals:[{x,v}],tipo:'area'|'line',dash?,w?}]
+// opts: {fmt, yfmt, xlabel(x), readX(x), altura, metaY:{v,label}, h}
+function tsChart(series, opts){
+  opts=opts||{}; const fmt=opts.fmt||(v=>String(v));
+  series=(series||[]).filter(s=>s&&s.vals&&s.vals.length);
+  if(!series.length) return '<div class="estado">Sem dados no período.</div>';
+  const xs0=series[0].vals.map(p=>p.x); const n=xs0.length;
+  const W=1000, H=opts.h||220, padL=opts.padL!=null?opts.padL:46, padR=16, padT=14, padB=30;
+  let maxV=0; series.forEach(s=>s.vals.forEach(p=>{ if(p.v>maxV) maxV=p.v; }));
+  if(opts.metaY && opts.metaY.v>maxV) maxV=opts.metaY.v;
+  const niceMax=_tscNice(maxV||1);
+  const X=i=> padL + (n>1? i*(W-padL-padR)/(n-1) : (W-padL-padR)/2);
+  const Y=v=> padT + (1 - v/niceMax)*(H-padT-padB);
+  const xs=xs0.map((_,i)=>X(i));
+  const pctL=x=>(x/W*100), pctT=y=>(y/H*100);
+
+  // gridlines + y labels (overlay HTML)
+  const ticks=4; let grid=''; let yl='';
+  for(let t=0;t<=ticks;t++){ const val=niceMax*t/ticks, y=Y(val);
+    grid+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" class="tsc-grid"/>`;
+    yl+=`<span class="tsc-yl" style="top:${pctT(y).toFixed(2)}%">${esc(opts.yfmt?opts.yfmt(val):fmt(val))}</span>`; }
+  // x labels (overlay HTML, esparso)
+  const every=Math.max(1,Math.ceil(n/9)); let xl='';
+  xs0.forEach((x,i)=>{ if(i%every===0||i===n-1) xl+=`<span class="tsc-xl" style="left:${pctL(X(i)).toFixed(2)}%">${esc(opts.xlabel?opts.xlabel(x):String(x).slice(5))}</span>`; });
+  // meta line
+  let metaSvg='';
+  if(opts.metaY){ const y=Y(opts.metaY.v); metaSvg=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" class="tsc-meta"/>`; }
+
+  const id='tsc'+(++_tscSeq); const gid='tg'+_tscSeq;
+  let defs='', paths='';
+  const reg={ W,H,padL,padR,xs, xraw:xs0, series:[], readX:(opts.readX||(x=>x)), fmt:(opts.readFmt||fmt), drillType:opts.drillType||'' };
+  series.forEach((s,si)=>{
+    const P=s.vals.map((p,i)=>[X(i),Y(p.v)]); const d=_tscSmooth(P);
+    if(s.tipo!=='line'){ const gi=gid+'_'+si;
+      defs+=`<linearGradient id="${gi}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${s.cor}" stop-opacity=".24"/><stop offset="100%" stop-color="${s.cor}" stop-opacity="0"/></linearGradient>`;
+      paths+=`<path d="${d} L ${X(n-1).toFixed(1)} ${(H-padB)} L ${X(0).toFixed(1)} ${(H-padB)} Z" fill="url(#${gi})" class="tsc-area"/>`; }
+    paths+=`<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="${s.w||2.4}"${s.dash?` stroke-dasharray="${s.dash}"`:''} class="tsc-line" stroke-linecap="round" stroke-linejoin="round"/>`;
+    reg.series.push({ nome:s.nome, cor:s.cor, vals:s.vals.map(p=>p.v), pcts:P.map(p=>pctT(p[1])) });
+  });
+  _TSC[id]=reg;
+  const dots=series.map((s,si)=>`<i class="tsc-dot" data-s="${si}" style="border-color:${s.cor}"></i>`).join('');
+  const legend = series.length>1 ? `<div class="tsc-legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`:'';
+  return `<div class="tsc${opts.drillType?' tsc-drill':''}" data-tsc="${id}"${opts.altura?` style="--tsc-h:${opts.altura}"`:''}>
+    ${legend}
+    <div class="tsc-plot">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="tsc-svg">
+        <defs>${defs}</defs>${grid}${metaSvg}${paths}</svg>
+      <div class="tsc-yls">${yl}</div>
+      <div class="tsc-xls">${xl}</div>
+      <div class="tsc-cross"></div>${dots}
+      <div class="tsc-read"></div>
+    </div>
+  </div>`;
+}
+// Handler global: mostra crosshair/readout do gráfico sob o cursor.
+function _tscMove(clientX, target){
+  const cont = target && target.closest && target.closest('[data-tsc]');
+  document.querySelectorAll('.tsc.on').forEach(c=>{ if(c!==cont) c.classList.remove('on'); });
+  if(!cont) return;
+  const reg=_TSC[cont.getAttribute('data-tsc')]; if(!reg) return;
+  const plot=cont.querySelector('.tsc-plot'); const rect=plot.getBoundingClientRect();
+  if(!rect.width) return;
+  const vx=Math.max(0,Math.min(reg.W,(clientX-rect.left)/rect.width*reg.W));
+  let idx=0,best=Infinity; reg.xs.forEach((x,i)=>{ const dd=Math.abs(x-vx); if(dd<best){best=dd;idx=i;} });
+  cont.classList.add('on');
+  const leftPct=reg.xs[idx]/reg.W*100;
+  const cross=cont.querySelector('.tsc-cross'); if(cross) cross.style.left=leftPct.toFixed(2)+'%';
+  cont.querySelectorAll('.tsc-dot').forEach(dot=>{ const si=+dot.getAttribute('data-s'); const s=reg.series[si];
+    dot.style.left=leftPct.toFixed(2)+'%'; dot.style.top=(s.pcts[idx]||0).toFixed(2)+'%'; });
+  const read=cont.querySelector('.tsc-read');
+  if(read){ const linhas=reg.series.map(s=>`<div class="r"><i style="background:${s.cor}"></i><span>${esc(s.nome)}</span><b>${esc(reg.fmt(s.vals[idx]))}</b></div>`).join('');
+    read.innerHTML=`<div class="h">${esc(reg.readX(reg.xraw[idx]))}</div>${linhas}`;
+    read.style.left=leftPct.toFixed(2)+'%'; read.classList.toggle('flip', leftPct>62); }
+}
+document.addEventListener('mousemove',(e)=>_tscMove(e.clientX,e.target),{passive:true});
+document.addEventListener('mouseleave',()=>document.querySelectorAll('.tsc.on').forEach(c=>c.classList.remove('on')),{passive:true});
+document.addEventListener('touchstart',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
+document.addEventListener('touchmove',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
+document.addEventListener('click',(e)=>{ const cont=e.target.closest&&e.target.closest('[data-tsc]'); if(!cont) return;
+  const reg=_TSC[cont.getAttribute('data-tsc')]; if(!reg||!reg.drillType) return;
+  const plot=cont.querySelector('.tsc-plot'); const rect=plot.getBoundingClientRect(); if(!rect.width) return;
+  const vx=Math.max(0,Math.min(reg.W,(e.clientX-rect.left)/rect.width*reg.W));
+  let idx=0,best=Infinity; reg.xs.forEach((x,i)=>{ const d=Math.abs(x-vx); if(d<best){best=d;idx=i;} });
+  escondeTip(); drill(reg.drillType, reg.xraw[idx]); });
 
 // Reúne os dados de uma pessoa no período (para o detalhe/drill-down).
 function dadosPessoa(a){
@@ -1474,7 +1599,7 @@ function renderVisao(){
 
   const cardApont=`<div class="vg-card"><h2>⏱ Apontamento do time <span class="lnk" data-goto="timesheet">timesheet →</span></h2>
     <div class="vg-split">${donut(pctMeta,'da meta',pctMeta>=90?cores.musgo:(pctMeta>=70?cores.amarelo:cores.err||'#BB0000'))}
-      <div>${areaChart(areaPts,{fmt:fmtH,cor:cores.cerceta})}</div></div>
+      <div>${tsChart([{nome:'Horas',cor:cores.cerceta,vals:areaPts,tipo:'area'}],{fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),altura:'190px'})}</div></div>
     <div class="muted small" style="margin:14px 0 8px;font-weight:600">Quem mais precisa apontar</div>
     ${miniPrecisa}</div>`;
 
@@ -1548,7 +1673,8 @@ function renderResumo(){
 
   const dias=Object.keys(d.porDia).sort();
   const colunas = dias.length
-    ? areaChart(dias.map(x=>({x, v:d.porDia[x], drill:{type:'dia',key:x}})),{fmt:fmtH})
+    ? tsChart([{nome:'Horas apontadas',cor:cores.cerceta,vals:dias.map(x=>({x,v:d.porDia[x]})),tipo:'area'}],
+        {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),drillType:'dia',altura:'230px'})
     : '<div class="estado">Sem horas no período.</div>';
 
   cont.replaceChildren(el(`<div>
@@ -3807,6 +3933,13 @@ function renderReceita(){
     const w=pool?Math.min(100,h/pool*100):0;
     const tag=risco==='estourado'?'<span class="rc2-tag est">esgotado</span>':(risco==='risco'?'<span class="rc2-tag ris">em risco</span>':'');
     const minMes=Number(c.minMes)||0, tetoMes=Number(c.tetoMes)||0;
+    // Burn-up: consumo acumulado por dia no ciclo (com linha do pacote contratado).
+    const ateDia=cyc.end<hoje?cyc.end:hoje;
+    const setP=new Set(c.projetos||[]); const wlAms=(estado.ams&&estado.ams.dados)||[]; const porDiaC={};
+    wlAms.forEach(w=>{ if(!setP.has(w.p)) return; const dd=(w.d||'').slice(0,10); if(dd>=cyc.start&&dd<=ateDia) porDiaC[dd]=(porDiaC[dd]||0)+(Number(w.s)||0); });
+    let acc=0; const burn=listaDias(cyc.start,ateDia).map(dd=>{ acc+=(porDiaC[dd]||0); return {x:dd,v:acc}; });
+    const burnChart = burn.length>1 ? tsChart([{nome:'Consumo acumulado',cor,vals:burn,tipo:'area'}],
+      {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),metaY:{v:pool*3600},altura:'180px'}) : '';
     const mesesHtml=cyc.meses.map(ym=>{
       const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
       return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
@@ -3825,7 +3958,8 @@ function renderReceita(){
         <div class="ams-k"><div class="v">${vh?fmtBRL(parcela):'—'}</div><div class="l">Parcela do ciclo (${pool}h)</div></div>
         <div class="ams-k"><div class="v">${vh?fmtBRL(parcela+valExced):'—'}</div><div class="l">Faturamento do ciclo</div></div>
       </div>
-      <div class="muted small" style="font-weight:600;margin-bottom:2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
+      ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h)</span></div>${burnChart}`:''}
+      <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
       <div class="ams-months">${mesesHtml}</div>
       ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
       ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
@@ -4353,6 +4487,8 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-21','📈 <b>Gráficos interativos premium</b> — série temporal com <b>crosshair</b> que segue o cursor e leitura ao passar o mouse (horas por dia) e <b>burn-up</b> do ciclo de AMS (consumo acumulado vs. pacote contratado).'],
+  ['2026-06-21','🌐 <b>Painel do cliente</b> — link somente-leitura (gerado no Admin) para o cliente acompanhar horas do ciclo, banco de horas e chamados abertos/fechados.'],
   ['2026-06-21','🛠️ <b>AMS por ciclo (banco de horas)</b> — no Admin dá pra cadastrar apuração (trimestral etc.), horas/ciclo, mín/teto mensal; a aba Receita mostra consumo do ciclo, banco de horas, excedente e faturamento.'],
   ['2026-06-21','📊 Nova aba <b>Visão Geral</b> — tela executiva com apontamento do time, alertas críticos, receita por contrato e atividade, tudo num só lugar (agora é a tela inicial).'],
   ['2026-06-21','🎨 <b>Gráficos mais modernos e interativos</b> — área com gradiente e animação, donut de meta e barras com destaque ao passar o mouse.'],
