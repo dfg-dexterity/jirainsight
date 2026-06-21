@@ -47,6 +47,10 @@ function cicloVigente(c, ref) {
   for (let k = 0; k < cm; k += 1) { const mi = startIdx + k; meses.push(`${baseY + Math.floor(mi / 12)}-${String(mi % 12 + 1).padStart(2, '0')}`); }
   return { start, end, endExcl, meses, cm };
 }
+function segundaDaSemana(iso) { if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return '';
+  const [y, m, d] = iso.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1, d));
+  const wd = (dt.getUTCDay() + 6) % 7; dt.setUTCDate(dt.getUTCDate() - wd); return dt.toISOString().slice(0, 10); }
+function addDiasIso(iso, n) { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); }
 
 async function portal(req, res, base, headers, token) {
   // Carrega os contratos da config e localiza o dono do token (escopo de dados).
@@ -103,6 +107,7 @@ async function portal(req, res, base, headers, token) {
 
   // --- Chamados abertos/fechados no ciclo (Jira, escopado aos projetos) ---
   const projJql = projetos.join(', ');
+  const semAb = {}; const semFe = {};   // contagem por semana (segunda-feira)
   try {
     const { issues } = await jiraSearchAll({
       jql: `project in (${projJql}) AND created >= "${cyc.start}" AND created < "${cyc.endExcl}" ORDER BY created ASC`,
@@ -114,6 +119,7 @@ async function portal(req, res, base, headers, token) {
       const ym = (f.created || '').slice(0, 7);
       if (ym in out.chamados.abertosPorMes) out.chamados.abertosPorMes[ym] += 1;
       out.chamados.abertosTotal += 1;
+      const wk = segundaDaSemana((f.created || '').slice(0, 10)); if (wk) semAb[wk] = (semAb[wk] || 0) + 1;
       (f.components || []).forEach((cp) => { const n = cp && cp.name; if (n) causa[n] = (causa[n] || 0) + 1; });
       (f.labels || []).forEach((lb) => { if (lb) causa[lb] = (causa[lb] || 0) + 1; });
     });
@@ -127,11 +133,23 @@ async function portal(req, res, base, headers, token) {
       fields: ['resolutiondate'], pageSize: 100, maxPages: 12,
     });
     issues.forEach((it) => {
-      const ym = ((it.fields && it.fields.resolutiondate) || '').slice(0, 7);
+      const rd = (it.fields && it.fields.resolutiondate) || '';
+      const ym = rd.slice(0, 7);
       if (ym in out.chamados.fechadosPorMes) out.chamados.fechadosPorMes[ym] += 1;
       out.chamados.fechadosTotal += 1;
+      const wk = segundaDaSemana(rd.slice(0, 10)); if (wk) semFe[wk] = (semFe[wk] || 0) + 1;
     });
   } catch (e) { out.chamados.erroFech = String(e && e.message ? e.message : e); }
+
+  // Série semanal (abertos/fechados) + backlog acumulado (net = Σ abertos − fechados).
+  out.chamados.semanas = [];
+  let wkc = segundaDaSemana(cyc.start); let guard = 0; let backlog = 0;
+  const fimSem = cyc.end < hoje ? cyc.end : hoje;
+  while (wkc && wkc <= fimSem && guard < 80) {
+    const ab = semAb[wkc] || 0; const fe = semFe[wkc] || 0; backlog += (ab - fe);
+    out.chamados.semanas.push({ ini: wkc, ab, fe, backlog });
+    wkc = addDiasIso(wkc, 7); guard += 1;
+  }
 
   return json(res, 200, out);
 }

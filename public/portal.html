@@ -52,6 +52,29 @@
   .note{font-size:12px;color:#64748B;margin-top:8px}
   .estado{padding:46px;text-align:center;color:#64748B}
   .foot{margin-top:24px;font-size:11.5px;color:#94A3B8;text-align:center}
+  /* Série temporal premium (crosshair + readout) */
+  .tsc{--tsc-h:240px;width:100%}
+  .tsc-legend{display:flex;gap:16px;font-size:12px;color:#64748B;margin-bottom:8px;flex-wrap:wrap}
+  .tsc-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .tsc-plot{position:relative;height:var(--tsc-h)}
+  .tsc-svg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible}
+  .tsc-grid{stroke:#E2E8F0;stroke-width:1}
+  .tsc-meta{stroke:#94A3B8;stroke-width:1.4;stroke-dasharray:5 4}
+  .tsc-line{stroke-dasharray:2600;stroke-dashoffset:2600;animation:acDraw 1s ease forwards}
+  .tsc-area{opacity:0;animation:acFade .8s ease .25s forwards}
+  @keyframes acDraw{to{stroke-dashoffset:0}} @keyframes acFade{to{opacity:1}}
+  .tsc-yl{position:absolute;left:0;transform:translateY(-50%);font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums;width:40px;text-align:right}
+  .tsc-xl{position:absolute;bottom:2px;transform:translateX(-50%);font-size:11px;color:#94A3B8;white-space:nowrap}
+  .tsc-cross{position:absolute;top:14px;bottom:30px;width:1px;background:#94A3B8;opacity:0;transition:opacity .1s}
+  .tsc-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid;transform:translate(-50%,-50%);opacity:0;transition:opacity .1s;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .tsc.on .tsc-cross,.tsc.on .tsc-dot{opacity:1}
+  .tsc-read{position:absolute;top:6px;transform:translateX(-50%);background:#0f1f33;color:#fff;border-radius:9px;padding:8px 11px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .1s;white-space:nowrap;box-shadow:0 10px 28px rgba(15,31,51,.32);z-index:5;min-width:118px}
+  .tsc.on .tsc-read{opacity:1} .tsc-read.flip{transform:translateX(-100%) translateX(-12px)}
+  .tsc-read .h{font-weight:700;margin-bottom:5px;font-size:11.5px;color:#cfe0f5;letter-spacing:.3px}
+  .tsc-read .r{display:flex;align-items:center;gap:7px;line-height:1.7}
+  .tsc-read .r i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+  .tsc-read .r span{color:#b8c6da;margin-right:8px} .tsc-read .r b{margin-left:auto;font-variant-numeric:tabular-nums}
+  @media (prefers-reduced-motion:reduce){ .tsc-line,.tsc-area{animation:none;stroke-dashoffset:0;opacity:1} }
   @media (max-width:720px){ .kpis{grid-template-columns:repeat(2,1fr)} header .ciclo{margin-left:0;flex-basis:100%;text-align:left} }
 </style>
 </head>
@@ -76,6 +99,63 @@ const esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;'
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const labelMes=(ym)=>{ const [y,m]=ym.split('-'); return `${MESES[(+m)-1]}/${y.slice(2)}`; };
 const APUR={mensal:'mensal',trimestral:'trimestral',semestral:'semestral',anual:'anual'};
+
+// ===== Motor de série temporal premium (crosshair + readout), igual ao app =====
+const _TSC={}; let _tscSeq=0;
+function _tscNice(v){ if(v<=0) return 1; const e=Math.pow(10,Math.floor(Math.log10(v))); const f=v/e; const n=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10; return n*e; }
+function _tscSmooth(P){ if(!P.length) return ''; let d=`M ${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+  for(let i=0;i<P.length-1;i++){ const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||P[i+1];
+    const c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6,c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+    d+=` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`; } return d; }
+function tsChart(series, opts){
+  opts=opts||{}; const fmt=opts.fmt||(v=>String(v));
+  series=(series||[]).filter(s=>s&&s.vals&&s.vals.length);
+  if(!series.length) return '<div class="estado">Sem dados no período.</div>';
+  const xs0=series[0].vals.map(p=>p.x); const n=xs0.length;
+  const W=1000,H=opts.h||220,padL=opts.padL!=null?opts.padL:42,padR=16,padT=14,padB=30;
+  let maxV=0; series.forEach(s=>s.vals.forEach(p=>{ if(p.v>maxV) maxV=p.v; })); if(opts.metaY&&opts.metaY.v>maxV) maxV=opts.metaY.v;
+  const niceMax=_tscNice(maxV||1);
+  const X=i=> padL + (n>1? i*(W-padL-padR)/(n-1) : (W-padL-padR)/2);
+  const Y=v=> padT + (1 - v/niceMax)*(H-padT-padB);
+  const xs=xs0.map((_,i)=>X(i)); const pctL=x=>(x/W*100), pctT=y=>(y/H*100);
+  const ticks=4; let grid='',yl='';
+  for(let t=0;t<=ticks;t++){ const val=niceMax*t/ticks,y=Y(val);
+    grid+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" class="tsc-grid"/>`;
+    yl+=`<span class="tsc-yl" style="top:${pctT(y).toFixed(2)}%">${esc(opts.yfmt?opts.yfmt(val):fmt(val))}</span>`; }
+  const every=Math.max(1,Math.ceil(n/9)); let xlab='';
+  xs0.forEach((x,i)=>{ if(i%every===0||i===n-1) xlab+=`<span class="tsc-xl" style="left:${pctL(X(i)).toFixed(2)}%">${esc(opts.xlabel?opts.xlabel(x):String(x).slice(5))}</span>`; });
+  let metaSvg=''; if(opts.metaY){ const y=Y(opts.metaY.v); metaSvg=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" class="tsc-meta"/>`; }
+  const id='tsc'+(++_tscSeq), gid='tg'+_tscSeq; let defs='',paths='';
+  const reg={ W,xs, xraw:xs0, series:[], readX:(opts.readX||(x=>x)), fmt:(opts.readFmt||fmt) };
+  series.forEach((s,si)=>{ const P=s.vals.map((p,i)=>[X(i),Y(p.v)]); const d=_tscSmooth(P);
+    if(s.tipo!=='line'){ const gi=gid+'_'+si; defs+=`<linearGradient id="${gi}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${s.cor}" stop-opacity=".24"/><stop offset="100%" stop-color="${s.cor}" stop-opacity="0"/></linearGradient>`;
+      paths+=`<path d="${d} L ${X(n-1).toFixed(1)} ${(H-padB)} L ${X(0).toFixed(1)} ${(H-padB)} Z" fill="url(#${gi})" class="tsc-area"/>`; }
+    paths+=`<path d="${d}" fill="none" stroke="${s.cor}" stroke-width="${s.w||2.4}"${s.dash?` stroke-dasharray="${s.dash}"`:''} class="tsc-line" stroke-linecap="round" stroke-linejoin="round"/>`;
+    reg.series.push({ nome:s.nome, cor:s.cor, vals:s.vals.map(p=>p.v), pcts:P.map(p=>pctT(p[1])) }); });
+  _TSC[id]=reg;
+  const dots=series.map((s,si)=>`<i class="tsc-dot" data-s="${si}" style="border-color:${s.cor}"></i>`).join('');
+  const legend = series.length>1?`<div class="tsc-legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`:'';
+  return `<div class="tsc" data-tsc="${id}"${opts.altura?` style="--tsc-h:${opts.altura}"`:''}>${legend}
+    <div class="tsc-plot"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="tsc-svg"><defs>${defs}</defs>${grid}${metaSvg}${paths}</svg>
+      <div>${yl}</div><div>${xlab}</div><div class="tsc-cross"></div>${dots}<div class="tsc-read"></div></div></div>`;
+}
+function _tscMove(clientX, target){
+  const cont=target&&target.closest&&target.closest('[data-tsc]');
+  document.querySelectorAll('.tsc.on').forEach(c=>{ if(c!==cont) c.classList.remove('on'); });
+  if(!cont) return; const reg=_TSC[cont.getAttribute('data-tsc')]; if(!reg) return;
+  const plot=cont.querySelector('.tsc-plot'); const rect=plot.getBoundingClientRect(); if(!rect.width) return;
+  const vx=Math.max(0,Math.min(reg.W,(clientX-rect.left)/rect.width*reg.W));
+  let idx=0,best=Infinity; reg.xs.forEach((x,i)=>{ const dd=Math.abs(x-vx); if(dd<best){best=dd;idx=i;} });
+  cont.classList.add('on'); const leftPct=reg.xs[idx]/reg.W*100;
+  const cross=cont.querySelector('.tsc-cross'); if(cross) cross.style.left=leftPct.toFixed(2)+'%';
+  cont.querySelectorAll('.tsc-dot').forEach(dot=>{ const s=reg.series[+dot.getAttribute('data-s')]; dot.style.left=leftPct.toFixed(2)+'%'; dot.style.top=(s.pcts[idx]||0).toFixed(2)+'%'; });
+  const read=cont.querySelector('.tsc-read');
+  if(read){ read.innerHTML=`<div class="h">${esc(reg.readX(reg.xraw[idx]))}</div>`+reg.series.map(s=>`<div class="r"><i style="background:${s.cor}"></i><span>${esc(s.nome)}</span><b>${esc(reg.fmt(s.vals[idx]))}</b></div>`).join('');
+    read.style.left=leftPct.toFixed(2)+'%'; read.classList.toggle('flip', leftPct>62); }
+}
+document.addEventListener('mousemove',(e)=>_tscMove(e.clientX,e.target),{passive:true});
+document.addEventListener('touchstart',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
+document.addEventListener('touchmove',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
 
 function erro(msg){
   document.getElementById('sub').textContent='';
@@ -120,20 +200,33 @@ function render(d){
       :`<div class="note">O banco de horas vale até o fim do ciclo e não acumula para o próximo.</div>`}
   </div>`;
 
-  // Chamados abertos/fechados por mês
-  const maxC=Math.max(1,...meses.map(m=>Math.max((CH.abertosPorMes&&CH.abertosPorMes[m])||0,(CH.fechadosPorMes&&CH.fechadosPorMes[m])||0)));
-  const chamCard=`<div class="card"><h2>Chamados por período</h2>
-    <div class="legend"><span><i style="background:var(--cerceta)"></i>Abertos</span><span><i style="background:var(--musgo)"></i>Fechados</span></div>
-    <div class="cham" style="margin-top:10px">${meses.map(ym=>{
-      const ab=(CH.abertosPorMes&&CH.abertosPorMes[ym])||0, fe=(CH.fechadosPorMes&&CH.fechadosPorMes[ym])||0;
-      return `<div class="cham-row"><div class="m">${esc(labelMes(ym))}</div>
-        <div class="cham-bars">
-          <div class="b" style="width:${Math.max(2,ab/maxC*100)}%;background:var(--cerceta)"><span>${ab}</span></div>
-          <div class="b" style="width:${Math.max(2,fe/maxC*100)}%;background:var(--musgo)"><span>${fe}</span></div>
-        </div></div>`;
-    }).join('')}</div>
-    <div class="bar-l" style="margin-top:10px"><span>Total no ciclo: <strong>${CH.abertosTotal||0}</strong> abertos · <strong>${CH.fechadosTotal||0}</strong> fechados</span></div>
-  </div>`;
+  // Chamados abertos × fechados — série semanal (premium) com fallback mensal.
+  const fmtDM=(x)=>x.slice(8,10)+'/'+x.slice(5,7);
+  const sem=CH.semanas||[];
+  const liq=(CH.abertosTotal||0)-(CH.fechadosTotal||0);
+  const totFoot=`<div class="bar-l" style="margin-top:10px"><span>Total no ciclo: <strong>${CH.abertosTotal||0}</strong> abertos · <strong>${CH.fechadosTotal||0}</strong> fechados</span>
+      <span>Backlog líquido: <strong style="color:${liq>0?'#B45309':'#188918'}">${liq>0?'+':''}${liq}</strong></span></div>`;
+  let chamCard;
+  if(sem.length>=2){
+    chamCard=`<div class="card"><h2>Chamados por período <span style="font-weight:400;color:#64748B;font-size:12px">(semanal)</span></h2>
+      ${tsChart([
+        {nome:'Abertos',cor:'#0070F2',vals:sem.map(s=>({x:s.ini,v:s.ab})),tipo:'area'},
+        {nome:'Fechados',cor:'#188918',vals:sem.map(s=>({x:s.ini,v:s.fe})),tipo:'line'}
+      ],{fmt:(v)=>String(Math.round(v)),yfmt:(v)=>String(Math.round(v)),xlabel:fmtDM,readX:(x)=>'Semana de '+fmtDM(x),altura:'240px'})}
+      ${totFoot}</div>`;
+  } else {
+    const maxC=Math.max(1,...meses.map(m=>Math.max((CH.abertosPorMes&&CH.abertosPorMes[m])||0,(CH.fechadosPorMes&&CH.fechadosPorMes[m])||0)));
+    chamCard=`<div class="card"><h2>Chamados por período</h2>
+      <div class="legend"><span><i style="background:var(--cerceta)"></i>Abertos</span><span><i style="background:var(--musgo)"></i>Fechados</span></div>
+      <div class="cham" style="margin-top:10px">${meses.map(ym=>{
+        const ab=(CH.abertosPorMes&&CH.abertosPorMes[ym])||0, fe=(CH.fechadosPorMes&&CH.fechadosPorMes[ym])||0;
+        return `<div class="cham-row"><div class="m">${esc(labelMes(ym))}</div>
+          <div class="cham-bars">
+            <div class="b" style="width:${Math.max(2,ab/maxC*100)}%;background:var(--cerceta)"><span>${ab}</span></div>
+            <div class="b" style="width:${Math.max(2,fe/maxC*100)}%;background:var(--musgo)"><span>${fe}</span></div>
+          </div></div>`;
+      }).join('')}</div>${totFoot}</div>`;
+  }
 
   // Por causa (labels/componentes)
   const causa=(CH.porCausa||[]);
