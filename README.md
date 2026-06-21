@@ -69,6 +69,23 @@ mapeados ao cliente. Cada card mostra um **preview de consumo** (horas apontadas
 projetos no período + valor estimado). Fica salvo em `cfg.contratos` (compartilhado
 via Supabase / `/api/config`).
 
+### 💰 Receita & AMS por cliente
+
+Aba **Receita**: dashboard de governança financeira montado em cima dos contratos
+cadastrados em **Admin** (sem nova função serverless — consome `cfg.contratos` +
+os worklogs já carregados). Para cada cliente/contrato no **período selecionado**:
+
+- **Horas contratadas × consumidas** com barra de **% de esgotamento** e **projeção**
+  (estende o ritmo dos dias úteis já fechados até o fim do período; marca a projeção
+  na barra e estima a **data de esgotamento** do pacote).
+- **Receita estimada** (horas × valor-hora) e **% faturável** do consumo.
+- Selo **em risco** (projeção ≥ 85%) / **esgotado** (≥ 100%).
+- KPIs gerais (receita, horas consumidas/contratadas, % faturável, contratos em risco).
+- Card **"Horas sem contrato"**: projetos com horas no período **não mapeados** a
+  nenhum contrato (não entram na receita) — sinaliza o que falta cadastrar em Admin.
+
+Para AMS (pacote mensal), use o período **Este mês** para acompanhar o ciclo.
+
 ### 🚨 Central de Alertas
 
 Aba **Alertas**: motor de alertas **acionáveis** montado a partir dos dados que já
