@@ -53,9 +53,32 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
 
+### 📊 Visão Geral (tela executiva — inicial)
+
+Aba **Visão Geral** (a **tela inicial** do painel): responde, num só lugar, "como está a
+entrega?" — reaproveitando os dados que já temos (sem nova função serverless):
+
+- **KPIs executivos:** apontamento do time (% da meta), horas apontadas, **receita estimada**
+  (dos contratos), alertas críticos, pessoas em dia e tickets vencidos.
+- **🚦 Saúde da entrega:** vencidos · vencem hoje · sem responsável · abaixo da meta (cada
+  cartão leva à aba correspondente).
+- **⏱ Apontamento do time:** donut da meta + **gráfico de área (horas por dia)** + lista de
+  "quem mais precisa apontar".
+- **🚨 Alertas críticos** (top do motor de alertas) e **💰 Receita & contratos** (consumo /
+  esgotamento por cliente) — ambos com link para o detalhe.
+
+Cada bloco é **acionável**: clicar leva direto à aba de detalhe (Alertas, Timesheet, Receita…).
+
+### Gráficos modernos e interativos
+
+Os gráficos usam **área com gradiente e animação de traçado**, **donut/medidor** para metas e
+**barras com realce** ao passar o mouse (a barra focada destaca, as demais esmaecem). Pontos do
+gráfico de área e barras seguem **clicáveis para drill-down**. Tudo respeita
+`prefers-reduced-motion`.
+
 ### Navegação e novidades
 
-- **Logo (canto superior esquerdo):** clicável — volta para o início (aba Resumo).
+- **Logo (canto superior esquerdo):** a **marca Dexterity** (pinwheel oficial em SVG, `public/logo.svg`) — clicável, volta para o início (Visão Geral).
 - **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
@@ -181,8 +204,10 @@ senha. Todos do time acessam o painel com a mesma senha. (Recurso de planos pago
 - Cores e tipografia oficiais já estão aplicadas. As fontes **Proxima Soft** (títulos) e
   **Boston** (corpo) são proprietárias: se tiver os webfonts, coloque em `public/fonts/` e
   descomente os `@font-face` no topo do `index.html`. Sem eles, usa-se um fallback neutro.
-- O ícone no cabeçalho é uma **aproximação** do pinwheel Dexterity. Para o logo oficial,
-  coloque `public/logo.svg` e troque o `<svg>` do cabeçalho por `<img src="/logo.svg">`.
+- O logo no cabeçalho é a **marca Dexterity** (pinwheel) em `public/logo.svg` — uma pétala única
+  replicada com rotações de 90° (3 grafite `#404040` + 1 cerceta `#17A398` no topo-direita).
+  O cabeçalho usa `<img src="/logo.svg">` e o mesmo arquivo serve de **favicon**; para trocar a
+  marca, basta substituir o `logo.svg`.
 
 ## Limitações conhecidas (v1)
 
