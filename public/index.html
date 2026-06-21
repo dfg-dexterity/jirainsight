@@ -393,6 +393,22 @@
   .ad-cons{font-size:13px;color:#334155;border-top:1px dashed var(--linha);padding-top:7px;margin-top:4px}
   .ad-over{color:#B91C1C;font-weight:700}
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
+  /* Receita / AMS por cliente */
+  .rc2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+  .rc2-card{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;background:var(--cartao);border-left:5px solid #188918}
+  .rc2-card.risco{border-left-color:#C77700} .rc2-card.estourado{border-left-color:#D20A0A}
+  .rc2-top{display:flex;align-items:center;gap:8px;font-size:15px}
+  .rc2-tag{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .rc2-tag.ris{background:#FEF3C7;color:#B45309} .rc2-tag.est{background:#FEE2E2;color:#B91C1C}
+  .rc2-bar{margin:12px 0 8px}
+  .rc2-track{position:relative;background:#EEF1F8;border-radius:6px;height:16px}
+  .rc2-fill{height:100%;border-radius:6px}
+  .rc2-proj{position:absolute;top:-3px;bottom:-3px;width:2px;background:#0f172a;opacity:.55}
+  .rc2-bar-l{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:6px;flex-wrap:wrap}
+  .rc2-fin{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px dashed var(--linha);padding-top:10px;margin-top:8px}
+  .rc2-fv{font-family:var(--titulo);font-weight:700;font-size:16px}
+  .rc2-fl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:2px}
+  .rc2-meta{margin-top:8px}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -591,6 +607,7 @@
       <button data-v="planejar">📝 Planejar</button>
       <button data-v="reclassificar">🔀 Reclassificar</button>
       <button data-v="alertas">🚨 Alertas</button>
+      <button data-v="receita">💰 Receita</button>
       <button data-v="admin">⚙️ Admin</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
@@ -992,7 +1009,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 function render(){
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['apontar','planejar','reclassificar','alertas','admin'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
@@ -1000,6 +1017,7 @@ function render(){
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='alertas') return renderAlertas();
+  if(estado.vista==='receita') return renderReceita();
   if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
 }
@@ -3357,6 +3375,122 @@ function salvaContrato(){
 }
 // ===============================================================================
 
+// ====================== RECEITA / AMS — CONSUMO POR CLIENTE ======================
+// Consumo de um contrato no período: horas e valor (faturável à parte) somando os
+// worklogs dos projetos mapeados.
+function analisaContrato(c){
+  const set=new Set(c.projetos||[]); let seg=0, segFat=0;
+  ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
+    if(!set.has(w.p)) return;
+    const s=Number(w.s)||0; seg+=s; if(w.f) segFat+=s;
+  });
+  const vh=Number(c.valorHora)||0;
+  return { seg, segFat, valor:(seg/3600)*vh, valorFat:(segFat/3600)*vh };
+}
+function renderReceita(){
+  const cont=document.getElementById('conteudo');
+  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  const contratos=(cfg.contratos||[]);
+  if(!contratos.length){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita &amp; AMS</h2>
+      <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
+      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.<br><br>
+      <button class="btn primario" data-ir-admin>Ir para ⚙️ Admin</button></div></div></div>`));
+    return;
+  }
+
+  const meta=estado.tempo.meta||{};
+  const dias=listaDias(meta.startDate, meta.endDate);
+  const hoje=hojeSP();
+  const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
+  const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
+  const totalUteis=diasUteis.length;
+
+  // Projetos com horas no período que não estão em nenhum contrato.
+  const mapeados=new Set(); contratos.forEach(c=>(c.projetos||[]).forEach(p=>mapeados.add(p)));
+  const semContrato={};
+  (estado.tempo.worklogs||[]).forEach(w=>{ if(!mapeados.has(w.p)) semContrato[w.p]=(semContrato[w.p]||0)+(Number(w.s)||0); });
+
+  const linhas=contratos.map(c=>{
+    const an=analisaContrato(c);
+    const contrSeg=(Number(c.horasContratadas)||0)*3600;
+    const pace=decorridos>0 ? an.seg/decorridos : 0;             // ritmo por dia útil fechado
+    const projSeg=decorridos>0 ? pace*totalUteis : an.seg;       // projeção linear até o fim do período
+    const pctAtual=contrSeg?Math.round(an.seg/contrSeg*100):null;
+    const pctProj=contrSeg?Math.round(projSeg/contrSeg*100):null;
+    let prev='';
+    if(contrSeg>0){
+      if(an.seg>=contrSeg) prev='já esgotado';
+      else if(pace>0 && projSeg>contrSeg){
+        const iCross=Math.ceil(contrSeg/pace);                  // índice do dia útil que cruza o teto
+        prev=diasUteis[iCross-1] ? fmtBR(diasUteis[iCross-1]) : 'após o período';
+      }
+    }
+    const risco = contrSeg>0 ? (an.seg>=contrSeg ? 'estourado' : (pctProj!=null && pctProj>=85 ? 'risco' : 'ok')) : 'ok';
+    return { c, an, contrSeg, pctAtual, pctProj, projSeg, prev, risco };
+  }).sort((a,b)=> (b.pctProj||0)-(a.pctProj||0) || b.an.valor-a.an.valor);
+
+  const totSeg=linhas.reduce((s,l)=>s+l.an.seg,0);
+  const totFat=linhas.reduce((s,l)=>s+l.an.segFat,0);
+  const totValor=linhas.reduce((s,l)=>s+l.an.valor,0);
+  const totContr=contratos.reduce((s,c)=>s+(Number(c.horasContratadas)||0),0);
+  const emRisco=linhas.filter(l=>l.risco!=='ok').length;
+
+  const card=(l)=>{
+    const c=l.c, an=l.an, contr=Number(c.horasContratadas)||0;
+    const fatPct=an.seg?Math.round(an.segFat/an.seg*100):0;
+    const w=l.contrSeg?Math.min(100, an.seg/l.contrSeg*100):0;
+    const wp=l.contrSeg?Math.min(100, l.projSeg/l.contrSeg*100):0;
+    const cor=l.risco==='estourado'?'#D20A0A':(l.risco==='risco'?'#C77700':'#188918');
+    const tag=l.risco==='estourado'?'<span class="rc2-tag est">esgotado</span>'
+             :l.risco==='risco'?'<span class="rc2-tag ris">em risco</span>':'';
+    return `<div class="rc2-card ${l.risco}">
+      <div class="rc2-top"><strong>${esc(c.cliente||'(sem nome)')}</strong>
+        <span class="badge">${esc(rotuloTipo(c.tipo))}</span><span class="spacer"></span>${tag}</div>
+      ${contr?`<div class="rc2-bar"><div class="rc2-track">
+          <div class="rc2-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div>
+          ${wp>w+0.5?`<div class="rc2-proj" style="left:${wp.toFixed(1)}%" data-tip="Projeção até o fim do período"></div>`:''}
+        </div>
+        <div class="rc2-bar-l"><span><strong>${fmtH(an.seg)}</strong> de ${contr}h${c.tipo==='ams'?'/mês':''}${l.pctAtual!=null?` (${l.pctAtual}%)`:''}</span>
+          ${l.pctProj!=null?`<span class="muted">projeção ${l.pctProj}%${l.prev?` · esgota ~${esc(l.prev)}`:''}</span>`:''}</div></div>`
+        :`<div class="rc2-bar-l" style="margin:10px 0"><span><strong>${fmtH(an.seg)}</strong> consumidas <span class="muted">(sem horas contratadas)</span></span></div>`}
+      <div class="rc2-fin">
+        <div><div class="rc2-fv">${c.valorHora?fmtBRL(an.valor):'—'}</div><div class="rc2-fl">Receita estimada</div></div>
+        <div><div class="rc2-fv">${c.valorHora?fmtBRL(c.valorHora):'—'}</div><div class="rc2-fl">Valor-hora</div></div>
+        <div><div class="rc2-fv">${fatPct}%</div><div class="rc2-fl">Faturável</div></div>
+      </div>
+      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    </div>`;
+  };
+
+  const scKeys=Object.keys(semContrato).filter(k=>k&&k!=='—'&&semContrato[k]>0).sort((a,b)=>semContrato[b]-semContrato[a]);
+  const scMax=scKeys.reduce((m,k)=>Math.max(m,semContrato[k]),1);
+  const scHtml = scKeys.length ? `<div class="card full"><h2>Horas sem contrato <span>${scKeys.length} projeto(s)</span></h2>
+    <div class="muted small" style="margin-bottom:10px">Horas apontadas no período em projetos <strong>não mapeados</strong> a nenhum contrato — não entram na receita. Mapeie-os na aba ⚙️ Admin.</div>
+    <div class="barlist">${scKeys.slice(0,12).map(k=>{
+      const nome=(estado.tempo.projetos&&estado.tempo.projetos[k]&&estado.tempo.projetos[k].nome)||k;
+      return `<div class="barrow"><div class="nome" data-tip="${escA(nome)}">${esc(k)}</div>
+        <div class="track"><div class="fill" style="width:${Math.min(100, semContrato[k]/scMax*100).toFixed(1)}%;background:#94A3B8"></div></div>
+        <div class="val">${fmtH(semContrato[k])}</div></div>`;
+    }).join('')}</div></div>` : '';
+
+  cont.replaceChildren(el(`<div>
+    <div class="kpis">
+      <div class="kpi t"><div class="v">${fmtBRL(totValor)}</div><div class="l">Receita estimada</div></div>
+      <div class="kpi t"><div class="v">${fmtH(totSeg)}</div><div class="l">Horas consumidas</div></div>
+      <div class="kpi a"><div class="v">${totContr}h</div><div class="l">Horas contratadas</div></div>
+      <div class="kpi t"><div class="v">${totSeg?Math.round(totFat/totSeg*100):0}%</div><div class="l">Faturável</div></div>
+      <div class="kpi w"><div class="v">${emRisco}</div><div class="l">Contratos em risco</div></div>
+    </div>
+    <div class="card full"><h2>💰 Receita &amp; AMS por cliente <span>${contratos.length} contrato(s)</span></h2>
+      <div class="muted small" style="margin-bottom:12px">Consumo e receita estimada no <strong>período selecionado</strong>. A projeção estende o ritmo dos dias úteis já fechados (${decorridos}/${totalUteis}) até o fim do período; a marca escura na barra indica a projeção. Para AMS (pacote mensal), use o período <strong>Este mês</strong>.</div>
+      <div class="rc2-grid">${linhas.map(card).join('')}</div>
+    </div>
+    ${scHtml}
+  </div>`));
+}
+// ===============================================================================
+
 function renderReclass(){
   const cont=document.getElementById('conteudo');
   const rc=estado.reclass;
@@ -3547,6 +3681,7 @@ function abreAjuda(){
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
       <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
+      <li><b>💰 Receita</b> — consumo e receita estimada por cliente: horas contratadas × consumidas, % de esgotamento, projeção e % faturável (usa os contratos cadastrados em Admin).</li>
       <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
@@ -3945,7 +4080,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','admin'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','receita','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -4097,6 +4232,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ir-admin')){ vaiPara('admin'); return; }
   if(t.id==='ad-salvar'){ salvaContrato(); }
   else if(t.id==='ad-cancelar'){ estado.admin.editId=null; renderAdmin(); }
   else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
