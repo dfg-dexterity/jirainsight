@@ -384,6 +384,15 @@
   .al-det{font-size:12.5px;color:#475569;line-height:1.45}
   .al-foot{display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;margin-top:8px;border-top:1px dashed var(--linha);padding-top:7px}
   .al-acao{color:#0064D9}
+  /* Administração — contratos */
+  .ad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+  .ad-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left:5px solid #188918}
+  .ad-card.over{border-left-color:#D20A0A}
+  .ad-top{display:flex;align-items:center;gap:8px;font-size:14px}
+  .ad-meta{margin:6px 0}
+  .ad-cons{font-size:13px;color:#334155;border-top:1px dashed var(--linha);padding-top:7px;margin-top:4px}
+  .ad-over{color:#B91C1C;font-weight:700}
+  .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -582,6 +591,7 @@
       <button data-v="planejar">📝 Planejar</button>
       <button data-v="reclassificar">🔀 Reclassificar</button>
       <button data-v="alertas">🚨 Alertas</button>
+      <button data-v="admin">⚙️ Admin</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -681,12 +691,14 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
   ajuda:{ projetos:null },
   // Central de Alertas (motor de alertas acionáveis).
   alertas:{ dados:null, carregando:false, erro:'', sev:'' },
+  // Administração (cadastro de contratos/clientes/valor-hora).
+  admin:{ editId:null },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -980,7 +992,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 function render(){
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['apontar','planejar','reclassificar'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['apontar','planejar','reclassificar','alertas','admin'].includes(estado.vista))?'none':'';
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
@@ -988,6 +1000,7 @@ function render(){
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='alertas') return renderAlertas();
+  if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
 }
 
@@ -3255,6 +3268,95 @@ function renderAlertas(){
   </div>`));
 }
 
+// ====================== ADMINISTRAÇÃO — CONTRATOS & VALORES ======================
+const fmtBRL=(v)=> 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+// Consumo (horas e valor estimado) de um contrato, somando os worklogs dos projetos
+// mapeados no período carregado.
+function consumoContrato(c){
+  const set=new Set(c.projetos||[]); let seg=0;
+  ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(set.has(w.p)) seg+=(Number(w.s)||0); });
+  return { seg, valor:(seg/3600)*(Number(c.valorHora)||0) };
+}
+const TIPOS_CONTRATO=[['ams','AMS (pacote mensal)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)']];
+function rotuloTipo(t){ const o=TIPOS_CONTRATO.find(x=>x[0]===t); return o?o[1]:t; }
+function renderAdmin(){
+  const cont=document.getElementById('conteudo');
+  if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
+  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const ad=estado.admin; const contratos=cfg.contratos||[];
+  const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : null;
+
+  const projBox = projs.length
+    ? `<div class="rg-pessoas" id="ad-projs">${projs.map(p=>{
+        const ck = edit && (edit.projetos||[]).includes(p.key);
+        return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.key)} — ${esc(p.nome||'')}</label>`;
+      }).join('')}</div>`
+    : '<div class="muted small">Carregando projetos do Jira…</div>';
+
+  const form=`<div class="card full">
+    <h2>${edit?'Editar contrato':'Novo contrato / cliente'}</h2>
+    <div class="pl-grid">
+      <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
+      <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
+        ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${edit&&edit.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="campo"><label>Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
+      <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(edit&&edit.valorHora!=null?String(edit.valorHora):'')}" placeholder="ex.: 250"></div>
+      <div class="campo"><label>Início da vigência</label><input type="date" id="ad-inicio" value="${escA(edit?edit.inicio||'':'')}"></div>
+    </div>
+    <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(marque um ou mais)</span></label>${projBox}</div>
+    <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn primario" id="ad-salvar">${edit?'Salvar alterações':'Adicionar contrato'}</button>
+      ${edit?'<button class="btn" id="ad-cancelar">Cancelar edição</button>':''}
+    </div>
+    <div class="ap-fb" id="ad-fb" hidden></div>
+  </div>`;
+
+  const cards=contratos.map(c=>{
+    const cons=consumoContrato(c); const h=cons.seg/3600;
+    const contr=Number(c.horasContratadas)||0; const pctv=contr?Math.round(h/contr*100):null;
+    const over=pctv!=null&&pctv>100;
+    return `<div class="ad-card${over?' over':''}">
+      <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
+        <span class="spacer"></span>
+        <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
+        <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
+      <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${c.obs?` · ${esc(c.obs)}`:''}</div>
+      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${c.tipo==='ams'?'/mês':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}</div>
+    </div>`;
+  }).join('');
+
+  cont.replaceChildren(el(`<div>
+    <div class="card full"><h2>⚙️ Administração — Contratos &amp; Valores</h2>
+      <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
+        Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
+    </div>
+    ${form}
+    <div class="card full"><h2>Contratos cadastrados <span>${contratos.length}</span></h2>
+      ${contratos.length?`<div class="ad-grid">${cards}</div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}
+    </div>
+  </div>`));
+}
+function salvaContrato(){
+  const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():''; };
+  const fb=document.getElementById('ad-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; }
+  const cliente=v('ad-cliente');
+  if(!cliente){ if(fb){ fb.classList.add('err'); fb.textContent='Informe o nome do cliente.'; } return; }
+  const projetos=[...document.querySelectorAll('#ad-projs input[data-ad-proj]:checked')].map(c=>c.getAttribute('data-ad-proj'));
+  const dados={
+    cliente, tipo:v('ad-tipo')||'ams',
+    horasContratadas:Math.max(0,Number(v('ad-horas'))||0),
+    valorHora:Math.max(0,Number(v('ad-valor'))||0),
+    inicio:v('ad-inicio'), obs:v('ad-obs'), projetos,
+  };
+  cfg.contratos=cfg.contratos||[];
+  const ad=estado.admin;
+  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c) Object.assign(c, dados); ad.editId=null; }
+  else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); cfg.contratos.push(dados); }
+  salvaCfg(); renderAdmin();
+}
+// ===============================================================================
+
 function renderReclass(){
   const cont=document.getElementById('conteudo');
   const rc=estado.reclass;
@@ -3445,6 +3547,7 @@ function abreAjuda(){
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
       <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
+      <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -3842,7 +3945,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -3990,6 +4093,15 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(kp){ escondeTip(); estado.alertas.sev=kp.getAttribute('data-al-sev'); renderAlertas(); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='al-retry'){ estado.alertas.erro=''; estado.alertas.dados=null; renderAlertas(); }
+});
+// ---- Administração: cadastro de contratos ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='ad-salvar'){ salvaContrato(); }
+  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; renderAdmin(); }
+  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del');
+    cfg.contratos=(cfg.contratos||[]).filter(c=>c.id!==id); if(estado.admin.editId===id) estado.admin.editId=null; salvaCfg(); renderAdmin(); }
 });
 
 // Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.
