@@ -408,6 +408,23 @@
   .rc2-fv{font-family:var(--titulo);font-weight:700;font-size:16px}
   .rc2-fl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:2px}
   .rc2-meta{margin-top:8px}
+  /* AMS — apuração por ciclo */
+  .ams-card{border:1px solid var(--linha);border-radius:12px;padding:16px 18px;background:var(--cartao);border-left:5px solid #17A398;margin-bottom:14px}
+  .ams-card.risco{border-left-color:#C77700} .ams-card.estourado{border-left-color:#D20A0A}
+  .ams-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ams-head strong{font-size:15px} .ams-head .ciclo{font-size:12px;color:#64748B;margin-left:auto}
+  .ams-bar{margin:12px 0 6px} .ams-track{position:relative;background:#EEF1F8;border-radius:6px;height:18px}
+  .ams-fill{height:100%;border-radius:6px} .ams-bar-l{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:6px;flex-wrap:wrap}
+  .ams-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+  .ams-k{border:1px solid var(--linha);border-radius:9px;padding:10px 12px;background:#FAFBFC}
+  .ams-k .v{font-family:var(--titulo);font-weight:700;font-size:17px} .ams-k .v.over{color:#B91C1C}
+  .ams-k .l{font-size:10px;color:#64748B;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+  .ams-months{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:6px}
+  .ams-mc{border:1px solid var(--linha);border-radius:8px;padding:8px 10px;text-align:center}
+  .ams-mc .mm{font-size:11px;color:#64748B} .ams-mc .mh{font-family:var(--titulo);font-weight:700;font-size:15px;margin-top:2px}
+  .ams-mc.lo{border-color:#E7B100;background:#FEFBEB} .ams-mc.hi{border-color:#D20A0A;background:#FEF2F2}
+  .ams-note{font-size:11.5px;color:#64748B;margin-top:8px}
+  @media (max-width:640px){ .ams-kpis{grid-template-columns:repeat(2,1fr)} }
 
   /* ===== Gráficos modernos & interativos ===== */
   .fill,.b,.pp-stack span{transition:filter .15s ease,opacity .15s ease}
@@ -785,6 +802,8 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   alertas:{ dados:null, carregando:false, erro:'', sev:'' },
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
+  // AMS: worklogs do ciclo vigente (apuração trimestral/mensal), buscados à parte do período da tela.
+  ams:{ dados:null, range:'', carregando:false, erro:'' },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -3552,8 +3571,46 @@ function consumoContrato(c){
   ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(set.has(w.p)) seg+=(Number(w.s)||0); });
   return { seg, valor:(seg/3600)*(Number(c.valorHora)||0) };
 }
-const TIPOS_CONTRATO=[['ams','AMS (pacote mensal)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)']];
+const TIPOS_CONTRATO=[['ams','AMS (pacote por ciclo)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)']];
 function rotuloTipo(t){ const o=TIPOS_CONTRATO.find(x=>x[0]===t); return o?o[1]:t; }
+
+// ---------- AMS: apuração por ciclo (com banco de horas dentro do ciclo) ----------
+const AMS_APUR=[['mensal','Mensal'],['trimestral','Trimestral'],['semestral','Semestral'],['anual','Anual']];
+const AMS_MESES_CICLO={mensal:1,trimestral:3,semestral:6,anual:12};
+const MESES_ABBR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function amsCicloMeses(ap){ return AMS_MESES_CICLO[ap]||3; }
+function amsLabelApur(ap){ const o=AMS_APUR.find(x=>x[0]===ap); return o?o[1]:'Trimestral'; }
+function amsCiclosAno(ap){ return Math.round(12/amsCicloMeses(ap)); }
+function amsHorasCiclo(c){ return Number(c.horasCiclo!=null?c.horasCiclo:c.horasContratadas)||0; }
+function diaAntes(iso){ const [y,m,d]=iso.split('-').map(Number); return new Date(Date.UTC(y,m-1,d-1)).toISOString().slice(0,10); }
+function labelMesAbbr(ym){ const [y,m]=ym.split('-'); return `${MESES_ABBR[(+m)-1]}/${y.slice(2)}`; }
+// Ciclo de apuração vigente (alinhado ao mês de início da vigência), contendo `ref`.
+function amsCicloVigente(c, ref){
+  ref=ref||hojeSP(); const cm=amsCicloMeses(c.apuracao||'trimestral');
+  let baseY,baseM;
+  if(c.inicio && /^\d{4}-\d{2}/.test(c.inicio)){ baseY=+c.inicio.slice(0,4); baseM=+c.inicio.slice(5,7)-1; }
+  else { baseY=+ref.slice(0,4); baseM=0; }
+  const refY=+ref.slice(0,4), refM=+ref.slice(5,7)-1;
+  let diff=(refY-baseY)*12+(refM-baseM); if(diff<0) diff=0;
+  const idx=Math.floor(diff/cm), startIdx=baseM+idx*cm;
+  const start=`${baseY+Math.floor(startIdx/12)}-${String(startIdx%12+1).padStart(2,'0')}-01`;
+  const endIdx=startIdx+cm;
+  const end=diaAntes(`${baseY+Math.floor(endIdx/12)}-${String(endIdx%12+1).padStart(2,'0')}-01`);
+  const meses=[]; for(let k=0;k<cm;k++){ const mi=startIdx+k; meses.push(`${baseY+Math.floor(mi/12)}-${String(mi%12+1).padStart(2,'0')}`); }
+  return { start, end, meses, cm, n:idx+1 };
+}
+function amsLabelCiclo(cyc){ if(!cyc.meses.length) return '';
+  const a=cyc.meses[0], b=cyc.meses[cyc.meses.length-1];
+  return cyc.meses.length===1?labelMesAbbr(a):`${labelMesAbbr(a)}–${labelMesAbbr(b)}`; }
+// Consumo do ciclo (worklogs do intervalo carregados em estado.ams), por mês.
+function amsConsumoCiclo(c, cyc){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+  let seg=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
+    if(!dia||dia<cyc.start||dia>cyc.end) return;
+    const s=Number(w.s)||0; seg+=s; const ym=dia.slice(0,7); if(ym in porMes) porMes[ym]+=s; });
+  return { seg, porMes };
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -3574,10 +3631,22 @@ function renderAdmin(){
       <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
       <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
         ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${edit&&edit.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
-      <div class="campo"><label>Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
-      <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(edit&&edit.valorHora!=null?String(edit.valorHora):'')}" placeholder="ex.: 250"></div>
+      <div class="campo" id="ad-horas-wrap"><label>Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
+      <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(edit&&edit.valorHora!=null?String(edit.valorHora):'')}" placeholder="ex.: 122"></div>
       <div class="campo"><label>Início da vigência</label><input type="date" id="ad-inicio" value="${escA(edit?edit.inicio||'':'')}"></div>
     </div>
+    <fieldset id="ad-ams" style="border:1px solid var(--linha);border-radius:10px;padding:12px 14px;margin:4px 0 8px">
+      <legend class="muted small" style="padding:0 6px">Parâmetros do AMS (apuração e banco de horas)</legend>
+      <div class="pl-grid">
+        <div class="campo"><label>Apuração (ciclo)</label><select id="ad-apur">
+          ${AMS_APUR.map(([v,l])=>`<option value="${v}" ${((edit&&edit.apuracao)||'trimestral')===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+        <div class="campo"><label>Horas por ciclo</label><input type="number" id="ad-hciclo" min="0" step="1" value="${escA(edit&&edit.horasCiclo!=null?String(edit.horasCiclo):'')}" placeholder="ex.: 60"></div>
+        <div class="campo"><label>Mínimo mensal (h)</label><input type="number" id="ad-min" min="0" step="1" value="${escA(edit&&edit.minMes!=null?String(edit.minMes):'')}" placeholder="ex.: 20"></div>
+        <div class="campo"><label>Teto mensal (h)</label><input type="number" id="ad-teto" min="0" step="1" value="${escA(edit&&edit.tetoMes!=null?String(edit.tetoMes):'')}" placeholder="ex.: 60"></div>
+      </div>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="ad-banco" ${(!edit||edit.bancoHoras!==false)?'checked':''}> Banco de horas dentro do ciclo (saldo não consumido vale até o fim do ciclo; <strong>não acumula</strong> para o ciclo seguinte)</label>
+      <div class="muted small" id="ad-ams-resumo" style="margin-top:8px"></div>
+    </fieldset>
     <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(marque um ou mais)</span></label>${projBox}</div>
     <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
@@ -3589,15 +3658,17 @@ function renderAdmin(){
 
   const cards=contratos.map(c=>{
     const cons=consumoContrato(c); const h=cons.seg/3600;
-    const contr=Number(c.horasContratadas)||0; const pctv=contr?Math.round(h/contr*100):null;
+    const ams=c.tipo==='ams';
+    const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const pctv=contr?Math.round(h/contr*100):null;
     const over=pctv!=null&&pctv>100;
+    const amsInfo = ams ? ` · apuração <strong>${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</strong>${amsHorasCiclo(c)?` · ${amsHorasCiclo(c)}h/ciclo (${amsHorasCiclo(c)*amsCiclosAno(c.apuracao||'trimestral')}h/ano)`:''}${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}` : '';
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
         <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
-      <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${c.obs?` · ${esc(c.obs)}`:''}</div>
-      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${c.tipo==='ams'?'/mês':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}</div>
+      <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${amsInfo}${c.obs?` · ${esc(c.obs)}`:''}</div>
+      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração detalhada na aba 💰 Receita</span>':''}</div>
     </div>`;
   }).join('');
 
@@ -3611,6 +3682,29 @@ function renderAdmin(){
       ${contratos.length?`<div class="ad-grid">${cards}</div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}
     </div>
   </div>`));
+  const tsel=document.getElementById('ad-tipo'); if(tsel) tsel.addEventListener('change', amsToggleForm);
+  ['ad-apur','ad-hciclo','ad-valor'].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input', amsResumoForm); });
+  if(document.getElementById('ad-apur')) document.getElementById('ad-apur').addEventListener('change', amsResumoForm);
+  amsToggleForm();
+}
+// Mostra/esconde os campos de AMS conforme o tipo e atualiza o resumo derivado (h/ano, parcela).
+function amsToggleForm(){
+  const t=document.getElementById('ad-tipo'); if(!t) return;
+  const isAms=t.value==='ams';
+  const ams=document.getElementById('ad-ams'); if(ams) ams.style.display=isAms?'':'none';
+  const hw=document.getElementById('ad-horas-wrap'); if(hw) hw.style.display=isAms?'none':'';
+  amsResumoForm();
+}
+function amsResumoForm(){
+  const r=document.getElementById('ad-ams-resumo'); if(!r) return;
+  const t=document.getElementById('ad-tipo'); if(!t||t.value!=='ams'){ r.textContent=''; return; }
+  const ap=(document.getElementById('ad-apur')||{}).value||'trimestral';
+  const hc=Number((document.getElementById('ad-hciclo')||{}).value)||0;
+  const vh=Number((document.getElementById('ad-valor')||{}).value)||0;
+  const ca=amsCiclosAno(ap); const anual=hc*ca; const parts=[];
+  if(hc){ parts.push(`<strong>${hc}h</strong> por ciclo`); parts.push(`<strong>${anual}h/ano</strong> (${ca} ${ca>1?'ciclos':'ciclo'})`); }
+  if(hc&&vh){ parts.push(`parcela <strong>${fmtBRL(hc*vh)}</strong> · ano <strong>${fmtBRL(anual*vh)}</strong>`); }
+  r.innerHTML = parts.length ? ('≈ '+parts.join(' · ')) : 'Preencha “horas por ciclo” e “valor-hora” para ver o resumo (h/ano e parcela).';
 }
 function salvaContrato(){
   const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():''; };
@@ -3618,12 +3712,22 @@ function salvaContrato(){
   const cliente=v('ad-cliente');
   if(!cliente){ if(fb){ fb.classList.add('err'); fb.textContent='Informe o nome do cliente.'; } return; }
   const projetos=[...document.querySelectorAll('#ad-projs input[data-ad-proj]:checked')].map(c=>c.getAttribute('data-ad-proj'));
+  const tipo=v('ad-tipo')||'ams';
   const dados={
-    cliente, tipo:v('ad-tipo')||'ams',
-    horasContratadas:Math.max(0,Number(v('ad-horas'))||0),
+    cliente, tipo,
     valorHora:Math.max(0,Number(v('ad-valor'))||0),
     inicio:v('ad-inicio'), obs:v('ad-obs'), projetos,
   };
+  if(tipo==='ams'){
+    dados.apuracao=v('ad-apur')||'trimestral';
+    dados.horasCiclo=Math.max(0,Number(v('ad-hciclo'))||0);
+    dados.minMes=Math.max(0,Number(v('ad-min'))||0);
+    dados.tetoMes=Math.max(0,Number(v('ad-teto'))||0);
+    const bk=document.getElementById('ad-banco'); dados.bancoHoras=bk?bk.checked:true;
+    dados.horasContratadas=dados.horasCiclo;   // compat com o preview genérico
+  } else {
+    dados.horasContratadas=Math.max(0,Number(v('ad-horas'))||0);
+  }
   cfg.contratos=cfg.contratos||[];
   const ad=estado.admin;
   if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c) Object.assign(c, dados); ad.editId=null; }
@@ -3663,12 +3767,91 @@ function renderReceita(){
   const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
   const totalUteis=diasUteis.length;
 
+  // ---- AMS: apuração por ciclo (busca os worklogs do ciclo, à parte do período da tela) ----
+  const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
+  let amsProntos=false, amsKey='';
+  if(amsList.length){
+    let minStart=hoje;
+    amsList.forEach(c=>{ const cyc=amsCicloVigente(c,hoje); if(cyc.start<minStart) minStart=cyc.start; });
+    amsKey=`${minStart}|${hoje}`;
+    const am=estado.ams;
+    if(am.range!==amsKey && !am.carregando){
+      am.carregando=true; am.erro='';
+      fetch(`/api/tempo?desde=${encodeURIComponent(minStart)}&ate=${encodeURIComponent(hoje)}`).then(r=>r.json()).then(j=>{
+        am.carregando=false; if(j.erro){ am.erro=j.erro; } else { am.dados=j.worklogs||[]; am.range=amsKey; }
+        if(estado.vista==='receita') renderReceita();
+      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='receita') renderReceita(); });
+    }
+    amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
+  }
+  const amsCard=(c)=>{
+    const cyc=amsCicloVigente(c,hoje); const cons=amsConsumoCiclo(c,cyc);
+    const pool=amsHorasCiclo(c); const h=cons.seg/3600; const vh=Number(c.valorHora)||0;
+    const pctv=pool?Math.round(h/pool*100):0;
+    const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
+    const parcela=pool*vh, valExced=excedente*vh;
+    const risco=pool?(h>=pool?'estourado':(pctv>=85?'risco':'ok')):'ok';
+    const cor=risco==='estourado'?'#D20A0A':(risco==='risco'?'#C77700':'#17A398');
+    const w=pool?Math.min(100,h/pool*100):0;
+    const tag=risco==='estourado'?'<span class="rc2-tag est">esgotado</span>':(risco==='risco'?'<span class="rc2-tag ris">em risco</span>':'');
+    const minMes=Number(c.minMes)||0, tetoMes=Number(c.tetoMes)||0;
+    const mesesHtml=cyc.meses.map(ym=>{
+      const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
+      return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
+        ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto ${tetoMes}h</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín ${minMes}h</div>`:'')}</div>`;
+    }).join('');
+    return `<div class="ams-card ${risco}">
+      <div class="ams-head"><strong>${esc(c.cliente||'(sem nome)')}</strong>
+        <span class="badge">AMS · ${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</span>${tag}
+        <span class="ciclo">Ciclo ${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</span></div>
+      <div class="ams-bar"><div class="ams-track"><div class="ams-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div></div>
+        <div class="ams-bar-l"><span><strong>${fmtH(cons.seg)}</strong> de ${pool}h no ciclo (${pctv}%)</span>
+          <span class="muted">${excedente>0?`excedente ${fmtH(Math.round(excedente*3600))}`:`banco ${fmtH(Math.round(banco*3600))} disponível`}</span></div></div>
+      <div class="ams-kpis">
+        <div class="ams-k"><div class="v">${fmtH(Math.round(banco*3600))}</div><div class="l">Banco de horas</div></div>
+        <div class="ams-k"><div class="v ${excedente>0?'over':''}">${excedente>0?fmtH(Math.round(excedente*3600)):'0h'}</div><div class="l">Excedente (autorizar)</div></div>
+        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela):'—'}</div><div class="l">Parcela do ciclo (${pool}h)</div></div>
+        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela+valExced):'—'}</div><div class="l">Faturamento do ciclo</div></div>
+      </div>
+      <div class="muted small" style="font-weight:600;margin-bottom:2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
+      <div class="ams-months">${mesesHtml}</div>
+      ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
+      ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
+      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    </div>`;
+  };
+  let amsSection='';
+  if(amsList.length){
+    if(!amsProntos){
+      amsSection=`<div class="card full"><h2>🛠️ AMS — apuração por ciclo</h2>
+        ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
+    } else {
+      let tReceita=0,tCons=0,tBanco=0,nExced=0;
+      const cards=amsList.map(c=>{
+        const cyc=amsCicloVigente(c,hoje), cons=amsConsumoCiclo(c,cyc), pool=amsHorasCiclo(c), h=cons.seg/3600, vh=Number(c.valorHora)||0;
+        const exc=Math.max(0,h-pool); tReceita+=(pool+exc)*vh; tCons+=cons.seg; tBanco+=Math.max(0,pool-h)*3600; if(exc>0) nExced++;
+        return amsCard(c);
+      }).join('');
+      amsSection=`<div class="kpis ts-kpis">
+          <div class="kpi t"><div class="v">${fmtBRL(tReceita)}</div><div class="l">Faturamento do ciclo</div></div>
+          <div class="kpi t"><div class="v">${fmtH(tCons)}</div><div class="l">Horas no ciclo</div></div>
+          <div class="kpi a"><div class="v">${fmtH(Math.round(tBanco))}</div><div class="l">Banco de horas</div></div>
+          <div class="kpi w"><div class="v">${nExced}</div><div class="l">Em excedente</div></div>
+        </div>
+        <div class="card full"><h2>🛠️ AMS — apuração por ciclo <span>${amsList.length} contrato(s) · banco de horas</span></h2>
+          <div class="muted small" style="margin-bottom:12px">Consumo do <strong>ciclo de apuração vigente</strong> de cada contrato (independente do período do topo). O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
+          ${cards}</div>`;
+    }
+  }
+
   // Projetos com horas no período que não estão em nenhum contrato.
   const mapeados=new Set(); contratos.forEach(c=>(c.projetos||[]).forEach(p=>mapeados.add(p)));
   const semContrato={};
   (estado.tempo.worklogs||[]).forEach(w=>{ if(!mapeados.has(w.p)) semContrato[w.p]=(semContrato[w.p]||0)+(Number(w.s)||0); });
 
-  const linhas=contratos.map(c=>{
+  // ---- Bolsa de horas / projeto fechado: projeção pelo período da tela ----
+  const outros=contratos.filter(c=>c.tipo!=='ams');
+  const linhas=outros.map(c=>{
     const an=analisaContrato(c);
     const contrSeg=(Number(c.horasContratadas)||0)*3600;
     const pace=decorridos>0 ? an.seg/decorridos : 0;             // ritmo por dia útil fechado
@@ -3690,7 +3873,7 @@ function renderReceita(){
   const totSeg=linhas.reduce((s,l)=>s+l.an.seg,0);
   const totFat=linhas.reduce((s,l)=>s+l.an.segFat,0);
   const totValor=linhas.reduce((s,l)=>s+l.an.valor,0);
-  const totContr=contratos.reduce((s,c)=>s+(Number(c.horasContratadas)||0),0);
+  const totContr=outros.reduce((s,c)=>s+(Number(c.horasContratadas)||0),0);
   const emRisco=linhas.filter(l=>l.risco!=='ok').length;
 
   const card=(l)=>{
@@ -3731,7 +3914,7 @@ function renderReceita(){
         <div class="val">${fmtH(semContrato[k])}</div></div>`;
     }).join('')}</div></div>` : '';
 
-  cont.replaceChildren(el(`<div>
+  const genericoSection = outros.length ? `
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtBRL(totValor)}</div><div class="l">Receita estimada</div></div>
       <div class="kpi t"><div class="v">${fmtH(totSeg)}</div><div class="l">Horas consumidas</div></div>
@@ -3739,10 +3922,14 @@ function renderReceita(){
       <div class="kpi t"><div class="v">${totSeg?Math.round(totFat/totSeg*100):0}%</div><div class="l">Faturável</div></div>
       <div class="kpi w"><div class="v">${emRisco}</div><div class="l">Contratos em risco</div></div>
     </div>
-    <div class="card full"><h2>💰 Receita &amp; AMS por cliente <span>${contratos.length} contrato(s)</span></h2>
-      <div class="muted small" style="margin-bottom:12px">Consumo e receita estimada no <strong>período selecionado</strong>. A projeção estende o ritmo dos dias úteis já fechados (${decorridos}/${totalUteis}) até o fim do período; a marca escura na barra indica a projeção. Para AMS (pacote mensal), use o período <strong>Este mês</strong>.</div>
+    <div class="card full"><h2>💰 Bolsa de horas & projetos <span>${outros.length} contrato(s)</span></h2>
+      <div class="muted small" style="margin-bottom:12px">Consumo e receita estimada no <strong>período selecionado</strong>. A projeção estende o ritmo dos dias úteis já fechados (${decorridos}/${totalUteis}) até o fim do período; a marca escura na barra indica a projeção.</div>
       <div class="rc2-grid">${linhas.map(card).join('')}</div>
-    </div>
+    </div>` : '';
+
+  cont.replaceChildren(el(`<div>
+    ${amsSection}
+    ${genericoSection}
     ${scHtml}
   </div>`));
 }
@@ -4154,6 +4341,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-21','🛠️ <b>AMS por ciclo (banco de horas)</b> — no Admin dá pra cadastrar apuração (trimestral etc.), horas/ciclo, mín/teto mensal; a aba Receita mostra consumo do ciclo, banco de horas, excedente e faturamento.'],
   ['2026-06-21','📊 Nova aba <b>Visão Geral</b> — tela executiva com apontamento do time, alertas críticos, receita por contrato e atividade, tudo num só lugar (agora é a tela inicial).'],
   ['2026-06-21','🎨 <b>Gráficos mais modernos e interativos</b> — área com gradiente e animação, donut de meta e barras com destaque ao passar o mouse.'],
   ['2026-06-21','🟢 Nova <b>marca Dexterity</b> no cabeçalho (o pinwheel oficial).'],
@@ -4425,7 +4613,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   estado.vista=b.dataset.v; render(); estadoParaURL();
 });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 

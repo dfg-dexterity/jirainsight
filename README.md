@@ -86,28 +86,45 @@ gráfico de área e barras seguem **clicáveis para drill-down**. Tudo respeita
 ### ⚙️ Administração — Contratos & Valores
 
 Aba **Admin**: cadastro de **clientes/contratos** que destrava AMS e Receita.
-Para cada contrato: **cliente**, **tipo** (AMS mensal / bolsa de horas / projeto),
-**horas contratadas**, **valor-hora (R$)**, **vigência** e os **projetos do Jira**
-mapeados ao cliente. Cada card mostra um **preview de consumo** (horas apontadas nos
-projetos no período + valor estimado). Fica salvo em `cfg.contratos` (compartilhado
-via Supabase / `/api/config`).
+Para cada contrato: **cliente**, **tipo** (AMS / bolsa de horas / projeto),
+**valor-hora (R$)**, **vigência** e os **projetos do Jira** mapeados ao cliente.
+
+Para o tipo **AMS** há um bloco extra de parâmetros do contrato:
+
+- **Apuração (ciclo):** mensal / **trimestral** / semestral / anual — define a janela de
+  controle e o reset do banco de horas.
+- **Horas por ciclo** (ex.: 60), **mínimo mensal** (ex.: 20) e **teto mensal** (ex.: 60).
+- **Banco de horas dentro do ciclo:** o saldo não consumido vale até o fim do ciclo e
+  **não acumula** para o ciclo seguinte.
+- O form mostra o **resumo derivado** (h/ano e valor da parcela/ano). Ex.: 60h × R$122 em
+  4 trimestres = **240h/ano**, parcela **R$ 7.320** e ano **R$ 29.280**.
+
+Cada card mostra um **preview de consumo** (período) e, para AMS, os parâmetros do ciclo.
+Fica salvo em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
 
 ### 💰 Receita & AMS por cliente
 
-Aba **Receita**: dashboard de governança financeira montado em cima dos contratos
-cadastrados em **Admin** (sem nova função serverless — consome `cfg.contratos` +
-os worklogs já carregados). Para cada cliente/contrato no **período selecionado**:
+Aba **Receita** — duas seções, conforme o tipo de contrato (tudo sem nova função
+serverless; consome `cfg.contratos` + worklogs):
 
-- **Horas contratadas × consumidas** com barra de **% de esgotamento** e **projeção**
-  (estende o ritmo dos dias úteis já fechados até o fim do período; marca a projeção
-  na barra e estima a **data de esgotamento** do pacote).
-- **Receita estimada** (horas × valor-hora) e **% faturável** do consumo.
-- Selo **em risco** (projeção ≥ 85%) / **esgotado** (≥ 100%).
-- KPIs gerais (receita, horas consumidas/contratadas, % faturável, contratos em risco).
-- Card **"Horas sem contrato"**: projetos com horas no período **não mapeados** a
-  nenhum contrato (não entram na receita) — sinaliza o que falta cadastrar em Admin.
+**🛠️ AMS — apuração por ciclo (banco de horas).** Para cada contrato AMS, calcula o
+**ciclo de apuração vigente** (alinhado ao mês de início da vigência) e busca os worklogs
+**desse ciclo** via `GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
 
-Para AMS (pacote mensal), use o período **Este mês** para acompanhar o ciclo.
+- **Consumo do ciclo × horas contratadas** (ex.: Xh de 60h, %), com selo em risco/esgotado;
+- **Banco de horas** (saldo disponível até o fim do ciclo) e **excedente** (acima do pacote
+  → requer **autorização prévia** e é faturado junto com o ciclo);
+- **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente;
+- **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
+- KPIs do conjunto: faturamento do ciclo, horas no ciclo, banco de horas e nº em excedente.
+
+> O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo.
+
+**💰 Bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado, projeção pelo
+**período selecionado**: horas contratadas × consumidas, **% de esgotamento + projeção**
+(ritmo dos dias úteis fechados até o fim do período), receita estimada e % faturável.
+
+Ainda: card **"Horas sem contrato"** (projetos com horas não mapeados a nenhum contrato).
 
 ### 🚨 Central de Alertas
 

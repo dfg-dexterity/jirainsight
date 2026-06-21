@@ -39,12 +39,28 @@ async function clockworkWorklogs(startDate, endDate) {
 
 export default async function handler(req, res) {
   try {
-    const janela = normalizaJanela((req.query && req.query.janela) || '7d');
-    const ck = `tempo:${janela}`;
+    // Intervalo: janela predefinida (padrão) OU intervalo livre desde/ate (usado pela
+    // apuração de AMS, que precisa do trimestre vigente independentemente do período da tela).
+    const RE_D = /^\d{4}-\d{2}-\d{2}$/;
+    const desde = String((req.query && req.query.desde) || '');
+    const ate = String((req.query && req.query.ate) || '');
+    let r, ck;
+    if (RE_D.test(desde) && RE_D.test(ate) && desde <= ate
+        && (new Date(ate) - new Date(desde)) <= 400 * 86400000) {
+      r = {
+        janela: 'custom', startDate: desde, endDate: ate,
+        startISO: `${desde}T00:00:00-03:00`, endISO: `${ate}T23:59:59-03:00`,
+        geradoEm: new Date().toISOString(),
+      };
+      ck = `tempo:custom:${desde}:${ate}`;
+    } else {
+      const janela = normalizaJanela((req.query && req.query.janela) || '7d');
+      r = rangeFor(janela);
+      ck = `tempo:${janela}`;
+    }
     const cached = cacheGet(ck);
     if (cached) return json(res, 200, cached);
 
-    const r = rangeFor(janela);
     const brutos = await clockworkWorklogs(r.startDate, r.endDate);
 
     // IDs de issue para resolver projeto/tipo no Jira.
