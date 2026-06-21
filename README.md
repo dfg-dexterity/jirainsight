@@ -95,6 +95,20 @@ Botão **🌙/☀️** no topo alterna entre claro e escuro; a preferência fica
 **variáveis de tema** (`[data-theme="dark"]` sobrescreve `--offwhite/--grafite/--cartao/--linha/
 --muted/--trilho/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
 
+### 🩺 Score de saúde da entrega
+
+Na **Visão Geral**, um **score 0–100** (donut + componentes) resume a saúde da operação:
+média ponderada de **Apontamento** (30%), **Prazos** (vencidos/vencem hoje, 25%), **Alertas**
+críticos (25%) e **AMS** (esgotamento de contratos, 20%). Faixas: ≥80 **Saudável** · 60–79
+**Atenção** · <60 **Crítico**. Cada componente é clicável e leva ao detalhe.
+
+### 🖨 Exportar PDF
+
+Botão **🖨 PDF** no topo gera um **relatório da tela atual** via impressão do navegador
+(*Salvar como PDF*): um `@media print` força o **tema claro**, esconde a navegação/controles e
+adiciona um **cabeçalho** (logo + título da visão + período + data/hora), evitando quebras no meio
+dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
+
 ### Navegação e novidades
 
 - **Menu por função:** o topo é organizado em **📊 Visão Geral** (inicial) + 3 grupos com

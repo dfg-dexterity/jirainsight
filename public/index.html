@@ -46,6 +46,30 @@
   [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:var(--cartao);color:var(--grafite)}
   [data-theme="dark"] .navg-menu button{color:var(--grafite)}
   [data-theme="dark"] .btn:hover,[data-theme="dark"] .navg-menu button:hover,[data-theme="dark"] .chip:hover{background:var(--hoverbg)}
+  /* ===== Impressão / Exportar PDF (força claro, esconde controles) ===== */
+  .print-head{display:none}
+  @media print{
+    @page{size:A4;margin:12mm}
+    :root,[data-theme="dark"]{ --offwhite:#fff; --grafite:#15212e; --cartao:#fff; --cartao2:#f7f9fc;
+      --linha:#cfd8e3; --linha2:#e6ebf2; --muted:#566879; --muted2:#7e8ea0; --trilho:#eef1f8;
+      --hoverbg:#eef4fc; --texto2:#475569; --cerceta:#0064D9; --sombra:none; }
+    body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    header,.filtros,#to-top,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
+    .wrap{max-width:none!important;padding:0!important}
+    .print-head{display:flex!important;align-items:center;gap:12px;border-bottom:2px solid #15212e;padding-bottom:10px;margin-bottom:16px}
+    .print-head img{width:34px;height:34px}
+    .print-head h1{font-size:17px;margin:0;font-weight:700}
+    .print-head .ph-sub{font-size:12px;color:#566879;margin-top:2px}
+    .print-head .ph-right{margin-left:auto;text-align:right;font-size:12px;color:#566879;line-height:1.5}
+    .card,.vg-card,.ams-card,.rc2-card,.kpi,.barrow,.tm,.tsc{break-inside:avoid}
+    .card,.vg-card,.ams-card,.rc2-card{box-shadow:none!important;border:1px solid #d7dee7}
+    .vg-grid,.grid{display:block!important} .vg-grid>*,.grid>*{margin-bottom:14px}
+    .vg-hero,.kpis{break-inside:avoid}
+    .tsc-line{stroke-dashoffset:0!important;animation:none!important}
+    .tsc-area{opacity:1!important;animation:none!important}
+    h2 .lnk{display:none!important}
+    a[href]:after{content:""!important}
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--offwhite);color:var(--grafite);font-family:var(--corpo);
     font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -751,6 +775,7 @@
 </head>
 <body>
 <div class="wrap">
+  <div class="print-head" id="print-head" aria-hidden="true"></div>
   <header>
     <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar ao início (Resumo)">
       <img class="mark" src="/logo.svg" alt="Dexterity" width="36" height="36" decoding="async">
@@ -804,6 +829,7 @@
     </label>
     <button class="btn" id="btn-metas">Metas</button>
     <button class="btn" id="btn-csv">Exportar CSV</button>
+    <button class="btn" id="btn-pdf" title="Exportar a tela atual em PDF">🖨 PDF</button>
     <button class="btn" id="btn-refresh">Atualizar</button>
     <button class="btn" id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
     <button class="btn" id="btn-tema" aria-label="Alternar modo claro/escuro" title="Modo claro/escuro">🌙</button>
@@ -1725,8 +1751,32 @@ function renderVisao(){
       'Concluídos':(d.kpi.concl==null?0:d.kpi.concl) },(v)=>v,cores.amarelo,6);
   })()}</div>`;
 
+  // 🩺 Score de saúde da entrega (0–100): média ponderada de subscores acionáveis.
+  let scoreCard='';
+  {
+    const sApont=Math.max(0,Math.min(100,pctMeta));
+    const sPrazo=alertasProntos?Math.max(0,100-Math.min(100,venc*9+vh*4)):null;
+    const sAlertas=alertasProntos?Math.max(0,100-Math.min(100,cSev.critico*16+cSev.alto*7)):null;
+    const sAMS=rec?Math.max(0,100-Math.min(100,rec.emRisco*22)):null;
+    const comps=[['Apontamento',sApont,0.30,'timesheet'],['Prazos',sPrazo,0.25,'alertas'],
+      ['Alertas',sAlertas,0.25,'alertas'],['AMS',sAMS,0.20,'receita']].filter(c=>c[1]!=null);
+    const wsum=comps.reduce((s,c)=>s+c[2],0)||1;
+    const score=comps.length?Math.round(comps.reduce((s,c)=>s+c[1]*c[2],0)/wsum):null;
+    const corS=score==null?cores.cerceta:(score>=80?cores.musgo:(score>=60?cores.amarelo:'#D20A0A'));
+    const rot=score==null?'':(score>=80?'Saudável':(score>=60?'Atenção':'Crítico'));
+    const subBars=comps.map(c=>{ const v=Math.round(c[1]); const cc=v>=80?cores.musgo:(v>=60?cores.amarelo:'#D20A0A');
+      return `<div class="vg-mrow"><span class="lnk" data-goto="${c[3]}" style="cursor:pointer">${c[0]}</span>
+        <span style="font-variant-numeric:tabular-nums;color:${cc};font-weight:700">${v}</span>
+        <div class="bar"><i style="width:${v}%;background:${cc}"></i></div></div>`; }).join('');
+    scoreCard=`<div class="vg-card full"><h2>🩺 Score de saúde da entrega ${score!=null?`<span style="margin-left:auto;color:${corS};font-weight:700">${rot} · ${score}/100</span>`:''}</h2>
+      ${!alertasProntos ? '<div class="estado">Calculando o score…</div>'
+        : `<div class="vg-split">${donut(score,'saúde',corS)}<div class="vg-mini" style="gap:11px">${subBars}</div></div>
+           <div class="muted small" style="margin-top:10px">Combina <strong>apontamento</strong> do time, <strong>prazos</strong> (vencidos/vencem hoje), <strong>alertas</strong> críticos${rec?' e <strong>esgotamento de AMS</strong>':''}. Clique num componente para ver o detalhe.</div>`}
+    </div>`;
+  }
   cont.replaceChildren(el(`<div>
     ${hero}
+    ${scoreCard}
     ${health}
     <div class="vg-grid">
       ${cardApont}
@@ -4592,6 +4642,8 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-21','🩺 <b>Score de saúde da entrega</b> (0–100) na Visão Geral — combina apontamento, prazos, alertas e esgotamento de AMS, com componentes clicáveis.'],
+  ['2026-06-21','🖨 <b>Exportar PDF</b> — botão no topo gera um relatório da tela atual (cabeçalho com período/data, layout claro pronto para imprimir/salvar em PDF).'],
   ['2026-06-21','🌙 <b>Modo escuro</b> — botão no topo (🌙/☀️) alterna claro/escuro; a preferência fica salva no navegador.'],
   ['2026-06-21','📈 <b>Gráficos interativos premium</b> — série temporal com <b>crosshair</b> que segue o cursor e leitura ao passar o mouse, <b>burn-up</b> do ciclo de AMS, série semanal de chamados e <b>treemap</b> de distribuição.'],
   ['2026-06-21','🌐 <b>Painel do cliente</b> — link somente-leitura (gerado no Admin) para o cliente acompanhar horas do ciclo, banco de horas e chamados abertos/fechados.'],
@@ -4881,6 +4933,26 @@ document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete es
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
+// Exportar a tela atual em PDF (via impressão do navegador → "Salvar como PDF").
+function exportarPDF(){
+  const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
+    ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
+    reclassificar:'Reclassificar',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
+  const tit=titulos[estado.vista]||'Relatório';
+  const sel=document.getElementById('f-periodo');
+  const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
+  const agora=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+  const ph=document.getElementById('print-head');
+  if(ph) ph.innerHTML=`<img src="/logo.svg" alt="Dexterity"><div><h1>${esc(tit)}</h1>
+    <div class="ph-sub">Dexterity IT · Insights de Uso (Jira + Clockwork)</div></div>
+    <div class="ph-right">Período: <strong>${esc(per)}</strong><br>Gerado em ${esc(agora)}</div>`;
+  const prev=document.title;
+  document.title=`Dexterity — ${tit} — ${per}`;
+  const restaura=()=>{ document.title=prev; window.removeEventListener('afterprint',restaura); };
+  window.addEventListener('afterprint', restaura);
+  setTimeout(()=>window.print(), 60);   // dá tempo de o print-head pintar
+}
+document.getElementById('btn-pdf').addEventListener('click', exportarPDF);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
