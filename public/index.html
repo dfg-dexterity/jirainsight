@@ -46,6 +46,24 @@
   [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:var(--cartao);color:var(--grafite)}
   [data-theme="dark"] .navg-menu button{color:var(--grafite)}
   [data-theme="dark"] .btn:hover,[data-theme="dark"] .navg-menu button:hover,[data-theme="dark"] .chip:hover{background:var(--hoverbg)}
+  /* Painéis/células com cores claras fixas → tons escuros no modo escuro */
+  [data-theme="dark"] .ia-card{background:linear-gradient(180deg,#1B2737,#16212F)}
+  [data-theme="dark"] .ia-geral{background:#1A2738;border-color:var(--linha)}
+  [data-theme="dark"] .ia-texto,[data-theme="dark"] .ad-cons,[data-theme="dark"] .help-body,[data-theme="dark"] .tour-pop p{color:var(--texto2)}
+  [data-theme="dark"] .kb-col{background:var(--cartao2)}
+  [data-theme="dark"] .cv-card{background:var(--cartao2);border-color:var(--linha)}
+  [data-theme="dark"] .pl-destino,[data-theme="dark"] .pl-hist-row.sel,[data-theme="dark"] .cv-card{border-color:var(--linha)}
+  [data-theme="dark"] .pl-hist-row.sel{background:#1A2738}
+  [data-theme="dark"] .ts-d.fer,[data-theme="dark"] .ts-c.fer{background:#2A2440;color:#C4B5FD}
+  [data-theme="dark"] .ts-c.fds{background:#1E2A3A;color:#8295AC}
+  [data-theme="dark"] .ts-c.aus{background:#1E2A3A}
+  [data-theme="dark"] .aviso{background:#33270F;border-color:#5C4514;color:#F0C674}
+  [data-theme="dark"] .aviso.ok{background:#10291C;border-color:#1E5B3D;color:#6FD49C}
+  [data-theme="dark"] .ap-row.feito,[data-theme="dark"] .cv-row.feito{background:#10291C;border-color:#1E5B3D}
+  [data-theme="dark"] .mh-dia.over{background:#33270F;border-color:#5C4514} [data-theme="dark"] .mh-dia.over .mh-h{color:#F0C674}
+  [data-theme="dark"] .ams-mc.lo{background:#33270F} [data-theme="dark"] .ams-mc.hi{background:#3A1715}
+  [data-theme="dark"] tr.pl-row-err input.pl-resumo{background:#3A1715;border-color:#7A2A26}
+  [data-theme="dark"] .rc-tab tbody tr:hover{background:var(--hoverbg)} [data-theme="dark"] .ap-proj-head:hover{background:var(--hoverbg)}
   /* ===== Impressão / Exportar PDF (força claro, esconde controles) ===== */
   .print-head{display:none}
   @media print{
@@ -966,7 +984,7 @@ const fmtH = (seg) => {
 };
 const pct = (n,d) => d ? Math.round(n/d*100) : 0;
 const el = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
-const esc = (s) => String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc = (s) => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 // Escape para VALOR de atributo (inclui aspas). O texto é lido de volta com getAttribute
 // e renderizado via textContent, então não há injeção.
 const escA = (s) => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1262,7 +1280,7 @@ function cardPessoaProjeto(){
     if(outros>0) partes.push(['Outros projetos',outros,COR_OUTROS,null]);
     const stack=partes.map(([nm,v,c,rawK])=>{
       const dr=rawK?` data-drill="projeto" data-key="${escA(rawK)}" data-tipk="clique para detalhar o projeto"`:'';
-      return `<span${dr} style="width:${v/l.tot*100}%;background:${c}" data-tip="${escA(nm)}" data-tip2="${escA(fmtH(v))}"></span>`;
+      return `<span${dr} style="width:${l.tot>0?v/l.tot*100:0}%;background:${c}" data-tip="${escA(nm)}" data-tip2="${escA(fmtH(v))}"></span>`;
     }).join('');
     return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" data-tip="${escA(l.nome)}" data-tipk="clique para ver a pessoa">${esc(l.nome)}</div>
       <div class="pp-track"><div class="pp-stack anima" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
@@ -1291,8 +1309,8 @@ function cardFaturavelPessoa(){
   const maxTot=Math.max(1,...linhas.map(l=>l.tot));
   const rows=linhas.map(l=>{
     const stack=
-      `<span style="width:${l.fat/l.tot*100}%;background:${cores.musgo}" data-tip="Faturável" data-tip2="${escA(fmtH(l.fat))}"></span>`+
-      `<span style="width:${l.nao/l.tot*100}%;background:${cores.amarelo}" data-tip="Não faturável" data-tip2="${escA(fmtH(l.nao))}"></span>`;
+      `<span style="width:${l.tot>0?l.fat/l.tot*100:0}%;background:${cores.musgo}" data-tip="Faturável" data-tip2="${escA(fmtH(l.fat))}"></span>`+
+      `<span style="width:${l.tot>0?l.nao/l.tot*100:0}%;background:${cores.amarelo}" data-tip="Não faturável" data-tip2="${escA(fmtH(l.nao))}"></span>`;
     return `<div class="pp-row"><div class="pp-nome" data-pessoa="${esc(l.a)}" data-tip="${escA(l.nome)}" data-tipk="clique para ver a pessoa">${esc(l.nome)}</div>
       <div class="pp-track"><div class="pp-stack anima" style="width:${Math.max(3,l.tot/maxTot*100)}%">${stack}</div></div>
       <div class="pp-val">${pct(l.fat,l.tot)}%</div></div>`;
@@ -1754,7 +1772,7 @@ function renderVisao(){
   // 🩺 Score de saúde da entrega (0–100): média ponderada de subscores acionáveis.
   let scoreCard='';
   {
-    const sApont=Math.max(0,Math.min(100,pctMeta));
+    const sApont=totEsp?Math.max(0,Math.min(100,pctMeta)):null;
     const sPrazo=alertasProntos?Math.max(0,100-Math.min(100,venc*9+vh*4)):null;
     const sAlertas=alertasProntos?Math.max(0,100-Math.min(100,cSev.critico*16+cSev.alto*7)):null;
     const sAMS=rec?Math.max(0,100-Math.min(100,rec.emRisco*22)):null;
@@ -4950,7 +4968,11 @@ function exportarPDF(){
   document.title=`Dexterity — ${tit} — ${per}`;
   const restaura=()=>{ document.title=prev; window.removeEventListener('afterprint',restaura); };
   window.addEventListener('afterprint', restaura);
-  setTimeout(()=>window.print(), 60);   // dá tempo de o print-head pintar
+  // Só imprime depois que o logo do cabeçalho decodificar (evita imagem quebrada na 1ª impressão).
+  const go=()=>window.print();
+  const img=ph&&ph.querySelector('img');
+  if(img&&img.decode) img.decode().then(go).catch(go);
+  else setTimeout(go,120);
 }
 document.getElementById('btn-pdf').addEventListener('click', exportarPDF);
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
@@ -4968,6 +4990,9 @@ document.getElementById('btn-tema').addEventListener('click', ()=>{
   const dark = document.documentElement.getAttribute('data-theme')!=='dark';
   try{ localStorage.setItem('jirainsight_theme', dark?'dark':'light'); }catch(e){}
   aplicaTema(dark?'dark':'light');
+  // Recolore os gráficos (as cores das séries são fixadas no HTML na renderização).
+  // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
+  if(!['apontar','planejar','reclassificar','admin'].includes(estado.vista)) try{ render(); }catch(e){}
 });
 // Logo no canto superior esquerdo volta para o início (Resumo).
 document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('visao'));
