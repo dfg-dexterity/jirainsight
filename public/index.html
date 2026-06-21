@@ -372,6 +372,18 @@
   .kb-k{font-weight:700;font-size:12.5px;color:#0064D9}
   .kb-res{font-size:13px;line-height:1.4;margin-bottom:6px}
   .kb-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  /* Central de Alertas */
+  .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .al-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left-width:5px}
+  .al-card.al-critico{border-left-color:#D20A0A} .al-card.al-alto{border-left-color:#F59E0B}
+  .al-card.al-medio{border-left-color:#EAB308} .al-card.al-baixo{border-left-color:#3B82F6}
+  .al-top{display:flex;align-items:center;gap:8px;font-size:11px}
+  .al-sev{font-weight:700} .al-cat{color:#64748B;text-transform:uppercase;letter-spacing:.4px}
+  .al-link{font-weight:700;white-space:nowrap}
+  .al-tit{font-size:14px;font-weight:700;color:var(--grafite);margin:6px 0 2px}
+  .al-det{font-size:12.5px;color:#475569;line-height:1.45}
+  .al-foot{display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;margin-top:8px;border-top:1px dashed var(--linha);padding-top:7px}
+  .al-acao{color:#0064D9}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -569,6 +581,7 @@
       <button data-v="apontar">⏱ Apontar</button>
       <button data-v="planejar">📝 Planejar</button>
       <button data-v="reclassificar">🔀 Reclassificar</button>
+      <button data-v="alertas">🚨 Alertas</button>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -666,6 +679,8 @@ const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuar
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
   ajuda:{ projetos:null },
+  // Central de Alertas (motor de alertas acionáveis).
+  alertas:{ dados:null, carregando:false, erro:'', sev:'' },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -972,6 +987,7 @@ function render(){
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
+  if(estado.vista==='alertas') return renderAlertas();
   return renderResumo();
 }
 
@@ -3151,6 +3167,94 @@ function carregaReunioes(forca){
     }).catch(e=>{ rc.carregando=false; rc.erro=String(e.message||e); if(estado.vista==='reclassificar') renderReclass(); });
 }
 
+// ====================== CENTRAL DE ALERTAS ======================
+// Motor de alertas acionáveis a partir dos dados que já temos (vencimentos + timesheet).
+function calcAlertas(){
+  const al=[]; const hoje=hojeSP();
+  const d=estado.alertas.dados;
+  if(d && d.tickets){
+    d.tickets.forEach(t=>{
+      const link=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+      if(t.venc && t.venc<hoje){
+        const dias=Math.round((new Date(hoje)-new Date(t.venc))/86400000);
+        al.push({ sev: dias>7?'critico':'alto', cat:'Ticket vencido',
+          titulo:`${t.k} venceu há ${dias}d`, detalhe:`${t.resumo||''} · ${t.p} · ${t.status}`,
+          resp:t.resp||'sem responsável', acao:'Concluir, reagendar o vencimento ou repriorizar.', link });
+      } else if(t.venc===hoje){
+        al.push({ sev:'medio', cat:'Vence hoje', titulo:`${t.k} vence hoje`,
+          detalhe:`${t.resumo||''} · ${t.p}`, resp:t.resp||'sem responsável', acao:'Concluir ou reagendar ainda hoje.', link });
+      }
+      if(!t.respId){
+        al.push({ sev:'medio', cat:'Sem responsável', titulo:`${t.k} sem responsável`,
+          detalhe:`${t.resumo||''} · ${t.p} · ${t.status}`, resp:'—', acao:'Atribuir um responsável.', link });
+      }
+    });
+  }
+  try{
+    const { dias, hoje:hj, linhas } = calcTimesheet();
+    const uteis=dias.filter(x=>ehUtil(x)&&!ehFeriado(x)&&x!==hj);
+    const ultimo=uteis[uteis.length-1];
+    linhas.forEach(l=>{
+      if(ultimo && !ehAusencia(l.a,ultimo) && !(l.porDia[ultimo]>0)){
+        al.push({ sev:'alto', cat:'Sem apontamento', titulo:`${l.nome} não apontou em ${fmtBR(ultimo)}`,
+          detalhe:'Último dia útil fechado', resp:l.nome, acao:'Cobrar/registrar o apontamento do dia.' });
+      }
+      if(l.esperado>0){ const pctMeta=Math.round(l.tot/l.esperado*100);
+        if(pctMeta<80) al.push({ sev: pctMeta<60?'alto':'medio', cat:'Abaixo da meta',
+          titulo:`${l.nome} em ${pctMeta}% da meta no período`,
+          detalhe:`Apontou ${fmtH(l.tot)} de ${fmtH(l.esperado)} · faltam ${fmtH(l.lacuna)}`,
+          resp:l.nome, acao:'Apontar as horas pendentes do período.' });
+      }
+    });
+  }catch(e){ /* tempo ainda não carregado: mostra só os alertas de tickets */ }
+  const ordem={critico:0,alto:1,medio:2,baixo:3};
+  al.sort((a,b)=> (ordem[a.sev]-ordem[b.sev]) || a.cat.localeCompare(b.cat,'pt') || a.titulo.localeCompare(b.titulo,'pt'));
+  return al;
+}
+function renderAlertas(){
+  const cont=document.getElementById('conteudo');
+  const a=estado.alertas;
+  if(!a.dados && !a.carregando && !a.erro){
+    a.carregando=true;
+    const ate=somaDias(hojeSP(),7);   // vencidos + vencendo nos próximos 7 dias + sem data
+    fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1`).then(r=>r.json()).then(j=>{
+      a.carregando=false; if(j.erro) a.erro=j.erro; else a.dados=j;
+      if(estado.vista==='alertas') renderAlertas();
+    }).catch(e=>{ a.carregando=false; a.erro=String(e.message||e); if(estado.vista==='alertas') renderAlertas(); });
+  }
+  if(a.erro){ cont.replaceChildren(el(`<div class="erro"><strong>Falha ao montar os alertas.</strong> ${esc(a.erro)}
+    <button class="btn" id="al-retry" style="margin-left:10px">Tentar de novo</button></div>`)); return; }
+  if(!a.dados){ cont.replaceChildren(el('<div class="estado">Analisando alertas…</div>')); return; }
+
+  const todos=calcAlertas();
+  const c={critico:0,alto:0,medio:0,baixo:0}; todos.forEach(x=>{ c[x.sev]=(c[x.sev]||0)+1; });
+  const sevInfo={critico:['Crítico','🔴'],alto:['Alto','🟠'],medio:['Médio','🟡'],baixo:['Baixo','🔵']};
+  let lista=todos; if(a.sev) lista=lista.filter(x=>x.sev===a.sev);
+  const cards=lista.map(x=>{
+    const [rot,ic]=sevInfo[x.sev]||['',''];
+    return `<div class="al-card al-${esc(x.sev)}">
+      <div class="al-top"><span class="al-sev">${ic} ${rot}</span><span class="al-cat">${esc(x.cat)}</span>
+        ${x.link?`<span class="spacer"></span><a class="al-link" href="${x.link}" target="_blank" rel="noopener">abrir ↗</a>`:''}</div>
+      <div class="al-tit">${esc(x.titulo)}</div>
+      ${x.detalhe?`<div class="al-det">${esc(x.detalhe)}</div>`:''}
+      <div class="al-foot"><span data-tip="Responsável">👤 ${esc(x.resp||'—')}</span><span class="spacer"></span><span class="al-acao">→ ${esc(x.acao)}</span></div>
+    </div>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="kpis ts-kpis">
+      <div class="kpi w" data-al-sev="critico" aria-pressed="${a.sev==='critico'}" data-tipk="clique para filtrar"><div class="v">${c.critico}</div><div class="l">🔴 Críticos</div></div>
+      <div class="kpi w" data-al-sev="alto" aria-pressed="${a.sev==='alto'}" data-tipk="clique para filtrar"><div class="v">${c.alto}</div><div class="l">🟠 Altos</div></div>
+      <div class="kpi t" data-al-sev="medio" aria-pressed="${a.sev==='medio'}" data-tipk="clique para filtrar"><div class="v">${c.medio}</div><div class="l">🟡 Médios</div></div>
+      <div class="kpi a" data-al-sev="" aria-pressed="${a.sev===''}" data-tipk="clique para ver todos"><div class="v">${todos.length}</div><div class="l">Todos os alertas</div></div>
+    </div>
+    <div class="card full">
+      <h2>🚨 Central de Alertas <span>ações recomendadas · ${lista.length} alerta(s)${a.sev?` · ${sevInfo[a.sev][0]}`:''}</span></h2>
+      <div class="muted small" style="margin-bottom:10px">Tickets vencidos/vencendo e sem responsável (próximos 7 dias) + pessoas sem apontamento ou abaixo da meta no período. AMS, orçamento de projeto e SLA entram quando os dados forem cadastrados.</div>
+      ${lista.length?`<div class="al-grid">${cards}</div>`:'<div class="aviso ok">✓ Nenhum alerta neste filtro. Tudo em dia!</div>'}
+    </div>
+  </div>`));
+}
+
 function renderReclass(){
   const cont=document.getElementById('conteudo');
   const rc=estado.reclass;
@@ -3340,6 +3444,7 @@ function abreAjuda(){
       <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b>, <b>mova de projeto</b> e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
+      <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -3737,7 +3842,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar'];
+const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -3820,7 +3925,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   estado.vista=b.dataset.v; render(); estadoParaURL();
 });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
@@ -3878,6 +3983,13 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
     estado.reclass.busca=e.target.value; renderReclass();
     const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
   }
+});
+// ---- Central de Alertas: filtro por severidade e retry ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const kp=e.target.closest && e.target.closest('[data-al-sev]');
+  if(kp){ escondeTip(); estado.alertas.sev=kp.getAttribute('data-al-sev'); renderAlertas(); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='al-retry'){ estado.alertas.erro=''; estado.alertas.dados=null; renderAlertas(); }
 });
 
 // Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.
