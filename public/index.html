@@ -961,9 +961,15 @@ async function carregaCfgRemota(){
   }catch(e){ /* mantém local */ }
 }
 // Salva no servidor (quando compartilhado). Dispara junto com o salvar local.
+// Exige credenciais do Jira (a gravação não é anônima); envia-as por cabeçalho.
 function salvaCfgRemota(){
   if(!cfgShared) return;
-  try{ fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cfg) }); }catch(e){}
+  const id=idApontar();
+  const h={'Content-Type':'application/json'};
+  if(id){ h['X-Jira-Email']=id.email; h['X-Jira-Token']=id.token; }
+  try{ fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(cfg) })
+    .then(r=>r.json()).then(j=>{ if(j && j.ok===false) console.warn('Config não salva no servidor:', j.erro||''); })
+    .catch(()=>{}); }catch(e){}
 }
 // Meta diária (em segundos) de uma pessoa: override individual ou meta global.
 function metaSegDe(a){
@@ -3980,6 +3986,7 @@ function renderAdmin(){
       <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
         Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
     </div>
+    ${cfgShared && !idApontar() ? `<div class="aviso">⚠ Para <strong>salvar</strong> as configurações no servidor é preciso identificar-se: informe seu e-mail e token do Jira na aba <strong data-goto="apontar" style="cursor:pointer;text-decoration:underline">⏱ Apontar</strong>. Sem isso, as alterações ficam só neste navegador.</div>` : ''}
     ${form}
     <div class="card full"><h2>Contratos cadastrados <span>${contratos.length}</span></h2>
       ${contratos.length?`<div class="ad-grid">${cards}</div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}
