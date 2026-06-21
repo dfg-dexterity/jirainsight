@@ -68,6 +68,18 @@
   .seg button[aria-pressed="true"]{background:transparent;color:var(--cerceta);border-bottom-color:var(--cerceta);box-shadow:none}
   .seg button .tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
     padding:0 4px;margin-left:5px;border-radius:999px;background:#D20A0A;color:#fff;font-size:11px;font-weight:700;vertical-align:middle}
+  /* Menus agrupados por função (dropdowns) */
+  .navg{position:relative;display:inline-flex}
+  .navg-b[aria-expanded="true"]{color:var(--cerceta)}
+  .navg.ativo>.navg-b,.navg-b[aria-pressed="true"]{color:var(--cerceta);border-bottom-color:var(--cerceta)}
+  .navg-menu{position:absolute;top:100%;left:0;z-index:60;min-width:190px;background:var(--cartao);
+    border:1px solid var(--linha);border-radius:10px;box-shadow:0 14px 38px rgba(34,54,79,.20);
+    padding:6px;display:none;flex-direction:column;gap:1px;margin-top:2px}
+  .navg.open>.navg-menu{display:flex}
+  .navg-menu button{border:0;border-bottom:0;margin:0;background:transparent;text-align:left;white-space:nowrap;
+    padding:9px 12px;border-radius:7px;font-family:var(--corpo);font-size:13.5px;font-weight:600;color:var(--grafite);cursor:pointer}
+  .navg-menu button:hover{background:#EAF1FB;color:var(--cerceta)}
+  .navg-menu button[aria-pressed="true"]{background:#EAF1FB;color:var(--cerceta)}
   /* Botões Fiori: transparentes (toolbar) com texto azul; .primario = emphasized (azul cheio) */
   .btn{border:1px solid transparent;background:transparent;border-radius:6px;
     padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:14px;font-weight:600;
@@ -681,8 +693,9 @@
     .brand img{width:34px;height:34px}
     .spacer{display:none}
     header{gap:8px}
-    .seg{width:100%;overflow-x:auto}
-    .seg button{flex:1 0 auto;white-space:nowrap;padding:8px 12px}
+    .seg{width:100%;overflow:visible;flex-wrap:wrap;gap:2px}
+    .navtab,.navg-b{white-space:nowrap;padding:8px 10px}
+    .navg-menu{min-width:62vw}
     .hdr-sel{flex:1 1 100%}
     #btn-metas,#btn-csv,#btn-refresh{flex:1 1 30%}
     .atualizado{order:9}
@@ -718,17 +731,32 @@
     </div>
     <div class="spacer"></div>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
-      <button data-v="visao" aria-pressed="true">📊 Visão Geral</button>
-      <button data-v="resumo">Resumo</button>
-      <button data-v="timesheet">Timesheet</button>
-      <button data-v="ranking">Ranking</button>
-      <button data-v="tickets">Tickets</button>
-      <button data-v="apontar">⏱ Apontar</button>
-      <button data-v="planejar">📝 Planejar</button>
-      <button data-v="reclassificar">🔀 Reclassificar</button>
-      <button data-v="alertas">🚨 Alertas</button>
-      <button data-v="receita">💰 Receita</button>
-      <button data-v="admin">⚙️ Admin</button>
+      <button class="navtab" data-v="visao" aria-pressed="true">📊 Visão Geral</button>
+      <div class="navg">
+        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false">Análise ▾</button>
+        <div class="navg-menu" role="menu">
+          <button data-v="resumo">Resumo</button>
+          <button data-v="timesheet">Timesheet</button>
+          <button data-v="ranking">Ranking</button>
+          <button data-v="tickets">Tickets</button>
+        </div>
+      </div>
+      <div class="navg">
+        <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false">⏱ Operação ▾</button>
+        <div class="navg-menu" role="menu">
+          <button data-v="apontar">⏱ Apontar</button>
+          <button data-v="planejar">📝 Planejar</button>
+          <button data-v="reclassificar">🔀 Reclassificar</button>
+        </div>
+      </div>
+      <div class="navg">
+        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false">💰 AMS & Governança ▾</button>
+        <div class="navg-menu" role="menu">
+          <button data-v="receita">💰 Receita</button>
+          <button data-v="alertas">🚨 Alertas</button>
+          <button data-v="admin">⚙️ Admin</button>
+        </div>
+      </div>
     </div>
     <label class="hdr-sel"><span>Período</span>
       <select id="f-periodo">
@@ -2963,11 +2991,14 @@ async function executaReclass(btn){
 // Pinta um selo com o nº de convites pendentes no botão da aba ⏱ Apontar (visível
 // de qualquer aba, para quem está identificado).
 function pintaBadgeConvites(n){
-  const btn=document.querySelector('#seg-vista [data-v="apontar"]'); if(!btn) return;
-  let b=btn.querySelector('.tab-badge');
-  if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; btn.appendChild(b); }
-    b.textContent=n; b.title=n+' convite(s) de reunião aguardando você'; }
-  else if(b){ b.remove(); }
+  // Pinta o selo no item ⏱ Apontar (dentro do menu) E no cabeçalho do grupo Operação,
+  // para ficar visível mesmo com o dropdown fechado.
+  [document.querySelector('#seg-vista [data-v="apontar"]'), document.getElementById('navg-op-b')].forEach(el=>{
+    if(!el) return; let b=el.querySelector('.tab-badge');
+    if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; el.appendChild(b); }
+      b.textContent=n; b.title=n+' convite(s) de reunião aguardando você'; }
+    else if(b){ b.remove(); }
+  });
 }
 function buscaConvites(){
   const id=idApontar(); if(!id||!id.accountId){ pintaBadgeConvites(0); return; }
@@ -4419,7 +4450,7 @@ async function enviaFeedback(){
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
-  {sel:'#seg-vista',titulo:'Visões',texto:'Navegue pelas abas: Resumo, Timesheet, Ranking, Tickets, ⏱ Apontar, 📝 Planejar e 🔀 Reclassificar.'},
+  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (Receita, Alertas, Admin).'},
   {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
   {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
@@ -4432,8 +4463,7 @@ function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e
 function _tourReposi(){ if(document.querySelector('.tour-pop')) posicionaTour(); }
 function iniciaTour(){
   fechaModal(); estado.vista='resumo';
-  const seg=document.getElementById('seg-vista');
-  if(seg)[...seg.children].forEach(b=>b.setAttribute('aria-pressed', b.dataset.v==='resumo'?'true':'false'));
+  marcaVista('resumo');
   render(); estadoParaURL();
   _tourI=0; setTimeout(mostraTour,160);
 }
@@ -4477,10 +4507,19 @@ function fechaModal(){ document.getElementById('modal').hidden=true; }
 
 // Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
 // logo (voltar ao início) e por links internos.
+// Marca a aba ativa (e sublinha o grupo dono dela, quando está num dropdown).
+function marcaVista(v){
+  const seg=document.getElementById('seg-vista'); if(!seg) return;
+  seg.querySelectorAll('[data-v],.navg-b').forEach(b=>b.setAttribute('aria-pressed','false'));
+  const it=seg.querySelector(`[data-v="${v}"]`);
+  if(it){ it.setAttribute('aria-pressed','true');
+    const g=it.closest('.navg'); if(g){ const hb=g.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-pressed','true'); } }
+}
+function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').forEach(x=>{ x.classList.remove('open');
+  const hb=x.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-expanded','false'); }); }
 function vaiPara(v){
   estado.vista=v;
-  const seg=document.getElementById('seg-vista');
-  if(seg) [...seg.children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.v===v?'true':'false'));
+  marcaVista(v); fechaMenusNav();
   render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 }
@@ -4701,8 +4740,7 @@ function leURL(){
 function sincronizaControlesURL(){
   const sel=document.getElementById('f-periodo');
   if([...sel.options].some(o=>o.value===estado.periodo)) sel.value=estado.periodo;
-  [...document.getElementById('seg-vista').children]
-    .forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===estado.vista?'true':'false'));
+  marcaVista(estado.vista);
 }
 function aplicaPendentes(){
   if(!_pendentesURL) return;
@@ -4756,10 +4794,20 @@ async function recarrega(){
 
 // Eventos de UI
 document.getElementById('seg-vista').addEventListener('click', (ev)=>{
-  const b=ev.target.closest('button'); if(!b) return;
-  [...ev.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false'));
-  estado.vista=b.dataset.v; render(); estadoParaURL();
+  const seg=ev.currentTarget;
+  // Cabeçalho de grupo: abre/fecha o dropdown (não troca de aba).
+  const hb=ev.target.closest('.navg-b');
+  if(hb){ const g=hb.closest('.navg'); const abrir=!g.classList.contains('open');
+    fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); }
+    ev.stopPropagation(); return; }
+  // Item de aba (solo ou dentro do menu).
+  const b=ev.target.closest('[data-v]'); if(!b) return;
+  estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); render(); estadoParaURL();
+  window.scrollTo({ top:0, behavior:'smooth' });
 });
+// Clique fora fecha os menus de navegação abertos.
+document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.closest('#seg-vista'))) fechaMenusNav(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
 document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>

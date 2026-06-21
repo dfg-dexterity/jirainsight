@@ -86,6 +86,10 @@ demais esmaecem) clicáveis para drill-down.
 
 ### Navegação e novidades
 
+- **Menu por função:** o topo é organizado em **📊 Visão Geral** (inicial) + 3 grupos com
+  dropdown — **Análise** (Resumo, Timesheet, Ranking, Tickets), **⏱ Operação** (Apontar,
+  Planejar, Reclassificar) e **💰 AMS & Governança** (Receita, Alertas, Admin). O grupo da
+  aba ativa fica sublinhado; o selo de convites aparece também no cabeçalho de **Operação**.
 - **Logo (canto superior esquerdo):** a **marca Dexterity** (pinwheel oficial em SVG, `public/logo.svg`) — clicável, volta para o início (Visão Geral).
 - **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
