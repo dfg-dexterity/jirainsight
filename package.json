@@ -5,6 +5,9 @@
   "type": "module",
   "description": "Painel de insights de uso do Jira + Clockwork (Dexterity IT)",
   "engines": { "node": ">=18" },
+  "scripts": {
+    "check": "node scripts/check-syntax.mjs"
+  },
   "dependencies": {
     "@vercel/analytics": "^2.0.1"
   }

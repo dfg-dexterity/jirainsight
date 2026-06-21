@@ -1,0 +1,23 @@
+name: Verificação de sintaxe
+
+# Como não há build, um erro de sintaxe no public/index.html (arquivo único e grande)
+# só apareceria em produção. Este gate roda `npm run check` em cada push/PR e valida
+# os arquivos de api/ e o JS embutido nos HTML estáticos antes do deploy na Vercel.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run check
