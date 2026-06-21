@@ -392,6 +392,9 @@
   .ad-cons{font-size:13px;color:#334155;border-top:1px dashed var(--linha);padding-top:7px;margin-top:4px}
   .ad-over{color:#B91C1C;font-weight:700}
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
+  .ad-portal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;border-top:1px dashed var(--linha);padding-top:8px}
+  .ad-portal input{flex:1 1 220px;min-width:150px;font-size:12px;padding:5px 8px;border:1px solid var(--linha);border-radius:7px;background:#FAFBFC;color:var(--grafite)}
+  .ad-portal .btn{padding:4px 10px;font-size:12px}
   /* Receita / AMS por cliente */
   .rc2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
   .rc2-card{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;background:var(--cartao);border-left:5px solid #188918}
@@ -3662,6 +3665,14 @@ function renderAdmin(){
     const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const pctv=contr?Math.round(h/contr*100):null;
     const over=pctv!=null&&pctv>100;
     const amsInfo = ams ? ` · apuração <strong>${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</strong>${amsHorasCiclo(c)?` · ${amsHorasCiclo(c)}h/ciclo (${amsHorasCiclo(c)*amsCiclosAno(c.apuracao||'trimestral')}h/ano)`:''}${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}` : '';
+    const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
+    const portalLine = url
+      ? `<div class="ad-portal"><span class="muted small">🔗 Link do cliente:</span>
+          <input type="text" readonly value="${escA(url)}" data-ad-portal-input>
+          <button class="btn" data-ad-portal-copy="${escA(url)}">copiar</button>
+          <button class="btn" data-ad-portal-novo="${escA(c.id)}" data-tip="Gera um novo link e invalida o anterior">novo</button></div>`
+      : `<div class="ad-portal"><button class="btn" data-ad-portal="${escA(c.id)}">🔗 Gerar link do cliente</button>
+          <span class="muted small">painel somente-leitura para o cliente acompanhar as horas</span></div>`;
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
@@ -3669,6 +3680,7 @@ function renderAdmin(){
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
       <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${amsInfo}${c.obs?` · ${esc(c.obs)}`:''}</div>
       <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração detalhada na aba 💰 Receita</span>':''}</div>
+      ${portalLine}
     </div>`;
   }).join('');
 
@@ -4688,6 +4700,18 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
   else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del');
     cfg.contratos=(cfg.contratos||[]).filter(c=>c.id!==id); if(estado.admin.editId===id) estado.admin.editId=null; salvaCfg(); renderAdmin(); }
+  else if(t.hasAttribute('data-ad-portal')||t.hasAttribute('data-ad-portal-novo')){
+    const id=t.getAttribute('data-ad-portal')||t.getAttribute('data-ad-portal-novo');
+    const c=(cfg.contratos||[]).find(x=>x.id===id);
+    if(c){ c.portalToken='pt'+Date.now().toString(36)+Math.random().toString(36).slice(2,12); salvaCfg(); renderAdmin(); }
+  }
+  else if(t.hasAttribute('data-ad-portal-copy')){
+    const url=t.getAttribute('data-ad-portal-copy');
+    const done=()=>{ const o=t.textContent; t.textContent='copiado!'; setTimeout(()=>{ t.textContent=o; },1500); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(()=>{
+      const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }); }
+    else { const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }
+  }
 });
 
 // Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.

@@ -239,6 +239,50 @@ export function ehFaturavel(tipo) {
   return !RE_NAO_FATURAVEL.test(tipo || '');
 }
 
+// ---------------------------------------------------------------------------
+// Clockwork: worklogs brutos + worklogs enriquecidos com projeto/tipo/faturável.
+const CW_BASE = 'https://api.clockwork.report/v1';
+export async function clockworkRaw(startDate, endDate) {
+  const token = process.env.CLOCKWORK_API_TOKEN;
+  if (!token) throw new Error('CLOCKWORK_API_TOKEN não configurada');
+  const headers = { Authorization: `Token ${token}` };
+  const out = [];
+  let offset = 0;
+  for (let i = 0; i < 20; i += 1) {
+    const qs = new URLSearchParams({
+      starting_at: startDate, ending_at: endDate,
+      expand: 'issues,authors,emails,worklogs', tz: 'America/Sao_Paulo', offset: String(offset),
+    });
+    const resp = await fetch(`${CW_BASE}/worklogs?${qs}`, { headers });
+    if (!resp.ok) { const txt = await resp.text(); throw new Error(`Clockwork ${resp.status}: ${txt.slice(0, 400)}`); }
+    const lote = await resp.json();
+    if (!Array.isArray(lote) || lote.length === 0) break;
+    out.push(...lote);
+    if (lote.length < 10000) break;
+    offset += 10000;
+  }
+  return out;
+}
+// Worklogs do Clockwork enriquecidos: [{a,s,d,p,t,f,k}] + mapas pessoas/projetos/resumos.
+export async function worklogsEnriquecidos(startDate, endDate) {
+  const brutos = await clockworkRaw(startDate, endDate);
+  const ids = brutos.map((w) => String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '')).filter(Boolean);
+  const meta = ids.length ? await jiraResolveIssues(ids) : {};
+  const pessoas = {}; const projetos = {}; const resumos = {}; const worklogs = [];
+  for (const w of brutos) {
+    const author = w.author || {}; const aid = author.accountId;
+    if (!aid) continue;
+    if (!pessoas[aid]) pessoas[aid] = { nome: author.displayName || aid, email: author.emailAddress || author.email || '' };
+    const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
+    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', issueKey: '', resumo: '' };
+    if (!projetos[m.projetoKey]) projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
+    const ik = m.issueKey || (w.issue && w.issue.key) || '';
+    if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
+    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo) ? 1 : 0, k: ik });
+  }
+  return { pessoas, projetos, resumos, worklogs };
+}
+
 export function json(res, status, obj) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
