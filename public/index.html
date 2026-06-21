@@ -317,8 +317,8 @@
   /* Ícones do Jira (tipo/prioridade) dentro dos badges */
   .ji-ic{width:14px;height:14px;object-fit:contain;vertical-align:-2px;border-radius:2px}
   .tipo-badge,.prio-badge{gap:5px}
-  .ap-resp-panel .ap-resp-sel,.ap-mover-panel .ap-mover-sel{font-family:var(--corpo);font-size:13px;padding:6px 9px;
-    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:280px}
+  .ap-resp-panel .ap-resp-sel,.ap-mover-panel .ap-mover-sel,.ap-mover-panel .ap-mover-tipo{font-family:var(--corpo);font-size:13px;padding:6px 9px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:240px}
   .ap-coment-panel{align-items:flex-start}
   .ap-coment-txt{flex:1 1 100%;min-width:200px;font-family:var(--corpo);font-size:13px;padding:8px 10px;
     border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);resize:vertical;box-sizing:border-box}
@@ -348,6 +348,30 @@
   .mh-data{font-size:11px;color:#64748B;text-transform:capitalize}
   .mh-h{font-size:16px;font-weight:700;color:var(--grafite);margin-top:2px}
   .mh-dia.over .mh-h{color:#B45309}
+  /* Seletor de visualização (lista/tabela/quadro) */
+  .ap-vis{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+  /* Tabela densa */
+  table.ap-tab{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
+  table.ap-tab th,table.ap-tab td{padding:7px 9px;border-bottom:1px solid var(--linha);text-align:left;vertical-align:top;white-space:nowrap}
+  table.ap-tab th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#64748B;font-weight:600;position:sticky;top:0;background:var(--cartao)}
+  table.ap-tab td.num,table.ap-tab th.num{text-align:right}
+  table.ap-tab .ap-tab-res{white-space:normal;min-width:240px;max-width:380px}
+  table.ap-tab tr:hover td{background:#F8FAFF}
+  table.ap-tab .ap-tab-venc{color:#B91C1C;font-weight:600}
+  table.ap-tab a{font-weight:700;white-space:nowrap}
+  /* Quadro (kanban por status) */
+  .kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+  .kb-col{flex:0 0 260px;background:#F4F7FB;border:1px solid var(--linha);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .kb-head{font-size:12px;font-weight:700;color:var(--grafite);text-transform:uppercase;letter-spacing:.4px;display:flex;justify-content:space-between;align-items:center}
+  .kb-head span{background:#E2E8F0;color:#475569;border-radius:999px;padding:1px 8px;font-size:11px}
+  .kb-cards{display:flex;flex-direction:column;gap:8px}
+  .kb-card{display:block;background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:9px 11px;
+    text-decoration:none;color:var(--grafite);transition:box-shadow .12s ease,border-color .12s ease}
+  .kb-card:hover{box-shadow:var(--sombra);border-color:#A5B4FC}
+  .kb-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
+  .kb-k{font-weight:700;font-size:12.5px;color:#0064D9}
+  .kb-res{font-size:13px;line-height:1.4;margin-bottom:6px}
+  .kb-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -629,7 +653,7 @@ const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.ativida
 const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
-  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
+  apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
     convites:null, convitesBusca:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
@@ -1997,30 +2021,79 @@ function renderApontar(){
       ${logCtrl}
     </div>`;
   };
-  // Agrupa por projeto; cada cabeçalho é clicável para expandir/recolher o grupo.
-  const porProj={};
-  lista.forEach(t=>{ (porProj[t.p]=porProj[t.p]||[]).push(t); });
-  const chavesProj=Object.keys(porProj).sort((a,b)=>a.localeCompare(b));
-  const rows=chavesProj.map(pk=>{
-    const grupo=porProj[pk];
-    const recolhido=!!ap.recolhidos[pk];
-    const cab=`<button class="ap-proj-head${recolhido?' recolhido':''}" data-ap-projtoggle="${escA(pk)}" aria-expanded="${!recolhido}" data-tip="${escA(nomeProj(pk))} — clique para ${recolhido?'expandir':'recolher'}">
-      <span class="ap-proj-chev">▾</span>
-      <span class="ap-proj-cod">${esc(pk)}</span>
-      <span class="ap-proj-nome">${esc((projs[pk]&&projs[pk].nome)||'')}</span>
-      <span class="spacer"></span>
-      <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
-    return cab + (recolhido?'':grupo.map(linhaTicket).join(''));
-  }).join('');
-  const barraGrupos = chavesProj.length>1
-    ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>
-        <button class="chip" id="ap-expandir">▾ Expandir todos</button>
-        <button class="chip" id="ap-recolher">▸ Recolher todos</button></div>`
-    : '';
+  // ---- Tabela (visão densa para leitura) ----
+  const htmlTabela=()=>{
+    const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
+    const tr=arr.map(t=>`<tr>
+      <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
+      <td class="ap-tab-res">${esc(t.resumo||'')}</td>
+      <td>${esc(t.p)}</td>
+      <td>${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:''}${esc(t.t)}</td>
+      <td>${esc(t.status)}</td>
+      <td>${t.prio?(t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:'')+esc(t.prio):'—'}</td>
+      <td class="${t.venc&&t.venc<hoje?'ap-tab-venc':''}">${t.venc?(t.venc<hoje?'⚠ ':'')+esc(fmtBR(t.venc)):'—'}</td>
+      <td>${esc(t.resp||'—')}</td>
+      <td class="num">${t.seg?fmtH(t.seg):'—'}</td></tr>`).join('');
+    return `<div class="scroll-x"><table class="ap-tab"><thead><tr>
+      <th>Chave</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th>Status</th><th>Prioridade</th><th>Vencimento</th><th>Responsável</th><th class="num">Horas</th>
+      </tr></thead><tbody>${tr}</tbody></table></div>
+      <div class="muted small" style="margin-top:8px">Para apontar/editar (status, vencimento, responsável, mover…), use a visão <b>Lista</b>.</div>`;
+  };
+  // ---- Quadro (kanban por status) ----
+  const htmlQuadro=()=>{
+    const porSt={}; lista.forEach(t=>{ const s=t.status||'—'; (porSt[s]=porSt[s]||[]).push(t); });
+    const cols=Object.keys(porSt).sort((a,b)=>porSt[b].length-porSt[a].length || a.localeCompare(b,'pt'));
+    return `<div class="kanban">${cols.map(s=>{
+      const arr=porSt[s].slice().sort((a,b)=>(a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'));
+      return `<div class="kb-col"><div class="kb-head">${esc(s)} <span>${arr.length}</span></div>
+        <div class="kb-cards">${arr.map(t=>`<a class="kb-card" href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">
+          <div class="kb-top"><span class="kb-k">${esc(t.k)}</span><span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span></div>
+          <div class="kb-res">${esc(t.resumo||'')}</div>
+          <div class="kb-meta">
+            ${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}
+            ${t.venc?`<span class="badge ${t.venc<hoje?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${t.venc<hoje?'⚠ ':''}${esc(fmtBR(t.venc))}</span>`:''}
+            ${t.seg?`<span class="badge com-horas">${fmtH(t.seg)}</span>`:'<span class="badge sem-horas">0h</span>'}
+            ${t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:''}
+          </div></a>`).join('')}</div></div>`;
+    }).join('')}</div>
+    <div class="muted small" style="margin-top:8px">Para apontar/editar, use a visão <b>Lista</b>.</div>`;
+  };
 
-  const vazio = lista.length ? '' :
-    `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
+  // ---- Seletor de visualização (lista | tabela | quadro) ----
+  const viewToggle=`<div class="ap-vis"><span class="muted small">Visualização:</span>
+    <button class="chip" aria-pressed="${ap.vis==='lista'}" data-ap-vis="lista">▤ Lista</button>
+    <button class="chip" aria-pressed="${ap.vis==='tabela'}" data-ap-vis="tabela">▦ Tabela</button>
+    <button class="chip" aria-pressed="${ap.vis==='quadro'}" data-ap-vis="quadro">🗂 Quadro</button></div>`;
+
+  const vazio = `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
      ${ap.soMeus&&id?'<br><span class="small">Dica: desmarque “Só os meus” para ver os chamados de todo o time.</span>':''}</div>`;
+
+  let corpoLista;
+  if(!lista.length){ corpoLista=vazio; }
+  else if(ap.vis==='tabela'){ corpoLista=htmlTabela(); }
+  else if(ap.vis==='quadro'){ corpoLista=htmlQuadro(); }
+  else {
+    // Lista: agrupada por projeto, com cabeçalho clicável (expandir/recolher).
+    const porProj={};
+    lista.forEach(t=>{ (porProj[t.p]=porProj[t.p]||[]).push(t); });
+    const chavesProj=Object.keys(porProj).sort((a,b)=>a.localeCompare(b));
+    const rows=chavesProj.map(pk=>{
+      const grupo=porProj[pk]; const recolhido=!!ap.recolhidos[pk];
+      const cab=`<button class="ap-proj-head${recolhido?' recolhido':''}" data-ap-projtoggle="${escA(pk)}" aria-expanded="${!recolhido}" data-tip="${escA(nomeProj(pk))} — clique para ${recolhido?'expandir':'recolher'}">
+        <span class="ap-proj-chev">▾</span>
+        <span class="ap-proj-cod">${esc(pk)}</span>
+        <span class="ap-proj-nome">${esc((projs[pk]&&projs[pk].nome)||'')}</span>
+        <span class="spacer"></span>
+        <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
+      return cab + (recolhido?'':grupo.map(linhaTicket).join(''));
+    }).join('');
+    const barraGrupos = chavesProj.length>1
+      ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>
+          <button class="chip" id="ap-expandir">▾ Expandir todos</button>
+          <button class="chip" id="ap-recolher">▸ Recolher todos</button></div>`
+      : '';
+    corpoLista = barraGrupos + `<div class="ap-lista">${rows}</div>`;
+  }
 
   cont.replaceChildren(el(`<div>
     ${faixaId}
@@ -2041,9 +2114,8 @@ function renderApontar(){
     <div class="card full">
       <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)}${ap.semVenc?' (+ sem vencimento)':''} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''} · clique no 📅 para reagendar</span></h2>
       ${filtros}
-      ${barraGrupos}
-      <div class="ap-lista">${rows}</div>
-      ${vazio}
+      ${viewToggle}
+      ${corpoLista}
     </div>
   </div>`));
 }
@@ -2346,17 +2418,31 @@ async function executaComentar(btn){
 
 // ---------------- Reclassificar: mover o chamado para outro projeto ----------------
 // Carrega (uma vez) a lista de projetos com seus tipos; reaproveita o cache do Planejar.
-let _projetosPromise=null;
+let _projetosPromise=null, _projetosCache=null;
 function garanteProjetos(){
-  if(estado.planejar && estado.planejar.projetos) return Promise.resolve(estado.planejar.projetos);
+  if(estado.planejar && estado.planejar.projetos){ _projetosCache=estado.planejar.projetos; return Promise.resolve(estado.planejar.projetos); }
   if(!_projetosPromise){
     _projetosPromise=fetch('/api/projetos').then(r=>r.json()).then(j=>{
-      const ps=j.projetos||[];
+      const ps=j.projetos||[]; _projetosCache=ps;
       if(estado.planejar && !estado.planejar.projetos) estado.planejar.projetos=ps;
       return ps;
     });
   }
   return _projetosPromise;
+}
+// Popula o seletor de TIPO do destino conforme o projeto escolhido (default = tipo de origem, se existir).
+function preencheTiposDestino(area){
+  const sel=area.querySelector('.ap-mover-sel'); const tipoSel=area.querySelector('.ap-mover-tipo');
+  const moverBtn=area.querySelector('[data-ap-mover-do]');
+  const proj=(sel&&sel.value)||'';
+  if(!proj){ tipoSel.innerHTML='<option>tipo…</option>'; tipoSel.disabled=true; if(moverBtn) moverBtn.disabled=true; return; }
+  const p=(_projetosCache||[]).find(x=>x.key===proj);
+  const tipos=((p&&p.tipos)||[]).filter(tp=>!tp.subtarefa).sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt'));
+  const orig=(area.dataset.tipoOrig||'').toLowerCase();
+  tipoSel.innerHTML=tipos.length
+    ? tipos.map(tp=>`<option value="${escA(tp.nome)}" ${(tp.nome||'').toLowerCase()===orig?'selected':''}>${esc(tp.nome)}</option>`).join('')
+    : '<option value="">(projeto sem tipos)</option>';
+  tipoSel.disabled=!tipos.length; if(moverBtn) moverBtn.disabled=!tipos.length;
 }
 function toggleReclass(btn){
   const row=btn.closest('.ap-row'); if(!row) return;
@@ -2366,26 +2452,19 @@ function toggleReclass(btn){
   const dados=estado.apontar.porData[chaveVenc()];
   const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
   const area=document.createElement('div'); area.className='ap-trans ap-mover-panel';
-  area.innerHTML=`<span class="ap-trans-rot">Mover para o projeto:</span>
+  area.dataset.tipoOrig=(t&&t.t)||'';
+  area.innerHTML=`<span class="ap-trans-rot">Mover para:</span>
     <select class="ap-mover-sel" aria-label="Projeto destino" disabled><option>carregando projetos…</option></select>
+    <select class="ap-mover-tipo" aria-label="Tipo no destino" disabled><option>tipo…</option></select>
     <button class="chip primario-chip" data-ap-mover-do="${escA(k)}" disabled>Mover →</button>
     <div class="ap-fb" hidden></div>`;
   row.querySelector('.ap-l2').after(area);
   garanteProjetos().then(ps=>{
     if(!area.isConnected) return;
-    const tipo=((t&&t.t)||'').toLowerCase();
-    const validos=ps.filter(p=>p.key!==(t&&t.p) && (p.tipos||[]).some(tp=>(tp.nome||'').toLowerCase()===tipo))
-      .sort((a,b)=>a.key.localeCompare(b.key));
-    const sel=area.querySelector('.ap-mover-sel'); const moverBtn=area.querySelector('[data-ap-mover-do]');
-    const fb=area.querySelector('.ap-fb');
-    if(!validos.length){
-      sel.innerHTML='<option value="">— nenhum projeto compatível —</option>';
-      fb.hidden=false; fb.className='ap-fb';
-      fb.innerHTML=`<span class="muted small">Nenhum projeto destino tem o tipo “${esc((t&&t.t)||'')}”. O destino precisa ter um tipo com o mesmo nome.</span>`;
-      return;
-    }
-    sel.innerHTML='<option value="">— escolha o projeto —</option>'+validos.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
-    sel.disabled=false; moverBtn.disabled=false;
+    const sel=area.querySelector('.ap-mover-sel');
+    const outros=ps.filter(p=>p.key!==(t&&t.p)).sort((a,b)=>a.key.localeCompare(b.key));
+    sel.innerHTML='<option value="">— escolha o projeto —</option>'+outros.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    sel.disabled=false;
   }).catch(()=>{ const sel=area.querySelector('.ap-mover-sel'); if(sel){ sel.innerHTML='<option>erro ao carregar projetos</option>'; } });
 }
 async function executaReclass(btn){
@@ -2393,16 +2472,16 @@ async function executaReclass(btn){
   const k=btn.getAttribute('data-ap-mover-do');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const sel=area.querySelector('.ap-mover-sel'); const alvo=(sel&&sel.value)||'';
+  const tipoSel=area.querySelector('.ap-mover-tipo'); const tipoDestino=(tipoSel&&tipoSel.value)||'';
   const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
   if(!alvo){ fb.classList.add('err'); fb.textContent='Escolha o projeto destino.'; return; }
+  if(!tipoDestino){ fb.classList.add('err'); fb.textContent='Escolha o tipo no destino.'; return; }
   const dados=estado.apontar.porData[chaveVenc()];
-  const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
-  const tipo=(t&&t.t)||'';
   const trava=(v)=>[...area.querySelectorAll('button,select')].forEach(b=>{ b.disabled=v; });
   trava(true); fb.textContent='Movendo… (pode levar alguns segundos)';
   try{
     let j=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({alvo,itens:[{id:k,tipo}],email:id.email,token:id.token})}).then(r=>r.json());
+      body:JSON.stringify({alvo,itens:[{id:k,tipo:tipoDestino}],email:id.email,token:id.token})}).then(r=>r.json());
     let tentativas=0;
     while(j.ok && j.status==='andamento' && j.taskId && tentativas<8){
       await new Promise(r=>setTimeout(r,2500)); tentativas++;
@@ -3655,6 +3734,7 @@ function leURL(){
   ap.fil = APFILTROS.includes(p.get('fil')) ? p.get('fil') : 'todos';
   ap.soMeus = p.get('meus')!=='0';
   ap.semVenc = p.get('sv')==='1' || ap.fil==='semvenc';
+  ap.vis = ['lista','tabela','quadro'].includes(p.get('av')) ? p.get('av') : 'lista';
   ap.cat = p.get('acat')||'';
   ap.proj = p.get('aproj')||'';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
@@ -3683,6 +3763,7 @@ function estadoParaURL(){
     if(ap.ate && ap.ate!==hojeSP()) p.set('ate',ap.ate);
     if(ap.fil!=='todos') p.set('fil',ap.fil);
     if(ap.semVenc && ap.fil!=='semvenc') p.set('sv','1');
+    if(ap.vis!=='lista') p.set('av',ap.vis);
     if(!ap.soMeus) p.set('meus','0');
     if(ap.cat) p.set('acat',ap.cat);
     if(ap.proj) p.set('aproj',ap.proj); }
@@ -3813,6 +3894,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
     if(!e.target.checked && estado.apontar.fil==='semvenc') estado.apontar.fil='todos'; renderApontar(); estadoParaURL(); }
   if(e.target && e.target.id==='ap-cat'){ estado.apontar.cat=e.target.value; estado.apontar.proj=''; renderApontar(); estadoParaURL(); }
   if(e.target && e.target.id==='ap-proj'){ estado.apontar.proj=e.target.value; renderApontar(); estadoParaURL(); }
+  if(e.target && e.target.classList && e.target.classList.contains('ap-mover-sel')){
+    const area=e.target.closest('.ap-mover-panel'); if(area) preencheTiposDestino(area); }
 });
 
 // ---- Tela Apontar: cliques (chips, KPIs-filtro, identidade, enviar) ----
@@ -3839,6 +3922,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-mover-do')){ executaReclass(t); }
   else if(t.hasAttribute('data-ap-projtoggle')){ escondeTip(); const pk=t.getAttribute('data-ap-projtoggle');
     estado.apontar.recolhidos[pk]=!estado.apontar.recolhidos[pk]; renderApontar(); }
+  else if(t.hasAttribute('data-ap-vis')){ estado.apontar.vis=t.getAttribute('data-ap-vis'); renderApontar(); estadoParaURL(); }
   else if(t.id==='ap-expandir'){ estado.apontar.recolhidos={}; renderApontar(); }
   else if(t.id==='ap-recolher'){ const r={};
     [...document.querySelectorAll('[data-ap-projtoggle]')].forEach(b=>{ r[b.getAttribute('data-ap-projtoggle')]=true; });
