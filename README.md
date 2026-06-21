@@ -88,6 +88,13 @@ rótulo por célula, realce no hover e clique para drill-down. Usado em **Top pr
 Complementam: **donut/medidor** para metas e **barras com realce** (a barra focada destaca, as
 demais esmaecem) clicáveis para drill-down.
 
+### 🌙 Modo escuro
+
+Botão **🌙/☀️** no topo alterna entre claro e escuro; a preferência fica salva em `localStorage`
+(`jirainsight_theme`) e é aplicada cedo no `<head>` para evitar "flash". Implementado por
+**variáveis de tema** (`[data-theme="dark"]` sobrescreve `--offwhite/--grafite/--cartao/--linha/
+--muted/--trilho/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
+
 ### Navegação e novidades
 
 - **Menu por função:** o topo é organizado em **📊 Visão Geral** (inicial) + 3 grupos com
