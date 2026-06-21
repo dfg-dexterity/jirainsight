@@ -60,6 +60,17 @@ worklog_id, erro).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### 🚨 Central de Alertas
+
+Aba **Alertas**: motor de alertas **acionáveis** montado a partir dos dados que já
+temos (`/api/vencimentos` amplo + `calcTimesheet`), com severidade (🔴 crítico / 🟠 alto
+/ 🟡 médio) e **ação recomendada** por item:
+- Tickets **vencidos** (crítico se > 7 dias), **vencem hoje**, **sem responsável**.
+- Pessoas **sem apontamento** no último dia útil e **abaixo de 80% da meta** no período.
+
+KPIs por severidade filtram a lista. Alertas de **AMS, orçamento de projeto e SLA**
+entram quando os dados (valor-hora, horas contratadas, cliente↔projeto) forem cadastrados.
+
 ### Ocultar usuários externos
 
 No botão **Metas → "Usuários externos (ocultar do time)"** dá para marcar pessoas
