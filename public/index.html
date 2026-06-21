@@ -39,8 +39,7 @@
   .brand{display:flex;align-items:center;gap:10px;padding-bottom:10px;cursor:pointer;border-radius:8px}
   .brand:hover{opacity:.85}
   .brand:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
-  .brand .mark{width:34px;height:34px;border-radius:6px;flex:0 0 auto;background:var(--cerceta);
-    display:flex;align-items:center;justify-content:center;font-size:17px}
+  .brand .mark{width:36px;height:36px;flex:0 0 auto;display:block;object-fit:contain}
   /* Botão "voltar ao topo" (flutuante) */
   #to-top{position:fixed;right:18px;bottom:18px;z-index:40;border:1px solid var(--cerceta);background:var(--cerceta);
     color:#fff;font-family:var(--corpo);font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;
@@ -409,6 +408,81 @@
   .rc2-fv{font-family:var(--titulo);font-weight:700;font-size:16px}
   .rc2-fl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:2px}
   .rc2-meta{margin-top:8px}
+
+  /* ===== Gráficos modernos & interativos ===== */
+  .fill,.b,.pp-stack span{transition:filter .15s ease,opacity .15s ease}
+  .barlist:hover .barrow{opacity:.5}
+  .barlist:hover .barrow:hover{opacity:1}
+  .barrow{transition:opacity .15s ease}
+  .barrow:hover .fill{filter:brightness(1.08) saturate(1.12)}
+  .barrow[data-drill]{cursor:pointer}
+  .track .fill{background-image:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0))}
+  .cols:hover .col{opacity:.5} .cols:hover .col:hover{opacity:1}
+  .col .b{transition:opacity .15s ease,filter .15s ease}
+  .col:hover .b{filter:brightness(1.08)}
+  /* Área (line+gradient) */
+  .areachart{width:100%;height:auto;max-height:260px;display:block;overflow:visible}
+  .areachart .ac-line{stroke-dasharray:2600;stroke-dashoffset:2600;animation:acDraw 1.1s ease forwards}
+  .areachart .ac-area{opacity:0;animation:acFade .9s ease .3s forwards}
+  .areachart .ac-dot{opacity:0;animation:acFade .01s linear .95s forwards;cursor:pointer;transition:r .12s ease}
+  .areachart .ac-dot:hover{r:5.5}
+  .ac-xl{fill:#94A3B8;font-size:11px;font-family:var(--corpo)}
+  @keyframes acDraw{to{stroke-dashoffset:0}}
+  @keyframes acFade{to{opacity:1}}
+  /* Donut / gauge */
+  .donut-wrap{display:flex;justify-content:center;align-items:center}
+  .donut{width:clamp(118px,15vh,158px);height:auto}
+  .donut-track{stroke:#EEF1F8}
+  .donut-pct{font-family:var(--titulo);font-weight:700;font-size:22px;fill:var(--grafite)}
+  .donut-lbl{font-size:8px;fill:#64748B;text-transform:uppercase;letter-spacing:.5px}
+  @keyframes donutFill{from{stroke-dashoffset:var(--c)}to{stroke-dashoffset:var(--off)}}
+  @media (prefers-reduced-motion: reduce){
+    .areachart .ac-line,.areachart .ac-area,.areachart .ac-dot{animation:none;stroke-dashoffset:0;opacity:1}
+    .donut-val{animation:none!important}
+  }
+
+  /* ===== Visão Geral executiva ===== */
+  .vg-hero{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+  .vg-k{background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:14px 15px;
+    box-shadow:var(--sombra);position:relative;overflow:hidden}
+  .vg-k::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cerceta)}
+  .vg-k.good::before{background:var(--musgo)} .vg-k.warn::before{background:var(--amarelo)}
+  .vg-k.bad::before{background:var(--err)} .vg-k.tealb::before{background:#17A398}
+  .vg-k .v{font-family:var(--titulo);font-size:clamp(22px,2.1vw,32px);font-weight:700;line-height:1.05}
+  .vg-k .l{font-size:11px;color:#64748B;margin-top:6px;text-transform:uppercase;letter-spacing:.4px}
+  .vg-k .s{font-size:11.5px;color:#64748B;margin-top:3px}
+  .vg-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .vg-card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:16px 18px;box-shadow:var(--sombra)}
+  .vg-card.full{grid-column:1 / -1}
+  .vg-card h2{font-family:var(--titulo);font-size:14px;font-weight:700;color:var(--grafite);margin:0 0 12px;
+    display:flex;align-items:center;gap:8px}
+  .vg-card h2 .lnk{margin-left:auto;font-size:12px;font-weight:500;color:var(--cerceta);cursor:pointer;font-family:var(--corpo)}
+  .vg-card h2 .lnk:hover{text-decoration:underline}
+  .vg-split{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+  .vg-mini{display:flex;flex-direction:column;gap:7px}
+  .vg-mrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:13px}
+  .vg-mrow .bar{height:7px;border-radius:4px;background:#EEF1F8;overflow:hidden;grid-column:1 / -1}
+  .vg-mrow .bar i{display:block;height:100%;border-radius:4px}
+  .vg-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px}
+  .vg-pill.g{background:#E6F4EA;color:#188918}.vg-pill.y{background:#FEF3C7;color:#B45309}.vg-pill.r{background:#FEE2E2;color:#B91C1C}
+  /* Banda de saúde da entrega */
+  .vg-health{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .vg-hcell{border:1px solid var(--linha);border-radius:10px;padding:13px 14px;text-align:center;cursor:pointer;transition:transform .12s ease,border-color .12s ease}
+  .vg-hcell:hover{transform:translateY(-1px);border-color:var(--cerceta)}
+  .vg-hcell .hv{font-family:var(--titulo);font-size:26px;font-weight:700}
+  .vg-hcell .hl{font-size:11px;color:#64748B;margin-top:3px}
+  .vg-hcell.bad .hv{color:var(--err)} .vg-hcell.warn .hv{color:var(--amarelo)} .vg-hcell.good .hv{color:var(--musgo)}
+  /* lista compacta de alertas no overview */
+  .vg-al{display:flex;flex-direction:column;gap:8px}
+  .vg-alrow{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:9px 11px;border:1px solid var(--linha);border-radius:9px}
+  .vg-alrow .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .vg-alrow .dot.critico{background:var(--err)}.vg-alrow .dot.alto{background:var(--amarelo)}.vg-alrow .dot.medio{background:#CA8A04}
+  .vg-alrow .t{font-size:13px;font-weight:600;color:var(--grafite)}
+  .vg-alrow .d{font-size:11.5px;color:#64748B}
+  .vg-alrow a{font-size:12px;white-space:nowrap}
+  @media (max-width:1100px){ .vg-hero{grid-template-columns:repeat(3,1fr)} .vg-grid{grid-template-columns:1fr} }
+  @media (max-width:600px){ .vg-hero{grid-template-columns:repeat(2,1fr)} .vg-health{grid-template-columns:repeat(2,1fr)}
+    .vg-split{grid-template-columns:1fr} }
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
   .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
@@ -591,7 +665,7 @@
 <div class="wrap">
   <header>
     <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar ao início (Resumo)">
-      <div class="mark" aria-hidden="true">📊</div>
+      <img class="mark" src="/logo.svg" alt="Dexterity" width="36" height="36" decoding="async">
       <div>
         <h1>Insights de Uso</h1>
         <small>Painel do time · Jira + Clockwork</small>
@@ -599,7 +673,8 @@
     </div>
     <div class="spacer"></div>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
-      <button data-v="resumo" aria-pressed="true">Resumo</button>
+      <button data-v="visao" aria-pressed="true">📊 Visão Geral</button>
+      <button data-v="resumo">Resumo</button>
       <button data-v="timesheet">Timesheet</button>
       <button data-v="ranking">Ranking</button>
       <button data-v="tickets">Tickets</button>
@@ -690,7 +765,7 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 // mudar, troque aqui. (Usa o que vier do servidor em meta.jiraBase, se existir.)
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
-const estado = { periodo:'7d', vista:'resumo', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
+const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
@@ -1009,7 +1084,8 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 function render(){
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
+  if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
@@ -1104,6 +1180,54 @@ function sparkline(vals, w, h, cor){
   const dots=vals.map((v,i)=>{ const [x,y]=xy(v,i); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="${cor}"/>`; }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:clamp(52px,9vh,110px)" preserveAspectRatio="none">
     <polyline points="${pts}" fill="none" stroke="${cor}" stroke-width="2"/>${dots}</svg>`;
+}
+
+// ---- Gráficos modernos reutilizáveis (área suave + donut) ----
+let _gradSeq=0;
+// Área com linha suave (Catmull-Rom→Bézier), gradiente, pontos interativos e animação.
+// pts: [{x,v,drill?}] · opts:{cor, fmt, alturaCss}
+function areaChart(pts, opts){
+  opts=opts||{}; const cor=opts.cor||cores.cerceta; const fmt=opts.fmt||fmtH;
+  if(!pts.length) return '<div class="estado">Sem dados no período.</div>';
+  const W=1000,H=190,padT=12,padB=26,padX=10;
+  const max=Math.max(1,...pts.map(p=>p.v)); const n=pts.length;
+  const stepX=n>1?(W-2*padX)/(n-1):0;
+  const X=(i)=>padX+i*stepX, Y=(v)=>padT+(1-v/max)*(H-padT-padB);
+  const P=pts.map((p,i)=>[X(i),Y(p.v)]);
+  let d=`M ${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+  for(let i=0;i<P.length-1;i++){
+    const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||P[i+1];
+    const c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6;
+    const c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+    d+=` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  const base=H-padB;
+  const dArea=`${d} L ${X(n-1).toFixed(1)} ${base} L ${X(0).toFixed(1)} ${base} Z`;
+  const gid='ac'+(++_gradSeq);
+  const dots=pts.map((p,i)=>{
+    const dr=p.drill?` data-drill="${escA(p.drill.type)}" data-key="${escA(p.drill.key)}" data-tipk="clique para detalhar"`:'';
+    return `<circle class="ac-dot" cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.4" fill="#fff" stroke="${cor}" stroke-width="2"${dr} data-tip="${escA(p.x)}" data-tip2="${escA(fmt(p.v))}"/>`;
+  }).join('');
+  const every=Math.ceil(n/9);
+  const labels=pts.map((p,i)=>(i%every===0||i===n-1)?`<text class="ac-xl" x="${X(i).toFixed(1)}" y="${H-7}" text-anchor="middle">${esc(String(p.x).slice(5))}</text>`:'').join('');
+  return `<svg class="areachart" viewBox="0 0 ${W} ${H}" style="${opts.alturaCss?('height:'+opts.alturaCss):''}">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${cor}" stop-opacity=".26"/><stop offset="100%" stop-color="${cor}" stop-opacity="0"/></linearGradient></defs>
+    <path class="ac-area" d="${dArea}" fill="url(#${gid})"/>
+    <path class="ac-line" d="${d}" fill="none" stroke="${cor}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}${labels}</svg>`;
+}
+// Donut/gauge com porcentagem central e animação de preenchimento.
+function donut(pctv, label, cor){
+  cor=cor||cores.cerceta; const p=Math.max(0,Math.min(100,Math.round(pctv||0)));
+  const r=42, c=2*Math.PI*r, off=c*(1-p/100);
+  return `<div class="donut-wrap"><svg viewBox="0 0 100 100" class="donut" role="img" aria-label="${escA((label||'')+': '+p+'%')}">
+    <circle class="donut-track" cx="50" cy="50" r="${r}" fill="none" stroke-width="11"/>
+    <circle class="donut-val" cx="50" cy="50" r="${r}" fill="none" stroke="${cor}" stroke-width="11" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 50 50)"
+      style="--c:${c.toFixed(1)};--off:${off.toFixed(1)};animation:donutFill 1.1s cubic-bezier(.2,.7,.2,1) forwards"/>
+    <text class="donut-pct" x="50" y="49" text-anchor="middle" dominant-baseline="middle">${p}%</text>
+    <text class="donut-lbl" x="50" y="65" text-anchor="middle">${esc(label||'')}</text></svg></div>`;
 }
 
 // Reúne os dados de uma pessoa no período (para o detalhe/drill-down).
@@ -1237,6 +1361,141 @@ function drill(type,key){
   else if(type==='mes') abreMes(key);
 }
 
+// ======================= VISÃO GERAL EXECUTIVA =======================
+// Resumo financeiro (receita do período + contratos em risco), reutilizando a
+// lógica de projeção da aba Receita.
+function receitaResumo(){
+  const contratos=cfg.contratos||[];
+  if(!contratos.length) return null;
+  const meta=(estado.tempo&&estado.tempo.meta)||{};
+  const dias=listaDias(meta.startDate, meta.endDate); const hoje=hojeSP();
+  const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
+  const decorridos=diasUteis.filter(d=>d<hoje).length; const totalUteis=diasUteis.length;
+  let totValor=0;
+  const linhas=contratos.map(c=>{
+    const an=analisaContrato(c); totValor+=an.valor;
+    const contrSeg=(Number(c.horasContratadas)||0)*3600;
+    const pace=decorridos>0?an.seg/decorridos:0;
+    const projSeg=decorridos>0?pace*totalUteis:an.seg;
+    const pctAtual=contrSeg?Math.round(an.seg/contrSeg*100):null;
+    const pctProj=contrSeg?Math.round(projSeg/contrSeg*100):null;
+    const risco=contrSeg>0?(an.seg>=contrSeg?'estourado':(pctProj!=null&&pctProj>=85?'risco':'ok')):'ok';
+    return { c, an, pctAtual, pctProj, risco };
+  }).sort((a,b)=>(b.pctProj||0)-(a.pctProj||0));
+  return { totValor, linhas, emRisco:linhas.filter(l=>l.risco!=='ok').length };
+}
+
+// Tela executiva: uma pergunta de gestão por bloco, com acesso direto ao detalhe.
+function renderVisao(){
+  const cont=document.getElementById('conteudo');
+  if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+
+  // Vencimentos (alertas) sob demanda — mesmo fetch da aba Alertas.
+  const a=estado.alertas;
+  if(!a.dados && !a.carregando && !a.erro){
+    a.carregando=true;
+    const ate=somaDias(hojeSP(),7);
+    fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1`).then(r=>r.json()).then(j=>{
+      a.carregando=false; if(j.erro) a.erro=j.erro; else a.dados=j;
+      if(estado.vista==='visao') renderVisao();
+    }).catch(e=>{ a.carregando=false; a.erro=String(e.message||e); if(estado.vista==='visao') renderVisao(); });
+  }
+
+  const d=agrega();
+  const ts=calcTimesheet();
+  const totTot=ts.linhas.reduce((s,l)=>s+l.tot,0);
+  const totEsp=ts.linhas.reduce((s,l)=>s+l.esperado,0);
+  const pctMeta=totEsp?Math.round(totTot/totEsp*100):0;
+  const comEsp=ts.linhas.filter(l=>l.esperado>0);
+  const emDia=comEsp.filter(l=>Math.round(l.tot/l.esperado*100)>=90).length;
+  const totalPessoas=comEsp.length;
+  const precisa=ts.linhas.filter(l=>l.lacuna>0).sort((x,y)=>y.lacuna-x.lacuna).slice(0,5);
+
+  const alertasProntos=!!a.dados;
+  const alTok = a.erro ? '—' : '…';   // placeholder enquanto carrega (… ) ou se falhou ( — )
+  const todos=alertasProntos?calcAlertas():[];
+  const cSev={critico:0,alto:0,medio:0}; todos.forEach(x=>{ if(cSev[x.sev]!=null) cSev[x.sev]++; });
+  const topAl=todos.slice(0,6);
+  const tk=(a.dados&&a.dados.tickets)||[]; const hoje=hojeSP();
+  const venc=tk.filter(t=>t.venc&&t.venc<hoje).length;
+  const vh=tk.filter(t=>t.venc===hoje).length;
+  const semResp=tk.filter(t=>!t.respId).length;
+
+  const rec=receitaResumo();
+
+  const diasH=Object.keys(d.porDia).sort();
+  const areaPts=diasH.map(x=>({x, v:d.porDia[x], drill:{type:'dia',key:x}}));
+
+  const clsMeta=pctMeta>=90?'good':(pctMeta>=70?'warn':'bad');
+  const clsDia=totalPessoas&&emDia/totalPessoas>=0.9?'good':(totalPessoas&&emDia/totalPessoas>=0.6?'warn':'bad');
+
+  const hero=`<div class="vg-hero">
+    <div class="vg-k ${clsMeta}"><div class="v">${pctMeta}%</div><div class="l">Apontamento do time</div><div class="s">${fmtH(totTot)} de ${fmtH(totEsp)}</div></div>
+    <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s">${d.kpi.fatPct}% faturável</div></div>
+    <div class="vg-k tealb"><div class="v">${rec?fmtBRL(rec.totValor):'—'}</div><div class="l">Receita estimada</div><div class="s">${rec?((cfg.contratos||[]).length+' contratos'):'cadastre em Admin'}</div></div>
+    <div class="vg-k ${cSev.critico>0?'bad':'good'}"><div class="v">${alertasProntos?cSev.critico:alTok}</div><div class="l">Alertas críticos</div><div class="s">${alertasProntos?(cSev.alto+' altos · '+cSev.medio+' médios'):(a.erro?'indisponível':'analisando')}</div></div>
+    <div class="vg-k ${clsDia}"><div class="v">${emDia}/${totalPessoas}</div><div class="l">Pessoas em dia</div><div class="s">≥ 90% da meta</div></div>
+    <div class="vg-k ${(venc>0)?'bad':'good'}"><div class="v">${alertasProntos?venc:alTok}</div><div class="l">Tickets vencidos</div><div class="s">${alertasProntos?(vh+' vencem hoje'):(a.erro?'indisponível':'analisando')}</div></div>
+  </div>`;
+
+  const health=`<div class="vg-card full"><h2>🚦 Saúde da entrega <span class="lnk" data-goto="alertas">central de alertas →</span></h2>
+    <div class="vg-health">
+      <div class="vg-hcell ${venc>0?'bad':'good'}" data-goto="alertas"><div class="hv">${alertasProntos?venc:alTok}</div><div class="hl">Vencidos</div></div>
+      <div class="vg-hcell ${vh>0?'warn':'good'}" data-goto="alertas"><div class="hv">${alertasProntos?vh:alTok}</div><div class="hl">Vencem hoje</div></div>
+      <div class="vg-hcell ${semResp>0?'warn':'good'}" data-goto="alertas"><div class="hv">${alertasProntos?semResp:alTok}</div><div class="hl">Sem responsável</div></div>
+      <div class="vg-hcell ${precisa.length>0?'warn':'good'}" data-goto="timesheet"><div class="hv">${precisa.length}</div><div class="hl">Abaixo da meta</div></div>
+    </div></div>`;
+
+  const miniPrecisa = precisa.length
+    ? `<div class="vg-mini">${precisa.map(l=>`<div class="vg-mrow"><span data-pessoa="${esc(l.a)}" style="cursor:pointer">${esc(l.nome)}</span><span class="vg-pill r">faltam ${fmtH(l.lacuna)}</span></div>`).join('')}</div>`
+    : '<div class="aviso ok">✓ Todo mundo dentro da meta no período.</div>';
+
+  const cardApont=`<div class="vg-card"><h2>⏱ Apontamento do time <span class="lnk" data-goto="timesheet">timesheet →</span></h2>
+    <div class="vg-split">${donut(pctMeta,'da meta',pctMeta>=90?cores.musgo:(pctMeta>=70?cores.amarelo:cores.err||'#BB0000'))}
+      <div>${areaChart(areaPts,{fmt:fmtH,cor:cores.cerceta})}</div></div>
+    <div class="muted small" style="margin:14px 0 8px;font-weight:600">Quem mais precisa apontar</div>
+    ${miniPrecisa}</div>`;
+
+  const cardAl=`<div class="vg-card"><h2>🚨 Alertas críticos <span class="lnk" data-goto="alertas">ver todos →</span></h2>
+    ${!alertasProntos ? (a.erro?'<div class="aviso">Não foi possível carregar os alertas agora. Abra a <b data-goto="alertas" style="cursor:pointer">central de alertas</b> para tentar de novo.</div>':'<div class="estado">Analisando alertas…</div>')
+      : (topAl.length ? `<div class="vg-al">${topAl.map(x=>`<div class="vg-alrow"><span class="dot ${esc(x.sev)}"></span>
+        <div><div class="t">${esc(x.titulo)}</div><div class="d">${esc(x.cat)}${x.detalhe?' · '+esc(x.detalhe):''}</div></div>
+        ${x.link?`<a href="${x.link}" target="_blank" rel="noopener">abrir ↗</a>`:`<span class="d">${esc(x.resp||'')}</span>`}</div>`).join('')}</div>`
+        : '<div class="aviso ok">✓ Nenhum alerta no momento.</div>')}</div>`;
+
+  const cardRec = rec
+    ? `<div class="vg-card"><h2>💰 Receita & contratos <span class="lnk" data-goto="receita">detalhe →</span></h2>
+        <div class="muted small" style="margin-bottom:10px">Receita estimada no período: <strong style="color:var(--grafite)">${fmtBRL(rec.totValor)}</strong>${rec.emRisco?` · <strong style="color:var(--err)">${rec.emRisco} em risco</strong>`:''}</div>
+        <div class="vg-mini">${rec.linhas.slice(0,5).map(l=>{
+          const p=l.pctProj!=null?l.pctProj:(l.pctAtual||0);
+          const cor=l.risco==='estourado'?'var(--err)':(l.risco==='risco'?'var(--amarelo)':'var(--musgo)');
+          const pill=l.risco==='estourado'?'<span class="vg-pill r">esgotado</span>':(l.risco==='risco'?'<span class="vg-pill y">em risco</span>':'<span class="vg-pill g">ok</span>');
+          return `<div class="vg-mrow"><span>${esc(l.c.cliente||'(sem nome)')}</span>${pill}
+            <div class="bar"><i style="width:${Math.min(100,p)}%;background:${cor}"></i></div></div>`;
+        }).join('')}</div></div>`
+    : `<div class="vg-card"><h2>💰 Receita & contratos</h2>
+        <div class="estado">Cadastre os contratos (cliente, valor-hora, projetos) na aba <strong>⚙️ Admin</strong> para ver receita e esgotamento aqui.<br><br>
+        <button class="btn primario" data-goto="admin">Ir para ⚙️ Admin</button></div></div>`;
+
+  const cardJira=`<div class="vg-card"><h2>📈 Atividade no Jira <span>no período</span></h2>${(()=>{
+    const soma=(c)=>d.pessoas.reduce((s,p)=>s+(p[c]||0),0);
+    return barlist({ 'Chamados criados':soma('criado'), 'Atualizações':soma('alter'),
+      'Comentários':soma('coment'), 'Transições':d.kpi.transTot,
+      'Concluídos':(d.kpi.concl==null?0:d.kpi.concl) },(v)=>v,cores.amarelo,6);
+  })()}</div>`;
+
+  cont.replaceChildren(el(`<div>
+    ${hero}
+    ${health}
+    <div class="vg-grid">
+      ${cardApont}
+      ${cardAl}
+      ${cardRec}
+      ${cardJira}
+    </div>
+  </div>`));
+}
+
 function renderResumo(){
   const d=agrega();
   const cont=document.getElementById('conteudo');
@@ -1266,10 +1525,8 @@ function renderResumo(){
     </div>` : '<div class="estado">Sem horas no período.</div>';
 
   const dias=Object.keys(d.porDia).sort();
-  const maxDia=Math.max(1,...dias.map(x=>d.porDia[x]));
-  const colunas = dias.length ? `<div class="cols anima">${dias.map(x=>`
-    <div class="col" data-drill="dia" data-key="${escA(x)}" data-tip="${escA(x)}" data-tip2="${escA(fmtH(d.porDia[x]))}" data-tipk="clique para detalhar o dia">
-      <div class="bwrap"><div class="b" style="height:${maxDia?(d.porDia[x]/maxDia*100):0}%"></div></div><div class="cl">${x.slice(5)}</div></div>`).join('')}</div>`
+  const colunas = dias.length
+    ? areaChart(dias.map(x=>({x, v:d.porDia[x], drill:{type:'dia',key:x}})),{fmt:fmtH})
     : '<div class="estado">Sem horas no período.</div>';
 
   cont.replaceChildren(el(`<div>
@@ -1297,7 +1554,7 @@ function renderResumo(){
       <div class="card"><h2>Horas por categoria <span>clique para detalhar</span></h2>${barlist(d.porCategoria,fmtH,cores.cerceta,8,null,null,{drill:(k)=>({type:'categoria',key:k})})}</div>
       <div class="card"><h2>Atividade por tipo <span>tickets distintos · clique p/ detalhar</span></h2>${barlist(d.porTipo,(v)=>v,cores.roxo,8,null,null,{tip2Fn:(k,v)=>`${v} tickets`,drill:(k)=>({type:'tipo',key:k})})}</div>
       <div class="card"><h2>Top projetos por horas <span>passe o mouse no código · clique p/ detalhar</span></h2>${barlist(d.porProjeto,fmtH,cores.cerceta,8,nomeProjResumo,nomeProjResumo,{drill:(k)=>({type:'projeto',key:k})})}</div>
-      <div class="card full"><h2>Horas por dia</h2><div class="scroll-x">${colunas}</div></div>
+      <div class="card full"><h2>Horas por dia <span>clique num ponto para detalhar</span></h2>${colunas}</div>
     </div>
   </div>`));
 }
@@ -3673,6 +3930,7 @@ function abreAjuda(){
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
     <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
+      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos, receita por contrato e atividade — cada bloco leva ao detalhe.</li>
       <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
@@ -3896,6 +4154,10 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-21','📊 Nova aba <b>Visão Geral</b> — tela executiva com apontamento do time, alertas críticos, receita por contrato e atividade, tudo num só lugar (agora é a tela inicial).'],
+  ['2026-06-21','🎨 <b>Gráficos mais modernos e interativos</b> — área com gradiente e animação, donut de meta e barras com destaque ao passar o mouse.'],
+  ['2026-06-21','🟢 Nova <b>marca Dexterity</b> no cabeçalho (o pinwheel oficial).'],
+  ['2026-06-21','💰 Nova aba <b>Receita</b> — consumo por contrato, % de esgotamento + projeção e receita estimada (a partir do cadastro em ⚙️ Admin).'],
   ['2026-06-19','⏱ Apontar: chamados <b>agrupados por projeto</b> (clique no cabeçalho para expandir/recolher; “Expandir/Recolher todos”).'],
   ['2026-06-19','⏱ Apontar: <b>ícones do Jira</b> para tipo (épico/tarefa/bug…) e prioridade, facilitando a diferenciação.'],
   ['2026-06-19','⏱ Apontar: <b>💬 comentar</b> e <b>👤 transferir o responsável</b> (outra pessoa / para mim / remover) direto no chamado.'],
@@ -3905,7 +4167,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-19';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-21';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -4080,14 +4342,14 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','receita','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','receita','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
 function leURL(){
   const p=new URLSearchParams(location.search);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
-  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'resumo';
+  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'visao';
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
   const ap=estado.apontar;
   ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';
@@ -4172,8 +4434,8 @@ document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
 // Logo no canto superior esquerdo volta para o início (Resumo).
-document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('resumo'));
-document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('resumo'); } });
+document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('visao'));
+document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('visao'); } });
 // Botão "voltar ao topo": aparece após rolar a página.
 (function(){ const b=document.getElementById('to-top'); if(!b) return;
   const upd=()=>{ b.hidden=(window.scrollY||document.documentElement.scrollTop)<400; };
@@ -4256,6 +4518,8 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fimTour(); fec
 // Drill-down e clique em pessoa (vale em qualquer visão E dentro dos modais,
 // permitindo navegação encadeada: projeto → pessoa → projeto…).
 document.addEventListener('click', (e)=>{
+  const gt=e.target.closest && e.target.closest('[data-goto]');
+  if(gt){ escondeTip(); vaiPara(gt.getAttribute('data-goto')); return; }
   const dr=e.target.closest && e.target.closest('[data-drill]');
   if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
   const pz=e.target.closest && e.target.closest('[data-pessoa]');
