@@ -97,7 +97,8 @@ async function portal(req, res, base, headers, token) {
     horas: {
       contratadasCiclo: Number(c.horasCiclo != null ? c.horasCiclo : c.horasContratadas) || 0,
       minMes: Number(c.minMes) || 0, tetoMes: Number(c.tetoMes) || 0,
-      consumidoSeg: 0, porMes: {}, bancoSeg: 0, excedenteSeg: 0,
+      // consumidoSeg = todas as horas do ciclo; faturavelSeg = só as faturáveis (estas consomem o pacote).
+      consumidoSeg: 0, faturavelSeg: 0, porMes: {}, bancoSeg: 0, excedenteSeg: 0,
     },
     valor: { hora: Number(c.valorHora) || 0, parcela: 0, excedente: 0, total: 0 },
     chamados: { abertosPorMes: {}, fechadosPorMes: {}, abertosTotal: 0, fechadosTotal: 0, porCausa: [] },
@@ -116,12 +117,14 @@ async function portal(req, res, base, headers, token) {
       if (!(ym in out.horas.porMes)) return;
       const s = Number(w.s) || 0;
       out.horas.consumidoSeg += s; out.horas.porMes[ym] += s;
+      if (w.f) out.horas.faturavelSeg += s;
     });
   } catch (e) { out.horas.erro = String(e && e.message ? e.message : e); }
 
+  // Só as horas faturáveis consomem o pacote/excedente (as não faturáveis ficam fora da apuração).
   const poolSeg = out.horas.contratadasCiclo * 3600;
-  out.horas.bancoSeg = Math.max(0, poolSeg - out.horas.consumidoSeg);
-  out.horas.excedenteSeg = Math.max(0, out.horas.consumidoSeg - poolSeg);
+  out.horas.bancoSeg = Math.max(0, poolSeg - out.horas.faturavelSeg);
+  out.horas.excedenteSeg = Math.max(0, out.horas.faturavelSeg - poolSeg);
   out.valor.parcela = out.horas.contratadasCiclo * out.valor.hora;
   out.valor.excedente = (out.horas.excedenteSeg / 3600) * out.valor.hora;
   out.valor.total = out.valor.parcela + out.valor.excedente;

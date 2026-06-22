@@ -66,6 +66,7 @@
   [data-theme="dark"] .rc-tab tbody tr:hover{background:var(--hoverbg)} [data-theme="dark"] .ap-proj-head:hover{background:var(--hoverbg)}
   /* ===== Impressão / Exportar PDF (força claro, esconde controles) ===== */
   .print-head{display:none}
+  #print-doc{display:none}
   @media print{
     @page{size:A4;margin:12mm}
     :root,[data-theme="dark"]{ --offwhite:#fff; --grafite:#15212e; --cartao:#fff; --cartao2:#f7f9fc;
@@ -74,6 +75,36 @@
     body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     header,.filtros,#to-top,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
     .wrap{max-width:none!important;padding:0!important}
+    /* PDF da apuração AMS por contrato: esconde a tela e mostra só o documento dedicado. */
+    body.doc-print .wrap{display:none!important}
+    body.doc-print #print-doc{display:block!important;color:#15212e;font-size:12px}
+    #print-doc .doc-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid #15212e;padding-bottom:10px;margin-bottom:14px}
+    #print-doc .doc-head img{width:34px;height:34px}
+    #print-doc .doc-head h1{font-size:17px;margin:0;font-weight:700}
+    #print-doc .doc-sub{font-size:11px;color:#566879;margin-top:2px}
+    #print-doc .doc-right{margin-left:auto;text-align:right;font-size:11px;color:#566879}
+    #print-doc h2.doc-cli{font-size:16px;margin:6px 0 10px}
+    #print-doc h3{font-size:13px;margin:18px 0 6px;border-bottom:1px solid #cfd8e3;padding-bottom:4px}
+    #print-doc h3 .doc-h3s{font-weight:400;color:#566879;font-size:11px;margin-left:6px}
+    #print-doc table{width:100%;border-collapse:collapse;font-size:11px}
+    #print-doc .doc-meta th{text-align:left;width:90px;color:#566879;font-weight:600;padding:3px 8px 3px 0;vertical-align:top}
+    #print-doc .doc-meta td{padding:3px 12px 3px 0;vertical-align:top}
+    #print-doc .doc-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+    #print-doc .doc-k{border:1px solid #d7dee7;border-radius:8px;padding:8px 10px}
+    #print-doc .doc-k .dk-v{font-weight:700;font-size:15px} #print-doc .doc-k .dk-l{font-size:10px;color:#566879;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
+    #print-doc .doc-k.good .dk-v{color:#0F6B2E} #print-doc .doc-k.warn .dk-v{color:#8A5200} #print-doc .doc-k.bad .dk-v{color:#B91C1C} #print-doc .doc-k.tot{background:#f0f6ff;border-color:#9fc1ec}
+    #print-doc .doc-val{font-size:11px;background:#f7f9fc;border:1px solid #e6ebf2;border-radius:8px;padding:8px 10px;margin:6px 0 4px}
+    #print-doc .doc-t th,#print-doc .doc-t td{border:1px solid #d7dee7;padding:4px 8px;text-align:left}
+    #print-doc .doc-t .num,#print-doc .doc-ct .num{text-align:right;font-variant-numeric:tabular-nums}
+    #print-doc .doc-t .doc-tot td{font-weight:700;background:#f2f6fb}
+    #print-doc .doc-ch{margin:8px 0;break-inside:avoid}
+    #print-doc .doc-ch-h{display:flex;align-items:baseline;gap:8px;font-size:11.5px;padding:3px 0;border-bottom:1px solid #cfd8e3}
+    #print-doc .doc-ch-k{font-weight:700} #print-doc .doc-ch-k a{color:#15212e;text-decoration:none}
+    #print-doc .doc-ch-meta{color:#566879;font-size:10px} #print-doc .doc-ch-tot{margin-left:auto;font-weight:700}
+    #print-doc .doc-ct{margin:2px 0 0} #print-doc .doc-ct th{color:#566879;font-weight:600;border-bottom:1px solid #e6ebf2;padding:2px 8px 2px 0;text-align:left}
+    #print-doc .doc-ct td{padding:2px 8px 2px 0;border-bottom:1px dashed #e6ebf2}
+    #print-doc .doc-empty{color:#566879;font-style:italic;padding:4px 0}
+    #print-doc .doc-foot{margin-top:18px;padding-top:8px;border-top:1px solid #cfd8e3;font-size:10px;color:#566879}
     .print-head{display:flex!important;align-items:center;gap:12px;border-bottom:2px solid #15212e;padding-bottom:10px;margin-bottom:16px}
     .print-head img{width:34px;height:34px}
     .print-head h1{font-size:17px;margin:0;font-weight:700}
@@ -140,6 +171,12 @@
     padding:9px 12px;border-radius:7px;font-family:var(--corpo);font-size:13.5px;font-weight:600;color:var(--grafite);cursor:pointer}
   .navg-menu button:hover{background:var(--hoverbg);color:var(--cerceta)}
   .navg-menu button[aria-pressed="true"]{background:var(--hoverbg);color:var(--cerceta)}
+  /* Ícones de menu (linha, herdam a cor do texto) */
+  .seg button{display:inline-flex;align-items:center;gap:6px}
+  .navg-menu button{gap:8px}
+  .nav-ic{width:16px;height:16px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
+  .seg button[aria-pressed="true"] .nav-ic{opacity:1}
+  .nav-car{font-size:10px;opacity:.7;margin-left:1px}
   /* Botões Fiori: transparentes (toolbar) com texto azul; .primario = emphasized (azul cheio) */
   .btn{border:1px solid transparent;background:transparent;border-radius:6px;
     padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:14px;font-weight:600;
@@ -258,7 +295,7 @@
 
   /* ---- Ranking de apontamento ---- */
   .rk-list{display:flex;flex-direction:column;gap:12px}
-  .rk-row{display:grid;grid-template-columns:34px 1fr 158px;gap:12px;align-items:center}
+  .rk-row{display:grid;grid-template-columns:34px 1fr 158px;gap:12px;align-items:center;position:relative}
   .rk-pos{font-family:var(--titulo);font-size:20px;font-weight:700;color:var(--muted2);text-align:center}
   .rk-main{display:flex;flex-direction:column;gap:6px;min-width:0}
   .rk-top{display:flex;align-items:center;gap:8px}
@@ -271,6 +308,37 @@
   .rk-fill{height:100%;border-radius:999px}
   .rk-fill.ok{background:var(--musgo)} .rk-fill.warn{background:var(--amarelo)}
   .rk-fill.bad{background:var(--err)} .rk-fill.na{background:var(--linha2)}
+  /* Destaque comemorativo (apontou/em dia) × decepção (não apontou) */
+  .rk-cheer,.rk-sad{overflow:hidden;border-radius:10px;padding:4px 6px;margin:-4px -6px}
+  .rk-cheer{background:linear-gradient(90deg,rgba(232,184,0,.12),rgba(232,184,0,0) 62%)}
+  .rk-cheer .rk-pos{color:#C79100}
+  .rk-medal{display:inline-block;margin-left:2px;color:#E8B800;font-size:13px}
+  .rk-sad{filter:saturate(.5);opacity:.92}
+  .rk-sadface{font-size:13px;line-height:1}
+  .rk-fx{position:absolute;inset:0;pointer-events:none;z-index:0}
+  .rk-fx i{position:absolute}
+  .rk-row>*:not(.rk-fx){position:relative;z-index:1}
+  .rk-stars i{width:10px;height:10px}
+  .rk-stars i::before{content:"✦";position:absolute;inset:0;font-size:11px;line-height:1;color:#E8B800;text-shadow:0 0 6px rgba(232,184,0,.7)}
+  .rk-stars i:nth-child(1){left:5%;top:24%} .rk-stars i:nth-child(2){left:15%;top:64%}
+  .rk-stars i:nth-child(3){left:40%;top:12%} .rk-stars i:nth-child(4){left:57%;top:70%}
+  .rk-stars i:nth-child(5){left:77%;top:26%} .rk-stars i:nth-child(6){left:91%;top:60%}
+  .rk-rain i{width:2px;height:9px;border-radius:2px;background:var(--muted2);opacity:.35;top:-12px}
+  .rk-rain i:nth-child(1){left:22%} .rk-rain i:nth-child(2){left:46%}
+  .rk-rain i:nth-child(3){left:67%} .rk-rain i:nth-child(4){left:85%}
+  @keyframes rkTwinkle{0%,100%{opacity:.12;transform:scale(.6)}50%{opacity:1;transform:scale(1.1)}}
+  @keyframes rkPulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.25);opacity:1}}
+  @keyframes rkFall{0%{transform:translateY(0);opacity:0}25%{opacity:.5}100%{transform:translateY(64px);opacity:0}}
+  @keyframes rkDroop{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
+  @media (prefers-reduced-motion:no-preference){
+    .rk-medal{animation:rkPulse 1.8s ease-in-out infinite}
+    .rk-stars i{animation:rkTwinkle 1.6s ease-in-out infinite}
+    .rk-stars i:nth-child(2){animation-delay:.3s} .rk-stars i:nth-child(3){animation-delay:.6s}
+    .rk-stars i:nth-child(4){animation-delay:.9s} .rk-stars i:nth-child(5){animation-delay:1.2s} .rk-stars i:nth-child(6){animation-delay:.45s}
+    .rk-rain i{animation:rkFall 2.2s linear infinite}
+    .rk-rain i:nth-child(2){animation-delay:.6s} .rk-rain i:nth-child(3){animation-delay:1.1s} .rk-rain i:nth-child(4){animation-delay:1.6s}
+    .rk-sad{animation:rkDroop 3s ease-in-out infinite}
+  }
   .rk-meta{text-align:right}
   .rk-pct{font-family:var(--titulo);font-size:20px;font-weight:700;line-height:1}
   .rk-sub{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -498,8 +566,75 @@
   .ams-mc{border:1px solid var(--linha);border-radius:8px;padding:8px 10px;text-align:center}
   .ams-mc .mm{font-size:11px;color:var(--muted)} .ams-mc .mh{font-family:var(--titulo);font-weight:700;font-size:15px;margin-top:2px}
   .ams-mc.lo{border-color:#E7B100;background:#FEFBEB} .ams-mc.hi{border-color:#D20A0A;background:#FEF2F2}
+  .ams-mc.clic{cursor:pointer} .ams-mc.clic:hover{border-color:var(--cerceta);box-shadow:0 0 0 1px var(--cerceta) inset}
   .ams-note{font-size:11.5px;color:var(--muted);margin-top:8px}
-  @media (max-width:640px){ .ams-kpis{grid-template-columns:repeat(2,1fr)} }
+  .ams-head .ams-pdf{margin-left:8px}
+  /* Navegador de ciclos */
+  .ams-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}
+  .ams-nav-l{font-size:13px} .ams-nav-cur{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#17A398;border:1px solid #17A398;border-radius:6px;padding:1px 6px}
+  .ams-nav .btn[disabled]{opacity:.45;cursor:not-allowed}
+  /* Faturável × não faturável */
+  .ams-fat{margin:10px 0 4px}
+  .ams-fat-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--trilho)}
+  .ams-fat-bar i.fat{background:#188918} .ams-fat-bar i.nfat{background:#C77700}
+  .ams-fat-l{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:6px}
+  /* Drill-down por tipo de issue → chamados */
+  .ams-tipos{display:flex;flex-direction:column;gap:6px}
+  .ams-tipo{border:1px solid var(--linha);border-radius:9px;background:var(--cartao2);overflow:hidden}
+  .ams-tipo>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px}
+  .ams-tipo>summary::-webkit-details-marker{display:none}
+  .ams-tipo>summary:hover{background:var(--hoverbg)}
+  .ams-tp-ic{font-size:11px} .ams-tp-ic.fat{color:#188918} .ams-tp-ic.nfat{color:#C77700}
+  .ams-tp-n{font-weight:600} .ams-tp-h{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+  .ams-tp-b{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-radius:6px;padding:1px 7px}
+  .ams-tp-b.fat{color:#0F6B2E;background:#E7F6EC} .ams-tp-b.nfat{color:#8A5200;background:#FBF0DC}
+  .ams-tipo[open]>summary{border-bottom:1px solid var(--linha)}
+  .ams-chamados{padding:4px 12px 10px}
+  .ams-ch{display:flex;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px dashed var(--linha2);font-size:12.5px}
+  .ams-ch:last-child{border-bottom:none}
+  .ams-ch-k{flex:0 0 auto;min-width:96px} .ams-ch-r{flex:1 1 auto;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ams-ch-h{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:700}
+  [data-theme="dark"] .ams-tp-b.fat{color:#7FE0A0;background:#10291C} [data-theme="dark"] .ams-tp-b.nfat{color:#F0C674;background:#33270F}
+  @media (max-width:640px){ .ams-kpis{grid-template-columns:repeat(2,1fr)} .ams-ch-r{display:none} }
+  /* AMS — seletor de cliente, dados do contrato e faturamento do ciclo */
+  .ams-sel{display:flex;align-items:center;gap:6px;margin-right:6px}
+  .ams-sel select{padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--texto);font:inherit;font-size:13px}
+  .ams-dados{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;background:var(--cartao2);margin-bottom:14px}
+  .ams-dados-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ams-dados-h strong{font-size:15px}
+  .ams-dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .ams-dl{border:1px solid var(--linha);border-radius:9px;padding:8px 11px;background:var(--cartao)}
+  .ams-dl .dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .ams-dl .dd{font-family:var(--titulo);font-weight:700;font-size:15px;margin-top:3px}
+  .ams-dobs,.ams-dprojs{margin-top:8px}
+  .ams-fatura{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)}
+  .ams-fat-tag{font-size:13px;font-weight:700}
+  .ams-fat-tag.ok{color:#0F6B2E} .ams-fat-tag.pend{color:#C77700}
+  [data-theme="dark"] .ams-fat-tag.ok{color:#7FE0A0} [data-theme="dark"] .ams-fat-tag.pend{color:#F0C674}
+  .ams-chcard{margin-top:14px}
+  .ams-chlist{display:flex;flex-direction:column}
+  .ams-ch-t{flex:0 0 auto;color:var(--muted);font-size:11.5px;min-width:84px}
+  .ams-ch-b{flex:0 0 auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-radius:6px;padding:1px 7px}
+  .ams-ch-b.fat{color:#0F6B2E;background:#E7F6EC} .ams-ch-b.nfat{color:#8A5200;background:#FBF0DC}
+  [data-theme="dark"] .ams-ch-b.fat{color:#7FE0A0;background:#10291C} [data-theme="dark"] .ams-ch-b.nfat{color:#F0C674;background:#33270F}
+  .ams-ch-p{flex:0 0 auto;font-size:11.5px;min-width:18px;text-align:right}
+  @media (max-width:640px){ .ams-ch-t,.ams-ch-p{display:none} }
+  /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
+  td.ts-click{cursor:pointer}
+  td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .ts-drill{display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow:auto}
+  .ts-dproj{border:1px solid var(--linha);border-radius:9px;background:var(--cartao2);overflow:hidden}
+  .ts-dproj>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px}
+  .ts-dproj>summary::-webkit-details-marker{display:none}
+  .ts-dproj>summary:hover{background:var(--hoverbg)}
+  .ts-dproj[open]>summary{border-bottom:1px solid var(--linha)}
+  .ts-dp-k{font-weight:700} .ts-dp-n{color:var(--muted);flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ts-dp-h{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+  .ts-dchs{padding:4px 12px 10px}
+  .ts-dch{display:flex;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px dashed var(--linha2);font-size:12.5px}
+  .ts-dch:last-child{border-bottom:none}
+  .ts-dch-k{flex:0 0 auto;min-width:96px} .ts-dch-r{flex:1 1 auto;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ts-dch-h{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:700}
 
   /* ===== Gráficos modernos & interativos ===== */
   .fill,.b,.pp-stack span{transition:filter .15s ease,opacity .15s ease}
@@ -792,6 +927,23 @@
 </script>
 </head>
 <body>
+<!-- Sprite de ícones (linha, monocromático, herda currentColor) usado nos menus. -->
+<svg width="0" height="0" class="ic-defs" aria-hidden="true" focusable="false"><defs>
+  <symbol id="ic-visao" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></symbol>
+  <symbol id="ic-analise" viewBox="0 0 24 24"><path d="M5 4v15a1 1 0 0 0 1 1h15"/><path d="M8 16v-4"/><path d="M13 16V8"/><path d="M18 16v-7"/></symbol>
+  <symbol id="ic-resumo" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
+  <symbol id="ic-timesheet" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="ic-ranking" viewBox="0 0 24 24"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4v1a3 3 0 0 0 3 3"/><path d="M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 13v4"/><path d="M9 21h6"/><path d="M10 21v-2h4v2"/></symbol>
+  <symbol id="ic-tickets" viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1 0 4 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-4 2 2 0 0 1 0-4z"/><path d="M14 6v12"/></symbol>
+  <symbol id="ic-operacao" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 17v3h3l5.5-5.5a4 4 0 0 0 5.2-5.2l-2.4 2.4-2.1-2.1 2.4-2.4z"/></symbol>
+  <symbol id="ic-apontar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="ic-planejar" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9z"/><path d="M8 11h8M8 15h5"/></symbol>
+  <symbol id="ic-reclass" viewBox="0 0 24 24"><path d="M4 8h13l-3.5-3.5"/><path d="M20 16H7l3.5 3.5"/></symbol>
+  <symbol id="ic-ams" viewBox="0 0 24 24"><path d="M12 3l8 3.5V12c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6.5L12 3z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="ic-receita" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18"/><circle cx="16.5" cy="14.5" r="1.3"/></symbol>
+  <symbol id="ic-alertas" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 14 18 8"/><path d="M10.5 19a1.8 1.8 0 0 0 3 0"/></symbol>
+  <symbol id="ic-admin" viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 12h1M11 12h9M4 17h6M16 17h4"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="17" r="2"/></symbol>
+</defs></svg>
 <div class="wrap">
   <div class="print-head" id="print-head" aria-hidden="true"></div>
   <header>
@@ -804,34 +956,35 @@
     </div>
     <div class="spacer"></div>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
-      <button class="navtab" data-v="visao" aria-pressed="true">📊 Visão Geral</button>
+      <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <div class="navg">
-        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false">Análise ▾</button>
+        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="resumo">Resumo</button>
-          <button data-v="timesheet">Timesheet</button>
-          <button data-v="ranking">Ranking</button>
-          <button data-v="tickets">Tickets</button>
+          <button data-v="resumo"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Resumo</button>
+          <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
+          <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
+          <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false">⏱ Operação ▾</button>
+        <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Operação <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="apontar">⏱ Apontar</button>
-          <button data-v="planejar">📝 Planejar</button>
-          <button data-v="reclassificar">🔀 Reclassificar</button>
+          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejar</button>
+          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false">💰 AMS & Governança ▾</button>
+        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Governança <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="receita">💰 Receita</button>
-          <button data-v="alertas">🚨 Alertas</button>
-          <button data-v="admin">⚙️ Admin</button>
+          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
+          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
+          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
+          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
         </div>
       </div>
     </div>
-    <label class="hdr-sel"><span>Período</span>
+    <label class="hdr-sel" id="hdr-periodo"><span>Período</span>
       <select id="f-periodo">
         <option value="hoje">Hoje</option>
         <option value="ontem">Ontem</option>
@@ -862,8 +1015,6 @@
     <div class="campo"><label>Categoria</label><select id="f-categoria"></select></div>
     <div class="campo"><label>Projeto</label><select id="f-projeto"></select></div>
     <div class="campo"><label>Tipo</label><select id="f-tipo"></select></div>
-    <label class="check"><input type="checkbox" id="f-ocultar" checked />
-      Ocultar rotinas e reuniões automáticas</label>
   </div>
 
   <div id="conteudo"><div class="estado">Carregando dados…</div></div>
@@ -897,6 +1048,9 @@
 </div>
 
 <button id="to-top" aria-label="Voltar ao topo" title="Voltar ao topo" hidden>↑ Topo</button>
+
+<!-- Documento de impressão dedicado (PDF da apuração AMS por contrato). Só visível na impressão. -->
+<div id="print-doc" aria-hidden="true"></div>
 
 <script>
 // As CHAVES seguem o tema antigo (para não tocar nos usos); os valores são o tema novo:
@@ -933,8 +1087,10 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   alertas:{ dados:null, carregando:false, erro:'', sev:'' },
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
-  // AMS: worklogs do ciclo vigente (apuração trimestral/mensal), buscados à parte do período da tela.
-  ams:{ dados:null, range:'', carregando:false, erro:'' },
+  // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
+  // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
+  // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
+  ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -1141,11 +1297,9 @@ function filtros(){
     categoria: document.getElementById('f-categoria').value,
     projeto: document.getElementById('f-projeto').value,
     tipo: document.getElementById('f-tipo').value,
-    ocultar: document.getElementById('f-ocultar').checked,
   };
 }
 function passa(p, t, projs, f){
-  if (f.ocultar && RE_ROTINA.test(t||'')) return false;
   if (f.tipo && t!==f.tipo) return false;
   if (f.projeto && p!==f.projeto) return false;
   if (f.categoria){ const c=(projs[p]&&projs[p].categoria)||'Sem categoria'; if(c!==f.categoria) return false; }
@@ -1241,7 +1395,11 @@ function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
+  // A aba AMS é apurada por CICLO (navegador de ciclos), não pela janela tradicional do topo:
+  // esconde o seletor de Período só nela.
+  const hp=document.getElementById('hdr-periodo');
+  if(hp) hp.style.display = (estado.vista==='ams') ? 'none' : '';
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
@@ -1250,6 +1408,7 @@ function render(){
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='alertas') return renderAlertas();
+  if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
   if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
@@ -1653,30 +1812,8 @@ function drill(type,key){
 }
 
 // ======================= VISÃO GERAL EXECUTIVA =======================
-// Resumo financeiro (receita do período + contratos em risco), reutilizando a
-// lógica de projeção da aba Receita.
-function receitaResumo(){
-  const contratos=cfg.contratos||[];
-  if(!contratos.length) return null;
-  const meta=(estado.tempo&&estado.tempo.meta)||{};
-  const dias=listaDias(meta.startDate, meta.endDate); const hoje=hojeSP();
-  const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
-  const decorridos=diasUteis.filter(d=>d<hoje).length; const totalUteis=diasUteis.length;
-  let totValor=0;
-  const linhas=contratos.map(c=>{
-    const an=analisaContrato(c); totValor+=an.valor;
-    const contrSeg=(Number(c.horasContratadas)||0)*3600;
-    const pace=decorridos>0?an.seg/decorridos:0;
-    const projSeg=decorridos>0?pace*totalUteis:an.seg;
-    const pctAtual=contrSeg?Math.round(an.seg/contrSeg*100):null;
-    const pctProj=contrSeg?Math.round(projSeg/contrSeg*100):null;
-    const risco=contrSeg>0?(an.seg>=contrSeg?'estourado':(pctProj!=null&&pctProj>=85?'risco':'ok')):'ok';
-    return { c, an, pctAtual, pctProj, risco };
-  }).sort((a,b)=>(b.pctProj||0)-(a.pctProj||0));
-  return { totValor, linhas, emRisco:linhas.filter(l=>l.risco!=='ok').length };
-}
-
 // Tela executiva: uma pergunta de gestão por bloco, com acesso direto ao detalhe.
+// (AMS/receita ficam fora daqui — são exclusivos da aba AMS & Governança.)
 function renderVisao(){
   const cont=document.getElementById('conteudo');
   if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
@@ -1712,8 +1849,6 @@ function renderVisao(){
   const vh=tk.filter(t=>t.venc===hoje).length;
   const semResp=tk.filter(t=>!t.respId).length;
 
-  const rec=receitaResumo();
-
   const diasH=Object.keys(d.porDia).sort();
   const areaPts=diasH.map(x=>({x, v:d.porDia[x], drill:{type:'dia',key:x}}));
 
@@ -1723,7 +1858,6 @@ function renderVisao(){
   const hero=`<div class="vg-hero">
     <div class="vg-k ${clsMeta}"><div class="v">${pctMeta}%</div><div class="l">Apontamento do time</div><div class="s">${fmtH(totTot)} de ${fmtH(totEsp)}</div></div>
     <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s">${d.kpi.fatPct}% faturável</div></div>
-    <div class="vg-k tealb"><div class="v">${rec?fmtBRL(rec.totValor):'—'}</div><div class="l">Receita estimada</div><div class="s">${rec?((cfg.contratos||[]).length+' contratos'):'cadastre em Admin'}</div></div>
     <div class="vg-k ${cSev.critico>0?'bad':'good'}"><div class="v">${alertasProntos?cSev.critico:alTok}</div><div class="l">Alertas críticos</div><div class="s">${alertasProntos?(cSev.alto+' altos · '+cSev.medio+' médios'):(a.erro?'indisponível':'analisando')}</div></div>
     <div class="vg-k ${clsDia}"><div class="v">${emDia}/${totalPessoas}</div><div class="l">Pessoas em dia</div><div class="s">≥ 90% da meta</div></div>
     <div class="vg-k ${(venc>0)?'bad':'good'}"><div class="v">${alertasProntos?venc:alTok}</div><div class="l">Tickets vencidos</div><div class="s">${alertasProntos?(vh+' vencem hoje'):(a.erro?'indisponível':'analisando')}</div></div>
@@ -1754,20 +1888,6 @@ function renderVisao(){
         ${x.link?`<a href="${x.link}" target="_blank" rel="noopener">abrir ↗</a>`:`<span class="d">${esc(x.resp||'')}</span>`}</div>`).join('')}</div>`
         : '<div class="aviso ok">✓ Nenhum alerta no momento.</div>')}</div>`;
 
-  const cardRec = rec
-    ? `<div class="vg-card"><h2>💰 Receita & contratos <span class="lnk" data-goto="receita">detalhe →</span></h2>
-        <div class="muted small" style="margin-bottom:10px">Receita estimada no período: <strong style="color:var(--grafite)">${fmtBRL(rec.totValor)}</strong>${rec.emRisco?` · <strong style="color:var(--err)">${rec.emRisco} em risco</strong>`:''}</div>
-        <div class="vg-mini">${rec.linhas.slice(0,5).map(l=>{
-          const p=l.pctProj!=null?l.pctProj:(l.pctAtual||0);
-          const cor=l.risco==='estourado'?'var(--err)':(l.risco==='risco'?'var(--amarelo)':'var(--musgo)');
-          const pill=l.risco==='estourado'?'<span class="vg-pill r">esgotado</span>':(l.risco==='risco'?'<span class="vg-pill y">em risco</span>':'<span class="vg-pill g">ok</span>');
-          return `<div class="vg-mrow"><span>${esc(l.c.cliente||'(sem nome)')}</span>${pill}
-            <div class="bar"><i style="width:${Math.min(100,p)}%;background:${cor}"></i></div></div>`;
-        }).join('')}</div></div>`
-    : `<div class="vg-card"><h2>💰 Receita & contratos</h2>
-        <div class="estado">Cadastre os contratos (cliente, valor-hora, projetos) na aba <strong>⚙️ Admin</strong> para ver receita e esgotamento aqui.<br><br>
-        <button class="btn primario" data-goto="admin">Ir para ⚙️ Admin</button></div></div>`;
-
   const cardJira=`<div class="vg-card"><h2>📈 Atividade no Jira <span>no período</span></h2>${(()=>{
     const soma=(c)=>d.pessoas.reduce((s,p)=>s+(p[c]||0),0);
     return barlist({ 'Chamados criados':soma('criado'), 'Atualizações':soma('alter'),
@@ -1781,9 +1901,8 @@ function renderVisao(){
     const sApont=totEsp?Math.max(0,Math.min(100,pctMeta)):null;
     const sPrazo=alertasProntos?Math.max(0,100-Math.min(100,venc*9+vh*4)):null;
     const sAlertas=alertasProntos?Math.max(0,100-Math.min(100,cSev.critico*16+cSev.alto*7)):null;
-    const sAMS=rec?Math.max(0,100-Math.min(100,rec.emRisco*22)):null;
-    const comps=[['Apontamento',sApont,0.30,'timesheet'],['Prazos',sPrazo,0.25,'alertas'],
-      ['Alertas',sAlertas,0.25,'alertas'],['AMS',sAMS,0.20,'receita']].filter(c=>c[1]!=null);
+    const comps=[['Apontamento',sApont,0.40,'timesheet'],['Prazos',sPrazo,0.30,'alertas'],
+      ['Alertas',sAlertas,0.30,'alertas']].filter(c=>c[1]!=null);
     const wsum=comps.reduce((s,c)=>s+c[2],0)||1;
     const score=comps.length?Math.round(comps.reduce((s,c)=>s+c[1]*c[2],0)/wsum):null;
     const corS=score==null?cores.cerceta:(score>=80?cores.musgo:(score>=60?cores.amarelo:'#D20A0A'));
@@ -1795,7 +1914,7 @@ function renderVisao(){
     scoreCard=`<div class="vg-card full"><h2>🩺 Score de saúde da entrega ${score!=null?`<span style="margin-left:auto;color:${corS};font-weight:700">${rot} · ${score}/100</span>`:''}</h2>
       ${!alertasProntos ? '<div class="estado">Calculando o score…</div>'
         : `<div class="vg-split">${donut(score,'saúde',corS)}<div class="vg-mini" style="gap:11px">${subBars}</div></div>
-           <div class="muted small" style="margin-top:10px">Combina <strong>apontamento</strong> do time, <strong>prazos</strong> (vencidos/vencem hoje), <strong>alertas</strong> críticos${rec?' e <strong>esgotamento de AMS</strong>':''}. Clique num componente para ver o detalhe.</div>`}
+           <div class="muted small" style="margin-top:10px">Combina <strong>apontamento</strong> do time, <strong>prazos</strong> (vencidos/vencem hoje) e <strong>alertas</strong> críticos. Clique num componente para ver o detalhe.</div>`}
     </div>`;
   }
   cont.replaceChildren(el(`<div>
@@ -1805,7 +1924,6 @@ function renderVisao(){
     <div class="vg-grid">
       ${cardApont}
       ${cardAl}
-      ${cardRec}
       ${cardJira}
     </div>
   </div>`));
@@ -2069,12 +2187,14 @@ function renderTimesheet(){
       else if(s<m){ cls+=' parcial'; txt=fmtH(s); }
       else { cls+=' ok'; txt=fmtH(s); }
       const tFer=fer?` · ${nomeFeriado(d)}`:'';
-      return `<td class="${cls}" title="${esc(l.nome)} · ${esc(d)}${esc(tFer)} · ${s>0?fmtH(s):'sem apontamento'}">${txt}</td>`;
+      const clic = s>0 ? ' ts-click' : '';
+      const dca = s>0 ? ` data-ts-cell="${escA(l.a)}|${d}"` : '';
+      return `<td class="${cls}${clic}"${dca} title="${esc(l.nome)} · ${esc(d)}${esc(tFer)} · ${s>0?fmtH(s)+' — clique p/ ver por projeto':'sem apontamento'}">${txt}</td>`;
     }).join('');
     const alerta=l.lacuna>0?'tem-lacuna':'';
     return `<tr>
       <th class="ts-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</th>
-      <td class="num">${fmtH(l.tot)}</td>
+      <td class="num${l.tot>0?' ts-click':''}"${l.tot>0?` data-ts-cell="${escA(l.a)}|"`:''} title="${l.tot>0?'Horas por projeto no período — clique':''}">${fmtH(l.tot)}</td>
       <td class="num ts-lac ${alerta}">${l.lacuna>0?('−'+fmtH(l.lacuna)):'ok'}</td>
       ${cells}</tr>`;
   }).join('');
@@ -2099,6 +2219,7 @@ function renderTimesheet(){
         <span><i class="sw aus"></i>ausência</span>
         <span><i class="sw hoje"></i>hoje</span>
       </div>
+      <div class="muted small" style="margin:2px 0 8px">Clique no <strong>total de horas de um dia</strong> (ou na coluna <strong>Total</strong>) para abrir as horas <strong>por projeto</strong> e, dentro de cada projeto, os <strong>chamados</strong> que somam essas horas (↗ abre no Jira).</div>
       <div class="ts-wrap">
         <table class="ts">
           <thead><tr>
@@ -2112,6 +2233,49 @@ function renderTimesheet(){
       </div>
     </div>
   </div>`));
+}
+
+// Drill-down do Timesheet: clique no total de horas de uma pessoa num dia (ou no Total do
+// período) → horas por projeto → chamados que somam essas horas (link para o Jira).
+// `dia` vazio = período inteiro. Respeita os filtros atuais (mas conta TODAS as horas).
+function drillTimesheet(a, dia){
+  if(!a || !estado.tempo) return;
+  const f=filtros(); const ft=Object.assign({}, f, {ocultar:false});
+  const projs=projetosUnidos(); const pessoasNome=pessoasUnidas(); const resumos=resumosUnidos();
+  const meta=estado.tempo.meta||{};
+  const porProj={};   // pkey -> { seg, tickets:{ k -> seg } }
+  let tot=0;
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(w.a!==a) return;
+    if(!passa(w.p,w.t,projs,ft)) return;
+    const d=(w.d||'').slice(0,10); if(!d) return;
+    if(dia && d!==dia) return;
+    const s=Number(w.s)||0; if(!s) return;
+    const o=porProj[w.p]||(porProj[w.p]={seg:0,tickets:{}});
+    o.seg+=s; const k=w.k||'(sem chave)'; o.tickets[k]=(o.tickets[k]||0)+s;
+    tot+=s;
+  });
+  const nome=(pessoasNome[a]&&pessoasNome[a].nome)||a;
+  const quando = dia ? fmtBR(dia) : `${fmtBR(meta.startDate||'')} – ${fmtBR(meta.endDate||'')}`;
+  const projsOrd=Object.entries(porProj).sort((x,y)=>y[1].seg-x[1].seg);
+  const corpo = projsOrd.length ? projsOrd.map(([pk,o])=>{
+    const pnome=(projs[pk]&&projs[pk].nome)||'';
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    const tks=Object.entries(o.tickets).sort((x,y)=>y[1]-x[1]);
+    const linhas=tks.map(([k,seg])=>{
+      const temK=k && k!=='(sem chave)';
+      const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+      return `<div class="ts-dch"><span class="ts-dch-k">${alvo}</span><span class="ts-dch-r">${esc(resumos[k]||'')}</span><span class="ts-dch-h">${fmtH(seg)}</span></div>`;
+    }).join('');
+    return `<details class="ts-dproj">
+      <summary><span class="ts-dp-k">${esc(pk)}</span><span class="ts-dp-n">${esc(pnome)}</span>
+        <span class="ts-dp-h">${fmtH(o.seg)} · ${pct}%</span></summary>
+      <div class="ts-dchs">${linhas||'<div class="muted small">Sem chamados.</div>'}</div>
+    </details>`;
+  }).join('') : '<div class="estado">Sem apontamentos para este recorte.</div>';
+  abreModal(`<h2>${esc(nome)} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(quando)} · ${fmtH(tot)}</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Horas por projeto${dia?' no dia':' no período'} — clique num projeto para ver os chamados (↗ abre no Jira).</div>
+    <div class="ts-drill">${corpo}</div>`);
 }
 
 // Ranking: parte da calcTimesheet e calcula esperado/percentual por pessoa.
@@ -2192,11 +2356,20 @@ function renderRanking(){
     const w=l.pctv==null?0:Math.min(100,l.pctv);
     const sub=l.pctv==null ? `${fmtH(l.tot)} apontadas`
       : `${fmtH(l.cumprido)} / ${fmtH(l.esperadoP)} · ${l.lacuna>0?('faltam '+fmtH(l.lacuna)):'em dia'}`;
-    return `<div class="rk-row">
-      <div class="rk-pos">${i+1}</div>
+    // Quem está em dia ganha um destaque comemorativo (estrelas); quem não apontou
+    // nada no período ganha um efeito de decepção (chuvinha + cinza).
+    const cheer = l.status==='ok';
+    const sad = (l.tot||0)===0;
+    const cls = cheer?' rk-cheer':(sad?' rk-sad':'');
+    const fx = cheer
+      ? '<span class="rk-fx rk-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>'
+      : (sad ? '<span class="rk-fx rk-rain" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : '');
+    return `<div class="rk-row${cls}">
+      ${fx}
+      <div class="rk-pos">${i+1}${cheer?'<span class="rk-medal" aria-hidden="true">★</span>':''}</div>
       <div class="rk-main">
         <div class="rk-top"><span class="rk-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</span>
-          <span class="rk-badge ${l.status}">${rotulo[l.status]}</span></div>
+          <span class="rk-badge ${l.status}">${rotulo[l.status]}</span>${sad?'<span class="rk-sadface" aria-hidden="true" title="não apontou no período">😔</span>':''}</div>
         <div class="rk-bar"><div class="rk-fill ${l.status}" style="width:${w}%"></div></div>
       </div>
       <div class="rk-meta"><div class="rk-pct">${l.pctv==null?'—':l.pctv+'%'}</div>
@@ -3882,6 +4055,10 @@ function amsCicloMeses(ap){ return AMS_MESES_CICLO[ap]||3; }
 function amsLabelApur(ap){ const o=AMS_APUR.find(x=>x[0]===ap); return o?o[1]:'Trimestral'; }
 function amsCiclosAno(ap){ return Math.round(12/amsCicloMeses(ap)); }
 function amsHorasCiclo(c){ return Number(c.horasCiclo!=null?c.horasCiclo:c.horasContratadas)||0; }
+// Categoria de projeto AMS no Jira (ex.: "DAMS | Dexterity - AMS"). O contrato AMS só
+// deve mapear projetos dessa categoria. Detecta "AMS" como palavra na categoria.
+const RE_CAT_AMS=/\bd?ams\b/i;
+function ehCategoriaAMS(cat){ return RE_CAT_AMS.test(cat||''); }
 function diaAntes(iso){ const [y,m,d]=iso.split('-').map(Number); return new Date(Date.UTC(y,m-1,d-1)).toISOString().slice(0,10); }
 function labelMesAbbr(ym){ const [y,m]=ym.split('-'); return `${MESES_ABBR[(+m)-1]}/${y.slice(2)}`; }
 // Ciclo de apuração vigente (alinhado ao mês de início da vigência), contendo `ref`.
@@ -3905,24 +4082,156 @@ function amsLabelCiclo(cyc){ if(!cyc.meses.length) return '';
 // Consumo do ciclo (worklogs do intervalo carregados em estado.ams), por mês.
 function amsConsumoCiclo(c, cyc){
   const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
-  let seg=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
+  // seg = todas as horas do ciclo; segFat = só as faturáveis (estas consomem o pacote/excedente).
+  let seg=0, segFat=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
   wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
     if(!dia||dia<cyc.start||dia>cyc.end) return;
-    const s=Number(w.s)||0; seg+=s; const ym=dia.slice(0,7); if(ym in porMes) porMes[ym]+=s; });
-  return { seg, porMes };
+    const s=Number(w.s)||0; seg+=s; if(w.f) segFat+=s; const ym=dia.slice(0,7); if(ym in porMes) porMes[ym]+=s; });
+  return { seg, segFat, porMes };
+}
+// Data de referência do ciclo em exibição (vazio = hoje/ciclo vigente).
+function amsRefSel(){ return (estado.ams&&estado.ams.ref) || hojeSP(); }
+// Desloca a data de referência por `deltaCiclos` ciclos de `cm` meses (mid-month, sem virada).
+function amsShiftRef(ref, deltaCiclos, cm){
+  const y=+ref.slice(0,4), m=+ref.slice(5,7)-1; const nm=m+deltaCiclos*cm;
+  const ny=y+Math.floor(nm/12), mm=((nm%12)+12)%12;
+  return `${ny}-${String(mm+1).padStart(2,'0')}-15`;
+}
+// Horas do ciclo agrupadas por TIPO de issue (com drill-down por chamado) e split faturável.
+// Cada tipo: { seg, f (faturável), chamados:{ chave -> {seg} } }.
+function amsPorTipo(c, cyc){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+  const tipos={}; let segFat=0, segNao=0;
+  wl.forEach(w=>{
+    if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
+    if(!dia||dia<cyc.start||dia>cyc.end) return;
+    const s=Number(w.s)||0; if(!s) return;
+    const tp=w.t||'—'; const t=tipos[tp]||(tipos[tp]={seg:0,f:!!w.f,chamados:{}});
+    t.seg+=s; const k=w.k||'(sem chave)'; (t.chamados[k]||(t.chamados[k]={seg:0})).seg+=s;
+    if(w.f) segFat+=s; else segNao+=s;
+  });
+  return { tipos, segFat, segNao, seg:segFat+segNao };
+}
+// Worklogs (linhas individuais) de um contrato no ciclo — memória de apontamentos por chamado.
+function amsWorklogsCiclo(c, cyc){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+  return wl.filter(w=>{ if(!set.has(w.p)) return false; const dia=(w.d||'').slice(0,10);
+    return dia&&dia>=cyc.start&&dia<=cyc.end&&(Number(w.s)||0)>0; });
+}
+function amsNomePessoa(a){ const p=(estado.ams&&estado.ams.pessoas&&estado.ams.pessoas[a])||(estado.usuarios&&estado.usuarios[a]); return (p&&p.nome)||a; }
+function amsResumoChamado(k){ return (estado.ams&&estado.ams.resumos&&estado.ams.resumos[k])||''; }
+// Contrato AMS em exibição — a aba mostra um cliente por vez (seleção em estado.ams.sel).
+function amsContratoSel(amsList){
+  const id=(estado.ams&&estado.ams.sel)||'';
+  return amsList.find(c=>c.id===id) || amsList[0] || null;
+}
+// Chamados do ciclo (lista achatada de todos os tipos) — o que faz parte do ciclo selecionado.
+function amsChamadosCiclo(c, cyc){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[]; const m={};
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
+    if(!dia||dia<cyc.start||dia>cyc.end) return; const s=Number(w.s)||0; if(!s) return;
+    const k=w.k||'(sem chave)'; const o=m[k]||(m[k]={k, tipo:w.t||'—', f:!!w.f, seg:0, pessoas:new Set()});
+    o.seg+=s; if(w.a) o.pessoas.add(w.a); });
+  return Object.values(m).sort((a,b)=>b.seg-a.seg);
+}
+// Faturamento do ciclo (chave = início do ciclo), guardado em c.faturados.
+function amsCicloFaturado(c, cyc){ return !!(c && c.faturados && cyc && c.faturados[cyc.start]); }
+// Card com os DADOS CADASTRADOS do contrato + controle de faturamento do ciclo.
+function amsDadosCard(c, cyc){
+  const ap=amsLabelApur(c.apuracao||'trimestral'); const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0;
+  const ca=amsCiclosAno(c.apuracao||'trimestral'); const parcela=pool*vh;
+  const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+  const faturado=amsCicloFaturado(c,cyc); const fr=(c.faturados&&c.faturados[cyc.start])||null;
+  return `<div class="ams-dados">
+    <div class="ams-dados-h"><strong>Contrato — ${esc(c.cliente||'(sem nome)')}</strong>
+      <span class="badge">AMS · ${esc(ap.toLowerCase())}</span><span class="spacer"></span>
+      <button class="btn" data-ams-edit="${escA(c.id)}">Editar no Admin</button></div>
+    <div class="ams-dgrid">
+      ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+      ${dl('Horas por ciclo', pool?`${pool}h`:'—')}
+      ${dl('Parcela do ciclo', vh&&pool?fmtBRL(parcela):'—')}
+      ${dl('Valor anual', vh&&pool?`${fmtBRL(parcela*ca)} <span class="muted">· ${pool*ca}h</span>`:'—')}
+      ${dl('Mínimo mensal', c.minMes?`${c.minMes}h`:'—')}
+      ${dl('Teto mensal', c.tetoMes?`${c.tetoMes}h`:'—')}
+      ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+      ${dl('Banco de horas', c.bancoHoras!==false?'Sim · dentro do ciclo':'Não')}
+    </div>
+    ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
+    <div class="ams-dprojs muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    <div class="ams-fatura">
+      <span class="ams-fat-tag ${faturado?'ok':'pend'}">${faturado?'✓ Ciclo faturado':'● Pendente de faturamento'}${faturado&&fr&&fr.em?` <span class="muted" style="font-weight:400">em ${esc(fmtBR(fr.em))}${fr.por?` · ${esc(fr.por)}`:''}</span>`:''}</span>
+      <span class="spacer"></span>
+      <button class="btn ${faturado?'':'primario'}" data-ams-fatura="${escA(c.id)}">${faturado?'Desmarcar faturamento':'Marcar ciclo como faturado'}</button>
+    </div>
+    <div class="ams-note">O status de faturamento é por <strong>ciclo</strong> e ${cfgShared?'fica salvo para o time.':'fica salvo só neste navegador (configure o Supabase para compartilhar).'}</div>
+  </div>`;
+}
+// Drill-down de um MÊS do ciclo: apontamentos por chamado no mês (cada chamado abre as
+// linhas de worklog — data · pessoa · horas) com link para o Jira.
+function amsDrillMes(cId, ym){
+  const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+  const porCh={}; let tot=0;
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const d=(w.d||'').slice(0,10); if(d.slice(0,7)!==ym) return;
+    const s=Number(w.s)||0; if(!s) return;
+    const k=w.k||'(sem chave)'; const o=porCh[k]||(porCh[k]={seg:0,f:!!w.f,ent:[]});
+    o.seg+=s; o.ent.push({d,a:w.a,s}); tot+=s; });
+  const chs=Object.entries(porCh).sort((a,b)=>b[1].seg-a[1].seg);
+  const corpo = chs.length ? chs.map(([k,o])=>{
+    const temK=k && k!=='(sem chave)';
+    const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+    const ent=o.ent.slice().sort((a,b)=> a.d<b.d?-1:a.d>b.d?1:0 );
+    const linhas=ent.map(x=>`<div class="ts-dch"><span class="ts-dch-k">${esc(fmtBR(x.d))}</span><span class="ts-dch-r">${esc(amsNomePessoa(x.a))}</span><span class="ts-dch-h">${fmtH(x.s)}</span></div>`).join('');
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    return `<details class="ts-dproj">
+      <summary><span class="ts-dp-k">${alvo}</span><span class="ts-dp-n">${esc(amsResumoChamado(k)||'')} <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span></span>
+        <span class="ts-dp-h">${fmtH(o.seg)} · ${pct}%</span></summary>
+      <div class="ts-dchs">${linhas}</div>
+    </details>`;
+  }).join('') : '<div class="estado">Sem apontamentos neste mês.</div>';
+  abreModal(`<h2>${esc(c.cliente||'(sem nome)')} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(labelMesAbbr(ym))} · ${fmtH(tot)} · ${chs.length} chamado(s)</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Apontamentos por chamado no mês — clique num chamado para ver as linhas (data · pessoa · horas). ↗ abre no Jira.</div>
+    <div class="ts-drill">${corpo}</div>`);
+}
+// Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
+function amsChamadosCard(c, cyc){
+  const chs=amsChamadosCiclo(c,cyc); const tot=chs.reduce((s,o)=>s+o.seg,0);
+  const linhas=chs.map(o=>{
+    const temK=o.k && o.k!=='(sem chave)';
+    const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    return `<div class="ams-ch">
+      <span class="ams-ch-k">${alvo}</span>
+      <span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>
+      <span class="ams-ch-t">${esc(o.tipo)}</span>
+      <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span>
+      <span class="ams-ch-p muted" data-tip="Pessoas que apontaram">${o.pessoas.size}</span>
+      <span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
+  }).join('');
+  return `<div class="ams-chcard">
+    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(${chs.length} chamado(s) · ${fmtH(tot)} — clique na chave para abrir no Jira)</span></div>
+    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados neste ciclo.</div>'}</div>
+  </div>`;
 }
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
-  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
   const ad=estado.admin; const contratos=cfg.contratos||[];
   const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : null;
+  // Só projetos da categoria AMS aparecem para mapear (+ os já marcados neste contrato,
+  // para não perder mapeamentos antigos de outra categoria).
+  const jaMarcados=new Set((edit&&edit.projetos)||[]);
+  const projsAll=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const projs=projsAll.filter(p=>ehCategoriaAMS(p.categoria)||jaMarcados.has(p.key));
 
-  const projBox = projs.length
-    ? `<div class="rg-pessoas" id="ad-projs">${projs.map(p=>{
-        const ck = edit && (edit.projetos||[]).includes(p.key);
-        return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.key)} — ${esc(p.nome||'')}</label>`;
-      }).join('')}</div>`
+  const projBox = projsAll.length
+    ? (projs.length
+        ? `<div class="rg-pessoas" id="ad-projs">${projs.map(p=>{
+            const ck = jaMarcados.has(p.key);
+            const foraAMS = !ehCategoriaAMS(p.categoria);
+            return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.key)} — ${esc(p.nome||'')}${foraAMS?' <span class="muted small">(fora da categoria AMS)</span>':''}</label>`;
+          }).join('')}</div>`
+        : '<div class="muted small">Nenhum projeto da categoria <strong>AMS</strong> encontrado no Jira.</div>')
     : '<div class="muted small">Carregando projetos do Jira…</div>';
 
   const form=`<div class="card full">
@@ -3947,7 +4256,7 @@ function renderAdmin(){
       <label class="check" style="margin-top:6px"><input type="checkbox" id="ad-banco" ${(!edit||edit.bancoHoras!==false)?'checked':''}> Banco de horas dentro do ciclo (saldo não consumido vale até o fim do ciclo; <strong>não acumula</strong> para o ciclo seguinte)</label>
       <div class="muted small" id="ad-ams-resumo" style="margin-top:8px"></div>
     </fieldset>
-    <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(marque um ou mais)</span></label>${projBox}</div>
+    <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(categoria AMS · marque um ou mais)</span></label>${projBox}</div>
     <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn primario" id="ad-salvar">${edit?'Salvar alterações':'Adicionar contrato'}</button>
@@ -3961,7 +4270,32 @@ function renderAdmin(){
     const ams=c.tipo==='ams';
     const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const pctv=contr?Math.round(h/contr*100):null;
     const over=pctv!=null&&pctv>100;
-    const amsInfo = ams ? ` · apuração <strong>${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</strong>${amsHorasCiclo(c)?` · ${amsHorasCiclo(c)}h/ciclo (${amsHorasCiclo(c)*amsCiclosAno(c.apuracao||'trimestral')}h/ano)`:''}${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}` : '';
+    const vh=Number(c.valorHora)||0;
+    const semProj=!(c.projetos||[]).length;
+    const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+    let detalhes;
+    if(ams){
+      const pool=amsHorasCiclo(c); const ca=amsCiclosAno(c.apuracao||'trimestral'); const parcela=pool*vh;
+      detalhes=`<div class="ams-dgrid">
+        ${dl('Apuração (ciclo)', esc(amsLabelApur(c.apuracao||'trimestral')))}
+        ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+        ${dl('Horas por ciclo', pool?`${pool}h`:'—')}
+        ${dl('Parcela do ciclo', vh&&pool?fmtBRL(parcela):'—')}
+        ${dl('Valor anual', pool?(vh?`${fmtBRL(parcela*ca)} <span class="muted">· ${pool*ca}h</span>`:`${pool*ca}h/ano`):'—')}
+        ${dl('Mínimo mensal', c.minMes?`${c.minMes}h`:'—')}
+        ${dl('Teto mensal', c.tetoMes?`${c.tetoMes}h`:'—')}
+        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+        ${dl('Banco de horas', c.bancoHoras!==false?'Sim · dentro do ciclo':'Não')}
+      </div>`;
+    } else {
+      detalhes=`<div class="ams-dgrid">
+        ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+        ${dl('Horas contratadas', contr?`${contr}h`:'—')}
+        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+      </div>`;
+    }
+    const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':(c.projetos||[]).map(esc).join(', ')}</div>`;
+    const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
     const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
       ? `<div class="ad-portal"><span class="muted small">🔗 Link do cliente:</span>
@@ -3970,13 +4304,20 @@ function renderAdmin(){
           <button class="btn" data-ad-portal-novo="${escA(c.id)}" data-tip="Gera um novo link e invalida o anterior">novo</button></div>`
       : `<div class="ad-portal"><button class="btn" data-ad-portal="${escA(c.id)}">🔗 Gerar link do cliente</button>
           <span class="muted small">painel somente-leitura para o cliente acompanhar as horas</span></div>`;
+    // AMS sem projetos não aparece na apuração da aba AMS — avisa e oferece o atalho de edição.
+    const avisoSemProj = (ams && semProj)
+      ? `<div class="ad-cons" style="color:#B45309">⚠ Sem projetos mapeados — este contrato <strong>não aparece</strong> na apuração da aba <strong>AMS</strong>. Clique em <strong>editar</strong> e marque os projetos da categoria AMS.</div>`
+      : '';
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
         <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
-      <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${amsInfo}${c.obs?` · ${esc(c.obs)}`:''}</div>
-      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração detalhada na aba 💰 Receita</span>':''}</div>
+      ${detalhes}
+      ${projetos}
+      ${obs}
+      ${avisoSemProj}
+      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}</div>
       ${portalLine}
     </div>`;
   }).join('');
@@ -4058,14 +4399,151 @@ function analisaContrato(c){
   const vh=Number(c.valorHora)||0;
   return { seg, segFat, valor:(seg/3600)*vh, valorFat:(segFat/3600)*vh };
 }
+// ====================== AMS & GOVERNANÇA — APURAÇÃO POR CICLO (aba própria) ======================
+// Aba dedicada: um contrato AMS por vez (seletor de cliente), sempre por ciclo.
+function renderAMS(){
+  const cont=document.getElementById('conteudo');
+  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  const contratos=(cfg.contratos||[]);
+  const hoje=hojeSP();
+  // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
+  const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
+  const cSel=amsContratoSel(amsList);
+  if(cSel && (estado.ams.sel||'')!==cSel.id) estado.ams.sel=cSel.id;   // fixa a seleção efetiva
+  const refSel=amsRefSel();
+  const cycSel = cSel ? amsCicloVigente(cSel,refSel) : null;
+  // Não há "futuro": o "próximo" só vai até o ciclo vigente (o que contém hoje).
+  const noVigente = cSel ? (cycSel.start===amsCicloVigente(cSel,hoje).start) : true;
+  const noPrimeiro = cycSel ? cycSel.n===1 : true;   // 1º ciclo do contrato: não há "anterior"
+  let amsProntos=false, amsKey='';
+  if(cSel){
+    const ate = cycSel.end<hoje?cycSel.end:hoje;
+    amsKey=`${cSel.id}|${cycSel.start}|${ate}`;   // a busca é só do ciclo do contrato selecionado
+    const am=estado.ams;
+    if(am.range!==amsKey && !am.carregando){
+      am.carregando=true; am.erro='';
+      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{
+        am.carregando=false;
+        if(j.erro){ am.erro=j.erro; }
+        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.range=amsKey; }
+        if(estado.vista==='ams') renderAMS();
+      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='ams') renderAMS(); });
+    }
+    amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
+  }
+  // Seletor de cliente (um contrato AMS por vez) + navegador de ciclos.
+  const amsSelHtml = amsList.length>1 ? `<label class="ams-sel"><span class="muted small">Cliente</span>
+      <select id="ams-sel">${amsList.map(c=>`<option value="${escA(c.id)}" ${cSel&&c.id===cSel.id?'selected':''}>${esc(c.cliente||'(sem nome)')}</option>`).join('')}</select></label>` : '';
+  const amsNav = cSel ? `<div class="ams-nav">
+      ${amsSelHtml}
+      <button class="btn" data-ams-nav="prev" ${noPrimeiro?'disabled':''} aria-label="Ciclo anterior">◀ anterior</button>
+      <span class="ams-nav-l">Ciclo <strong>${esc(amsLabelCiclo(cycSel))}</strong> · ${esc(fmtBR(cycSel.start))}–${esc(fmtBR(cycSel.end))}${noVigente?' <span class="ams-nav-cur">vigente</span>':''}</span>
+      <button class="btn" data-ams-nav="next" ${noVigente?'disabled':''} aria-label="Próximo ciclo">próximo ▶</button>
+      ${noVigente?'':'<button class="btn" data-ams-cur>ir ao ciclo vigente</button>'}
+    </div>` : '';
+  const amsCard=(c)=>{
+    const cyc=amsCicloVigente(c,refSel); const cons=amsConsumoCiclo(c,cyc);
+    // Só horas faturáveis consomem o pacote/excedente; o total fica como contexto.
+    const pool=amsHorasCiclo(c); const h=cons.segFat/3600; const vh=Number(c.valorHora)||0;
+    const pctv=pool?Math.round(h/pool*100):0;
+    const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
+    const parcela=pool*vh, valExced=excedente*vh;
+    const risco=pool?(h>=pool?'estourado':(pctv>=85?'risco':'ok')):'ok';
+    const cor=risco==='estourado'?'#D20A0A':(risco==='risco'?'#C77700':'#17A398');
+    const w=pool?Math.min(100,h/pool*100):0;
+    const tag=risco==='estourado'?'<span class="rc2-tag est">esgotado</span>':(risco==='risco'?'<span class="rc2-tag ris">em risco</span>':'');
+    const minMes=Number(c.minMes)||0, tetoMes=Number(c.tetoMes)||0;
+    // Faturável × não faturável (por tipo de issue — pela descrição do tipo no Jira).
+    const pt=amsPorTipo(c,cyc); const fatPct=pt.seg?Math.round(pt.segFat/pt.seg*100):0;
+    // Burn-up: consumo acumulado por dia no ciclo (com linha do pacote contratado).
+    const ateDia=cyc.end<hoje?cyc.end:hoje;
+    const setP=new Set(c.projetos||[]); const wlAms=(estado.ams&&estado.ams.dados)||[]; const porDiaC={};
+    wlAms.forEach(w=>{ if(!setP.has(w.p)||!w.f) return; const dd=(w.d||'').slice(0,10); if(dd>=cyc.start&&dd<=ateDia) porDiaC[dd]=(porDiaC[dd]||0)+(Number(w.s)||0); });
+    let acc=0; const burn=listaDias(cyc.start,ateDia).map(dd=>{ acc+=(porDiaC[dd]||0); return {x:dd,v:acc}; });
+    const burnChart = burn.length>1 ? tsChart([{nome:'Consumo faturável acumulado',cor,vals:burn,tipo:'area'}],
+      {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),metaY:{v:pool*3600},altura:'180px'}) : '';
+    const mesesHtml=cyc.meses.map(ym=>{
+      const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
+      const clic = seg>0 ? ' clic' : '';
+      const dca = seg>0 ? ` data-ams-mes="${escA(c.id)}|${ym}" title="Ver apontamentos por chamado em ${esc(labelMesAbbr(ym))}"` : '';
+      return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}${clic}"${dca}><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
+        ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto ${tetoMes}h</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín ${minMes}h</div>`:'')}</div>`;
+    }).join('');
+    // Drill-down: tipo de issue → chamados → link para o Jira.
+    const tiposOrd=Object.entries(pt.tipos).sort((a,b)=>b[1].seg-a[1].seg);
+    const tiposHtml=tiposOrd.map(([nome,t])=>{
+      const chs=Object.entries(t.chamados).sort((a,b)=>b[1].seg-a[1].seg);
+      const linhas=chs.map(([k,ch])=>{
+        const temK=k && k!=='(sem chave)';
+        const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+        return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span><span class="ams-ch-r">${esc(amsResumoChamado(k))}</span><span class="ams-ch-h">${fmtH(ch.seg)}</span></div>`;
+      }).join('');
+      const pctT=pt.seg?Math.round(t.seg/pt.seg*100):0;
+      return `<details class="ams-tipo${t.f?'':' nf'}">
+        <summary><span class="ams-tp-ic ${t.f?'fat':'nfat'}">${t.f?'●':'○'}</span><span class="ams-tp-n">${esc(nome)}</span>
+          <span class="ams-tp-b ${t.f?'fat':'nfat'}">${t.f?'faturável':'não faturável'}</span>
+          <span class="ams-tp-h">${fmtH(t.seg)} · ${pctT}%</span></summary>
+        <div class="ams-chamados">${linhas||'<div class="muted small">Sem chamados.</div>'}</div>
+      </details>`;
+    }).join('');
+    return `<div class="ams-card ${risco}">
+      <div class="ams-head"><strong>${esc(c.cliente||'(sem nome)')}</strong>
+        <span class="badge">AMS · ${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</span>${tag}
+        <span class="ciclo">Ciclo ${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</span>
+        <button class="btn ams-pdf" data-ams-pdf="${escA(c.id)}" title="Exportar a apuração deste contrato em PDF">PDF da apuração</button></div>
+      <div class="ams-bar"><div class="ams-track"><div class="ams-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div></div>
+        <div class="ams-bar-l"><span><strong>${fmtH(cons.segFat)}</strong> faturáveis de ${pool}h no ciclo (${pctv}%)</span>
+          <span class="muted">${cons.seg!==cons.segFat?`${fmtH(cons.seg)} no total · `:''}${excedente>0?`excedente ${fmtH(Math.round(excedente*3600))}`:`banco ${fmtH(Math.round(banco*3600))} disponível`}</span></div></div>
+      <div class="ams-kpis">
+        <div class="ams-k"><div class="v">${fmtH(Math.round(banco*3600))}</div><div class="l">Banco de horas</div></div>
+        <div class="ams-k"><div class="v ${excedente>0?'over':''}">${excedente>0?fmtH(Math.round(excedente*3600)):'0h'}</div><div class="l">Excedente (autorizar)</div></div>
+        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela):'—'}</div><div class="l">Parcela do ciclo (${pool}h)</div></div>
+        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela+valExced):'—'}</div><div class="l">Faturamento do ciclo</div></div>
+      </div>
+      <div class="ams-fat">
+        <div class="ams-fat-bar"><i class="fat" style="width:${fatPct}%"></i><i class="nfat" style="width:${100-fatPct}%"></i></div>
+        <div class="ams-fat-l"><span><b style="color:#188918">${fmtH(pt.segFat)}</b> faturáveis</span>
+          <span><b style="color:#C77700">${fmtH(pt.segNao)}</b> não faturáveis</span>
+          <span class="muted">${fatPct}% faturável no ciclo</span></div></div>
+      ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo faturável no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h; só horas faturáveis consomem o pacote)</span></div>${burnChart}`:''}
+      <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo <span class="muted" style="font-weight:400">(clique num mês para ver os apontamentos por chamado${minMes||tetoMes?` · mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês`:''})</span></div>
+      <div class="ams-months">${mesesHtml}</div>
+      <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(clique no tipo para ver os chamados → Jira)</span></div>
+      <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem apontamentos neste ciclo.</div>'}</div>
+      ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
+      ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
+      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    </div>`;
+  };
+  let amsSection='';
+  if(!amsList.length){
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança</h2>
+      <div class="estado">Nenhum contrato <strong>AMS</strong> com projetos mapeados. Cadastre o contrato e mapeie os projetos na aba <strong>⚙️ Admin</strong>.</div></div>`;
+  } else if(!amsProntos){
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc((cSel&&cSel.cliente)||'')}</span></h2>
+      ${amsNav}
+      ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
+  } else {
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc(cSel.cliente||'')}</span></h2>
+        ${amsNav}
+        <div class="muted small" style="margin:8px 0 12px">Apuração do <strong>ciclo selecionado</strong> deste contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira; <strong>só as horas faturáveis consomem o pacote/excedente</strong>. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
+        ${amsDadosCard(cSel, cycSel)}
+        ${amsCard(cSel)}
+        ${amsChamadosCard(cSel, cycSel)}
+      </div>`;
+  }
+  cont.replaceChildren(el(`<div>${amsSection}</div>`));
+}
+
 function renderReceita(){
   const cont=document.getElementById('conteudo');
   if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita &amp; AMS</h2>
+    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
       <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
-      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.<br><br>
+      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.
+      <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>AMS &amp; Governança</strong>.)</span><br><br>
       <button class="btn primario" data-ir-admin>Ir para ⚙️ Admin</button></div></div></div>`));
     return;
   }
@@ -4076,96 +4554,6 @@ function renderReceita(){
   const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
   const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
   const totalUteis=diasUteis.length;
-
-  // ---- AMS: apuração por ciclo (busca os worklogs do ciclo, à parte do período da tela) ----
-  const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
-  let amsProntos=false, amsKey='';
-  if(amsList.length){
-    let minStart=hoje;
-    amsList.forEach(c=>{ const cyc=amsCicloVigente(c,hoje); if(cyc.start<minStart) minStart=cyc.start; });
-    amsKey=`${minStart}|${hoje}`;
-    const am=estado.ams;
-    if(am.range!==amsKey && !am.carregando){
-      am.carregando=true; am.erro='';
-      fetch(`/api/tempo?desde=${encodeURIComponent(minStart)}&ate=${encodeURIComponent(hoje)}`).then(r=>r.json()).then(j=>{
-        am.carregando=false; if(j.erro){ am.erro=j.erro; } else { am.dados=j.worklogs||[]; am.range=amsKey; }
-        if(estado.vista==='receita') renderReceita();
-      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='receita') renderReceita(); });
-    }
-    amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
-  }
-  const amsCard=(c)=>{
-    const cyc=amsCicloVigente(c,hoje); const cons=amsConsumoCiclo(c,cyc);
-    const pool=amsHorasCiclo(c); const h=cons.seg/3600; const vh=Number(c.valorHora)||0;
-    const pctv=pool?Math.round(h/pool*100):0;
-    const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
-    const parcela=pool*vh, valExced=excedente*vh;
-    const risco=pool?(h>=pool?'estourado':(pctv>=85?'risco':'ok')):'ok';
-    const cor=risco==='estourado'?'#D20A0A':(risco==='risco'?'#C77700':'#17A398');
-    const w=pool?Math.min(100,h/pool*100):0;
-    const tag=risco==='estourado'?'<span class="rc2-tag est">esgotado</span>':(risco==='risco'?'<span class="rc2-tag ris">em risco</span>':'');
-    const minMes=Number(c.minMes)||0, tetoMes=Number(c.tetoMes)||0;
-    // Burn-up: consumo acumulado por dia no ciclo (com linha do pacote contratado).
-    const ateDia=cyc.end<hoje?cyc.end:hoje;
-    const setP=new Set(c.projetos||[]); const wlAms=(estado.ams&&estado.ams.dados)||[]; const porDiaC={};
-    wlAms.forEach(w=>{ if(!setP.has(w.p)) return; const dd=(w.d||'').slice(0,10); if(dd>=cyc.start&&dd<=ateDia) porDiaC[dd]=(porDiaC[dd]||0)+(Number(w.s)||0); });
-    let acc=0; const burn=listaDias(cyc.start,ateDia).map(dd=>{ acc+=(porDiaC[dd]||0); return {x:dd,v:acc}; });
-    const burnChart = burn.length>1 ? tsChart([{nome:'Consumo acumulado',cor,vals:burn,tipo:'area'}],
-      {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),metaY:{v:pool*3600},altura:'180px'}) : '';
-    const mesesHtml=cyc.meses.map(ym=>{
-      const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
-      return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
-        ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto ${tetoMes}h</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín ${minMes}h</div>`:'')}</div>`;
-    }).join('');
-    return `<div class="ams-card ${risco}">
-      <div class="ams-head"><strong>${esc(c.cliente||'(sem nome)')}</strong>
-        <span class="badge">AMS · ${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</span>${tag}
-        <span class="ciclo">Ciclo ${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</span></div>
-      <div class="ams-bar"><div class="ams-track"><div class="ams-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div></div>
-        <div class="ams-bar-l"><span><strong>${fmtH(cons.seg)}</strong> de ${pool}h no ciclo (${pctv}%)</span>
-          <span class="muted">${excedente>0?`excedente ${fmtH(Math.round(excedente*3600))}`:`banco ${fmtH(Math.round(banco*3600))} disponível`}</span></div></div>
-      <div class="ams-kpis">
-        <div class="ams-k"><div class="v">${fmtH(Math.round(banco*3600))}</div><div class="l">Banco de horas</div></div>
-        <div class="ams-k"><div class="v ${excedente>0?'over':''}">${excedente>0?fmtH(Math.round(excedente*3600)):'0h'}</div><div class="l">Excedente (autorizar)</div></div>
-        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela):'—'}</div><div class="l">Parcela do ciclo (${pool}h)</div></div>
-        <div class="ams-k"><div class="v">${vh?fmtBRL(parcela+valExced):'—'}</div><div class="l">Faturamento do ciclo</div></div>
-      </div>
-      ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h)</span></div>${burnChart}`:''}
-      <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
-      <div class="ams-months">${mesesHtml}</div>
-      ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
-      ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
-      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
-    </div>`;
-  };
-  let amsSection='';
-  if(amsList.length){
-    if(!amsProntos){
-      amsSection=`<div class="card full"><h2>🛠️ AMS — apuração por ciclo</h2>
-        ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
-    } else {
-      let tReceita=0,tCons=0,tBanco=0,nExced=0;
-      const cards=amsList.map(c=>{
-        const cyc=amsCicloVigente(c,hoje), cons=amsConsumoCiclo(c,cyc), pool=amsHorasCiclo(c), h=cons.seg/3600, vh=Number(c.valorHora)||0;
-        const exc=Math.max(0,h-pool); tReceita+=(pool+exc)*vh; tCons+=cons.seg; tBanco+=Math.max(0,pool-h)*3600; if(exc>0) nExced++;
-        return amsCard(c);
-      }).join('');
-      amsSection=`<div class="kpis ts-kpis">
-          <div class="kpi t"><div class="v">${fmtBRL(tReceita)}</div><div class="l">Faturamento do ciclo</div></div>
-          <div class="kpi t"><div class="v">${fmtH(tCons)}</div><div class="l">Horas no ciclo</div></div>
-          <div class="kpi a"><div class="v">${fmtH(Math.round(tBanco))}</div><div class="l">Banco de horas</div></div>
-          <div class="kpi w"><div class="v">${nExced}</div><div class="l">Em excedente</div></div>
-        </div>
-        <div class="card full"><h2>🛠️ AMS — apuração por ciclo <span>${amsList.length} contrato(s) · banco de horas</span></h2>
-          <div class="muted small" style="margin-bottom:12px">Consumo do <strong>ciclo de apuração vigente</strong> de cada contrato (independente do período do topo). O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
-          ${cards}</div>`;
-    }
-  }
-
-  // Projetos com horas no período que não estão em nenhum contrato.
-  const mapeados=new Set(); contratos.forEach(c=>(c.projetos||[]).forEach(p=>mapeados.add(p)));
-  const semContrato={};
-  (estado.tempo.worklogs||[]).forEach(w=>{ if(!mapeados.has(w.p)) semContrato[w.p]=(semContrato[w.p]||0)+(Number(w.s)||0); });
 
   // ---- Bolsa de horas / projeto fechado: projeção pelo período da tela ----
   const outros=contratos.filter(c=>c.tipo!=='ams');
@@ -4221,17 +4609,6 @@ function renderReceita(){
     </div>`;
   };
 
-  const scKeys=Object.keys(semContrato).filter(k=>k&&k!=='—'&&semContrato[k]>0).sort((a,b)=>semContrato[b]-semContrato[a]);
-  const scMax=scKeys.reduce((m,k)=>Math.max(m,semContrato[k]),1);
-  const scHtml = scKeys.length ? `<div class="card full"><h2>Horas sem contrato <span>${scKeys.length} projeto(s)</span></h2>
-    <div class="muted small" style="margin-bottom:10px">Horas apontadas no período em projetos <strong>não mapeados</strong> a nenhum contrato — não entram na receita. Mapeie-os na aba ⚙️ Admin.</div>
-    <div class="barlist">${scKeys.slice(0,12).map(k=>{
-      const nome=(estado.tempo.projetos&&estado.tempo.projetos[k]&&estado.tempo.projetos[k].nome)||k;
-      return `<div class="barrow"><div class="nome" data-tip="${escA(nome)}">${esc(k)}</div>
-        <div class="track"><div class="fill" style="width:${Math.min(100, semContrato[k]/scMax*100).toFixed(1)}%;background:var(--muted2)"></div></div>
-        <div class="val">${fmtH(semContrato[k])}</div></div>`;
-    }).join('')}</div></div>` : '';
-
   const genericoSection = outros.length ? `
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtBRL(totValor)}</div><div class="l">Receita estimada</div></div>
@@ -4246,9 +4623,9 @@ function renderReceita(){
     </div>` : '';
 
   cont.replaceChildren(el(`<div>
-    ${amsSection}
-    ${genericoSection}
-    ${scHtml}
+    ${genericoSection || `<div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
+      <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
+      Os contratos <strong>AMS</strong> têm aba própria (<strong>AMS &amp; Governança</strong>). Cadastre contratos na aba <strong>⚙️ Admin</strong>.</div></div>`}
   </div>`));
 }
 // ===============================================================================
@@ -4435,7 +4812,7 @@ function abreAjuda(){
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
     <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
-      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos, receita por contrato e atividade — cada bloco leva ao detalhe.</li>
+      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe. <i>(AMS/receita são exclusivos da aba AMS &amp; Governança.)</i></li>
       <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
       <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
       <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
@@ -4444,8 +4821,9 @@ function abreAjuda(){
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
       <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
-      <li><b>💰 Receita</b> — consumo e receita estimada por cliente: horas contratadas × consumidas, % de esgotamento, projeção e % faturável (usa os contratos cadastrados em Admin).</li>
-      <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
+      <li><b>AMS</b> — aba própria de <b>AMS &amp; Governança</b>: <b>um contrato por vez</b> (seletor de cliente), sempre <b>por ciclo</b> — dados do contrato, controle de <b>faturamento do ciclo</b>, banco de horas, faturável × não faturável, horas por tipo com drill-down, <b>chamados do ciclo</b> e <b>PDF da apuração</b>.</li>
+      <li><b>💰 Receita</b> — <b>bolsa de horas e projetos</b> (consumo × contratado, projeção e receita estimada) por período.</li>
+      <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e <b>projetos do Jira da categoria AMS</b>. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -4591,7 +4969,7 @@ async function enviaFeedback(){
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
-  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (Receita, Alertas, Admin).'},
+  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (AMS, Receita, Alertas, Admin).'},
   {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
   {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
@@ -4667,7 +5045,17 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
-  ['2026-06-21','🩺 <b>Score de saúde da entrega</b> (0–100) na Visão Geral — combina apontamento, prazos, alertas e esgotamento de AMS, com componentes clicáveis.'],
+  ['2026-06-22','📋 <b>Admin — detalhes do contrato</b>: cada contrato cadastrado agora mostra os <b>dados completos</b> num quadro legível (apuração, valor-hora, horas/ciclo, parcela, valor anual, mín/teto mensal, vigência, banco de horas, projetos e obs). Contrato <b>AMS sem projetos mapeados</b> ganha um aviso (ele não aparece na apuração da aba AMS até mapear os projetos).'],
+  ['2026-06-22','📅 <b>AMS por ciclo (sem período do topo)</b>: na aba AMS o seletor de <b>Período</b> tradicional sai — a seleção é só pelo <b>navegador de ciclos</b> (trimestre/período do contrato). E clicando num <b>mês do ciclo</b> abre os <b>apontamentos por chamado</b> daquele mês (cada chamado com as linhas data · pessoa · horas e link para o Jira).'],
+  ['2026-06-22','🔎 <b>Timesheet com drill-down</b>: clique no <b>total de horas de um dia</b> (ou na coluna <b>Total</b>) de uma pessoa para abrir as <b>horas por projeto</b> e, dentro de cada projeto, os <b>chamados</b> que somam essas horas — cada um com link para o <b>Jira</b>.'],
+  ['2026-06-22','🗂️ <b>AMS em aba própria</b>: a apuração de AMS agora é uma <b>aba separada</b> (menu AMS &amp; Governança → <b>AMS</b>), totalmente isolada da Receita. A aba <b>Receita</b> ficou só com <b>bolsa de horas e projetos</b>.'],
+  ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
+  ['2026-06-21','🧮 <b>AMS — só horas faturáveis consomem o pacote</b>: o banco de horas, o excedente e o faturamento do ciclo passam a considerar <b>apenas as horas faturáveis</b>; as não faturáveis (ex.: "Tarefas ADM") ficam fora da apuração (continuam visíveis como indicador e na memória do PDF).'],
+  ['2026-06-21','🛠️ <b>AMS & Governança renovado</b> — apuração <b>por ciclo trimestral</b> (com navegador de ciclos), <b>horas por tipo de issue</b> com drill-down até o chamado no Jira, indicador <b>faturável × não faturável</b> (pela descrição do tipo) e <b>PDF da apuração por contrato</b> (valor apurado + memória de apontamentos por chamado).'],
+  ['2026-06-21','⚙️ <b>Admin</b>: ao mapear um contrato AMS aparecem <b>só projetos da categoria AMS</b>.'],
+  ['2026-06-21','🏅 <b>Ranking</b>: quem está em dia ganha destaque comemorativo (estrelas) e quem não apontou, um efeito de decepção (respeita <i>reduced-motion</i>).'],
+  ['2026-06-21','✨ <b>Menus com ícones</b> de linha (no lugar de emojis) e remoção do filtro "ocultar rotinas e reuniões".'],
+  ['2026-06-21','🩺 <b>Score de saúde da entrega</b> (0–100) na Visão Geral — combina apontamento, prazos e alertas, com componentes clicáveis.'],
   ['2026-06-21','🖨 <b>Exportar PDF</b> — botão no topo gera um relatório da tela atual (cabeçalho com período/data, layout claro pronto para imprimir/salvar em PDF).'],
   ['2026-06-21','🌙 <b>Modo escuro</b> — botão no topo (🌙/☀️) alterna claro/escuro; a preferência fica salva no navegador.'],
   ['2026-06-21','📈 <b>Gráficos interativos premium</b> — série temporal com <b>crosshair</b> que segue o cursor e leitura ao passar o mouse, <b>burn-up</b> do ciclo de AMS, série semanal de chamados e <b>treemap</b> de distribuição.'],
@@ -4686,7 +5074,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-21';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.5';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -4861,7 +5249,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','receita','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -4879,7 +5267,7 @@ function leURL(){
   ap.cat = p.get('acat')||'';
   ap.proj = p.get('aproj')||'';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
-    tipo:p.get('tipo')||'', mostrarRotinas:p.get('rot')==='1' };
+    tipo:p.get('tipo')||'' };
 }
 function sincronizaControlesURL(){
   const sel=document.getElementById('f-periodo');
@@ -4891,7 +5279,6 @@ function aplicaPendentes(){
   const set=(id,val)=>{ const s=document.getElementById(id); if(val && [...s.options].some(o=>o.value===val)) s.value=val; };
   set('f-pessoa',_pendentesURL.pessoa); set('f-categoria',_pendentesURL.categoria);
   set('f-projeto',_pendentesURL.projeto); set('f-tipo',_pendentesURL.tipo);
-  document.getElementById('f-ocultar').checked = !_pendentesURL.mostrarRotinas;
   _pendentesURL=null;
 }
 function estadoParaURL(){
@@ -4911,7 +5298,6 @@ function estadoParaURL(){
   if(f.categoria) p.set('cat',f.categoria);
   if(f.projeto) p.set('proj',f.projeto);
   if(f.tipo) p.set('tipo',f.tipo);
-  if(!f.ocultar) p.set('rot','1');
   const qs=p.toString();
   history.replaceState(null,'', qs ? ('?'+qs) : location.pathname);
 }
@@ -4954,7 +5340,7 @@ document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.clos
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
 document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
-['f-pessoa','f-categoria','f-projeto','f-tipo','f-ocultar'].forEach(id=>
+['f-pessoa','f-categoria','f-projeto','f-tipo'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
 document.getElementById('btn-csv').addEventListener('click', exportaCSV);
@@ -4981,7 +5367,118 @@ function exportarPDF(){
   if(img&&img.decode) img.decode().then(go).catch(go);
   else setTimeout(go,120);
 }
+// PDF da apuração de UM contrato AMS: valor apurado (referenciando o contrato) +
+// memória de apontamentos por chamado (cada chamado com suas linhas de worklog → Jira).
+function pdfApuracaoAMS(id){
+  const c=(cfg.contratos||[]).find(x=>x.id===id); if(!c) return;
+  const doc=document.getElementById('print-doc'); if(!doc) return;
+  const cyc=amsCicloVigente(c,amsRefSel()); const cons=amsConsumoCiclo(c,cyc);
+  // Só horas faturáveis consomem o pacote/excedente; o total do ciclo entra como contexto.
+  const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0; const h=cons.segFat/3600;
+  const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
+  const parcela=pool*vh, valExced=excedente*vh, total=parcela+valExced;
+  const pctv=pool?Math.round(h/pool*100):0;
+  const pt=amsPorTipo(c,cyc); const fatPct=pt.seg?Math.round(pt.segFat/pt.seg*100):0;
+  const agora=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+  // Memória por chamado (com as entradas individuais de apontamento).
+  const wl=amsWorklogsCiclo(c,cyc); const porCh={};
+  wl.forEach(w=>{ const k=w.k||'(sem chave)'; const ch=porCh[k]||(porCh[k]={seg:0,f:!!w.f,tipo:w.t||'—',ent:[]});
+    ch.seg+=(Number(w.s)||0); ch.ent.push({d:(w.d||'').slice(0,10),a:w.a,s:Number(w.s)||0}); });
+  const chs=Object.entries(porCh).sort((a,b)=>b[1].seg-a[1].seg);
+  const tiposOrd=Object.entries(pt.tipos).sort((a,b)=>b[1].seg-a[1].seg);
+
+  const linhaKpi=(v,l,cls)=>`<div class="doc-k${cls?' '+cls:''}"><div class="dk-v">${v}</div><div class="dk-l">${l}</div></div>`;
+  const tiposTab=`<table class="doc-t"><thead><tr><th>Tipo de issue</th><th>Faturável</th><th class="num">Horas</th><th class="num">%</th></tr></thead><tbody>
+    ${tiposOrd.map(([nome,t])=>`<tr><td>${esc(nome)}</td><td>${t.f?'Sim':'Não'}</td><td class="num">${fmtH(t.seg)}</td><td class="num">${pt.seg?Math.round(t.seg/pt.seg*100):0}%</td></tr>`).join('')}
+    <tr class="doc-tot"><td>Total</td><td>${fatPct}% faturável</td><td class="num">${fmtH(pt.seg)}</td><td class="num">100%</td></tr>
+    </tbody></table>`;
+  const memoria=chs.map(([k,ch])=>{
+    const temK=k&&k!=='(sem chave)';
+    const tit=temK?`${esc(k)} — ${esc(amsResumoChamado(k)||'')}`:'(apontamentos sem chave de chamado)';
+    const ent=ch.ent.slice().sort((a,b)=>(a.d<b.d?-1:a.d>b.d?1:0));
+    return `<div class="doc-ch">
+      <div class="doc-ch-h"><span class="doc-ch-k">${temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}">${tit}</a>`:tit}</span>
+        <span class="doc-ch-meta">${esc(ch.tipo)} · ${ch.f?'faturável':'não faturável'}</span>
+        <span class="doc-ch-tot">${fmtH(ch.seg)}</span></div>
+      <table class="doc-ct"><thead><tr><th>Data</th><th>Pessoa</th><th class="num">Horas</th></tr></thead><tbody>
+        ${ent.map(x=>`<tr><td>${esc(fmtBR(x.d))}</td><td>${esc(amsNomePessoa(x.a))}</td><td class="num">${fmtH(x.s)}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }).join('');
+
+  doc.innerHTML=`<div class="doc">
+    <div class="doc-head"><img src="/logo.svg" alt="Dexterity">
+      <div><h1>Relatório de apuração — AMS</h1><div class="doc-sub">Dexterity IT · Insights de Uso (Jira + Clockwork)</div></div>
+      <div class="doc-right">Gerado em ${esc(agora)}</div></div>
+    <h2 class="doc-cli">${esc(c.cliente||'(sem nome)')}</h2>
+    <table class="doc-meta"><tbody>
+      <tr><th>Contrato</th><td>AMS · apuração ${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</td><th>Ciclo</th><td>${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</td></tr>
+      <tr><th>Valor-hora</th><td>${vh?esc(fmtBRL(vh)):'—'}</td><th>Pacote do ciclo</th><td>${pool}h${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}</td></tr>
+      <tr><th>Faturamento</th><td colspan="3">${(()=>{ const fr=(c.faturados&&c.faturados[cyc.start])||null; return fr?`✓ Ciclo faturado${fr.em?` em ${esc(fmtBR(fr.em))}`:''}${fr.por?` · ${esc(fr.por)}`:''}`:'● Pendente de faturamento'; })()}</td></tr>
+      <tr><th>Projetos</th><td colspan="3">${(c.projetos||[]).map(esc).join(', ')||'—'}</td></tr>
+      ${c.obs?`<tr><th>Observações</th><td colspan="3">${esc(c.obs)}</td></tr>`:''}
+    </tbody></table>
+    <div class="doc-kpis">
+      ${linhaKpi(fmtH(cons.seg),'Horas no ciclo (total)')}
+      ${linhaKpi(fmtH(pt.segFat),`Faturáveis · ${pctv}% de ${pool}h`,'good')}
+      ${linhaKpi(fmtH(pt.segNao),'Não faturáveis','warn')}
+      ${linhaKpi(fmtH(Math.round(banco*3600)),'Banco de horas')}
+      ${linhaKpi(excedente>0?fmtH(Math.round(excedente*3600)):'0h','Excedente',excedente>0?'bad':'')}
+      ${linhaKpi(vh?fmtBRL(total):'—','Valor apurado do ciclo','tot')}
+    </div>
+    <div class="doc-val">Valor apurado: parcela do ciclo (${pool}h × ${vh?fmtBRL(vh):'—'} = <strong>${vh?fmtBRL(parcela):'—'}</strong>)${excedente>0?` + excedente (${fmtH(Math.round(excedente*3600))} × ${fmtBRL(vh)} = <strong>${fmtBRL(valExced)}</strong>, requer autorização prévia)`:''} = <strong>${vh?fmtBRL(total):'—'}</strong></div>
+    <h3>Horas por tipo de issue</h3>
+    ${tiposOrd.length?tiposTab:'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
+    <h3>Memória de apontamentos por chamado <span class="doc-h3s">${chs.length} chamado(s) · ${fmtH(pt.seg)}</span></h3>
+    ${memoria||'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
+    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong>; as não faturáveis aparecem na memória apenas como registro. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo painel Insights de Uso (Jira + Clockwork) da Dexterity IT.</div>
+  </div>`;
+  document.body.classList.add('doc-print');
+  const prev=document.title; document.title=`Apuração AMS — ${c.cliente||''} — ${amsLabelCiclo(cyc)}`;
+  const cleanup=()=>{ document.body.classList.remove('doc-print'); doc.innerHTML=''; document.title=prev; window.removeEventListener('afterprint',cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  const go=()=>window.print();
+  const img=doc.querySelector('img');
+  if(img&&img.decode) img.decode().then(go).catch(go); else setTimeout(go,150);
+}
 document.getElementById('btn-pdf').addEventListener('click', exportarPDF);
+// Receita / AMS: navegação de ciclo + PDF da apuração por contrato.
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const nav=e.target.closest&&e.target.closest('[data-ams-nav]');
+  if(nav){ escondeTip(); const dir=nav.getAttribute('data-ams-nav');
+    const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
+    const rep=amsContratoSel(ams); const cm=amsCicloMeses((rep&&rep.apuracao)||'trimestral'); const ref=amsRefSel();
+    if(dir==='prev'){ const nr=amsShiftRef(ref,-1,cm);
+      // Não recua antes do 1º ciclo do contrato: trava o ref no início do ciclo atual.
+      if(rep && amsCicloVigente(rep,nr).start===amsCicloVigente(rep,ref).start) estado.ams.ref=amsCicloVigente(rep,ref).start;
+      else estado.ams.ref=nr; }
+    else if(dir==='next'){ const nr=amsShiftRef(ref,1,cm);
+      if(rep && amsCicloVigente(rep,nr).start>=amsCicloVigente(rep,hojeSP()).start) estado.ams.ref='';
+      else estado.ams.ref=nr; }
+    renderAMS(); return; }
+  const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
+  if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
+  const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
+  if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
+  const mes=e.target.closest&&e.target.closest('[data-ams-mes]');
+  if(mes){ escondeTip(); const v=mes.getAttribute('data-ams-mes'); const i=v.indexOf('|'); amsDrillMes(v.slice(0,i), v.slice(i+1)); return; }
+  const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
+  if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
+  const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
+  if(fat){ escondeTip();
+    const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
+    const c=amsContratoSel(ams); if(!c) return;
+    // O status fica salvo para o time (Supabase); a gravação compartilhada exige login do Jira.
+    if(cfgShared && !idApontar()){ abreIdentidade(); return; }
+    const cyc=amsCicloVigente(c, amsRefSel());
+    c.faturados=c.faturados||{};
+    if(c.faturados[cyc.start]) delete c.faturados[cyc.start];
+    else { const id=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id&&(id.nome||id.email))||'' }; }
+    salvaCfg(); renderAMS(); return; }
+});
+// AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderAMS(); }
+});
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
@@ -5102,6 +5599,9 @@ document.addEventListener('click', (e)=>{
   if(gt){ escondeTip(); vaiPara(gt.getAttribute('data-goto')); return; }
   const dr=e.target.closest && e.target.closest('[data-drill]');
   if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
+  const tsc=e.target.closest && e.target.closest('[data-ts-cell]');
+  if(tsc){ escondeTip(); const v=tsc.getAttribute('data-ts-cell'); const i=v.indexOf('|');
+    drillTimesheet(v.slice(0,i), v.slice(i+1)); return; }
   const pz=e.target.closest && e.target.closest('[data-pessoa]');
   if(pz){ escondeTip(); abrePessoa(pz.getAttribute('data-pessoa')); }
 });
