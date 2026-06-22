@@ -4270,7 +4270,32 @@ function renderAdmin(){
     const ams=c.tipo==='ams';
     const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const pctv=contr?Math.round(h/contr*100):null;
     const over=pctv!=null&&pctv>100;
-    const amsInfo = ams ? ` · apuração <strong>${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</strong>${amsHorasCiclo(c)?` · ${amsHorasCiclo(c)}h/ciclo (${amsHorasCiclo(c)*amsCiclosAno(c.apuracao||'trimestral')}h/ano)`:''}${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}` : '';
+    const vh=Number(c.valorHora)||0;
+    const semProj=!(c.projetos||[]).length;
+    const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+    let detalhes;
+    if(ams){
+      const pool=amsHorasCiclo(c); const ca=amsCiclosAno(c.apuracao||'trimestral'); const parcela=pool*vh;
+      detalhes=`<div class="ams-dgrid">
+        ${dl('Apuração (ciclo)', esc(amsLabelApur(c.apuracao||'trimestral')))}
+        ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+        ${dl('Horas por ciclo', pool?`${pool}h`:'—')}
+        ${dl('Parcela do ciclo', vh&&pool?fmtBRL(parcela):'—')}
+        ${dl('Valor anual', pool?(vh?`${fmtBRL(parcela*ca)} <span class="muted">· ${pool*ca}h</span>`:`${pool*ca}h/ano`):'—')}
+        ${dl('Mínimo mensal', c.minMes?`${c.minMes}h`:'—')}
+        ${dl('Teto mensal', c.tetoMes?`${c.tetoMes}h`:'—')}
+        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+        ${dl('Banco de horas', c.bancoHoras!==false?'Sim · dentro do ciclo':'Não')}
+      </div>`;
+    } else {
+      detalhes=`<div class="ams-dgrid">
+        ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+        ${dl('Horas contratadas', contr?`${contr}h`:'—')}
+        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+      </div>`;
+    }
+    const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':(c.projetos||[]).map(esc).join(', ')}</div>`;
+    const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
     const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
       ? `<div class="ad-portal"><span class="muted small">🔗 Link do cliente:</span>
@@ -4279,13 +4304,20 @@ function renderAdmin(){
           <button class="btn" data-ad-portal-novo="${escA(c.id)}" data-tip="Gera um novo link e invalida o anterior">novo</button></div>`
       : `<div class="ad-portal"><button class="btn" data-ad-portal="${escA(c.id)}">🔗 Gerar link do cliente</button>
           <span class="muted small">painel somente-leitura para o cliente acompanhar as horas</span></div>`;
+    // AMS sem projetos não aparece na apuração da aba AMS — avisa e oferece o atalho de edição.
+    const avisoSemProj = (ams && semProj)
+      ? `<div class="ad-cons" style="color:#B45309">⚠ Sem projetos mapeados — este contrato <strong>não aparece</strong> na apuração da aba <strong>AMS</strong>. Clique em <strong>editar</strong> e marque os projetos da categoria AMS.</div>`
+      : '';
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
         <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
-      <div class="ad-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}${c.valorHora?` · valor-hora ${fmtBRL(c.valorHora)}`:''}${c.inicio?` · desde ${esc(fmtBR(c.inicio))}`:''}${amsInfo}${c.obs?` · ${esc(c.obs)}`:''}</div>
-      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${c.valorHora?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração detalhada na aba 💰 Receita</span>':''}</div>
+      ${detalhes}
+      ${projetos}
+      ${obs}
+      ${avisoSemProj}
+      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}</div>
       ${portalLine}
     </div>`;
   }).join('');
@@ -5013,6 +5045,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-22','📋 <b>Admin — detalhes do contrato</b>: cada contrato cadastrado agora mostra os <b>dados completos</b> num quadro legível (apuração, valor-hora, horas/ciclo, parcela, valor anual, mín/teto mensal, vigência, banco de horas, projetos e obs). Contrato <b>AMS sem projetos mapeados</b> ganha um aviso (ele não aparece na apuração da aba AMS até mapear os projetos).'],
   ['2026-06-22','📅 <b>AMS por ciclo (sem período do topo)</b>: na aba AMS o seletor de <b>Período</b> tradicional sai — a seleção é só pelo <b>navegador de ciclos</b> (trimestre/período do contrato). E clicando num <b>mês do ciclo</b> abre os <b>apontamentos por chamado</b> daquele mês (cada chamado com as linhas data · pessoa · horas e link para o Jira).'],
   ['2026-06-22','🔎 <b>Timesheet com drill-down</b>: clique no <b>total de horas de um dia</b> (ou na coluna <b>Total</b>) de uma pessoa para abrir as <b>horas por projeto</b> e, dentro de cada projeto, os <b>chamados</b> que somam essas horas — cada um com link para o <b>Jira</b>.'],
   ['2026-06-22','🗂️ <b>AMS em aba própria</b>: a apuração de AMS agora é uma <b>aba separada</b> (menu AMS &amp; Governança → <b>AMS</b>), totalmente isolada da Receita. A aba <b>Receita</b> ficou só com <b>bolsa de horas e projetos</b>.'],
@@ -5041,7 +5074,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-22.4';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.5';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

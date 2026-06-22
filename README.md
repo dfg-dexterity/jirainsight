@@ -182,8 +182,13 @@ Para o tipo **AMS** há um bloco extra de parâmetros do contrato:
 - O form mostra o **resumo derivado** (h/ano e valor da parcela/ano). Ex.: 60h × R$122 em
   4 trimestres = **240h/ano**, parcela **R$ 7.320** e ano **R$ 29.280**.
 
-Cada card mostra um **preview de consumo** (período) e, para AMS, os parâmetros do ciclo.
-Fica salvo em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
+Na seção **"Contratos cadastrados"**, cada contrato vira um **card com os detalhes completos**
+num quadro legível: para **AMS** — apuração, valor-hora, horas/ciclo, **parcela do ciclo**,
+**valor anual** (e h/ano), mín/teto mensal, início da vigência e banco de horas; para
+**bolsa/projeto** — valor-hora, horas contratadas e vigência. Abaixo: projetos mapeados,
+observações e um **preview de consumo** no período. Um contrato **AMS sem projetos mapeados**
+recebe um **aviso** (ele não aparece na apuração da aba AMS até mapear os projetos). Fica salvo
+em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
 
 ### 🛠️ AMS & Governança / 💰 Receita (abas separadas)
 
