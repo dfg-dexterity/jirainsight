@@ -960,6 +960,7 @@
       <div class="navg">
         <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Governança <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
+          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
@@ -1377,7 +1378,7 @@ function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','receita'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
@@ -1386,6 +1387,7 @@ function render(){
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='alertas') return renderAlertas();
+  if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
   if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
@@ -4271,25 +4273,13 @@ function analisaContrato(c){
   const vh=Number(c.valorHora)||0;
   return { seg, segFat, valor:(seg/3600)*vh, valorFat:(segFat/3600)*vh };
 }
-function renderReceita(){
+// ====================== AMS & GOVERNANÇA — APURAÇÃO POR CICLO (aba própria) ======================
+// Aba dedicada: um contrato AMS por vez (seletor de cliente), sempre por ciclo.
+function renderAMS(){
   const cont=document.getElementById('conteudo');
   if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
   const contratos=(cfg.contratos||[]);
-  if(!contratos.length){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita &amp; AMS</h2>
-      <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
-      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.<br><br>
-      <button class="btn primario" data-ir-admin>Ir para ⚙️ Admin</button></div></div></div>`));
-    return;
-  }
-
-  const meta=estado.tempo.meta||{};
-  const dias=listaDias(meta.startDate, meta.endDate);
   const hoje=hojeSP();
-  const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
-  const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
-  const totalUteis=diasUteis.length;
-
   // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
   const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
   const cSel=amsContratoSel(amsList);
@@ -4310,8 +4300,8 @@ function renderReceita(){
         am.carregando=false;
         if(j.erro){ am.erro=j.erro; }
         else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.range=amsKey; }
-        if(estado.vista==='receita') renderReceita();
-      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='receita') renderReceita(); });
+        if(estado.vista==='ams') renderAMS();
+      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='ams') renderAMS(); });
     }
     amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
   }
@@ -4414,6 +4404,28 @@ function renderReceita(){
         ${amsChamadosCard(cSel, cycSel)}
       </div>`;
   }
+  cont.replaceChildren(el(`<div>${amsSection}</div>`));
+}
+
+function renderReceita(){
+  const cont=document.getElementById('conteudo');
+  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  const contratos=(cfg.contratos||[]);
+  if(!contratos.length){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
+      <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
+      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.
+      <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>AMS &amp; Governança</strong>.)</span><br><br>
+      <button class="btn primario" data-ir-admin>Ir para ⚙️ Admin</button></div></div></div>`));
+    return;
+  }
+
+  const meta=estado.tempo.meta||{};
+  const dias=listaDias(meta.startDate, meta.endDate);
+  const hoje=hojeSP();
+  const diasUteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d));
+  const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
+  const totalUteis=diasUteis.length;
 
   // ---- Bolsa de horas / projeto fechado: projeção pelo período da tela ----
   const outros=contratos.filter(c=>c.tipo!=='ams');
@@ -4483,8 +4495,9 @@ function renderReceita(){
     </div>` : '';
 
   cont.replaceChildren(el(`<div>
-    ${amsSection}
-    ${genericoSection}
+    ${genericoSection || `<div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
+      <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
+      Os contratos <strong>AMS</strong> têm aba própria (<strong>AMS &amp; Governança</strong>). Cadastre contratos na aba <strong>⚙️ Admin</strong>.</div></div>`}
   </div>`));
 }
 // ===============================================================================
@@ -4680,7 +4693,8 @@ function abreAjuda(){
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
       <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
-      <li><b>💰 Receita</b> — <b>AMS por ciclo</b> (navegador de ciclos, banco de horas, faturável × não faturável, horas por tipo com drill-down até o Jira e <b>PDF da apuração</b>) + bolsa de horas/projetos por período.</li>
+      <li><b>AMS</b> — aba própria de <b>AMS &amp; Governança</b>: <b>um contrato por vez</b> (seletor de cliente), sempre <b>por ciclo</b> — dados do contrato, controle de <b>faturamento do ciclo</b>, banco de horas, faturável × não faturável, horas por tipo com drill-down, <b>chamados do ciclo</b> e <b>PDF da apuração</b>.</li>
+      <li><b>💰 Receita</b> — <b>bolsa de horas e projetos</b> (consumo × contratado, projeção e receita estimada) por período.</li>
       <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e <b>projetos do Jira da categoria AMS</b>. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
@@ -4827,7 +4841,7 @@ async function enviaFeedback(){
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
-  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (Receita, Alertas, Admin).'},
+  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (AMS, Receita, Alertas, Admin).'},
   {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
   {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
@@ -4903,7 +4917,8 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
-  ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS &amp; Governança agora mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
+  ['2026-06-22','🗂️ <b>AMS em aba própria</b>: a apuração de AMS agora é uma <b>aba separada</b> (menu AMS &amp; Governança → <b>AMS</b>), totalmente isolada da Receita. A aba <b>Receita</b> ficou só com <b>bolsa de horas e projetos</b>.'],
+  ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
   ['2026-06-21','🧮 <b>AMS — só horas faturáveis consomem o pacote</b>: o banco de horas, o excedente e o faturamento do ciclo passam a considerar <b>apenas as horas faturáveis</b>; as não faturáveis (ex.: "Tarefas ADM") ficam fora da apuração (continuam visíveis como indicador e na memória do PDF).'],
   ['2026-06-21','🛠️ <b>AMS & Governança renovado</b> — apuração <b>por ciclo trimestral</b> (com navegador de ciclos), <b>horas por tipo de issue</b> com drill-down até o chamado no Jira, indicador <b>faturável × não faturável</b> (pela descrição do tipo) e <b>PDF da apuração por contrato</b> (valor apurado + memória de apontamentos por chamado).'],
   ['2026-06-21','⚙️ <b>Admin</b>: ao mapear um contrato AMS aparecem <b>só projetos da categoria AMS</b>.'],
@@ -4928,7 +4943,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-22.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5103,7 +5118,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','receita','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -5308,9 +5323,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     else if(dir==='next'){ const nr=amsShiftRef(ref,1,cm);
       if(rep && amsCicloVigente(rep,nr).start>=amsCicloVigente(rep,hojeSP()).start) estado.ams.ref='';
       else estado.ams.ref=nr; }
-    renderReceita(); return; }
+    renderAMS(); return; }
   const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
-  if(cur){ escondeTip(); estado.ams.ref=''; renderReceita(); return; }
+  if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
   const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
@@ -5325,11 +5340,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     c.faturados=c.faturados||{};
     if(c.faturados[cyc.start]) delete c.faturados[cyc.start];
     else { const id=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id&&(id.nome||id.email))||'' }; }
-    salvaCfg(); renderReceita(); return; }
+    salvaCfg(); renderAMS(); return; }
 });
 // AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
 document.getElementById('conteudo').addEventListener('change', (e)=>{
-  if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderReceita(); }
+  if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderAMS(); }
 });
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);

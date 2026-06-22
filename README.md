@@ -134,7 +134,7 @@ dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
 
 - **Menu por função:** o topo é organizado em **Visão Geral** (inicial) + 3 grupos com
   dropdown — **Análise** (Resumo, Timesheet, Ranking, Tickets), **Operação** (Apontar,
-  Planejar, Reclassificar) e **AMS & Governança** (Receita, Alertas, Admin). Cada item usa
+  Planejar, Reclassificar) e **AMS & Governança** (AMS, Receita, Alertas, Admin). Cada item usa
   **ícones de linha** (SVG monocromático, sprite `#ic-*`) em vez de emojis, para um visual mais
   profissional. O grupo da aba ativa fica sublinhado; o selo de convites aparece também no
   cabeçalho de **Operação**.
@@ -176,12 +176,13 @@ Para o tipo **AMS** há um bloco extra de parâmetros do contrato:
 Cada card mostra um **preview de consumo** (período) e, para AMS, os parâmetros do ciclo.
 Fica salvo em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
 
-### 💰 Receita & AMS por cliente
+### 🛠️ AMS & Governança / 💰 Receita (abas separadas)
 
-Aba **Receita** — duas seções, conforme o tipo de contrato (tudo sem nova função
-serverless; consome `cfg.contratos` + worklogs):
+O AMS é **totalmente separado** da Receita: tem **aba própria** (menu **AMS & Governança → AMS**).
+A aba **Receita** ficou só com **bolsa de horas e projetos**. Ambas consomem `cfg.contratos` +
+worklogs, **sem nova função serverless**.
 
-**🛠️ AMS — apuração por ciclo (banco de horas).** A seção mostra **um contrato AMS por vez**:
+**🛠️ Aba AMS — apuração por ciclo (banco de horas).** Mostra **um contrato AMS por vez**:
 um **seletor de cliente** escolhe o contrato e a visão é sempre **por ciclo** (alinhado ao mês
 de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
 `GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
@@ -213,9 +214,10 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
 > da apuração — continuam visíveis como indicador (split/KPI) e na memória do PDF, mas não
 > entram no banco de horas nem no excedente.
 
-**💰 Bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado, projeção pelo
-**período selecionado**: horas contratadas × consumidas, **% de esgotamento + projeção**
-(ritmo dos dias úteis fechados até o fim do período), receita estimada e % faturável.
+**💰 Aba Receita — bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado,
+projeção pelo **período selecionado**: horas contratadas × consumidas, **% de esgotamento +
+projeção** (ritmo dos dias úteis fechados até o fim do período), receita estimada e % faturável.
+*(O quadro "horas sem contrato" foi removido desta visão.)*
 
 ### 🌐 Painel do cliente (portal read-only)
 
