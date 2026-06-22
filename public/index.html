@@ -595,6 +595,29 @@
   .ams-ch-h{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:700}
   [data-theme="dark"] .ams-tp-b.fat{color:#7FE0A0;background:#10291C} [data-theme="dark"] .ams-tp-b.nfat{color:#F0C674;background:#33270F}
   @media (max-width:640px){ .ams-kpis{grid-template-columns:repeat(2,1fr)} .ams-ch-r{display:none} }
+  /* AMS — seletor de cliente, dados do contrato e faturamento do ciclo */
+  .ams-sel{display:flex;align-items:center;gap:6px;margin-right:6px}
+  .ams-sel select{padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--texto);font:inherit;font-size:13px}
+  .ams-dados{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;background:var(--cartao2);margin-bottom:14px}
+  .ams-dados-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ams-dados-h strong{font-size:15px}
+  .ams-dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .ams-dl{border:1px solid var(--linha);border-radius:9px;padding:8px 11px;background:var(--cartao)}
+  .ams-dl .dt{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .ams-dl .dd{font-family:var(--titulo);font-weight:700;font-size:15px;margin-top:3px}
+  .ams-dobs,.ams-dprojs{margin-top:8px}
+  .ams-fatura{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)}
+  .ams-fat-tag{font-size:13px;font-weight:700}
+  .ams-fat-tag.ok{color:#0F6B2E} .ams-fat-tag.pend{color:#C77700}
+  [data-theme="dark"] .ams-fat-tag.ok{color:#7FE0A0} [data-theme="dark"] .ams-fat-tag.pend{color:#F0C674}
+  .ams-chcard{margin-top:14px}
+  .ams-chlist{display:flex;flex-direction:column}
+  .ams-ch-t{flex:0 0 auto;color:var(--muted);font-size:11.5px;min-width:84px}
+  .ams-ch-b{flex:0 0 auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-radius:6px;padding:1px 7px}
+  .ams-ch-b.fat{color:#0F6B2E;background:#E7F6EC} .ams-ch-b.nfat{color:#8A5200;background:#FBF0DC}
+  [data-theme="dark"] .ams-ch-b.fat{color:#7FE0A0;background:#10291C} [data-theme="dark"] .ams-ch-b.nfat{color:#F0C674;background:#33270F}
+  .ams-ch-p{flex:0 0 auto;font-size:11.5px;min-width:18px;text-align:right}
+  @media (max-width:640px){ .ams-ch-t,.ams-ch-p{display:none} }
 
   /* ===== Gráficos modernos & interativos ===== */
   .fill,.b,.pp-stack span{transition:filter .15s ease,opacity .15s ease}
@@ -1049,7 +1072,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
-  ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'' },
+  ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -3999,8 +4022,6 @@ function amsConsumoCiclo(c, cyc){
 }
 // Data de referência do ciclo em exibição (vazio = hoje/ciclo vigente).
 function amsRefSel(){ return (estado.ams&&estado.ams.ref) || hojeSP(); }
-// Passo de navegação entre ciclos (meses do ciclo do 1º contrato AMS; em geral trimestral).
-function amsCmNav(amsList){ return amsCicloMeses((amsList&&amsList[0]&&amsList[0].apuracao)||'trimestral'); }
 // Desloca a data de referência por `deltaCiclos` ciclos de `cm` meses (mid-month, sem virada).
 function amsShiftRef(ref, deltaCiclos, cm){
   const y=+ref.slice(0,4), m=+ref.slice(5,7)-1; const nm=m+deltaCiclos*cm;
@@ -4030,6 +4051,72 @@ function amsWorklogsCiclo(c, cyc){
 }
 function amsNomePessoa(a){ const p=(estado.ams&&estado.ams.pessoas&&estado.ams.pessoas[a])||(estado.usuarios&&estado.usuarios[a]); return (p&&p.nome)||a; }
 function amsResumoChamado(k){ return (estado.ams&&estado.ams.resumos&&estado.ams.resumos[k])||''; }
+// Contrato AMS em exibição — a aba mostra um cliente por vez (seleção em estado.ams.sel).
+function amsContratoSel(amsList){
+  const id=(estado.ams&&estado.ams.sel)||'';
+  return amsList.find(c=>c.id===id) || amsList[0] || null;
+}
+// Chamados do ciclo (lista achatada de todos os tipos) — o que faz parte do ciclo selecionado.
+function amsChamadosCiclo(c, cyc){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[]; const m={};
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
+    if(!dia||dia<cyc.start||dia>cyc.end) return; const s=Number(w.s)||0; if(!s) return;
+    const k=w.k||'(sem chave)'; const o=m[k]||(m[k]={k, tipo:w.t||'—', f:!!w.f, seg:0, pessoas:new Set()});
+    o.seg+=s; if(w.a) o.pessoas.add(w.a); });
+  return Object.values(m).sort((a,b)=>b.seg-a.seg);
+}
+// Faturamento do ciclo (chave = início do ciclo), guardado em c.faturados.
+function amsCicloFaturado(c, cyc){ return !!(c && c.faturados && cyc && c.faturados[cyc.start]); }
+// Card com os DADOS CADASTRADOS do contrato + controle de faturamento do ciclo.
+function amsDadosCard(c, cyc){
+  const ap=amsLabelApur(c.apuracao||'trimestral'); const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0;
+  const ca=amsCiclosAno(c.apuracao||'trimestral'); const parcela=pool*vh;
+  const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+  const faturado=amsCicloFaturado(c,cyc); const fr=(c.faturados&&c.faturados[cyc.start])||null;
+  return `<div class="ams-dados">
+    <div class="ams-dados-h"><strong>Contrato — ${esc(c.cliente||'(sem nome)')}</strong>
+      <span class="badge">AMS · ${esc(ap.toLowerCase())}</span><span class="spacer"></span>
+      <button class="btn" data-ams-edit="${escA(c.id)}">Editar no Admin</button></div>
+    <div class="ams-dgrid">
+      ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+      ${dl('Horas por ciclo', pool?`${pool}h`:'—')}
+      ${dl('Parcela do ciclo', vh&&pool?fmtBRL(parcela):'—')}
+      ${dl('Valor anual', vh&&pool?`${fmtBRL(parcela*ca)} <span class="muted">· ${pool*ca}h</span>`:'—')}
+      ${dl('Mínimo mensal', c.minMes?`${c.minMes}h`:'—')}
+      ${dl('Teto mensal', c.tetoMes?`${c.tetoMes}h`:'—')}
+      ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+      ${dl('Banco de horas', c.bancoHoras!==false?'Sim · dentro do ciclo':'Não')}
+    </div>
+    ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
+    <div class="ams-dprojs muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    <div class="ams-fatura">
+      <span class="ams-fat-tag ${faturado?'ok':'pend'}">${faturado?'✓ Ciclo faturado':'● Pendente de faturamento'}${faturado&&fr&&fr.em?` <span class="muted" style="font-weight:400">em ${esc(fmtBR(fr.em))}${fr.por?` · ${esc(fr.por)}`:''}</span>`:''}</span>
+      <span class="spacer"></span>
+      <button class="btn ${faturado?'':'primario'}" data-ams-fatura="${escA(c.id)}">${faturado?'Desmarcar faturamento':'Marcar ciclo como faturado'}</button>
+    </div>
+    <div class="ams-note">O status de faturamento é por <strong>ciclo</strong> e ${cfgShared?'fica salvo para o time.':'fica salvo só neste navegador (configure o Supabase para compartilhar).'}</div>
+  </div>`;
+}
+// Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
+function amsChamadosCard(c, cyc){
+  const chs=amsChamadosCiclo(c,cyc); const tot=chs.reduce((s,o)=>s+o.seg,0);
+  const linhas=chs.map(o=>{
+    const temK=o.k && o.k!=='(sem chave)';
+    const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    return `<div class="ams-ch">
+      <span class="ams-ch-k">${alvo}</span>
+      <span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>
+      <span class="ams-ch-t">${esc(o.tipo)}</span>
+      <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span>
+      <span class="ams-ch-p muted" data-tip="Pessoas que apontaram">${o.pessoas.size}</span>
+      <span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
+  }).join('');
+  return `<div class="ams-chcard">
+    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(${chs.length} chamado(s) · ${fmtH(tot)} — clique na chave para abrir no Jira)</span></div>
+    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados neste ciclo.</div>'}</div>
+  </div>`;
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -4203,22 +4290,23 @@ function renderReceita(){
   const decorridos=diasUteis.filter(d=>d<hoje).length;   // dias úteis já fechados no período
   const totalUteis=diasUteis.length;
 
-  // ---- AMS: apuração pelo ciclo selecionado (busca os worklogs do ciclo, à parte do período da tela) ----
+  // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
   const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
+  const cSel=amsContratoSel(amsList);
+  if(cSel && (estado.ams.sel||'')!==cSel.id) estado.ams.sel=cSel.id;   // fixa a seleção efetiva
   const refSel=amsRefSel();
-  // Não há "futuro": o "próximo" só funciona até o ciclo vigente (o que contém hoje).
-  const noVigente = amsList.length ? (amsCicloVigente(amsList[0],refSel).start===amsCicloVigente(amsList[0],hoje).start) : true;
+  const cycSel = cSel ? amsCicloVigente(cSel,refSel) : null;
+  // Não há "futuro": o "próximo" só vai até o ciclo vigente (o que contém hoje).
+  const noVigente = cSel ? (cycSel.start===amsCicloVigente(cSel,hoje).start) : true;
+  const noPrimeiro = cycSel ? cycSel.n===1 : true;   // 1º ciclo do contrato: não há "anterior"
   let amsProntos=false, amsKey='';
-  if(amsList.length){
-    let minStart=null, maxEnd=null;
-    amsList.forEach(c=>{ const cyc=amsCicloVigente(c,refSel);
-      if(minStart===null||cyc.start<minStart) minStart=cyc.start;
-      const e=cyc.end<hoje?cyc.end:hoje; if(maxEnd===null||e>maxEnd) maxEnd=e; });
-    amsKey=`${minStart}|${maxEnd}`;
+  if(cSel){
+    const ate = cycSel.end<hoje?cycSel.end:hoje;
+    amsKey=`${cSel.id}|${cycSel.start}|${ate}`;   // a busca é só do ciclo do contrato selecionado
     const am=estado.ams;
     if(am.range!==amsKey && !am.carregando){
       am.carregando=true; am.erro='';
-      fetch(`/api/tempo?desde=${encodeURIComponent(minStart)}&ate=${encodeURIComponent(maxEnd)}`).then(r=>r.json()).then(j=>{
+      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{
         am.carregando=false;
         if(j.erro){ am.erro=j.erro; }
         else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.range=amsKey; }
@@ -4227,12 +4315,13 @@ function renderReceita(){
     }
     amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
   }
-  // Navegador de ciclos (◀ anterior · vigente · próximo ▶), rotulado pelo 1º contrato AMS.
-  const cycRep = amsList.length ? amsCicloVigente(amsList[0],refSel) : null;
-  const noPrimeiro = cycRep ? cycRep.n===1 : true;   // 1º ciclo do contrato: não há "anterior"
-  const amsNav = amsList.length ? `<div class="ams-nav">
+  // Seletor de cliente (um contrato AMS por vez) + navegador de ciclos.
+  const amsSelHtml = amsList.length>1 ? `<label class="ams-sel"><span class="muted small">Cliente</span>
+      <select id="ams-sel">${amsList.map(c=>`<option value="${escA(c.id)}" ${cSel&&c.id===cSel.id?'selected':''}>${esc(c.cliente||'(sem nome)')}</option>`).join('')}</select></label>` : '';
+  const amsNav = cSel ? `<div class="ams-nav">
+      ${amsSelHtml}
       <button class="btn" data-ams-nav="prev" ${noPrimeiro?'disabled':''} aria-label="Ciclo anterior">◀ anterior</button>
-      <span class="ams-nav-l">Ciclo <strong>${esc(amsLabelCiclo(cycRep))}</strong> · ${esc(fmtBR(cycRep.start))}–${esc(fmtBR(cycRep.end))}${noVigente?' <span class="ams-nav-cur">vigente</span>':''}</span>
+      <span class="ams-nav-l">Ciclo <strong>${esc(amsLabelCiclo(cycSel))}</strong> · ${esc(fmtBR(cycSel.start))}–${esc(fmtBR(cycSel.end))}${noVigente?' <span class="ams-nav-cur">vigente</span>':''}</span>
       <button class="btn" data-ams-nav="next" ${noVigente?'disabled':''} aria-label="Próximo ciclo">próximo ▶</button>
       ${noVigente?'':'<button class="btn" data-ams-cur>ir ao ciclo vigente</button>'}
     </div>` : '';
@@ -4309,39 +4398,22 @@ function renderReceita(){
     </div>`;
   };
   let amsSection='';
-  if(amsList.length){
-    if(!amsProntos){
-      amsSection=`<div class="card full"><h2>AMS — apuração por ciclo</h2>
+  if(!amsList.length){
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança</h2>
+      <div class="estado">Nenhum contrato <strong>AMS</strong> com projetos mapeados. Cadastre o contrato e mapeie os projetos na aba <strong>⚙️ Admin</strong>.</div></div>`;
+  } else if(!amsProntos){
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc((cSel&&cSel.cliente)||'')}</span></h2>
+      ${amsNav}
+      ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
+  } else {
+    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc(cSel.cliente||'')}</span></h2>
         ${amsNav}
-        ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
-    } else {
-      let tReceita=0,tCons=0,tBanco=0,nExced=0,tFat=0,tNao=0;
-      const cards=amsList.map(c=>{
-        const cyc=amsCicloVigente(c,refSel), cons=amsConsumoCiclo(c,cyc), pool=amsHorasCiclo(c), h=cons.segFat/3600, vh=Number(c.valorHora)||0;
-        const exc=Math.max(0,h-pool); tReceita+=(pool+exc)*vh; tCons+=cons.seg; tBanco+=Math.max(0,pool-h)*3600; if(exc>0) nExced++;
-        const pt=amsPorTipo(c,cyc); tFat+=pt.segFat; tNao+=pt.segNao;
-        return amsCard(c);
-      }).join('');
-      const fatPctTot=tCons?Math.round(tFat/tCons*100):0;
-      amsSection=`<div class="kpis ts-kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-          <div class="kpi t"><div class="v">${fmtBRL(tReceita)}</div><div class="l">Faturamento do ciclo</div></div>
-          <div class="kpi t"><div class="v">${fmtH(tCons)}</div><div class="l">Horas no ciclo</div></div>
-          <div class="kpi a"><div class="v">${fmtH(tFat)}</div><div class="l">Faturáveis (${fatPctTot}%)</div></div>
-          <div class="kpi w"><div class="v">${fmtH(tNao)}</div><div class="l">Não faturáveis</div></div>
-          <div class="kpi a"><div class="v">${fmtH(Math.round(tBanco))}</div><div class="l">Banco de horas</div></div>
-          <div class="kpi w"><div class="v">${nExced}</div><div class="l">Em excedente</div></div>
-        </div>
-        <div class="card full"><h2>AMS — apuração por ciclo <span>${amsList.length} contrato(s) · banco de horas</span></h2>
-          ${amsNav}
-          <div class="muted small" style="margin:8px 0 12px">Consumo do <strong>ciclo de apuração selecionado</strong> de cada contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong> (as não faturáveis ficam fora da apuração). O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
-          ${cards}</div>`;
-    }
+        <div class="muted small" style="margin:8px 0 12px">Apuração do <strong>ciclo selecionado</strong> deste contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira; <strong>só as horas faturáveis consomem o pacote/excedente</strong>. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
+        ${amsDadosCard(cSel, cycSel)}
+        ${amsCard(cSel)}
+        ${amsChamadosCard(cSel, cycSel)}
+      </div>`;
   }
-
-  // Projetos com horas no período que não estão em nenhum contrato.
-  const mapeados=new Set(); contratos.forEach(c=>(c.projetos||[]).forEach(p=>mapeados.add(p)));
-  const semContrato={};
-  (estado.tempo.worklogs||[]).forEach(w=>{ if(!mapeados.has(w.p)) semContrato[w.p]=(semContrato[w.p]||0)+(Number(w.s)||0); });
 
   // ---- Bolsa de horas / projeto fechado: projeção pelo período da tela ----
   const outros=contratos.filter(c=>c.tipo!=='ams');
@@ -4397,17 +4469,6 @@ function renderReceita(){
     </div>`;
   };
 
-  const scKeys=Object.keys(semContrato).filter(k=>k&&k!=='—'&&semContrato[k]>0).sort((a,b)=>semContrato[b]-semContrato[a]);
-  const scMax=scKeys.reduce((m,k)=>Math.max(m,semContrato[k]),1);
-  const scHtml = scKeys.length ? `<div class="card full"><h2>Horas sem contrato <span>${scKeys.length} projeto(s)</span></h2>
-    <div class="muted small" style="margin-bottom:10px">Horas apontadas no período em projetos <strong>não mapeados</strong> a nenhum contrato — não entram na receita. Mapeie-os na aba ⚙️ Admin.</div>
-    <div class="barlist">${scKeys.slice(0,12).map(k=>{
-      const nome=(estado.tempo.projetos&&estado.tempo.projetos[k]&&estado.tempo.projetos[k].nome)||k;
-      return `<div class="barrow"><div class="nome" data-tip="${escA(nome)}">${esc(k)}</div>
-        <div class="track"><div class="fill" style="width:${Math.min(100, semContrato[k]/scMax*100).toFixed(1)}%;background:var(--muted2)"></div></div>
-        <div class="val">${fmtH(semContrato[k])}</div></div>`;
-    }).join('')}</div></div>` : '';
-
   const genericoSection = outros.length ? `
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtBRL(totValor)}</div><div class="l">Receita estimada</div></div>
@@ -4424,7 +4485,6 @@ function renderReceita(){
   cont.replaceChildren(el(`<div>
     ${amsSection}
     ${genericoSection}
-    ${scHtml}
   </div>`));
 }
 // ===============================================================================
@@ -4843,6 +4903,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS &amp; Governança agora mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
   ['2026-06-21','🧮 <b>AMS — só horas faturáveis consomem o pacote</b>: o banco de horas, o excedente e o faturamento do ciclo passam a considerar <b>apenas as horas faturáveis</b>; as não faturáveis (ex.: "Tarefas ADM") ficam fora da apuração (continuam visíveis como indicador e na memória do PDF).'],
   ['2026-06-21','🛠️ <b>AMS & Governança renovado</b> — apuração <b>por ciclo trimestral</b> (com navegador de ciclos), <b>horas por tipo de issue</b> com drill-down até o chamado no Jira, indicador <b>faturável × não faturável</b> (pela descrição do tipo) e <b>PDF da apuração por contrato</b> (valor apurado + memória de apontamentos por chamado).'],
   ['2026-06-21','⚙️ <b>Admin</b>: ao mapear um contrato AMS aparecem <b>só projetos da categoria AMS</b>.'],
@@ -4867,7 +4928,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-21.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5206,6 +5267,7 @@ function pdfApuracaoAMS(id){
     <table class="doc-meta"><tbody>
       <tr><th>Contrato</th><td>AMS · apuração ${esc(amsLabelApur(c.apuracao||'trimestral').toLowerCase())}</td><th>Ciclo</th><td>${esc(amsLabelCiclo(cyc))} · ${esc(fmtBR(cyc.start))}–${esc(fmtBR(cyc.end))}</td></tr>
       <tr><th>Valor-hora</th><td>${vh?esc(fmtBRL(vh)):'—'}</td><th>Pacote do ciclo</th><td>${pool}h${c.minMes?` · mín ${c.minMes}h/mês`:''}${c.tetoMes?` · teto ${c.tetoMes}h/mês`:''}</td></tr>
+      <tr><th>Faturamento</th><td colspan="3">${(()=>{ const fr=(c.faturados&&c.faturados[cyc.start])||null; return fr?`✓ Ciclo faturado${fr.em?` em ${esc(fmtBR(fr.em))}`:''}${fr.por?` · ${esc(fr.por)}`:''}`:'● Pendente de faturamento'; })()}</td></tr>
       <tr><th>Projetos</th><td colspan="3">${(c.projetos||[]).map(esc).join(', ')||'—'}</td></tr>
       ${c.obs?`<tr><th>Observações</th><td colspan="3">${esc(c.obs)}</td></tr>`:''}
     </tbody></table>
@@ -5238,7 +5300,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   const nav=e.target.closest&&e.target.closest('[data-ams-nav]');
   if(nav){ escondeTip(); const dir=nav.getAttribute('data-ams-nav');
     const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
-    const cm=amsCmNav(ams); const ref=amsRefSel(); const rep=ams[0];
+    const rep=amsContratoSel(ams); const cm=amsCicloMeses((rep&&rep.apuracao)||'trimestral'); const ref=amsRefSel();
     if(dir==='prev'){ const nr=amsShiftRef(ref,-1,cm);
       // Não recua antes do 1º ciclo do contrato: trava o ref no início do ciclo atual.
       if(rep && amsCicloVigente(rep,nr).start===amsCicloVigente(rep,ref).start) estado.ams.ref=amsCicloVigente(rep,ref).start;
@@ -5251,6 +5313,23 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(cur){ escondeTip(); estado.ams.ref=''; renderReceita(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
+  const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
+  if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
+  const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
+  if(fat){ escondeTip();
+    const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
+    const c=amsContratoSel(ams); if(!c) return;
+    // O status fica salvo para o time (Supabase); a gravação compartilhada exige login do Jira.
+    if(cfgShared && !idApontar()){ abreIdentidade(); return; }
+    const cyc=amsCicloVigente(c, amsRefSel());
+    c.faturados=c.faturados||{};
+    if(c.faturados[cyc.start]) delete c.faturados[cyc.start];
+    else { const id=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id&&(id.nome||id.email))||'' }; }
+    salvaCfg(); renderReceita(); return; }
+});
+// AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderReceita(); }
 });
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);

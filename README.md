@@ -181,28 +181,32 @@ Fica salvo em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
 Aba **Receita** — duas seções, conforme o tipo de contrato (tudo sem nova função
 serverless; consome `cfg.contratos` + worklogs):
 
-**🛠️ AMS — apuração por ciclo (banco de horas).** Para cada contrato AMS, calcula o
-**ciclo de apuração selecionado** (alinhado ao mês de início da vigência) e busca os worklogs
-**desse ciclo** via `GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
+**🛠️ AMS — apuração por ciclo (banco de horas).** A seção mostra **um contrato AMS por vez**:
+um **seletor de cliente** escolhe o contrato e a visão é sempre **por ciclo** (alinhado ao mês
+de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
+`GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
 
-- **Navegador de ciclos** (◀ anterior · vigente · próximo ▶) — a apuração é sempre **por
-  ciclo trimestral** (ou o ciclo do contrato), não pela janela do topo; dá para revisar ciclos
-  passados. *(O período do topo não faz sentido para AMS e é ignorado nesta seção.)*
+- **Seletor de cliente** + **navegador de ciclos** (◀ anterior · vigente · próximo ▶) — a
+  apuração é sempre **por ciclo** (trimestral ou o do contrato), não pela janela do topo; dá
+  para revisar ciclos passados. *(O período do topo não faz sentido para AMS e é ignorado.)*
+- **Dados do contrato cadastrado**: valor-hora, horas/ciclo, parcela, valor anual, mín/teto
+  mensal, início da vigência, banco de horas, projetos e observações — com **Editar no Admin**.
+- **Controle de faturamento do ciclo**: botão para **marcar/desmarcar o ciclo como faturado**
+  (com data e quem marcou). O status é por ciclo e fica salvo (com o time, via Supabase).
 - **Consumo faturável do ciclo × horas contratadas** (ex.: Xh de 60h, %), com selo em
   risco/esgotado — **só as horas faturáveis consomem o pacote** (o total fica como contexto);
 - **Faturável × não faturável** no ciclo (split + KPI), classificado pela **descrição do tipo**
   do chamado no Jira (ex.: tipo cuja descrição diz "não faturável");
-- **Horas por tipo de issue** com **drill-down**: clique no tipo → lista de **chamados** →
-  link direto para o **Jira** (`/browse/CHAVE`);
+- **Horas por tipo de issue** com **drill-down** (clique no tipo → chamados → Jira) **e**
+  **Chamados do ciclo**: lista achatada de **todos os chamados que fazem parte do ciclo**
+  (chave com link para o Jira, resumo, tipo, faturável/não, nº de pessoas e horas);
 - **Banco de horas** (saldo faturável disponível até o fim do ciclo) e **excedente** (horas
   faturáveis acima do pacote → requer **autorização prévia** e é faturado junto com o ciclo);
 - **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente faturável;
 - **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
 - **🖨 PDF da apuração** (por contrato): documento com o **valor apurado** referenciando o
-  contrato + a **memória de apontamentos por chamado** (cada chamado com suas linhas de
-  worklog: data, pessoa e horas) — pronto para "Salvar como PDF";
-- KPIs do conjunto: faturamento do ciclo, horas no ciclo, **faturáveis/não faturáveis**,
-  banco de horas e nº em excedente.
+  contrato, o **status de faturamento do ciclo** + a **memória de apontamentos por chamado**
+  (cada chamado com suas linhas de worklog: data, pessoa e horas) — pronto para "Salvar como PDF".
 
 > O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo. **Só as horas
 > faturáveis consomem o pacote/excedente**; as não faturáveis (ex.: "Tarefas ADM") ficam fora
@@ -212,8 +216,6 @@ serverless; consome `cfg.contratos` + worklogs):
 **💰 Bolsa de horas & projetos.** Para contratos de bolsa/projeto fechado, projeção pelo
 **período selecionado**: horas contratadas × consumidas, **% de esgotamento + projeção**
 (ritmo dos dias úteis fechados até o fim do período), receita estimada e % faturável.
-
-Ainda: card **"Horas sem contrato"** (projetos com horas não mapeados a nenhum contrato).
 
 ### 🌐 Painel do cliente (portal read-only)
 
