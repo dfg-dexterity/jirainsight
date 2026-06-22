@@ -197,8 +197,12 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
 `GET /api/tempo?desde=&ate=` (independente do período do topo). Mostra:
 
 - **Seletor de cliente** + **navegador de ciclos** (◀ anterior · vigente · próximo ▶) — a
-  apuração é sempre **por ciclo** (trimestral ou o do contrato), não pela janela do topo; dá
-  para revisar ciclos passados. *(O período do topo não faz sentido para AMS e é ignorado.)*
+  apuração é sempre **por ciclo** (trimestral ou o do contrato); o **seletor de Período**
+  tradicional do topo **fica oculto nesta aba** (não faz sentido para AMS) — a única seleção é
+  o ciclo. Dá para revisar ciclos passados.
+- **Apontamentos por chamado no mês:** no bloco "Por mês no ciclo", **clique num mês** para
+  abrir um modal com os **chamados** apontados naquele mês; cada chamado expande para as
+  **linhas de worklog** (data · pessoa · horas) e tem link **↗ para o Jira**.
 - **Dados do contrato cadastrado**: valor-hora, horas/ciclo, parcela, valor anual, mín/teto
   mensal, início da vigência, banco de horas, projetos e observações — com **Editar no Admin**.
 - **Controle de faturamento do ciclo**: botão para **marcar/desmarcar o ciclo como faturado**

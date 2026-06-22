@@ -566,6 +566,7 @@
   .ams-mc{border:1px solid var(--linha);border-radius:8px;padding:8px 10px;text-align:center}
   .ams-mc .mm{font-size:11px;color:var(--muted)} .ams-mc .mh{font-family:var(--titulo);font-weight:700;font-size:15px;margin-top:2px}
   .ams-mc.lo{border-color:#E7B100;background:#FEFBEB} .ams-mc.hi{border-color:#D20A0A;background:#FEF2F2}
+  .ams-mc.clic{cursor:pointer} .ams-mc.clic:hover{border-color:var(--cerceta);box-shadow:0 0 0 1px var(--cerceta) inset}
   .ams-note{font-size:11.5px;color:var(--muted);margin-top:8px}
   .ams-head .ams-pdf{margin-left:8px}
   /* Navegador de ciclos */
@@ -983,7 +984,7 @@
         </div>
       </div>
     </div>
-    <label class="hdr-sel"><span>Período</span>
+    <label class="hdr-sel" id="hdr-periodo"><span>Período</span>
       <select id="f-periodo">
         <option value="hoje">Hoje</option>
         <option value="ontem">Ontem</option>
@@ -1395,6 +1396,10 @@ function render(){
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
   if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
+  // A aba AMS é apurada por CICLO (navegador de ciclos), não pela janela tradicional do topo:
+  // esconde o seletor de Período só nela.
+  const hp=document.getElementById('hdr-periodo');
+  if(hp) hp.style.display = (estado.vista==='ams') ? 'none' : '';
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
@@ -4161,6 +4166,33 @@ function amsDadosCard(c, cyc){
     <div class="ams-note">O status de faturamento é por <strong>ciclo</strong> e ${cfgShared?'fica salvo para o time.':'fica salvo só neste navegador (configure o Supabase para compartilhar).'}</div>
   </div>`;
 }
+// Drill-down de um MÊS do ciclo: apontamentos por chamado no mês (cada chamado abre as
+// linhas de worklog — data · pessoa · horas) com link para o Jira.
+function amsDrillMes(cId, ym){
+  const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+  const porCh={}; let tot=0;
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const d=(w.d||'').slice(0,10); if(d.slice(0,7)!==ym) return;
+    const s=Number(w.s)||0; if(!s) return;
+    const k=w.k||'(sem chave)'; const o=porCh[k]||(porCh[k]={seg:0,f:!!w.f,ent:[]});
+    o.seg+=s; o.ent.push({d,a:w.a,s}); tot+=s; });
+  const chs=Object.entries(porCh).sort((a,b)=>b[1].seg-a[1].seg);
+  const corpo = chs.length ? chs.map(([k,o])=>{
+    const temK=k && k!=='(sem chave)';
+    const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+    const ent=o.ent.slice().sort((a,b)=> a.d<b.d?-1:a.d>b.d?1:0 );
+    const linhas=ent.map(x=>`<div class="ts-dch"><span class="ts-dch-k">${esc(fmtBR(x.d))}</span><span class="ts-dch-r">${esc(amsNomePessoa(x.a))}</span><span class="ts-dch-h">${fmtH(x.s)}</span></div>`).join('');
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    return `<details class="ts-dproj">
+      <summary><span class="ts-dp-k">${alvo}</span><span class="ts-dp-n">${esc(amsResumoChamado(k)||'')} <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span></span>
+        <span class="ts-dp-h">${fmtH(o.seg)} · ${pct}%</span></summary>
+      <div class="ts-dchs">${linhas}</div>
+    </details>`;
+  }).join('') : '<div class="estado">Sem apontamentos neste mês.</div>';
+  abreModal(`<h2>${esc(c.cliente||'(sem nome)')} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(labelMesAbbr(ym))} · ${fmtH(tot)} · ${chs.length} chamado(s)</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Apontamentos por chamado no mês — clique num chamado para ver as linhas (data · pessoa · horas). ↗ abre no Jira.</div>
+    <div class="ts-drill">${corpo}</div>`);
+}
 // Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
 function amsChamadosCard(c, cyc){
   const chs=amsChamadosCiclo(c,cyc); const tot=chs.reduce((s,o)=>s+o.seg,0);
@@ -4400,7 +4432,9 @@ function renderAMS(){
       {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),metaY:{v:pool*3600},altura:'180px'}) : '';
     const mesesHtml=cyc.meses.map(ym=>{
       const seg=cons.porMes[ym]||0, mh=seg/3600, lo=minMes&&mh<minMes, hi=tetoMes&&mh>tetoMes;
-      return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}"><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
+      const clic = seg>0 ? ' clic' : '';
+      const dca = seg>0 ? ` data-ams-mes="${escA(c.id)}|${ym}" title="Ver apontamentos por chamado em ${esc(labelMesAbbr(ym))}"` : '';
+      return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}${clic}"${dca}><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
         ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto ${tetoMes}h</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín ${minMes}h</div>`:'')}</div>`;
     }).join('');
     // Drill-down: tipo de issue → chamados → link para o Jira.
@@ -4440,7 +4474,7 @@ function renderAMS(){
           <span><b style="color:#C77700">${fmtH(pt.segNao)}</b> não faturáveis</span>
           <span class="muted">${fatPct}% faturável no ciclo</span></div></div>
       ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo faturável no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h; só horas faturáveis consomem o pacote)</span></div>${burnChart}`:''}
-      <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo${minMes||tetoMes?` <span class="muted" style="font-weight:400">(mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês)</span>`:''}</div>
+      <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo <span class="muted" style="font-weight:400">(clique num mês para ver os apontamentos por chamado${minMes||tetoMes?` · mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês`:''})</span></div>
       <div class="ams-months">${mesesHtml}</div>
       <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(clique no tipo para ver os chamados → Jira)</span></div>
       <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem apontamentos neste ciclo.</div>'}</div>
@@ -4979,6 +5013,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-22','📅 <b>AMS por ciclo (sem período do topo)</b>: na aba AMS o seletor de <b>Período</b> tradicional sai — a seleção é só pelo <b>navegador de ciclos</b> (trimestre/período do contrato). E clicando num <b>mês do ciclo</b> abre os <b>apontamentos por chamado</b> daquele mês (cada chamado com as linhas data · pessoa · horas e link para o Jira).'],
   ['2026-06-22','🔎 <b>Timesheet com drill-down</b>: clique no <b>total de horas de um dia</b> (ou na coluna <b>Total</b>) de uma pessoa para abrir as <b>horas por projeto</b> e, dentro de cada projeto, os <b>chamados</b> que somam essas horas — cada um com link para o <b>Jira</b>.'],
   ['2026-06-22','🗂️ <b>AMS em aba própria</b>: a apuração de AMS agora é uma <b>aba separada</b> (menu AMS &amp; Governança → <b>AMS</b>), totalmente isolada da Receita. A aba <b>Receita</b> ficou só com <b>bolsa de horas e projetos</b>.'],
   ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
@@ -5006,7 +5041,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-22.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.4';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5391,6 +5426,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
+  const mes=e.target.closest&&e.target.closest('[data-ams-mes]');
+  if(mes){ escondeTip(); const v=mes.getAttribute('data-ams-mes'); const i=v.indexOf('|'); amsDrillMes(v.slice(0,i), v.slice(i+1)); return; }
   const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
   if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
   const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
