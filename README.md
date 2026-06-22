@@ -143,6 +143,15 @@ dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
 
+### 🔎 Timesheet — drill-down por dia
+
+Na aba **Timesheet**, o **total de horas de uma pessoa num dia** (qualquer célula com horas) é
+**clicável** — abre um modal com as **horas por projeto** daquele dia; cada projeto expande
+(`<details>`) para os **chamados** que somam essas horas, com link **↗ para o Jira**. A coluna
+**Total** também é clicável e abre o mesmo detalhamento para o **período inteiro**. Tudo no
+cliente, a partir dos worklogs já carregados (`estado.tempo.worklogs` + `resumos`), respeitando
+os filtros atuais — sem nova chamada ao servidor.
+
 ### 🏅 Ranking — reforço visual
 
 No **Ranking de apontamento**, quem está **em dia** ganha um destaque **comemorativo**

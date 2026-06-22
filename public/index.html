@@ -618,6 +618,22 @@
   [data-theme="dark"] .ams-ch-b.fat{color:#7FE0A0;background:#10291C} [data-theme="dark"] .ams-ch-b.nfat{color:#F0C674;background:#33270F}
   .ams-ch-p{flex:0 0 auto;font-size:11.5px;min-width:18px;text-align:right}
   @media (max-width:640px){ .ams-ch-t,.ams-ch-p{display:none} }
+  /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
+  td.ts-click{cursor:pointer}
+  td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .ts-drill{display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow:auto}
+  .ts-dproj{border:1px solid var(--linha);border-radius:9px;background:var(--cartao2);overflow:hidden}
+  .ts-dproj>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px}
+  .ts-dproj>summary::-webkit-details-marker{display:none}
+  .ts-dproj>summary:hover{background:var(--hoverbg)}
+  .ts-dproj[open]>summary{border-bottom:1px solid var(--linha)}
+  .ts-dp-k{font-weight:700} .ts-dp-n{color:var(--muted);flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ts-dp-h{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+  .ts-dchs{padding:4px 12px 10px}
+  .ts-dch{display:flex;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px dashed var(--linha2);font-size:12.5px}
+  .ts-dch:last-child{border-bottom:none}
+  .ts-dch-k{flex:0 0 auto;min-width:96px} .ts-dch-r{flex:1 1 auto;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ts-dch-h{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:700}
 
   /* ===== Gráficos modernos & interativos ===== */
   .fill,.b,.pp-stack span{transition:filter .15s ease,opacity .15s ease}
@@ -2166,12 +2182,14 @@ function renderTimesheet(){
       else if(s<m){ cls+=' parcial'; txt=fmtH(s); }
       else { cls+=' ok'; txt=fmtH(s); }
       const tFer=fer?` · ${nomeFeriado(d)}`:'';
-      return `<td class="${cls}" title="${esc(l.nome)} · ${esc(d)}${esc(tFer)} · ${s>0?fmtH(s):'sem apontamento'}">${txt}</td>`;
+      const clic = s>0 ? ' ts-click' : '';
+      const dca = s>0 ? ` data-ts-cell="${escA(l.a)}|${d}"` : '';
+      return `<td class="${cls}${clic}"${dca} title="${esc(l.nome)} · ${esc(d)}${esc(tFer)} · ${s>0?fmtH(s)+' — clique p/ ver por projeto':'sem apontamento'}">${txt}</td>`;
     }).join('');
     const alerta=l.lacuna>0?'tem-lacuna':'';
     return `<tr>
       <th class="ts-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</th>
-      <td class="num">${fmtH(l.tot)}</td>
+      <td class="num${l.tot>0?' ts-click':''}"${l.tot>0?` data-ts-cell="${escA(l.a)}|"`:''} title="${l.tot>0?'Horas por projeto no período — clique':''}">${fmtH(l.tot)}</td>
       <td class="num ts-lac ${alerta}">${l.lacuna>0?('−'+fmtH(l.lacuna)):'ok'}</td>
       ${cells}</tr>`;
   }).join('');
@@ -2196,6 +2214,7 @@ function renderTimesheet(){
         <span><i class="sw aus"></i>ausência</span>
         <span><i class="sw hoje"></i>hoje</span>
       </div>
+      <div class="muted small" style="margin:2px 0 8px">Clique no <strong>total de horas de um dia</strong> (ou na coluna <strong>Total</strong>) para abrir as horas <strong>por projeto</strong> e, dentro de cada projeto, os <strong>chamados</strong> que somam essas horas (↗ abre no Jira).</div>
       <div class="ts-wrap">
         <table class="ts">
           <thead><tr>
@@ -2209,6 +2228,49 @@ function renderTimesheet(){
       </div>
     </div>
   </div>`));
+}
+
+// Drill-down do Timesheet: clique no total de horas de uma pessoa num dia (ou no Total do
+// período) → horas por projeto → chamados que somam essas horas (link para o Jira).
+// `dia` vazio = período inteiro. Respeita os filtros atuais (mas conta TODAS as horas).
+function drillTimesheet(a, dia){
+  if(!a || !estado.tempo) return;
+  const f=filtros(); const ft=Object.assign({}, f, {ocultar:false});
+  const projs=projetosUnidos(); const pessoasNome=pessoasUnidas(); const resumos=resumosUnidos();
+  const meta=estado.tempo.meta||{};
+  const porProj={};   // pkey -> { seg, tickets:{ k -> seg } }
+  let tot=0;
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(w.a!==a) return;
+    if(!passa(w.p,w.t,projs,ft)) return;
+    const d=(w.d||'').slice(0,10); if(!d) return;
+    if(dia && d!==dia) return;
+    const s=Number(w.s)||0; if(!s) return;
+    const o=porProj[w.p]||(porProj[w.p]={seg:0,tickets:{}});
+    o.seg+=s; const k=w.k||'(sem chave)'; o.tickets[k]=(o.tickets[k]||0)+s;
+    tot+=s;
+  });
+  const nome=(pessoasNome[a]&&pessoasNome[a].nome)||a;
+  const quando = dia ? fmtBR(dia) : `${fmtBR(meta.startDate||'')} – ${fmtBR(meta.endDate||'')}`;
+  const projsOrd=Object.entries(porProj).sort((x,y)=>y[1].seg-x[1].seg);
+  const corpo = projsOrd.length ? projsOrd.map(([pk,o])=>{
+    const pnome=(projs[pk]&&projs[pk].nome)||'';
+    const pct=tot?Math.round(o.seg/tot*100):0;
+    const tks=Object.entries(o.tickets).sort((x,y)=>y[1]-x[1]);
+    const linhas=tks.map(([k,seg])=>{
+      const temK=k && k!=='(sem chave)';
+      const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
+      return `<div class="ts-dch"><span class="ts-dch-k">${alvo}</span><span class="ts-dch-r">${esc(resumos[k]||'')}</span><span class="ts-dch-h">${fmtH(seg)}</span></div>`;
+    }).join('');
+    return `<details class="ts-dproj">
+      <summary><span class="ts-dp-k">${esc(pk)}</span><span class="ts-dp-n">${esc(pnome)}</span>
+        <span class="ts-dp-h">${fmtH(o.seg)} · ${pct}%</span></summary>
+      <div class="ts-dchs">${linhas||'<div class="muted small">Sem chamados.</div>'}</div>
+    </details>`;
+  }).join('') : '<div class="estado">Sem apontamentos para este recorte.</div>';
+  abreModal(`<h2>${esc(nome)} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(quando)} · ${fmtH(tot)}</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Horas por projeto${dia?' no dia':' no período'} — clique num projeto para ver os chamados (↗ abre no Jira).</div>
+    <div class="ts-drill">${corpo}</div>`);
 }
 
 // Ranking: parte da calcTimesheet e calcula esperado/percentual por pessoa.
@@ -4917,6 +4979,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-22','🔎 <b>Timesheet com drill-down</b>: clique no <b>total de horas de um dia</b> (ou na coluna <b>Total</b>) de uma pessoa para abrir as <b>horas por projeto</b> e, dentro de cada projeto, os <b>chamados</b> que somam essas horas — cada um com link para o <b>Jira</b>.'],
   ['2026-06-22','🗂️ <b>AMS em aba própria</b>: a apuração de AMS agora é uma <b>aba separada</b> (menu AMS &amp; Governança → <b>AMS</b>), totalmente isolada da Receita. A aba <b>Receita</b> ficou só com <b>bolsa de horas e projetos</b>.'],
   ['2026-06-22','🧾 <b>AMS por contrato</b>: a aba AMS mostra <b>um cliente por vez</b> (seletor de cliente), sempre <b>por ciclo</b>, com os <b>dados do contrato cadastrado</b>, um <b>controle de faturamento do ciclo</b> (marcar/desmarcar como faturado, com data e responsável) e a lista de <b>chamados do ciclo</b>. O quadro "horas sem contrato" saiu desta visão.'],
   ['2026-06-21','🧮 <b>AMS — só horas faturáveis consomem o pacote</b>: o banco de horas, o excedente e o faturamento do ciclo passam a considerar <b>apenas as horas faturáveis</b>; as não faturáveis (ex.: "Tarefas ADM") ficam fora da apuração (continuam visíveis como indicador e na memória do PDF).'],
@@ -4943,7 +5006,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-22.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-22.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5466,6 +5529,9 @@ document.addEventListener('click', (e)=>{
   if(gt){ escondeTip(); vaiPara(gt.getAttribute('data-goto')); return; }
   const dr=e.target.closest && e.target.closest('[data-drill]');
   if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
+  const tsc=e.target.closest && e.target.closest('[data-ts-cell]');
+  if(tsc){ escondeTip(); const v=tsc.getAttribute('data-ts-cell'); const i=v.indexOf('|');
+    drillTimesheet(v.slice(0,i), v.slice(i+1)); return; }
   const pz=e.target.closest && e.target.closest('[data-pessoa]');
   if(pz){ escondeTip(); abrePessoa(pz.getAttribute('data-pessoa')); }
 });
