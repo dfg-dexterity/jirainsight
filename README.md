@@ -56,6 +56,10 @@ scripts/
 | `CLOCKWORK_API_TOKEN` | sim | token da API do Clockwork (Pro) |
 | `CACHE_TTL_MIN` | não | minutos de cache no servidor (padrão 20) |
 | `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como **não faturável** — testada no **nome _e_ na descrição** do tipo de issue (padrão `n[aã]o.{0,4}fatur`, que cobre "não faturável", "não-faturavel" e "não é faturável") |
+| `JIRA_CF_CHAMADO_CLIENTE` | não | id do campo Jira "Número do Chamado Cliente" exibido na aba AMS (padrão `customfield_10270`) |
+| `JIRA_CF_CAUSA_RAIZ` | não | id do campo "Causa Raiz" usado nos relatórios da aba AMS (padrão `customfield_10759`) |
+| `JIRA_CF_PRODUTO` | não | id(s) do campo "Produto" (relatórios AMS) — aceita vários separados por vírgula, usa o 1º preenchido (padrão `customfield_10766,customfield_10760`) |
+| `JIRA_CF_PROCESSO` | não | id(s) do campo "Processo" (relatórios AMS) — aceita vários separados por vírgula, usa o 1º preenchido (padrão `customfield_10765,customfield_10761`) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
 | `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
@@ -237,14 +241,20 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
   do chamado no Jira (ex.: tipo cuja descrição diz "não faturável");
 - **Horas por tipo de issue** com **drill-down** (clique no tipo → chamados → Jira) **e**
   **Chamados do ciclo**: lista achatada de **todos os chamados que fazem parte do ciclo**
-  (chave com link para o Jira, resumo, tipo, faturável/não, nº de pessoas e horas);
+  (chave com link para o Jira, **🔖 Número do Chamado Cliente**, resumo, tipo, faturável/não,
+  nº de pessoas e horas);
+- **📊 Relatórios do ciclo** — distribuição dos chamados por **Causa raiz**, **Produto** e
+  **Processo** (campos do Jira): horas · % do ciclo · nº de chamados, ordenado por horas
+  (Pareto com acumulado); clique num item para abrir os chamados daquele grupo. Os campos
+  são configuráveis por env (`JIRA_CF_*`);
 - **Banco de horas** (saldo faturável disponível até o fim do ciclo) e **excedente** (horas
   faturáveis acima do pacote → requer **autorização prévia** e é faturado junto com o ciclo);
 - **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente faturável;
 - **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
 - **🖨 PDF da apuração** (por contrato): documento com o **valor apurado** referenciando o
-  contrato, o **status de faturamento do ciclo** + a **memória de apontamentos por chamado**
-  (cada chamado com suas linhas de worklog: data, pessoa e horas) — pronto para "Salvar como PDF".
+  contrato, os **responsáveis** (Dexterity e cliente), o **status de faturamento do ciclo** + a
+  **memória de apontamentos por chamado** (cada chamado com suas linhas de worklog: data, pessoa
+  e horas) — pronto para "Salvar como PDF". O **cabeçalho se repete em todas as páginas**.
 
 > O banco de horas vale **dentro do ciclo** e **não acumula** para o próximo. **Só as horas
 > faturáveis consomem o pacote/excedente**; as não faturáveis (ex.: "Tarefas ADM") ficam fora
