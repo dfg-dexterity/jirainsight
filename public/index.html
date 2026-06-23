@@ -411,6 +411,11 @@
     transition:border-color .12s ease,background .12s ease,color .12s ease}
   .chip:hover{border-color:#A5B4FC;background:var(--cartao2)}
   .chip[aria-pressed="true"]{background:var(--cerceta);color:#fff;border-color:var(--cerceta)}
+  /* Chip "Solicitar folga" (compensação de horas extras) na aba Resumo */
+  .meta-cel{white-space:nowrap}
+  .folga-chip{padding:2px 9px;font-size:11px;font-weight:600;margin-left:6px;vertical-align:middle;
+    border-color:var(--musgo);color:var(--musgo)}
+  .folga-chip:hover{background:var(--musgo);color:#fff;border-color:var(--musgo)}
   .ap-lista{display:flex;flex-direction:column;gap:12px}
   .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px 14px 14px 16px;background:var(--cartao);
     display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease;border-left-width:5px}
@@ -1182,6 +1187,10 @@ function proxDia(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Dat
 function listaDias(a,b){ if(!a||!b) return []; const out=[]; let d=a, g=0; while(d<=b && g++<400){ out.push(d); d=proxDia(d); } return out; }
 function diaSemana(s){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d,12)).getUTCDay(); } // 0=dom … 6=sáb
 const ehUtil = (s) => { const w=diaSemana(s); return w>=1 && w<=5; };
+// Chave da semana (segunda-feira AAAA-MM-DD) de uma data — usada para normalizar
+// "horas extras por semana" num período qualquer (mês, ano…).
+function semChave(s){ const [y,m,d]=s.split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,d,12));
+  const wd=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-wd); return dt.toISOString().slice(0,10); }
 
 // ---- Feriados nacionais brasileiros (calculados — sem depender de internet) ----
 // Inclui os fixos + os móveis (Carnaval, Sexta-feira Santa, Corpus Christi) via Páscoa
@@ -1935,13 +1944,43 @@ function renderResumo(){
   const k=d.kpi;
   const nomeProjResumo=(key)=>{ const p=d.projs[key]; return p&&p.nome?`${key} — ${p.nome}`:key; };
 
+  // Meta e horas extras por pessoa (mesma base do timesheet). metaPct = horas
+  // apontadas ÷ meta esperada no período. Acima de 100% NÃO é problema — sinaliza
+  // que a pessoa trabalhou além do previsto. Quando a média de horas EXTRAS por
+  // semana passa de 6h, oferecemos solicitar folga (compensação) no Odoo.
+  const tsR=calcTimesheet();
+  const porPessoaTsR={}; tsR.linhas.forEach(l=>{ porPessoaTsR[l.a]=l; });
+  const semanasR=new Set();
+  tsR.dias.forEach(x=>{ if(ehUtil(x)&&!ehFeriado(x)&&x!==tsR.hoje) semanasR.add(semChave(x)); });
+  const nSemanasR=Math.max(1, semanasR.size);
+  const nomesR=pessoasUnidas();
+  const LIMITE_FOLGA=6;   // horas extras médias por semana que liberam o botão de folga
+  function metaPessoa(a){
+    const l=porPessoaTsR[a];
+    const esperado=l?l.esperado:0, tot=l?l.tot:0;
+    const pctMeta=esperado>0?Math.round(tot/esperado*100):null;
+    const extraSeg=Math.max(0, tot-esperado);
+    const extraSemH=(extraSeg/3600)/nSemanasR;                 // h extras médias por semana
+    return { pctMeta, extraSemH, extraTotH:+(extraSeg/3600).toFixed(1), email:(nomesR[a]&&nomesR[a].email)||'' };
+  }
+  function celMeta(p){
+    const m=metaPessoa(p.a);
+    if(m.pctMeta==null) return '<td class="num"><span class="muted">—</span></td>';
+    const cor=m.pctMeta>100?cores.musgo:(m.pctMeta>=90?'inherit':cores.amarelo);
+    const tip=m.pctMeta>100?'Acima da meta — trabalhou mais que o previsto (não é ruim)':(m.pctMeta>=90?'Em dia com a meta':'Abaixo da meta no período');
+    const folga=m.extraSemH>LIMITE_FOLGA
+      ? ` <button class="chip folga-chip" data-folga="1" data-folga-a="${escA(p.a)}" data-folga-email="${escA(m.email)}" data-folga-nome="${escA(p.nome)}" data-folga-extra="${escA(String(m.extraTotH))}" data-folga-sem="${escA(m.extraSemH.toFixed(1))}" data-tip="≈ ${escA(m.extraSemH.toFixed(1))}h extras/semana — solicitar folga (compensação) no Odoo">🌴 Folga</button>`
+      : '';
+    return `<td class="num meta-cel"><span style="color:${cor};font-weight:700" data-tip="${escA(tip)}">${m.pctMeta}%${m.pctMeta>100?' ↑':''}</span>${folga}</td>`;
+  }
+
   const tabela = d.pessoas.length ? `
     <table><thead><tr>
-      <th>Pessoa</th><th class="num">Horas</th><th class="num">Faturável</th>
+      <th>Pessoa</th><th class="num">Horas</th><th class="num">Faturável</th><th class="num">Meta</th>
       <th class="num">Tickets</th><th class="num">Alter.</th><th class="num">Transições</th><th class="num">Coment.</th>
     </tr></thead><tbody>${d.pessoas.map(p=>`
       <tr><td data-pessoa="${esc(p.a)}">${esc(p.nome)}</td><td class="num">${fmtH(p.seg)}</td>
-      <td class="num">${p.seg?pct(p.segFat,p.seg):0}%</td>
+      <td class="num">${p.seg?pct(p.segFat,p.seg):0}%</td>${celMeta(p)}
       <td class="num">${p.tickets}</td><td class="num">${p.alter}</td>
       <td class="num">${p.trans}</td><td class="num">${p.coment}</td></tr>`).join('')}
     </tbody></table>` : '<div class="estado">Sem dados para os filtros atuais.</div>';
@@ -1973,7 +2012,7 @@ function renderResumo(){
     </div>
     <div class="grid">
       <div class="card full ia-card">${cardAnaliseIA()}</div>
-      <div class="card full"><h2>Por pessoa</h2><div class="scroll-x">${tabela}</div></div>
+      <div class="card full"><h2>Por pessoa <span>meta acima de 100% = trabalhou além do previsto; 🌴 aparece quando passa de 6h extras/semana</span></h2><div class="scroll-x">${tabela}</div></div>
       <div class="card full"><h2>Horas por pessoa e projeto
         <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
       <div class="card full"><h2>Faturável por pessoa
@@ -2092,6 +2131,80 @@ async function geraAnaliseIA(){
   if(estado.vista==='resumo') renderResumo();
 }
 // ----------------------------------------------------------------------
+
+// ---------------- Solicitar folga (compensação de horas extras) ----------------
+// Abre um mini-formulário (data + quantidade) e cria um pedido de Time Off no Odoo
+// para a pessoa. Disponível na aba Resumo quando alguém passa de 6h extras/semana.
+function abreFolga(a, email, nome, extraTotH, extraSemH){
+  email=email||''; nome=nome||'';
+  const hoje=hojeSP();
+  const sug=Math.min(8, Math.max(1, Math.round(Number(extraSemH)||1)));
+  abreModal(`
+    <h2>🌴 Solicitar folga — ${esc(nome)}</h2>
+    <div class="muted small" style="margin-bottom:12px">
+      ${esc(nome)} está com <strong>≈ ${esc(String(extraSemH))}h extras por semana</strong>
+      (${esc(String(extraTotH))}h no período). A folga é uma <strong>compensação</strong> dessas horas:
+      o pedido é criado no <strong>Odoo</strong> como Time&nbsp;Off para a pessoa${email?` <span class="muted">(${esc(email)})</span>`:''}.
+    </div>
+    ${email?'':'<div class="ap-fb warn" style="margin-bottom:10px">⚠ Não temos o e-mail desta pessoa pelo Jira. O Odoo vai tentar localizar pelo nome; se não achar, o pedido falha.</div>'}
+    <div class="mt-form">
+      <div class="campo"><label>Data da folga</label><input type="date" id="folga-data" value="${escA(hoje)}" min="${escA(hoje)}"></div>
+      <div class="campo"><label>Quantidade</label>
+        <select id="folga-modo">
+          <option value="meio">Meio período</option>
+          <option value="dia">Dia(s) inteiro(s)</option>
+          <option value="horas">Horas específicas</option>
+        </select></div>
+      <div class="campo" id="folga-wrap-periodo"><label>Período</label>
+        <select id="folga-periodo"><option value="am">Manhã</option><option value="pm">Tarde</option></select></div>
+      <div class="campo" id="folga-wrap-horas" hidden><label>Nº de horas</label>
+        <input type="number" id="folga-horas" min="0.5" max="8" step="0.5" value="${escA(String(sug))}"></div>
+      <div class="campo" id="folga-wrap-ate" hidden><label>Até (opcional)</label>
+        <input type="date" id="folga-ate" value="${escA(hoje)}" min="${escA(hoje)}"></div>
+      <div class="campo" style="flex:1 1 100%"><label>Motivo (opcional)</label>
+        <input type="text" id="folga-motivo" placeholder="Compensação de horas extras" maxlength="120" style="width:100%;box-sizing:border-box"></div>
+    </div>
+    <div id="folga-fb" class="ap-fb" hidden style="margin-top:10px"></div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn primario" id="folga-enviar" data-folga-email="${escA(email)}" data-folga-nome="${escA(nome)}">Enviar pedido ao Odoo</button>
+      <button class="btn" id="folga-cancelar">Cancelar</button>
+    </div>`);
+  folgaToggle();
+}
+// Mostra só os campos relevantes ao tipo de quantidade escolhido.
+function folgaToggle(){
+  const sel=document.getElementById('folga-modo'); if(!sel) return;
+  const modo=sel.value||'meio';
+  const set=(id,show)=>{ const w=document.getElementById(id); if(w) w.hidden=!show; };
+  set('folga-wrap-periodo', modo==='meio');
+  set('folga-wrap-horas', modo==='horas');
+  set('folga-wrap-ate', modo==='dia');
+}
+async function enviaFolga(){
+  const fb=document.getElementById('folga-fb');
+  const btn=document.getElementById('folga-enviar'); if(!btn) return;
+  const get=(id)=>{ const el=document.getElementById(id); return el?el.value:''; };
+  const modo=get('folga-modo')||'meio';
+  const data=get('folga-data');
+  const mostra=(cls,txt)=>{ fb.hidden=false; fb.className='ap-fb'+(cls?' '+cls:''); fb.innerHTML=txt; };
+  if(!data){ mostra('err','Escolha a data da folga.'); return; }
+  const body={ email:btn.getAttribute('data-folga-email')||'', nome:btn.getAttribute('data-folga-nome')||'',
+    data, modo, motivo:get('folga-motivo') };
+  if(modo==='meio') body.periodo=get('folga-periodo')||'am';
+  else if(modo==='horas') body.horas=Math.max(0.5, Number(get('folga-horas'))||1);
+  else if(modo==='dia'){ const ate=get('folga-ate'); if(ate && ate>data) body.dataFim=ate; }
+  btn.disabled=true; mostra('','Enviando ao Odoo…');
+  try{
+    const j=await fetch('/api/resumo?acao=folga',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)}).then(r=>r.json());
+    if(j.configurado===false){ mostra('err','Integração com o Odoo não configurada. '+esc(j.erro||'')); btn.disabled=false; return; }
+    if(j.ok){ mostra('ok','✓ Pedido de folga criado no Odoo'+(j.funcionario?(' para '+esc(j.funcionario)):'')+
+        (j.url?` — <a href="${escA(j.url)}" target="_blank" rel="noopener">abrir no Odoo</a>`:'')+'.');
+      setTimeout(fechaModal, 3000); }
+    else { mostra('err', esc(j.erro||'Falha ao criar o pedido de folga.')); btn.disabled=false; }
+  }catch(e){ mostra('err','Erro de rede: '+esc(e.message||String(e))); btn.disabled=false; }
+}
+// -------------------------------------------------------------------------------
 
 // Calcula a matriz pessoa × dia (segundos) e a lacuna por pessoa, respeitando a
 // meta individual e as ausências. Reutilizado por timesheet, ranking, "não
@@ -5045,6 +5158,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-22','🌴 <b>Resumo — meta acima de 100% e folga</b>: a aba Resumo ganhou a coluna <b>Meta</b> por pessoa. Passar de 100% <b>não é ruim</b> — é sinal de quem trabalhou além do previsto (fica em verde). Quando alguém acumula <b>mais de 6h extras por semana</b> aparece o botão <b>🌴 Folga</b>, que abre um pedido de folga (compensação) e cria a solicitação de <b>Time Off no Odoo</b> para a pessoa. Requer configurar as variáveis ODOO_* na Vercel.'],
   ['2026-06-22','📋 <b>Admin — detalhes do contrato</b>: cada contrato cadastrado agora mostra os <b>dados completos</b> num quadro legível (apuração, valor-hora, horas/ciclo, parcela, valor anual, mín/teto mensal, vigência, banco de horas, projetos e obs). Contrato <b>AMS sem projetos mapeados</b> ganha um aviso (ele não aparece na apuração da aba AMS até mapear os projetos).'],
   ['2026-06-22','📅 <b>AMS por ciclo (sem período do topo)</b>: na aba AMS o seletor de <b>Período</b> tradicional sai — a seleção é só pelo <b>navegador de ciclos</b> (trimestre/período do contrato). E clicando num <b>mês do ciclo</b> abre os <b>apontamentos por chamado</b> daquele mês (cada chamado com as linhas data · pessoa · horas e link para o Jira).'],
   ['2026-06-22','🔎 <b>Timesheet com drill-down</b>: clique no <b>total de horas de um dia</b> (ou na coluna <b>Total</b>) de uma pessoa para abrir as <b>horas por projeto</b> e, dentro de cada projeto, os <b>chamados</b> que somam essas horas — cada um com link para o <b>Jira</b>.'],
@@ -5525,6 +5639,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='rc-verificar'){ verificaMover(); }
   else if(t.id==='rc-voltar'){ rc.resultado=null; rc.taskId=''; rc.dados=null; renderReclass(); }
   else if(t.id==='ia-gerar'){ geraAnaliseIA(); }
+  else if(t.hasAttribute('data-folga')){ escondeTip();
+    abreFolga(t.getAttribute('data-folga-a'), t.getAttribute('data-folga-email'),
+      t.getAttribute('data-folga-nome'), t.getAttribute('data-folga-extra'), t.getAttribute('data-folga-sem')); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const rc=estado.reclass; const t=e.target; if(!t) return;
@@ -5585,6 +5702,7 @@ document.getElementById('modal-body').addEventListener('input', (e)=>{
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='pl-csv-head'){ e.target.setAttribute('data-touched','1'); atualizaPreviewCSV(); }
+  else if(e.target && e.target.id==='folga-modo'){ folgaToggle(); }
 });
 
 // Modal: fechar
@@ -5781,6 +5899,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.classList && t.classList.contains('fb-tipo')){
     document.querySelectorAll('.fb-tipo').forEach(c=>c.setAttribute('aria-pressed', c===t?'true':'false')); }
   else if(t.id==='fb-enviar'){ enviaFeedback(); }
+  else if(t.id==='folga-enviar'){ enviaFolga(); }
+  else if(t.id==='folga-cancelar'){ fechaModal(); }
   else if(t.getAttribute('data-ap-act')==='config-id'){ abreIdentidade(); }
 });
 

@@ -62,6 +62,11 @@ scripts/
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
 | `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
 | `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
+| `ODOO_URL` | não | base do Odoo (ex.: `https://suaempresa.odoo.com`) — habilita o botão **🌴 Folga** na aba Resumo (`POST /api/resumo?acao=folga`) |
+| `ODOO_DB` | não | nome do banco (database) do Odoo |
+| `ODOO_LOGIN` | não | login da **conta de serviço** que cria as folgas (precisa de direitos de Time Off) |
+| `ODOO_API_KEY` | não | API Key do Odoo (Preferências → Conta → Segurança) ou a senha da conta de serviço |
+| `ODOO_FOLGA_TIPO_ID` | não | id (número) **ou** nome do *Tipo de ausência* (`hr.leave.type`) usado nas folgas, ex.: `Compensação de horas` |
 
 ### Convites de reunião (apontamento em grupo)
 
@@ -72,6 +77,20 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 `jirainsight_convites` do Supabase (colunas: grupo, issue, resumo, segundos, inicio,
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
+
+### 🌴 Folga / compensação de horas extras (Odoo)
+
+Na aba **Resumo**, a tabela **Por pessoa** mostra a coluna **Meta** (horas apontadas ÷
+meta esperada no período). **Acima de 100% não é problema** — é sinal de quem trabalhou
+além do previsto, então fica em **verde**. Quando alguém acumula, em média, **mais de
+6h extras por semana** (extra = horas − meta esperada, normalizado pelo nº de semanas do
+período), aparece o botão **🌴 Folga**. Ele abre um mini-formulário (data + meio período /
+dia(s) / nº de horas) e chama `POST /api/resumo?acao=folga` (consolidado nessa rota por
+causa do limite de **12 Serverless Functions** do plano Hobby), que cria uma **solicitação
+de Time Off no Odoo** (`hr.leave`) **para a pessoa** — localizada pelo **e-mail de trabalho**
+(ou pelo nome, como fallback). Usa a API externa do Odoo (JSON-RPC) com uma **conta de serviço**.
+Requer `ODOO_URL`, `ODOO_DB`, `ODOO_LOGIN`, `ODOO_API_KEY` e `ODOO_FOLGA_TIPO_ID` (id ou
+nome do tipo de ausência). Sem essas variáveis, o formulário avisa que falta configurar.
 
 ### 📊 Visão Geral (tela executiva — inicial)
 

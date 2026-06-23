@@ -30,6 +30,101 @@ function lerBody(req) {
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const txt = (v, max = 80) => String(v == null ? '' : v).slice(0, max);
 
+// ---------------------------------------------------------------------------
+// Folga (compensação de horas extras) — consolidada AQUI por causa do limite de
+// 12 Serverless Functions do plano Hobby (esta rota já é a "do servidor" da aba
+// Resumo). Acionada por POST /api/resumo?acao=folga: cria um pedido de Time Off
+// no Odoo PARA a pessoa, via API externa (JSON-RPC) com uma CONTA DE SERVIÇO.
+// Variáveis de ambiente (Vercel): ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY,
+// ODOO_FOLGA_TIPO_ID (id numérico OU nome do tipo de ausência, hr.leave.type).
+// ---------------------------------------------------------------------------
+const env = (k) => (process.env[k] || '').trim();
+const isoData = (s) => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) ? s : '';
+
+async function odoo(url, service, method, args) {
+  const r = await fetch(url.replace(/\/+$/, '') + '/jsonrpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'call', id: Date.now(), params: { service, method, args } }),
+  });
+  if (!r.ok) throw new Error(`Odoo respondeu HTTP ${r.status}`);
+  const j = await r.json();
+  if (j.error) {
+    const d = j.error.data || {};
+    throw new Error(d.message || j.error.message || 'Erro no Odoo');
+  }
+  return j.result;
+}
+
+async function criaFolga(res, b) {
+  const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'),
+    key = env('ODOO_API_KEY'), tipoCfg = env('ODOO_FOLGA_TIPO_ID');
+  if (!url || !db || !login || !key) {
+    return json(res, 200, { ok: false, configurado: false,
+      erro: 'Integração com o Odoo não configurada. Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel.' });
+  }
+  if (!tipoCfg) {
+    return json(res, 200, { ok: false, configurado: false,
+      erro: 'Defina ODOO_FOLGA_TIPO_ID (id ou nome do tipo de ausência) na Vercel.' });
+  }
+
+  const email = String(b.email || '').trim().toLowerCase();
+  const nome = String(b.nome || '').trim();
+  const data = isoData(b.data);
+  const modo = ['meio', 'dia', 'horas'].includes(b.modo) ? b.modo : 'meio';
+  if (!data) return json(res, 400, { ok: false, erro: 'Data da folga inválida (use AAAA-MM-DD).' });
+  if (!email && !nome) return json(res, 400, { ok: false, erro: 'Sem e-mail nem nome para identificar a pessoa.' });
+
+  // 1) Autentica a conta de serviço → uid.
+  const uid = await odoo(url, 'common', 'authenticate', [db, login, key, {}]);
+  if (!uid) return json(res, 200, { ok: false, erro: 'Falha de autenticação no Odoo (confira ODOO_DB/ODOO_LOGIN/ODOO_API_KEY).' });
+  const exec = (model, method, args, kwargs = {}) =>
+    odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kwargs]);
+
+  // 2) Resolve o tipo de ausência: id numérico direto ou busca por nome.
+  let tipoId = /^\d+$/.test(tipoCfg) ? Number(tipoCfg) : 0;
+  if (!tipoId) {
+    const tipos = await exec('hr.leave.type', 'search_read', [[['name', 'ilike', tipoCfg]]], { fields: ['id'], limit: 1 });
+    if (!tipos.length) return json(res, 200, { ok: false, erro: `Tipo de ausência "${tipoCfg}" não encontrado no Odoo.` });
+    tipoId = tipos[0].id;
+  }
+
+  // 3) Localiza o funcionário (por e-mail de trabalho; cai para o nome).
+  let emps = [];
+  if (email) emps = await exec('hr.employee', 'search_read', [[['work_email', '=ilike', email]]], { fields: ['id', 'name'], limit: 1 });
+  if (!emps.length && nome) emps = await exec('hr.employee', 'search_read', [[['name', 'ilike', nome]]], { fields: ['id', 'name'], limit: 1 });
+  if (!emps.length) return json(res, 200, { ok: false, erro: `Funcionário não encontrado no Odoo (${email || nome}). Confirme o e-mail/nome cadastrado lá.` });
+  const empId = emps[0].id;
+
+  // 4) Monta o pedido de ausência (hr.leave).
+  const vals = {
+    employee_id: empId,
+    holiday_status_id: tipoId,
+    name: String(b.motivo || '').trim() || 'Compensação de horas extras (painel Insights)',
+    request_date_from: data,
+    request_date_to: isoData(b.dataFim) || data,
+  };
+  if (modo === 'meio') {
+    vals.request_unit_half = true;
+    vals.request_date_to = data;
+    vals.request_date_from_period = (b.periodo === 'pm') ? 'pm' : 'am';
+  } else if (modo === 'horas') {
+    const h = Math.min(8, Math.max(0.5, Number(b.horas) || 1));
+    vals.request_unit_hours = true;
+    vals.request_date_to = data;
+    const ini = 9;                            // janela padrão a partir das 9h
+    vals.request_hour_from = String(ini);
+    vals.request_hour_to = String(ini + h);
+  }
+
+  const id = await exec('hr.leave', 'create', [vals]);
+  // 5) Tenta enviar para aprovação (não falha o pedido se o fluxo não permitir).
+  try { await exec('hr.leave', 'action_confirm', [[id]]); } catch (e) { /* fica como rascunho */ }
+
+  const link = `${url.replace(/\/+$/, '')}/web#id=${id}&model=hr.leave&view_type=form`;
+  return json(res, 200, { ok: true, id, funcionario: emps[0].name, url: link });
+}
+
 // Schema da saída (structured outputs): garante JSON válido e do formato esperado.
 const SCHEMA = {
   type: 'object',
@@ -116,6 +211,13 @@ async function chamaClaude(apiKey, payload) {
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
+    const b = await lerBody(req);
+
+    // Solicitação de folga (compensação de horas extras) — Odoo. Mesma rota por
+    // causa do limite de 12 funções; selecionada por ?acao=folga (ou body.acao).
+    const acao = String((req.query && req.query.acao) || b.acao || '').trim();
+    if (acao === 'folga') return await criaFolga(res, b);
+
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
     if (!apiKey) {
       return json(res, 200, {
@@ -125,7 +227,6 @@ export default async function handler(req, res) {
       });
     }
 
-    const b = await lerBody(req);
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });
 
