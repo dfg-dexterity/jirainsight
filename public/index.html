@@ -771,6 +771,13 @@
   .pl-grid{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
   .pl-grid select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:170px;max-width:320px}
+  /* Inputs do formulário (Admin/Planejar) — mesmo visual dos selects; sem isto o
+     campo de data fica estreito e o ícone do calendário some/fica difícil de clicar. */
+  .pl-grid input[type=text],.pl-grid input[type=number],.pl-grid input[type=date]{
+    font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:170px;box-sizing:border-box}
+  .pl-grid input[type=date]{cursor:pointer}
+  .pl-grid input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.85}
   .pl-dica{font-size:12px;color:var(--muted);margin:6px 0 12px;line-height:1.6}
   .pl-destino{background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;
     margin-bottom:12px;font-size:13px}
@@ -4449,6 +4456,10 @@ function renderAdmin(){
   const tsel=document.getElementById('ad-tipo'); if(tsel) tsel.addEventListener('change', amsToggleForm);
   ['ad-apur','ad-hciclo','ad-valor'].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input', amsResumoForm); });
   if(document.getElementById('ad-apur')) document.getElementById('ad-apur').addEventListener('change', amsResumoForm);
+  // Abre o seletor nativo ao clicar em qualquer parte do campo de data (não só no
+  // ícone) — alguns navegadores não abrem o calendário ao clicar no texto.
+  const din=document.getElementById('ad-inicio');
+  if(din) din.addEventListener('click', ()=>{ try{ if(din.showPicker) din.showPicker(); }catch(e){} });
   amsToggleForm();
 }
 // Mostra/esconde os campos de AMS conforme o tipo e atualiza o resumo derivado (h/ano, parcela).
@@ -5158,6 +5169,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-23','🛠️ <b>Admin — correção no campo "Início da vigência"</b>: o campo de data do cadastro de contratos ganhou estilo próprio (largura e ícone do calendário visíveis) e passou a <b>abrir o calendário ao clicar em qualquer parte do campo</b> — antes, sem estilo, o seletor ficava espremido e difícil de abrir.'],
   ['2026-06-22','🌴 <b>Resumo — meta acima de 100% e folga</b>: a aba Resumo ganhou a coluna <b>Meta</b> por pessoa. Passar de 100% <b>não é ruim</b> — é sinal de quem trabalhou além do previsto (fica em verde). Quando alguém acumula <b>mais de 6h extras por semana</b> aparece o botão <b>🌴 Folga</b>, que abre um pedido de folga (compensação) e cria a solicitação de <b>Time Off no Odoo</b> para a pessoa. Requer configurar as variáveis ODOO_* na Vercel.'],
   ['2026-06-22','📋 <b>Admin — detalhes do contrato</b>: cada contrato cadastrado agora mostra os <b>dados completos</b> num quadro legível (apuração, valor-hora, horas/ciclo, parcela, valor anual, mín/teto mensal, vigência, banco de horas, projetos e obs). Contrato <b>AMS sem projetos mapeados</b> ganha um aviso (ele não aparece na apuração da aba AMS até mapear os projetos).'],
   ['2026-06-22','📅 <b>AMS por ciclo (sem período do topo)</b>: na aba AMS o seletor de <b>Período</b> tradicional sai — a seleção é só pelo <b>navegador de ciclos</b> (trimestre/período do contrato). E clicando num <b>mês do ciclo</b> abre os <b>apontamentos por chamado</b> daquele mês (cada chamado com as linhas data · pessoa · horas e link para o Jira).'],
