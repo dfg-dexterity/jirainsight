@@ -49,10 +49,63 @@ function validaItem(it) {
   return '';
 }
 
+// Feedback da tela de Ajuda (Dúvida/Sugestão/Bug): cria um ISSUE no GitHub do
+// projeto usando um token de serviço (não usa o Jira). Consolidado aqui para
+// respeitar o limite de 12 Serverless Functions do plano Hobby.
+// Env: GITHUB_TOKEN (issues:write) e GITHUB_ISSUES_REPO (owner/repo).
+const FB_TIPOS = {
+  duvida: { label: 'dúvida', pref: 'Dúvida' },
+  sugestao: { label: 'sugestão', pref: 'Sugestão' },
+  bug: { label: 'bug', pref: 'Bug' },
+};
+async function criaFeedbackGitHub(res, b) {
+  const token = (process.env.GITHUB_TOKEN || process.env.GH_FEEDBACK_TOKEN || '').trim();
+  const repo = (process.env.GITHUB_ISSUES_REPO || 'dfg-dexterity/jirainsight').trim();
+  if (!token) {
+    return json(res, 200, { ok: false, configurado: false, erro: 'Integração com o GitHub não configurada. Defina GITHUB_TOKEN na Vercel.' });
+  }
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    return json(res, 200, { ok: false, erro: 'GITHUB_ISSUES_REPO inválido (use owner/repo).' });
+  }
+  const t = FB_TIPOS[b.tipo] || FB_TIPOS.sugestao;
+  const titulo = String(b.titulo || '').trim();
+  if (!titulo) return json(res, 400, { ok: false, erro: 'Dê um título.' });
+  const detalhes = String(b.detalhes || '').trim().slice(0, 20000);
+  const rep = (b.reporter && typeof b.reporter === 'object') ? b.reporter : {};
+  const nome = String(rep.nome || '').trim().slice(0, 120);
+  const email = String(rep.email || '').trim().slice(0, 160);
+  const corpo = [
+    detalhes || '_(sem detalhes)_',
+    '',
+    '---',
+    `**Tipo:** ${t.pref}`,
+    (nome || email) ? `**Reportado por:** ${nome}${email ? ` (${email})` : ''}` : '',
+    '**Origem:** painel Insights de Uso (Jira + Clockwork) — tela de Ajuda',
+  ].filter(Boolean).join('\n');
+  const r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'jirainsight-feedback',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify({ title: `${t.pref}: ${titulo}`.slice(0, 250), body: corpo, labels: [t.label] }),
+  });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* sem corpo */ }
+  if (!r.ok) {
+    return json(res, 200, { ok: false, erro: `GitHub ${r.status}: ${String(data.message || '').slice(0, 200)}` });
+  }
+  return json(res, 200, { ok: true, numero: data.number, url: data.html_url });
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
     const b = await lerBody(req);
+    if (b.feedback) return await criaFeedbackGitHub(res, b);
     const email = String(b.email || '').trim();
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {

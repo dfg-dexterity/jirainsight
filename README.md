@@ -64,6 +64,8 @@ scripts/
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
 | `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
+| `GITHUB_TOKEN` | não | token do GitHub (`issues:write`) usado pela tela **Ajuda → Falar com a gente** para abrir **issues no GitHub** (`POST /api/criar` com `feedback:true`). Sem ele, o formulário avisa que falta configurar |
+| `GITHUB_ISSUES_REPO` | não | repositório destino dos issues de feedback no formato `owner/repo` (padrão `dfg-dexterity/jirainsight`) |
 | `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
 | `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
 | `ODOO_URL` | não | base do Odoo (ex.: `https://suaempresa.odoo.com`) — habilita o botão **🌴 Folga** na aba Resumo (`POST /api/resumo?acao=folga`) |
