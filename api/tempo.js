@@ -35,6 +35,7 @@ export default async function handler(req, res) {
       pessoas: enr.pessoas,
       projetos: enr.projetos,
       resumos: enr.resumos,
+      infos: enr.infos,
       worklogs: enr.worklogs,
     };
     return json(res, 200, cacheSet(ck, payload));

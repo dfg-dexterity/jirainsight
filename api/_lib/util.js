@@ -174,7 +174,32 @@ export async function jiraSearchAll({ jql, fields, expand, maxPages = 60, pageSi
   return { issues: out, pages, truncado: !!nextPageToken };
 }
 
-// Resolve metadados (projeto, tipo) para uma lista de IDs numéricos de issue.
+// Campos customizados do Jira usados na aba AMS (IDs estáveis por instância; podem
+// ser sobrescritos por env, separados por vírgula). "Produto" e "Processo" têm DUAS
+// variantes na instância da Dexterity — usamos a primeira preenchida.
+const CAMPOS_AMS = {
+  chamadoCliente: (process.env.JIRA_CF_CHAMADO_CLIENTE || 'customfield_10270').split(',').map((s) => s.trim()).filter(Boolean),
+  causaRaiz: (process.env.JIRA_CF_CAUSA_RAIZ || 'customfield_10759').split(',').map((s) => s.trim()).filter(Boolean),
+  produto: (process.env.JIRA_CF_PRODUTO || 'customfield_10766,customfield_10760').split(',').map((s) => s.trim()).filter(Boolean),
+  processo: (process.env.JIRA_CF_PROCESSO || 'customfield_10765,customfield_10761').split(',').map((s) => s.trim()).filter(Boolean),
+};
+const CAMPOS_AMS_IDS = [...new Set([].concat(...Object.values(CAMPOS_AMS)))];
+
+// Converte o valor de um campo do Jira para texto: trata string/número, opção única
+// ({value}), multi-seleção ([{value}, …]) e objetos com name/displayName.
+function valorCampoJira(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map(valorCampoJira).filter(Boolean).join(', ');
+  if (typeof v === 'object') return String(v.value || v.name || v.displayName || '');
+  return String(v);
+}
+// Primeiro dos campos candidatos que estiver preenchido (resolve as duplicatas).
+function primeiroCampo(f, ids) {
+  for (const id of ids) { const s = valorCampoJira(f[id]).trim(); if (s) return s; }
+  return '';
+}
+
+// Resolve metadados (projeto, tipo + campos AMS) para uma lista de IDs de issue.
 // Usado pela função de tempo para enriquecer os worklogs do Clockwork.
 export async function jiraResolveIssues(ids) {
   const mapa = {};
@@ -183,7 +208,7 @@ export async function jiraResolveIssues(ids) {
     const lote = unicos.slice(i, i + 100);
     const { issues } = await jiraSearchAll({
       jql: `id in (${lote.join(',')})`,
-      fields: ['project', 'issuetype', 'summary'],
+      fields: ['project', 'issuetype', 'summary', ...CAMPOS_AMS_IDS],
       pageSize: 100,
       maxPages: 1,
     });
@@ -198,6 +223,10 @@ export async function jiraResolveIssues(ids) {
         tipoDesc: (f.issuetype && f.issuetype.description) || '',
         issueKey: it.key || '',
         resumo: f.summary || '',
+        chamadoCliente: primeiroCampo(f, CAMPOS_AMS.chamadoCliente),
+        causaRaiz: primeiroCampo(f, CAMPOS_AMS.causaRaiz),
+        produto: primeiroCampo(f, CAMPOS_AMS.produto),
+        processo: primeiroCampo(f, CAMPOS_AMS.processo),
       };
     }
   }
@@ -271,7 +300,7 @@ export async function worklogsEnriquecidos(startDate, endDate) {
   const brutos = await clockworkRaw(startDate, endDate);
   const ids = brutos.map((w) => String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '')).filter(Boolean);
   const meta = ids.length ? await jiraResolveIssues(ids) : {};
-  const pessoas = {}; const projetos = {}; const resumos = {}; const worklogs = [];
+  const pessoas = {}; const projetos = {}; const resumos = {}; const infos = {}; const worklogs = [];
   for (const w of brutos) {
     const author = w.author || {}; const aid = author.accountId;
     if (!aid) continue;
@@ -281,9 +310,13 @@ export async function worklogsEnriquecidos(startDate, endDate) {
     if (!projetos[m.projetoKey]) projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
     const ik = m.issueKey || (w.issue && w.issue.key) || '';
     if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
+    // Campos AMS por chamado (Número do Chamado Cliente, Causa Raiz, Produto, Processo).
+    if (ik && !infos[ik] && (m.chamadoCliente || m.causaRaiz || m.produto || m.processo)) {
+      infos[ik] = { cc: m.chamadoCliente || '', cr: m.causaRaiz || '', pr: m.produto || '', pc: m.processo || '' };
+    }
     worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik });
   }
-  return { pessoas, projetos, resumos, worklogs };
+  return { pessoas, projetos, resumos, infos, worklogs };
 }
 
 export function json(res, status, obj) {
