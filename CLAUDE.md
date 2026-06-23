@@ -12,9 +12,13 @@ Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
 
 Existe um manual no Notion que documenta **todas as funcionalidades** + um **changelog**:
 
-- Título: **Manual — Insights de Uso (Jira + Clockwork)**
-- URL: https://app.notion.com/p/37bc69371e178124b315c6bc7ac0a2ad
-- Page ID: `37bc6937-1e17-8124-b315-c6bc7ac0a2ad`
+- Título: **TI-14-001 - Overview Jira Insights** (em *Processos Dexterity*)
+- URL: https://www.notion.so/dexterityitsolutions/TI-14-001-Overview-Jira-Insights-388c69371e178034b6dfd5ca9efad81c
+- Page ID: `388c6937-1e17-8034-b6df-d5ca9efad81c`
+
+> **Atualizado em 2026-06-23 (a pedido do usuário):** o manual passou a ser esta
+> página. A página antiga (`37bc6937-1e17-8124-b315-c6bc7ac0a2ad`, "Manual — Insights
+> de Uso") está **descontinuada** — não atualizar mais.
 
 **Acordo de trabalho (solicitado pelo usuário em 2026-06-10):** sempre que uma
 funcionalidade desta ferramenta for **adicionada ou alterada** a pedido do usuário,
