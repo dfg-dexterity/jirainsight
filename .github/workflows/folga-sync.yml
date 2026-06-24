@@ -1,0 +1,46 @@
+name: Sincronizar folgas (Odoo → Jira)
+
+# Dispara o endpoint /api/resumo?acao=folga-sync, que lê as folgas APROVADAS no Odoo e
+# cria 1 ticket no Jira (TAD) por dia útil, atribuído à pessoa, com worklog no nome dela.
+# É idempotente (Supabase), então rodar com frequência é seguro. O cron da Vercel exige
+# plano Pro; o GitHub Actions é gratuito e cobre o agendamento.
+
+on:
+  schedule:
+    # A cada 15 min em dias úteis. O endpoint só processa o que ainda não foi criado.
+    - cron: '*/15 * * * 1-5'
+  workflow_dispatch:          # disparo manual (aba Actions → Run workflow)
+    inputs:
+      dry:
+        description: 'dry=1 apenas simula (lista o que criaria, sem criar nada)'
+        required: false
+        default: '0'
+
+# Evita execuções sobrepostas.
+concurrency:
+  group: folga-sync
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar /api/resumo?acao=folga-sync
+        env:
+          # URL do endpoint em produção. Defina o secret FOLGA_SYNC_URL para sobrescrever
+          # (ex.: domínio próprio). Sem ele, usa o padrão abaixo.
+          URL: ${{ secrets.FOLGA_SYNC_URL }}
+          # Se você definiu CRON_SECRET na Vercel, crie o MESMO valor como secret do
+          # repositório para o endpoint aceitar a chamada.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DRY: ${{ github.event.inputs.dry }}
+        run: |
+          set -euo pipefail
+          URL="${URL:-https://jirainsight.vercel.app/api/resumo?acao=folga-sync}"
+          if [ "${DRY:-0}" = "1" ]; then URL="${URL}&dry=1"; fi
+          AUTH=()
+          if [ -n "${CRON_SECRET:-}" ]; then AUTH=(-H "Authorization: Bearer ${CRON_SECRET}"); fi
+          echo "GET ${URL%%&dry=1}"
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' "${AUTH[@]}" "$URL")
+          echo "HTTP $code"; cat /tmp/resp.json; echo
+          test "$code" -ge 200 && test "$code" -lt 300
