@@ -75,7 +75,7 @@ scripts/
 | `ODOO_FOLGA_TIPO_ID` | não | id (número) **ou** nome do *Tipo de ausência* (`hr.leave.type`) usado nas folgas, ex.: `Compensação de horas` |
 | `JIRA_FOLGA_PROJETO` | não | projeto Jira onde a automação **folga aprovada → ticket** cria os tickets (id ou key; padrão `10442` = TAD) |
 | `JIRA_FOLGA_TIPO` | não | id do tipo de issue dos tickets de folga (padrão `10009` = Tarefa) |
-| `JIRA_FOLGA_DEPT_FIELD` / `JIRA_FOLGA_DEPT_VALUE` | não | campo e valor do *Departamento Dexterity* nos tickets de folga (padrões `customfield_10924` / `RH - Pessoas & Cultura`). Deixe o campo vazio para não preencher |
+| `JIRA_FOLGA_DEPT_FIELD` / `JIRA_FOLGA_DEPT_VALUE` | não | campo e valor do *Departamento Dexterity* nos tickets de folga (padrões `customfield_10924` / `RH - Pessoas & Cultura`). Para **não** preencher o campo, defina `JIRA_FOLGA_DEPT_FIELD=off` |
 | `JIRA_FOLGA_HORAS_DIA` | não | sobrepõe a jornada (horas/dia) do worklog; vazio = usa a jornada do Odoo (`resource.calendar.hours_per_day`, fallback 8) |
 | `FOLGA_SYNC_LOOKBACK_DIAS` | não | janela (dias) de folgas aprovadas recentes a varrer por execução (padrão 14) |
 | `FOLGA_SYNC_MAX` | não | máximo de folgas processadas por execução (padrão 200) |
@@ -142,7 +142,7 @@ pulando fim de semana/feriado); meio período/horas = 1 ticket. **Idempotente** 
     issue_key   text,
     worklog_id  text,
     horas       numeric,
-    status      text,                         -- criado | sem_mapeamento | erro
+    status      text,                         -- criado | processando | sem_mapeamento | erro
     erro        text,
     tentativas  int  not null default 0,      -- nº de tentativas que falharam (teto evita retry infinito)
     created_at  timestamptz default now(),

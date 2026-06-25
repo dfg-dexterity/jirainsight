@@ -18,7 +18,7 @@
 import { jiraBase, jiraAuthHeader, json } from './util.js';
 
 const env = (k) => (process.env[k] || '').trim();
-const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+const num = (v, d) => { if (v === '' || v === null || v === undefined) return d; const n = Number(v); return Number.isFinite(n) ? n : d; };
 const TAB = 'jirainsight_folgas';
 
 // ---------------- Odoo (JSON-RPC) ----------------
@@ -172,7 +172,8 @@ export async function sincronizaFolgas(req, res) {
 
     const PROJ = env('JIRA_FOLGA_PROJETO') || '10442';
     const TIPO = env('JIRA_FOLGA_TIPO') || '10009';
-    const DEPT_FIELD = env('JIRA_FOLGA_DEPT_FIELD') || 'customfield_10924';
+    const DEPT_RAW = env('JIRA_FOLGA_DEPT_FIELD');
+    const DEPT_FIELD = DEPT_RAW === 'off' ? '' : (DEPT_RAW || 'customfield_10924');   // "off" = não preenche
     const DEPT_VALUE = env('JIRA_FOLGA_DEPT_VALUE') || 'RH - Pessoas & Cultura';
     const HORAS_OVERRIDE = num(env('JIRA_FOLGA_HORAS_DIA'), 0);
     const LOOKBACK = Math.max(1, num(env('FOLGA_SYNC_LOOKBACK_DIAS'), 14));
@@ -237,7 +238,8 @@ export async function sincronizaFolgas(req, res) {
 
     // 4) Já processados (idempotência) + nº de tentativas (evita retry infinito).
     const existentes = await sbSelectPorLeaves(s, leaves.map((l) => l.id));
-    const jaCriado = new Set(existentes.filter((r) => r.issue_key).map((r) => r.id));
+    // "Já feito" = ticket criado OU reservado ('processando') — não recria (evita duplicata).
+    const jaFeito = new Set(existentes.filter((r) => r.issue_key || r.status === 'processando').map((r) => r.id));
     const tentPorId = Object.fromEntries(existentes.map((r) => [r.id, Number(r.tentativas) || 0]));
 
     const erros = []; let criados = 0; let pulados = 0; let semMap = 0; let desistidos = 0; const previa = [];
@@ -259,19 +261,24 @@ export async function sincronizaFolgas(req, res) {
 
         for (const dia of dias) {
           const id = `${lv.id}:${dia}`;
-          if (jaCriado.has(id)) { pulados += 1; continue; }
+          if (jaFeito.has(id)) { pulados += 1; continue; }
           const tent = tentPorId[id] || 0;
           if (tent >= MAX_TENT) { desistidos += 1; continue; }       // já falhou demais; não insiste
           const { segundos, started } = worklogDoDia(lv, dia, horasDia);
           const horas = +(segundos / 3600).toFixed(2);
           const tipoAus = (Array.isArray(lv.holiday_status_id) ? lv.holiday_status_id[1] : '') || 'Folga';
+          const linha = { id, leave_id: lv.id, dia, email, horas, tentativas: tent + 1 };
 
           if (!accountId) {
             semMap += 1;
-            if (!dry) await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: '', issue_key: null, worklog_id: null, horas, status: 'sem_mapeamento', erro: (erroLookup || `Sem accountId no Jira para ${email || nome}.`).slice(0, 400), tentativas: tent + 1 });
+            if (!dry) await sbUpsert(s, { ...linha, account_id: '', issue_key: null, worklog_id: null, status: 'sem_mapeamento', erro: (erroLookup || `Sem accountId no Jira para ${email || nome}.`).slice(0, 400) });
             continue;
           }
           if (dry) { previa.push({ id, nome, dia, email, horas, tipo: tipoAus }); continue; }
+
+          // Reserva a linha ANTES de criar o ticket ("claim"): se o Supabase cair
+          // depois da criação, a próxima execução vê 'processando' e não duplica.
+          await sbUpsert(s, { ...linha, account_id: accountId, issue_key: null, worklog_id: null, status: 'processando', erro: null });
 
           // Cria o ticket no TAD, atribuído à pessoa, com data limite = o dia.
           const fields = {
@@ -285,12 +292,12 @@ export async function sincronizaFolgas(req, res) {
           const tk = await criaTicketJira(base, auth, fields);
           if (!tk.ok) {
             erros.push({ id, erro: tk.erro });
-            await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: null, worklog_id: null, horas, status: 'erro', erro: tk.erro.slice(0, 400), tentativas: tent + 1 });
+            await sbUpsert(s, { ...linha, account_id: accountId, issue_key: null, worklog_id: null, status: 'erro', erro: tk.erro.slice(0, 400) });
             continue;
           }
           // Aponta o trabalho no nome da pessoa (Clockwork). Não falha o ticket se o worklog falhar.
           const wl = await worklogClockwork({ issueKey: tk.key, segundos, started, accountId, comment: `Folga (${tipoAus})` });
-          await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: tk.key, worklog_id: wl.ok ? wl.worklogId : null, horas, status: 'criado', erro: wl.ok ? null : (wl.erro || '').slice(0, 400), tentativas: tent });
+          await sbUpsert(s, { ...linha, account_id: accountId, issue_key: tk.key, worklog_id: wl.ok ? wl.worklogId : null, status: 'criado', erro: wl.ok ? null : (wl.erro || '').slice(0, 400) });
           criados += 1;
           if (!wl.ok) erros.push({ id, issue: tk.key, erro: `worklog: ${wl.erro}` });
         }
