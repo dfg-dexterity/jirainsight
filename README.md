@@ -60,7 +60,7 @@ scripts/
 | `JIRA_CF_CAUSA_RAIZ` | não | id do campo "Causa Raiz" usado nos relatórios da aba AMS (padrão `customfield_10759`) |
 | `JIRA_CF_PRODUTO` | não | id(s) do campo "Produto" (relatórios AMS) — aceita vários separados por vírgula, usa o 1º preenchido (padrão `customfield_10766,customfield_10760`) |
 | `JIRA_CF_PROCESSO` | não | id(s) do campo "Processo" (relatórios AMS) — aceita vários separados por vírgula, usa o 1º preenchido (padrão `customfield_10765,customfield_10761`) |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`) e convites de reunião (`jirainsight_convites`) |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | não | config compartilhada (`jirainsight_config`), convites de reunião (`jirainsight_convites`) e idempotência da folga-sync (`jirainsight_folgas`) |
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
 | `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
@@ -73,6 +73,15 @@ scripts/
 | `ODOO_LOGIN` | não | login da **conta de serviço** que cria as folgas (precisa de direitos de Time Off) |
 | `ODOO_API_KEY` | não | API Key do Odoo (Preferências → Conta → Segurança) ou a senha da conta de serviço |
 | `ODOO_FOLGA_TIPO_ID` | não | id (número) **ou** nome do *Tipo de ausência* (`hr.leave.type`) usado nas folgas, ex.: `Compensação de horas` |
+| `JIRA_FOLGA_PROJETO` | não | projeto Jira onde a automação **folga aprovada → ticket** cria os tickets (id ou key; padrão `10442` = TAD) |
+| `JIRA_FOLGA_TIPO` | não | id do tipo de issue dos tickets de folga (padrão `10009` = Tarefa) |
+| `JIRA_FOLGA_DEPT_FIELD` / `JIRA_FOLGA_DEPT_VALUE` | não | campo e valor do *Departamento Dexterity* nos tickets de folga (padrões `customfield_10924` / `RH - Pessoas & Cultura`). Para **não** preencher o campo, defina `JIRA_FOLGA_DEPT_FIELD=off` |
+| `JIRA_FOLGA_HORAS_DIA` | não | sobrepõe a jornada (horas/dia) do worklog; vazio = usa a jornada do Odoo (`resource.calendar.hours_per_day`, fallback 8) |
+| `FOLGA_SYNC_LOOKBACK_DIAS` | não | janela (dias) de folgas aprovadas recentes a varrer por execução (padrão 14) |
+| `FOLGA_SYNC_MAX` | não | máximo de folgas processadas por execução (padrão 200) |
+| `JIRA_FOLGA_MAP` | não | JSON `{"email":"accountId"}` para exceções de mapeamento Odoo→Jira quando o e-mail não bate |
+| `CLOCKWORK_ESCRITA` | não | `1` habilita o worklog automático (no nome da pessoa) via API do Clockwork — usado pela folga-sync e pelos convites |
+| `CRON_SECRET` | não | protege os endpoints de cron (`/api/teams` e `/api/resumo?acao=folga-sync`) com `Authorization: Bearer` |
 
 ### Convites de reunião (apontamento em grupo)
 
@@ -97,6 +106,54 @@ de Time Off no Odoo** (`hr.leave`) **para a pessoa** — localizada pelo **e-mai
 (ou pelo nome, como fallback). Usa a API externa do Odoo (JSON-RPC) com uma **conta de serviço**.
 Requer `ODOO_URL`, `ODOO_DB`, `ODOO_LOGIN`, `ODOO_API_KEY` e `ODOO_FOLGA_TIPO_ID` (id ou
 nome do tipo de ausência). Sem essas variáveis, o formulário avisa que falta configurar.
+
+#### Folga aprovada no Odoo → ticket no Jira (automação)
+
+Quando uma ausência é **aprovada** no Odoo (`hr.leave` em `state = 'validate'`), uma
+automação cria **1 ticket no Jira por dia útil** da folga, **atribuído à pessoa**, com
+**data limite = o dia** e o campo *Departamento Dexterity* preenchido; e **registra o
+worklog no nome da pessoa** (via Clockwork). Multi-dia vira vários tickets (1 por dia útil,
+pulando fim de semana/feriado); meio período/horas = 1 ticket. **Idempotente** por
+`leave_id + dia`.
+
+- **Endpoint:** `GET /api/resumo?acao=folga-sync` (consolidado para respeitar o limite de 12
+  funções; lógica em `api/_lib/folgaSync.js`). Como **cria** registros, **exige `CRON_SECRET`**
+  (sem ele, responde "não configurado"; com header errado, 401). `?dry=1` simula sem criar nada.
+- **Agendamento:** GitHub Actions `.github/workflows/folga-sync.yml` (a cada 15 min, dias
+  úteis). Como é idempotente, rodar com frequência é seguro. Defina o secret `CRON_SECRET`
+  (e, opcional, `FOLGA_SYNC_URL`) no repositório, iguais aos da Vercel.
+- **Mapeamento pessoa Odoo↔Jira:** por **e-mail** (`work_email` do Odoo = e-mail do Jira →
+  `accountId`). Exceções: `JIRA_FOLGA_MAP` (JSON `{"email":"accountId"}`). Sem `accountId`,
+  o dia fica `sem_mapeamento` (sem criar) e é reprocessado quando o mapeamento existir.
+- **Worklog:** requer `CLOCKWORK_ESCRITA=1` + `CLOCKWORK_API_TOKEN` (apontamento sai no nome
+  da pessoa). Horas/dia = jornada do Odoo (`resource.calendar.hours_per_day`), meio período =
+  metade, horas específicas = `request_hour_to − request_hour_from`.
+- **Tickets:** criados pela **conta de serviço** (`JIRA_EMAIL`/`JIRA_API_TOKEN`) e atribuídos
+  à pessoa (não há token individual numa automação).
+- **Estado/idempotência (Supabase):** crie a tabela `jirainsight_folgas`:
+
+  ```sql
+  create table if not exists jirainsight_folgas (
+    id          text primary key,            -- "{leave_id}:{YYYY-MM-DD}"
+    leave_id    bigint,
+    dia         date,
+    email       text,
+    account_id  text,
+    issue_key   text,
+    worklog_id  text,
+    horas       numeric,
+    status      text,                         -- criado | processando | sem_mapeamento | erro
+    erro        text,
+    tentativas  int  not null default 0,      -- nº de tentativas que falharam (teto evita retry infinito)
+    created_at  timestamptz default now(),
+    updated_at  timestamptz default now()
+  );
+  ```
+
+> **v1:** a automação apenas **cria** os tickets. Reversões no Odoo (recusa/cancelamento ou
+> edição de datas de uma folga já aprovada) **não** cancelam/ajustam os tickets — fica para
+> uma fase 2. Como **"qualquer ausência aprovada"** vira ticket, na primeira execução rode
+> com `?dry=1` para conferir o volume antes de ligar o cron.
 
 ### 📊 Visão Geral (tela executiva — inicial)
 

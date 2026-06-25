@@ -10,6 +10,7 @@
 // Corpo: { periodo:{label,diasUteis}, equipe:{...}, pessoas:[{id,nome,...}] }
 // Resposta: { ok, geral, pessoas:[{id, resumo, sinal}] }
 import { json } from './_lib/util.js';
+import { sincronizaFolgas } from './_lib/folgaSync.js';
 
 const MODELO = process.env.ANTHROPIC_MODELO || 'claude-opus-4-8';
 const MAX_PESSOAS = 25;
@@ -210,6 +211,10 @@ async function chamaClaude(apiKey, payload) {
 
 export default async function handler(req, res) {
   try {
+    // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
+    // (cron do GitHub Actions, protegido por CRON_SECRET) — tratada antes do guard de POST.
+    if (String((req.query && req.query.acao) || '').trim() === 'folga-sync') return await sincronizaFolgas(req, res);
+
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
     const b = await lerBody(req);
 

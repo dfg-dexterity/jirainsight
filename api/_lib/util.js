@@ -135,7 +135,7 @@ export function jiraBase() {
   return base;
 }
 
-function jiraAuthHeader() {
+export function jiraAuthHeader() {
   const email = process.env.JIRA_EMAIL;
   const token = process.env.JIRA_API_TOKEN;
   if (!email || !token) throw new Error('JIRA_EMAIL / JIRA_API_TOKEN não configurados');
