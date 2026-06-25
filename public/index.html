@@ -534,6 +534,52 @@
   .al-det{font-size:12.5px;color:var(--texto2);line-height:1.45}
   .al-foot{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--texto2);margin-top:8px;border-top:1px dashed var(--linha);padding-top:7px}
   .al-acao{color:#0064D9}
+  /* Alertas — central de ação dos tickets atrasados */
+  .alx-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  .alx-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 12px}
+  .alx-filtros select,.alx-filtros input[type=number]{font-size:12.5px;padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao2);color:var(--grafite)}
+  .alx-filtros input[type=number]{width:80px}
+  .alx-filtros label.alx-chkf{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--texto2);cursor:pointer}
+  .alx-filtros .alx-limpar{margin-left:auto}
+  .alx-bulk{position:sticky;top:6px;z-index:5;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    background:var(--cartao);border:1px solid var(--linha);border-left:5px solid #0064D9;border-radius:11px;padding:9px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .alx-bulk .n{font-weight:700;color:var(--grafite)}
+  .alx-bulk .spacer{flex:1}
+  .alx-list{display:flex;flex-direction:column;gap:9px}
+  .alx-row{display:flex;gap:11px;align-items:flex-start;border:1px solid var(--linha);border-radius:11px;
+    padding:10px 13px;background:var(--cartao);border-left:5px solid #F59E0B}
+  .alx-row.crit{border-left-color:#D20A0A}
+  .alx-row.sel{box-shadow:0 0 0 2px rgba(0,100,217,.30)}
+  .alx-row.feito{opacity:.5}
+  .alx-chk{margin-top:3px;width:16px;height:16px;flex:none;cursor:pointer}
+  .alx-main{flex:1;min-width:0}
+  .alx-l1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .alx-key{font-weight:700;font-size:13.5px}
+  .alx-key a{color:var(--grafite)}
+  .alx-tit{font-size:13px;color:var(--texto2);margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .alx-meta{font-size:11.5px;color:var(--texto2);display:flex;gap:5px 12px;flex-wrap:wrap;margin-top:5px}
+  .alx-pill{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;line-height:1.7}
+  .alx-pill.dias{background:#FEF3C7;color:#92560B} .alx-pill.dias.crit{background:#FEE2E2;color:#B91C1C}
+  .alx-pill.prio{background:#EEF2FF;color:#3730A3} .alx-pill.sr{background:#FEE2E2;color:#B91C1C}
+  .alx-pill.st{background:var(--cartao2);color:var(--texto2);border:1px solid var(--linha)}
+  .alx-pill.reprog{background:#DCFCE7;color:#166534}
+  .alx-acoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .alx-fb{margin-top:7px;font-size:12px;width:100%}
+  .alx-vazio{padding:18px;text-align:center;color:var(--texto2)}
+  /* Modal de reprogramação */
+  .alx-rsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px 16px;
+    border:1px solid var(--linha);border-radius:11px;padding:12px 14px;background:var(--cartao2);margin:10px 0 4px}
+  .alx-rsum .dt{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .alx-rsum .dd{font-size:13px;color:var(--grafite);font-weight:600;margin-top:1px}
+  .alx-rsum .dd.nova{color:#0064D9} .alx-rsum .dd.atraso{color:#B91C1C}
+  .alx-campo{margin-top:14px}
+  .alx-campo > label{display:block;font-weight:700;font-size:12.5px;color:var(--grafite);margin-bottom:5px}
+  .alx-campo .req{color:#B91C1C}
+  select.alx-motivo,textarea.alx-coment{width:100%;font-size:13px;padding:8px 10px;border:1px solid var(--linha);
+    border-radius:9px;background:var(--cartao);color:var(--grafite);font-family:inherit}
+  textarea.alx-coment{min-height:104px;resize:vertical;line-height:1.5}
+  .alx-modal-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .alx-modal-acoes .spacer{flex:1}
   /* Administração — contratos */
   .ad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
   .ad-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left:5px solid #188918}
@@ -1114,8 +1160,11 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
   ajuda:{ projetos:null },
-  // Central de Alertas (motor de alertas acionáveis).
-  alertas:{ dados:null, carregando:false, erro:'', sev:'' },
+  // Central de Alertas (motor de alertas acionáveis + central de ação dos atrasados).
+  alertas:{ dados:null, carregando:false, erro:'', sev:'',
+    fResp:'', fProj:'', fPrio:'', fStatus:'', fTipo:'', fMinDias:0, soMeus:false, ord:'crit',
+    sel:{},        // {chave:true} tickets marcados para ação em lote
+    reprog:{} },   // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
@@ -4130,6 +4179,69 @@ function calcAlertas(){
   al.sort((a,b)=> (ordem[a.sev]-ordem[b.sev]) || a.cat.localeCompare(b.cat,'pt') || a.titulo.localeCompare(b.titulo,'pt'));
   return al;
 }
+// --- Central de ação dos tickets atrasados (reprogramação rápida com rastreabilidade) ---
+// Os motivos padrão funcionam como CATEGORIA OBRIGATÓRIA da reprogramação (governança:
+// permite depois analisar a causa-raiz dos atrasos). O último item é texto livre.
+const ALX_MOTIVOS=[
+  ['repri','Repriorização operacional','Data reprogramada devido à repriorização operacional da fila de atendimento.'],
+  ['valid','Dependência de validação','Data reprogramada porque a execução depende de validação ou retorno de terceiro.'],
+  ['cliente','Dependência do cliente','Data reprogramada porque o atendimento depende de retorno do cliente.'],
+  ['planej','Ajuste de planejamento','Data reprogramada para adequação ao planejamento atualizado da equipe.'],
+  ['analise','Necessidade de análise adicional','Data reprogramada porque o ticket exige análise adicional antes da execução.'],
+  ['capac','Capacidade do time','Data reprogramada considerando a capacidade atual do time e a priorização das demandas em aberto.'],
+  ['tecnico','Bloqueio técnico','Data reprogramada devido a bloqueio técnico identificado durante a análise.'],
+  ['info','Aguardando informação','Data reprogramada porque existem informações pendentes necessárias para continuidade.'],
+  ['outro','Outro motivo (texto livre)',''],
+];
+let _alxReprog=null;   // contexto do modal aberto: { keys:[...], acao, nova }
+const alxDataBR=(iso)=> iso?`${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}`:'—';
+function alxTickets(){ const d=estado.alertas.dados; return (d&&d.tickets)||[]; }
+function alxProjNome(p){ const projs=(estado.alertas.dados&&estado.alertas.dados.projetos)||{}; return (projs[p]&&projs[p].nome)?`${p} — ${projs[p].nome}`:p; }
+function alxAtraso(venc,hoje){ return Math.max(0, Math.round((new Date(hoje)-new Date(venc))/86400000)); }
+function alxPrioRank(name){ const n=String(name||'').toLowerCase();
+  if(/highest|blocker|crít|crit|máxim|maxim|mais alta/.test(n)) return 5;
+  if(/high|alta|urg/.test(n)) return 4;
+  if(/medium|méd|med|normal/.test(n)) return 3;
+  if(/lowest|mínim|minim|trivial/.test(n)) return 1;
+  if(/low|baixa/.test(n)) return 2;
+  return 0; }
+function alxParado(status){ return /bloque|impedi|espera|aguard|parad|hold|pend|stuck|blocked|waiting/i.test(status||''); }
+// Tickets atrasados (vencidos), enriquecidos com dias de atraso, antes dos filtros da tela.
+function alxBaseAtrasados(hoje){
+  return alxTickets().filter(t=>t.venc && t.venc<hoje)
+    .map(t=>({ ...t, dias:alxAtraso(t.venc,hoje) }));
+}
+// Aplica os filtros da barra (responsável/projeto/prioridade/status/tipo/dias/só meus).
+function alxFiltra(base){
+  const a=estado.alertas, id=idApontar();
+  return base.filter(t=>{
+    if(a.fResp){ if(a.fResp==='__none__'){ if(t.respId) return false; } else if(t.respId!==a.fResp) return false; }
+    if(a.fProj && t.p!==a.fProj) return false;
+    if(a.fPrio && (t.prio||'')!==a.fPrio) return false;
+    if(a.fStatus && (t.status||'')!==a.fStatus) return false;
+    if(a.fTipo && (t.t||'')!==a.fTipo) return false;
+    if(a.fMinDias>0 && t.dias<a.fMinDias) return false;
+    if(a.soMeus && id&&id.accountId && t.respId!==id.accountId) return false;
+    return true;
+  });
+}
+// Ordenação (padrão: criticidade = atraso + prioridade + sem responsável + status parado).
+function alxOrdena(list){
+  const ord=estado.alertas.ord||'crit';
+  const score=(t)=> t.dias*10 + alxPrioRank(t.prio)*4 + (t.respId?0:6) + (alxParado(t.status)?3:0);
+  const arr=list.slice();
+  if(ord==='dias') arr.sort((x,y)=> y.dias-x.dias || (x.k<y.k?-1:1));
+  else if(ord==='prio') arr.sort((x,y)=> alxPrioRank(y.prio)-alxPrioRank(x.prio) || y.dias-x.dias);
+  else if(ord==='resp') arr.sort((x,y)=> (x.resp||'~').localeCompare(y.resp||'~','pt') || y.dias-x.dias);
+  else arr.sort((x,y)=> score(y)-score(x) || y.dias-x.dias);
+  return arr;
+}
+function alxOpts(base, val, lab, sel){
+  const m=new Map(); base.forEach(t=>{ const v=val(t); if(v && !m.has(v)) m.set(v,lab(t)); });
+  return [...m.entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'pt'))
+    .map(([v,l])=>`<option value="${escA(v)}" ${sel===v?'selected':''}>${esc(l)}</option>`).join('');
+}
+
 function renderAlertas(){
   const cont=document.getElementById('conteudo');
   const a=estado.alertas;
@@ -4145,11 +4257,96 @@ function renderAlertas(){
     <button class="btn" id="al-retry" style="margin-left:10px">Tentar de novo</button></div>`)); return; }
   if(!a.dados){ cont.replaceChildren(el('<div class="estado">Analisando alertas…</div>')); return; }
 
-  const todos=calcAlertas();
-  const c={critico:0,alto:0,medio:0,baixo:0}; todos.forEach(x=>{ c[x.sev]=(c[x.sev]||0)+1; });
+  const hoje=(a.dados.meta&&a.dados.meta.hoje)||hojeSP();
+  const id=idApontar();
+  const base=alxBaseAtrasados(hoje);              // todos os atrasados (para indicadores e opções de filtro)
+  const lista=alxOrdena(alxFiltra(base));         // após filtros + ordenação (o que aparece na lista)
+  const todos=alxTickets();
+  const venceHoje=todos.filter(t=>t.venc===hoje).length;
+  const semResp=base.filter(t=>!t.respId).length;
+  const mais7=base.filter(t=>t.dias>7).length;
+  const reprogN=Object.keys(a.reprog).length;
+  // Atrasados por responsável (top, clicável para filtrar).
+  const porResp={}; base.forEach(t=>{ const k=t.respId||'__none__'; (porResp[k]=porResp[k]||{n:0,nome:t.resp||'sem responsável'}).n++; });
+  const respTop=Object.entries(porResp).sort((x,y)=>y[1].n-x[1].n).slice(0,6);
+
+  // Seleção em lote: só conta os selecionados que ainda estão na lista filtrada.
+  const visiveis=new Set(lista.map(t=>t.k));
+  Object.keys(a.sel).forEach(k=>{ if(!visiveis.has(k)) delete a.sel[k]; });
+  const selN=Object.keys(a.sel).length;
+
+  const ind=`<div class="kpis ts-kpis">
+    <div class="kpi ${base.length?'w':'a'}"><div class="v">${base.length}</div><div class="l">⏰ Atrasados</div></div>
+    <div class="kpi ${mais7?'w':'a'}" data-tipk="atraso maior que 7 dias"><div class="v">${mais7}</div><div class="l">🔴 +7 dias</div></div>
+    <div class="kpi ${semResp?'w':'a'}"><div class="v">${semResp}</div><div class="l">👤 Sem responsável</div></div>
+    <div class="kpi t"><div class="v">${venceHoje}</div><div class="l">📅 Vencem hoje</div></div>
+    <div class="kpi a" ${reprogN?`data-tipk="${escA(Object.keys(a.reprog).join(', '))}"`:''}><div class="v">${reprogN}</div><div class="l">↺ Reprogramados (sessão)</div></div>
+  </div>`;
+
+  const respChips = respTop.length?`<div class="muted small" style="margin:2px 0 10px">Atrasados por responsável: ${respTop.map(([rid,o])=>
+    `<button class="chip" data-alx-resp="${escA(rid)}" aria-pressed="${a.fResp===rid}" style="margin:2px">${esc(o.nome)} · ${o.n}</button>`).join('')}</div>`:'';
+
+  const filtros=`<div class="alx-filtros">
+    <select data-alx-f="fResp" aria-label="Responsável"><option value="">Responsável: todos</option><option value="__none__" ${a.fResp==='__none__'?'selected':''}>— sem responsável —</option>${alxOpts(base,t=>t.respId,t=>t.resp||'(sem nome)',a.fResp)}</select>
+    <select data-alx-f="fProj" aria-label="Projeto"><option value="">Projeto: todos</option>${alxOpts(base,t=>t.p,t=>alxProjNome(t.p),a.fProj)}</select>
+    <select data-alx-f="fPrio" aria-label="Prioridade"><option value="">Prioridade: todas</option>${alxOpts(base,t=>t.prio,t=>t.prio,a.fPrio)}</select>
+    <select data-alx-f="fStatus" aria-label="Status"><option value="">Status: todos</option>${alxOpts(base,t=>t.status,t=>t.status,a.fStatus)}</select>
+    <select data-alx-f="fTipo" aria-label="Tipo"><option value="">Tipo: todos</option>${alxOpts(base,t=>t.t,t=>t.t,a.fTipo)}</select>
+    <label class="alx-chkf" data-tip="Atraso mínimo, em dias">≥ <input type="number" min="0" data-alx-f="fMinDias" value="${a.fMinDias||0}"> dias</label>
+    <label class="alx-chkf"><input type="checkbox" data-alx-f="soMeus" ${a.soMeus?'checked':''}> Apenas meus</label>
+    <select data-alx-f="ord" aria-label="Ordenar por"><option value="crit" ${a.ord==='crit'?'selected':''}>Ordem: criticidade</option><option value="dias" ${a.ord==='dias'?'selected':''}>mais atrasados</option><option value="prio" ${a.ord==='prio'?'selected':''}>prioridade</option><option value="resp" ${a.ord==='resp'?'selected':''}>responsável</option></select>
+    <button class="chip alx-limpar" data-alx-limpar="1" data-tip="Limpar filtros">limpar filtros</button>
+  </div>`;
+
+  const bulk = selN?`<div class="alx-bulk">
+    <span class="n">${selN} selecionado(s)</span>
+    <button class="chip primario-chip" data-alx-bulk="HOJE">Reprogramar p/ hoje</button>
+    <button class="chip" data-alx-bulk="AMANHA">p/ amanhã</button>
+    <button class="chip" data-alx-bulk="PROX" data-tip="Próxima segunda-feira">p/ semana que vem</button>
+    <span class="spacer"></span>
+    <button class="chip" data-alx-bulk-clear="1">limpar seleção</button>
+  </div>`:'';
+
+  const linhas=lista.map(t=>{
+    const link=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+    const sel=!!a.sel[t.k]; const crit=t.dias>7;
+    const rep=a.reprog[t.k];
+    return `<div class="alx-row ${crit?'crit':''} ${sel?'sel':''}" data-alx-rk="${escA(t.k)}">
+      <input type="checkbox" class="alx-chk" data-alx-sel="${escA(t.k)}" ${sel?'checked':''} aria-label="Selecionar ${escA(t.k)}">
+      <div class="alx-main">
+        <div class="alx-l1">
+          <span class="alx-key"><a href="${link}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></span>
+          <span class="alx-pill dias ${crit?'crit':''}">${t.dias}d em atraso</span>
+          ${t.prio?`<span class="alx-pill prio">${esc(t.prio)}</span>`:''}
+          ${!t.respId?'<span class="alx-pill sr">sem responsável</span>':''}
+          <span class="alx-pill st">${esc(t.status)}</span>
+          ${rep?`<span class="alx-pill reprog" data-tip="de ${escA(alxDataBR(rep.de))} → ${escA(alxDataBR(rep.para))} · ${escA(rep.motivo)}">↺ reprogramado</span>`:''}
+        </div>
+        <div class="alx-tit" data-tip="${escA(t.resumo||'')}">${esc(t.resumo||'(sem título)')}</div>
+        <div class="alx-meta"><span>📁 ${esc(alxProjNome(t.p))}</span><span>👤 ${esc(t.resp||'sem responsável')}</span><span>📅 vencia ${esc(alxDataBR(t.venc))}</span></div>
+        <div class="alx-acoes">
+          <button class="chip primario-chip" data-alx-reprog="HOJE" data-alx-k="${escA(t.k)}">Hoje</button>
+          <button class="chip" data-alx-reprog="AMANHA" data-alx-k="${escA(t.k)}">Amanhã</button>
+          <button class="chip" data-alx-reprog="PROX" data-alx-k="${escA(t.k)}" data-tip="Próxima segunda-feira">Semana que vem</button>
+          <a class="chip" href="${link}" target="_blank" rel="noopener">Abrir Jira ↗</a>
+          <button class="chip" data-alx-copiar="${escA(t.k)}" data-tip="Copiar um resumo do ticket">Copiar</button>
+        </div>
+        <div class="alx-fb" hidden></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const temSel=lista.length && lista.every(t=>a.sel[t.k]);
+  const cabLista=`<div class="alx-head">
+    <h2 style="margin:0">⏰ Tickets atrasados <span>${lista.length} de ${base.length} · ação rápida</span></h2>
+    <span class="spacer" style="flex:1"></span>
+    ${lista.length?`<button class="chip" data-alx-todos="${temSel?'0':'1'}">${temSel?'desmarcar todos':'selecionar todos'}</button>`:''}
+  </div>`;
+
+  // --- Outros alertas (não-atrasados): vence hoje, sem responsável, sem apontamento, abaixo da meta ---
+  const outros=calcAlertas().filter(x=>x.cat!=='Ticket vencido');
   const sevInfo={critico:['Crítico','🔴'],alto:['Alto','🟠'],medio:['Médio','🟡'],baixo:['Baixo','🔵']};
-  let lista=todos; if(a.sev) lista=lista.filter(x=>x.sev===a.sev);
-  const cards=lista.map(x=>{
+  const cardsOutros=outros.map(x=>{
     const [rot,ic]=sevInfo[x.sev]||['',''];
     return `<div class="al-card al-${esc(x.sev)}">
       <div class="al-top"><span class="al-sev">${ic} ${rot}</span><span class="al-cat">${esc(x.cat)}</span>
@@ -4159,19 +4356,171 @@ function renderAlertas(){
       <div class="al-foot"><span data-tip="Responsável">👤 ${esc(x.resp||'—')}</span><span class="spacer"></span><span class="al-acao">→ ${esc(x.acao)}</span></div>
     </div>`;
   }).join('');
+
   cont.replaceChildren(el(`<div>
-    <div class="kpis ts-kpis">
-      <div class="kpi w" data-al-sev="critico" aria-pressed="${a.sev==='critico'}" data-tipk="clique para filtrar"><div class="v">${c.critico}</div><div class="l">🔴 Críticos</div></div>
-      <div class="kpi w" data-al-sev="alto" aria-pressed="${a.sev==='alto'}" data-tipk="clique para filtrar"><div class="v">${c.alto}</div><div class="l">🟠 Altos</div></div>
-      <div class="kpi t" data-al-sev="medio" aria-pressed="${a.sev==='medio'}" data-tipk="clique para filtrar"><div class="v">${c.medio}</div><div class="l">🟡 Médios</div></div>
-      <div class="kpi a" data-al-sev="" aria-pressed="${a.sev===''}" data-tipk="clique para ver todos"><div class="v">${todos.length}</div><div class="l">Todos os alertas</div></div>
-    </div>
+    ${ind}
     <div class="card full">
-      <h2>🚨 Central de Alertas <span>ações recomendadas · ${lista.length} alerta(s)${a.sev?` · ${sevInfo[a.sev][0]}`:''}</span></h2>
-      <div class="muted small" style="margin-bottom:10px">Tickets vencidos/vencendo e sem responsável (próximos 7 dias) + pessoas sem apontamento ou abaixo da meta no período. AMS, orçamento de projeto e SLA entram quando os dados forem cadastrados.</div>
-      ${lista.length?`<div class="al-grid">${cards}</div>`:'<div class="aviso ok">✓ Nenhum alerta neste filtro. Tudo em dia!</div>'}
+      ${cabLista}
+      <div class="muted small" style="margin:2px 0 10px">Reprograme o vencimento (hoje · amanhã · semana que vem), justifique com um motivo padrão (categoria) e a mudança é gravada no Jira — data + comentário — com o <strong>seu</strong> usuário. ${id?'':'<button class="chip" data-ap-act="config-id">identifique-se para agir</button>'}</div>
+      ${respChips}
+      ${filtros}
+      ${bulk}
+      ${lista.length?`<div class="alx-list">${linhas}</div>`:`<div class="alx-vazio">${base.length?'Nenhum atrasado neste filtro.':'✓ Nenhum ticket atrasado. Tudo em dia!'}</div>`}
     </div>
+    <details class="card full" ${outros.length?'':'open'} style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:700">🔔 Outros alertas da operação <span class="muted small">(${outros.length}) — vencendo hoje, sem responsável, apontamento e metas</span></summary>
+      <div style="margin-top:10px">${outros.length?`<div class="al-grid">${cardsOutros}</div>`:'<div class="aviso ok">✓ Sem outros alertas no período.</div>'}</div>
+    </details>
   </div>`));
+}
+
+// Copia para a área de transferência um resumo acionável do ticket atrasado.
+function alxCopiar(btn,k){
+  const hoje=(estado.alertas.dados&&estado.alertas.dados.meta&&estado.alertas.dados.meta.hoje)||hojeSP();
+  const t=alxTickets().find(x=>x.k===k); if(!t) return;
+  const dias=alxAtraso(t.venc,hoje);
+  const link=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+  const msg=`${t.k} — ${t.resumo||''}\nResponsável: ${t.resp||'sem responsável'}\nProjeto: ${alxProjNome(t.p)}\nVencimento: ${alxDataBR(t.venc)} (${dias}d em atraso)\nStatus: ${t.status||'—'}\n${link}`;
+  const ok=()=>{ const o=btn.textContent; btn.textContent='copiado!'; setTimeout(()=>{ btn.textContent=o; },1400); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(ok).catch(()=>{});
+  else { try{ const ta=document.createElement('textarea'); ta.value=msg; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); ok(); }catch(e){} }
+}
+
+// Abre o modal de confirmação da reprogramação (1 ticket ou vários em lote).
+function abreModalReprog(keys, acao){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  keys=(keys||[]).filter(Boolean); if(!keys.length) return;
+  const hoje=(estado.alertas.dados&&estado.alertas.dados.meta&&estado.alertas.dados.meta.hoje)||hojeSP();
+  let nova=hoje;
+  if(acao==='AMANHA') nova=somaDias(hoje,1); else if(acao==='PROX') nova=proximaSegunda(); else nova=hoje;
+  _alxReprog={ keys, acao, nova };
+  const tk=(k)=>alxTickets().find(x=>x.k===k)||{k};
+  const motOpts='<option value="">— escolha o motivo (obrigatório) —</option>'+
+    ALX_MOTIVOS.map(m=>`<option value="${m[0]}">${esc(m[1])}</option>`).join('');
+  let resumo;
+  if(keys.length===1){
+    const t=tk(keys[0]); const dias=alxAtraso(t.venc,hoje);
+    const dl=(rot,val,cls)=>`<div><div class="dt">${rot}</div><div class="dd ${cls||''}">${val}</div></div>`;
+    resumo=`<div class="alx-rsum">
+      ${dl('Ticket', `<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>`)}
+      ${dl('Status', esc(t.status||'—'))}
+      ${dl('Responsável', esc(t.resp||'sem responsável'))}
+      ${dl('Projeto', esc(alxProjNome(t.p)))}
+      ${dl('Prioridade', esc(t.prio||'—'))}
+      ${dl('Atraso', dias+' dia(s)','atraso')}
+      ${dl('Vencimento atual', esc(alxDataBR(t.venc)))}
+      ${dl('Nova data', esc(alxDataBR(nova)),'nova')}
+    </div>
+    <div class="muted small" style="margin:4px 0 0">${esc(t.resumo||'')}</div>`;
+  } else {
+    const itens=keys.map(k=>{ const t=tk(k); const dias=alxAtraso(t.venc,hoje);
+      return `<li><strong>${esc(t.k)}</strong> — ${esc((t.resumo||'').slice(0,70))} <span class="muted">(${dias}d · ${esc(t.resp||'sem resp.')})</span></li>`; }).join('');
+    resumo=`<div class="alx-rsum"><div><div class="dt">Tickets selecionados</div><div class="dd">${keys.length}</div></div>
+      <div><div class="dt">Nova data (para todos)</div><div class="dd nova">${esc(alxDataBR(nova))}</div></div></div>
+      <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:150px;overflow:auto">${itens}</ul>`;
+  }
+  const linkBtn = keys.length===1 ? `<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(keys[0])}" target="_blank" rel="noopener">Abrir no Jira ↗</a>` : '';
+  abreModal(`
+    <h2>Reprogramar ${keys.length===1?esc(keys[0]):keys.length+' tickets'} → ${esc(alxDataBR(nova))}</h2>
+    ${resumo}
+    <div class="alx-campo">
+      <label>Motivo da reprogramação <span class="req">*</span> <span class="muted small">(categoria — obrigatória)</span></label>
+      <select class="alx-motivo" id="alx-motivo">${motOpts}</select>
+    </div>
+    <div class="alx-campo" id="alx-outro-wrap" hidden>
+      <label>Descreva o motivo <span class="req">*</span></label>
+      <input type="text" class="alx-coment" id="alx-outro" placeholder="Escreva o motivo da reprogramação…" style="min-height:0">
+    </div>
+    <div class="alx-campo">
+      <label>Comentário que será publicado no Jira <span class="muted small">(editável)</span></label>
+      <textarea class="alx-coment" id="alx-coment" placeholder="Escolha um motivo acima para gerar o comentário…"></textarea>
+      ${keys.length>1?'<div class="muted small" style="margin-top:5px">A data anterior de cada ticket é preenchida automaticamente no comentário.</div>':''}
+    </div>
+    <div class="alx-fb" id="alx-modal-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="alx-confirmar">Confirmar reprogramação</button>
+      <button class="btn" id="alx-cancelar">Cancelar</button>
+      <span class="spacer"></span>
+      ${linkBtn}
+    </div>
+  `);
+  alxAtualizaComent();
+}
+
+// Texto do motivo escolhido (padrão ou livre); '' se nada válido escolhido ainda.
+function alxMotivoTexto(){
+  const sel=(document.getElementById('alx-motivo')||{}).value||'';
+  if(!sel) return '';
+  if(sel==='outro') return (document.getElementById('alx-outro')||{}).value||'';
+  const m=ALX_MOTIVOS.find(x=>x[0]===sel); return m?m[2]:'';
+}
+// Regenera o comentário-modelo a partir do motivo e da nova data (mantém edição até trocar o motivo).
+function alxAtualizaComent(){
+  if(!_alxReprog) return;
+  const sel=(document.getElementById('alx-motivo')||{}).value||'';
+  const wrap=document.getElementById('alx-outro-wrap'); if(wrap) wrap.hidden=(sel!=='outro');
+  const ta=document.getElementById('alx-coment'); if(!ta) return;
+  const motivo=alxMotivoTexto();
+  const nova=alxDataBR(_alxReprog.nova);
+  const ant = _alxReprog.keys.length===1
+    ? alxDataBR((alxTickets().find(x=>x.k===_alxReprog.keys[0])||{}).venc)
+    : '[DATA_ANTERIOR]';
+  if(!sel){ ta.value=''; return; }
+  ta.value=`Ticket reprogramado de ${ant} para ${nova}.\n\nMotivo: ${motivo||'…'}\n\nAção realizada via painel de Alertas do Jira Insight.`;
+}
+
+// Confirma: para cada ticket → muda o duedate e publica o comentário no Jira (token da pessoa).
+async function confirmaReprog(){
+  const ctx=_alxReprog; if(!ctx) return;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const fb=document.getElementById('alx-modal-fb'); fb.hidden=false; fb.className='alx-fb ap-fb';
+  const sel=(document.getElementById('alx-motivo')||{}).value||'';
+  if(!sel){ fb.classList.add('err'); fb.textContent='Escolha o motivo (categoria obrigatória).'; return; }
+  const motivoTexto=alxMotivoTexto();
+  if(sel==='outro' && !motivoTexto.trim()){ fb.classList.add('err'); fb.textContent='Descreva o motivo da reprogramação.';
+    const o=document.getElementById('alx-outro'); if(o) o.focus(); return; }
+  const motivoLabel=(ALX_MOTIVOS.find(x=>x[0]===sel)||['','Outro'])[1];
+  const comentBase=(document.getElementById('alx-coment')||{}).value||'';
+  const btn=document.getElementById('alx-confirmar'); const can=document.getElementById('alx-cancelar');
+  if(btn) btn.disabled=true; if(can) can.disabled=true;
+  const a=estado.alertas; const dados=a.dados; let okN=0; const erros=[];
+  for(const k of ctx.keys){
+    const t=alxTickets().find(x=>x.k===k)||{k,venc:''};
+    fb.classList.remove('err','ok','warn'); fb.textContent=`Reprogramando ${k}… (${okN+erros.length+1}/${ctx.keys.length})`;
+    try{
+      const r1=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({reagendar:true,issue:k,duedate:ctx.nova,email:id.email,token:id.token})}).then(r=>r.json());
+      if(!r1.ok){ erros.push(`${k}: ${r1.erro||'falha ao alterar a data'}`); continue; }
+      const texto=comentBase.replace(/\[DATA_ANTERIOR\]/g, alxDataBR(t.venc)).replace(/\[NOVA_DATA\]/g, alxDataBR(ctx.nova));
+      let comentOk=true, comentErro='';
+      if(texto.trim()){
+        const r2=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
+        comentOk=!!r2.ok; comentErro=r2.erro||'';
+      }
+      okN++;
+      // Atualiza o estado local (sai da lista de atrasados — nova data ≥ hoje) e registra o histórico da sessão.
+      if(dados&&dados.tickets){ const dt=dados.tickets.find(x=>x.k===k); if(dt) dt.venc=ctx.nova; }
+      a.reprog[k]={ de:t.venc, para:ctx.nova, motivo:motivoLabel, por:(id.nome||id.email), quando:hojeSP() };
+      delete a.sel[k];
+      if(!comentOk) erros.push(`${k}: data alterada, mas o comentário falhou (${comentErro||'sem permissão'})`);
+    }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
+  }
+  estado.cache={};   // os outros painéis recarregam dados frescos
+  if(okN && !erros.length){
+    fb.className='alx-fb ap-fb ok';
+    fb.textContent=`✓ ${okN} ticket(s) reprogramado(s) para ${alxDataBR(ctx.nova)} e comentado(s) no Jira.`;
+    setTimeout(()=>{ fechaModal(); _alxReprog=null; if(estado.vista==='alertas') renderAlertas(); }, 900);
+  } else if(okN){
+    fb.className='alx-fb ap-fb warn';
+    fb.innerHTML=`⚠ ${okN} ok, ${erros.length} com aviso/erro:<br>${esc(erros.join(' · '))}`;
+    if(btn) btn.disabled=false; if(can){ can.disabled=false; can.textContent='Fechar'; }
+    setTimeout(()=>{ if(estado.vista==='alertas') renderAlertas(); }, 200);
+  } else {
+    fb.className='alx-fb ap-fb err';
+    fb.innerHTML=`Não foi possível reprogramar. Verifique se seu usuário tem permissão para editar o campo de vencimento e comentar no Jira.<br><span class="muted small">${esc(erros.join(' · '))}</span>`;
+    if(btn) btn.disabled=false; if(can) can.disabled=false;
+  }
 }
 
 // ====================== ADMINISTRAÇÃO — CONTRATOS & VALORES ======================
@@ -5032,7 +5381,7 @@ function abreAjuda(){
       <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b>, <b>mova de projeto</b> e aponte reuniões para várias pessoas.</li>
       <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
       <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
-      <li><b>🚨 Alertas</b> — central de alertas acionáveis (vencidos, vencendo, sem responsável, sem apontamento, abaixo da meta) por severidade.</li>
+      <li><b>🚨 Alertas</b> — central de <b>ação</b> dos tickets atrasados: reprograme o vencimento (<b>hoje</b> · <b>amanhã</b> · <b>semana que vem</b>), justifique com um <b>motivo padrão</b> (categoria obrigatória, p/ causa-raiz) e a mudança grava no Jira <b>data + comentário</b> com o seu usuário. Tem <b>ação em lote</b>, <b>filtros</b> (responsável/projeto/prioridade/status/tipo/dias/só meus), ordenação por criticidade e indicadores. Os <i>outros alertas</i> (vencendo hoje, sem responsável, sem apontamento, abaixo da meta) ficam logo abaixo.</li>
       <li><b>AMS</b> — aba própria de <b>AMS &amp; Governança</b>: <b>um contrato por vez</b> (seletor de cliente), sempre <b>por ciclo</b> — dados do contrato, controle de <b>faturamento do ciclo</b>, banco de horas, faturável × não faturável, horas por tipo com drill-down, <b>chamados do ciclo</b> e <b>PDF da apuração</b>.</li>
       <li><b>💰 Receita</b> — <b>bolsa de horas e projetos</b> (consumo × contratado, projeção e receita estimada) por período.</li>
       <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e <b>projetos do Jira da categoria AMS</b>. Base para AMS e Receita.</li>
@@ -5227,6 +5576,7 @@ function vaiPara(v){
 
 // ---- Novidades (o que há de novo no app) ----
 const NOVIDADES=[
+  ['2026-06-25','⏰ <b>Alertas viraram central de ação</b>: cada <b>ticket atrasado</b> agora tem botões para reprogramar o vencimento para <b>hoje</b>, <b>amanhã</b> ou <b>semana que vem</b>. Abre um modal com o <b>resumo do ticket</b> e um <b>motivo padrão</b> (categoria obrigatória — repriorização, dependência do cliente, bloqueio técnico…) que monta um <b>comentário editável</b>. Ao confirmar, o app <b>muda a data no Jira e publica o comentário</b> com o <b>seu</b> usuário (token), e o alerta sai da lista. Tem ainda <b>ação em lote</b> (vários tickets de uma vez), <b>filtros</b> (responsável/projeto/prioridade/status/tipo/dias/só meus), <b>ordenação por criticidade</b>, <b>copiar resumo</b> e indicadores no topo (atrasados, +7 dias, sem responsável, vencem hoje, reprogramados na sessão).'],
   ['2026-06-23','🐙 <b>Ajuda — feedback agora abre issue no GitHub</b>: em <b>Ajuda → Falar com a gente</b>, Dúvida/Sugestão/Bug deixou de criar ticket no Jira e passa a abrir um <b>issue no GitHub</b> do projeto (com rótulo do tipo e o autor do report no corpo). Requer configurar <code>GITHUB_TOKEN</code> na Vercel.'],
   ['2026-06-23','📊 <b>AMS — Nº do Chamado Cliente e relatórios por Causa raiz/Produto/Processo</b>: a aba AMS agora mostra o <b>🔖 Número do Chamado Cliente</b> junto de cada chamado (lista do ciclo, drill por mês e por tipo) e ganhou um card de <b>Relatórios do ciclo</b> com a distribuição dos chamados por <b>Causa raiz</b>, <b>Produto</b> e <b>Processo</b> (horas · % do ciclo · nº de chamados, Pareto com acumulado; clique num item para ver os chamados). Os dados vêm dos campos do Jira.'],
   ['2026-06-23','🧾 <b>Contrato — responsáveis</b>: o cadastro/edição de contrato (Admin) ganhou os campos <b>Responsável Dexterity</b> e <b>Responsável / Nome do Cliente</b>, que aparecem nos detalhes do contrato (Admin e aba AMS) e no PDF da apuração.'],
@@ -5262,7 +5612,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-22.5';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-06-25.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -5746,12 +6096,34 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
     const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
   }
 });
-// ---- Central de Alertas: filtro por severidade e retry ----
+// ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const kp=e.target.closest && e.target.closest('[data-al-sev]');
   if(kp){ escondeTip(); estado.alertas.sev=kp.getAttribute('data-al-sev'); renderAlertas(); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  if(t.id==='al-retry'){ estado.alertas.erro=''; estado.alertas.dados=null; renderAlertas(); }
+  const a=estado.alertas;
+  if(t.id==='al-retry'){ a.erro=''; a.dados=null; renderAlertas(); }
+  else if(t.hasAttribute('data-alx-reprog')){ escondeTip(); abreModalReprog([t.getAttribute('data-alx-k')], t.getAttribute('data-alx-reprog')); }
+  else if(t.hasAttribute('data-alx-copiar')){ alxCopiar(t, t.getAttribute('data-alx-copiar')); }
+  else if(t.hasAttribute('data-alx-bulk')){ escondeTip(); abreModalReprog(Object.keys(a.sel), t.getAttribute('data-alx-bulk')); }
+  else if(t.hasAttribute('data-alx-bulk-clear')){ a.sel={}; renderAlertas(); }
+  else if(t.hasAttribute('data-alx-resp')){ escondeTip(); const r=t.getAttribute('data-alx-resp'); a.fResp=(a.fResp===r?'':r); renderAlertas(); }
+  else if(t.hasAttribute('data-alx-todos')){ const on=t.getAttribute('data-alx-todos')==='1';
+    if(on){ document.querySelectorAll('[data-alx-sel]').forEach(c=>{ a.sel[c.getAttribute('data-alx-sel')]=true; }); } else { a.sel={}; }
+    renderAlertas(); }
+  else if(t.hasAttribute('data-alx-limpar')){ a.fResp='';a.fProj='';a.fPrio='';a.fStatus='';a.fTipo='';a.fMinDias=0;a.soMeus=false;a.ord='crit'; renderAlertas(); }
+});
+// ---- Central de Alertas: filtros (selects/checkbox) e seleção em lote (checkbox da linha) ----
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const a=estado.alertas;
+  const sc=e.target.closest && e.target.closest('[data-alx-sel]');
+  if(sc){ const k=sc.getAttribute('data-alx-sel'); if(sc.checked) a.sel[k]=true; else delete a.sel[k]; renderAlertas(); return; }
+  const f=e.target.closest && e.target.closest('[data-alx-f]');
+  if(f){ const campo=f.getAttribute('data-alx-f');
+    if(campo==='soMeus'){ if(f.checked && !(idApontar()&&idApontar().accountId)){ f.checked=false; abreIdentidade(); return; } a.soMeus=f.checked; }
+    else if(campo==='fMinDias'){ a.fMinDias=Math.max(0, Number(f.value)||0); }
+    else { a[campo]=f.value; }
+    renderAlertas(); }
 });
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
@@ -5779,10 +6151,12 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 // Modal: pré-visualização do importador de CSV/Excel ao colar/digitar.
 document.getElementById('modal-body').addEventListener('input', (e)=>{
   if(e.target && e.target.id==='pl-csv') atualizaPreviewCSV();
+  else if(e.target && e.target.id==='alx-outro') alxAtualizaComent();
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='pl-csv-head'){ e.target.setAttribute('data-touched','1'); atualizaPreviewCSV(); }
   else if(e.target && e.target.id==='folga-modo'){ folgaToggle(); }
+  else if(e.target && e.target.id==='alx-motivo'){ alxAtualizaComent(); }
 });
 
 // Modal: fechar
@@ -5981,6 +6355,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='fb-enviar'){ enviaFeedback(); }
   else if(t.id==='folga-enviar'){ enviaFolga(); }
   else if(t.id==='folga-cancelar'){ fechaModal(); }
+  else if(t.id==='alx-confirmar'){ confirmaReprog(); }
+  else if(t.id==='alx-cancelar'){ _alxReprog=null; fechaModal(); }
   else if(t.getAttribute('data-ap-act')==='config-id'){ abreIdentidade(); }
 });
 
