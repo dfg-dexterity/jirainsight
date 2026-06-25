@@ -117,8 +117,8 @@ pulando fim de semana/feriado); meio período/horas = 1 ticket. **Idempotente** 
 `leave_id + dia`.
 
 - **Endpoint:** `GET /api/resumo?acao=folga-sync` (consolidado para respeitar o limite de 12
-  funções; lógica em `api/_lib/folgaSync.js`). Protegido por `CRON_SECRET`. `?dry=1` simula
-  sem criar nada.
+  funções; lógica em `api/_lib/folgaSync.js`). Como **cria** registros, **exige `CRON_SECRET`**
+  (sem ele, responde "não configurado"; com header errado, 401). `?dry=1` simula sem criar nada.
 - **Agendamento:** GitHub Actions `.github/workflows/folga-sync.yml` (a cada 15 min, dias
   úteis). Como é idempotente, rodar com frequência é seguro. Defina o secret `CRON_SECRET`
   (e, opcional, `FOLGA_SYNC_URL`) no repositório, iguais aos da Vercel.
@@ -144,6 +144,7 @@ pulando fim de semana/feriado); meio período/horas = 1 ticket. **Idempotente** 
     horas       numeric,
     status      text,                         -- criado | sem_mapeamento | erro
     erro        text,
+    tentativas  int  not null default 0,      -- nº de tentativas que falharam (teto evita retry infinito)
     created_at  timestamptz default now(),
     updated_at  timestamptz default now()
   );

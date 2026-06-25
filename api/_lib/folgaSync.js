@@ -41,11 +41,15 @@ function sb() {
   return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } };
 }
 async function sbSelectPorLeaves(s, leaveIds) {
-  if (!leaveIds.length) return [];
-  const q = `leave_id=in.(${leaveIds.join(',')})&select=id,issue_key,status`;
-  const r = await fetch(`${s.base}/rest/v1/${TAB}?${q}`, { headers: s.headers });
-  if (!r.ok) throw new Error(`Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return r.json();
+  const out = [];
+  for (let i = 0; i < leaveIds.length; i += 100) {       // quebra em lotes (evita URL/cap gigante)
+    const lote = leaveIds.slice(i, i + 100);
+    const q = `leave_id=in.(${lote.join(',')})&select=id,issue_key,status,tentativas`;
+    const r = await fetch(`${s.base}/rest/v1/${TAB}?${q}`, { headers: s.headers });
+    if (!r.ok) throw new Error(`Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    out.push(...(await r.json()));
+  }
+  return out;
 }
 async function sbUpsert(s, row) {
   const r = await fetch(`${s.base}/rest/v1/${TAB}?on_conflict=id`, {
@@ -71,9 +75,11 @@ function dataNaTz(dtUtc, tz) {
   } catch (e) { return String(dtUtc).slice(0, 10); }
 }
 function horaHHMM(f) {
-  const h = Math.max(0, Math.min(23, Math.floor(f)));
-  const m = Math.round((f - Math.floor(f)) * 60);
-  return `${String(h).padStart(2, '0')}:${String(m === 60 ? 0 : m).padStart(2, '0')}`;
+  let h = Math.floor(f);
+  let m = Math.round((f - h) * 60);
+  if (m === 60) { h += 1; m = 0; }
+  h = Math.max(0, Math.min(23, h));
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 // ---------------- Jira (conta de serviço) ----------------
@@ -148,12 +154,11 @@ function worklogDoDia(leave, dia, horasDia) {
 
 export async function sincronizaFolgas(req, res) {
   try {
-    // Proteção (mesmo modelo do /api/teams).
+    // Proteção: este endpoint CRIA tickets/worklogs, então exige o segredo SEMPRE.
     const segredo = env('CRON_SECRET');
-    if (segredo) {
-      const auth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
-      if (auth !== `Bearer ${segredo}`) return json(res, 401, { ok: false, erro: 'Não autorizado.' });
-    }
+    if (!segredo) return json(res, 200, { ok: false, configurado: false, erro: 'Defina CRON_SECRET (obrigatório para folga-sync) na Vercel e como secret do repositório.' });
+    const reqAuth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
+    if (reqAuth !== `Bearer ${segredo}`) return json(res, 401, { ok: false, erro: 'Não autorizado.' });
     const dry = !!(req.query && req.query.dry === '1');
 
     const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
@@ -172,8 +177,10 @@ export async function sincronizaFolgas(req, res) {
     const HORAS_OVERRIDE = num(env('JIRA_FOLGA_HORAS_DIA'), 0);
     const LOOKBACK = Math.max(1, num(env('FOLGA_SYNC_LOOKBACK_DIAS'), 14));
     const MAX = Math.max(1, num(env('FOLGA_SYNC_MAX'), 200));
+    const MAX_TENT = Math.max(1, num(env('FOLGA_SYNC_MAX_TENTATIVAS'), 5));   // não insiste em folgas que falham sempre
     let mapaEmail = {};
-    try { mapaEmail = JSON.parse(env('JIRA_FOLGA_MAP') || '{}'); } catch (e) { mapaEmail = {}; }
+    try { mapaEmail = JSON.parse(env('JIRA_FOLGA_MAP') || '{}'); }
+    catch (e) { console.error(`[folga-sync] JIRA_FOLGA_MAP inválido (${e.message}); usando mapa vazio.`); mapaEmail = {}; }
     mapaEmail = Object.fromEntries(Object.entries(mapaEmail).map(([k, v]) => [String(k).toLowerCase(), String(v)]));
 
     // 1) Autentica conta de serviço no Odoo.
@@ -228,62 +235,72 @@ export async function sincronizaFolgas(req, res) {
       });
     }
 
-    // 4) Já processados (idempotência).
+    // 4) Já processados (idempotência) + nº de tentativas (evita retry infinito).
     const existentes = await sbSelectPorLeaves(s, leaves.map((l) => l.id));
     const jaCriado = new Set(existentes.filter((r) => r.issue_key).map((r) => r.id));
+    const tentPorId = Object.fromEntries(existentes.map((r) => [r.id, Number(r.tentativas) || 0]));
 
-    const erros = []; let criados = 0; let pulados = 0; let semMap = 0; const previa = [];
+    const erros = []; let criados = 0; let pulados = 0; let semMap = 0; let desistidos = 0; const previa = [];
 
     for (const lv of leaves) {
-      const emp = empById[Array.isArray(lv.employee_id) ? lv.employee_id[0] : 0] || {};
-      const nome = (Array.isArray(lv.employee_id) ? lv.employee_id[1] : '') || emp.name || 'Funcionário';
-      const email = String(emp.work_email || '').trim();
-      const calId = Array.isArray(emp.resource_calendar_id) ? emp.resource_calendar_id[0] : 0;
-      const cal = calCache[calId] || { horasDia: 8, dows: new Set([0, 1, 2, 3, 4]), feriados: new Set() };
-      const horasDia = HORAS_OVERRIDE > 0 ? HORAS_OVERRIDE : cal.horasDia;
-      const dias = diasEfetivos(lv, cal);
+      try {
+        const emp = empById[Array.isArray(lv.employee_id) ? lv.employee_id[0] : 0] || {};
+        const nome = (Array.isArray(lv.employee_id) ? lv.employee_id[1] : '') || emp.name || 'Funcionário';
+        const email = String(emp.work_email || '').trim();
+        const calId = Array.isArray(emp.resource_calendar_id) ? emp.resource_calendar_id[0] : 0;
+        const cal = calCache[calId] || { horasDia: 8, dows: new Set([0, 1, 2, 3, 4]), feriados: new Set() };
+        const horasDia = HORAS_OVERRIDE > 0 ? HORAS_OVERRIDE : cal.horasDia;
+        const dias = diasEfetivos(lv, cal);
 
-      // accountId da pessoa (1x por folga).
-      let accountId = '';
-      try { accountId = await jiraAccountIdPorEmail(base, auth, email, mapaEmail); } catch (e) { accountId = ''; }
+        // accountId da pessoa (1x por folga). Distingue erro de API de "não encontrado".
+        let accountId = ''; let erroLookup = '';
+        try { accountId = await jiraAccountIdPorEmail(base, auth, email, mapaEmail); }
+        catch (e) { erroLookup = `lookup accountId: ${e && e.message ? e.message : e}`; console.error(`[folga-sync] ${erroLookup}`); }
 
-      for (const dia of dias) {
-        const id = `${lv.id}:${dia}`;
-        if (jaCriado.has(id)) { pulados += 1; continue; }
-        const { segundos, started } = worklogDoDia(lv, dia, horasDia);
-        const tipoAus = (Array.isArray(lv.holiday_status_id) ? lv.holiday_status_id[1] : '') || 'Folga';
+        for (const dia of dias) {
+          const id = `${lv.id}:${dia}`;
+          if (jaCriado.has(id)) { pulados += 1; continue; }
+          const tent = tentPorId[id] || 0;
+          if (tent >= MAX_TENT) { desistidos += 1; continue; }       // já falhou demais; não insiste
+          const { segundos, started } = worklogDoDia(lv, dia, horasDia);
+          const horas = +(segundos / 3600).toFixed(2);
+          const tipoAus = (Array.isArray(lv.holiday_status_id) ? lv.holiday_status_id[1] : '') || 'Folga';
 
-        if (!accountId) {
-          semMap += 1;
-          if (!dry) await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: '', issue_key: null, worklog_id: null, horas: +(segundos / 3600).toFixed(2), status: 'sem_mapeamento', erro: `Sem accountId no Jira para ${email || nome}.` });
-          continue;
+          if (!accountId) {
+            semMap += 1;
+            if (!dry) await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: '', issue_key: null, worklog_id: null, horas, status: 'sem_mapeamento', erro: (erroLookup || `Sem accountId no Jira para ${email || nome}.`).slice(0, 400), tentativas: tent + 1 });
+            continue;
+          }
+          if (dry) { previa.push({ id, nome, dia, email, horas, tipo: tipoAus }); continue; }
+
+          // Cria o ticket no TAD, atribuído à pessoa, com data limite = o dia.
+          const fields = {
+            project: { id: PROJ }, issuetype: { id: TIPO },
+            summary: `Folga — ${nome} — ${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`,
+            assignee: { id: accountId },
+            duedate: dia,
+            description: adf(`Folga aprovada no Odoo (${tipoAus}).\nFuncionário: ${nome}${email ? ` (${email})` : ''}\nDia: ${dia}\nHoras: ${horas}h\nReferência Odoo: hr.leave #${lv.id}${lv.name ? ` — ${lv.name}` : ''}`),
+          };
+          if (DEPT_FIELD) fields[DEPT_FIELD] = { value: DEPT_VALUE };
+          const tk = await criaTicketJira(base, auth, fields);
+          if (!tk.ok) {
+            erros.push({ id, erro: tk.erro });
+            await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: null, worklog_id: null, horas, status: 'erro', erro: tk.erro.slice(0, 400), tentativas: tent + 1 });
+            continue;
+          }
+          // Aponta o trabalho no nome da pessoa (Clockwork). Não falha o ticket se o worklog falhar.
+          const wl = await worklogClockwork({ issueKey: tk.key, segundos, started, accountId, comment: `Folga (${tipoAus})` });
+          await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: tk.key, worklog_id: wl.ok ? wl.worklogId : null, horas, status: 'criado', erro: wl.ok ? null : (wl.erro || '').slice(0, 400), tentativas: tent });
+          criados += 1;
+          if (!wl.ok) erros.push({ id, issue: tk.key, erro: `worklog: ${wl.erro}` });
         }
-        if (dry) { previa.push({ id, nome, dia, email, horas: +(segundos / 3600).toFixed(2), tipo: tipoAus }); continue; }
-
-        // Cria o ticket no TAD, atribuído à pessoa, com data limite = o dia.
-        const fields = {
-          project: { id: PROJ }, issuetype: { id: TIPO },
-          summary: `Folga — ${nome} — ${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`,
-          assignee: { id: accountId },
-          duedate: dia,
-          description: adf(`Folga aprovada no Odoo (${tipoAus}).\nFuncionário: ${nome}${email ? ` (${email})` : ''}\nDia: ${dia}\nHoras: ${(segundos / 3600).toFixed(2)}h\nReferência Odoo: hr.leave #${lv.id}${lv.name ? ` — ${lv.name}` : ''}`),
-        };
-        if (DEPT_FIELD) fields[DEPT_FIELD] = { value: DEPT_VALUE };
-        const tk = await criaTicketJira(base, auth, fields);
-        if (!tk.ok) {
-          erros.push({ id, erro: tk.erro });
-          await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: null, worklog_id: null, horas: +(segundos / 3600).toFixed(2), status: 'erro', erro: tk.erro.slice(0, 400) });
-          continue;
-        }
-        // Aponta o trabalho no nome da pessoa (Clockwork). Não falha o ticket se o worklog falhar.
-        const wl = await worklogClockwork({ issueKey: tk.key, segundos, started, accountId, comment: `Folga (${tipoAus})` });
-        await sbUpsert(s, { id, leave_id: lv.id, dia, email, account_id: accountId, issue_key: tk.key, worklog_id: wl.ok ? wl.worklogId : null, horas: +(segundos / 3600).toFixed(2), status: 'criado', erro: wl.ok ? null : (wl.erro || '').slice(0, 400) });
-        criados += 1;
-        if (!wl.ok) erros.push({ id, issue: tk.key, erro: `worklog: ${wl.erro}` });
+      } catch (e) {
+        // Uma folga problemática não derruba o resto do lote.
+        erros.push({ leave_id: lv.id, erro: String(e && e.message ? e.message : e) });
       }
     }
 
-    return json(res, 200, { ok: true, dry, folgas: leaves.length, criados, pulados, semMapeamento: semMap, erros, ...(dry ? { previa } : {}) });
+    return json(res, 200, { ok: true, dry, folgas: leaves.length, criados, pulados, semMapeamento: semMap, desistidos, erros, ...(dry ? { previa } : {}) });
   } catch (err) {
     return json(res, 200, { ok: false, erro: String(err && err.message ? err.message : err) });
   }
