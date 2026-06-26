@@ -457,6 +457,8 @@
   .ap-reag .ap-reag-data{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
     border-radius:8px;background:var(--cartao);color:var(--grafite)}
   .chip.primario-chip{background:var(--cerceta);color:#fff;border-color:var(--cerceta);font-weight:600}
+  .chip.atribuir-chip{border-color:var(--cerceta);color:var(--cerceta);font-weight:600}
+  .chip.atribuir-chip:hover{background:var(--cerceta);color:#fff}
   /* Cabeçalho de grupo por projeto (clicável: expande/recolhe) na aba Apontar */
   .ap-proj-head{display:flex;width:100%;text-align:left;align-items:center;gap:8px;margin:18px 0 2px;padding:8px 12px;
     background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:9px;cursor:pointer;font-family:var(--corpo);
@@ -4198,7 +4200,7 @@ function calcAlertas(){
       }
       if(!t.respId){
         al.push({ sev:'medio', cat:'Sem responsável', titulo:`${t.k} sem responsável`,
-          detalhe:`${t.resumo||''} · ${t.p} · ${t.status}`, resp:'—', acao:'Atribuir um responsável.', link });
+          detalhe:`${t.resumo||''} · ${t.p} · ${t.status}`, resp:'—', acao:'Atribuir um responsável.', link, k:t.k });
       }
     });
   }
@@ -4347,6 +4349,7 @@ function renderAlertas(){
     <button class="chip primario-chip" data-alx-bulk="HOJE">Reprogramar p/ hoje</button>
     <button class="chip" data-alx-bulk="AMANHA">p/ amanhã</button>
     <button class="chip" data-alx-bulk="PROX" data-tip="Próxima segunda-feira">p/ semana que vem</button>
+    <button class="chip atribuir-chip" data-alx-bulk-atrib="1" data-tip="Atribuir um responsável aos selecionados">👤 Atribuir a…</button>
     <span class="spacer"></span>
     <button class="chip" data-alx-bulk-clear="1">limpar seleção</button>
   </div>`:'';
@@ -4372,6 +4375,7 @@ function renderAlertas(){
           <button class="chip primario-chip" data-alx-reprog="HOJE" data-alx-k="${escA(t.k)}">Hoje</button>
           <button class="chip" data-alx-reprog="AMANHA" data-alx-k="${escA(t.k)}">Amanhã</button>
           <button class="chip" data-alx-reprog="PROX" data-alx-k="${escA(t.k)}" data-tip="Próxima segunda-feira">Semana que vem</button>
+          ${!t.respId?`<button class="chip atribuir-chip" data-alx-atrib="${escA(t.k)}" data-tip="Atribuir um responsável a este ticket">👤 Atribuir</button>`:''}
           <a class="chip" href="${link}" target="_blank" rel="noopener">Abrir Jira ↗</a>
           <button class="chip" data-alx-copiar="${escA(t.k)}" data-tip="Copiar um resumo do ticket">Copiar</button>
         </div>
@@ -4397,7 +4401,7 @@ function renderAlertas(){
         ${x.link?`<span class="spacer"></span><a class="al-link" href="${x.link}" target="_blank" rel="noopener">abrir ↗</a>`:''}</div>
       <div class="al-tit">${esc(x.titulo)}</div>
       ${x.detalhe?`<div class="al-det">${esc(x.detalhe)}</div>`:''}
-      <div class="al-foot"><span data-tip="Responsável">👤 ${esc(x.resp||'—')}</span><span class="spacer"></span><span class="al-acao">→ ${esc(x.acao)}</span></div>
+      <div class="al-foot"><span data-tip="Responsável">👤 ${esc(x.resp||'—')}</span><span class="spacer"></span>${x.k?`<button class="chip atribuir-chip" data-alx-atrib="${escA(x.k)}" data-tip="Atribuir um responsável a ${escA(x.k)}">👤 Atribuir</button>`:`<span class="al-acao">→ ${esc(x.acao)}</span>`}</div>
     </div>`;
   }).join('');
 
@@ -4563,6 +4567,130 @@ async function confirmaReprog(){
   } else {
     fb.className='alx-fb ap-fb err';
     fb.innerHTML=`Não foi possível reprogramar. Verifique se seu usuário tem permissão para editar o campo de vencimento e comentar no Jira.<br><span class="muted small">${esc(erros.join(' · '))}</span>`;
+    if(btn) btn.disabled=false; if(can) can.disabled=false;
+  }
+}
+
+// ---- Atribuir responsável (1 ticket ou em lote) — mesmo padrão das ações de reprogramar ----
+let _alxAtrib=null;   // contexto do modal de atribuição: { keys:[...] }
+function abreModalAtribuir(keys){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  keys=(keys||[]).filter(Boolean); if(!keys.length) return;
+  _alxAtrib={ keys };
+  const tk=(k)=>alxTickets().find(x=>x.k===k)||{k};
+  const pessoas=Object.entries(pessoasUnidas()).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||''))
+    .sort((x,y)=>((x[1]&&x[1].nome)||'').localeCompare((y[1]&&y[1].nome)||'','pt'));
+  const pessoaOpts='<option value="">— escolha a pessoa (obrigatório) —</option>'+pessoas.map(([a,p])=>
+    `<option value="${escA(a)}">${esc((p&&p.nome)||a)}</option>`).join('');
+  let resumo;
+  if(keys.length===1){
+    const t=tk(keys[0]);
+    const dl=(rot,val,cls)=>`<div><div class="dt">${rot}</div><div class="dd ${cls||''}">${val}</div></div>`;
+    resumo=`<div class="alx-rsum">
+      ${dl('Ticket', `<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>`)}
+      ${dl('Status', esc(t.status||'—'))}
+      ${dl('Responsável atual', esc(t.resp||'sem responsável'),'atraso')}
+      ${dl('Projeto', esc(alxProjNome(t.p)))}
+      ${dl('Prioridade', esc(t.prio||'—'))}
+      ${dl('Vencimento', esc(alxDataBR(t.venc)))}
+    </div>
+    <div class="muted small" style="margin:4px 0 0">${esc(t.resumo||'')}</div>`;
+  } else {
+    const itens=keys.map(k=>{ const t=tk(k);
+      return `<li><strong>${esc(t.k)}</strong> — ${esc((t.resumo||'').slice(0,70))} <span class="muted">(${esc(t.resp||'sem resp.')})</span></li>`; }).join('');
+    resumo=`<div class="alx-rsum"><div><div class="dt">Tickets selecionados</div><div class="dd">${keys.length}</div></div></div>
+      <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:150px;overflow:auto">${itens}</ul>`;
+  }
+  const mim = id.accountId ? `<button class="chip" id="alx-atrib-mim" data-tip="Atribuir para o meu usuário">para mim</button>` : '';
+  const linkBtn = keys.length===1 ? `<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(keys[0])}" target="_blank" rel="noopener">Abrir no Jira ↗</a>` : '';
+  abreModal(`
+    <h2>Atribuir responsável · ${keys.length===1?esc(keys[0]):keys.length+' tickets'}</h2>
+    ${resumo}
+    <div class="alx-campo">
+      <label>Responsável <span class="req">*</span> <span class="muted small">(obrigatório)</span></label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="alx-motivo" id="alx-atrib-pessoa" style="flex:1 1 220px">${pessoaOpts}</select>
+        ${mim}
+      </div>
+    </div>
+    <div class="alx-campo">
+      <label>Comentário que será publicado no Jira <span class="muted small">(opcional, editável)</span></label>
+      <textarea class="alx-coment" id="alx-atrib-coment" placeholder="Comentário opcional ao atribuir o responsável…"></textarea>
+    </div>
+    <div class="alx-fb" id="alx-atrib-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="alx-atrib-confirmar">Confirmar atribuição</button>
+      <button class="btn" id="alx-atrib-cancelar">Cancelar</button>
+      <span class="spacer"></span>
+      ${linkBtn}
+    </div>
+  `);
+}
+// Nome legível da pessoa selecionada (sem o sufixo "(eu)" usado no atalho "para mim").
+function alxAtribNomeSel(){
+  const sel=document.getElementById('alx-atrib-pessoa'); if(!sel||!sel.value) return '';
+  const opt=sel.options[sel.selectedIndex];
+  return ((opt&&opt.text)||sel.value).replace(/\s*\(eu\)$/,'');
+}
+// Gera/atualiza o comentário-modelo quando uma pessoa é escolhida (mantém edição até trocar).
+function alxAtribAtualizaComent(){
+  if(!_alxAtrib) return;
+  const sel=document.getElementById('alx-atrib-pessoa'); const ta=document.getElementById('alx-atrib-coment');
+  if(!sel||!ta) return;
+  if(!sel.value){ ta.value=''; return; }
+  ta.value=`Responsável definido como ${alxAtribNomeSel()}.\n\nAção realizada via painel de Alertas do Jira Insight.`;
+}
+// Atalho "para mim": garante uma opção com o meu accountId e a seleciona.
+function alxAtribParaMim(){
+  const id=idApontar(); if(!id||!id.accountId) return;
+  const sel=document.getElementById('alx-atrib-pessoa'); if(!sel) return;
+  let opt=[...sel.options].find(o=>o.value===id.accountId);
+  if(!opt){ opt=document.createElement('option'); opt.value=id.accountId; opt.text=`${id.nome||id.email} (eu)`; sel.appendChild(opt); }
+  sel.value=id.accountId; alxAtribAtualizaComent();
+}
+// Confirma: para cada ticket → define o responsável (assignee) e, se houver, publica o comentário (token da pessoa).
+async function confirmaAtribuir(){
+  const ctx=_alxAtrib; if(!ctx) return;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const fb=document.getElementById('alx-atrib-fb'); fb.hidden=false; fb.className='alx-fb ap-fb';
+  const sel=document.getElementById('alx-atrib-pessoa'); const accountId=(sel&&sel.value)||'';
+  if(!accountId){ fb.classList.add('err'); fb.textContent='Escolha a pessoa responsável.'; return; }
+  const nome=alxAtribNomeSel()||accountId;
+  const comentBase=(document.getElementById('alx-atrib-coment')||{}).value||'';
+  const btn=document.getElementById('alx-atrib-confirmar'); const can=document.getElementById('alx-atrib-cancelar');
+  if(btn) btn.disabled=true; if(can) can.disabled=true;
+  const a=estado.alertas; const dados=a.dados; let okN=0; const erros=[];
+  for(const k of ctx.keys){
+    fb.classList.remove('err','ok','warn'); fb.textContent=`Atribuindo ${k}… (${okN+erros.length+1}/${ctx.keys.length})`;
+    try{
+      const r1=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({atribuir:true,issue:k,accountId,email:id.email,token:id.token})}).then(r=>r.json());
+      if(!r1.ok){ erros.push(`${k}: ${r1.erro||'falha ao atribuir'}`); continue; }
+      let comentOk=true, comentErro='';
+      if(comentBase.trim()){
+        const r2=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({comentar:true,issue:k,texto:comentBase,email:id.email,token:id.token})}).then(r=>r.json());
+        comentOk=!!r2.ok; comentErro=r2.erro||'';
+      }
+      okN++;
+      if(dados&&dados.tickets){ const dt=dados.tickets.find(x=>x.k===k); if(dt){ dt.respId=accountId; dt.resp=nome; } }
+      delete a.sel[k];
+      if(!comentOk) erros.push(`${k}: atribuído, mas o comentário falhou (${comentErro||'sem permissão'})`);
+    }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
+  }
+  estado.cache={};
+  if(okN && !erros.length){
+    fb.className='alx-fb ap-fb ok';
+    fb.textContent=`✓ ${okN} ticket(s) atribuído(s) a ${nome} no Jira.`;
+    setTimeout(()=>{ fechaModal(); _alxAtrib=null; if(estado.vista==='alertas') renderAlertas(); }, 900);
+  } else if(okN){
+    fb.className='alx-fb ap-fb warn';
+    fb.innerHTML=`⚠ ${okN} ok, ${erros.length} com aviso/erro:<br>${esc(erros.join(' · '))}`;
+    if(btn) btn.disabled=false; if(can){ can.disabled=false; can.textContent='Fechar'; }
+    setTimeout(()=>{ if(estado.vista==='alertas') renderAlertas(); }, 200);
+  } else {
+    fb.className='alx-fb ap-fb err';
+    fb.innerHTML=`Não foi possível atribuir. Verifique se seu usuário tem permissão para atribuir responsável no Jira.<br><span class="muted small">${esc(erros.join(' · '))}</span>`;
     if(btn) btn.disabled=false; if(can) can.disabled=false;
   }
 }
@@ -6230,6 +6358,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-alx-reprog')){ escondeTip(); abreModalReprog([t.getAttribute('data-alx-k')], t.getAttribute('data-alx-reprog')); }
   else if(t.hasAttribute('data-alx-copiar')){ alxCopiar(t, t.getAttribute('data-alx-copiar')); }
   else if(t.hasAttribute('data-alx-bulk')){ escondeTip(); abreModalReprog(Object.keys(a.sel), t.getAttribute('data-alx-bulk')); }
+  else if(t.hasAttribute('data-alx-atrib')){ escondeTip(); abreModalAtribuir([t.getAttribute('data-alx-atrib')]); }
+  else if(t.hasAttribute('data-alx-bulk-atrib')){ escondeTip(); abreModalAtribuir(Object.keys(a.sel)); }
   else if(t.hasAttribute('data-alx-bulk-clear')){ a.sel={}; renderAlertas(); }
   else if(t.hasAttribute('data-alx-resp')){ escondeTip(); const r=t.getAttribute('data-alx-resp'); a.fResp=(a.fResp===r?'':r); renderAlertas(); }
   else if(t.hasAttribute('data-alx-todos')){ const on=t.getAttribute('data-alx-todos')==='1';
@@ -6281,6 +6411,7 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='pl-csv-head'){ e.target.setAttribute('data-touched','1'); atualizaPreviewCSV(); }
   else if(e.target && e.target.id==='folga-modo'){ folgaToggle(); }
   else if(e.target && e.target.id==='alx-motivo'){ alxAtualizaComent(); }
+  else if(e.target && e.target.id==='alx-atrib-pessoa'){ alxAtribAtualizaComent(); }
 });
 
 // Modal: fechar
@@ -6481,6 +6612,9 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='folga-cancelar'){ fechaModal(); }
   else if(t.id==='alx-confirmar'){ confirmaReprog(); }
   else if(t.id==='alx-cancelar'){ _alxReprog=null; fechaModal(); }
+  else if(t.id==='alx-atrib-confirmar'){ confirmaAtribuir(); }
+  else if(t.id==='alx-atrib-cancelar'){ _alxAtrib=null; fechaModal(); }
+  else if(t.id==='alx-atrib-mim'){ alxAtribParaMim(); }
   else if(t.getAttribute('data-ap-act')==='config-id'){ abreIdentidade(); }
 });
 
