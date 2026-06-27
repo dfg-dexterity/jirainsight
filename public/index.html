@@ -470,6 +470,18 @@
   .toast .toast-ic{flex:0 0 auto;font-weight:700}
   .toast.ok{background:#0F8A4D} .toast.err{background:#B4231F} .toast.warn{background:#B45309}
   @media (prefers-reduced-motion:reduce){ .toast{transition:none} .is-busy::before{animation:none} }
+  /* Skeleton screens — carregamento dos painéis/tabelas */
+  .skel{background:linear-gradient(90deg,var(--trilho) 25%,var(--linha2) 37%,var(--trilho) 63%);background-size:400% 100%;border-radius:6px;height:12px;animation:skelsh 1.3s ease infinite}
+  @keyframes skelsh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  .skel-wrap{display:flex;flex-direction:column;gap:16px}
+  .skel-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .skel-kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:16px;box-shadow:var(--sombra)}
+  .skel-kpi .skel-l{height:10px;width:80%} .skel-kpi .skel-v{height:26px;width:55%;margin-top:11px}
+  .skel-card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:13px;box-shadow:var(--sombra)}
+  .skel-card .skel-h{height:16px;width:32%;margin-bottom:3px}
+  .skel-row{display:flex;gap:14px;align-items:center}
+  @media (max-width:720px){ .skel-kpis{grid-template-columns:repeat(2,1fr)} }
+  @media (prefers-reduced-motion:reduce){ .skel{animation:none} }
   /* Cabeçalho de grupo por projeto (clicável: expande/recolhe) na aba Apontar */
   .ap-proj-head{display:flex;width:100%;text-align:left;align-items:center;gap:8px;margin:18px 0 2px;padding:8px 12px;
     background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:9px;cursor:pointer;font-family:var(--corpo);
@@ -1298,6 +1310,12 @@ function toast(msg, tipo){
   const dur=tipo==='err'?6500:(tipo==='warn'?5000:3500);
   setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>{ if(t.parentNode) t.remove(); },280); }, dur);
 }
+// Skeleton de carregamento que imita o painel (KPIs + tabela) com shimmer.
+function skeletonPainel(){
+  const kpis=Array.from({length:4},()=>`<div class="skel-kpi"><div class="skel skel-l"></div><div class="skel skel-v"></div></div>`).join('');
+  const linhas=Array.from({length:6},()=>`<div class="skel-row"><div class="skel" style="width:32%"></div><div class="skel" style="width:14%"></div><div class="skel" style="width:14%"></div><div class="skel" style="width:18%"></div><div class="skel" style="width:10%"></div></div>`).join('');
+  return `<div class="skel-wrap" aria-busy="true" aria-label="Carregando…"><div class="skel-kpis">${kpis}</div><div class="skel-card"><div class="skel skel-h"></div>${linhas}</div></div>`;
+}
 
 // ---- Tooltip flutuante moderno (segue o cursor) ----
 // Qualquer elemento com data-tip mostra o tooltip; data-tip2 é a 2ª linha; data-tipk a 3ª (dica).
@@ -1987,7 +2005,7 @@ function drill(type,key){
 // (AMS/receita ficam fora daqui — são exclusivos da aba AMS & Governança.)
 function renderVisao(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el(skeletonPainel())); return; }
 
   // Vencimentos (alertas) sob demanda — mesmo fetch da aba Alertas.
   const a=estado.alertas;
@@ -5258,7 +5276,7 @@ function analisaContrato(c){
 // Aba dedicada: um contrato AMS por vez (seletor de cliente), sempre por ciclo.
 function renderAMS(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   const hoje=hojeSP();
   // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
@@ -5396,7 +5414,7 @@ function renderAMS(){
 
 function renderReceita(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
     cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
@@ -6147,7 +6165,7 @@ function estadoParaURL(){
 async function recarrega(){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
-  cont.innerHTML='<div class="estado">Carregando dados…</div>';
+  cont.innerHTML=skeletonPainel();
   try{
     await carrega(estado.periodo);
     document.getElementById('atualizado').textContent =
