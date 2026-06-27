@@ -6085,8 +6085,17 @@ const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planej
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
+// ---- Persistência dos filtros (localStorage): recarregar mantém a última visão ----
+// Um link compartilhado (com parâmetros na URL) sempre vence; sem parâmetros,
+// restauramos os últimos filtros salvos neste navegador.
+const FILTROS_KEY='jirainsight_filtros_v1';
+function salvaFiltrosLS(qs){ try{ if(qs) localStorage.setItem(FILTROS_KEY, qs); else localStorage.removeItem(FILTROS_KEY); }catch(e){} }
+function leFiltrosLS(){ try{ return localStorage.getItem(FILTROS_KEY)||''; }catch(e){ return ''; } }
 function leURL(){
-  const p=new URLSearchParams(location.search);
+  // Sem parâmetros na URL? Restaura os últimos filtros salvos neste navegador.
+  let busca=location.search;
+  if(!busca || busca==='?'){ const sav=leFiltrosLS(); if(sav) busca='?'+sav; }
+  const p=new URLSearchParams(busca);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
   estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'visao';
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
@@ -6132,6 +6141,7 @@ function estadoParaURL(){
   if(f.tipo) p.set('tipo',f.tipo);
   const qs=p.toString();
   history.replaceState(null,'', qs ? ('?'+qs) : location.pathname);
+  salvaFiltrosLS(qs);   // persiste a visão atual p/ sobreviver a um reload
 }
 
 async function recarrega(){
