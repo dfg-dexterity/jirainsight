@@ -459,6 +459,29 @@
   .chip.primario-chip{background:var(--cerceta);color:#fff;border-color:var(--cerceta);font-weight:600}
   .chip.atribuir-chip{border-color:var(--cerceta);color:var(--cerceta);font-weight:600}
   .chip.atribuir-chip:hover{background:var(--cerceta);color:#fff}
+  /* Botão ocupado: spinner + bloqueio (anti-duplo-clique visível) */
+  .is-busy{pointer-events:none;opacity:.9}
+  .is-busy::before{content:"";display:inline-block;width:12px;height:12px;margin-right:7px;vertical-align:-2px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* Toasts — feedback de ações de escrita */
+  .toasts{position:fixed;right:16px;bottom:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:min(92vw,380px)}
+  .toast{display:flex;align-items:flex-start;gap:9px;background:#1f2d3d;color:#fff;border-radius:10px;padding:11px 14px;font-size:13px;line-height:1.4;box-shadow:0 10px 30px rgba(15,31,51,.30);opacity:0;transform:translateY(8px);transition:opacity .25s ease,transform .25s ease}
+  .toast.show{opacity:1;transform:none}
+  .toast .toast-ic{flex:0 0 auto;font-weight:700}
+  .toast.ok{background:#0F8A4D} .toast.err{background:#B4231F} .toast.warn{background:#B45309}
+  @media (prefers-reduced-motion:reduce){ .toast{transition:none} .is-busy::before{animation:none} }
+  /* Skeleton screens — carregamento dos painéis/tabelas */
+  .skel{background:linear-gradient(90deg,var(--trilho) 25%,var(--linha2) 37%,var(--trilho) 63%);background-size:400% 100%;border-radius:6px;height:12px;animation:skelsh 1.3s ease infinite}
+  @keyframes skelsh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+  .skel-wrap{display:flex;flex-direction:column;gap:16px}
+  .skel-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .skel-kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:16px;box-shadow:var(--sombra)}
+  .skel-kpi .skel-l{height:10px;width:80%} .skel-kpi .skel-v{height:26px;width:55%;margin-top:11px}
+  .skel-card{background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:13px;box-shadow:var(--sombra)}
+  .skel-card .skel-h{height:16px;width:32%;margin-bottom:3px}
+  .skel-row{display:flex;gap:14px;align-items:center}
+  @media (max-width:720px){ .skel-kpis{grid-template-columns:repeat(2,1fr)} }
+  @media (prefers-reduced-motion:reduce){ .skel{animation:none} }
   /* Cabeçalho de grupo por projeto (clicável: expande/recolhe) na aba Apontar */
   .ap-proj-head{display:flex;width:100%;text-align:left;align-items:center;gap:8px;margin:18px 0 2px;padding:8px 12px;
     background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:9px;cursor:pointer;font-family:var(--corpo);
@@ -1257,6 +1280,42 @@ const esc = (s) => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'
 // Escape para VALOR de atributo (inclui aspas). O texto é lido de volta com getAttribute
 // e renderizado via textContent, então não há injeção.
 const escA = (s) => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// ---- Feedback de ações de escrita: erros amigáveis, spinner em botão e toasts ----
+// Traduz erros técnicos (rede, 401/403, 429, 5xx) em mensagens acionáveis para o time.
+function humanizaErro(txt){
+  const raw=String(txt==null?'':((txt&&txt.message)||txt));
+  const s=raw.toLowerCase();
+  if(/\b429\b|rate.?limit|too many|limite de (taxa|requisi)|muitas requisi/.test(s))
+    return 'Muitas solicitações em pouco tempo. Aguarde alguns segundos e tente de novo.';
+  if(/\b401\b|\b403\b|unauthor|forbidden|token|credenc|permiss|expir|inv[áa]lid/.test(s))
+    return 'Sua sessão do Jira pode ter expirado. Reabra “identifique-se” (aba Apontar) e gere um novo token de API.';
+  if(/failed to fetch|networkerror|network error|load failed|offline|sem conex|timeout|timed out|aborted/.test(s))
+    return 'Falha de conexão. Verifique sua internet e tente novamente.';
+  if(/\b5\d\d\b|server error|internal|indispon|unavailable|bad gateway|gateway timeout/.test(s))
+    return 'O serviço está instável no momento. Tente novamente em instantes.';
+  return raw.trim() || 'Algo deu errado. Tente novamente.';
+}
+// Liga/desliga o estado "ocupado" (disabled + spinner) de um botão.
+function ocupado(btn, on){ if(!btn) return; btn.disabled=!!on; btn.classList.toggle('is-busy', !!on); }
+// Toast efêmero no canto inferior. tipo: 'ok' | 'err' | 'warn' | 'info'.
+let _toastCont=null;
+function toast(msg, tipo){
+  if(!_toastCont){ _toastCont=document.createElement('div'); _toastCont.className='toasts'; document.body.appendChild(_toastCont); }
+  const ic={ok:'✓',err:'⚠',warn:'⚠'}[tipo]||'ℹ';
+  const t=document.createElement('div'); t.className='toast '+(tipo||'info');
+  t.setAttribute('role','status'); t.setAttribute('aria-live','polite');
+  t.innerHTML=`<span class="toast-ic">${ic}</span><span>${esc(msg)}</span>`;
+  _toastCont.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  const dur=tipo==='err'?6500:(tipo==='warn'?5000:3500);
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>{ if(t.parentNode) t.remove(); },280); }, dur);
+}
+// Skeleton de carregamento que imita o painel (KPIs + tabela) com shimmer.
+function skeletonPainel(){
+  const kpis=Array.from({length:4},()=>`<div class="skel-kpi"><div class="skel skel-l"></div><div class="skel skel-v"></div></div>`).join('');
+  const linhas=Array.from({length:6},()=>`<div class="skel-row"><div class="skel" style="width:32%"></div><div class="skel" style="width:14%"></div><div class="skel" style="width:14%"></div><div class="skel" style="width:18%"></div><div class="skel" style="width:10%"></div></div>`).join('');
+  return `<div class="skel-wrap" aria-busy="true" aria-label="Carregando…"><div class="skel-kpis">${kpis}</div><div class="skel-card"><div class="skel skel-h"></div>${linhas}</div></div>`;
+}
 
 // ---- Tooltip flutuante moderno (segue o cursor) ----
 // Qualquer elemento com data-tip mostra o tooltip; data-tip2 é a 2ª linha; data-tipk a 3ª (dica).
@@ -1946,7 +2005,7 @@ function drill(type,key){
 // (AMS/receita ficam fora daqui — são exclusivos da aba AMS & Governança.)
 function renderVisao(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el(skeletonPainel())); return; }
 
   // Vencimentos (alertas) sob demanda — mesmo fetch da aba Alertas.
   const a=estado.alertas;
@@ -2247,8 +2306,8 @@ async function geraAnaliseIA(){
     a.carregando=false; a.chave=chave;
     if(j.configurado===false){ a.configurado=false; a.erro=j.erro||''; }
     else if(j.ok){ a.configurado=true; a.geral=j.geral||''; a.pessoas=j.pessoas||[]; a.erro=''; }
-    else { a.erro=j.erro||'Falha ao gerar o resumo.'; a.pessoas=null; }
-  }catch(e){ a.carregando=false; a.chave=chave; a.erro='Erro de rede: '+(e.message||e); a.pessoas=null; }
+    else { a.erro=humanizaErro(j.erro||'Falha ao gerar o resumo.'); a.pessoas=null; }
+  }catch(e){ a.carregando=false; a.chave=chave; a.erro=humanizaErro(e); a.pessoas=null; }
   if(estado.vista==='resumo') renderResumo();
 }
 // ----------------------------------------------------------------------
@@ -2314,16 +2373,17 @@ async function enviaFolga(){
   if(modo==='meio') body.periodo=get('folga-periodo')||'am';
   else if(modo==='horas') body.horas=Math.max(0.5, Number(get('folga-horas'))||1);
   else if(modo==='dia'){ const ate=get('folga-ate'); if(ate && ate>data) body.dataFim=ate; }
-  btn.disabled=true; mostra('','Enviando ao Odoo…');
+  ocupado(btn,true); mostra('','Enviando ao Odoo…');
   try{
     const j=await fetch('/api/resumo?acao=folga',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)}).then(r=>r.json());
-    if(j.configurado===false){ mostra('err','Integração com o Odoo não configurada. '+esc(j.erro||'')); btn.disabled=false; return; }
+    if(j.configurado===false){ mostra('err','Integração com o Odoo não configurada. '+esc(j.erro||'')); ocupado(btn,false); return; }
     if(j.ok){ mostra('ok','✓ Pedido de folga criado no Odoo'+(j.funcionario?(' para '+esc(j.funcionario)):'')+
         (j.url?` — <a href="${escA(j.url)}" target="_blank" rel="noopener">abrir no Odoo</a>`:'')+'.');
+      toast('✓ Pedido de folga criado no Odoo'+(j.funcionario?(' para '+j.funcionario):'')+'.','ok');
       setTimeout(fechaModal, 3000); }
-    else { mostra('err', esc(j.erro||'Falha ao criar o pedido de folga.')); btn.disabled=false; }
-  }catch(e){ mostra('err','Erro de rede: '+esc(e.message||String(e))); btn.disabled=false; }
+    else { const m=humanizaErro(j.erro||'Falha ao criar o pedido de folga.'); mostra('err', esc(m)); toast(m,'err'); ocupado(btn,false); }
+  }catch(e){ const m=humanizaErro(e); mostra('err', esc(m)); toast(m,'err'); ocupado(btn,false); }
 }
 // -------------------------------------------------------------------------------
 
@@ -3205,7 +3265,7 @@ async function fazApontamento(btn){
   if(seg==null){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; tempoEl.focus(); return; }
   if(seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo fora do limite (mínimo 1m, máximo 24h).'; tempoEl.focus(); return; }
   const inicio=dataEl.value||hojeSP();
-  btn.disabled=true; fb.textContent='Apontando…';
+  ocupado(btn,true); fb.textContent='Apontando…';
   try{
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({issue:k,segundos:seg,inicio,comentario:comEl.value.trim(),email:id.email,token:id.token})}).then(r=>r.json());
@@ -3227,12 +3287,14 @@ async function fazApontamento(btn){
       const meuId=idApontar(); const metaSeg=metaSegDe(meuId&&meuId.accountId)||8*3600;
       const totalDia=minhasHorasPorDia()[inicio]||0;
       if(totalDia>metaSeg){ fb.className='ap-fb warn';
-        fb.textContent=`⚠ ${fmtH(seg)} apontadas em ${k}. Você já tem ${fmtH(totalDia)} em ${fmtBR(inicio)} — acima da meta de ${fmtH(metaSeg)}/dia.`; }
-      else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`; }
+        fb.textContent=`⚠ ${fmtH(seg)} apontadas em ${k}. Você já tem ${fmtH(totalDia)} em ${fmtBR(inicio)} — acima da meta de ${fmtH(metaSeg)}/dia.`;
+        toast(`Apontado em ${k}, mas você já passou da meta de ${fmtH(metaSeg)} em ${fmtBR(inicio)}.`,'warn'); }
+      else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`;
+        toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
-    } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao apontar.'; }
-  }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
-  btn.disabled=false;
+    } else { const m=humanizaErro(j.erro||'Falha ao apontar.'); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
+  }catch(e){ const m=humanizaErro(e); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
+  ocupado(btn,false);
 }
 
 // Abre/fecha o painel de transições de status de um chamado (lazy: busca no clique).
@@ -5214,7 +5276,7 @@ function analisaContrato(c){
 // Aba dedicada: um contrato AMS por vez (seletor de cliente), sempre por ciclo.
 function renderAMS(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   const hoje=hojeSP();
   // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
@@ -5352,7 +5414,7 @@ function renderAMS(){
 
 function renderReceita(){
   const cont=document.getElementById('conteudo');
-  if(!estado.tempo){ cont.replaceChildren(el('<div class="estado">Carregando dados…</div>')); return; }
+  if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
     cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
@@ -6041,8 +6103,17 @@ const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planej
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
+// ---- Persistência dos filtros (localStorage): recarregar mantém a última visão ----
+// Um link compartilhado (com parâmetros na URL) sempre vence; sem parâmetros,
+// restauramos os últimos filtros salvos neste navegador.
+const FILTROS_KEY='jirainsight_filtros_v1';
+function salvaFiltrosLS(qs){ try{ if(qs) localStorage.setItem(FILTROS_KEY, qs); else localStorage.removeItem(FILTROS_KEY); }catch(e){} }
+function leFiltrosLS(){ try{ return localStorage.getItem(FILTROS_KEY)||''; }catch(e){ return ''; } }
 function leURL(){
-  const p=new URLSearchParams(location.search);
+  // Sem parâmetros na URL? Restaura os últimos filtros salvos neste navegador.
+  let busca=location.search;
+  if(!busca || busca==='?'){ const sav=leFiltrosLS(); if(sav) busca='?'+sav; }
+  const p=new URLSearchParams(busca);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
   estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'visao';
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
@@ -6088,12 +6159,13 @@ function estadoParaURL(){
   if(f.tipo) p.set('tipo',f.tipo);
   const qs=p.toString();
   history.replaceState(null,'', qs ? ('?'+qs) : location.pathname);
+  salvaFiltrosLS(qs);   // persiste a visão atual p/ sobreviver a um reload
 }
 
 async function recarrega(){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
-  cont.innerHTML='<div class="estado">Carregando dados…</div>';
+  cont.innerHTML=skeletonPainel();
   try{
     await carrega(estado.periodo);
     document.getElementById('atualizado').textContent =
