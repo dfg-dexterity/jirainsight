@@ -719,19 +719,6 @@
   .ams-relrow .tk{grid-column:1/3;height:7px;border-radius:4px;background:var(--linha2);overflow:hidden}
   .ams-relrow .tk i{display:block;height:100%;border-radius:4px}
   .ams-rel-cum{font-size:11px;color:var(--muted);white-space:nowrap}
-  /* Causa raiz por grupo (rosca + legenda) */
-  .crg-wrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-  .crg-donut{flex:0 0 auto}
-  .crg-legend{flex:1 1 240px;display:flex;flex-direction:column;gap:3px;min-width:230px}
-  .crg-row{display:grid;grid-template-columns:auto 1fr auto;gap:3px 9px;align-items:center;padding:5px 7px;border-radius:7px}
-  .crg-row.clic{cursor:pointer}
-  .crg-row.clic:hover{background:var(--hoverbg)}
-  .crg-dot{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
-  .crg-nm{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .crg-vl{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .crg-vl .muted{font-weight:400}
-  .crg-bar{grid-column:1/4;height:7px;border-radius:4px;background:var(--linha2);overflow:hidden}
-  .crg-bar i{display:block;height:100%;border-radius:4px}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -809,16 +796,9 @@
   .donut-pct{font-family:var(--titulo);font-weight:700;font-size:22px;fill:var(--grafite)}
   .donut-lbl{font-size:8px;fill:var(--muted);text-transform:uppercase;letter-spacing:.5px}
   @keyframes donutFill{from{stroke-dashoffset:var(--c)}to{stroke-dashoffset:var(--off)}}
-  /* Rosca multi-segmento (distribuição em grupos) */
-  .donut.dm{width:clamp(132px,17vh,172px)}
-  .dm-arc{opacity:0;animation:dmIn .55s ease forwards;animation-delay:calc(var(--i,0)*.1s)}
-  @keyframes dmIn{to{opacity:1}}
-  .dm-c-v{font-family:var(--titulo);font-weight:700;font-size:15px;fill:var(--grafite)}
-  .dm-c-l{font-size:7.5px;fill:var(--muted);text-transform:uppercase;letter-spacing:.5px}
   @media (prefers-reduced-motion: reduce){
     .areachart .ac-line,.areachart .ac-area,.areachart .ac-dot{animation:none;stroke-dashoffset:0;opacity:1}
     .donut-val{animation:none!important}
-    .dm-arc{animation:none!important;opacity:1!important}
   }
 
   /* ===== Visão Geral executiva ===== */
@@ -1714,25 +1694,6 @@ function donut(pctv, label, cor){
       style="--c:${c.toFixed(1)};--off:${off.toFixed(1)};animation:donutFill 1.1s cubic-bezier(.2,.7,.2,1) forwards"/>
     <text class="donut-pct" x="50" y="49" text-anchor="middle" dominant-baseline="middle">${p}%</text>
     <text class="donut-lbl" x="50" y="65" text-anchor="middle">${esc(label||'')}</text></svg></div>`;
-}
-// Rosca multi-segmento: segs=[{nome,valor,cor}] desenhada em arcos proporcionais.
-// opts: {centroV, centroL, fmt, sw, aria}. Usa pathLength=100 (cada arco em % do total).
-function donutMulti(segs, opts){
-  opts=opts||{}; const sw=opts.sw||13;
-  const tot=(segs||[]).reduce((s,x)=>s+(Number(x.valor)||0),0);
-  let cum=0;
-  const arcs=(segs||[]).filter(s=>(Number(s.valor)||0)>0).map((s,i)=>{
-    const pct=tot?(Number(s.valor)/tot*100):0; const off=-cum; cum+=pct;
-    const tip=escA(`${s.nome}: ${opts.fmt?opts.fmt(s.valor):s.valor} · ${Math.round(pct)}%`);
-    return `<circle cx="50" cy="50" r="42" fill="none" stroke="${s.cor}" stroke-width="${sw}" pathLength="100"
-      stroke-dasharray="${pct.toFixed(2)} ${(100-pct).toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"
-      transform="rotate(-90 50 50)" class="dm-arc" style="--i:${i}"><title>${tip}</title></circle>`;
-  }).join('');
-  return `<div class="donut-wrap"><svg viewBox="0 0 100 100" class="donut dm" role="img" aria-label="${escA(opts.aria||'distribuição por grupo')}">
-    <circle class="donut-track" cx="50" cy="50" r="42" fill="none" stroke-width="${sw}"/>
-    ${arcs}
-    <text class="dm-c-v" x="50" y="47" text-anchor="middle" dominant-baseline="middle">${esc(opts.centroV!=null?opts.centroV:'')}</text>
-    <text class="dm-c-l" x="50" y="62" text-anchor="middle">${esc(opts.centroL||'')}</text></svg></div>`;
 }
 
 // Treemap (squarified) interativo: áreas proporcionais ao valor, rótulo por célula,
@@ -4921,12 +4882,9 @@ function amsDrillMes(cId, ym){
     <div class="muted small" style="margin:2px 0 10px">Apontamentos por chamado no mês — clique num chamado para ver as linhas (data · pessoa · horas). ↗ abre no Jira.</div>
     <div class="ts-drill">${corpo}</div>`);
 }
-// Card "Chamados do ciclo": lista achatada dos chamados FATURÁVEIS do ciclo selecionado.
-// (Os não faturáveis saem da lista — entram só como volume de horas no indicador acima.)
+// Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
 function amsChamadosCard(c, cyc){
-  const todos=amsChamadosCiclo(c,cyc); const chs=todos.filter(o=>o.f);
-  const tot=chs.reduce((s,o)=>s+o.seg,0);
-  const segNao=todos.filter(o=>!o.f).reduce((s,o)=>s+o.seg,0); const nNao=todos.filter(o=>!o.f).length;
+  const chs=amsChamadosCiclo(c,cyc); const tot=chs.reduce((s,o)=>s+o.seg,0);
   const linhas=chs.map(o=>{
     const temK=o.k && o.k!=='(sem chave)';
     const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
@@ -4937,87 +4895,14 @@ function amsChamadosCard(c, cyc){
       ${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}
       <span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>
       <span class="ams-ch-t">${esc(o.tipo)}</span>
+      <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span>
       <span class="ams-ch-p muted" data-tip="Pessoas que apontaram">${o.pessoas.size}</span>
       <span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
   }).join('');
-  const notaNao = segNao>0 ? `<span class="muted" style="font-weight:400"> · não faturável: <strong>${fmtH(segNao)}</strong> em ${nNao} chamado(s), fora da lista</span>` : '';
   return `<div class="ams-chcard">
-    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(somente faturáveis · ${chs.length} chamado(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span>${notaNao}</div>
-    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados faturáveis neste ciclo.</div>'}</div>
+    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(${chs.length} chamado(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span></div>
+    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados neste ciclo.</div>'}</div>
   </div>`;
-}
-// ---- Causa Raiz agrupada em 5 grupos (AT · AF · BUG · MEL · Outros) ----
-// Reduz os muitos valores granulares da Causa Raiz do Jira em 5 grupos-pai para o
-// gráfico moderno. "Outros" recolhe chamados sem causa preenchida ou fora da taxonomia.
-const CR_GRUPOS = [
-  { cod:'AT',  nome:'Apoio Técnico',   cor:cores.cerceta },
-  { cod:'AF',  nome:'Apoio Funcional', cor:cores.musgo },
-  { cod:'BUG', nome:'Bug',             cor:'#D20A0A' },
-  { cod:'MEL', nome:'Melhorias',       cor:cores.roxo },
-  { cod:'OUT', nome:'Outros',          cor:'#94A3B8' },
-];
-const CR_GRUPO_POR_COD = CR_GRUPOS.reduce((m,g)=>{ m[g.cod]=g; return m; }, {});
-// Sub-rótulos (sem acento, minúsculo) → grupo, p/ quando a Causa Raiz vier só com o texto.
-const CR_SUB = {
-  'analise cross-modulo':'AT','instrucao tecnica para o time interno':'AT','instrucao tecnica':'AT','duvida tecnica transversal':'AT','duvida tecnica':'AT',
-  'capacitacao de usuario':'AF','acompanhamento de fechamento':'AF','analise de cenario':'AF','entrada de contratos':'AF',
-  'erro de configuracao':'BUG','cenario nao coberto (gap)':'BUG','cenario nao coberto':'BUG','bug da ferramenta':'BUG','dados mestre':'BUG','acesso':'BUG',
-  'roll-out':'MEL','rollout':'MEL','roll out':'MEL','novo produto financeiro':'MEL','alteracao contabil':'MEL','automacao':'MEL',
-};
-function semAcento(s){ return (s==null?'':String(s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
-// Classifica um valor de Causa Raiz num dos 5 grupos: 1) pelo código (AT/AF/BUG/MEL),
-// 2) pelo rótulo da taxonomia; senão, "Outros".
-function crGrupo(cr){
-  const s=(cr==null?'':String(cr)).trim(); if(!s) return 'OUT';
-  const cod=s.toUpperCase().match(/\b(BUG|MEL|AT|AF)\b/);   // BUG/MEL antes p/ não casar AT/AF por engano
-  if(cod) return cod[1];
-  const n=semAcento(s);
-  if(CR_SUB[n]) return CR_SUB[n];
-  for(const k in CR_SUB){ if(n.indexOf(k)>=0) return CR_SUB[k]; }
-  return 'OUT';
-}
-// Card: Causa Raiz dos chamados FATURÁVEIS do ciclo agregada em 5 grupos (rosca + legenda clicável).
-function amsCausaGrupoCard(c, cyc){
-  const chs=amsChamadosCiclo(c,cyc).filter(o=>o.f);
-  const ac={}; CR_GRUPOS.forEach(g=>{ ac[g.cod]={seg:0,n:0}; });
-  chs.forEach(o=>{ const info=amsInfoChamado(o.k)||{}; const g=crGrupo(info.cr); ac[g].seg+=o.seg; ac[g].n+=1; });
-  const totSeg=CR_GRUPOS.reduce((s,g)=>s+ac[g.cod].seg,0);
-  const segs=CR_GRUPOS.map(g=>({ nome:g.cod+' · '+g.nome, valor:ac[g.cod].seg, cor:g.cor }));
-  const donutHtml = totSeg>0
-    ? donutMulti(segs,{ centroV:fmtH(totSeg), centroL:'faturável', fmt:fmtH, aria:'Causa raiz por grupo' })
-    : '<div class="donut-wrap"><span class="muted small">Sem horas faturáveis no ciclo.</span></div>';
-  const legenda=CR_GRUPOS.map(g=>{
-    const a=ac[g.cod]; const pct=totSeg?Math.round(a.seg/totSeg*100):0;
-    const clic=a.seg>0?` data-ams-crg="${escA(g.cod)}" data-tip="Ver chamados — ${escA(g.nome)}"`:'';
-    return `<div class="crg-row${a.seg>0?' clic':''}"${clic}>
-      <span class="crg-dot" style="background:${g.cor}"></span>
-      <span class="crg-nm"><b>${esc(g.cod)}</b> · ${esc(g.nome)}</span>
-      <span class="crg-vl">${fmtH(a.seg)} <span class="muted">· ${pct}% · (${a.n})</span></span>
-      <span class="crg-bar"><i style="width:${Math.max(2,pct)}%;background:${g.cor}"></i></span></div>`;
-  }).join('');
-  return `<div class="ams-chcard" style="margin-top:14px">
-    <div class="muted small" style="font-weight:600;margin:2px 0 10px">🍩 Causa raiz por grupo
-      <span class="muted" style="font-weight:400">(chamados faturáveis do ciclo agregados em 5 grupos — clique num grupo para ver os chamados)</span></div>
-    <div class="crg-wrap">
-      <div class="crg-donut">${donutHtml}</div>
-      <div class="crg-legend">${legenda}</div>
-    </div></div>`;
-}
-// Drill: chamados faturáveis do ciclo de um grupo de Causa Raiz.
-function amsDrillCausaGrupo(cId, cod){
-  const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
-  const cyc=amsCicloVigente(c, amsRefSel());
-  const chs=amsChamadosCiclo(c,cyc).filter(o=>o.f && crGrupo((amsInfoChamado(o.k)||{}).cr)===cod).sort((a,b)=>b.seg-a.seg);
-  const tot=chs.reduce((s,o)=>s+o.seg,0); const g=CR_GRUPO_POR_COD[cod]||{nome:cod};
-  const linhas=chs.map(o=>{
-    const temK=o.k && o.k!=='(sem chave)';
-    const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
-    const cc=amsNumCliente(o.k); const pct=tot?Math.round(o.seg/tot*100):0; const cr=(amsInfoChamado(o.k)||{}).cr||'';
-    return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span>${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}<span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>${cr?`<span class="ams-ch-t">${esc(cr)}</span>`:''}<span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
-  }).join('');
-  abreModal(`<h2>Causa raiz: ${esc(g.cod||cod)} · ${esc(g.nome)} <span class="muted" style="font-weight:400;font-size:14px">· ${fmtH(tot)} · ${chs.length} chamado(s) faturáveis</span></h2>
-    <div class="muted small" style="margin:2px 0 10px">Chamados <strong>faturáveis</strong> do ciclo de <strong>${esc(c.cliente||'')}</strong> no grupo <strong>${esc(g.nome)}</strong>. 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
-    <div class="ams-chlist">${linhas||'<div class="estado">Sem chamados.</div>'}</div>`);
 }
 // ---- Relatórios do ciclo: Causa raiz · Produto · Processo (campos do Jira) ----
 // Agrupa os chamados do ciclo por valor de cada campo: horas (faturável+não), nº de
@@ -5046,12 +4931,12 @@ function amsRelBloco(chs, dim, titulo, cor){
     ${linhas||'<div class="muted small">Sem dados.</div>'}</div>`;
 }
 function amsRelatoriosCard(c, cyc){
-  const chs=amsChamadosCiclo(c, cyc).filter(o=>o.f);
+  const chs=amsChamadosCiclo(c, cyc);
   const semInfo=chs.every(o=>!amsInfoChamado(o.k));
-  const aviso = semInfo ? `<div class="muted small" style="margin-top:6px">Sem <strong>Causa raiz/Produto/Processo</strong> preenchidos nos chamados faturáveis deste ciclo (ou os campos ainda não foram mapeados).</div>` : '';
+  const aviso = semInfo ? `<div class="muted small" style="margin-top:6px">Sem <strong>Causa raiz/Produto/Processo</strong> preenchidos nos chamados deste ciclo (ou os campos ainda não foram mapeados).</div>` : '';
   return `<div class="ams-chcard" style="margin-top:14px">
     <div class="muted small" style="font-weight:600;margin:2px 0 8px">📊 Relatórios do ciclo — Causa raiz · Produto · Processo
-      <span class="muted" style="font-weight:400">(somente faturáveis · horas · % do ciclo · (nº de chamados); ordenado por horas — Pareto com acumulado; clique num item para ver os chamados)</span></div>
+      <span class="muted" style="font-weight:400">(horas · % do ciclo · (nº de chamados); ordenado por horas — Pareto com acumulado; clique num item para ver os chamados)</span></div>
     <div class="ams-rel-grid">
       ${amsRelBloco(chs,'cr','Causa raiz',cores.roxo)}
       ${amsRelBloco(chs,'pr','Produto',cores.cerceta)}
@@ -5062,7 +4947,7 @@ function amsRelatoriosCard(c, cyc){
 function amsDrillRel(cId, dim, valor){
   const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
   const cyc=amsCicloVigente(c, amsRefSel()); const getVal=amsRelGetVal(dim);
-  const chs=amsChamadosCiclo(c,cyc).filter(o=>o.f).filter(o=>{ const info=amsInfoChamado(o.k)||{}; return (((getVal(info)||'')+'').trim()||'(não informado)')===valor; });
+  const chs=amsChamadosCiclo(c,cyc).filter(o=>{ const info=amsInfoChamado(o.k)||{}; return (((getVal(info)||'')+'').trim()||'(não informado)')===valor; });
   const tot=chs.reduce((s,o)=>s+o.seg,0);
   const linhas=chs.map(o=>{
     const temK=o.k && o.k!=='(sem chave)';
@@ -5342,9 +5227,8 @@ function renderAMS(){
       return `<div class="ams-mc ${hi?'hi':(lo?'lo':'')}${clic}"${dca}><div class="mm">${esc(labelMesAbbr(ym))}</div><div class="mh">${fmtH(seg)}</div>
         ${hi?`<div class="mm" style="color:#B91C1C">&gt; teto ${tetoMes}h</div>`:(lo?`<div class="mm" style="color:#B45309">&lt; mín ${minMes}h</div>`:'')}</div>`;
     }).join('');
-    // Drill-down: tipo de issue → chamados → link para o Jira. Só tipos faturáveis
-    // (os não faturáveis entram apenas como volume de horas no indicador faturável×não).
-    const tiposOrd=Object.entries(pt.tipos).filter(([,t])=>t.f).sort((a,b)=>b[1].seg-a[1].seg);
+    // Drill-down: tipo de issue → chamados → link para o Jira.
+    const tiposOrd=Object.entries(pt.tipos).sort((a,b)=>b[1].seg-a[1].seg);
     const tiposHtml=tiposOrd.map(([nome,t])=>{
       const chs=Object.entries(t.chamados).sort((a,b)=>b[1].seg-a[1].seg);
       const linhas=chs.map(([k,ch])=>{
@@ -5383,8 +5267,8 @@ function renderAMS(){
       ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo faturável no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h; só horas faturáveis consomem o pacote)</span></div>${burnChart}`:''}
       <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo <span class="muted" style="font-weight:400">(clique num mês para ver os apontamentos por chamado${minMes||tetoMes?` · mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês`:''})</span></div>
       <div class="ams-months">${mesesHtml}</div>
-      <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(somente faturáveis · clique no tipo para ver os chamados → Jira)</span></div>
-      <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem tipos faturáveis neste ciclo.</div>'}</div>
+      <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(clique no tipo para ver os chamados → Jira)</span></div>
+      <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem apontamentos neste ciclo.</div>'}</div>
       ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
       ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
       <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
@@ -5405,7 +5289,6 @@ function renderAMS(){
         ${amsDadosCard(cSel, cycSel)}
         ${amsCard(cSel)}
         ${amsChamadosCard(cSel, cycSel)}
-        ${amsCausaGrupoCard(cSel, cycSel)}
         ${amsRelatoriosCard(cSel, cycSel)}
       </div>`;
   }
@@ -6327,8 +6210,6 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(mes){ escondeTip(); const v=mes.getAttribute('data-ams-mes'); const i=v.indexOf('|'); amsDrillMes(v.slice(0,i), v.slice(i+1)); return; }
   const rel=e.target.closest&&e.target.closest('[data-ams-rel]');
   if(rel){ escondeTip(); amsDrillRel((estado.ams&&estado.ams.sel)||'', rel.getAttribute('data-ams-rel'), rel.getAttribute('data-ams-relv')); return; }
-  const crg=e.target.closest&&e.target.closest('[data-ams-crg]');
-  if(crg){ escondeTip(); amsDrillCausaGrupo((estado.ams&&estado.ams.sel)||'', crg.getAttribute('data-ams-crg')); return; }
   const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
   if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
   const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
