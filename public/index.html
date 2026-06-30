@@ -1246,7 +1246,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, gran:'semana' },
+  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5249,6 +5249,44 @@ function alocSync(){
   document.querySelectorAll('[data-al-f]').forEach(inp=>{ const p=inp.getAttribute('data-al-f').split('|'); const a=rows[+p[1]]; if(!a) return;
     if(p[0]==='hSemana') a.hSemana=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; });
 }
+// ---- Fase B: Visão por Projeto (equipe + planejado × apontado) ----
+function alocPeriodo(rows){ let ini='',fim=''; rows.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&(!ini||a.inicio<ini)) ini=a.inicio; if(/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&(!fim||a.fim>fim)) fim=a.fim; }); return {ini,fim}; }
+function alocRealKey(rows){ const p=alocPeriodo(rows); return p.ini+'|'+p.fim; }
+function alocCarregaReal(rows, forca){
+  const p=alocPeriodo(rows); if(!p.ini||!p.fim){ toast('Defina os períodos das alocações para calcular o apontado.','warn'); return; }
+  const r=estado.alocacao.real; const key=alocRealKey(rows); if(!forca && r.range===key && r.wl) return;
+  r.carregando=true; r.erro=''; r.range=key; renderAlocacao();
+  fetch(`/api/tempo?desde=${encodeURIComponent(p.ini)}&ate=${encodeURIComponent(p.fim)}`).then(x=>x.json()).then(j=>{
+    r.carregando=false; if(j.erro){ r.erro=humanizaErro(j.erro); r.wl=null; } else r.wl=j.worklogs||[];
+    if(estado.vista==='alocacao') renderAlocacao();
+  }).catch(e=>{ r.carregando=false; r.erro=humanizaErro(e); r.wl=null; if(estado.vista==='alocacao') renderAlocacao(); });
+}
+function alocViewProjeto(rows, pess){
+  const semanas=alocSemanas(rows); const r=estado.alocacao.real; const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const porProj={}; rows.forEach(a=>{ if(a.projeto){ (porProj[a.projeto]=porProj[a.projeto]||[]).push(a); } });
+  const projetos=Object.keys(porProj).sort();
+  const projNome=(k)=>{ const p=(_projetosCache||[]).find(x=>x.key===k); return p&&p.nome?`${k} — ${p.nome}`:k; };
+  const apont={}; if(r.wl) r.wl.forEach(w=>{ if(w.p) apont[w.p]=(apont[w.p]||0)+(Number(w.s)||0); });
+  const temAp=!!r.wl && r.range===alocRealKey(rows);
+  const rowsHtml=projetos.map(k=>{
+    const als=porProj[k]; const porPessoa={};
+    als.forEach(a=>{ if(a.accountId) porPessoa[a.accountId]=(porPessoa[a.accountId]||0)+(Number(a.hSemana)||0); });
+    const equipe=Object.entries(porPessoa).sort((x,y)=>nm(x[0]).localeCompare(nm(y[0]),'pt')).map(([a,h])=>`${esc(nm(a))} <span class="muted">${alocH(h)}/sem</span>`).join(' · ')||'<span class="muted">—</span>';
+    let plan=0; semanas.forEach(w=>{ const wf=somaDias(w,6); als.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.inicio<=wf&&a.fim>=w) plan+=Number(a.hSemana)||0; }); });
+    const ap=(apont[k]||0)/3600; const pct=plan?Math.round(ap/plan*100):0;
+    return `<tr><td><strong>${esc(projNome(k))}</strong></td><td>${equipe}</td>
+      <td class="num">${alocH(plan)}</td>
+      <td class="num">${temAp?`${alocH(ap)}${plan?` <span class="muted">· ${pct}%</span>`:''}`:'<span class="muted">—</span>'}</td>
+      <td class="num"${temAp&&plan&&ap>plan?' style="color:#C77700"':''}>${temAp?alocH(Math.max(0,plan-ap)):'<span class="muted">—</span>'}</td></tr>`;
+  }).join('');
+  const per=alocPeriodo(rows); let head='';
+  if(r.carregando) head='<div class="estado">Carregando apontamentos…</div>';
+  else if(r.erro) head=`<div class="aviso">${esc(r.erro)} <button class="btn" data-al-real="1">tentar de novo</button></div>`;
+  else if(!temAp) head=(per.ini&&per.fim)?`<button class="btn primario" data-al-real="1">Calcular apontado · ${esc(fmtBR(per.ini))}–${esc(fmtBR(per.fim))}</button>`:'<span class="muted small">Defina períodos nas alocações para calcular o apontado.</span>';
+  else head='<button class="btn" data-al-real="1">↻ recarregar apontado</button>';
+  return `<div class="muted small" style="margin:6px 0 10px">Equipe alocada e <strong>planejado × apontado</strong> por projeto no horizonte das alocações. ${head}</div>
+    ${projetos.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Projeto</th><th>Equipe (h/sem)</th><th class="num">Planejado</th><th class="num">Apontado</th><th class="num">Saldo</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`:'<div class="muted small">Sem alocações com projeto definido — preencha o projeto nas alocações abaixo.</div>'}`;
+}
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
@@ -5289,12 +5327,16 @@ function renderAlocacao(){
       <td class="num"><button class="pl-x" data-al-del="${i}" title="Remover">×</button></td></tr>`;
   }).join('');
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
+  const visao=estado.alocacao.visao||'pessoa';
+  const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}">${l}</button>`;
+  const viewPessoa=`<div class="muted small" style="margin:6px 0 10px">Cada célula = <strong>utilização</strong> (alocado ÷ capacidade) da pessoa no período. A capacidade desconta <strong>fins de semana, feriados e ausências/férias</strong> automaticamente. &nbsp; ${granBtn('semana','Semana')} ${granBtn('mes','Mês')}</div>
+      ${grid}
+      ${resumoTab?`<div class="muted small" style="font-weight:600;margin:16px 0 4px">Resumo por pessoa <span class="muted" style="font-weight:400">(média por semana no horizonte)</span></div>${resumoTab}`:''}`;
   cont.replaceChildren(el(`<div>
     <div class="card full">
-      <h2>🧑‍💼 Alocação — Visão por Pessoa <span>capacidade × utilização</span></h2>
-      <div class="muted small" style="margin:6px 0 10px">Cada célula = <strong>utilização</strong> (alocado ÷ capacidade) da pessoa no período. A capacidade desconta <strong>fins de semana, feriados e ausências/férias</strong> automaticamente. &nbsp; ${granBtn('semana','Semana')} ${granBtn('mes','Mês')}</div>
-      ${grid}
-      ${resumoTab?`<div class="muted small" style="font-weight:600;margin:16px 0 4px">Resumo por pessoa <span class="muted" style="font-weight:400">(média por semana no horizonte)</span></div>${resumoTab}`:''}
+      <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
+      <div style="margin:4px 0 12px">${vBtn('pessoa','Por Pessoa')} ${vBtn('projeto','Por Projeto')}</div>
+      ${visao==='projeto'?alocViewProjeto(rows,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">
       <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
@@ -6707,10 +6749,12 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real]'); if(!t) return;
   if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
   else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
   else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-visao')){ alocSync(); estado.alocacao.visao=t.getAttribute('data-al-visao'); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-real')){ alocSync(); alocCarregaReal(alocRows(), true); }
   else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{ if(e.target&&e.target.matches&&e.target.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
