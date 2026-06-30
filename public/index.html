@@ -4884,7 +4884,10 @@ function amsDrillMes(cId, ym){
 }
 // Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
 function amsChamadosCard(c, cyc){
-  const chs=amsChamadosCiclo(c,cyc); const tot=chs.reduce((s,o)=>s+o.seg,0);
+  // A lista mostra só chamados FATURÁVEIS; os não faturáveis ficam fora (mas continuam
+  // no indicador faturável×não faturável e em "Horas por tipo"/Relatórios).
+  const todos=amsChamadosCiclo(c,cyc); const chs=todos.filter(o=>o.f); const tot=chs.reduce((s,o)=>s+o.seg,0);
+  const nao=todos.filter(o=>!o.f); const segNao=nao.reduce((s,o)=>s+o.seg,0);
   const linhas=chs.map(o=>{
     const temK=o.k && o.k!=='(sem chave)';
     const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
@@ -4899,9 +4902,10 @@ function amsChamadosCard(c, cyc){
       <span class="ams-ch-p muted" data-tip="Pessoas que apontaram">${o.pessoas.size}</span>
       <span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
   }).join('');
+  const notaNao = segNao>0 ? `<span class="muted" style="font-weight:400"> · não faturáveis ocultos: <strong>${fmtH(segNao)}</strong> em ${nao.length} chamado(s)</span>` : '';
   return `<div class="ams-chcard">
-    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(${chs.length} chamado(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span></div>
-    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados neste ciclo.</div>'}</div>
+    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(somente faturáveis · ${chs.length} chamado(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span>${notaNao}</div>
+    <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados faturáveis neste ciclo.</div>'}</div>
   </div>`;
 }
 // ---- Relatórios do ciclo: Causa raiz · Produto · Processo (campos do Jira) ----
