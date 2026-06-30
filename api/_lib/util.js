@@ -203,19 +203,21 @@ function primeiroCampo(f, ids) {
 // Usado pela função de tempo para enriquecer os worklogs do Clockwork.
 export async function jiraResolveIssues(ids) {
   const mapa = {};
+  const paiNaoEpico = {};   // issueId -> key do pai (história) p/ resolver o épico num 2º nível
   const unicos = [...new Set(ids.map(String))].filter(Boolean);
   for (let i = 0; i < unicos.length; i += 100) {
     const lote = unicos.slice(i, i + 100);
     const { issues } = await jiraSearchAll({
       jql: `id in (${lote.join(',')})`,
-      fields: ['project', 'issuetype', 'summary', ...CAMPOS_AMS_IDS],
+      fields: ['project', 'issuetype', 'summary', 'parent', ...CAMPOS_AMS_IDS],
       pageSize: 100,
       maxPages: 1,
     });
     for (const it of issues) {
       const f = it.fields || {};
       const proj = f.project || {};
-      mapa[String(it.id)] = {
+      const id = String(it.id);
+      mapa[id] = {
         projetoKey: proj.key || '—',
         projetoNome: proj.name || '—',
         categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
@@ -223,12 +225,32 @@ export async function jiraResolveIssues(ids) {
         tipoDesc: (f.issuetype && f.issuetype.description) || '',
         issueKey: it.key || '',
         resumo: f.summary || '',
+        epicoKey: '',
         chamadoCliente: primeiroCampo(f, CAMPOS_AMS.chamadoCliente),
         causaRaiz: primeiroCampo(f, CAMPOS_AMS.causaRaiz),
         produto: primeiroCampo(f, CAMPOS_AMS.produto),
         processo: primeiroCampo(f, CAMPOS_AMS.processo),
       };
+      // Épico da issue (hierarchyLevel 1 = épico): a própria issue, o pai direto, ou
+      // — se o pai for uma história — o pai-da-história (resolvido num 2º lote).
+      const nivel = f.issuetype && f.issuetype.hierarchyLevel;
+      const par = f.parent;
+      const parNivel = par && par.fields && par.fields.issuetype && par.fields.issuetype.hierarchyLevel;
+      if (nivel === 1) mapa[id].epicoKey = it.key || '';
+      else if (par && par.key && parNivel === 1) mapa[id].epicoKey = par.key;
+      else if (par && par.key) paiNaoEpico[id] = par.key;
     }
+  }
+  // 2º nível: para issues cujo pai é uma história, o épico é o pai dessa história.
+  const paisKeys = [...new Set(Object.values(paiNaoEpico))];
+  if (paisKeys.length) {
+    const epicoDoPai = {};
+    for (let i = 0; i < paisKeys.length; i += 100) {
+      const lote = paisKeys.slice(i, i + 100);
+      const { issues } = await jiraSearchAll({ jql: `key in (${lote.join(',')})`, fields: ['parent'], pageSize: 100, maxPages: 1 });
+      for (const it of issues) { const par = it.fields && it.fields.parent; epicoDoPai[it.key] = (par && par.key) || ''; }
+    }
+    for (const [id, paiKey] of Object.entries(paiNaoEpico)) { if (mapa[id]) mapa[id].epicoKey = epicoDoPai[paiKey] || ''; }
   }
   return mapa;
 }
@@ -306,7 +328,7 @@ export async function worklogsEnriquecidos(startDate, endDate) {
     if (!aid) continue;
     if (!pessoas[aid]) pessoas[aid] = { nome: author.displayName || aid, email: author.emailAddress || author.email || '' };
     const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
-    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', tipoDesc: '', issueKey: '', resumo: '' };
+    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', tipoDesc: '', issueKey: '', resumo: '', epicoKey: '' };
     if (!projetos[m.projetoKey]) projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
     const ik = m.issueKey || (w.issue && w.issue.key) || '';
     if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
@@ -314,7 +336,7 @@ export async function worklogsEnriquecidos(startDate, endDate) {
     if (ik && !infos[ik] && (m.chamadoCliente || m.causaRaiz || m.produto || m.processo)) {
       infos[ik] = { cc: m.chamadoCliente || '', cr: m.causaRaiz || '', pr: m.produto || '', pc: m.processo || '' };
     }
-    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik });
+    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik, e: m.epicoKey || '' });
   }
   return { pessoas, projetos, resumos, infos, worklogs };
 }
