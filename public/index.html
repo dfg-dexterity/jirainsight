@@ -749,10 +749,12 @@
   .aloc-grid th,.aloc-grid td{border:1px solid var(--linha2);padding:5px 8px;text-align:left;white-space:nowrap}
   .aloc-grid th.num,.aloc-grid td.num{text-align:center;font-variant-numeric:tabular-nums}
   .aloc-grid thead th{background:var(--cartao2);font-weight:600}
-  .aloc-c.ok{background:rgba(24,137,24,.14)} .aloc-c.cheio{background:rgba(231,101,0,.18)} .aloc-c.sobre{background:rgba(210,10,10,.20);font-weight:700;color:#B91C1C}
+  .aloc-c.disp{background:rgba(0,112,242,.12)} .aloc-c.saud{background:rgba(24,137,24,.16)} .aloc-c.aten{background:rgba(231,101,0,.18)} .aloc-c.crit{background:rgba(210,10,10,.20);font-weight:700;color:#B91C1C}
   .aloc-leg{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
   .aloc-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
-  .aloc-leg i.ok{background:rgba(24,137,24,.4)} .aloc-leg i.cheio{background:rgba(231,101,0,.5)} .aloc-leg i.sobre{background:rgba(210,10,10,.55)}
+  .aloc-leg i.disp{background:rgba(0,112,242,.4)} .aloc-leg i.saud{background:rgba(24,137,24,.45)} .aloc-leg i.aten{background:rgba(231,101,0,.5)} .aloc-leg i.crit{background:rgba(210,10,10,.55)}
+  .aloc-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+  .aloc-badge.disp{background:rgba(0,112,242,.15);color:#0064D9} .aloc-badge.saud{background:rgba(24,137,24,.16);color:#188918} .aloc-badge.aten{background:rgba(231,101,0,.18);color:#B45309} .aloc-badge.crit{background:rgba(210,10,10,.18);color:#B91C1C}
   .aloc-ed select{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite);min-width:120px}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
@@ -1244,7 +1246,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false },
+  alocacao:{ rows:null, _cp:false, gran:'semana' },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5206,53 +5208,74 @@ function planAcompHTML(d){
     <div class="pl-atrs">${atrib||'<div class="muted small">Cadastre funções na aba Editor primeiro.</div>'}</div>
     <div style="margin-top:16px">${res}</div></div>`;
 }
-// ====================== ALOCAÇÃO MACRO (pessoa × projeto + disponibilidade) ======================
-// Aloca pessoas a PROJETOS por período, em % da capacidade. A grade mostra, por pessoa e mês,
-// a soma das alocações vs 100% (sobre/sub). É o passo macro ANTES do plano por épico.
-function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', inicio:'', fim:'', pct:100 }; }
-function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])); return estado.alocacao.rows; }
-function alocMeses(rows){
+// ====================== ALOCAÇÃO MACRO — Visão por Pessoa (capacidade × utilização) ======================
+// Aloca pessoas a PROJETOS por período, em HORAS/SEMANA. A grade mostra a utilização por
+// pessoa × semana/mês: alocado ÷ capacidade (jornada − fins de semana/feriados/ausências),
+// com status em 4 níveis (≤80 disponível · 80–100 saudável · 100–120 atenção · >120 crítico).
+function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', inicio:'', fim:'', hSemana:20 }; }
+function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])).map(a=>{
+    if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; return a; }); return estado.alocacao.rows; }
+function alocH(h){ return (Math.round((h||0)*10)/10).toLocaleString('pt-BR')+'h'; }
+// Semanas (segunda-feira) do horizonte das alocações (com folga à frente).
+function alocSemanas(rows){
   let ini='',fim=''; rows.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&(!ini||a.inicio<ini)) ini=a.inicio; if(/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&(!fim||a.fim>fim)) fim=a.fim; });
-  const hoje=hojeSP(); if(!ini) ini=hoje;
-  const out=[]; let ym=ini.slice(0,7); const fimYm=(fim||hoje).slice(0,7); let guard=0;
-  do{ out.push(ym); const [y,m]=ym.split('-').map(Number); ym=m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,'0')}`; guard++; } while(ym<=fimYm && guard<24);
-  while(out.length<3 && guard<24){ const last=out[out.length-1].split('-').map(Number); out.push(last[1]===12?`${last[0]+1}-01`:`${last[0]}-${String(last[1]+1).padStart(2,'0')}`); guard++; }
-  return out;
-}
-function alocOverlapMes(a, ym){
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return false;
-  const [y,m]=ym.split('-').map(Number); const mIni=ym+'-01'; const mFim=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
-  return a.inicio<=mFim && a.fim>=mIni;
-}
-function alocCarga(rows, meses){
-  const map={}; rows.forEach(a=>{ if(!a.accountId) return; const pct=Number(a.pct)||0; map[a.accountId]=map[a.accountId]||{};
-    meses.forEach(ym=>{ if(alocOverlapMes(a,ym)) map[a.accountId][ym]=(map[a.accountId][ym]||0)+pct; }); });
-  return map;
+  const hoje=hojeSP(); if(!ini) ini=hoje; if(!fim) fim=somaDias(ini,7*7);
+  let w=semChave(ini); const wFim=semChave(fim); const out=[]; let g=0;
+  while(w<=wFim && g<78){ out.push(w); w=somaDias(w,7); g++; }
+  while(out.length<6 && g<78){ out.push(somaDias(out[out.length-1],7)); g++; }
+  return out; }
+// Capacidade (h) de uma pessoa numa semana: dias úteis (não feriado, não ausência) × jornada.
+function alocCapacSemana(a, w){ const jor=metaSegDe(a)/3600; let h=0;
+  for(let i=0;i<7;i++){ const d=somaDias(w,i); if(ehUtil(d)&&!ehFeriado(d)&&!ehAusencia(a,d)) h+=jor; } return h; }
+// Alocado (h/semana) de uma pessoa numa semana = soma das alocações ativas naquela semana.
+function alocAlocadoSemana(rows, a, w){ const wi=w, wf=somaDias(w,6); let h=0;
+  rows.forEach(x=>{ if(x.accountId!==a) return; if(!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(x.fim)) return;
+    if(x.inicio<=wf && x.fim>=wi) h+=Number(x.hSemana)||0; }); return h; }
+function alocStatus(u){ if(u<=0) return ['','—']; if(u<80) return ['disp','Disponível']; if(u<=100) return ['saud','Saudável']; if(u<=120) return ['aten','Atenção']; return ['crit','Crítico']; }
+// Matriz pessoa × coluna (semana ou mês) com {cap, al} por célula + totais por pessoa.
+function alocMatriz(rows, gran){
+  const semanas=alocSemanas(rows); let cols;
+  if(gran==='mes'){ const ms=[]; semanas.forEach(w=>{ const ym=w.slice(0,7); if(!ms.includes(ym)) ms.push(ym); });
+    cols=ms.map(ym=>({key:ym, label:labelMesAbbr(ym), semanas:semanas.filter(w=>w.slice(0,7)===ym)})); }
+  else cols=semanas.map(w=>({key:w, label:fmtBR(w).slice(0,5), semanas:[w]}));
+  const pessoas=[...new Set(rows.map(a=>a.accountId).filter(Boolean))];
+  const dados={}; pessoas.forEach(a=>{ dados[a]={cols:{},capTot:0,alTot:0};
+    cols.forEach(c=>{ let cap=0,al=0; c.semanas.forEach(w=>{ cap+=alocCapacSemana(a,w); al+=alocAlocadoSemana(rows,a,w); });
+      dados[a].cols[c.key]={cap,al}; dados[a].capTot+=cap; dados[a].alTot+=al; }); });
+  return { cols, pessoas, dados, nSem:semanas.length };
 }
 function alocSync(){
   const rows=estado.alocacao.rows; if(!rows) return;
   document.querySelectorAll('[data-al-f]').forEach(inp=>{ const p=inp.getAttribute('data-al-f').split('|'); const a=rows[+p[1]]; if(!a) return;
-    if(p[0]==='pct') a.pct=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; });
+    if(p[0]==='hSemana') a.hSemana=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; });
 }
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
-  const rows=alocRows(); const meses=alocMeses(rows); const carga=alocCarga(rows,meses);
+  const rows=alocRows(); const gran=estado.alocacao.gran||'semana';
   const pess=pessoasUnidas();
   const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
   const pordPess=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare(y[1].nome||'','pt'));
-  // Grade de capacidade (pessoa × mês)
-  const pessoasGrid=[...new Set(rows.map(a=>a.accountId).filter(Boolean))].sort((a,b)=>((pess[a]&&pess[a].nome)||a).localeCompare((pess[b]&&pess[b].nome)||b,'pt'));
-  const thMes=meses.map(ym=>`<th class="num">${esc(labelMesAbbr(ym))}</th>`).join('');
-  const gridRows=pessoasGrid.map(a=>{
-    const cells=meses.map(ym=>{ const v=Math.round((carga[a]&&carga[a][ym])||0);
-      const cls=v===0?'':(v>100?'sobre':(v>85?'cheio':'ok'));
-      return `<td class="num aloc-c ${cls}" ${v?`data-tip="${escA((pess[a]&&pess[a].nome)||a)} · ${esc(labelMesAbbr(ym))}: ${v}%${v>100?' (sobrealocado)':` · ${100-v}% livre`}"`:''}>${v?v+'%':'·'}</td>`; }).join('');
-    return `<tr><td>${esc((pess[a]&&pess[a].nome)||a)}</td>${cells}</tr>`;
+  const M=alocMatriz(rows, gran);
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const pessoasOrd=M.pessoas.slice().sort((a,b)=>nm(a).localeCompare(nm(b),'pt'));
+  // Grade de utilização (pessoa × coluna)
+  const thCols=M.cols.map(c=>`<th class="num">${esc(c.label)}</th>`).join('');
+  const gridRows=pessoasOrd.map(a=>{
+    const cells=M.cols.map(c=>{ const d=M.dados[a].cols[c.key]; const u=d.cap?Math.round(d.al/d.cap*100):(d.al>0?999:0);
+      const [cls]=alocStatus(u); const tip=(d.cap||d.al)?`${escA(nm(a))} · ${esc(c.label)}: ${alocH(d.al)} de ${alocH(d.cap)} (${u}%)`:'';
+      return `<td class="num aloc-c ${cls}"${tip?` data-tip="${tip}"`:''}>${(d.cap||d.al)?u+'%':'·'}</td>`; }).join('');
+    return `<tr><td>${esc(nm(a))}</td>${cells}</tr>`;
   }).join('');
-  const grid = pessoasGrid.length ? `<div class="pl-wrap"><table class="aloc-grid"><thead><tr><th>Pessoa</th>${thMes}</tr></thead><tbody>${gridRows}</tbody></table></div>
-    <div class="aloc-leg"><span><i class="ok"></i>até 85%</span><span><i class="cheio"></i>86–100%</span><span><i class="sobre"></i>acima de 100% (sobrealocado)</span></div>`
-    : '<div class="muted small">Sem alocações ainda — adicione abaixo (pessoa + projeto + período + %) para ver a capacidade por mês.</div>';
+  const grid = pessoasOrd.length ? `<div class="pl-wrap"><table class="aloc-grid"><thead><tr><th>Pessoa</th>${thCols}</tr></thead><tbody>${gridRows}</tbody></table></div>
+    <div class="aloc-leg"><span><i class="disp"></i>≤80% disponível</span><span><i class="saud"></i>80–100% saudável</span><span><i class="aten"></i>100–120% atenção</span><span><i class="crit"></i>&gt;120% crítico</span></div>`
+    : '<div class="muted small">Sem alocações ainda — adicione abaixo (pessoa · projeto · período · h/semana).</div>';
+  // Resumo por pessoa (média por semana no horizonte)
+  const semsR=alocSemanas(rows);
+  const resumo=pessoasOrd.map(a=>{ let cap=0,al=0,n=0; semsR.forEach(w=>{ const aw=alocAlocadoSemana(rows,a,w); if(aw>0){ cap+=alocCapacSemana(a,w); al+=aw; n++; } });
+    const u=cap?Math.round(al/cap*100):(al>0?999:0); const [cls,lbl]=alocStatus(u);
+    return `<tr><td>${esc(nm(a))}</td><td class="num">${alocH(n?cap/n:0)}/sem</td><td class="num">${alocH(n?al/n:0)}/sem</td><td class="num">${u}%</td><td><span class="aloc-badge ${cls}">${lbl}</span></td></tr>`; }).join('');
+  const resumoTab = pessoasOrd.length ? `<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th class="num">Capacidade</th><th class="num">Alocado</th><th class="num">Utilização</th><th>Status</th></tr></thead><tbody>${resumo}</tbody></table></div>` : '';
   // Editor de alocações
   const edRows=rows.map((a,i)=>{
     const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
@@ -5262,22 +5285,24 @@ function renderAlocacao(){
       <td><select data-al-f="projeto|${i}">${prOpt}</select></td>
       <td><input type="date" data-al-f="inicio|${i}" value="${escA(a.inicio)}"></td>
       <td><input type="date" data-al-f="fim|${i}" value="${escA(a.fim)}"></td>
-      <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="pct|${i}" value="${a.pct||''}" min="0" step="5"><span>%</span></td>
+      <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="hSemana|${i}" value="${a.hSemana!=null?a.hSemana:''}" min="0" step="1"><span>h/sem</span></td>
       <td class="num"><button class="pl-x" data-al-del="${i}" title="Remover">×</button></td></tr>`;
   }).join('');
+  const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   cont.replaceChildren(el(`<div>
     <div class="card full">
-      <h2>🧑‍💼 Alocação <span>pessoas × projetos · disponibilidade por mês</span></h2>
-      <div class="muted small" style="margin:6px 0 12px">Aloque cada pessoa a um ou mais <strong>projetos</strong> por período, em <strong>% da capacidade</strong>. A grade mostra a <strong>carga por mês</strong> (soma das alocações da pessoa); <span style="color:#B91C1C">acima de 100% = sobrealocado</span>. É o passo <strong>macro</strong>, antes do planejamento por épico.</div>
+      <h2>🧑‍💼 Alocação — Visão por Pessoa <span>capacidade × utilização</span></h2>
+      <div class="muted small" style="margin:6px 0 10px">Cada célula = <strong>utilização</strong> (alocado ÷ capacidade) da pessoa no período. A capacidade desconta <strong>fins de semana, feriados e ausências/férias</strong> automaticamente. &nbsp; ${granBtn('semana','Semana')} ${granBtn('mes','Mês')}</div>
       ${grid}
+      ${resumoTab?`<div class="muted small" style="font-weight:600;margin:16px 0 4px">Resumo por pessoa <span class="muted" style="font-weight:400">(média por semana no horizonte)</span></div>${resumoTab}`:''}
     </div>
     <div class="card full" style="margin-top:14px">
-      <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · % da capacidade)</span></div>
-      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Início</th><th>Fim</th><th class="num">%</th><th></th></tr></thead>
+      <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
+      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
         <tbody>${edRows||'<tr><td colspan="6" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
         <span class="spacer"></span><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
-      <div class="muted small" style="margin-top:8px">Salvo na configuração compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar com o time; por ora salva só neste navegador)'}. Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
+      <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
     </div></div>`));
 }
 function renderAdmin(){
@@ -6682,9 +6707,10 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran]'); if(!t) return;
   if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
   else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); renderAlocacao(); }
   else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{ if(e.target&&e.target.matches&&e.target.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
