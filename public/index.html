@@ -5212,9 +5212,12 @@ function planAcompHTML(d){
 // Aloca pessoas a PROJETOS por período, em HORAS/SEMANA. A grade mostra a utilização por
 // pessoa × semana/mês: alocado ÷ capacidade (jornada − fins de semana/feriados/ausências),
 // com status em 4 níveis (≤80 disponível · 80–100 saudável · 100–120 atenção · >120 crítico).
-function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', inicio:'', fim:'', hSemana:20 }; }
+function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', tipo:'faturavel', inicio:'', fim:'', hSemana:20 }; }
 function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])).map(a=>{
-    if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; return a; }); return estado.alocacao.rows; }
+    if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; if(a.tipo==null) a.tipo='faturavel'; return a; }); return estado.alocacao.rows; }
+// Tipos de alocação (para a visão de capacidade da empresa). Os 3 primeiros contam como faturável.
+const ALOC_TIPOS=[['faturavel','Faturável'],['fechado','Projeto fechado'],['ams','AMS'],['prevenda','Pré-venda'],['interno','Interno'],['treino','Treinamento']];
+const ALOC_FAT=new Set(['faturavel','fechado','ams']);
 function alocH(h){ return (Math.round((h||0)*10)/10).toLocaleString('pt-BR')+'h'; }
 // Semanas (segunda-feira) do horizonte das alocações (com folga à frente).
 function alocSemanas(rows){
@@ -5287,6 +5290,32 @@ function alocViewProjeto(rows, pess){
   return `<div class="muted small" style="margin:6px 0 10px">Equipe alocada e <strong>planejado × apontado</strong> por projeto no horizonte das alocações. ${head}</div>
     ${projetos.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Projeto</th><th>Equipe (h/sem)</th><th class="num">Planejado</th><th class="num">Apontado</th><th class="num">Saldo</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`:'<div class="muted small">Sem alocações com projeto definido — preencha o projeto nas alocações abaixo.</div>'}`;
 }
+// ---- Fase C: Visão de Capacidade da Empresa (totais + por tipo) ----
+function alocViewEmpresa(rows, pess){
+  const per=alocPeriodo(rows); const semanas=alocSemanas(rows).filter(w=> !per.fim || w<=semChave(per.fim));
+  const pessoas=[...new Set(rows.map(a=>a.accountId).filter(Boolean))];
+  let capTot=0; pessoas.forEach(a=>semanas.forEach(w=>{ capTot+=alocCapacSemana(a,w); }));
+  let alTot=0; const porTipo={}; ALOC_TIPOS.forEach(([k])=>porTipo[k]=0);
+  semanas.forEach(w=>{ const wf=somaDias(w,6); rows.forEach(a=>{ if(!a.accountId) return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return;
+    if(a.inicio<=wf&&a.fim>=w){ const h=Number(a.hSemana)||0; alTot+=h; const t=a.tipo||'faturavel'; porTipo[t]=(porTipo[t]||0)+h; } }); });
+  const disp=Math.max(0,capTot-alTot); const util=capTot?Math.round(alTot/capTot*100):0;
+  let fat=0; ALOC_FAT.forEach(k=>fat+=porTipo[k]||0); const nfat=alTot-fat;
+  const kpis=`<div class="ams-kpis">
+    <div class="ams-k"><div class="v">${alocH(capTot)}</div><div class="l">Capacidade total</div></div>
+    <div class="ams-k"><div class="v">${alocH(alTot)}</div><div class="l">Alocado</div></div>
+    <div class="ams-k"><div class="v">${alocH(disp)}</div><div class="l">Disponível</div></div>
+    <div class="ams-k"><div class="v">${util}%</div><div class="l">Utilização média</div></div></div>`;
+  const tipoRows=ALOC_TIPOS.map(([k,l])=>{ const h=porTipo[k]||0; if(!h) return ''; const pct=alTot?Math.round(h/alTot*100):0;
+    return `<tr><td>${esc(l)}</td><td class="num">${alocH(h)}</td><td class="num">${pct}%</td></tr>`; }).filter(Boolean).join('');
+  return `<div class="muted small" style="margin:6px 0 10px">Capacidade e alocação <strong>da empresa</strong> no horizonte (pessoas com alocação). A capacidade desconta fins de semana, feriados e ausências/férias.</div>
+    ${kpis}
+    <div class="muted small" style="font-weight:600;margin:16px 0 4px">Por tipo de alocação</div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Tipo</th><th class="num">Horas</th><th class="num">% do alocado</th></tr></thead>
+      <tbody>${tipoRows||'<tr><td colspan="3" class="muted small">Sem alocações no horizonte.</td></tr>'}</tbody>
+      <tfoot><tr class="pl-tot"><td>Faturável <span class="muted" style="font-weight:400">(faturável + fechado + AMS)</span></td><td class="num">${alocH(fat)}</td><td class="num">${alTot?Math.round(fat/alTot*100):0}%</td></tr>
+      <tr class="pl-tot"><td>Não faturável <span class="muted" style="font-weight:400">(pré-venda + interno + treino)</span></td><td class="num">${alocH(nfat)}</td><td class="num">${alTot?Math.round(nfat/alTot*100):0}%</td></tr></tfoot></table></div>`;
+}
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
@@ -5318,9 +5347,11 @@ function renderAlocacao(){
   const edRows=rows.map((a,i)=>{
     const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
     const prOpt='<option value="">— projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
     return `<tr>
       <td><select data-al-f="accountId|${i}">${pOpt}</select></td>
       <td><select data-al-f="projeto|${i}">${prOpt}</select></td>
+      <td><select data-al-f="tipo|${i}">${tOpt}</select></td>
       <td><input type="date" data-al-f="inicio|${i}" value="${escA(a.inicio)}"></td>
       <td><input type="date" data-al-f="fim|${i}" value="${escA(a.fim)}"></td>
       <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="hSemana|${i}" value="${a.hSemana!=null?a.hSemana:''}" min="0" step="1"><span>h/sem</span></td>
@@ -5335,13 +5366,13 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 12px">${vBtn('pessoa','Por Pessoa')} ${vBtn('projeto','Por Projeto')}</div>
-      ${visao==='projeto'?alocViewProjeto(rows,pess):viewPessoa}
+      <div style="margin:4px 0 12px">${vBtn('pessoa','Por Pessoa')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')}</div>
+      ${visao==='projeto'?alocViewProjeto(rows,pess):visao==='empresa'?alocViewEmpresa(rows,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">
       <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
-      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
-        <tbody>${edRows||'<tr><td colspan="6" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
+      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
+        <tbody>${edRows||'<tr><td colspan="7" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
         <span class="spacer"></span><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
       <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
