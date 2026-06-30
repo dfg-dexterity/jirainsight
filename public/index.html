@@ -744,6 +744,16 @@
   .pl-atr{display:grid;grid-template-columns:180px 1fr;gap:10px;align-items:start}
   .pl-atr-f{font-size:13px;font-weight:600;padding-top:6px}
   .pl-pess-add{border:1px solid var(--linha);border-radius:999px;padding:4px 9px;background:var(--cartao);color:var(--grafite);font-size:12px}
+  /* Alocação macro — grade de capacidade */
+  .aloc-grid{width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px}
+  .aloc-grid th,.aloc-grid td{border:1px solid var(--linha2);padding:5px 8px;text-align:left;white-space:nowrap}
+  .aloc-grid th.num,.aloc-grid td.num{text-align:center;font-variant-numeric:tabular-nums}
+  .aloc-grid thead th{background:var(--cartao2);font-weight:600}
+  .aloc-c.ok{background:rgba(24,137,24,.14)} .aloc-c.cheio{background:rgba(231,101,0,.18)} .aloc-c.sobre{background:rgba(210,10,10,.20);font-weight:700;color:#B91C1C}
+  .aloc-leg{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+  .aloc-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
+  .aloc-leg i.ok{background:rgba(24,137,24,.4)} .aloc-leg i.cheio{background:rgba(231,101,0,.5)} .aloc-leg i.sobre{background:rgba(210,10,10,.55)}
+  .aloc-ed select{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite);min-width:120px}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1108,8 +1118,9 @@
       <div class="navg">
         <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
+          <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Alocação</button>
           <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
         </div>
       </div>
       <div class="navg">
@@ -1233,12 +1244,13 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -1592,6 +1604,7 @@ function render(){
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
+  if(estado.vista==='alocacao') return renderAlocacao();
   if(estado.vista==='planejamento') return renderPlanejamento();
   if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
@@ -5193,6 +5206,80 @@ function planAcompHTML(d){
     <div class="pl-atrs">${atrib||'<div class="muted small">Cadastre funções na aba Editor primeiro.</div>'}</div>
     <div style="margin-top:16px">${res}</div></div>`;
 }
+// ====================== ALOCAÇÃO MACRO (pessoa × projeto + disponibilidade) ======================
+// Aloca pessoas a PROJETOS por período, em % da capacidade. A grade mostra, por pessoa e mês,
+// a soma das alocações vs 100% (sobre/sub). É o passo macro ANTES do plano por épico.
+function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', inicio:'', fim:'', pct:100 }; }
+function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])); return estado.alocacao.rows; }
+function alocMeses(rows){
+  let ini='',fim=''; rows.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&(!ini||a.inicio<ini)) ini=a.inicio; if(/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&(!fim||a.fim>fim)) fim=a.fim; });
+  const hoje=hojeSP(); if(!ini) ini=hoje;
+  const out=[]; let ym=ini.slice(0,7); const fimYm=(fim||hoje).slice(0,7); let guard=0;
+  do{ out.push(ym); const [y,m]=ym.split('-').map(Number); ym=m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,'0')}`; guard++; } while(ym<=fimYm && guard<24);
+  while(out.length<3 && guard<24){ const last=out[out.length-1].split('-').map(Number); out.push(last[1]===12?`${last[0]+1}-01`:`${last[0]}-${String(last[1]+1).padStart(2,'0')}`); guard++; }
+  return out;
+}
+function alocOverlapMes(a, ym){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return false;
+  const [y,m]=ym.split('-').map(Number); const mIni=ym+'-01'; const mFim=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
+  return a.inicio<=mFim && a.fim>=mIni;
+}
+function alocCarga(rows, meses){
+  const map={}; rows.forEach(a=>{ if(!a.accountId) return; const pct=Number(a.pct)||0; map[a.accountId]=map[a.accountId]||{};
+    meses.forEach(ym=>{ if(alocOverlapMes(a,ym)) map[a.accountId][ym]=(map[a.accountId][ym]||0)+pct; }); });
+  return map;
+}
+function alocSync(){
+  const rows=estado.alocacao.rows; if(!rows) return;
+  document.querySelectorAll('[data-al-f]').forEach(inp=>{ const p=inp.getAttribute('data-al-f').split('|'); const a=rows[+p[1]]; if(!a) return;
+    if(p[0]==='pct') a.pct=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; });
+}
+function renderAlocacao(){
+  const cont=document.getElementById('conteudo');
+  if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
+  const rows=alocRows(); const meses=alocMeses(rows); const carga=alocCarga(rows,meses);
+  const pess=pessoasUnidas();
+  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const pordPess=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare(y[1].nome||'','pt'));
+  // Grade de capacidade (pessoa × mês)
+  const pessoasGrid=[...new Set(rows.map(a=>a.accountId).filter(Boolean))].sort((a,b)=>((pess[a]&&pess[a].nome)||a).localeCompare((pess[b]&&pess[b].nome)||b,'pt'));
+  const thMes=meses.map(ym=>`<th class="num">${esc(labelMesAbbr(ym))}</th>`).join('');
+  const gridRows=pessoasGrid.map(a=>{
+    const cells=meses.map(ym=>{ const v=Math.round((carga[a]&&carga[a][ym])||0);
+      const cls=v===0?'':(v>100?'sobre':(v>85?'cheio':'ok'));
+      return `<td class="num aloc-c ${cls}" ${v?`data-tip="${escA((pess[a]&&pess[a].nome)||a)} · ${esc(labelMesAbbr(ym))}: ${v}%${v>100?' (sobrealocado)':` · ${100-v}% livre`}"`:''}>${v?v+'%':'·'}</td>`; }).join('');
+    return `<tr><td>${esc((pess[a]&&pess[a].nome)||a)}</td>${cells}</tr>`;
+  }).join('');
+  const grid = pessoasGrid.length ? `<div class="pl-wrap"><table class="aloc-grid"><thead><tr><th>Pessoa</th>${thMes}</tr></thead><tbody>${gridRows}</tbody></table></div>
+    <div class="aloc-leg"><span><i class="ok"></i>até 85%</span><span><i class="cheio"></i>86–100%</span><span><i class="sobre"></i>acima de 100% (sobrealocado)</span></div>`
+    : '<div class="muted small">Sem alocações ainda — adicione abaixo (pessoa + projeto + período + %) para ver a capacidade por mês.</div>';
+  // Editor de alocações
+  const edRows=rows.map((a,i)=>{
+    const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
+    const prOpt='<option value="">— projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    return `<tr>
+      <td><select data-al-f="accountId|${i}">${pOpt}</select></td>
+      <td><select data-al-f="projeto|${i}">${prOpt}</select></td>
+      <td><input type="date" data-al-f="inicio|${i}" value="${escA(a.inicio)}"></td>
+      <td><input type="date" data-al-f="fim|${i}" value="${escA(a.fim)}"></td>
+      <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="pct|${i}" value="${a.pct||''}" min="0" step="5"><span>%</span></td>
+      <td class="num"><button class="pl-x" data-al-del="${i}" title="Remover">×</button></td></tr>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>🧑‍💼 Alocação <span>pessoas × projetos · disponibilidade por mês</span></h2>
+      <div class="muted small" style="margin:6px 0 12px">Aloque cada pessoa a um ou mais <strong>projetos</strong> por período, em <strong>% da capacidade</strong>. A grade mostra a <strong>carga por mês</strong> (soma das alocações da pessoa); <span style="color:#B91C1C">acima de 100% = sobrealocado</span>. É o passo <strong>macro</strong>, antes do planejamento por épico.</div>
+      ${grid}
+    </div>
+    <div class="card full" style="margin-top:14px">
+      <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · % da capacidade)</span></div>
+      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Início</th><th>Fim</th><th class="num">%</th><th></th></tr></thead>
+        <tbody>${edRows||'<tr><td colspan="6" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
+        <span class="spacer"></span><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
+      <div class="muted small" style="margin-top:8px">Salvo na configuração compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar com o time; por ora salva só neste navegador)'}. Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
+    </div></div>`));
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -6215,7 +6302,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','planejamento','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','alocacao','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -6593,6 +6680,14 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
     if(a && estado.planejamento.draft){ const d=estado.planejamento.draft; d.pessoasPorFuncao=d.pessoasPorFuncao||{}; d.pessoasPorFuncao[fid]=d.pessoasPorFuncao[fid]||[]; if(!d.pessoasPorFuncao[fid].includes(a)) d.pessoasPorFuncao[fid].push(a); renderPlanejamento(); } return; }
   if(t && t.matches && t.matches('[data-pl-meta],[data-pl-func],[data-pl-f],[data-pl-aloc]')){ planSyncDraft(); if(estado.planejamento.draft) renderPlanejamento(); }
 });
+// ---- Alocação macro: editor de alocações pessoa × projeto ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar]'); if(!t) return;
+  if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{ if(e.target&&e.target.matches&&e.target.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
