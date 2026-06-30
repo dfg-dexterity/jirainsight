@@ -1102,8 +1102,14 @@
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Operação <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejar</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
+        </div>
+      </div>
+      <div class="navg">
+        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
+          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
         </div>
       </div>
       <div class="navg">
@@ -1112,7 +1118,6 @@
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
-          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento</button>
           <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
         </div>
       </div>
@@ -5923,7 +5928,7 @@ async function enviaFeedback(){
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
-  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Planejar, Reclassificar) e 💰 AMS & Governança (AMS, Receita, Alertas, Admin).'},
+  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Reclassificar), 📅 Planejamento (Criação de Ticket, Planejamento macro) e 💰 AMS & Governança (AMS, Receita, Alertas, Admin).'},
   {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
   {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
