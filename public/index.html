@@ -740,6 +740,10 @@
   .pl-tab input{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite)}
   .pl-tab input.pl-pct,.pl-tab input.pl-h{width:56px;text-align:right}
   .pl-alloc{white-space:nowrap} .pl-alloc input{display:inline-block;width:54px} .pl-alloc span{color:var(--muted);margin-left:2px}
+  .pl-atrs{display:flex;flex-direction:column;gap:8px}
+  .pl-atr{display:grid;grid-template-columns:180px 1fr;gap:10px;align-items:start}
+  .pl-atr-f{font-size:13px;font-weight:600;padding-top:6px}
+  .pl-pess-add{border:1px solid var(--linha);border-radius:999px;padding:4px 9px;background:var(--cartao);color:var(--grafite);font-size:12px}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1223,7 +1227,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
-  planejamento:{ draft:null, carregandoEpicos:false, _carregandoProjs:false },
+  planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -4998,7 +5002,7 @@ function planFunc(nome){ return { id:'f'+Math.random().toString(36).slice(2,8), 
 function planFase(o){ return Object.assign({ id:'fa'+Math.random().toString(36).slice(2,8), epicoKey:'', nome:'', inicio:'', fim:'', horas:0, aloc:{} }, o||{}); }
 function planNovo(){ return { id:'pl'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
   nome:'', projeto:'', tipo:'implementacao', jornadaH:8,
-  funcoes:[planFunc('Gerente de Projeto'), planFunc('Consultor Sênior'), planFunc('Consultor Pleno')], fases:[] }; }
+  funcoes:[planFunc('Gerente de Projeto'), planFunc('Consultor Sênior'), planFunc('Consultor Pleno')], fases:[], pessoasPorFuncao:{} }; }
 function planDiasUteis(ini,fim){ if(!/^\d{4}-\d{2}-\d{2}$/.test(ini)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||fim<ini) return 0;
   let n=0,d=ini; for(let i=0;i<3000&&d<=fim;i++){ if(ehUtil(d)&&!ehFeriado(d)) n++; d=proxDia(d); } return n; }
 // Horas planejadas de uma função numa fase = horas da fase × fração de alocação.
@@ -5044,6 +5048,7 @@ function planEditorHTML(d){
   const carrEp=estado.planejamento.carregandoEpicos;
   return `<div class="card full">
     <div class="ams-dados-h"><strong>${d.nome?esc(d.nome):'Novo plano'}</strong><span class="spacer"></span>
+      <button class="btn primario" data-pl-aba="editor">Editor</button><button class="btn" data-pl-aba="acomp">Planejado × Realizado</button>
       <button class="btn" data-pl-voltar="1">← Voltar</button></div>
     <div class="pl-meta">
       <div><label>Nome do plano</label><input type="text" data-pl-meta="nome" value="${escA(d.nome)}" placeholder="Ex.: TRM — Implementação 2026"></div>
@@ -5075,7 +5080,7 @@ function renderPlanejamento(){
     garanteProjetos().then(()=>{ estado.planejamento._carregandoProjs=false; if(estado.vista==='planejamento') renderPlanejamento(); })
       .catch(()=>{ estado.planejamento._carregandoProjs=false; }); }
   const pl=estado.planejamento;
-  if(pl.draft){ cont.replaceChildren(el(`<div>${planEditorHTML(pl.draft)}</div>`)); return; }
+  if(pl.draft){ cont.replaceChildren(el(`<div>${pl.aba==='acomp'?planAcompHTML(pl.draft):planEditorHTML(pl.draft)}</div>`)); return; }
   const planos=cfg.planos||[];
   const linhas=planos.length?planos.map(p=>{
     const tot=planTotalGeral(p);
@@ -5111,6 +5116,77 @@ function planSalva(){
   const i=cfg.planos.findIndex(p=>p.id===d.id);
   if(i>=0) cfg.planos[i]=JSON.parse(JSON.stringify(d)); else cfg.planos.push(JSON.parse(JSON.stringify(d)));
   salvaCfg(); toast('✓ Plano salvo.','ok'); estado.planejamento.draft=null; renderPlanejamento();
+}
+// ---- MVP 2: Planejado × Realizado (atribuir pessoas → função + comparar com apontamentos) ----
+function planPeriodo(d){ let ini='',fim='';
+  (d.fases||[]).forEach(fa=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(fa.inicio)&&(!ini||fa.inicio<ini)) ini=fa.inicio;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(fa.fim)&&(!fim||fa.fim>fim)) fim=fa.fim; });
+  return { ini, fim }; }
+function planRealKey(d){ const p=planPeriodo(d); return (d.projeto||'')+'|'+p.ini+'|'+p.fim; }
+// Realizado (seg) por fase×função: apontamentos das pessoas da função, no épico da fase
+// (implementação) ou no projeto (AMS/interno), dentro do período da fase.
+function planRealizadoMapa(d){
+  const wl=(estado.planejamento.real.wl)||[]; const proj=d.projeto; const pess=d.pessoasPorFuncao||{}; const ehImpl=d.tipo==='implementacao';
+  const map={};
+  (d.fases||[]).forEach(fa=>{ (d.funcoes||[]).forEach(fn=>{
+    const set=new Set(pess[fn.id]||[]); let seg=0;
+    if(set.size) wl.forEach(w=>{ if(w.p!==proj||!set.has(w.a)) return;
+      if(ehImpl && (!fa.epicoKey || w.e!==fa.epicoKey)) return;
+      const dia=(w.d||'').slice(0,10); if(fa.inicio&&dia<fa.inicio) return; if(fa.fim&&dia>fa.fim) return;
+      seg+=Number(w.s)||0; });
+    map[fa.id+'|'+fn.id]=seg; }); });
+  return map; }
+function planCarregaReal(d, forca){
+  const per=planPeriodo(d); if(!per.ini||!per.fim) return;
+  const r=estado.planejamento.real; const key=planRealKey(d);
+  if(!forca && r.range===key && r.wl) return;
+  r.carregando=true; r.erro=''; r.range=key; renderPlanejamento();
+  fetch(`/api/tempo?desde=${encodeURIComponent(per.ini)}&ate=${encodeURIComponent(per.fim)}`).then(x=>x.json()).then(j=>{
+    r.carregando=false; if(j.erro){ r.erro=humanizaErro(j.erro); r.wl=null; } else { r.wl=j.worklogs||[]; }
+    if(estado.vista==='planejamento') renderPlanejamento();
+  }).catch(e=>{ r.carregando=false; r.erro=humanizaErro(e); r.wl=null; if(estado.vista==='planejamento') renderPlanejamento(); }); }
+function planRealizadoTabela(d){
+  const map=planRealizadoMapa(d); const ehImpl=d.tipo==='implementacao';
+  const headFunc=(d.funcoes||[]).map(fn=>`<th class="num">${esc(fn.nome||'—')}</th>`).join('');
+  let totPlan=0,totReal=0;
+  const cel=(plan,real)=>{ const pct=plan?Math.round(real/plan*100):(real?'—':0);
+    const cor=plan?(real>plan*1.1?'#C77700':(real>=plan*0.9?'#188918':'var(--grafite)')):'var(--muted)';
+    return `<td class="num"><span style="color:${cor};font-weight:600">${fmtH(real)}</span> <span class="muted">/ ${fmtH(plan)}${plan?` · ${pct}%`:''}</span></td>`; };
+  const rows=(d.fases||[]).map(fa=>{ const cells=(d.funcoes||[]).map(fn=>{ const plan=planHorasFuncFase(fa,fn.id)*3600, real=map[fa.id+'|'+fn.id]||0; totPlan+=plan; totReal+=real; return cel(plan,real); }).join('');
+    return `<tr><td>${esc(fa.nome||'—')}${fa.epicoKey?` <span class="muted small">🔗${esc(fa.epicoKey)}</span>`:''}</td>${cells}</tr>`; }).join('');
+  const totFunc=(d.funcoes||[]).map(fn=>{ let p=0,r=0; (d.fases||[]).forEach(fa=>{ p+=planHorasFuncFase(fa,fn.id)*3600; r+=map[fa.id+'|'+fn.id]||0; }); return cel(p,r); }).join('');
+  const ades=totPlan?Math.round(totReal/totPlan*100):0;
+  return `<div class="ams-kpis" style="margin-bottom:12px">
+      <div class="ams-k"><div class="v">${fmtH(totPlan)}</div><div class="l">Planejado</div></div>
+      <div class="ams-k"><div class="v">${fmtH(totReal)}</div><div class="l">Realizado</div></div>
+      <div class="ams-k"><div class="v">${ades}%</div><div class="l">Aderência</div></div>
+      <div class="ams-k"><div class="v">${fmtH(Math.max(0,totPlan-totReal))}</div><div class="l">Saldo a fazer</div></div></div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>${ehImpl?'Fase':'Etapa'}</th>${headFunc}</tr></thead>
+      <tbody>${rows||`<tr><td colspan="${1+(d.funcoes||[]).length}" class="muted small">Sem fases no plano.</td></tr>`}</tbody>
+      <tfoot><tr class="pl-tot"><td>Total</td>${totFunc}</tr></tfoot></table></div>
+    <div class="muted small" style="margin-top:6px">Cada célula: <strong>realizado / planejado · %</strong>. Realizado = tarefas ${ehImpl?'do épico da fase':'do projeto'}, das pessoas de cada função, no período. <button class="btn" data-pl-real-recarrega="1">↻ recarregar</button></div>`;
+}
+function planAcompHTML(d){
+  const per=planPeriodo(d); const r=estado.planejamento.real;
+  const pess=pessoasUnidas(); const pord=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare((y[1].nome||''),'pt'));
+  d.pessoasPorFuncao=d.pessoasPorFuncao||{};
+  const atrib=(d.funcoes||[]).map(fn=>{ const ids=d.pessoasPorFuncao[fn.id]||[];
+    const chips=ids.map(a=>`<span class="pl-chip" style="padding-left:10px">${esc((pess[a]&&pess[a].nome)||a)}<button class="pl-x" data-pl-pess-del="${escA(fn.id)}|${escA(a)}" title="Remover">×</button></span>`).join('');
+    const opts='<option value="">+ pessoa…</option>'+pord.filter(([a])=>!ids.includes(a)).map(([a,p])=>`<option value="${escA(a)}">${esc(p.nome||a)}</option>`).join('');
+    return `<div class="pl-atr"><div class="pl-atr-f">${esc(fn.nome||'—')}</div><div class="pl-chips">${chips}<select class="pl-pess-add" data-pl-pess-add="${escA(fn.id)}">${opts}</select></div></div>`; }).join('');
+  let res='';
+  if(!per.ini||!per.fim) res='<div class="muted small">Defina Início/Fim nas fases (aba Editor) para calcular o realizado.</div>';
+  else if(r.carregando) res='<div class="estado">Carregando apontamentos do período…</div>';
+  else if(r.erro) res=`<div class="aviso">${esc(r.erro)} <button class="btn" data-pl-real-recarrega="1">tentar de novo</button></div>`;
+  else if(!r.wl || r.range!==planRealKey(d)) res=`<button class="btn primario" data-pl-real="1">Calcular realizado · ${esc(fmtBR(per.ini))}–${esc(fmtBR(per.fim))}</button>`;
+  else res=planRealizadoTabela(d);
+  return `<div class="card full">
+    <div class="ams-dados-h"><strong>${esc(d.nome||'Plano')}</strong><span class="spacer"></span>
+      <button class="btn" data-pl-aba="editor">Editor</button><button class="btn primario" data-pl-aba="acomp">Planejado × Realizado</button>
+      <button class="btn" data-pl-voltar="1">← Voltar</button></div>
+    <div class="muted small" style="font-weight:600;margin:8px 0 6px">👥 Pessoas por função <span class="muted" style="font-weight:400">(quem realiza cada papel — usado para somar os apontamentos)</span></div>
+    <div class="pl-atrs">${atrib||'<div class="muted small">Cadastre funções na aba Editor primeiro.</div>'}</div>
+    <div style="margin-top:16px">${res}</div></div>`;
 }
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
@@ -6486,7 +6562,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Planejamento: editor do plano (CRUD do plano, fases e funções) ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-pl-novo],[data-pl-edit],[data-pl-voltar],[data-pl-func-add],[data-pl-func-del],[data-pl-fase-add],[data-pl-row-del],[data-pl-epicos],[data-pl-salvar],[data-pl-excluir]');
+  const t=e.target.closest&&e.target.closest('[data-pl-novo],[data-pl-edit],[data-pl-voltar],[data-pl-func-add],[data-pl-func-del],[data-pl-fase-add],[data-pl-row-del],[data-pl-epicos],[data-pl-salvar],[data-pl-excluir],[data-pl-aba],[data-pl-pess-del],[data-pl-real],[data-pl-real-recarrega]');
   if(!t) return;
   const pl=estado.planejamento;
   if(t.hasAttribute('data-pl-novo')){ pl.draft=planNovo(); renderPlanejamento(); }
@@ -6500,10 +6576,16 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-pl-epicos')){ planPuxaEpicos(); }
   else if(t.hasAttribute('data-pl-salvar')){ planSalva(); }
   else if(t.hasAttribute('data-pl-excluir')){ const id=pl.draft&&pl.draft.id; cfg.planos=(cfg.planos||[]).filter(p=>p.id!==id); salvaCfg(); toast('Plano excluído.','ok'); pl.draft=null; renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-aba')){ planSyncDraft(); pl.aba=t.getAttribute('data-pl-aba'); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-pess-del')){ const p=t.getAttribute('data-pl-pess-del').split('|'); const arr=(pl.draft.pessoasPorFuncao||{})[p[0]]; if(arr) pl.draft.pessoasPorFuncao[p[0]]=arr.filter(a=>a!==p[1]); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-real')){ planCarregaReal(pl.draft, false); }
+  else if(t.hasAttribute('data-pl-real-recarrega')){ planCarregaReal(pl.draft, true); }
 });
 // Ao mudar qualquer campo do editor: ressincroniza e re-renderiza (atualiza totais/dias úteis; tipo troca o layout).
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const t=e.target;
+  if(t && t.matches && t.matches('[data-pl-pess-add]')){ const fid=t.getAttribute('data-pl-pess-add'); const a=t.value;
+    if(a && estado.planejamento.draft){ const d=estado.planejamento.draft; d.pessoasPorFuncao=d.pessoasPorFuncao||{}; d.pessoasPorFuncao[fid]=d.pessoasPorFuncao[fid]||[]; if(!d.pessoasPorFuncao[fid].includes(a)) d.pessoasPorFuncao[fid].push(a); renderPlanejamento(); } return; }
   if(t && t.matches && t.matches('[data-pl-meta],[data-pl-func],[data-pl-f],[data-pl-aloc]')){ planSyncDraft(); if(estado.planejamento.draft) renderPlanejamento(); }
 });
 // ---- Administração: cadastro de contratos ----
