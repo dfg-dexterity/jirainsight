@@ -719,6 +719,27 @@
   .ams-relrow .tk{grid-column:1/3;height:7px;border-radius:4px;background:var(--linha2);overflow:hidden}
   .ams-relrow .tk i{display:block;height:100%;border-radius:4px}
   .ams-rel-cum{font-size:11px;color:var(--muted);white-space:nowrap}
+  /* Planejamento — editor do plano */
+  .pl-list{display:flex;flex-direction:column;gap:8px}
+  .pl-item{border:1px solid var(--linha);border-radius:9px;padding:10px 12px;cursor:pointer;background:var(--cartao)}
+  .pl-item:hover{background:var(--hoverbg)}
+  .pl-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:6px 0 12px}
+  .pl-meta label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .pl-meta input,.pl-meta select{width:100%;padding:7px 9px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite);font-size:13px}
+  .pl-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pl-chip{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--linha);border-radius:999px;padding:2px 4px 2px 10px;background:var(--cartao2)}
+  .pl-chip input{border:0;background:transparent;color:var(--grafite);font-size:13px;width:140px;outline:none}
+  .pl-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:1px 6px;border-radius:50%}
+  .pl-x:hover{background:var(--err);color:#fff}
+  .pl-wrap{overflow-x:auto;margin-top:6px}
+  .pl-tab{width:100%;border-collapse:collapse;font-size:13px;min-width:680px}
+  .pl-tab th,.pl-tab td{border:1px solid var(--linha2);padding:5px 7px;text-align:left;vertical-align:middle}
+  .pl-tab th.num,.pl-tab td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pl-tab thead th{background:var(--cartao2);font-weight:600}
+  .pl-tab tfoot .pl-tot td{background:var(--cartao2);font-weight:700}
+  .pl-tab input{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite)}
+  .pl-tab input.pl-pct,.pl-tab input.pl-h{width:56px;text-align:right}
+  .pl-alloc{white-space:nowrap} .pl-alloc input{display:inline-block;width:54px} .pl-alloc span{color:var(--muted);margin-left:2px}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1087,6 +1108,7 @@
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
+          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento</button>
           <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
         </div>
       </div>
@@ -1201,12 +1223,13 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
+  planejamento:{ draft:null, carregandoEpicos:false, _carregandoProjs:false },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -1560,6 +1583,7 @@ function render(){
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
+  if(estado.vista==='planejamento') return renderPlanejamento();
   if(estado.vista==='admin') return renderAdmin();
   return renderResumo();
 }
@@ -4964,6 +4988,130 @@ function amsDrillRel(cId, dim, valor){
     <div class="muted small" style="margin:2px 0 10px">Chamados do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong>. 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
     <div class="ams-chlist">${linhas||'<div class="estado">Sem chamados.</div>'}</div>`);
 }
+// ====================== PLANEJAMENTO Semanal/Mensal — MVP 1 (montar o plano) ======================
+// Plano de esforço de um projeto por FUNÇÃO. Implementação: fases = épicos do Jira;
+// AMS/interno: projeto inteiro. Horas planejadas (função, fase) = horas da fase × % (1.35 = 135%).
+// Realizado e custo (Odoo) vêm nas próximas entregas. Salvo no cfg (Supabase compartilhado).
+const PLAN_TIPOS=[['implementacao','Implementação (fases = épicos)'],['ams','AMS (projeto inteiro)'],['interno','Interno (projeto inteiro)']];
+function planRotuloTipo(t){ const o=PLAN_TIPOS.find(x=>x[0]===t); return o?o[1]:t; }
+function planFunc(nome){ return { id:'f'+Math.random().toString(36).slice(2,8), nome:nome||'' }; }
+function planFase(o){ return Object.assign({ id:'fa'+Math.random().toString(36).slice(2,8), epicoKey:'', nome:'', inicio:'', fim:'', horas:0, aloc:{} }, o||{}); }
+function planNovo(){ return { id:'pl'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+  nome:'', projeto:'', tipo:'implementacao', jornadaH:8,
+  funcoes:[planFunc('Gerente de Projeto'), planFunc('Consultor Sênior'), planFunc('Consultor Pleno')], fases:[] }; }
+function planDiasUteis(ini,fim){ if(!/^\d{4}-\d{2}-\d{2}$/.test(ini)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||fim<ini) return 0;
+  let n=0,d=ini; for(let i=0;i<3000&&d<=fim;i++){ if(ehUtil(d)&&!ehFeriado(d)) n++; d=proxDia(d); } return n; }
+// Horas planejadas de uma função numa fase = horas da fase × fração de alocação.
+function planHorasFuncFase(fa, fid){ return (Number(fa.horas)||0) * (Number(fa.aloc[fid])||0); }
+function planTotalGeral(d){ return (d.fases||[]).reduce((s,fa)=>s+(d.funcoes||[]).reduce((ss,fn)=>ss+planHorasFuncFase(fa,fn.id),0),0); }
+
+// Lê os inputs atuais do editor de volta para o draft (antes de qualquer ação estrutural/salvar).
+function planSyncDraft(){
+  const d=estado.planejamento.draft; if(!d) return;
+  const g=(s)=>document.querySelector(s);
+  const nm=g('[data-pl-meta="nome"]'); if(nm) d.nome=nm.value;
+  const pj=g('[data-pl-meta="projeto"]'); if(pj) d.projeto=pj.value;
+  const tp=g('[data-pl-meta="tipo"]'); if(tp) d.tipo=tp.value;
+  const jr=g('[data-pl-meta="jornada"]'); if(jr) d.jornadaH=Math.max(1,Number(jr.value)||8);
+  document.querySelectorAll('[data-pl-func]').forEach(inp=>{ const fn=(d.funcoes||[]).find(x=>x.id===inp.getAttribute('data-pl-func')); if(fn) fn.nome=inp.value; });
+  document.querySelectorAll('[data-pl-f]').forEach(inp=>{ const p=inp.getAttribute('data-pl-f').split('|'); const fa=d.fases[+p[1]]; if(!fa) return;
+    if(p[0]==='horas') fa.horas=Math.max(0,Number(inp.value)||0); else fa[p[0]]=inp.value; });
+  document.querySelectorAll('[data-pl-aloc]').forEach(inp=>{ const p=inp.getAttribute('data-pl-aloc').split('|'); const fa=d.fases[+p[0]]; if(!fa) return;
+    const v=Number(inp.value); if(inp.value===''||isNaN(v)) delete fa.aloc[p[1]]; else fa.aloc[p[1]]=Math.max(0,v)/100; });
+}
+function planEditorHTML(d){
+  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const projOpts='<option value="">— escolha o projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${d.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const tipoOpts=PLAN_TIPOS.map(([v,l])=>`<option value="${v}" ${d.tipo===v?'selected':''}>${esc(l)}</option>`).join('');
+  const ehImpl=d.tipo==='implementacao';
+  const funcChips=(d.funcoes||[]).map(fn=>`<span class="pl-chip"><input type="text" data-pl-func="${escA(fn.id)}" value="${escA(fn.nome)}" placeholder="Função"><button class="pl-x" data-pl-func-del="${escA(fn.id)}" title="Remover função">×</button></span>`).join('');
+  const thFunc=(d.funcoes||[]).map(fn=>`<th class="num">${esc(fn.nome||'—')}</th>`).join('');
+  const rows=(d.fases||[]).map((fa,i)=>{
+    const du=planDiasUteis(fa.inicio,fa.fim);
+    const aloc=(d.funcoes||[]).map(fn=>{ const pct=Math.round((Number(fa.aloc[fn.id])||0)*100);
+      return `<td class="num pl-alloc"><input type="number" class="pl-pct" data-pl-aloc="${i}|${escA(fn.id)}" value="${pct||''}" min="0" step="5" placeholder="0"><span>%</span></td>`; }).join('');
+    return `<tr>
+      <td><input type="text" class="pl-nm" data-pl-f="nome|${i}" value="${escA(fa.nome)}" placeholder="${ehImpl?'Fase':'Etapa'}">${fa.epicoKey?`<div class="muted small">🔗 ${esc(fa.epicoKey)}</div>`:''}</td>
+      <td><input type="date" data-pl-f="inicio|${i}" value="${escA(fa.inicio)}"></td>
+      <td><input type="date" data-pl-f="fim|${i}" value="${escA(fa.fim)}"></td>
+      <td class="num muted">${du||'—'}</td>
+      <td><input type="number" class="pl-h" data-pl-f="horas|${i}" value="${fa.horas||''}" min="0" step="0.5" placeholder="0"></td>
+      ${aloc}
+      <td class="num"><button class="pl-x" data-pl-row-del="${i}" title="Remover fase">×</button></td></tr>`;
+  }).join('');
+  const totFunc=(d.funcoes||[]).map(fn=>{ const t=(d.fases||[]).reduce((s,fa)=>s+planHorasFuncFase(fa,fn.id),0); return `<td class="num">${fmtH(Math.round(t*3600))}</td>`; }).join('');
+  const totGeral=planTotalGeral(d);
+  const carrEp=estado.planejamento.carregandoEpicos;
+  return `<div class="card full">
+    <div class="ams-dados-h"><strong>${d.nome?esc(d.nome):'Novo plano'}</strong><span class="spacer"></span>
+      <button class="btn" data-pl-voltar="1">← Voltar</button></div>
+    <div class="pl-meta">
+      <div><label>Nome do plano</label><input type="text" data-pl-meta="nome" value="${escA(d.nome)}" placeholder="Ex.: TRM — Implementação 2026"></div>
+      <div><label>Projeto (Jira)</label><select data-pl-meta="projeto">${projOpts}</select></div>
+      <div><label>Tipo</label><select data-pl-meta="tipo">${tipoOpts}</select></div>
+      <div><label>Jornada (h/dia)</label><input type="number" data-pl-meta="jornada" value="${d.jornadaH||8}" min="1" max="24" step="0.5"></div>
+    </div>
+    <div class="muted small" style="font-weight:600;margin:6px 0 2px">Funções</div>
+    <div class="pl-chips">${funcChips}<button class="btn" data-pl-func-add="1">+ função</button></div>
+    <div class="muted small" style="font-weight:600;margin:12px 0 2px">${ehImpl?'Fases (épicos)':'Etapas'}
+      ${ehImpl?`<button class="btn" data-pl-epicos="1" ${carrEp?'disabled':''}>${carrEp?'puxando…':'⤓ Puxar fases dos épicos'}</button>`:''}
+      <span class="muted" style="font-weight:400">· % por função (pode passar de 100%) · horas digitadas manualmente</span></div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr>
+      <th>${ehImpl?'Fase':'Etapa'}</th><th>Início</th><th>Fim</th><th class="num">Dias úteis</th><th class="num">Horas</th>${thFunc}<th></th>
+    </tr></thead><tbody>${rows||`<tr><td colspan="${6+(d.funcoes||[]).length}" class="muted small">Nenhuma ${ehImpl?'fase':'etapa'} ainda — ${ehImpl?'puxe os épicos ou ':''}clique em "+ adicionar".</td></tr>`}</tbody>
+      <tfoot><tr class="pl-tot"><td colspan="4">Total planejado por função →</td><td class="num">${fmtH(Math.round((d.fases||[]).reduce((s,fa)=>s+(Number(fa.horas)||0),0)*3600))}</td>${totFunc}<td></td></tr></tfoot>
+    </table></div>
+    <div style="margin-top:10px"><button class="btn" data-pl-fase-add="1">+ adicionar ${ehImpl?'fase':'etapa'}</button></div>
+    <div class="ams-fatura" style="margin-top:14px">
+      <span class="muted small">Esforço total planejado: <strong>${fmtH(Math.round(totGeral*3600))}</strong></span><span class="spacer"></span>
+      ${(cfg.planos||[]).some(p=>p.id===d.id)?'<button class="btn" data-pl-excluir="1">Excluir plano</button>':''}
+      <button class="btn primario" data-pl-salvar="1">Salvar plano</button></div>
+    <div class="muted small" style="margin-top:8px">Salvo na configuração compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar com o time; por ora salva só neste navegador)'}.</div>
+  </div>`;
+}
+function renderPlanejamento(){
+  const cont=document.getElementById('conteudo');
+  if(!_projetosCache && !estado.planejamento._carregandoProjs){ estado.planejamento._carregandoProjs=true;
+    garanteProjetos().then(()=>{ estado.planejamento._carregandoProjs=false; if(estado.vista==='planejamento') renderPlanejamento(); })
+      .catch(()=>{ estado.planejamento._carregandoProjs=false; }); }
+  const pl=estado.planejamento;
+  if(pl.draft){ cont.replaceChildren(el(`<div>${planEditorHTML(pl.draft)}</div>`)); return; }
+  const planos=cfg.planos||[];
+  const linhas=planos.length?planos.map(p=>{
+    const tot=planTotalGeral(p);
+    return `<div class="pl-item" data-pl-edit="${escA(p.id)}">
+      <div><strong>${esc(p.nome||'(sem nome)')}</strong> <span class="muted small">· ${esc(p.projeto||'—')} · ${esc(planRotuloTipo(p.tipo))}</span></div>
+      <div class="muted small">${(p.fases||[]).length} ${p.tipo==='implementacao'?'fase(s)':'etapa(s)'} · ${(p.funcoes||[]).length} função(ões) · <strong>${fmtH(Math.round(tot*3600))}</strong> planejadas</div></div>`;
+  }).join(''):'<div class="muted small">Nenhum plano ainda. Crie o primeiro.</div>';
+  cont.replaceChildren(el(`<div><div class="card full">
+    <h2>📅 Planejamento <span>plano de horas por função · planejado × realizado</span></h2>
+    <div class="muted small" style="margin:6px 0 12px">Monte o esforço de um projeto <strong>por função</strong> (ex.: Gerente de Projeto, Consultor Sênior). Em <strong>implementação</strong>, as fases são os <strong>épicos</strong> do Jira; em <strong>AMS/interno</strong>, planeja-se o projeto inteiro. <span class="muted">(MVP 1: montagem do plano — realizado e custo, via Odoo, vêm a seguir.)</span></div>
+    <button class="btn primario" data-pl-novo="1">+ Novo plano</button>
+    <div class="pl-list" style="margin-top:14px">${linhas}</div>
+  </div></div>`));
+}
+// Puxa os épicos abertos do projeto e adiciona como fases (sem duplicar).
+function planPuxaEpicos(){
+  planSyncDraft(); const d=estado.planejamento.draft; if(!d) return;
+  if(!d.projeto){ toast('Escolha o projeto primeiro.','warn'); return; }
+  estado.planejamento.carregandoEpicos=true; renderPlanejamento();
+  fetch('/api/projetos?epicos='+encodeURIComponent(d.projeto)).then(r=>r.json()).then(j=>{
+    estado.planejamento.carregandoEpicos=false;
+    const eps=(j&&j.epicos)||[]; const jaTem=new Set((d.fases||[]).map(f=>f.epicoKey).filter(Boolean));
+    let add=0; eps.forEach(e=>{ if(e.k && !jaTem.has(e.k)){ d.fases.push(planFase({epicoKey:e.k, nome:e.resumo||e.k})); add++; } });
+    toast(add?`✓ ${add} épico(s) adicionado(s) como fase.`:'Nenhum épico novo (ou projeto sem épicos abertos).', add?'ok':'info');
+    if(estado.vista==='planejamento') renderPlanejamento();
+  }).catch(e=>{ estado.planejamento.carregandoEpicos=false; toast(humanizaErro(e),'err'); if(estado.vista==='planejamento') renderPlanejamento(); });
+}
+function planSalva(){
+  planSyncDraft(); const d=estado.planejamento.draft; if(!d) return;
+  if(!d.nome.trim()){ toast('Dê um nome ao plano.','warn'); return; }
+  if(!d.projeto){ toast('Escolha o projeto do plano.','warn'); return; }
+  cfg.planos=cfg.planos||[];
+  const i=cfg.planos.findIndex(p=>p.id===d.id);
+  if(i>=0) cfg.planos[i]=JSON.parse(JSON.stringify(d)); else cfg.planos.push(JSON.parse(JSON.stringify(d)));
+  salvaCfg(); toast('✓ Plano salvo.','ok'); estado.planejamento.draft=null; renderPlanejamento();
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -5986,7 +6134,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -6335,6 +6483,28 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
     else if(campo==='fMinDias'){ a.fMinDias=Math.max(0, Number(f.value)||0); }
     else { a[campo]=f.value; }
     renderAlertas(); }
+});
+// ---- Planejamento: editor do plano (CRUD do plano, fases e funções) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-pl-novo],[data-pl-edit],[data-pl-voltar],[data-pl-func-add],[data-pl-func-del],[data-pl-fase-add],[data-pl-row-del],[data-pl-epicos],[data-pl-salvar],[data-pl-excluir]');
+  if(!t) return;
+  const pl=estado.planejamento;
+  if(t.hasAttribute('data-pl-novo')){ pl.draft=planNovo(); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-edit')){ const p=(cfg.planos||[]).find(x=>x.id===t.getAttribute('data-pl-edit')); if(p){ pl.draft=JSON.parse(JSON.stringify(p)); renderPlanejamento(); } }
+  else if(t.hasAttribute('data-pl-voltar')){ planSyncDraft(); pl.draft=null; renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-func-add')){ planSyncDraft(); pl.draft.funcoes.push(planFunc('')); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-func-del')){ planSyncDraft(); const fid=t.getAttribute('data-pl-func-del');
+    pl.draft.funcoes=pl.draft.funcoes.filter(f=>f.id!==fid); pl.draft.fases.forEach(fa=>{ delete fa.aloc[fid]; }); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-fase-add')){ planSyncDraft(); pl.draft.fases.push(planFase({})); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-row-del')){ planSyncDraft(); pl.draft.fases.splice(+t.getAttribute('data-pl-row-del'),1); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-epicos')){ planPuxaEpicos(); }
+  else if(t.hasAttribute('data-pl-salvar')){ planSalva(); }
+  else if(t.hasAttribute('data-pl-excluir')){ const id=pl.draft&&pl.draft.id; cfg.planos=(cfg.planos||[]).filter(p=>p.id!==id); salvaCfg(); toast('Plano excluído.','ok'); pl.draft=null; renderPlanejamento(); }
+});
+// Ao mudar qualquer campo do editor: ressincroniza e re-renderiza (atualiza totais/dias úteis; tipo troca o layout).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const t=e.target;
+  if(t && t.matches && t.matches('[data-pl-meta],[data-pl-func],[data-pl-f],[data-pl-aloc]')){ planSyncDraft(); if(estado.planejamento.draft) renderPlanejamento(); }
 });
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
