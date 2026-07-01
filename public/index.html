@@ -782,8 +782,8 @@
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
   /* Alocação — Simulação ("e se…") */
-  .sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-  @media(max-width:820px){ .sim-grid{grid-template-columns:1fr} }
+  .sim-grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
+  @media(min-width:1180px){ .sim-grid{grid-template-columns:1fr 1fr} }
   .sim-box{border:1px solid var(--linha);border-radius:10px;padding:12px 14px;background:var(--cartao)}
   .sim-box h4{margin:0 0 8px;font-size:13.5px}
   .sim-find{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px}
@@ -5407,6 +5407,7 @@ function alocViewGantt(rows, pess){
       <span class="muted small">Arraste a barra para <strong>mover</strong> · puxe as bordas para <strong>redimensionar</strong> · as alterações <strong>salvam sozinhas</strong>.</span>
       <span id="gtInfo" class="gt-info"></span>
       <span class="spacer"></span>
+      <button class="btn" data-gt-hoje="1" title="Rolar até hoje">→ hoje</button>
       <span class="muted small">Zoom</span> <button class="btn" data-gt-zoom="out" title="Menos zoom">−</button><button class="btn" data-gt-zoom="in" title="Mais zoom">+</button>
     </div>`;
   if(!pessoas.length || !valid.length){
@@ -5417,6 +5418,9 @@ function alocViewGantt(rows, pess){
   const monthsHtml=mSeg.map(s=>`<div class="gt-mon" style="width:${s.cnt*D}px">${esc(labelMesAbbr(s.ym))}</div>`).join('');
   const weeksHtml=weeks.map(w=>{ const off=gtDiff(start,w); const wpx=Math.min(7,totalD-off)*D; return `<div class="gt-wk" style="width:${wpx}px">${esc(fmtBR(w))}</div>`; }).join('');
   const tOff=gtDiff(start, hojeSP()); const today=(tOff>=0&&tOff<totalD)?`<div class="gt-today" style="left:${tOff*D}px"></div>`:'';
+  // Alvo de rolagem inicial / botão "→ hoje": hoje se estiver no horizonte, senão a 1ª alocação.
+  const firstLeft=valid.length?Math.min.apply(null, valid.map(x=>gtDiff(start,x.inicio)))*D:0;
+  const alvoPx=(tOff>=0&&tOff<totalD)?tOff*D:firstLeft;
   // Uma faixa (lane) por pessoa: heat de utilização por semana + barras empacotadas em sub-linhas.
   const lanes=pessoas.map(a=>{
     const als=valid.filter(x=>x.accountId===a).map(x=>({x, s:gtDiff(start,x.inicio), e:gtDiff(start,x.fim)}));
@@ -5434,7 +5438,7 @@ function alocViewGantt(rows, pess){
   }).join('');
   const head=`<div class="gt-head"><div class="gt-corner"></div><div class="gt-htl" style="width:${totalPx}px"><div class="gt-months">${monthsHtml}</div><div class="gt-weeks">${weeksHtml}</div></div></div>`;
   const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
-  return `${toolbar}<div class="gt-scroll"><div class="gt-inner" style="--gt-name:${NAME}px">${head}${lanes}</div></div>${leg}`;
+  return `${toolbar}<div class="gt-scroll" data-gt-target="${Math.round(alvoPx)}"><div class="gt-inner" style="--gt-name:${NAME}px">${head}${lanes}</div></div>${leg}`;
 }
 // ---- Fase F: Simulação ("e se…") — camada de alocações hipotéticas + busca de disponibilidade ----
 function simRows(){ if(!Array.isArray(estado.alocacao.sim)) estado.alocacao.sim=[]; return estado.alocacao.sim; }
@@ -5467,7 +5471,10 @@ function simBusca(pess){
 function alocViewSimulacao(_rows, pess){
   const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const sim=simRows(); const pordPess=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare(y[1].nome||'','pt'));
-  const f=estado.alocacao.find||{};
+  const f=estado.alocacao.find=estado.alocacao.find||{};
+  // Pré-preenche o período da busca (hoje → ~8 semanas) para já mostrar quem cabe, sem exigir digitação.
+  if(!f.ini) f.ini=semChave(hojeSP());
+  if(!f.fim) f.fim=somaDias(f.ini,55);
   const skillsAll=alocSkillsTodas();
   // ---- Editor do cenário (alocações hipotéticas, NÃO salvas na config) ----
   const edRows=sim.map((a,i)=>{
@@ -5530,9 +5537,17 @@ function alocViewSimulacao(_rows, pess){
         <span class="spacer"></span><span class="muted small">As hipóteses não afetam as alocações salvas.</span></div>
     </div>`;
 }
+// Lembra visão/granularidade/zoom da Alocação entre sessões (só no navegador, não é config compartilhada).
+const ALOC_UI_KEY='dexterity_aloc_ui_v1';
+function alocUISave(){ try{ localStorage.setItem(ALOC_UI_KEY, JSON.stringify({ visao:estado.alocacao.visao, gran:estado.alocacao.gran, gz:estado.alocacao.gz })); }catch(e){} }
+function alocUILoad(){ if(estado.alocacao._ui) return; estado.alocacao._ui=true;
+  try{ const u=JSON.parse(localStorage.getItem(ALOC_UI_KEY)||'{}'); if(u&&typeof u==='object'){ if(u.visao) estado.alocacao.visao=u.visao; if(u.gran) estado.alocacao.gran=u.gran; if(u.gz) estado.alocacao.gz=u.gz; } }catch(e){} }
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
+  alocUILoad();
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
+  // Guarda a rolagem horizontal do Gantt para restaurar após o re-render (arrastar/zoom não "pulam").
+  const _gtPrev=cont.querySelector('.gt-scroll'); const _gtSL=_gtPrev?_gtPrev.scrollLeft:null;
   const rows=alocRows(); const rv=alocFiltraRows(rows); const gran=estado.alocacao.gran||'semana';
   const pess=pessoasUnidas();
   const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
@@ -5573,7 +5588,8 @@ function renderAlocacao(){
   }).join('');
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
-  const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}">${l}</button>`;
+  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap)',simulacao:'Cenários "e se…" e busca de disponibilidade'};
+  const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}" title="${escA(V_DESC[v]||'')}">${l}</button>`;
   const fSkill=estado.alocacao.fSkill||'', fProj=estado.alocacao.fProj||'';
   const projetosAloc=[...new Set(rows.map(a=>a.projeto).filter(Boolean))].sort();
   const skillsAll=alocSkillsTodas();
@@ -5596,6 +5612,9 @@ function renderAlocacao(){
         <span class="spacer"></span><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
       <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
     </div></div>`));
+  // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
+  const _gt=cont.querySelector('.gt-scroll');
+  if(_gt){ if(_gtSL!=null) _gt.scrollLeft=_gtSL; else { const tp=+(_gt.getAttribute('data-gt-target'))||0; if(tp>0) _gt.scrollLeft=Math.max(0, tp-140); } }
 }
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
@@ -6999,8 +7018,9 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
-  if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); renderAlocacao(); return; }
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
+  if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-del')){ simSync(); simRows().splice(+t.getAttribute('data-sim-del'),1); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-limpar')){ estado.alocacao.sim=[]; renderAlocacao(); return; }
@@ -7010,8 +7030,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
   if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
   else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-visao')){ alocSync(); estado.alocacao.visao=t.getAttribute('data-al-visao'); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-visao')){ alocSync(); estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-real')){ alocSync(); alocCarregaReal(alocRows(), true); }
   else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
 });
