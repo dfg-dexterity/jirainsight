@@ -756,6 +756,31 @@
   .aloc-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
   .aloc-badge.disp{background:rgba(0,112,242,.15);color:#0064D9} .aloc-badge.saud{background:rgba(24,137,24,.16);color:#188918} .aloc-badge.aten{background:rgba(231,101,0,.18);color:#B45309} .aloc-badge.crit{background:rgba(210,10,10,.18);color:#B91C1C}
   .aloc-ed select{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite);min-width:120px}
+  /* Alocação — Gantt / linha do tempo (arrastar para mover · puxar bordas para redimensionar) */
+  .gt-toolbar{display:flex;align-items:center;gap:10px;margin:6px 0 8px;flex-wrap:wrap}
+  .gt-info{font-size:12px;font-weight:700;color:#0064D9;font-variant-numeric:tabular-nums;min-height:16px}
+  .gt-scroll{overflow-x:auto;border:1px solid var(--linha);border-radius:10px;background:#fff}
+  .gt-inner{width:max-content;min-width:100%}
+  .gt-head{display:flex;position:sticky;top:0;z-index:5}
+  .gt-corner{position:sticky;left:0;z-index:6;background:var(--cartao2);flex:0 0 158px;height:44px;border-right:1px solid var(--linha);border-bottom:1px solid var(--linha)}
+  .gt-htl{flex:0 0 auto;background:var(--cartao2)}
+  .gt-months{display:flex;height:22px}
+  .gt-mon{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--grafite);border-right:1px solid var(--linha);border-bottom:1px solid var(--linha);display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden}
+  .gt-weeks{display:flex;height:22px}
+  .gt-wk{flex:0 0 auto;font-size:10px;color:var(--muted);border-right:1px solid var(--linha2);border-bottom:1px solid var(--linha);display:flex;align-items:center;padding-left:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .gt-lane{display:flex;border-bottom:1px solid var(--linha2)}
+  .gt-lane:hover .gt-name{background:#eef4ff}
+  .gt-name{position:sticky;left:0;z-index:4;flex:0 0 158px;background:var(--cartao);border-right:1px solid var(--linha);display:flex;align-items:center;padding:6px 10px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gt-track{position:relative;flex:0 0 auto;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(5*var(--d)),rgba(15,23,42,.045) calc(5*var(--d)),rgba(15,23,42,.045) calc(7*var(--d)))}
+  .gt-hb{position:absolute;top:0;bottom:0;z-index:1}
+  .gt-hb.disp{background:rgba(0,112,242,.07)} .gt-hb.saud{background:rgba(24,137,24,.10)} .gt-hb.aten{background:rgba(231,101,0,.15)} .gt-hb.crit{background:rgba(210,10,10,.17)}
+  .gt-today{position:absolute;top:0;bottom:0;width:2px;background:rgba(210,10,10,.55);z-index:3;pointer-events:none}
+  .gt-bar{position:absolute;height:26px;border-radius:6px;font-size:11px;font-weight:700;display:flex;align-items:center;padding:0 9px;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.14);border-left:4px solid rgba(0,0,0,.25);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;touch-action:none;z-index:2}
+  .gt-bar:hover{box-shadow:0 2px 7px rgba(0,0,0,.22)}
+  .gt-bar.dragging{cursor:grabbing;opacity:.9;z-index:9;box-shadow:0 4px 12px rgba(0,0,0,.28)}
+  .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
+  .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
+  .gt-h.l{left:0} .gt-h.r{right:0}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1246,7 +1271,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5341,6 +5366,61 @@ function alocViewSkill(rows, pess){
     <div class="muted small" style="font-weight:600;margin:16px 0 4px">Skills por pessoa <span class="muted" style="font-weight:400">(separe por vírgula; a 1ª é a principal · salva ao sair do campo)</span></div>
     <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th>Skills</th></tr></thead><tbody>${skEd||'<tr><td colspan="2" class="muted small">Adicione alocações para listar as pessoas.</td></tr>'}</tbody></table></div>`;
 }
+// ---- Fase E: Gantt / linha do tempo com arrastar-e-soltar ----
+// Diferença/soma em dias corridos (calendário, sem pular fim de semana) — para a geometria.
+function gtDiff(a,b){ const [ay,am,ad]=a.split('-').map(Number),[by,bm,bd]=b.split('-').map(Number); return Math.round((Date.UTC(by,bm-1,bd)-Date.UTC(ay,am-1,ad))/86400000); }
+function gtAdd(s,n){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); }
+const GT_PAL =['#DBEAFE','#DCFCE7','#FEF9C3','#FCE7F3','#E0E7FF','#FFE4E6','#CCFBF1','#FFEDD5','#EDE9FE','#E0F2FE'];
+const GT_PALB=['#1D4ED8','#15803D','#A16207','#BE185D','#4338CA','#BE123C','#0F766E','#C2410C','#6D28D9','#0369A1'];
+function gtCor(key){ let h=0; const s=String(key||'—'); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h%GT_PAL.length; }
+function gtZoom(){ return Math.max(10,Math.min(44, estado.alocacao.gz||22)); }
+// Datas resultantes de um arraste em andamento (para o preview ao vivo e o commit).
+function gtDatas(mode, ini, fim, dd){ let ni=ini, nf=fim;
+  if(mode==='move'){ ni=gtAdd(ini,dd); nf=gtAdd(fim,dd); }
+  else if(mode==='resize-r'){ nf=gtAdd(fim,dd); if(nf<ni) nf=ni; }
+  else if(mode==='resize-l'){ ni=gtAdd(ini,dd); if(ni>nf) ni=nf; }
+  return { ini:ni, fim:nf }; }
+function alocViewGantt(rows, pess){
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const full=alocRows(); // índices para o drag referenciam a lista completa (não filtrada)
+  const weeks=alocSemanas(rows); const start=weeks[0]; const end=gtAdd(weeks[weeks.length-1],6);
+  const D=gtZoom(); const totalD=gtDiff(start,end)+1; const totalPx=totalD*D;
+  const pessoas=[...new Set(rows.map(a=>a.accountId).filter(Boolean))].sort((a,b)=>nm(a).localeCompare(nm(b),'pt'));
+  const valid=rows.filter(a=>a.accountId&&/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.fim>=a.inicio);
+  const NAME=158, barH=26, gap=4, padT=6;
+  const toolbar=`<div class="gt-toolbar">
+      <span class="muted small">Arraste a barra para <strong>mover</strong> · puxe as bordas para <strong>redimensionar</strong> · as alterações <strong>salvam sozinhas</strong>.</span>
+      <span id="gtInfo" class="gt-info"></span>
+      <span class="spacer"></span>
+      <span class="muted small">Zoom</span> <button class="btn" data-gt-zoom="out" title="Menos zoom">−</button><button class="btn" data-gt-zoom="in" title="Mais zoom">+</button>
+    </div>`;
+  if(!pessoas.length || !valid.length){
+    return `${toolbar}<div class="muted small">Adicione alocações com <strong>pessoa</strong>, <strong>início</strong> e <strong>fim</strong> (no editor abaixo) para vê-las na linha do tempo.</div>`;
+  }
+  // Cabeçalho: faixa de meses + faixa de semanas.
+  const mSeg=[]; { let d=start; while(d<=end){ const ym=d.slice(0,7); let cnt=0; while(d<=end && d.slice(0,7)===ym){ cnt++; d=gtAdd(d,1); } mSeg.push({ym,cnt}); } }
+  const monthsHtml=mSeg.map(s=>`<div class="gt-mon" style="width:${s.cnt*D}px">${esc(labelMesAbbr(s.ym))}</div>`).join('');
+  const weeksHtml=weeks.map(w=>{ const off=gtDiff(start,w); const wpx=Math.min(7,totalD-off)*D; return `<div class="gt-wk" style="width:${wpx}px">${esc(fmtBR(w))}</div>`; }).join('');
+  const tOff=gtDiff(start, hojeSP()); const today=(tOff>=0&&tOff<totalD)?`<div class="gt-today" style="left:${tOff*D}px"></div>`:'';
+  // Uma faixa (lane) por pessoa: heat de utilização por semana + barras empacotadas em sub-linhas.
+  const lanes=pessoas.map(a=>{
+    const als=valid.filter(x=>x.accountId===a).map(x=>({x, s:gtDiff(start,x.inicio), e:gtDiff(start,x.fim)}));
+    als.sort((p,q)=>p.s-q.s||p.e-q.e);
+    const subs=[]; als.forEach(it=>{ let r=0; for(;;r++){ const sub=subs[r]||(subs[r]=[]); if(sub.every(o=> it.s>o.e||it.e<o.s)){ sub.push(it); it.row=r; break; } } });
+    const nSub=Math.max(1,subs.length); const laneH=padT*2 + nSub*barH + (nSub-1)*gap;
+    const heat=weeks.map(w=>{ const cap=alocCapacSemana(a,w); const al=alocAlocadoSemana(rows,a,w); if(!cap&&!al) return '';
+      const u=cap?Math.round(al/cap*100):999; const [cls]=alocStatus(u); const off=gtDiff(start,w); const wpx=Math.min(7,totalD-off)*D;
+      return `<div class="gt-hb ${cls}" style="left:${off*D}px;width:${wpx}px" data-tip="${escA(nm(a))} · ${esc(fmtBR(w))}: ${alocH(al)} de ${alocH(cap)} (${u}%)"></div>`; }).join('');
+    const bars=als.map(it=>{ const x=it.x; const left=it.s*D, w=(it.e-it.s+1)*D, top=padT+it.row*(barH+gap); const ci=gtCor(x.projeto);
+      const nf=!ALOC_FAT.has(x.tipo||'faturavel'); const idx=full.indexOf(x);
+      const tip=`${x.projeto||'—'} · ${nm(a)}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
+      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
+    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))}">${esc(nm(a))}</div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
+  }).join('');
+  const head=`<div class="gt-head"><div class="gt-corner"></div><div class="gt-htl" style="width:${totalPx}px"><div class="gt-months">${monthsHtml}</div><div class="gt-weeks">${weeksHtml}</div></div></div>`;
+  const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
+  return `${toolbar}<div class="gt-scroll"><div class="gt-inner" style="--gt-name:${NAME}px">${head}${lanes}</div></div>${leg}`;
+}
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
@@ -5395,9 +5475,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')}</div>
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')}</div>
       <div class="aloc-filtros" style="margin:0 0 12px">${filtros}</div>
-      ${visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):viewPessoa}
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">
       <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
@@ -6810,7 +6890,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom]'); if(!t) return;
+  if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
   if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
   else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
@@ -6824,6 +6905,32 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
   if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; renderAlocacao(); return; }
   if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); renderAlocacao(); return; }
   if(t.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
+// ---- Gantt de alocação: arrastar para mover · puxar bordas para redimensionar (salva ao soltar) ----
+let _gtDrag=null;
+document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
+  if(e.button!==undefined && e.button!==0) return;
+  const bar=e.target.closest&&e.target.closest('[data-gt-idx]'); if(!bar) return;
+  const h=e.target.closest('[data-gt-h]'); const mode=h?('resize-'+h.getAttribute('data-gt-h')):'move';
+  const rows=alocRows(); const idx=+bar.getAttribute('data-gt-idx'); const a=rows[idx]; if(!a) return;
+  _gtDrag={ idx, mode, x0:e.clientX, D:gtZoom(), ini:a.inicio, fim:a.fim, w0:parseFloat(bar.style.width)||0, bar, dd:0, moved:false };
+  bar.classList.add('dragging'); try{ bar.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+document.addEventListener('pointermove', (e)=>{ const g=_gtDrag; if(!g) return;
+  const dd=Math.round((e.clientX-g.x0)/g.D); if(dd!==g.dd) g.moved=true; g.dd=dd; const b=g.bar;
+  if(g.mode==='move') b.style.transform=`translateX(${dd*g.D}px)`;
+  else if(g.mode==='resize-r') b.style.width=Math.max(g.D, g.w0+dd*g.D)+'px';
+  else if(g.mode==='resize-l'){ const nd=Math.min(dd, (g.w0/g.D)-1); b.style.transform=`translateX(${nd*g.D}px)`; b.style.width=Math.max(g.D, g.w0-nd*g.D)+'px'; }
+  const nx=gtDatas(g.mode, g.ini, g.fim, dd); const inf=document.getElementById('gtInfo'); if(inf) inf.textContent=`${fmtBR(nx.ini)} – ${fmtBR(nx.fim)}`;
+});
+document.addEventListener('pointerup', (e)=>{ const g=_gtDrag; if(!g) return; _gtDrag=null;
+  g.bar.classList.remove('dragging');
+  if(g.moved && g.dd!==0){ alocSync(); const rows=alocRows(); const a=rows[g.idx];
+    if(a){ const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); a.inicio=nx.ini; a.fim=nx.fim;
+      cfg.alocacoes=JSON.parse(JSON.stringify(rows)); salvaCfg(); toast('✓ Alocação atualizada e salva.','ok'); }
+    renderAlocacao();
+  } else { g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent=''; }
+});
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
