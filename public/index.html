@@ -781,6 +781,21 @@
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
+  /* Alocação — Simulação ("e se…") */
+  .sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  @media(max-width:820px){ .sim-grid{grid-template-columns:1fr} }
+  .sim-box{border:1px solid var(--linha);border-radius:10px;padding:12px 14px;background:var(--cartao)}
+  .sim-box h4{margin:0 0 8px;font-size:13.5px}
+  .sim-find{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px}
+  .sim-find label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+  .sim-find input,.sim-find select{border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite)}
+  .sim-find input[type=number]{width:64px} .sim-find input[type=date]{width:140px}
+  .sim-new td{background:rgba(210,10,10,.06)}
+  .sim-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .sim-tag.ok{background:rgba(24,137,24,.16);color:#188918} .sim-tag.part{background:rgba(231,101,0,.18);color:#B45309}
+  .sim-tag.no{background:rgba(120,120,120,.15);color:#6B7280} .sim-tag.gargalo{background:rgba(210,10,10,.16);color:#B91C1C}
+  .sim-arrow{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .sim-add{border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--cerceta);font-size:11px;font-weight:600;padding:2px 8px;cursor:pointer}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1271,7 +1286,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5421,6 +5436,100 @@ function alocViewGantt(rows, pess){
   const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
   return `${toolbar}<div class="gt-scroll"><div class="gt-inner" style="--gt-name:${NAME}px">${head}${lanes}</div></div>${leg}`;
 }
+// ---- Fase F: Simulação ("e se…") — camada de alocações hipotéticas + busca de disponibilidade ----
+function simRows(){ if(!Array.isArray(estado.alocacao.sim)) estado.alocacao.sim=[]; return estado.alocacao.sim; }
+function simNova(base){ return Object.assign({ id:'sim'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'Cenário', tipo:'faturavel', inicio:'', fim:'', hSemana:20 }, base||{}); }
+function simSync(){ const rows=simRows(); document.querySelectorAll('[data-sim-f]').forEach(inp=>{ const p=inp.getAttribute('data-sim-f').split('|'); const a=rows[+p[1]]; if(!a) return; if(p[0]==='hSemana') a.hSemana=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; }); }
+function simFindSync(){ const f=estado.alocacao.find=estado.alocacao.find||{}; document.querySelectorAll('[data-find-f]').forEach(inp=>{ const k=inp.getAttribute('data-find-f'); f[k]= k==='h'?Math.max(0,Number(inp.value)||0):inp.value; }); }
+function simSemanas(ini,fim){ let w=semChave(ini); const wf=semChave(fim); const out=[]; let g=0; while(w<=wf&&g<104){ out.push(w); w=somaDias(w,7); g++; } return out; }
+// Impacto por pessoa: baseline (só real) × cenário (real + simulado), sobre as semanas ativas.
+function simImpacto(){
+  const rows=alocRows(); const sim=simRows().filter(a=>a.accountId&&/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.fim>=a.inicio);
+  const combined=rows.concat(sim); const weeks=alocSemanas(combined);
+  const pessoas=[...new Set(sim.map(a=>a.accountId))];
+  return { sim, linhas: pessoas.map(a=>{ let cap=0,n=0,peakB=0,peakC=0,peakSim=0;
+    weeks.forEach(w=>{ const c=alocCapacSemana(a,w); const r=alocAlocadoSemana(rows,a,w); const s=alocAlocadoSemana(sim,a,w);
+      if(c>0 && (r+s)>0){ cap+=c; n++; const ub=r/c*100, uc=(r+s)/c*100; if(ub>peakB) peakB=ub; if(uc>peakC) peakC=uc; if(s>peakSim) peakSim=s; } });
+    const avgCap=n?cap/n:0; const uBase=Math.round(peakB), uCen=Math.round(peakC);
+    return { a, avgCap, peakSim, uBase, uCen, novo: peakB<=100 && peakC>100 };
+  }).sort((x,y)=> (y.novo-x.novo)||(y.uCen-x.uCen)) };
+}
+// Busca de disponibilidade ("quem cabe?"): folga média no período e se comporta a demanda.
+function simBusca(pess){
+  const f=estado.alocacao.find||{}; if(!f.ini||!f.fim||f.fim<f.ini) return null;
+  const rows=alocRows(); const wks=simSemanas(f.ini,f.fim); const n=wks.length||1; const need=Math.max(0,Number(f.h)||0);
+  return Object.entries(pess).filter(([id,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).map(([id,p])=>{
+    let free=0, fits=0, ativo=0; wks.forEach(w=>{ const cap=alocCapacSemana(id,w); if(cap<=0) return; ativo++; const fr=cap-alocAlocadoSemana(rows,id,w); free+=Math.max(0,fr); if(fr>=need) fits++; });
+    return { id, nome:p.nome||id, avgFree:ativo?free/ativo:0, fitsAll:ativo>0&&fits===ativo, fitsSome:fits>0, skillP:alocSkillPrim(id), skills:alocSkills(id) };
+  }).filter(c=> (!f.skill || c.skills.includes(f.skill)) && (c.avgFree>0.05 || c.fitsSome))
+    .sort((a,b)=> b.avgFree-a.avgFree).slice(0,12);
+}
+function alocViewSimulacao(_rows, pess){
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const sim=simRows(); const pordPess=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare(y[1].nome||'','pt'));
+  const f=estado.alocacao.find||{};
+  const skillsAll=alocSkillsTodas();
+  // ---- Editor do cenário (alocações hipotéticas, NÃO salvas na config) ----
+  const edRows=sim.map((a,i)=>{
+    const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
+    const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
+    return `<tr>
+      <td><select data-sim-f="accountId|${i}">${pOpt}</select></td>
+      <td><input type="text" data-sim-f="projeto|${i}" value="${escA(a.projeto||'')}" placeholder="rótulo" style="min-width:110px"></td>
+      <td><select data-sim-f="tipo|${i}">${tOpt}</select></td>
+      <td><input type="date" data-sim-f="inicio|${i}" value="${escA(a.inicio)}"></td>
+      <td><input type="date" data-sim-f="fim|${i}" value="${escA(a.fim)}"></td>
+      <td class="num pl-alloc"><input type="number" class="pl-pct" data-sim-f="hSemana|${i}" value="${a.hSemana!=null?a.hSemana:''}" min="0" step="1"><span>h/sem</span></td>
+      <td class="num"><button class="pl-x" data-sim-del="${i}" title="Remover">×</button></td></tr>`;
+  }).join('');
+  // ---- Impacto por pessoa ----
+  const imp=simImpacto(); const demanda=imp.sim.reduce((s,a)=>s+(Number(a.hSemana)||0),0); const gargalos=imp.linhas.filter(l=>l.novo).length;
+  const impRows=imp.linhas.map(l=>{ const [clsB]=alocStatus(l.uBase), [clsC,lblC]=alocStatus(l.uCen);
+    return `<tr class="${l.novo?'sim-new':''}"><td>${esc(nm(l.a))}${l.novo?' <span class="sim-tag gargalo">novo gargalo</span>':''}</td>
+      <td class="num">${alocH(l.avgCap)}/sem</td><td class="num" style="color:#0064D9;font-weight:600">+${alocH(l.peakSim)}/sem</td>
+      <td class="num sim-arrow"><span class="aloc-badge ${clsB}">${l.uBase}%</span> → <span class="aloc-badge ${clsC}">${l.uCen}%</span></td>
+      <td><span class="aloc-badge ${clsC}">${esc(lblC)}</span></td></tr>`; }).join('');
+  const impTab = imp.linhas.length
+    ? `<div class="muted small" style="margin:2px 0 8px">Cenário: <strong>${imp.sim.length}</strong> alocação(ões) · demanda simulada <strong>${alocH(demanda)}/sem</strong>${gargalos?` · <span style="color:#B91C1C;font-weight:700">${gargalos} pessoa(s) viram gargalo</span>`:' · nenhum novo gargalo'}.</div>
+       <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th class="num">Capacidade</th><th class="num">+ Cenário (pico)</th><th class="num">Utilização pico: base → cenário</th><th>Status cenário</th></tr></thead><tbody>${impRows}</tbody></table></div>`
+    : '<div class="muted small">Adicione alocações hipotéticas (com pessoa e período) para ver o impacto na utilização de cada um.</div>';
+  // ---- Busca de disponibilidade ("quem cabe?") ----
+  const busca=simBusca(pess);
+  const skOpt='<option value="">qualquer skill</option>'+skillsAll.map(s=>`<option value="${escA(s)}" ${f.skill===s?'selected':''}>${esc(s)}</option>`).join('');
+  let buscaTab;
+  if(!f.ini||!f.fim){ buscaTab='<div class="muted small">Informe início e fim para procurar quem tem folga no período.</div>'; }
+  else if(!busca||!busca.length){ buscaTab='<div class="muted small">Ninguém com folga suficiente no período/critério informado.</div>'; }
+  else { buscaTab=`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th>Skill</th><th class="num">Folga média</th><th>Cabe?</th><th></th></tr></thead><tbody>`+
+    busca.map(c=>{ const tag=c.fitsAll?'<span class="sim-tag ok">todas as semanas</span>':(c.fitsSome?'<span class="sim-tag part">em algumas</span>':'<span class="sim-tag no">não</span>');
+      return `<tr><td>${esc(c.nome)}</td><td class="muted small">${esc(c.skillP)}</td><td class="num" style="font-weight:600;color:#188918">${alocH(c.avgFree)}/sem</td><td>${tag}</td><td class="num"><button class="sim-add" data-sim-fromfind="${escA(c.id)}">+ cenário</button></td></tr>`; }).join('')+
+    `</tbody></table></div>`; }
+  return `<div class="muted small" style="margin:6px 0 12px">Modele cenários <strong>"e se…"</strong> sem tocar nas alocações reais: alocações hipotéticas ficam <strong>só nesta sessão</strong> (não são salvas) e mostram o impacto na utilização de cada pessoa. Use a <strong>busca de disponibilidade</strong> para achar quem cabe numa nova demanda.</div>
+    <div class="sim-grid">
+      <div class="sim-box">
+        <h4>🔎 Quem cabe? <span class="muted small" style="font-weight:400">(folga no período)</span></h4>
+        <div class="sim-find">
+          <label>Início<input type="date" data-find-f="ini" value="${escA(f.ini||'')}"></label>
+          <label>Fim<input type="date" data-find-f="fim" value="${escA(f.fim||'')}"></label>
+          <label>h/sem<input type="number" data-find-f="h" min="0" step="1" value="${f.h!=null?f.h:20}"></label>
+          <label>Skill<select data-find-f="skill">${skOpt}</select></label>
+          <label>Rótulo<input type="text" data-find-f="rot" value="${escA(f.rot||'Novo projeto')}" style="width:120px"></label>
+        </div>
+        ${buscaTab}
+      </div>
+      <div class="sim-box">
+        <h4>🧪 Impacto do cenário</h4>
+        ${impTab}
+      </div>
+    </div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--linha);margin-top:14px;padding:12px 14px">
+      <div class="muted small" style="font-weight:600;margin:0 0 8px">Cenário <span class="muted" style="font-weight:400">(alocações hipotéticas · pessoa · rótulo · período · h/semana)</span></div>
+      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Rótulo</th><th>Tipo</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
+        <tbody>${edRows||'<tr><td colspan="7" class="muted small">Cenário vazio. Adicione uma linha ou use "+ cenário" na busca ao lado.</td></tr>'}</tbody></table></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-sim-add="1">+ adicionar hipótese</button>
+        ${sim.length?'<button class="btn" data-sim-limpar="1">limpar cenário</button>':''}
+        <span class="spacer"></span><span class="muted small">As hipóteses não afetam as alocações salvas.</span></div>
+    </div>`;
+}
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache && !estado.alocacao._cp){ estado.alocacao._cp=true; garanteProjetos().then(()=>{ estado.alocacao._cp=false; if(estado.vista==='alocacao') renderAlocacao(); }).catch(()=>{ estado.alocacao._cp=false; }); }
@@ -5475,9 +5584,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')}</div>
-      <div class="aloc-filtros" style="margin:0 0 12px">${filtros}</div>
-      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):viewPessoa}
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('simulacao','Simulação')}</div>
+      <div class="aloc-filtros" style="margin:0 0 12px">${visao==='simulacao'?'':filtros}</div>
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">
       <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
@@ -6890,8 +6999,14 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-del')){ simSync(); simRows().splice(+t.getAttribute('data-sim-del'),1); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-limpar')){ estado.alocacao.sim=[]; renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-fromfind')){ simSync(); simFindSync(); const f=estado.alocacao.find||{};
+    simRows().push(simNova({ accountId:t.getAttribute('data-sim-fromfind'), projeto:(f.rot||'Novo projeto'), inicio:f.ini||'', fim:f.fim||'', hSemana:Math.max(0,Number(f.h)||0) }));
+    toast('✓ Adicionado ao cenário.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
   if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
   else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
@@ -6904,6 +7019,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
   if(t.matches('[data-al-fskill]')){ estado.alocacao.fSkill=t.value; renderAlocacao(); return; }
   if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; renderAlocacao(); return; }
   if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); renderAlocacao(); return; }
+  if(t.matches('[data-sim-f]')){ simSync(); if(estado.vista==='alocacao') renderAlocacao(); return; }
+  if(t.matches('[data-find-f]')){ simFindSync(); if(estado.vista==='alocacao') renderAlocacao(); return; }
   if(t.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
 // ---- Gantt de alocação: arrastar para mover · puxar bordas para redimensionar (salva ao soltar) ----
 let _gtDrag=null;
