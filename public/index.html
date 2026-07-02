@@ -758,8 +758,8 @@
   .aloc-ed select{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite);min-width:120px}
   /* Alocação — Gantt / linha do tempo (arrastar para mover · puxar bordas para redimensionar) */
   .gt-toolbar{display:flex;align-items:center;gap:10px;margin:6px 0 8px;flex-wrap:wrap}
-  .gt-info{font-size:12px;font-weight:700;color:#0064D9;font-variant-numeric:tabular-nums;min-height:16px}
-  .gt-scroll{overflow-x:auto;border:1px solid var(--linha);border-radius:10px;background:#fff}
+  .gt-info{font-size:12px;font-weight:700;color:var(--cerceta);font-variant-numeric:tabular-nums;min-height:16px}
+  .gt-scroll{overflow-x:auto;border:1px solid var(--linha);border-radius:10px;background:var(--cartao)}
   .gt-inner{width:max-content;min-width:100%}
   .gt-head{display:flex;position:sticky;top:0;z-index:5}
   .gt-corner{position:sticky;left:0;z-index:6;background:var(--cartao2);flex:0 0 158px;height:44px;border-right:1px solid var(--linha);border-bottom:1px solid var(--linha)}
@@ -770,6 +770,8 @@
   .gt-wk{flex:0 0 auto;font-size:10px;color:var(--muted);border-right:1px solid var(--linha2);border-bottom:1px solid var(--linha);display:flex;align-items:center;padding-left:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .gt-lane{display:flex;border-bottom:1px solid var(--linha2)}
   .gt-lane:hover .gt-name{background:#eef4ff}
+  [data-theme="dark"] .gt-lane:hover .gt-name{background:#22303F}
+  [data-theme="dark"] .gt-track{background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(5*var(--d)),rgba(255,255,255,.05) calc(5*var(--d)),rgba(255,255,255,.05) calc(7*var(--d)))}
   .gt-name{position:sticky;left:0;z-index:4;flex:0 0 158px;background:var(--cartao);border-right:1px solid var(--linha);display:flex;align-items:center;padding:6px 10px;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gt-track{position:relative;flex:0 0 auto;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(5*var(--d)),rgba(15,23,42,.045) calc(5*var(--d)),rgba(15,23,42,.045) calc(7*var(--d)))}
   .gt-hb{position:absolute;top:0;bottom:0;z-index:1}
@@ -781,6 +783,12 @@
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
+  /* Alocações — modo leitura (tabela limpa agrupada por pessoa) */
+  .gt-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .aloc-ro tr.grp td{border-top:2px solid var(--linha)}
+  .aloc-ro tr.past td{opacity:.55}
+  .aloc-tp{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:var(--cartao2);border:1px solid var(--linha2);color:var(--texto2);white-space:nowrap}
+  .aloc-tp.nf{border-style:dashed}
   /* Alocação — Simulação ("e se…") */
   .sim-grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
   @media(min-width:1180px){ .sim-grid{grid-template-columns:1fr 1fr} }
@@ -1286,7 +1294,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false, edit:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5575,7 +5583,8 @@ function renderAlocacao(){
   // Editor de alocações
   const edRows=rows.map((a,i)=>{
     const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
-    const prOpt='<option value="">— projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    const prSolto=a.projeto && !projs.some(p=>p.key===a.projeto); // projeto fora da lista (ex.: arquivado) — preserva o valor
+    const prOpt='<option value="">— projeto —</option>'+(prSolto?`<option value="${escA(a.projeto)}" selected>${esc(a.projeto)}</option>`:'')+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
     const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
     return `<tr>
       <td><select data-al-f="accountId|${i}">${pOpt}</select></td>
@@ -5586,6 +5595,35 @@ function renderAlocacao(){
       <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="hSemana|${i}" value="${a.hSemana!=null?a.hSemana:''}" min="0" step="1"><span>h/sem</span></td>
       <td class="num"><button class="pl-x" data-al-del="${i}" title="Remover">×</button></td></tr>`;
   }).join('');
+  // Card de alocações: modo LEITURA (tabela limpa, agrupada por pessoa) × modo EDIÇÃO (formulários)
+  const editMode=!!estado.alocacao.edit;
+  const hj=hojeSP(); let _roP=null;
+  const roRows=rows.slice().sort((a,b)=> nm(a.accountId).localeCompare(nm(b.accountId),'pt') || String(a.inicio).localeCompare(String(b.inicio))).map((a,i)=>{
+    const first=a.accountId!==_roP || i===0; _roP=a.accountId;
+    const tipoLbl=(ALOC_TIPOS.find(([k])=>k===(a.tipo||'faturavel'))||[])[1]||(a.tipo||'—');
+    const nf=!ALOC_FAT.has(a.tipo||'faturavel');
+    const okDt=/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim);
+    const past=okDt&&a.fim<hj, fut=okDt&&a.inicio>hj;
+    const st=!okDt?'<span class="muted small">sem período</span>':past?'<span class="aloc-tp">encerrada</span>':fut?'<span class="aloc-badge disp">futura</span>':'<span class="aloc-badge saud">ativa</span>';
+    const ci=gtCor(a.projeto);
+    return `<tr class="${first&&i>0?'grp':''}${past?' past':''}"><td>${first?esc(nm(a.accountId)||'—'):''}</td>
+      <td><i class="gt-dot" style="background:${GT_PALB[ci]}"></i>${esc(a.projeto||'—')}</td>
+      <td><span class="aloc-tp${nf?' nf':''}">${esc(tipoLbl)}</span></td>
+      <td class="num" style="white-space:nowrap">${okDt?`${esc(fmtBR(a.inicio))} – ${esc(fmtBR(a.fim))}`:'—'}</td>
+      <td class="num" style="font-weight:600">${Number(a.hSemana)||0}h/sem</td>
+      <td>${st}</td></tr>`;
+  }).join('');
+  const edCard = editMode
+    ? `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px"><span class="muted small" style="font-weight:600">Alocações — edição <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></span></div>
+      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
+        <tbody>${edRows||'<tr><td colspan="7" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
+        <span class="spacer"></span><button class="btn" data-al-cancelar="1">Cancelar</button><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
+      <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>`
+    : `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px"><span class="muted small" style="font-weight:600">Alocações <span class="muted" style="font-weight:400">(${rows.length})</span></span><span class="spacer"></span><button class="btn" data-al-editar="1">✏️ Editar</button></div>
+      ${rows.length?`<div class="pl-wrap"><table class="pl-tab aloc-ro"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th class="num">Período</th><th class="num">h/sem</th><th>Status</th></tr></thead><tbody>${roRows}</tbody></table></div>`
+        :'<div class="muted small">Nenhuma alocação ainda — clique em <strong>✏️ Editar</strong> para adicionar.</div>'}
+      <div class="muted small" style="margin-top:8px">Na <strong>Linha do tempo</strong> dá para <strong>arrastar/redimensionar</strong> as barras direto (salva sozinho). Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa).</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
   const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap)',simulacao:'Cenários "e se…" e busca de disponibilidade'};
@@ -5604,14 +5642,7 @@ function renderAlocacao(){
       <div class="aloc-filtros" style="margin:0 0 12px">${visao==='simulacao'?'':filtros}</div>
       ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
-    <div class="card full" style="margin-top:14px">
-      <div class="muted small" style="font-weight:600;margin:2px 0 8px">Alocações <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></div>
-      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
-        <tbody>${edRows||'<tr><td colspan="7" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
-        <span class="spacer"></span><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
-      <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>
-    </div></div>`));
+    <div class="card full" style="margin-top:14px">${edCard}</div></div>`));
   // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
   const _gt=cont.querySelector('.gt-scroll');
   if(_gt){ if(_gtSL!=null) _gt.scrollLeft=_gtSL; else { const tp=+(_gt.getAttribute('data-gt-target'))||0; if(tp>0) _gt.scrollLeft=Math.max(0, tp-140); } }
@@ -7018,7 +7049,9 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-editar],[data-al-cancelar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-al-editar')){ estado.alocacao.edit=true; renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-cancelar')){ estado.alocacao.rows=null; estado.alocacao.edit=false; renderAlocacao(); return; }
   if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
@@ -7033,15 +7066,21 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-visao')){ alocSync(); estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-real')){ alocSync(); alocCarregaReal(alocRows(), true); }
-  else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); estado.alocacao.edit=false; toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
 });
+// Re-render ADIADO (fora do dispatch do change): trocar o DOM no meio do evento —
+// com o campo ainda focado — dispara blur/change reentrantes e quebra o replaceChildren.
+let _alocRedrawT=null;
+function alocRedraw(){ clearTimeout(_alocRedrawT); _alocRedrawT=setTimeout(()=>{ if(estado.vista==='alocacao') renderAlocacao(); },0); }
 document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.target; if(!t||!t.matches) return;
-  if(t.matches('[data-al-fskill]')){ estado.alocacao.fSkill=t.value; renderAlocacao(); return; }
-  if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; renderAlocacao(); return; }
-  if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); renderAlocacao(); return; }
-  if(t.matches('[data-sim-f]')){ simSync(); if(estado.vista==='alocacao') renderAlocacao(); return; }
-  if(t.matches('[data-find-f]')){ simFindSync(); if(estado.vista==='alocacao') renderAlocacao(); return; }
-  if(t.matches('[data-al-f]')){ alocSync(); if(estado.vista==='alocacao') renderAlocacao(); } });
+  if(t.matches('[data-al-fskill]')){ estado.alocacao.fSkill=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); alocRedraw(); return; }
+  if(t.matches('[data-sim-f]')){ simSync(); alocRedraw(); return; }
+  if(t.matches('[data-find-f]')){ simFindSync(); alocRedraw(); return; }
+  // Só sincroniza no modo edição: ao salvar/cancelar o DOM antigo dispara um "change"
+  // tardio do campo focado, que não pode reler o valor descartado.
+  if(t.matches('[data-al-f]')){ if(!estado.alocacao.edit) return; alocSync(); alocRedraw(); } });
 // ---- Gantt de alocação: arrastar para mover · puxar bordas para redimensionar (salva ao soltar) ----
 let _gtDrag=null;
 document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
