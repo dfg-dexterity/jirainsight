@@ -179,6 +179,19 @@ async function portal(req, res, base, headers, token) {
 }
 
 export default async function handler(req, res) {
+  // GET /api/config?versao=1 → versão do deploy (commit/PR), injetada pela Vercel no runtime.
+  // O merge squash guarda o nº do PR no fim da mensagem do commit: "Título (#60)".
+  if (req.query && req.query.versao) {
+    const sha = String(process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7);
+    const msg = String(process.env.VERCEL_GIT_COMMIT_MESSAGE || '').split('\n')[0];
+    const m = msg.match(/\(#(\d+)\)\s*$/);
+    const owner = String(process.env.VERCEL_GIT_REPO_OWNER || 'dfg-dexterity');
+    const repo = String(process.env.VERCEL_GIT_REPO_SLUG || 'jirainsight');
+    return json(res, 200, {
+      sha, pr: m ? m[1] : '', titulo: msg.replace(/\s*\(#\d+\)\s*$/, '').slice(0, 140),
+      url: `https://github.com/${owner}/${repo}`,
+    });
+  }
   const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_ANON_KEY || '';
   const token = String((req.query && req.query.portal) || '');
