@@ -1199,9 +1199,10 @@
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Operação <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
+          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
+          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
           <button data-v="reuvinc"><svg class="nav-ic"><use href="#ic-ams"/></svg>Vincular Reuniões</button>
-          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
         </div>
       </div>
       <div class="navg">
@@ -1217,7 +1218,6 @@
         <div class="navg-menu" role="menu">
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
-          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
         </div>
       </div>
@@ -1677,15 +1677,26 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
       <div class="val">${fmt(v)}</div></div>`; }).join('')+`</div>`;
 }
 
+// ---- Chrome por vista: o que cada tela mostra no topo (mecanismo central, declarativo) ----
+// per = seletor de Período · fil = filtros pessoa/categoria/projeto/tipo · exp = Exportar CSV/PDF.
+// Telas operacionais/formulário (apontar, planejar, gestão…) têm controles próprios: nada disso aparece.
+const VCHROME={
+  visao:{per:1,exp:1}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
+  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, receita:{per:1,exp:1},
+  ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, reclassificar:{},
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
+function aplicaChrome(){
+  const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
+  const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
+  mostra('#hdr-periodo', !!c.per);
+  mostra('.filtros', !!c.fil);
+  mostra('#btn-csv', !!c.exp);
+  mostra('#btn-pdf', !!c.exp);
+  mostra('#btn-novidades', !!(c.per||c.exp));   // novidades só nas telas de análise
+}
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
-  // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
-  const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','reuvinc','gestao','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
-  // A aba AMS é apurada por CICLO (navegador de ciclos), não pela janela tradicional do topo:
-  // esconde o seletor de Período só nela.
-  const hp=document.getElementById('hdr-periodo');
-  if(hp) hp.style.display = (estado.vista==='ams') ? 'none' : '';
+  aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
