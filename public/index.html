@@ -813,6 +813,8 @@
   .gx-venc.atrasado{color:#B91C1C;font-weight:700}
   .gx-tab td,.gx-tab th{white-space:nowrap}
   .gx-tab td.rc-resumo{white-space:normal}
+  .btn.perigo{border-color:rgba(210,10,10,.5);color:#B91C1C}
+  .btn.perigo:hover{background:rgba(210,10,10,.10)}
   tr.gx-on td{background:rgba(0,112,242,.07)}
   /* Vincular Reuniões a Tickets de AMS */
   .rv-met{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;background:var(--cartao2);margin:8px 0 12px}
@@ -6255,6 +6257,48 @@ async function gxStatusLote(){
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.id='gx-fechar'; }
   const bc=document.getElementById('gx-st-cancelar'); if(bc) bc.hidden=true;
 }
+// Excluir em massa: IRREVERSÍVEL — exige digitar EXCLUIR para habilitar a confirmação.
+let _gxDel=null;
+function abreModalExcluirLote(keys){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  keys=(keys||[]).filter(Boolean); if(!keys.length) return;
+  _gxDel={keys};
+  const itens=keys.map(k=>{ const t=alxTickets().find(x=>x.k===k)||{k}; return `<li><strong>${esc(k)}</strong> — ${esc((t.resumo||'').slice(0,70))} <span class="muted">(${esc(t.status||'—')})</span></li>`; }).join('');
+  abreModal(`
+    <h2>🗑 Excluir ${keys.length} ticket(s)</h2>
+    <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:150px;overflow:auto">${itens}</ul>
+    <div class="rv-del">⚠️ A exclusão é <strong>IRREVERSÍVEL</strong>: os tickets somem do Jira com comentários, anexos e horas apontadas. Exige a permissão <strong>"Excluir itens"</strong> no projeto.</div>
+    <div class="alx-campo"><label>Para confirmar, digite <strong>EXCLUIR</strong></label>
+      <input type="text" class="alx-coment" id="gx-del-conf" placeholder="EXCLUIR" autocomplete="off" style="min-height:0"></div>
+    <div class="alx-fb" id="gx-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn perigo" id="gx-del-confirmar" disabled>Excluir ${keys.length} ticket(s) definitivamente</button>
+      <button class="btn" id="gx-del-cancelar">Cancelar</button></div>`);
+}
+async function gxExcluiLote(){
+  const ctx=_gxDel; const id=idApontar(); if(!ctx||!id) return;
+  const conf=((document.getElementById('gx-del-conf')||{}).value||'').trim().toUpperCase();
+  if(conf!=='EXCLUIR') return;
+  const fb=document.getElementById('gx-fb');
+  const bt=document.getElementById('gx-del-confirmar'); if(bt) bt.disabled=true;
+  let ok=0; const erros=[];
+  for(const k of ctx.keys){
+    if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent=`Excluindo ${k}… (${ok+erros.length+1}/${ctx.keys.length})`; }
+    try{
+      const r=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({excluir:true,issue:k,email:id.email,token:id.token})}).then(x=>x.json());
+      if(r.ok){ ok++;
+        const g=estado.gestao; delete g.sel[k];
+        if(g.dados&&g.dados.tickets) g.dados.tickets=g.dados.tickets.filter(t=>t.k!==k);
+      } else erros.push(`${k}: ${r.erro||'falhou'}`);
+    }catch(e){ erros.push(`${k}: ${e.message||e}`); }
+  }
+  estado.cache={};
+  if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
+    fb.innerHTML=`${ok?`✓ ${ok} ticket(s) excluído(s) do Jira.`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
+  if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.classList.remove('perigo'); bt.id='gx-fechar'; }
+  const bc=document.getElementById('gx-del-cancelar'); if(bc) bc.hidden=true;
+}
 function renderGestao(){
   const cont=document.getElementById('conteudo');
   const g=estado.gestao;
@@ -6286,8 +6330,9 @@ function renderGestao(){
       <button class="btn" data-gx-act="status">🔁 Alterar status</button>
       <button class="btn" data-gx-act="comentar">💬 Comentar</button>
       <button class="btn" data-gx-act="reprog">📅 Reprogramar</button>
+      <button class="btn perigo" data-gx-act="excluir">🗑 Excluir</button>
       <span class="spacer"></span><button class="btn" id="gx-limpar">limpar seleção</button></div>`
-    :`<div class="muted small" style="margin-top:10px">Marque tickets na primeira coluna para habilitar as <strong>ações em massa</strong> (atribuir · alterar status · comentar · reprogramar vencimento).</div>`;
+    :`<div class="muted small" style="margin-top:10px">Marque tickets na primeira coluna para habilitar as <strong>ações em massa</strong> (atribuir · alterar status · comentar · reprogramar · excluir).</div>`;
   cont.replaceChildren(el(`<div>
     ${faixaId}
     <div class="card full">
@@ -7373,6 +7418,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     else if(a==='reprog') abreModalReprog(keys,'HOJE');
     else if(a==='comentar') abreModalComentarLote(keys);
     else if(a==='status') abreModalStatusLote(keys);
+    else if(a==='excluir') abreModalExcluirLote(keys);
     return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   const g=estado.gestao;
@@ -7398,7 +7444,13 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='gx-com-confirmar'){ gxComentaLote(); }
   else if(t.id==='gx-st-confirmar'){ gxStatusLote(); }
-  else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; fechaModal(); }
+  else if(t.id==='gx-del-confirmar'){ gxExcluiLote(); }
+  else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
+});
+document.getElementById('modal-body').addEventListener('input',(e)=>{
+  const t=e.target; if(!t) return;
+  if(t.id==='gx-del-conf'){ const b=document.getElementById('gx-del-confirmar');
+    if(b) b.disabled = t.value.trim().toUpperCase()!=='EXCLUIR'; }
 });
 // ---- Vincular Reuniões a AMS: lista + assistente (modal) ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{

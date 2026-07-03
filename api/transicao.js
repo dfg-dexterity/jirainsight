@@ -9,6 +9,7 @@
 //   { reagendar:true, issue, duedate, email, token }  -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' p/ remover)
 //   { comentar:true, issue, texto, email, token }     -> adiciona um comentário ao chamado
 //   { atribuir:true, issue, accountId, email, token } -> transfere o responsável (accountId vazio/null = sem responsável)
+//   { excluir:true, issue, email, token }             -> EXCLUI o ticket (irreversível; permissão "Excluir itens")
 import { jiraBase, cacheClear, json } from './_lib/util.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
@@ -98,6 +99,19 @@ export default async function handler(req, res) {
       if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
       cacheClear('atividade:');
       return json(res, 200, { ok: true, issue });
+    }
+
+    // ---- Modo excluir: apaga o ticket (IRREVERSÍVEL; exige a permissão "Excluir itens") ----
+    if (b.excluir) {
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}?deleteSubtasks=true`, {
+        method: 'DELETE', headers,
+      });
+      if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para excluir este ticket (precisa de "Excluir itens" no projeto).' });
+      if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
+      if (r.status !== 204) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
+      cacheClear('venc:');
+      cacheClear('atividade:');
+      return json(res, 200, { ok: true, issue, excluido: true });
     }
 
     // ---- Modo atribuir: transfere o responsável (assignee) do chamado ----
