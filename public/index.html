@@ -149,6 +149,16 @@
   #to-top[hidden]{display:none}
   #to-top:hover{filter:brightness(1.06)}
   /* Indicador e lista de Novidades */
+  /* Barra de ações do cabeçalho: Atualizar · Exportar ▾ · 🌙 · ⋯ Mais ▾ */
+  .hdr-acoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .hdrmenu{position:relative}
+  .hdrmenu-m{position:absolute;top:100%;right:0;z-index:60;min-width:200px;background:var(--cartao);
+    border:1px solid var(--linha);border-radius:10px;box-shadow:0 14px 38px rgba(34,54,79,.20);
+    padding:6px;display:none;flex-direction:column;gap:1px;margin-top:4px}
+  .hdrmenu.open>.hdrmenu-m{display:flex}
+  .hdrmenu-m button{border:0;margin:0;background:transparent;text-align:left;white-space:nowrap;
+    padding:9px 12px;border-radius:7px;font-family:var(--corpo);font-size:13.5px;font-weight:600;color:var(--grafite);cursor:pointer}
+  .hdrmenu-m button:hover{background:var(--hoverbg);color:var(--cerceta)}
   .nov-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#D20A0A;margin-left:5px;vertical-align:middle}
   .nov-dot[hidden]{display:none}
   .nov-lista{display:flex;flex-direction:column;gap:8px;margin-top:14px}
@@ -1146,7 +1156,7 @@
     .navtab,.navg-b{white-space:nowrap;padding:8px 10px}
     .navg-menu{min-width:62vw}
     .hdr-sel{flex:1 1 100%}
-    #btn-metas,#btn-csv,#btn-refresh{flex:1 1 30%}
+    .hdr-acoes{flex:1 1 100%;justify-content:flex-start}
     .atualizado{order:9}
     .filtros{flex-direction:column;align-items:stretch}
     .campo{width:100%;flex:0 0 auto}
@@ -1253,13 +1263,25 @@
         <option value="anoPassado">Ano passado</option>
       </select>
     </label>
-    <button class="btn" id="btn-metas">Metas</button>
-    <button class="btn" id="btn-csv">Exportar CSV</button>
-    <button class="btn" id="btn-pdf" title="Exportar a tela atual em PDF">🖨 PDF</button>
-    <button class="btn" id="btn-refresh">Atualizar</button>
-    <button class="btn" id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
-    <button class="btn" id="btn-tema" aria-label="Alternar modo claro/escuro" title="Modo claro/escuro">🌙</button>
-    <button class="btn" id="btn-ajuda" aria-label="Ajuda e feedback">? Ajuda</button>
+    <div class="hdr-acoes">
+      <button class="btn" id="btn-refresh" title="Recarregar os dados">↻ Atualizar</button>
+      <div class="hdrmenu" id="grp-exportar">
+        <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⬇ Exportar <span class="nav-car">▾</span></button>
+        <div class="hdrmenu-m">
+          <button id="btn-csv">📄 Exportar CSV</button>
+          <button id="btn-pdf" title="Exportar a tela atual em PDF">🖨 PDF da tela</button>
+        </div>
+      </div>
+      <button class="btn" id="btn-tema" aria-label="Alternar modo claro/escuro" title="Modo claro/escuro">🌙</button>
+      <div class="hdrmenu" id="grp-mais">
+        <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⋯ Mais<span class="nov-dot" id="mais-dot" hidden></span></button>
+        <div class="hdrmenu-m">
+          <button id="btn-metas">🎯 Metas &amp; ausências</button>
+          <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
+          <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
+        </div>
+      </div>
+    </div>
     <div class="atualizado" id="atualizado"></div>
   </header>
 
@@ -1708,8 +1730,7 @@ function aplicaChrome(){
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
   mostra('#hdr-periodo', !!c.per);
   mostra('.filtros', !!c.fil);
-  mostra('#btn-csv', !!c.exp);
-  mostra('#btn-pdf', !!c.exp);
+  mostra('#grp-exportar', !!c.exp);
   mostra('#btn-novidades', !!(c.per||c.exp));   // novidades só nas telas de análise
 }
 function render(){
@@ -6793,7 +6814,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>Navegação, novidades e versão</summary><div class="help-body">
       <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início</b>. Os controles do topo aparecem
       <b>só onde fazem sentido</b>: Período/filtros/Exportar nas telas de análise; as telas operacionais têm controles próprios.
-      <b>✨ Novidades</b> abre o que há de novo (pontinho vermelho = tem coisa que você não viu). <b>🌙</b> alterna claro/escuro.
+      Em <b>⋯ Mais</b> ficam <b>🎯 Metas</b>, <b>✨ Novidades</b> (pontinho vermelho = tem coisa que você não viu) e a <b>❓ Ajuda</b>; <b>🌙</b> alterna claro/escuro.
       No <b>rodapé</b> fica a <b>versão em produção</b> com link para o pull request no GitHub.
       <b>↑ Topo</b>: botão flutuante que aparece ao rolar. Links são <b>compartilháveis</b>: a aba e os filtros ficam na URL.
     </div></details>
@@ -6870,7 +6891,7 @@ function abreAjuda(){
       confira antes de qualquer decisão. <i>Requer a chave de IA configurada pelo administrador.</i>
     </div></details>
     <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
-      No botão <b>Metas</b>: meta de horas (global ou por pessoa), ausências, feriados nacionais (com Carnaval,
+      Em <b>⋯ Mais → 🎯 Metas</b>: meta de horas (global ou por pessoa), ausências, feriados nacionais (com Carnaval,
       Sexta-feira Santa e Corpus Christi) e <b>usuários externos a ocultar</b> (somem de todas as visões).
       Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
@@ -6935,12 +6956,11 @@ const TOUR=[
   {sel:'#navg-ams-b',titulo:'AMS & Governança',texto:'AMS (um contrato por vez, por ciclo: banco de horas, faturamento e chamados, com PDF); 💰 Receita (bolsa de horas e projetos: consumo × contratado e receita estimada); ⚙️ Admin (cadastro de clientes/contratos, base do AMS e da Receita).'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
-  {sel:'#btn-metas',titulo:'Metas',texto:'Meta de horas (global ou por pessoa), ausências, feriados e usuários a ocultar — compartilhados com o time.'},
-  {sel:'#btn-csv',titulo:'Exportar',texto:'Baixe a visão atual em CSV/Excel ou gere um PDF da tela (disponível nas telas de análise).'},
+  {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
+  {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
   {sel:'#btn-tema',titulo:'Claro / escuro',texto:'Alterne o tema do painel — a preferência fica salva no navegador.'},
-  {sel:'#btn-novidades',titulo:'✨ Novidades',texto:'O que mudou no painel — um pontinho vermelho avisa quando há algo que você ainda não viu.'},
+  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'Aqui ficam 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar — compartilhados com o time), ✨ Novidades (o pontinho vermelho avisa quando há algo novo) e ❓ Ajuda & feedback — este tour, o passo a passo de cada tela e os canais de dúvida/sugestão/bug.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
-  {sel:'#btn-ajuda',titulo:'Ajuda & Feedback',texto:'Volte aqui quando quiser: este tour, o passo a passo de cada tela e os canais de dúvida, sugestão e bug.'},
 ];
 let _tourI=0;
 function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e.remove());
@@ -7052,6 +7072,7 @@ const NOV_VER='2026-06-25.1';   // marca da última leva de novidades (reacende 
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
+  const md=document.getElementById('mais-dot'); if(md) md.hidden=true;
   abreModal(`<h2>✨ Novidades</h2>
     <div class="muted small">O que há de novo no painel — o histórico completo fica no manual.</div>
     <div class="nov-lista">${NOVIDADES.map(([d,txt])=>`<div class="nov-item">
@@ -7060,6 +7081,7 @@ function abreNovidades(){
 function marcaNovidade(){
   let visto=''; try{ visto=localStorage.getItem('jirainsight_nov_visto')||''; }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden = (visto===NOV_VER);
+  const md=document.getElementById('mais-dot'); if(md) md.hidden = (visto===NOV_VER);
 }
 
 // ---- Exportar CSV (da visão atual) ----
@@ -7319,6 +7341,17 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 });
+// Dropdowns da barra de ações (Exportar ▾ / ⋯ Mais) — mesmo padrão do menu.
+function fechaMenusHdr(){ document.querySelectorAll('.hdrmenu.open').forEach(x=>{ x.classList.remove('open');
+  const b=x.querySelector('.hdrmenu-b'); if(b) b.setAttribute('aria-expanded','false'); }); }
+document.addEventListener('click', (e)=>{
+  const hb=e.target.closest && e.target.closest('.hdrmenu-b');
+  if(hb){ const g=hb.closest('.hdrmenu'); const abrir=!g.classList.contains('open');
+    fechaMenusHdr(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); } return; }
+  if(e.target.closest && e.target.closest('.hdrmenu-m')){ fechaMenusHdr(); return; }
+  if(!(e.target.closest && e.target.closest('.hdrmenu'))) fechaMenusHdr();
+});
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusHdr(); });
 // Clique fora fecha os menus de navegação abertos.
 document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.closest('#seg-vista'))) fechaMenusNav(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
