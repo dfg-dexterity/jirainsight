@@ -806,6 +806,18 @@
   .ab-pess{margin-top:2px}
   .ab-pess select{border:1px dashed var(--linha);border-radius:8px;padding:7px 10px;font-size:13px;background:transparent;color:var(--cerceta);font-weight:600;max-width:320px}
   @media(max-width:900px){ .ab-row{grid-template-columns:1fr 1fr;row-gap:4px} .ab-row .ab-x{justify-self:end} }
+  /* Vincular Reuniões a Tickets de AMS */
+  .rv-met{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;background:var(--cartao2);margin:8px 0 12px}
+  .rv-met .k{font-weight:700}
+  .rv-modo{display:flex;gap:8px;margin:10px 0}
+  .rv-modo button{flex:1;border:1.5px solid var(--linha);border-radius:10px;background:var(--cartao);padding:10px;font-size:13px;font-weight:700;color:var(--grafite);cursor:pointer;text-align:left}
+  .rv-modo button.on{border-color:var(--cerceta);color:var(--cerceta);background:rgba(0,112,242,.06)}
+  .rv-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+  .rv-form .campo.full{grid-column:1/-1}
+  .rv-form .campo>label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .rv-form select,.rv-form input[type=text],.rv-form input[type=number],.rv-form input[type=search]{width:100%;border:1px solid var(--linha);border-radius:6px;padding:6px;font-size:13px;background:var(--cartao);color:var(--grafite)}
+  .rv-del{border:1px solid rgba(210,10,10,.4);background:rgba(210,10,10,.07);color:#B91C1C;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:10px 0}
+  @media(max-width:640px){ .rv-form{grid-template-columns:1fr} .rv-modo{flex-direction:column} }
   /* Alocação — Simulação ("e se…") */
   .sim-grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
   @media(min-width:1180px){ .sim-grid{grid-template-columns:1fr 1fr} }
@@ -1180,6 +1192,7 @@
         <div class="navg-menu" role="menu">
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
+          <button data-v="reuvinc"><svg class="nav-ic"><use href="#ic-ams"/></svg>Vincular Reuniões</button>
         </div>
       </div>
       <div class="navg">
@@ -1296,6 +1309,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
+  reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
@@ -1657,7 +1671,7 @@ function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   // Apontar/Planejar/Reclassificar têm controles próprios; esconde os filtros globais.
   const fg=document.querySelector('.filtros');
-  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
+  if(fg) fg.style.display=(['visao','apontar','planejar','reclassificar','reuvinc','alertas','admin','ams','receita'].includes(estado.vista))?'none':'';
   // A aba AMS é apurada por CICLO (navegador de ciclos), não pela janela tradicional do topo:
   // esconde o seletor de Período só nela.
   const hp=document.getElementById('hdr-periodo');
@@ -1669,6 +1683,7 @@ function render(){
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
+  if(estado.vista==='reuvinc') return renderReuVinc();
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
@@ -6093,6 +6108,152 @@ function renderReceita(){
 }
 // ===============================================================================
 
+// ============== VINCULAR REUNIÕES A TICKETS DE AMS (menu Operação) ==============
+// Fluxo: escolhe a reunião → assistente (modal) → cria ticket de apoio funcional OU
+// comenta num ticket aberto, com worklog opcional → EXCLUI a reunião.
+function carregaReuVinc(forca){
+  const rv=estado.reuvinc;
+  rv.carregando=true; rv.erro='';
+  fetch(`/api/reunioes?projeto=${encodeURIComponent(rv.origem)}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ rv.carregando=false;
+      if(j.erro) rv.erro=j.erro; else rv.dados=j;
+      if(estado.vista==='reuvinc') renderReuVinc();
+    }).catch(e=>{ rv.carregando=false; rv.erro=String(e.message||e); if(estado.vista==='reuvinc') renderReuVinc(); });
+}
+let _rv=null;   // estado do assistente (só enquanto o modal está aberto)
+function rvProjetosAMS(){ const ps=_projetosCache||[]; const ams=ps.filter(p=>ehCategoriaAMS(p.categoria)); return ams.length?ams:ps; }
+function rvTipoPadrao(p){ const ts=((p&&p.tipos)||[]).filter(t=>!t.subtarefa && t.nivel===0);
+  const ap=ts.find(t=>/apoio|funcional|suporte/i.test(t.nome))||ts.find(t=>/task|tarefa/i.test(t.nome)); return String((ap||ts[0]||{}).id||''); }
+function abreRvWizard(key){
+  _rv={ key, m:null, erro:'', modo:'criar', projeto:'', tipoId:'', resumo:'', horas:1, worklog:true,
+        ticket:'', tbusca:'', abertos:null, carregandoAb:false, executando:false, resultado:null };
+  abreModal('<h2>Vincular reunião</h2><div class="estado">Carregando detalhes da reunião…</div>');
+  Promise.all([ fetch(`/api/reunioes?detalhe=${encodeURIComponent(key)}`).then(r=>r.json()), garanteProjetos().catch(()=>null) ])
+    .then(([j])=>{ if(!_rv||_rv.key!==key) return;
+      if(j.erro){ _rv.erro=j.erro; renderRvModal(); return; }
+      _rv.m=j;
+      const p0=rvProjetosAMS()[0];
+      _rv.projeto=(p0&&p0.key)||''; _rv.tipoId=rvTipoPadrao(p0);
+      _rv.resumo=`Apoio funcional — ${j.resumo||key}`.slice(0,255);
+      _rv.horas=j.totalSeg>0? Math.max(0.5, Math.round(j.totalSeg/360)/10) : 1;
+      renderRvModal();
+    }).catch(e=>{ if(_rv){ _rv.erro=String(e.message||e); renderRvModal(); } });
+}
+function rvCarregaAbertos(){
+  const rv=_rv; if(!rv) return;
+  if(!rv.projeto){ renderRvModal(); return; }
+  rv.carregandoAb=true; rv.abertos=null; renderRvModal();
+  fetch(`/api/reunioes?abertos=${encodeURIComponent(rv.projeto)}`).then(r=>r.json()).then(j=>{
+    if(!_rv) return; _rv.carregandoAb=false;
+    if(j.erro){ _rv.abertos=[]; _rv.erro=j.erro; } else { _rv.abertos=j.tickets||[]; }
+    if(_rv.ticket && !(_rv.abertos||[]).some(t=>t.k===_rv.ticket)) _rv.ticket='';
+    renderRvModal();
+  }).catch(e=>{ if(_rv){ _rv.carregandoAb=false; _rv.abertos=[]; _rv.erro=String(e.message||e); renderRvModal(); } });
+}
+function renderRvModal(){
+  const rv=_rv; if(!rv) return;
+  if(rv.resultado){ const r=rv.resultado; const url=`${jiraBase()}/browse/${encodeURIComponent(r.destino)}`;
+    abreModal(`<h2>Reunião vinculada</h2>
+      <div class="pl-res-ok">✓ ${r.modo==='criar'?'Ticket criado:':'Comentário registrado em'} <a href="${url}" target="_blank" rel="noopener">${esc(r.destino)} ↗</a></div>
+      ${r.worklogOk===false?'<div class="aviso" style="margin-top:8px">O apontamento de horas falhou — registre manualmente no ticket.</div>':''}
+      ${r.excluida?'<div class="muted small" style="margin-top:8px">🗑 A reunião foi excluída do Jira.</div>':`<div class="aviso" style="margin-top:8px">${esc(r.erro||'A exclusão da reunião falhou — exclua manualmente.')}</div>`}
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primario" id="rv-fechar">Fechar</button></div>`);
+    return; }
+  if(rv.erro && !rv.m){
+    abreModal(`<h2>Vincular reunião</h2><div class="erro">${esc(rv.erro)}</div>
+      <div style="display:flex;gap:10px;margin-top:12px"><button class="btn" id="rv-fechar">Fechar</button></div>`);
+    return; }
+  if(!rv.m) return;
+  const m=rv.m; const id=idApontar();
+  const ams=rvProjetosAMS(); const pSel=ams.find(p=>p.key===rv.projeto);
+  const horasBox=m.totalSeg>0?`<div class="muted small" style="margin-top:4px">⏱ <strong>${alocH(m.totalSeg/3600)}</strong> apontadas: ${m.horas.map(h=>`${esc(h.nome)} ${alocH(h.seg/3600)}`).join(' · ')}</div>`:'';
+  const descBox=m.desc?`<details style="margin-top:6px"><summary class="muted small" style="cursor:pointer">ver descrição da reunião</summary><div class="muted small" style="white-space:pre-wrap;margin-top:4px">${esc(m.desc.slice(0,1200))}</div></details>`:'';
+  const met=`<div class="rv-met"><span class="k">${esc(m.k)}</span> — ${esc(m.resumo)}
+    <div class="muted small" style="margin-top:2px">criada em ${esc(fmtBR(m.criado))}${m.relator?` · por ${esc(m.relator)}`:''} · status ${esc(m.status)}</div>${horasBox}${descBox}</div>`;
+  const modoBtns=`<div class="rv-modo">
+    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">não existe ticket — cria como apoio funcional no projeto de AMS</span></button>
+    <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra a reunião nos comentários de um ticket aberto</span></button></div>`;
+  const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+  const horasCampos=`<div class="campo"><label>Duração (horas)</label><input type="number" id="rv-horas" value="${rv.horas}" min="0" step="0.5"></div>
+      <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="rv-worklog" ${rv.worklog?'checked':''}> registrar como <strong>meu apontamento</strong> no destino</label></div>`;
+  let form='';
+  if(rv.modo==='criar'){
+    const tipos=((pSel&&pSel.tipos)||[]).filter(t=>!t.subtarefa&&t.nivel===0);
+    const tipoOpt=tipos.map(t=>`<option value="${escA(String(t.id))}" ${rv.tipoId===String(t.id)?'selected':''}>${esc(t.nome)}</option>`).join('');
+    form=`<div class="rv-form">
+      <div class="campo"><label>Projeto AMS</label><select id="rv-proj">${projOpt||'<option value="">—</option>'}</select></div>
+      <div class="campo"><label>Tipo do ticket</label><select id="rv-tipo">${tipoOpt||'<option value="">—</option>'}</select></div>
+      <div class="campo full"><label>Resumo do ticket novo</label><input type="text" id="rv-resumo" value="${escA(rv.resumo)}" maxlength="255"></div>
+      ${horasCampos}</div>`;
+  } else {
+    const q=(rv.tbusca||'').toLowerCase();
+    const lista=(rv.abertos||[]).filter(t=>!q||(t.k+' '+t.resumo).toLowerCase().includes(q)).slice(0,80);
+    const tickOpt='<option value="">— escolha o ticket —</option>'+lista.map(t=>`<option value="${escA(t.k)}" ${rv.ticket===t.k?'selected':''}>${esc(t.k)} — ${esc((t.resumo||'').slice(0,70))} (${esc(t.status)})</option>`).join('');
+    form=`<div class="rv-form">
+      <div class="campo"><label>Projeto AMS</label><select id="rv-proj">${projOpt||'<option value="">—</option>'}</select></div>
+      <div class="campo"><label>Filtrar tickets</label><input type="search" id="rv-tbusca" value="${escA(rv.tbusca)}" placeholder="código ou resumo…"></div>
+      <div class="campo full"><label>Ticket aberto ${rv.carregandoAb?'(carregando…)':(rv.abertos?`(${rv.abertos.length})`:'')}</label><select id="rv-ticket" ${rv.carregandoAb||!rv.abertos?'disabled':''}>${tickOpt}</select></div>
+      ${horasCampos}</div>`;
+  }
+  const passos = rv.modo==='criar'
+    ? `<ol class="ap-passos"><li>Cria o ticket em <strong>${esc(rv.projeto||'…')}</strong> com os detalhes da reunião (data, quem, horas, descrição).</li>${rv.worklog&&rv.horas>0?`<li>Registra <strong>${rv.horas}h</strong> como seu apontamento no ticket novo.</li>`:''}<li>Exclui a reunião <strong>${esc(m.k)}</strong>.</li></ol>`
+    : `<ol class="ap-passos"><li>Comenta os detalhes da reunião (data, quem, horas, descrição) no ticket <strong>${esc(rv.ticket||'…')}</strong>.</li>${rv.worklog&&rv.horas>0?`<li>Registra <strong>${rv.horas}h</strong> como seu apontamento no ticket.</li>`:''}<li>Exclui a reunião <strong>${esc(m.k)}</strong>.</li></ol>`;
+  const aviso=`<div class="rv-del">⚠️ Ao confirmar, a reunião <strong>${esc(m.k)}</strong> será <strong>excluída do Jira</strong> (não dá para desfazer)${m.totalSeg>0?' — junto com as horas apontadas nela; elas ficam registradas no texto do destino'+(rv.worklog?' e no seu apontamento':'')+'.':'. Os detalhes ficam registrados no destino.'}</div>`;
+  const valido = rv.modo==='criar' ? !!(rv.projeto&&rv.tipoId&&rv.resumo.trim()) : !!rv.ticket;
+  const rodape = id
+    ? `<div style="display:flex;gap:10px;margin-top:12px"><button class="btn" id="rv-cancelar">Cancelar</button><span class="spacer"></span><button class="btn primario" id="rv-confirm" ${valido&&!rv.executando?'':'disabled'}>${rv.executando?'Executando…':'Confirmar e excluir a reunião'}</button></div>`
+    : `<div class="ap-id sem" style="margin-top:12px">Para vincular, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+  abreModal(`<h2>Vincular reunião a ticket de AMS</h2>${met}${modoBtns}${form}${passos}${aviso}${rv.erro?`<div class="erro">${esc(rv.erro)}</div>`:''}${rodape}`);
+}
+function rvExecuta(){
+  const rv=_rv; const id=idApontar(); if(!rv||!rv.m||!id||rv.executando) return;
+  rv.executando=true; rv.erro=''; renderRvModal();
+  const body={ vincular:1, email:id.email, token:id.token, reuniao:rv.m.k, modo:rv.modo,
+    horas:Number(rv.horas)||0, worklog:!!rv.worklog };
+  if(rv.modo==='criar'){ body.projeto=rv.projeto; body.tipoId=rv.tipoId; body.resumo=rv.resumo.trim(); }
+  else body.ticket=rv.ticket;
+  fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(j=>{ if(!_rv) return; _rv.executando=false;
+      if(!j.ok){ _rv.erro=j.erro||'Falha ao vincular.'; renderRvModal(); return; }
+      _rv.resultado=j; renderRvModal();
+      estado.reuvinc.dados=null; carregaReuVinc(true);
+    }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
+}
+function renderReuVinc(){
+  const cont=document.getElementById('conteudo');
+  const rv=estado.reuvinc;
+  if(!rv.dados && !rv.carregando && !rv.erro) carregaReuVinc(false);
+  if(!_projetosCache) garanteProjetos().catch(()=>{});
+  if(rv.erro){
+    cont.replaceChildren(el(`<div class="erro"><strong>Falha ao carregar.</strong> ${esc(rv.erro)}
+      <button class="btn" id="rv-retry" style="margin-left:10px">Tentar de novo</button></div>`));
+    return; }
+  if(!rv.dados){ cont.replaceChildren(el(`<div class="estado">Buscando reuniões abertas em ${esc(rv.origem)}…</div>`)); return; }
+  const d=rv.dados; const id=idApontar();
+  const faixaId = id
+    ? `<div class="ap-id">🔗 Vinculando como <strong>${esc(id.nome||id.email)}</strong> <span class="muted small">(cria/comenta e exclui com o seu usuário do Jira)</span><span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+    : `<div class="ap-id sem">Para vincular reuniões, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+  let lista=d.tickets||[];
+  if(rv.busca){ const q=rv.busca.toLowerCase(); lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.status).toLowerCase().includes(q)); }
+  const rows=lista.map(t=>`<tr>
+    <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
+    <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
+    <td><span class="badge">${esc(t.status)}</span></td>
+    <td class="num"><button class="btn primario" data-rv-vinc="${escA(t.k)}">Vincular →</button></td></tr>`).join('');
+  cont.replaceChildren(el(`<div>
+    ${faixaId}
+    <div class="card full">
+      <h2>🔗 Vincular Reuniões a Tickets de AMS <span>${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)}</span></h2>
+      <div class="muted small" style="margin:0 0 10px">Escolha a reunião e o assistente faz o resto: <strong>cria um ticket de apoio funcional</strong> (ou <strong>comenta num ticket aberto</strong>) com os detalhes da reunião e, no fim, <strong>exclui a reunião</strong>.</div>
+      <div class="ap-filtros">
+        <div class="campo"><label>Projeto das reuniões</label><input type="text" id="rv-origem" value="${escA(rv.origem)}" maxlength="12" style="width:110px"></div>
+        <div class="campo"><label>Buscar</label><input type="search" id="rv-busca" placeholder="código, resumo…" value="${escA(rv.busca)}"></div>
+        <div class="campo"><label>&nbsp;</label><button class="btn" id="rv-refresh">Atualizar lista</button></div>
+      </div>
+      ${d.tickets.length?`<div class="ts-wrap"><table class="rc-tab"><thead><tr><th>Reunião</th><th>Resumo</th><th>Status</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="muted small">Nada com esse filtro.</td></tr>'}</tbody></table></div>`
+        :`<div class="estado">${esc(d.aviso||`Nenhuma reunião aberta em ${d.projeto}.`)}</div>`}
+    </div></div>`));
+}
 function renderReclass(){
   const cont=document.getElementById('conteudo');
   const rc=estado.reclass;
@@ -6685,7 +6846,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','alertas','ams','receita','alocacao','planejamento','admin'];
+const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','reuvinc','alertas','ams','receita','alocacao','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -6794,7 +6955,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -6948,7 +7109,7 @@ document.getElementById('btn-tema').addEventListener('click', ()=>{
   aplicaTema(dark?'dark':'light');
   // Recolore os gráficos (as cores das séries são fixadas no HTML na renderização).
   // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
-  if(!['apontar','planejar','reclassificar','admin'].includes(estado.vista)) try{ render(); }catch(e){}
+  if(!['apontar','planejar','reclassificar','reuvinc','admin'].includes(estado.vista)) try{ render(); }catch(e){}
 });
 // Logo no canto superior esquerdo volta para o início (Resumo).
 document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('visao'));
@@ -7003,6 +7164,47 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
     estado.reclass.busca=e.target.value; renderReclass();
     const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
   }
+});
+// ---- Vincular Reuniões a AMS: lista + assistente (modal) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const v=e.target.closest&&e.target.closest('[data-rv-vinc]');
+  if(v){ abreRvWizard(v.getAttribute('data-rv-vinc')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const rv=estado.reuvinc;
+  if(t.id==='rv-retry'){ rv.erro=''; rv.dados=null; renderReuVinc(); }
+  else if(t.id==='rv-refresh'){ rv.dados=null; carregaReuVinc(true); }
+});
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  const t=e.target; if(!t) return;
+  if(t.id==='rv-busca'){ estado.reuvinc.busca=t.value; renderReuVinc();
+    const nb=document.getElementById('rv-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const t=e.target; if(!t) return;
+  if(t.id==='rv-origem'){ const v=t.value.trim().toUpperCase();
+    if(/^[A-Z][A-Z0-9_]*$/.test(v)){ estado.reuvinc.origem=v; estado.reuvinc.dados=null; carregaReuVinc(false); } }
+});
+document.getElementById('modal-body').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t||!_rv) return;
+  if(t.id==='rv-modo-criar'){ _rv.modo='criar'; renderRvModal(); }
+  else if(t.id==='rv-modo-exist'){ _rv.modo='existente'; if(!_rv.abertos&&!_rv.carregandoAb) rvCarregaAbertos(); else renderRvModal(); }
+  else if(t.id==='rv-confirm'){ rvExecuta(); }
+  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal(); }
+});
+document.getElementById('modal-body').addEventListener('change', (e)=>{
+  const t=e.target; if(!t||!_rv) return;
+  if(t.id==='rv-proj'){ _rv.projeto=t.value; _rv.tipoId=rvTipoPadrao(rvProjetosAMS().find(p=>p.key===t.value));
+    if(_rv.modo==='existente'){ _rv.ticket=''; rvCarregaAbertos(); } else renderRvModal(); }
+  else if(t.id==='rv-tipo'){ _rv.tipoId=t.value; }
+  else if(t.id==='rv-ticket'){ _rv.ticket=t.value; renderRvModal(); }
+  else if(t.id==='rv-resumo'){ _rv.resumo=t.value; renderRvModal(); }
+  else if(t.id==='rv-horas'){ _rv.horas=Math.max(0,Number(t.value)||0); renderRvModal(); }
+  else if(t.id==='rv-worklog'){ _rv.worklog=t.checked; renderRvModal(); }
+});
+document.getElementById('modal-body').addEventListener('input', (e)=>{
+  const t=e.target; if(!t||!_rv) return;
+  if(t.id==='rv-tbusca'){ _rv.tbusca=t.value; renderRvModal();
+    const nb=document.getElementById('rv-tbusca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
 });
 // ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
