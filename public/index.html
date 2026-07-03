@@ -1198,7 +1198,7 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <div class="navg">
-        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
+        <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="resumo"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Resumo</button>
           <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
@@ -1217,7 +1217,7 @@
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
+        <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Alocação</button>
           <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
@@ -1225,7 +1225,7 @@
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Governança <span class="nav-car">▾</span></button>
+        <button class="navg-b" id="navg-ams-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Governança <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
@@ -6728,7 +6728,7 @@ function abreAjuda(){
   const id=idApontar();
   abreModal(`
     <h2>Ajuda &amp; Feedback</h2>
-    <div class="muted small">Como o aplicativo funciona, um tour guiado na tela e os canais para dúvidas, sugestões e bugs.</div>
+    <div class="muted small">Como o aplicativo funciona — um tour guiado na tela, o passo a passo de cada tela e os canais para dúvidas, sugestões e bugs.</div>
     <div style="margin-top:12px"><button class="btn primario" id="aj-tour">▶ Iniciar tour guiado na tela</button></div>
 
     <details class="help-sec" open><summary>Visão geral</summary><div class="help-body">
@@ -6736,19 +6736,23 @@ function abreAjuda(){
       acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
-    <details class="help-sec"><summary>As abas (visões)</summary><div class="help-body"><ul>
-      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe. <i>(AMS/receita são exclusivos da aba AMS &amp; Governança.)</i></li>
-      <li><b>Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
-      <li><b>Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
-      <li><b>Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
-      <li><b>Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>⏱ Apontar</b> — chamados (agrupados por projeto): aponte horas, mova o status, <b>reagende o vencimento</b>, <b>comente</b>, <b>transfira o responsável</b>, <b>mova de projeto</b> e aponte reuniões para várias pessoas.</li>
-      <li><b>📝 Planejar</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
-      <li><b>🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto.</li>
-      <li><b>🚨 Alertas</b> — central de <b>ação</b> dos tickets atrasados: reprograme o vencimento (<b>hoje</b> · <b>amanhã</b> · <b>semana que vem</b>), justifique com um <b>motivo padrão</b> (categoria obrigatória, p/ causa-raiz) e a mudança grava no Jira <b>data + comentário</b> com o seu usuário. Tem <b>ação em lote</b>, <b>filtros</b> (responsável/projeto/prioridade/status/tipo/dias/só meus), ordenação por criticidade e indicadores. Os <i>outros alertas</i> (vencendo hoje, sem responsável, sem apontamento, abaixo da meta) ficam logo abaixo.</li>
-      <li><b>AMS</b> — aba própria de <b>AMS &amp; Governança</b>: <b>um contrato por vez</b> (seletor de cliente), sempre <b>por ciclo</b> — dados do contrato, controle de <b>faturamento do ciclo</b>, banco de horas, faturável × não faturável, horas por tipo com drill-down, <b>chamados do ciclo</b> e <b>PDF da apuração</b>.</li>
-      <li><b>💰 Receita</b> — <b>bolsa de horas e projetos</b> (consumo × contratado, projeção e receita estimada) por período.</li>
-      <li><b>⚙️ Admin</b> — cadastro de clientes/contratos: tipo (AMS/bolsa/projeto), horas contratadas, valor-hora e <b>projetos do Jira da categoria AMS</b>. Base para AMS e Receita.</li>
+    <details class="help-sec"><summary>As telas (por grupo do menu)</summary><div class="help-body"><ul>
+      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
+      <li><b>Análise › Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
+      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
+      <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
+      <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
+      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto e aponte reuniões para várias pessoas.</li>
+      <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Também em Lista/Tabela/Quadro.</li>
+      <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
+      <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
+      <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
+      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill e <b>simulação "e se…"</b>.</li>
+      <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
+      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
+      <li><b>AMS &amp; Governança › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
+      <li><b>AMS &amp; Governança › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
+      <li><b>AMS &amp; Governança › ⚙️ Admin</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -6757,11 +6761,12 @@ function abreAjuda(){
       No topo, o painel <b>⏱ Minhas horas por dia</b> mostra quanto você já apontou em cada dia do período e
       <b>avisa quando um dia passa da meta</b> (padrão 8h/dia, ajustável em Metas).
     </div></details>
-    <details class="help-sec"><summary>Navegação, novidades e ícones</summary><div class="help-body">
-      <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início (Resumo)</b>. <b>✨ Novidades</b> (no topo):
-      abre o que há de novo no painel — um pontinho vermelho avisa quando há algo que você ainda não viu.
-      <b>↑ Topo</b>: botão flutuante que aparece ao rolar e leva de volta ao topo. Na aba <b>⏱ Apontar</b>, os
-      chamados aparecem com os <b>ícones do Jira</b> de tipo (épico/tarefa/bug…) e prioridade, para diferenciar de relance.
+    <details class="help-sec"><summary>Navegação, novidades e versão</summary><div class="help-body">
+      <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início</b>. Os controles do topo aparecem
+      <b>só onde fazem sentido</b>: Período/filtros/Exportar nas telas de análise; as telas operacionais têm controles próprios.
+      <b>✨ Novidades</b> abre o que há de novo (pontinho vermelho = tem coisa que você não viu). <b>🌙</b> alterna claro/escuro.
+      No <b>rodapé</b> fica a <b>versão em produção</b> com link para o pull request no GitHub.
+      <b>↑ Topo</b>: botão flutuante que aparece ao rolar. Links são <b>compartilháveis</b>: a aba e os filtros ficam na URL.
     </div></details>
     <details class="help-sec"><summary>Comentar e transferir o responsável</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> — clique no <b>cabeçalho do projeto</b>
@@ -6796,6 +6801,36 @@ function abreAjuda(){
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
       O <b>tipo</b> é mantido e o <b>status</b> é preservado quando existe no destino.
+    </div></details>
+    <details class="help-sec"><summary>Gestão de Tickets (ações em massa)</summary><div class="help-body">
+      Em <b>Operação › 🛠 Gestão de Tickets</b>: filtre (vencimento-limite, projeto, responsável, status, busca),
+      escolha a visualização (<b>▤ Lista</b>, <b>▦ Tabela</b> ou <b>🗂 Quadro</b> — no quadro, <b>clicar no cartão seleciona</b>)
+      e marque os tickets. A <b>barra de ações</b> aparece embaixo: <b>👤 Atribuir</b>, <b>🔁 Alterar status</b> (transição
+      pelo nome, aplicada ticket a ticket), <b>💬 Comentar</b> (mesmo texto em todos), <b>📅 Reprogramar</b> (com motivo) e
+      <b>🗑 Excluir</b> — a exclusão é <b>irreversível</b> e exige digitar <b>EXCLUIR</b>. Tudo sai no seu usuário do Jira,
+      respeitando as suas permissões; a seleção persiste ao trocar de visualização.
+    </div></details>
+    <details class="help-sec"><summary>Vincular Reuniões a Tickets de AMS</summary><div class="help-body">
+      Em <b>Operação › 🔗 Vincular Reuniões</b>: escolha uma reunião aberta e clique <b>Vincular →</b>. O assistente
+      oferece dois caminhos: <b>➕ criar um ticket novo</b> de apoio funcional num projeto de AMS (tipo detectado,
+      resumo e duração pré-preenchidos com as horas apontadas na reunião) ou <b>🔗 comentar num ticket aberto</b>
+      do projeto. Nos dois casos dá para registrar a duração como <b>seu apontamento</b> no destino e, ao confirmar,
+      a <b>reunião é excluída</b> — os detalhes (data, relator, horas por pessoa, descrição) ficam gravados no destino.
+    </div></details>
+    <details class="help-sec"><summary>Alocação (resource planning)</summary><div class="help-body">
+      Em <b>Planejamento › 🧑‍💼 Alocação</b>: no <b>Planejamento por pessoa</b> (embaixo), adicione a pessoa,
+      os projetos dela e o <b>% da capacidade</b> em cada um — tudo inline, <b>salva sozinho</b>. Em cima, as visões:
+      <b>Por Pessoa</b> (utilização semana/mês; capacidade desconta fins de semana, feriados e ausências),
+      <b>Linha do tempo</b> (Gantt: <b>arraste para mover</b>, puxe as bordas para redimensionar, botão “→ hoje”),
+      <b>Por Projeto</b> (equipe + planejado × apontado), <b>Empresa</b> (faturável × não faturável),
+      <b>Por Skill</b> (capacidade × demanda por competência, com cadastro de skills) e <b>Simulação</b>
+      (cenários “e se…” que não tocam nos dados + busca <b>“quem cabe?”</b> por folga).
+    </div></details>
+    <details class="help-sec"><summary>Planejamento macro (planejado × realizado)</summary><div class="help-body">
+      Em <b>Planejamento › 📅 Planejamento macro</b>: monte o plano de esforço do projeto <b>por função</b>
+      (Implementação usa as <b>fases = épicos do Jira</b>; AMS/interno usa o projeto inteiro), com horas, período e
+      % por função (pode passar de 100%). Atribuindo <b>pessoas às funções</b> e clicando <b>Calcular realizado</b>,
+      o painel soma as tarefas dos épicos no período e mostra <b>Planejado × Realizado · Aderência · Saldo</b>.
     </div></details>
     <details class="help-sec"><summary>Resumo das atividades por IA</summary><div class="help-body">
       Na aba <b>Resumo</b>, o card <b>🧠 Resumo das atividades (IA)</b> gera, sob demanda, uma análise
@@ -6863,13 +6898,20 @@ async function enviaFeedback(){
 
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
-  {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade/tickets) com o Clockwork (horas) e deixa você apontar horas, mover status e criar tickets.'},
-  {sel:'#seg-vista',titulo:'Menu por função',texto:'O menu fica agrupado: 📊 Visão Geral, e os grupos Análise (Resumo, Timesheet, Ranking, Tickets), ⏱ Operação (Apontar, Reclassificar), 📅 Planejamento (Criação de Ticket, Planejamento macro) e 💰 AMS & Governança (AMS, Receita, Alertas, Admin).'},
-  {sel:'#f-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, este ano…'},
-  {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo. As abas Apontar/Planejar/Reclassificar têm controles próprios.'},
-  {sel:'#btn-metas',titulo:'Metas',texto:'Defina a meta de horas, ausências e feriados (compartilhados com o time).'},
-  {sel:'#btn-csv',titulo:'Exportar',texto:'Baixe a visão atual em CSV/Excel.'},
-  {sel:'#btn-ajuda',titulo:'Ajuda & Feedback',texto:'Volte aqui quando quiser: este tour, as instruções e os canais de dúvida, sugestão e bug.'},
+  {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade, tickets, status) com o Clockwork (horas) para análise, operação do dia a dia e planejamento do time. Clicar no logo volta ao início.'},
+  {sel:'#seg-vista [data-v="visao"]',titulo:'📊 Visão Geral',texto:'A tela executiva inicial: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
+  {sel:'#navg-an-b',titulo:'Análise',texto:'Resumo (KPIs, horas, faturável e resumo por IA), Timesheet (pessoa × dia com lacuna vs. meta), Ranking (cumprimento de apontamento) e Tickets (issues do período, agrupáveis).'},
+  {sel:'#navg-op-b',titulo:'Operação',texto:'O dia a dia: ⏱ Apontar (horas, status, vencimento, comentário, responsável — em Lista/Tabela/Quadro); 🛠 Gestão de Tickets (seleção múltipla + ações em massa: atribuir, status, comentar, reprogramar e excluir); 🚨 Alertas (atrasados com reprogramação justificada); 🔀 Reclassificar (mover reuniões de projeto); 🔗 Vincular Reuniões (transforma reunião em ticket de apoio funcional de AMS, ou comenta num ticket aberto, e exclui a reunião).'},
+  {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa com % por projeto, utilização semanal, linha do tempo com arrastar-e-soltar, visões por projeto/empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote, inclusive dentro de épicos).'},
+  {sel:'#navg-ams-b',titulo:'AMS & Governança',texto:'AMS (um contrato por vez, por ciclo: banco de horas, faturamento e chamados, com PDF); 💰 Receita (bolsa de horas e projetos: consumo × contratado e receita estimada); ⚙️ Admin (cadastro de clientes/contratos, base do AMS e da Receita).'},
+  {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
+  {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
+  {sel:'#btn-metas',titulo:'Metas',texto:'Meta de horas (global ou por pessoa), ausências, feriados e usuários a ocultar — compartilhados com o time.'},
+  {sel:'#btn-csv',titulo:'Exportar',texto:'Baixe a visão atual em CSV/Excel ou gere um PDF da tela (disponível nas telas de análise).'},
+  {sel:'#btn-tema',titulo:'Claro / escuro',texto:'Alterne o tema do painel — a preferência fica salva no navegador.'},
+  {sel:'#btn-novidades',titulo:'✨ Novidades',texto:'O que mudou no painel — um pontinho vermelho avisa quando há algo que você ainda não viu.'},
+  {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
+  {sel:'#btn-ajuda',titulo:'Ajuda & Feedback',texto:'Volte aqui quando quiser: este tour, o passo a passo de cada tela e os canais de dúvida, sugestão e bug.'},
 ];
 let _tourI=0;
 function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e.remove());
@@ -6885,7 +6927,7 @@ function mostraTour(){
   fimTour();
   if(_tourI>=TOUR.length) return;
   const passo=TOUR[_tourI]; const alvo=document.querySelector(passo.sel);
-  if(!alvo){ _tourI++; return mostraTour(); }
+  if(!alvo || (passo.se && !passo.se())){ _tourI++; return mostraTour(); }
   alvo.scrollIntoView({block:'center',behavior:'smooth'});
   const hl=document.createElement('div'); hl.className='tour-hl'; document.body.appendChild(hl);
   const pop=document.createElement('div'); pop.className='tour-pop';
