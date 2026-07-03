@@ -2,8 +2,12 @@
 // caber no limite de Serverless Functions do plano Hobby da Vercel).
 //
 // GET  /api/reunioes?projeto=RDF        -> reuniões abertas + projetos-destino válidos
+// GET  /api/reunioes?detalhe=RDF-12     -> detalhes de uma reunião (descrição + horas apontadas)
+// GET  /api/reunioes?abertos=PROJ       -> tickets abertos de um projeto (para vincular)
 // POST /api/reunioes { alvo, itens, ... } -> move (bulk move do Jira) com o token da pessoa
 // POST /api/reunioes { taskId, ... }      -> consulta o andamento de um move
+// POST /api/reunioes { vincular:1, ... }  -> vincula reunião a ticket de AMS (cria OU comenta,
+//                                            worklog opcional) e EXCLUI a reunião — token da pessoa
 import {
   cacheGet, cacheSetTTL, cacheClear, jiraBase, jiraSearchAll, json,
 } from './_lib/util.js';
@@ -217,9 +221,171 @@ async function mover(req, res) {
   });
 }
 
+// ==================== Vincular reunião a ticket de AMS ====================
+// ADF -> texto simples (parágrafos/bullets em linhas) e texto -> ADF.
+function adfParaTexto(node) {
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'text') return node.text || '';
+  const filhos = (node.content || []).map(adfParaTexto);
+  if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'listItem') {
+    return filhos.join('').trim() + '\n';
+  }
+  return filhos.join('');
+}
+function textoParaAdf(texto) {
+  return {
+    type: 'doc', version: 1,
+    content: String(texto).split('\n').map((l) => ({ type: 'paragraph', content: l ? [{ type: 'text', text: l }] : [] })),
+  };
+}
+const fmtH = (seg) => (Math.round((seg / 3600) * 10) / 10).toLocaleString('pt-BR') + 'h';
+const fmtDataBR = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+
+// Carrega a reunião (issue + worklogs) e devolve um resumo pronto para virar descrição/comentário.
+async function carregaReuniao(base, headers, key) {
+  const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,description,created,reporter,status,issuetype`, { headers });
+  if (r.status === 404) throw new Error(`Reunião ${key} não encontrada (ou sem permissão).`);
+  if (!r.ok) { const t = await r.text(); throw new Error(`Jira ${r.status}: ${t.slice(0, 200)}`); }
+  const it = await r.json();
+  const f = it.fields || {};
+  const rw = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(key)}/worklog?maxResults=100`, { headers });
+  const wl = rw.ok ? await rw.json() : { worklogs: [] };
+  const porPessoa = {};
+  let totalSeg = 0;
+  (wl.worklogs || []).forEach((w) => {
+    const nome = (w.author && w.author.displayName) || '—';
+    const s = Number(w.timeSpentSeconds) || 0;
+    porPessoa[nome] = (porPessoa[nome] || 0) + s; totalSeg += s;
+  });
+  return {
+    k: it.key, resumo: f.summary || '',
+    desc: adfParaTexto(f.description).trim(),
+    criado: (f.created || '').slice(0, 10),
+    relator: (f.reporter && f.reporter.displayName) || '',
+    tipo: (f.issuetype && f.issuetype.name) || '',
+    status: (f.status && f.status.name) || '',
+    horas: Object.entries(porPessoa).map(([nome, seg]) => ({ nome, seg })).sort((a, b) => b.seg - a.seg),
+    totalSeg,
+  };
+}
+function textoDetalhes(m) {
+  const linhas = [
+    `Reunião vinculada: ${m.k} — ${m.resumo}`,
+    `Data: ${fmtDataBR(m.criado)}${m.relator ? ` · Relator: ${m.relator}` : ''}`,
+  ];
+  if (m.totalSeg > 0) {
+    linhas.push(`Horas apontadas na reunião: ${fmtH(m.totalSeg)} (${m.horas.map((h) => `${h.nome} ${fmtH(h.seg)}`).join(' · ')})`);
+  }
+  if (m.desc) { linhas.push('', 'Descrição original:', m.desc); }
+  linhas.push('', '— Registrado pelo painel Insights (Vincular Reuniões a Tickets de AMS); a reunião original foi excluída.');
+  return linhas.join('\n');
+}
+
+// GET ?detalhe=KEY — detalhes da reunião (conta de serviço; leitura).
+async function detalhe(req, res) {
+  const key = String(req.query.detalhe || '').trim().toUpperCase();
+  if (!RE_ISSUE.test(key)) return json(res, 400, { erro: 'Chave inválida.' });
+  const base = jiraBase();
+  const headers = { Authorization: authSvc(), Accept: 'application/json' };
+  return json(res, 200, await carregaReuniao(base, headers, key));
+}
+
+// GET ?abertos=PROJ — tickets abertos do projeto destino (conta de serviço; cache curto).
+async function abertos(req, res) {
+  const projeto = String(req.query.abertos || '').trim().toUpperCase();
+  if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
+  const ck = `reuvinc:abertos:${projeto}`;
+  const c = cacheGet(ck);
+  if (c && !(req.query.nocache === '1')) return json(res, 200, c);
+  const { issues, truncado } = await jiraSearchAll({
+    jql: `project = ${projeto} AND statusCategory != Done ORDER BY updated DESC`,
+    fields: ['summary', 'status', 'issuetype'], pageSize: 100, maxPages: 3,
+  });
+  const tickets = issues.map((it) => ({
+    k: it.key, resumo: (it.fields && it.fields.summary) || '',
+    status: (it.fields && it.fields.status && it.fields.status.name) || '',
+    tipo: (it.fields && it.fields.issuetype && it.fields.issuetype.name) || '',
+  }));
+  return json(res, 200, cacheSetTTL(ck, { projeto, tickets, truncado }, 3));
+}
+
+// POST { vincular:1 } — cria/comenta no destino, worklog opcional e EXCLUI a reunião.
+async function vincular(req, res, b) {
+  const email = String(b.email || '').trim(); const token = String(b.token || '').trim();
+  if (!email || !email.includes('@') || !token) return json(res, 400, { erro: 'Identifique-se (e-mail + token de API).' });
+  const reuniaoKey = String(b.reuniao || '').trim().toUpperCase();
+  if (!RE_ISSUE.test(reuniaoKey)) return json(res, 400, { erro: 'Reunião inválida.' });
+  const modo = b.modo === 'existente' ? 'existente' : 'criar';
+  const horasSeg = Math.max(0, Math.round((Number(b.horas) || 0) * 3600));
+
+  const base = jiraBase();
+  const headers = { Authorization: authUser(email, token), Accept: 'application/json', 'Content-Type': 'application/json' };
+
+  // 1) Lê a reunião com o token da pessoa (garante que ela enxerga/pode operar).
+  const m = await carregaReuniao(base, headers, reuniaoKey);
+  const detalhes = textoDetalhes(m);
+
+  let destinoKey = '';
+  if (modo === 'criar') {
+    const projeto = String(b.projeto || '').trim().toUpperCase();
+    const tipoId = String(b.tipoId || '').trim();
+    const resumo = String(b.resumo || '').trim().slice(0, 255) || `Apoio funcional — ${m.resumo}`.slice(0, 255);
+    if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto destino inválido.' });
+    if (!/^\d+$/.test(tipoId)) return json(res, 400, { erro: 'Tipo de ticket inválido.' });
+    const rc = await fetch(`${base}/rest/api/3/issue`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ fields: { project: { key: projeto }, issuetype: { id: tipoId }, summary: resumo, description: textoParaAdf(detalhes) } }),
+    });
+    const dc = await rc.json().catch(() => ({}));
+    if (rc.status === 401 || rc.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para criar no projeto destino (token/perfil).' });
+    if (!rc.ok || !dc.key) {
+      const msgs = dc.errorMessages || (dc.errors && Object.values(dc.errors)) || [];
+      return json(res, 200, { ok: false, erro: `Falha ao criar: ${(msgs.join(' ') || JSON.stringify(dc)).slice(0, 250)}` });
+    }
+    destinoKey = dc.key;
+  } else {
+    destinoKey = String(b.ticket || '').trim().toUpperCase();
+    if (!RE_ISSUE.test(destinoKey)) return json(res, 400, { erro: 'Ticket destino inválido.' });
+    const rc = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(destinoKey)}/comment`, {
+      method: 'POST', headers, body: JSON.stringify({ body: textoParaAdf(detalhes) }),
+    });
+    if (rc.status === 401 || rc.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para comentar no ticket destino.' });
+    if (!rc.ok) { const t = await rc.text(); return json(res, 200, { ok: false, erro: `Falha ao comentar: ${t.slice(0, 250)}` }); }
+  }
+
+  // 2) Worklog opcional (as horas da reunião morreriam com a exclusão).
+  let worklogOk = null;
+  if (b.worklog && horasSeg > 0) {
+    const started = `${/^\d{4}-\d{2}-\d{2}$/.test(m.criado) ? m.criado : new Date().toISOString().slice(0, 10)}T12:00:00.000-0300`;
+    const rw = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(destinoKey)}/worklog`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ timeSpentSeconds: horasSeg, started, comment: textoParaAdf(`Reunião ${m.k} — ${m.resumo}`) }),
+    });
+    worklogOk = rw.ok;
+  }
+
+  // 3) Exclui a reunião — só depois que o destino foi gravado com sucesso.
+  const rd = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(reuniaoKey)}?deleteSubtasks=true`, { method: 'DELETE', headers });
+  const excluida = rd.status === 204;
+
+  cacheClear('reunioes:'); cacheClear('reuvinc:'); cacheClear('atividade:'); cacheClear('venc:');
+  return json(res, 200, {
+    ok: true, modo, destino: destinoKey, worklogOk, excluida,
+    erro: excluida ? '' : `O destino foi gravado, mas a exclusão de ${reuniaoKey} falhou (Jira ${rd.status}) — provavelmente falta a permissão "Excluir itens". Exclua manualmente.`,
+  });
+}
+
 export default async function handler(req, res) {
   try {
-    if (req.method === 'POST') return await mover(req, res);
+    if (req.method === 'POST') {
+      const b = await lerBody(req);
+      if (b.vincular) return await vincular(req, res, b);
+      // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.
+      req.body = b;
+      return await mover(req, res);
+    }
+    if (req.query && req.query.detalhe) return await detalhe(req, res);
+    if (req.query && req.query.abertos) return await abertos(req, res);
     return await listar(req, res);
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });
