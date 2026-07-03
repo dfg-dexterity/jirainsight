@@ -816,6 +816,15 @@
   .btn.perigo{border-color:rgba(210,10,10,.5);color:#B91C1C}
   .btn.perigo:hover{background:rgba(210,10,10,.10)}
   tr.gx-on td{background:rgba(0,112,242,.07)}
+  .gx-card{cursor:default}
+  .gx-card.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.18)}
+  .gx-card .kb-k a{color:#0064D9;text-decoration:none;font-weight:700}
+  .gx-lrow{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--linha);border-radius:10px;padding:9px 12px;margin-bottom:8px;background:var(--cartao)}
+  .gx-lrow.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.14)}
+  .gx-lrow input[type=checkbox]{margin-top:3px}
+  .gx-lrow .l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .gx-lrow .l1 a{font-weight:700;white-space:nowrap}
+  .gx-lrow .l2{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
   /* Vincular Reuniões a Tickets de AMS */
   .rv-met{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;background:var(--cartao2);margin:8px 0 12px}
   .rv-met .k{font-weight:700}
@@ -1321,7 +1330,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
-  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'' },
+  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
@@ -6316,15 +6325,69 @@ function renderGestao(){
   const lista=gxLista();
   const nSel=gxSelKeys().length;
   const todosVis=lista.length>0&&lista.every(t=>g.sel[t.k]);
-  const rows=lista.map(t=>{ const atras=t.venc&&t.venc<hoje;
-    return `<tr class="${g.sel[t.k]?'gx-on':''}">
-      <td class="c"><input type="checkbox" class="gx-chk" data-k="${escA(t.k)}" ${g.sel[t.k]?'checked':''} aria-label="selecionar ${escA(t.k)}"></td>
-      <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
-      <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
-      <td><span class="badge">${esc(t.p)}</span></td>
-      <td><span class="badge">${esc(t.status)}</span></td>
-      <td>${esc(t.resp||'—')}</td>
-      <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td></tr>`; }).join('');
+  const chk=(t)=>`<input type="checkbox" class="gx-chk" data-k="${escA(t.k)}" ${g.sel[t.k]?'checked':''} aria-label="selecionar ${escA(t.k)}">`;
+  const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>`;
+  // ---- Tabela (densa; padrão) ----
+  const htmlTabela=()=>{
+    const rows=lista.map(t=>{ const atras=t.venc&&t.venc<hoje;
+      return `<tr class="${g.sel[t.k]?'gx-on':''}">
+        <td class="c">${chk(t)}</td>
+        <td>${linkK(t)}</td>
+        <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
+        <td><span class="badge">${esc(t.p)}</span></td>
+        <td><span class="badge">${esc(t.status)}</span></td>
+        <td>${esc(t.resp||'—')}</td>
+        <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td></tr>`; }).join('');
+    return `<div class="ts-wrap"><table class="rc-tab gx-tab"><thead><tr>
+        <th class="c"><input type="checkbox" id="gx-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
+        <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Status</th><th>Responsável</th><th>Vencimento</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="7" class="muted small">Nada encontrado com esses filtros.</td></tr>'}</tbody></table></div>`;
+  };
+  // ---- Lista (cards com badges, como no Apontar) ----
+  const htmlLista=()=>{
+    if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
+    const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
+    return `<div class="muted small" style="margin:0 0 8px"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-all" ${todosVis?'checked':''}> selecionar todos (${lista.length})</label></div>`+
+      arr.map(t=>{ const atras=t.venc&&t.venc<hoje;
+      return `<div class="gx-lrow ${g.sel[t.k]?'sel':''}">
+        ${chk(t)}
+        <div style="flex:1;min-width:0">
+          <div class="l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span></div>
+          <div class="l2">
+            <span class="badge">${esc(t.p)}</span>
+            <span class="badge">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t||'—')}</span>
+            <span class="badge">${esc(t.status)}</span>
+            ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
+            ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
+            <span class="badge">${esc(t.resp||'sem responsável')}</span>
+          </div>
+        </div></div>`; }).join('');
+  };
+  // ---- Quadro (kanban por status; o cartão inteiro seleciona) ----
+  const htmlQuadro=()=>{
+    if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
+    const porSt={}; lista.forEach(t=>{ const st=t.status||'—'; (porSt[st]=porSt[st]||[]).push(t); });
+    const cols=Object.keys(porSt).sort((a,b)=>porSt[b].length-porSt[a].length || a.localeCompare(b,'pt'));
+    return `<div class="kanban">${cols.map(st=>{
+      const arr=porSt[st].slice().sort((a,b)=>(a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'));
+      return `<div class="kb-col"><div class="kb-head">${esc(st)} <span>${arr.length}</span></div>
+        <div class="kb-cards">${arr.map(t=>{ const atras=t.venc&&t.venc<hoje;
+          return `<div class="kb-card gx-card ${g.sel[t.k]?'sel':''}" data-gx-card="${escA(t.k)}">
+          <div class="kb-top"><span class="kb-k">${chk(t)} ${linkK(t)}</span><span class="badge">${esc(t.p)}</span></div>
+          <div class="kb-res">${esc(t.resumo||'')}</div>
+          <div class="kb-meta">
+            ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
+            ${t.resp?`<span class="badge">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
+          </div></div>`; }).join('')}</div></div>`;
+    }).join('')}</div>
+    <div class="muted small" style="margin-top:8px">Clique no cartão para <b>selecionar</b>; o código abre o ticket no Jira.</div>`;
+  };
+  const vis=['lista','tabela','quadro'].includes(g.vis)?g.vis:'tabela';
+  const viewToggle=`<div class="ap-vis" style="margin:0 0 10px"><span class="muted small">Visualização:</span>
+    <button class="chip" aria-pressed="${vis==='lista'}" data-gx-vis="lista">▤ Lista</button>
+    <button class="chip" aria-pressed="${vis==='tabela'}" data-gx-vis="tabela">▦ Tabela</button>
+    <button class="chip" aria-pressed="${vis==='quadro'}" data-gx-vis="quadro">🗂 Quadro</button></div>`;
+  const corpo = vis==='lista'?htmlLista() : vis==='quadro'?htmlQuadro() : htmlTabela();
   const bar=nSel?`<div class="gx-bar"><span class="n">${nSel} selecionado(s)</span>
       <button class="btn" data-gx-act="atribuir">👤 Atribuir</button>
       <button class="btn" data-gx-act="status">🔁 Alterar status</button>
@@ -6345,10 +6408,8 @@ function renderGestao(){
         <div class="campo"><label>Buscar</label><input type="search" id="gx-busca" placeholder="código, resumo, pessoa…" value="${escA(g.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-refresh">Atualizar</button></div>
       </div>
-      <div class="ts-wrap"><table class="rc-tab gx-tab"><thead><tr>
-        <th class="c"><input type="checkbox" id="gx-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
-        <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Status</th><th>Responsável</th><th>Vencimento</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="7" class="muted small">Nada encontrado com esses filtros.</td></tr>'}</tbody></table></div>
+      ${viewToggle}
+      ${corpo}
       ${bar}
     </div></div>`));
 }
@@ -7420,8 +7481,13 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     else if(a==='status') abreModalStatusLote(keys);
     else if(a==='excluir') abreModalExcluirLote(keys);
     return; }
+  const card=e.target.closest&&e.target.closest('[data-gx-card]');
+  if(card && !e.target.closest('a') && !e.target.closest('input')){
+    const g0=estado.gestao; const k=card.getAttribute('data-gx-card');
+    if(g0.sel[k]) delete g0.sel[k]; else g0.sel[k]=true; renderGestao(); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   const g=estado.gestao;
+  if(t.hasAttribute&&t.hasAttribute('data-gx-vis')){ g.vis=t.getAttribute('data-gx-vis'); renderGestao(); return; }
   if(t.id==='gx-retry'){ g.erro=''; g.dados=null; renderGestao(); }
   else if(t.id==='gx-refresh'){ g.dados=null; carregaGestao(true); }
   else if(t.id==='gx-limpar'){ g.sel={}; renderGestao(); }
