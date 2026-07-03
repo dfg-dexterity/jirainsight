@@ -783,12 +783,29 @@
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
-  /* Alocações — modo leitura (tabela limpa agrupada por pessoa) */
+  /* Alocações — board por pessoa (edição inline estilo Monday/Asana; salva sozinho) */
   .gt-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-  .aloc-ro tr.grp td{border-top:2px solid var(--linha)}
-  .aloc-ro tr.past td{opacity:.55}
-  .aloc-tp{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:600;background:var(--cartao2);border:1px solid var(--linha2);color:var(--texto2);white-space:nowrap}
-  .aloc-tp.nf{border-style:dashed}
+  .ab-grupo{border:1px solid var(--linha);border-radius:10px;margin-bottom:12px;background:var(--cartao);overflow:hidden}
+  .ab-head{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--cartao2);border-left:4px solid var(--cerceta);flex-wrap:wrap}
+  .ab-av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 26px}
+  .ab-nome{font-weight:700;font-size:13.5px}
+  .ab-res{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 30px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row.past{opacity:.55}
+  .ab-row select,.ab-row input{border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:13px;background:transparent;color:var(--grafite);width:100%;min-width:0}
+  .ab-row select:hover,.ab-row input:hover{border-color:var(--linha)}
+  .ab-row select:focus,.ab-row input:focus{border-color:var(--cerceta);background:var(--cartao);outline:none}
+  .ab-pctc{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .ab-pctc input{width:58px;text-align:right;font-weight:700}
+  .ab-pctc .eq{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .ab-x{border:none;background:none;color:var(--muted);font-size:15px;cursor:pointer;border-radius:6px;padding:2px 6px}
+  .ab-x:hover{background:rgba(210,10,10,.12);color:#B91C1C}
+  .ab-add{padding:6px 12px;border-top:1px dashed var(--linha2)}
+  .ab-add select{border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:12.5px;background:transparent;color:var(--cerceta);font-weight:600;max-width:280px}
+  .ab-add select:hover{border-color:var(--linha)}
+  .ab-pess{margin-top:2px}
+  .ab-pess select{border:1px dashed var(--linha);border-radius:8px;padding:7px 10px;font-size:13px;background:transparent;color:var(--cerceta);font-weight:600;max-width:320px}
+  @media(max-width:900px){ .ab-row{grid-template-columns:1fr 1fr;row-gap:4px} .ab-row .ab-x{justify-self:end} }
   /* Alocação — Simulação ("e se…") */
   .sim-grid{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
   @media(min-width:1180px){ .sim-grid{grid-template-columns:1fr 1fr} }
@@ -1236,6 +1253,7 @@
     apontadas <em>para várias pessoas de uma vez</em>: quem organizou dispara o convite e cada um confirma com 1 clique.
     <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
+    <div id="versaoApp" style="margin-top:10px"></div>
   </footer>
 </div>
 
@@ -1294,7 +1312,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, edit:false, gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false, pessNovas:[], gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true } };
 
@@ -5262,10 +5280,16 @@ function planAcompHTML(d){
 // com status em 4 níveis (≤80 disponível · 80–100 saudável · 100–120 atenção · >120 crítico).
 function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', tipo:'faturavel', inicio:'', fim:'', hSemana:20 }; }
 function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])).map(a=>{
-    if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; if(a.tipo==null) a.tipo='faturavel'; return a; }); return estado.alocacao.rows; }
+    if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; if(a.tipo==null) a.tipo='faturavel';
+    if(!a.id) a.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); return a; }); return estado.alocacao.rows; }
 // Tipos de alocação (para a visão de capacidade da empresa). Os 3 primeiros contam como faturável.
 const ALOC_TIPOS=[['faturavel','Faturável'],['fechado','Projeto fechado'],['ams','AMS'],['prevenda','Pré-venda'],['interno','Interno'],['treino','Treinamento']];
 const ALOC_FAT=new Set(['faturavel','fechado','ams']);
+// Semana nominal (h) da pessoa = jornada de Metas × 5 dias — base da conversão % ↔ h/sem.
+function alocSemNomH(a){ return metaSegDe(a)/3600*5; }
+function alocPctDe(a, h){ const n=alocSemNomH(a); return n?Math.round((Number(h)||0)/n*100):0; }
+// Board por pessoa: toda alteração persiste na hora (config compartilhada), sem botão "salvar".
+function alocPersiste(){ cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); }
 function alocH(h){ return (Math.round((h||0)*10)/10).toLocaleString('pt-BR')+'h'; }
 // Semanas (segunda-feira) do horizonte das alocações (com folga à frente).
 function alocSemanas(rows){
@@ -5294,11 +5318,6 @@ function alocMatriz(rows, gran){
     cols.forEach(c=>{ let cap=0,al=0; c.semanas.forEach(w=>{ cap+=alocCapacSemana(a,w); al+=alocAlocadoSemana(rows,a,w); });
       dados[a].cols[c.key]={cap,al}; dados[a].capTot+=cap; dados[a].alTot+=al; }); });
   return { cols, pessoas, dados, nSem:semanas.length };
-}
-function alocSync(){
-  const rows=estado.alocacao.rows; if(!rows) return;
-  document.querySelectorAll('[data-al-f]').forEach(inp=>{ const p=inp.getAttribute('data-al-f').split('|'); const a=rows[+p[1]]; if(!a) return;
-    if(p[0]==='hSemana') a.hSemana=Math.max(0,Number(inp.value)||0); else a[p[0]]=inp.value; });
 }
 // ---- Fase B: Visão por Projeto (equipe + planejado × apontado) ----
 function alocPeriodo(rows){ let ini='',fim=''; rows.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&(!ini||a.inicio<ini)) ini=a.inicio; if(/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&(!fim||a.fim>fim)) fim=a.fim; }); return {ini,fim}; }
@@ -5419,7 +5438,7 @@ function alocViewGantt(rows, pess){
       <span class="muted small">Zoom</span> <button class="btn" data-gt-zoom="out" title="Menos zoom">−</button><button class="btn" data-gt-zoom="in" title="Mais zoom">+</button>
     </div>`;
   if(!pessoas.length || !valid.length){
-    return `${toolbar}<div class="muted small">Adicione alocações com <strong>pessoa</strong>, <strong>início</strong> e <strong>fim</strong> (no editor abaixo) para vê-las na linha do tempo.</div>`;
+    return `${toolbar}<div class="muted small">Adicione alocações no <strong>Planejamento por pessoa</strong> (abaixo) para vê-las na linha do tempo.</div>`;
   }
   // Cabeçalho: faixa de meses + faixa de semanas.
   const mSeg=[]; { let d=start; while(d<=end){ const ym=d.slice(0,7); let cnt=0; while(d<=end && d.slice(0,7)===ym){ cnt++; d=gtAdd(d,1); } mSeg.push({ym,cnt}); } }
@@ -5573,57 +5592,54 @@ function renderAlocacao(){
   }).join('');
   const grid = pessoasOrd.length ? `<div class="pl-wrap"><table class="aloc-grid"><thead><tr><th>Pessoa</th>${thCols}</tr></thead><tbody>${gridRows}</tbody></table></div>
     <div class="aloc-leg"><span><i class="disp"></i>≤80% disponível</span><span><i class="saud"></i>80–100% saudável</span><span><i class="aten"></i>100–120% atenção</span><span><i class="crit"></i>&gt;120% crítico</span></div>`
-    : '<div class="muted small">Sem alocações ainda — adicione abaixo (pessoa · projeto · período · h/semana).</div>';
+    : '<div class="muted small">Sem alocações ainda — comece no <strong>Planejamento por pessoa</strong> (abaixo): adicione a pessoa, os projetos e o % de cada um.</div>';
   // Resumo por pessoa (média por semana no horizonte)
   const semsR=alocSemanas(rv);
   const resumo=pessoasOrd.map(a=>{ let cap=0,al=0,n=0; semsR.forEach(w=>{ const aw=alocAlocadoSemana(rv,a,w); if(aw>0){ cap+=alocCapacSemana(a,w); al+=aw; n++; } });
     const u=cap?Math.round(al/cap*100):(al>0?999:0); const [cls,lbl]=alocStatus(u);
     return `<tr><td>${esc(nm(a))}</td><td class="num">${alocH(n?cap/n:0)}/sem</td><td class="num">${alocH(n?al/n:0)}/sem</td><td class="num">${u}%</td><td><span class="aloc-badge ${cls}">${lbl}</span></td></tr>`; }).join('');
   const resumoTab = pessoasOrd.length ? `<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th class="num">Capacidade</th><th class="num">Alocado</th><th class="num">Utilização</th><th>Status</th></tr></thead><tbody>${resumo}</tbody></table></div>` : '';
-  // Editor de alocações
-  const edRows=rows.map((a,i)=>{
-    const pOpt='<option value="">— pessoa —</option>'+pordPess.map(([id,p])=>`<option value="${escA(id)}" ${a.accountId===id?'selected':''}>${esc(p.nome||id)}</option>`).join('');
-    const prSolto=a.projeto && !projs.some(p=>p.key===a.projeto); // projeto fora da lista (ex.: arquivado) — preserva o valor
-    const prOpt='<option value="">— projeto —</option>'+(prSolto?`<option value="${escA(a.projeto)}" selected>${esc(a.projeto)}</option>`:'')+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
-    const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
-    return `<tr>
-      <td><select data-al-f="accountId|${i}">${pOpt}</select></td>
-      <td><select data-al-f="projeto|${i}">${prOpt}</select></td>
-      <td><select data-al-f="tipo|${i}">${tOpt}</select></td>
-      <td><input type="date" data-al-f="inicio|${i}" value="${escA(a.inicio)}"></td>
-      <td><input type="date" data-al-f="fim|${i}" value="${escA(a.fim)}"></td>
-      <td class="num pl-alloc"><input type="number" class="pl-pct" data-al-f="hSemana|${i}" value="${a.hSemana!=null?a.hSemana:''}" min="0" step="1"><span>h/sem</span></td>
-      <td class="num"><button class="pl-x" data-al-del="${i}" title="Remover">×</button></td></tr>`;
+  // Board por pessoa (estilo Monday/Asana): grupos por pessoa → projetos com % da capacidade.
+  // Edição inline, sem modo/botão de salvar — toda alteração persiste na hora (alocPersiste).
+  const hj=hojeSP(); const semAtual=semChave(hj);
+  const porPessoa={};
+  rows.forEach((a,i)=>{ const k=a.accountId||''; (porPessoa[k]=porPessoa[k]||[]).push({a,i}); });
+  (estado.alocacao.pessNovas||[]).forEach(id=>{ if(!porPessoa[id]) porPessoa[id]=[]; });
+  const pessBoard=Object.keys(porPessoa).sort((x,y)=>nm(x).localeCompare(nm(y),'pt'));
+  const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const grupos=pessBoard.map(pid=>{
+    const its=porPessoa[pid].slice().sort((p,q)=>String(p.a.inicio).localeCompare(String(q.a.inicio)));
+    const nome=pid?nm(pid):'Sem pessoa';
+    const cor=GT_PALB[gtCor(pid||nome)];
+    const inic=(nome||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
+    const nom=alocSemNomH(pid); const alHoje=pid?alocAlocadoSemana(rows,pid,semAtual):0;
+    const u=nom?Math.round(alHoje/nom*100):0; const [cls,lbl]=alocStatus(u);
+    const res=pid?`<span class="ab-res">${its.length} projeto${its.length===1?'':'s'} · esta semana <strong>${alocH(alHoje)}</strong> de ${alocH(nom)}</span>${u>0?` <span class="aloc-badge ${cls}">${u}% · ${esc(lbl)}</span>`:''}`
+      :'<span class="ab-res">linhas sem pessoa — defina o projeto/período ou remova</span>';
+    const linhas=its.map(({a})=>{
+      const prSolto=a.projeto && !projs.some(p=>p.key===a.projeto); // projeto fora da lista (ex.: arquivado) — preserva
+      const prOpt='<option value="">— projeto —</option>'+(prSolto?`<option value="${escA(a.projeto)}" selected>${esc(a.projeto)}</option>`:'')+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+      const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
+      const past=/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.fim<hj;
+      const pct=alocPctDe(pid,a.hSemana);
+      return `<div class="ab-row${past?' past':''}">
+        <span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(a.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(a.id)}">${prOpt}</select></span>
+        <select data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
+        <input type="date" data-ab-f="inicio|${escA(a.id)}" value="${escA(a.inicio)}" title="Início">
+        <input type="date" data-ab-f="fim|${escA(a.id)}" value="${escA(a.fim)}" title="Fim">
+        <span class="ab-pctc"><input type="number" data-ab-pct="${escA(a.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(a.hSemana)||0)}/sem</span></span>
+        <button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></div>`;
+    }).join('');
+    const add=pid?`<div class="ab-add"><select data-ab-addproj="${escA(pid)}">${addOpt}</select></div>`:'';
+    return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(nome)}</span>${res}</div>
+      ${linhas||'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
   }).join('');
-  // Card de alocações: modo LEITURA (tabela limpa, agrupada por pessoa) × modo EDIÇÃO (formulários)
-  const editMode=!!estado.alocacao.edit;
-  const hj=hojeSP(); let _roP=null;
-  const roRows=rows.slice().sort((a,b)=> nm(a.accountId).localeCompare(nm(b.accountId),'pt') || String(a.inicio).localeCompare(String(b.inicio))).map((a,i)=>{
-    const first=a.accountId!==_roP || i===0; _roP=a.accountId;
-    const tipoLbl=(ALOC_TIPOS.find(([k])=>k===(a.tipo||'faturavel'))||[])[1]||(a.tipo||'—');
-    const nf=!ALOC_FAT.has(a.tipo||'faturavel');
-    const okDt=/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim);
-    const past=okDt&&a.fim<hj, fut=okDt&&a.inicio>hj;
-    const st=!okDt?'<span class="muted small">sem período</span>':past?'<span class="aloc-tp">encerrada</span>':fut?'<span class="aloc-badge disp">futura</span>':'<span class="aloc-badge saud">ativa</span>';
-    const ci=gtCor(a.projeto);
-    return `<tr class="${first&&i>0?'grp':''}${past?' past':''}"><td>${first?esc(nm(a.accountId)||'—'):''}</td>
-      <td><i class="gt-dot" style="background:${GT_PALB[ci]}"></i>${esc(a.projeto||'—')}</td>
-      <td><span class="aloc-tp${nf?' nf':''}">${esc(tipoLbl)}</span></td>
-      <td class="num" style="white-space:nowrap">${okDt?`${esc(fmtBR(a.inicio))} – ${esc(fmtBR(a.fim))}`:'—'}</td>
-      <td class="num" style="font-weight:600">${Number(a.hSemana)||0}h/sem</td>
-      <td>${st}</td></tr>`;
-  }).join('');
-  const edCard = editMode
-    ? `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px"><span class="muted small" style="font-weight:600">Alocações — edição <span class="muted" style="font-weight:400">(pessoa · projeto · período · horas por semana)</span></span></div>
-      <div class="pl-wrap"><table class="pl-tab aloc-ed"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th>Início</th><th>Fim</th><th class="num">h/sem</th><th></th></tr></thead>
-        <tbody>${edRows||'<tr><td colspan="7" class="muted small">Nenhuma alocação. Clique em "+ adicionar alocação".</td></tr>'}</tbody></table></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><button class="btn" data-al-add="1">+ adicionar alocação</button>
-        <span class="spacer"></span><button class="btn" data-al-cancelar="1">Cancelar</button><button class="btn primario" data-al-salvar="1">Salvar alocações</button></div>
-      <div class="muted small" style="margin-top:8px">Salvo na config compartilhada${idApontar()?'':' (identifique-se na aba Apontar para compartilhar)'}. Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa). Depois, detalhe por <strong>épico</strong> em <strong>Planejamento macro</strong>.</div>`
-    : `<div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px"><span class="muted small" style="font-weight:600">Alocações <span class="muted" style="font-weight:400">(${rows.length})</span></span><span class="spacer"></span><button class="btn" data-al-editar="1">✏️ Editar</button></div>
-      ${rows.length?`<div class="pl-wrap"><table class="pl-tab aloc-ro"><thead><tr><th>Pessoa</th><th>Projeto</th><th>Tipo</th><th class="num">Período</th><th class="num">h/sem</th><th>Status</th></tr></thead><tbody>${roRows}</tbody></table></div>`
-        :'<div class="muted small">Nenhuma alocação ainda — clique em <strong>✏️ Editar</strong> para adicionar.</div>'}
-      <div class="muted small" style="margin-top:8px">Na <strong>Linha do tempo</strong> dá para <strong>arrastar/redimensionar</strong> as barras direto (salva sozinho). Capacidade base = jornada de <strong>Metas</strong> (${cfg.metaGlobalH}h/dia, ajustável por pessoa).</div>`;
+  const jaNoBoard=new Set(pessBoard);
+  const pessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.filter(([id])=>!jaNoBoard.has(id)).map(([id,p])=>`<option value="${escA(id)}">${esc(p.nome||id)}</option>`).join('');
+  const edCard=`<div style="margin:2px 0 10px"><span class="muted small" style="font-weight:600">Planejamento por pessoa</span> <span class="muted small">— atribua a pessoa aos projetos e ajuste o <strong>%</strong> de alocação; edite direto nos campos, <strong>salva sozinho</strong>.</span></div>
+      ${grupos||'<div class="muted small" style="margin-bottom:10px">Ninguém alocado ainda — comece adicionando uma pessoa abaixo.</div>'}
+      <div class="ab-pess"><select data-ab-pess="1">${pessOpt}</select></div>
+      <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
   const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap)',simulacao:'Cenários "e se…" e busca de disponibilidade'};
@@ -7049,9 +7065,9 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-al-add],[data-al-del],[data-al-salvar],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-editar],[data-al-cancelar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
-  if(t.hasAttribute('data-al-editar')){ estado.alocacao.edit=true; renderAlocacao(); return; }
-  if(t.hasAttribute('data-al-cancelar')){ estado.alocacao.rows=null; estado.alocacao.edit=false; renderAlocacao(); return; }
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
+    if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
   if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
@@ -7061,12 +7077,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     simRows().push(simNova({ accountId:t.getAttribute('data-sim-fromfind'), projeto:(f.rot||'Novo projeto'), inicio:f.ini||'', fim:f.fim||'', hSemana:Math.max(0,Number(f.h)||0) }));
     toast('✓ Adicionado ao cenário.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
-  if(t.hasAttribute('data-al-add')){ alocSync(); alocRows().push(alocNova()); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-del')){ alocSync(); estado.alocacao.rows.splice(+t.getAttribute('data-al-del'),1); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-gran')){ alocSync(); estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-visao')){ alocSync(); estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
-  else if(t.hasAttribute('data-al-real')){ alocSync(); alocCarregaReal(alocRows(), true); }
-  else if(t.hasAttribute('data-al-salvar')){ alocSync(); cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); estado.alocacao.edit=false; toast('✓ Alocações salvas.','ok'); renderAlocacao(); }
+  if(t.hasAttribute('data-al-gran')){ estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-visao')){ estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-real')){ alocCarregaReal(alocRows(), true); }
 });
 // Re-render ADIADO (fora do dispatch do change): trocar o DOM no meio do evento —
 // com o campo ainda focado — dispara blur/change reentrantes e quebra o replaceChildren.
@@ -7078,9 +7091,18 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
   if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); alocRedraw(); return; }
   if(t.matches('[data-sim-f]')){ simSync(); alocRedraw(); return; }
   if(t.matches('[data-find-f]')){ simFindSync(); alocRedraw(); return; }
-  // Só sincroniza no modo edição: ao salvar/cancelar o DOM antigo dispara um "change"
-  // tardio do campo focado, que não pode reler o valor descartado.
-  if(t.matches('[data-al-f]')){ if(!estado.alocacao.edit) return; alocSync(); alocRedraw(); } });
+  // Board por pessoa: campos referenciam a alocação por ID (um "change" tardio do DOM
+  // antigo, disparado durante o re-render, no máximo regrava o mesmo valor — nunca a linha errada).
+  if(t.matches('[data-ab-f]')){ const p=t.getAttribute('data-ab-f').split('|'); const a=alocRows().find(r=>r.id===p[1]);
+    if(a){ a[p[0]]=t.value; alocPersiste(); } alocRedraw(); return; }
+  if(t.matches('[data-ab-pct]')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-pct'));
+    if(a){ const pct=Math.max(0,Number(t.value)||0); a.hSemana=Math.round(pct/100*alocSemNomH(a.accountId)*2)/2; alocPersiste(); } alocRedraw(); return; }
+  if(t.matches('[data-ab-addproj]')){ const pid=t.getAttribute('data-ab-addproj'); const k=t.value; if(!pid||!k) return;
+    const ini=semChave(hojeSP());
+    alocRows().push(Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) }));
+    estado.alocacao.pessNovas=(estado.alocacao.pessNovas||[]).filter(x=>x!==pid);
+    alocPersiste(); alocRedraw(); return; }
+  if(t.matches('[data-ab-pess]')){ const id=t.value; if(id && !(estado.alocacao.pessNovas||[]).includes(id)) estado.alocacao.pessNovas.push(id); alocRedraw(); return; } });
 // ---- Gantt de alocação: arrastar para mover · puxar bordas para redimensionar (salva ao soltar) ----
 let _gtDrag=null;
 document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
@@ -7101,9 +7123,9 @@ document.addEventListener('pointermove', (e)=>{ const g=_gtDrag; if(!g) return;
 });
 document.addEventListener('pointerup', (e)=>{ const g=_gtDrag; if(!g) return; _gtDrag=null;
   g.bar.classList.remove('dragging');
-  if(g.moved && g.dd!==0){ alocSync(); const rows=alocRows(); const a=rows[g.idx];
+  if(g.moved && g.dd!==0){ const a=alocRows()[g.idx];
     if(a){ const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); a.inicio=nx.ini; a.fim=nx.fim;
-      cfg.alocacoes=JSON.parse(JSON.stringify(rows)); salvaCfg(); toast('✓ Alocação atualizada e salva.','ok'); }
+      alocPersiste(); toast('✓ Alocação atualizada e salva.','ok'); }
     renderAlocacao();
   } else { g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent=''; }
 });
@@ -7350,6 +7372,18 @@ leURL();
 sincronizaControlesURL();
 (async ()=>{ await carregaCfgRemota(); recarrega(); })();
 if(idApontar()) buscaConvites();   // mostra o selo de convites pendentes já no carregamento
+
+// ---- Versão do deploy no rodapé (commit/PR do GitHub, via Vercel) ----
+// Fica vazio quando indisponível (ex.: rodando o HTML local, sem as functions).
+function mostraVersao(j){
+  const el=document.getElementById('versaoApp'); if(!el) return;
+  if(!j || (!j.pr && !j.sha)){ el.textContent=''; return; }
+  const base=j.url||'https://github.com/dfg-dexterity/jirainsight';
+  const url=j.pr?`${base}/pull/${j.pr}`:`${base}/commit/${j.sha}`;
+  el.innerHTML=`<strong>Versão:</strong> <a href="${escA(url)}" target="_blank" rel="noopener">${j.pr?`PR #${esc(j.pr)}`:esc(j.sha)}</a>`+
+    `${j.titulo?` — ${esc(j.titulo)}`:''}${j.pr&&j.sha?` <span class="muted">(${esc(j.sha)})</span>`:''}`;
+}
+fetch('/api/config?versao=1').then(x=>x.json()).then(mostraVersao).catch(()=>{});
 </script>
 </body>
 </html>
