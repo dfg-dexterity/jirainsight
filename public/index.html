@@ -440,6 +440,11 @@
   .ap-lista{display:flex;flex-direction:column;gap:12px}
   .ap-row{border:1px solid var(--linha);border-radius:12px;padding:14px 14px 14px 16px;background:var(--cartao);
     display:flex;flex-direction:column;gap:10px;transition:box-shadow .12s ease;border-left-width:5px}
+  /* Meus tickets recentes: linha mais compacta + botão de recolher no título */
+  .ap-row.ap-rec{padding:10px 12px 10px 14px;gap:8px;border-left-color:#7AA7DE}
+  .ap-rec-tgl{border:1px solid var(--linha);background:var(--cartao);border-radius:7px;cursor:pointer;
+    font-size:12px;line-height:1;padding:3px 7px;margin-right:2px;color:var(--texto)}
+  .ap-rec-tgl:hover{background:var(--hoverbg)}
   .ap-row:hover{box-shadow:var(--sombra)}
   .ap-row.feito{border-color:#A7F3D0;background:#F0FDF4}
   /* Faixa lateral: verde = já tem horas apontadas · âmbar = ainda sem horas. */
@@ -1391,11 +1396,12 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false },
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:false },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
   // (histórias vão direto no épico; sub-tarefas vão dentro da história escolhida).
   planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', epicoKey:'', historiaKey:'', texto:'',
+    est:'', labels:'', venc:'', tpl:'',
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
@@ -1425,7 +1431,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -3228,6 +3234,9 @@ function renderTickets(){
 
 // ============================ APONTAR (apontamento rápido) ============================
 function somaDias(s,n){ let d=s; for(let i=0;i<n;i++) d=proxDia(d); return d; }
+// Volta n dias no calendário (somaDias não anda para trás).
+function voltaDias(s,n){ const [y,m,d]=String(s).split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,d-n)).toISOString().slice(0,10); }
 const fmtBR = (iso) => iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}` : '';
 
 // Identidade de quem aponta: e-mail + token de API do Jira, salvos SÓ neste navegador.
@@ -3387,6 +3396,49 @@ function renderApontar(){
         </div>`).join('')}
       </div>
       ${cvs.length>1?`<div style="margin-top:10px"><button class="btn primario" id="cv-todos">✓ Confirmar todos (${cvs.length})</button></div>`:''}
+    </div>` : '';
+
+  // ---- Meus tickets recentes: onde VOCÊ apontou nos últimos 14 dias (reapontar com 1 clique) ----
+  if(id && id.accountId && ap.recentes===null && !ap.recCarr){
+    ap.recCarr=true;
+    fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json()).then(j=>{
+      ap.recCarr=false;
+      const meus=((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId && w.k);
+      const por={};
+      meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:''};
+        r.seg+=Number(w.s)||0; const d=(w.d||'').slice(0,10); if(d>r.ult) r.ult=d; });
+      ap.recentes=Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
+      if(estado.vista==='apontar') renderApontar();
+    }).catch(()=>{ ap.recCarr=false; ap.recentes=[]; });
+  }
+  const recRow=(r)=>{
+    const tk=todos.find(t=>t.k===r.k);
+    return `<div class="ap-row ap-rec" data-k="${escA(r.k)}">
+      <div class="ap-l1">
+        <a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener">${esc(r.k)} ↗</a>
+        <span class="ap-resumo">${esc((tk&&tk.resumo)||'')}</span>
+        <span class="spacer"></span>
+        <span class="badge codigo-proj" data-tip="${escA(nomeProj(r.p))}">${esc(r.p)}</span>
+        <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
+        <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>
+      </div>
+      <div class="ap-log">
+        <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
+        <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
+        <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
+        <input type="text" class="ap-coment" placeholder="comentário (opcional)" aria-label="Comentário">
+        <button class="btn primario" data-ap-key="${escA(r.k)}">Apontar</button>
+        <div class="ap-fb" hidden></div>
+      </div>
+    </div>`;
+  };
+  const recs=ap.recentes||[];
+  const blocoRecentes = (id && id.accountId && (recs.length||ap.recCarr)) ? `
+    <div class="card full">
+      <h2><button class="ap-rec-tgl" id="ap-rec-toggle" aria-expanded="${!ap.recFechado}">${ap.recFechado?'▸':'▾'}</button>
+        🕑 Meus tickets recentes <span>onde você apontou nos últimos 14 dias — reaponte com 1 clique</span></h2>
+      ${ap.recFechado?'' : (ap.recCarr?'<div class="muted small">Carregando seus apontamentos recentes…</div>'
+        : `<div class="ap-lista">${recs.map(recRow).join('')}</div>`)}
     </div>` : '';
 
   // ---- Barra de filtros ----
@@ -3556,6 +3608,7 @@ function renderApontar(){
   cont.replaceChildren(el(`<div>
     ${faixaId}
     ${bannerConvites}
+    ${blocoRecentes}
     ${htmlPainelHoras()}
     <div class="kpis ts-kpis">
       <div class="kpi a" data-ap-fil="todos" aria-pressed="${ap.fil==='todos'}" data-tip="Mostrar todos" data-tipk="clique para filtrar">
@@ -3661,6 +3714,13 @@ async function fazApontamento(btn){
       else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`;
         toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
       logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio, ok:true});
+      // "Meus tickets recentes" acompanha sem nova busca.
+      const recs=estado.apontar.recentes;
+      if(Array.isArray(recs)){
+        const rec=recs.find(r=>r.k===k);
+        if(rec){ rec.seg+=seg; if(inicio>rec.ult) rec.ult=inicio; }
+        else{ recs.unshift({k, p:(t&&t.p)||k.split('-')[0], seg, ult:inicio}); recs.length=Math.min(recs.length,6); }
+      }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
     } else { const m=humanizaErro(j.erro||'Falha ao apontar.'); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
   }catch(e){ const m=humanizaErro(e); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
@@ -4317,6 +4377,21 @@ function renderPlanejarForm(){
         <div class="campo"><label>Tipo de ticket</label><select id="pl-tipo" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
         <div class="campo"><label>Responsável (padrão)</label><select id="pl-resp">${optResp}</select></div>
       </div>
+      <div class="pl-dica" style="margin-top:10px">Padrões do lote <span class="muted">(opcionais — aplicados a <strong>todos</strong> os tickets desta criação)</span> e templates:</div>
+      <div class="pl-grid">
+        <div class="campo"><label>⏱ Estimativa</label>
+          <input id="pl-est" placeholder="ex.: 4h · 2d · 1w 2d" value="${escA(pl.est||'')}"></div>
+        <div class="campo"><label>🏷 Labels</label>
+          <input id="pl-labels" placeholder="separadas por vírgula" value="${escA(pl.labels||'')}"></div>
+        <div class="campo"><label>📅 Vencimento</label>
+          <input type="date" id="pl-venc" value="${escA(pl.venc||'')}"></div>
+        <div class="campo"><label>📑 Templates do time</label>
+          <div style="display:flex;gap:6px">
+            <select id="pl-tpl" style="flex:1;min-width:0">${'<option value="">— aplicar um template… —</option>'+(cfg.planTemplates||[]).map(x=>`<option value="${escA(x.nome)}" ${pl.tpl===x.nome?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>
+            <button class="btn" id="pl-tpl-salvar" data-tip="Salvar a lista e os padrões atuais como template do time">💾</button>
+            <button class="btn" id="pl-tpl-del" data-tip="Excluir o template selecionado" ${pl.tpl?'':'disabled'}>🗑</button>
+          </div></div>
+      </div>
       ${painelHist}
       <div class="campo"><label>Tickets — um por linha <span class="muted">(use “;” para separar resumo ; descrição)</span></label>
         <textarea class="pl-texto" id="pl-texto" placeholder="Levantar requisitos com o cliente ; agendar reunião inicial
@@ -4377,6 +4452,11 @@ function renderPlanejarRevisao(){
     if(hist) destino+=` · sub-tarefas em <strong>${esc(hist.k)}</strong> <span class="muted">(${esc(hist.resumo.slice(0,50))})</span>`;
     else destino+=' · como <strong>histórias/tarefas do épico</strong>';
   }
+  const pads=[];
+  if((pl.est||'').trim()) pads.push('⏱ '+esc(pl.est.trim()));
+  const lbs=plLabels(); if(lbs.length) pads.push('🏷 '+esc(lbs.join(', ')));
+  if(pl.venc) pads.push('📅 vence '+fmtBR(pl.venc));
+  if(pads.length) destino+=`<br>Padrões aplicados a <strong>todos</strong>: ${pads.join(' · ')}`;
   const prontos=pl.itens.length-nErros;
   const podeCriar = prontos>0 && nErros===0 && !pl.criando;
 
@@ -4429,7 +4509,8 @@ async function criaLote(){
   pl.criando=true; renderPlanejar();
   try{
     const itens=pl.itens.map(it=>({ projeto:pl.projeto, tipoId:it.tipoId, resumo:it.resumo,
-      descricao:it.descricao, respId:it.respId, paiKey:it.paiKey }));
+      descricao:it.descricao, respId:it.respId, paiKey:it.paiKey,
+      estimativa:(pl.est||'').trim(), labels:plLabels(), venc:pl.venc||'' }));
     const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({itens,email:id.email,token:id.token})}).then(r=>r.json());
     pl.criando=false;
@@ -4542,6 +4623,58 @@ function baixaModeloPlanejar(){
     ['Criar massa de testes','Usar dados do projeto anterior',tEx,''],
   ];
   baixaCSV('modelo_planejamento_jira.csv',[head,...exemplos]);
+}
+
+// ---- Padrões do lote + templates (compartilhados com o time via config) ----
+// Labels do Jira não aceitam espaço: "em análise" vira "em-análise".
+function plLabels(){
+  return [...new Set(String(estado.planejar.labels||'').split(',')
+    .map(s=>s.trim().replace(/\s+/g,'-')).filter(Boolean))].slice(0,10);
+}
+function aplicaTemplatePl(nome){
+  const pl=estado.planejar; pl.tpl=nome||'';
+  if(!nome){ renderPlanejar(); return; }
+  const t=(cfg.planTemplates||[]).find(x=>x.nome===nome);
+  if(!t){ pl.tpl=''; renderPlanejar(); return; }
+  pl.texto=t.texto||''; pl.est=t.est||''; pl.labels=t.labels||''; pl.venc=t.venc||'';
+  renderPlanejar();
+  toast(`📑 Template “${nome}” aplicado — confira o destino (projeto/tipo) e valide.`);
+}
+function abreSalvarTemplatePl(){
+  const pl=estado.planejar;
+  if(!pl.texto.trim()){ toast('Escreva a lista de tickets antes de salvar como template.','warn'); return; }
+  abreModal(`
+    <h2>Salvar como template do time</h2>
+    <div class="muted small">Guarda a <strong>lista de tickets</strong> e os <strong>padrões do lote</strong>
+      (estimativa, labels, vencimento) para reutilizar depois — fica disponível para o time inteiro.
+      Salvar com um nome que já existe <strong>substitui</strong> o template.</div>
+    <div class="campo" style="margin-top:12px"><label>Nome do template</label>
+      <input id="pl-tpl-nome" placeholder="ex.: Kick-off de projeto" value="${escA(pl.tpl||'')}"></div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn" id="pl-tpl-cancel">Cancelar</button>
+      <button class="btn primario" id="pl-tpl-conf">💾 Salvar template</button>
+    </div>
+    <div class="ap-fb" id="pl-tpl-fb" hidden></div>`);
+  setTimeout(()=>{ const i=document.getElementById('pl-tpl-nome'); if(i) i.focus(); },30);
+}
+function confirmaSalvarTemplatePl(){
+  const pl=estado.planejar;
+  const nome=(document.getElementById('pl-tpl-nome')||{value:''}).value.trim().slice(0,60);
+  const fb=document.getElementById('pl-tpl-fb');
+  if(!nome){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Dê um nome ao template.'; } return; }
+  cfg.planTemplates=(cfg.planTemplates||[]).filter(x=>x&&x.nome!==nome);
+  cfg.planTemplates.push({nome, texto:pl.texto, est:(pl.est||'').trim(), labels:pl.labels||'', venc:pl.venc||''});
+  cfg.planTemplates.sort((a,b)=>a.nome.localeCompare(b.nome,'pt'));
+  if(cfg.planTemplates.length>30) cfg.planTemplates.length=30;
+  pl.tpl=nome; salvaCfg();
+  fechaModal(); renderPlanejar();
+  toast(`💾 Template “${nome}” salvo para o time.`);
+}
+function excluiTemplatePl(){
+  const pl=estado.planejar; if(!pl.tpl) return;
+  cfg.planTemplates=(cfg.planTemplates||[]).filter(x=>x&&x.nome!==pl.tpl);
+  toast(`🗑 Template “${pl.tpl}” excluído.`);
+  pl.tpl=''; salvaCfg(); renderPlanejar();
 }
 
 // Modal de importação (colar do Excel / CSV) com pré-visualização.
@@ -7149,7 +7282,7 @@ function abreAjuda(){
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
       <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
-      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
+      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
       <li><b>AMS &amp; Receita › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
       <li><b>Configurações › ⚙️ Contratos (Admin)</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
@@ -7158,6 +7291,8 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
+      O painel <b>🕑 Meus tickets recentes</b> lista onde <b>você</b> apontou nos últimos 14 dias, para
+      <b>reapontar com 1 clique</b> sem procurar o ticket de novo.
       No topo, o painel <b>⏱ Minhas horas por dia</b> mostra quanto você já apontou em cada dia do período e
       <b>avisa quando um dia passa da meta</b> (padrão 8h/dia, ajustável em Metas).
     </div></details>
@@ -8055,6 +8190,12 @@ document.getElementById('modal-body').addEventListener('input', (e)=>{
   if(t.id==='rv-tbusca'){ _rv.tbusca=t.value; renderRvModal();
     const nb=document.getElementById('rv-tbusca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
 });
+// ---- Planejar: salvar template (modal) ----
+document.getElementById('modal-body').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='pl-tpl-conf'){ confirmaSalvarTemplatePl(); }
+  else if(t.id==='pl-tpl-cancel'){ fechaModal(); }
+});
 // ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const kp=e.target.closest && e.target.closest('[data-al-sev]');
@@ -8342,9 +8483,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
   else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
   else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
+    estado.apontar.recentes=null;                       // recarrega também os recentes
     carregaVenc(estado.apontar.ate,true)
       .then(()=>{ if(estado.vista==='apontar') renderApontar(); })
       .catch(()=>{ t.disabled=false; t.textContent='Atualizar lista'; }); }
+  else if(t.id==='ap-rec-toggle'){ estado.apontar.recFechado=!estado.apontar.recFechado; renderApontar(); }
 });
 // ---- Tela Planejar: cliques e edições ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
@@ -8376,12 +8519,18 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-pl-del')){ pl.itens.splice(Number(t.getAttribute('data-pl-del')),1);
     if(!pl.itens.length) pl.itens=null; renderPlanejar(); }
   else if(t.id==='pl-novo'){ pl.resultados=null; pl.texto=''; renderPlanejar(); }
+  else if(t.id==='pl-tpl-salvar'){ abreSalvarTemplatePl(); }
+  else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
   if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-tipo'){ pl.tipoId=t.value; }
   else if(t.id==='pl-resp'){ pl.respId=t.value; }
+  else if(t.id==='pl-est'){ pl.est=t.value; }
+  else if(t.id==='pl-labels'){ pl.labels=t.value; }
+  else if(t.id==='pl-venc'){ pl.venc=t.value; }
+  else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');

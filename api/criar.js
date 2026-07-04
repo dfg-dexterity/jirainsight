@@ -46,6 +46,15 @@ function validaItem(it) {
   if (resumo.length > 255) return 'Resumo com mais de 255 caracteres.';
   if (it.paiKey && !RE_ISSUE.test(String(it.paiKey))) return 'Ticket pai inválido.';
   if (it.descricao && String(it.descricao).length > 30000) return 'Descrição longa demais.';
+  // Padrões do lote (opcionais): estimativa Jira (1w 2d 4h 30m), vencimento ISO, labels sem espaço.
+  if (it.estimativa && !/^\s*\d+\s*[wdhm](\s+\d+\s*[wdhm])*\s*$/i.test(String(it.estimativa))) {
+    return 'Estimativa inválida — use o formato do Jira: 4h, 2d, 1w 2d…';
+  }
+  if (it.venc && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.venc))) return 'Vencimento inválido (use AAAA-MM-DD).';
+  if (it.labels != null) {
+    if (!Array.isArray(it.labels) || it.labels.length > 10) return 'Labels inválidas (máx. 10).';
+    if (it.labels.some((l) => !/^\S{1,60}$/.test(String(l)))) return 'Labels não podem ter espaços (máx. 60 caracteres).';
+  }
   return '';
 }
 
@@ -140,6 +149,9 @@ export default async function handler(req, res) {
         if (it.descricao && String(it.descricao).trim()) fields.description = adf(String(it.descricao).trim());
         if (it.respId) fields.assignee = { id: String(it.respId) };
         if (it.paiKey) fields.parent = { key: String(it.paiKey).toUpperCase() };
+        if (it.estimativa) fields.timetracking = { originalEstimate: String(it.estimativa).trim() };
+        if (it.venc) fields.duedate = String(it.venc);
+        if (Array.isArray(it.labels) && it.labels.length) fields.labels = it.labels.map(String);
         return { fields };
       });
 
