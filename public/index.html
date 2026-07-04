@@ -832,6 +832,12 @@
   .btn.perigo{border-color:rgba(210,10,10,.5);color:#B91C1C}
   .btn.perigo:hover{background:rgba(210,10,10,.10)}
   tr.gx-on td{background:rgba(0,112,242,.07)}
+  .aloc-badge.med{background:rgba(234,179,8,.20);color:#A16207}
+  .gx-acts{display:inline-flex;gap:4px;flex-wrap:wrap}
+  .gx-acts button{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);
+    font-size:10.5px;font-weight:700;padding:2px 8px;cursor:pointer;white-space:nowrap}
+  .gx-acts button:hover{border-color:var(--cerceta);background:rgba(0,112,242,.07)}
+  .gx-trat{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;background:rgba(24,137,24,.14);color:#188918;white-space:nowrap}
   .gx-card{cursor:default}
   .gx-card.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.18)}
   .gx-card .kb-k a{color:#0064D9;text-decoration:none;font-weight:700}
@@ -1278,6 +1284,7 @@
         <div class="hdrmenu-m">
           <button id="btn-metas">🎯 Metas &amp; ausências</button>
           <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
+          <button id="btn-log">🗒 Histórico de ações</button>
           <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
         </div>
       </div>
@@ -1358,7 +1365,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
-  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela' },
+  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
@@ -1382,7 +1389,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{} }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -3464,6 +3471,7 @@ async function fazApontamento(btn){
         toast(`Apontado em ${k}, mas você já passou da meta de ${fmtH(metaSeg)} em ${fmtBR(inicio)}.`,'warn'); }
       else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`;
         toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
+      logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio, ok:true});
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
     } else { const m=humanizaErro(j.erro||'Falha ao apontar.'); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
   }catch(e){ const m=humanizaErro(e); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
@@ -4463,6 +4471,30 @@ function calcAlertas(){
 // --- Central de ação dos tickets atrasados (reprogramação rápida com rastreabilidade) ---
 // Os motivos padrão funcionam como CATEGORIA OBRIGATÓRIA da reprogramação (governança:
 // permite depois analisar a causa-raiz dos atrasos). O último item é texto livre.
+// ---- Auditoria: registra as ações feitas pelo painel (compartilhada via config; últimas 300) ----
+// ev: { acao, t (ticket), de, para, motivo, ok }  ·  salvar=false adia o salvaCfg (loops em lote)
+function logAcao(ev, salvar){ try{
+  const id=idApontar()||{};
+  cfg.auditoria=Array.isArray(cfg.auditoria)?cfg.auditoria:[];
+  cfg.auditoria.unshift(Object.assign({ q:new Date().toISOString(), u:id.nome||id.email||'—' }, ev));
+  if(cfg.auditoria.length>300) cfg.auditoria.length=300;
+  if(salvar!==false) salvaCfg();
+}catch(e){} }
+function abreLogAcoes(){
+  const lst=(Array.isArray(cfg.auditoria)?cfg.auditoria:[]).slice(0,120);
+  const fmtQ=(iso)=>{ try{ return new Date(iso).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}); }catch(e){ return iso; } };
+  const rows=lst.map(e=>`<tr>
+    <td style="white-space:nowrap">${esc(fmtQ(e.q))}</td><td>${esc(e.u||'—')}</td>
+    <td>${e.t?`<a href="${jiraBase()}/browse/${encodeURIComponent(e.t)}" target="_blank" rel="noopener">${esc(e.t)}</a>`:'—'}</td>
+    <td><span class="badge">${esc(e.acao||'—')}</span></td>
+    <td class="muted small">${e.de||e.para?`${esc(e.de||'—')} → ${esc(e.para||'—')}`:'—'}</td>
+    <td class="muted small">${esc(e.motivo||'—')}</td>
+    <td>${e.ok===false?'<span class="aloc-badge crit">falhou</span>':'<span class="aloc-badge saud">ok</span>'}</td></tr>`).join('');
+  abreModal(`<h2>🗒 Histórico de ações</h2>
+    <div class="muted small">As ações feitas pelo painel (reprogramar, atribuir, status, comentar, excluir, vincular, apontar, tratado) — compartilhado com o time, últimas 300.</div>
+    ${lst.length?`<div class="ts-wrap" style="max-height:420px;overflow:auto;margin-top:10px"><table class="rc-tab"><thead><tr><th>Quando</th><th>Quem</th><th>Ticket</th><th>Ação</th><th>De → Para</th><th>Motivo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      :'<div class="estado">Nenhuma ação registrada ainda.</div>'}`);
+}
 const ALX_MOTIVOS=[
   ['repri','Repriorização operacional','Data reprogramada devido à repriorização operacional da fila de atendimento.'],
   ['valid','Dependência de validação','Data reprogramada porque a execução depende de validação ou retorno de terceiro.'],
@@ -4709,6 +4741,10 @@ function abreModalReprog(keys, acao){
     <h2>Reprogramar ${keys.length===1?esc(keys[0]):keys.length+' tickets'} → ${esc(alxDataBR(nova))}</h2>
     ${resumo}
     <div class="alx-campo">
+      <label>Nova data de vencimento <span class="muted small">(edite se quiser outra)</span></label>
+      <input type="date" id="alx-data" value="${escA(nova)}" style="max-width:180px">
+    </div>
+    <div class="alx-campo">
       <label>Motivo da reprogramação <span class="req">*</span> <span class="muted small">(categoria — obrigatória)</span></label>
       <select class="alx-motivo" id="alx-motivo">${motOpts}</select>
     </div>
@@ -4751,7 +4787,8 @@ function alxAtualizaComent(){
     ? alxDataBR((alxTickets().find(x=>x.k===_alxReprog.keys[0])||{}).venc)
     : '[DATA_ANTERIOR]';
   if(!sel){ ta.value=''; return; }
-  ta.value=`Ticket reprogramado de ${ant} para ${nova}.\n\nMotivo: ${motivo||'…'}\n\nAção realizada via painel de Alertas do Jira Insight.`;
+  const quem=(idApontar()||{}); const agora=new Date().toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+  ta.value=`Atualização via JiraInsight:\nVencimento alterado de ${ant} para ${nova}.\nMotivo: ${motivo||'…'}\nResponsável pela alteração: ${quem.nome||quem.email||'—'}.\nData da alteração: ${agora}.`;
 }
 
 // Confirma: para cada ticket → muda o duedate e publica o comentário no Jira (token da pessoa).
@@ -4788,10 +4825,12 @@ async function confirmaReprog(){
       if(dados&&dados.tickets){ const dt=dados.tickets.find(x=>x.k===k); if(dt) dt.venc=ctx.nova; }
       const gtk=(estado.gestao.dados&&estado.gestao.dados.tickets||[]).find(x=>x.k===k); if(gtk) gtk.venc=ctx.nova; delete estado.gestao.sel[k];
       a.reprog[k]={ de:t.venc, para:ctx.nova, motivo:motivoLabel, por:(id.nome||id.email), quando:hojeSP() };
+      logAcao({acao:'reprogramar', t:k, de:t.venc||'—', para:ctx.nova, motivo:motivoLabel, ok:true}, false);
       delete a.sel[k];
       if(!comentOk) erros.push(`${k}: data alterada, mas o comentário falhou (${comentErro||'sem permissão'})`);
     }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
   }
+  salvaCfg();        // persiste o log de auditoria das reprogramações
   estado.cache={};   // os outros painéis recarregam dados frescos
   if(okN && !erros.length){
     fb.className='alx-fb ap-fb ok';
@@ -4913,6 +4952,7 @@ async function confirmaAtribuir(){
       okN++;
       if(dados&&dados.tickets){ const dt=dados.tickets.find(x=>x.k===k); if(dt){ dt.respId=accountId; dt.resp=nome; } }
       const gtk=(estado.gestao.dados&&estado.gestao.dados.tickets||[]).find(x=>x.k===k); if(gtk){ gtk.respId=accountId; gtk.resp=nome; } delete estado.gestao.sel[k];
+      logAcao({acao:'atribuir', t:k, de:(t&&t.resp)||'—', para:nome||'sem responsável', ok:true}, false);
       delete a.sel[k];
       if(!comentOk) erros.push(`${k}: atribuído, mas o comentário falhou (${comentErro||'sem permissão'})`);
     }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
@@ -6205,27 +6245,67 @@ function carregaGestao(forca){
       if(estado.vista==='gestao') renderGestao();
     }).catch(e=>{ g.carregando=false; g.erro=String(e.message||e); if(estado.vista==='gestao') renderGestao(); });
 }
+// ---- Risco do ticket (0–100): atraso, falta de atualização, prioridade, estouro de estimativa, sem responsável ----
+function gxAtrasoDias(t,hoje){ return (t.venc&&t.venc<hoje)? Math.max(1,Math.round((new Date(hoje)-new Date(t.venc))/86400000)) : 0; }
+function gxDiasSemAtu(t,hoje){ const up=(t.up||'').slice(0,10); if(!up) return 999;
+  return Math.max(0,Math.round((new Date(hoje)-new Date(up))/86400000)); }
+function gxRisco(t,hoje){
+  let sc=0; const atraso=gxAtrasoDias(t,hoje);
+  if(atraso>0) sc+=25+Math.min(25,Math.round(atraso*2.5));
+  const dU=gxDiasSemAtu(t,hoje); if(dU>5) sc+=Math.min(20,(dU-5)*2+8);
+  if(/highest|urgent|cr[ií]tic|blocker/i.test(t.prio||'')) sc+=15; else if(/\bhigh\b|alta/i.test(t.prio||'')) sc+=8;
+  if(t.est>0 && t.seg>t.est) sc+=15;
+  if(!t.respId) sc+=10;
+  sc=Math.min(100,sc);
+  return { s:sc, rot: sc>=70?'Crítico': sc>=45?'Alto': sc>=20?'Médio':'Baixo',
+           cls: sc>=70?'crit': sc>=45?'aten': sc>=20?'med':'disp' };
+}
+const GX_PRESETS=[['atrasados','Atrasados'],['hoje','Vencem hoje'],['sematu','Sem atualização >5d'],
+  ['semresp','Sem responsável'],['semvenc','Sem vencimento'],['cliente','Aguardando cliente'],['risco','Risco alto/crítico']];
 function gxLista(){
-  const g=estado.gestao; let l=((g.dados&&g.dados.tickets)||[]).slice();
+  const g=estado.gestao; const hoje=hojeSP(); let l=((g.dados&&g.dados.tickets)||[]).slice();
   if(g.fProj) l=l.filter(t=>t.p===g.fProj);
   if(g.fResp==='__sem__') l=l.filter(t=>!t.respId); else if(g.fResp) l=l.filter(t=>t.respId===g.fResp);
   if(g.fStatus) l=l.filter(t=>t.status===g.fStatus);
   if(g.busca){ const q=g.busca.toLowerCase(); l=l.filter(t=>(t.k+' '+t.resumo+' '+t.status+' '+(t.resp||'')).toLowerCase().includes(q)); }
+  if(g.preset==='atrasados') l=l.filter(t=>t.venc&&t.venc<hoje);
+  else if(g.preset==='hoje') l=l.filter(t=>t.venc===hoje);
+  else if(g.preset==='sematu') l=l.filter(t=>gxDiasSemAtu(t,hoje)>5);
+  else if(g.preset==='semresp') l=l.filter(t=>!t.respId);
+  else if(g.preset==='semvenc') l=l.filter(t=>!t.venc);
+  else if(g.preset==='cliente') l=l.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||''));
+  else if(g.preset==='risco') l=l.filter(t=>gxRisco(t,hoje).s>=45);
+  if(g.semTrat) l=l.filter(t=>!(cfg.tratados||{})[t.k]);
+  const ord=g.ord||'risco';
+  if(ord==='risco') l.sort((x,y)=>gxRisco(y,hoje).s-gxRisco(x,hoje).s);
+  else if(ord==='venc') l.sort((x,y)=>((x.venc||'9999-99-99').localeCompare(y.venc||'9999-99-99')));
+  else if(ord==='atual') l.sort((x,y)=>((x.up||'').localeCompare(y.up||'')));
   return l;
 }
 function gxSelKeys(){ const g=estado.gestao; return Object.keys(g.sel).filter(k=>g.sel[k]); }
 // Comentar em massa: publica o mesmo comentário em todos os selecionados (token da pessoa).
+const GX_TPLS=[
+  ['','— escrever do zero —',''],
+  ['cobrar','Cobrar atualização','Olá! Podem nos atualizar sobre o andamento deste chamado? Precisamos do status atual para o acompanhamento. Obrigado!'],
+  ['apont','Pedir apontamento','Por favor, registrem as horas trabalhadas neste chamado para mantermos o controle de esforço em dia.'],
+  ['depcli','Registrar dependência do cliente','Registro: este chamado está aguardando retorno/ação do cliente para prosseguir. Assim que houver retorno, retomamos o atendimento.'],
+  ['justrep','Justificar reprogramação','O vencimento deste chamado foi reprogramado conforme alinhamento com os envolvidos; o motivo está registrado no histórico do ticket.'],
+  ['bloq','Sinalizar bloqueio técnico','Registro: identificamos um bloqueio técnico que impede o avanço deste chamado. Estamos atuando na dependência e atualizaremos assim que resolvido.'],
+];
 let _gxCom=null;
-function abreModalComentarLote(keys){
+function abreModalComentarLote(keys, tpl){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   keys=(keys||[]).filter(Boolean); if(!keys.length) return;
   _gxCom={keys};
+  const tsel=GX_TPLS.find(x=>x[0]===tpl);
   const itens=keys.map(k=>{ const t=alxTickets().find(x=>x.k===k)||{k}; return `<li><strong>${esc(k)}</strong> — ${esc((t.resumo||'').slice(0,70))}</li>`; }).join('');
   abreModal(`
     <h2>💬 Comentar em massa · ${keys.length} ticket(s)</h2>
     <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:150px;overflow:auto">${itens}</ul>
+    <div class="alx-campo"><label>Modelo de mensagem <span class="muted small">(opcional — preenche o texto abaixo)</span></label>
+      <select class="alx-motivo" id="gx-com-tpl">${GX_TPLS.map(x=>`<option value="${x[0]}" ${tpl===x[0]?'selected':''}>${esc(x[1])}</option>`).join('')}</select></div>
     <div class="alx-campo"><label>Comentário <span class="req">*</span> <span class="muted small">(será publicado em todos)</span></label>
-      <textarea class="alx-coment" id="gx-com-texto" placeholder="Escreva o comentário…"></textarea></div>
+      <textarea class="alx-coment" id="gx-com-texto" placeholder="Escreva o comentário…">${esc((tsel&&tsel[2])||'')}</textarea></div>
     <div class="alx-fb" id="gx-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="gx-com-confirmar">Publicar em ${keys.length} ticket(s)</button>
@@ -6243,9 +6323,11 @@ async function gxComentaLote(){
     try{
       const r=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(x=>x.json());
-      if(r.ok){ ok++; delete estado.gestao.sel[k]; } else erros.push(`${k}: ${r.erro||'falhou'}`);
+      if(r.ok){ ok++; delete estado.gestao.sel[k]; logAcao({acao:'comentar', t:k, para:texto.slice(0,60), ok:true}, false); }
+      else { erros.push(`${k}: ${r.erro||'falhou'}`); logAcao({acao:'comentar', t:k, ok:false}, false); }
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
+  salvaCfg();
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
     fb.innerHTML=`${ok?`✓ Comentário publicado em ${ok} ticket(s).`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.id='gx-fechar'; }
@@ -6306,11 +6388,13 @@ async function gxStatusLote(){
       if(texto){ try{ await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}); }catch(e){} }
       ok++;
-      const gtk=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(gtk&&tr.para) gtk.status=tr.para;
+      const gtk=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k);
+      logAcao({acao:'status', t:k, de:(gtk&&gtk.status)||'—', para:tr.para||nome, ok:true}, false);
+      if(gtk&&tr.para) gtk.status=tr.para;
       delete estado.gestao.sel[k];
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
-  estado.cache={};
+  salvaCfg(); estado.cache={};
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
     fb.innerHTML=`${ok?`✓ ${ok} ticket(s) movido(s) via "${esc(nome)}".`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.id='gx-fechar'; }
@@ -6349,14 +6433,32 @@ async function gxExcluiLote(){
       if(r.ok){ ok++;
         const g=estado.gestao; delete g.sel[k];
         if(g.dados&&g.dados.tickets) g.dados.tickets=g.dados.tickets.filter(t=>t.k!==k);
+        logAcao({acao:'excluir', t:k, ok:true}, false);
       } else erros.push(`${k}: ${r.erro||'falhou'}`);
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
-  estado.cache={};
+  salvaCfg(); estado.cache={};
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
     fb.innerHTML=`${ok?`✓ ${ok} ticket(s) excluído(s) do Jira.`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.classList.remove('perigo'); bt.id='gx-fechar'; }
   const bc=document.getElementById('gx-del-cancelar'); if(bc) bc.hidden=true;
+}
+// Exporta a seleção (ou, sem seleção, a lista filtrada) da Gestão em CSV.
+function gxExportaCSV(){
+  const g=estado.gestao; const hoje=hojeSP(); const ks=new Set(gxSelKeys());
+  const rows=gxLista().filter(t=>!ks.size||ks.has(t.k));
+  if(!rows.length){ toast('Nada para exportar.','warn'); return; }
+  const cab=['Ticket','Resumo','Projeto','Tipo','Status','Responsável','Vencimento','Atraso (dias)','Última atividade','Horas apontadas','Estimativa (h)','Prioridade','Risco','Tratado'];
+  const cel=(v)=>{ v=String(v==null?'':v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const li=rows.map(t=>{ const r=gxRisco(t,hoje);
+    return [t.k,t.resumo,t.p,t.t,t.status,t.resp||'',t.venc||'',gxAtrasoDias(t,hoje)||'',(t.up||'').slice(0,10),
+      t.seg?Math.round(t.seg/36)/100:'', t.est?Math.round(t.est/36)/100:'', t.prio||'', r.rot,
+      (cfg.tratados||{})[t.k]?'sim':''].map(cel).join(';'); });
+  const csv='\ufeff'+cab.join(';')+'\n'+li.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`gestao-tickets-${hoje}.csv`; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
 }
 function renderGestao(){
   const cont=document.getElementById('conteudo');
@@ -6370,62 +6472,81 @@ function renderGestao(){
     :`<div class="ap-id sem">Para as ações em massa, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
   const todos=(g.dados.tickets)||[];
   const projetos=[...new Set(todos.map(t=>t.p))].sort();
-  const resps=[...new Map(todos.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'pt'));
+  const resps=[...new Map(todos.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()].sort((x,y)=>x[1].localeCompare(y[1],'pt'));
   const statuses=[...new Set(todos.map(t=>t.status))].sort();
   const lista=gxLista();
   const nSel=gxSelKeys().length;
   const todosVis=lista.length>0&&lista.every(t=>g.sel[t.k]);
   const chk=(t)=>`<input type="checkbox" class="gx-chk" data-k="${escA(t.k)}" ${g.sel[t.k]?'checked':''} aria-label="selecionar ${escA(t.k)}">`;
-  const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>`;
+  const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener" title="Abrir no Jira">${esc(t.k)} ↗</a>`;
+  const tratado=(t)=>((cfg.tratados||{})[t.k]?` <span class="gx-trat" title="Marcado como tratado no painel">✓ tratado</span>`:'');
+  const riscoBadge=(t)=>{ const r=gxRisco(t,hoje);
+    return `<span class="aloc-badge ${r.cls}" title="Score ${r.s}/100 — considera atraso, falta de atualização, prioridade, estouro de estimativa e ausência de responsável">${r.rot}</span>`; };
+  const upTxt=(t)=>{ const d=gxDiasSemAtu(t,hoje); return d>=999?'—':(d===0?'hoje':`${d}d atrás`); };
+  const acts=(t)=>`<span class="gx-acts">
+    <button data-gx-r="${escA(t.k)}|HOJE" title="Reprogramar o vencimento para hoje">hoje</button>
+    <button data-gx-r="${escA(t.k)}|AMANHA" title="Reprogramar para amanhã">amanhã</button>
+    <button data-gx-r="${escA(t.k)}|PROX" title="Reprogramar para a próxima segunda">próx. sem</button>
+    <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
+    <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button></span>`;
   // ---- Tabela (densa; padrão) ----
   const htmlTabela=()=>{
-    const rows=lista.map(t=>{ const atras=t.venc&&t.venc<hoje;
+    const rows=lista.map(t=>{ const atras=gxAtrasoDias(t,hoje);
       return `<tr class="${g.sel[t.k]?'gx-on':''}">
         <td class="c">${chk(t)}</td>
-        <td>${linkK(t)}</td>
+        <td>${linkK(t)}${tratado(t)}</td>
         <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
         <td><span class="badge">${esc(t.p)}</span></td>
         <td><span class="badge">${esc(t.status)}</span></td>
         <td>${esc(t.resp||'—')}</td>
-        <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td></tr>`; }).join('');
+        <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td>
+        <td class="num ${atras?'gx-venc atrasado':''}">${atras?atras+'d':'—'}</td>
+        <td class="num" title="Última movimentação no Jira">${esc(upTxt(t))}</td>
+        <td class="num" title="Horas apontadas">${t.seg?fmtH(t.seg):'—'}</td>
+        <td class="num" title="Estimativa original">${t.est?fmtH(t.est):'—'}</td>
+        <td>${riscoBadge(t)}</td>
+        <td>${acts(t)}</td></tr>`; }).join('');
     return `<div class="ts-wrap"><table class="rc-tab gx-tab"><thead><tr>
         <th class="c"><input type="checkbox" id="gx-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
-        <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Status</th><th>Responsável</th><th>Vencimento</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="7" class="muted small">Nada encontrado com esses filtros.</td></tr>'}</tbody></table></div>`;
+        <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Status</th><th>Responsável</th><th>Vencimento</th><th class="num">Atraso</th><th class="num">Últ. atividade</th><th class="num">Horas</th><th class="num">Estim.</th><th>Risco</th><th>Ações rápidas</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="13" class="muted small">Nada encontrado com esses filtros.</td></tr>'}</tbody></table></div>`;
   };
-  // ---- Lista (cards com badges, como no Apontar) ----
+  // ---- Lista (cards operacionais) ----
   const htmlLista=()=>{
     if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
-    const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
     return `<div class="muted small" style="margin:0 0 8px"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-all" ${todosVis?'checked':''}> selecionar todos (${lista.length})</label></div>`+
-      arr.map(t=>{ const atras=t.venc&&t.venc<hoje;
+      lista.map(t=>{ const atras=gxAtrasoDias(t,hoje);
       return `<div class="gx-lrow ${g.sel[t.k]?'sel':''}">
         ${chk(t)}
         <div style="flex:1;min-width:0">
-          <div class="l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span></div>
+          <div class="l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span>${tratado(t)}<span class="spacer"></span>${riscoBadge(t)}</div>
           <div class="l2">
             <span class="badge">${esc(t.p)}</span>
             <span class="badge">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t||'—')}</span>
             <span class="badge">${esc(t.status)}</span>
             ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
-            ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
+            ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?`⚠ ${esc(alxDataBR(t.venc))} · ${atras}d`:esc(alxDataBR(t.venc))}</span>`:'<span class="badge">sem vencimento</span>'}
+            <span class="badge" title="Última movimentação no Jira">🕓 ${esc(upTxt(t))}</span>
+            <span class="badge" title="Horas apontadas${t.est?' / estimativa':''}">⏱ ${t.seg?fmtH(t.seg):'0h'}${t.est?` / ${fmtH(t.est)}`:''}</span>
             <span class="badge">${esc(t.resp||'sem responsável')}</span>
           </div>
+          <div class="l2" style="margin-top:6px">${acts(t)}</div>
         </div></div>`; }).join('');
   };
-  // ---- Quadro (kanban por status; o cartão inteiro seleciona) ----
+  // ---- Quadro (kanban por status) ----
   const htmlQuadro=()=>{
     if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
     const porSt={}; lista.forEach(t=>{ const st=t.status||'—'; (porSt[st]=porSt[st]||[]).push(t); });
-    const cols=Object.keys(porSt).sort((a,b)=>porSt[b].length-porSt[a].length || a.localeCompare(b,'pt'));
+    const cols=Object.keys(porSt).sort((x,y)=>porSt[y].length-porSt[x].length || x.localeCompare(y,'pt'));
     return `<div class="kanban">${cols.map(st=>{
-      const arr=porSt[st].slice().sort((a,b)=>(a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'));
+      const arr=porSt[st].slice();
       return `<div class="kb-col"><div class="kb-head">${esc(st)} <span>${arr.length}</span></div>
-        <div class="kb-cards">${arr.map(t=>{ const atras=t.venc&&t.venc<hoje;
+        <div class="kb-cards">${arr.map(t=>{ const atras=gxAtrasoDias(t,hoje);
           return `<div class="kb-card gx-card ${g.sel[t.k]?'sel':''}" data-gx-card="${escA(t.k)}">
           <div class="kb-top"><span class="kb-k">${chk(t)} ${linkK(t)}</span><span class="badge">${esc(t.p)}</span></div>
           <div class="kb-res">${esc(t.resumo||'')}</div>
           <div class="kb-meta">
+            ${riscoBadge(t)}
             ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
             ${t.resp?`<span class="badge">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
           </div></div>`; }).join('')}</div></div>`;
@@ -6433,19 +6554,28 @@ function renderGestao(){
     <div class="muted small" style="margin-top:8px">Clique no cartão para <b>selecionar</b>; o código abre o ticket no Jira.</div>`;
   };
   const vis=['lista','tabela','quadro'].includes(g.vis)?g.vis:'tabela';
-  const viewToggle=`<div class="ap-vis" style="margin:0 0 10px"><span class="muted small">Visualização:</span>
+  const viewToggle=`<div class="ap-vis" style="margin:0 0 6px"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${vis==='lista'}" data-gx-vis="lista">▤ Lista</button>
     <button class="chip" aria-pressed="${vis==='tabela'}" data-gx-vis="tabela">▦ Tabela</button>
-    <button class="chip" aria-pressed="${vis==='quadro'}" data-gx-vis="quadro">🗂 Quadro</button></div>`;
+    <button class="chip" aria-pressed="${vis==='quadro'}" data-gx-vis="quadro">🗂 Quadro</button>
+    <span class="spacer"></span>
+    <span class="muted small">Ordenar:</span>
+    <select id="gx-ord" class="aloc-fsel"><option value="risco" ${g.ord==='risco'?'selected':''}>risco</option><option value="venc" ${g.ord==='venc'?'selected':''}>vencimento</option><option value="atual" ${g.ord==='atual'?'selected':''}>última atividade</option></select>
+    <label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-semtrat" ${g.semTrat?'checked':''}> esconder tratados</label></div>`;
+  const presets=`<div class="ap-vis" style="margin:0 0 10px"><span class="muted small">Prontos:</span>
+    ${GX_PRESETS.map(([k,l])=>`<button class="chip" aria-pressed="${g.preset===k}" data-gx-preset="${k}">${esc(l)}</button>`).join(' ')}
+    ${g.preset?`<button class="chip" data-gx-preset="">limpar</button>`:''}</div>`;
   const corpo = vis==='lista'?htmlLista() : vis==='quadro'?htmlQuadro() : htmlTabela();
   const bar=nSel?`<div class="gx-bar"><span class="n">${nSel} selecionado(s)</span>
       <button class="btn" data-gx-act="atribuir">👤 Atribuir</button>
       <button class="btn" data-gx-act="status">🔁 Alterar status</button>
       <button class="btn" data-gx-act="comentar">💬 Comentar</button>
       <button class="btn" data-gx-act="reprog">📅 Reprogramar</button>
+      <button class="btn" id="gx-tratar">✓ Tratado</button>
+      <button class="btn" id="gx-csv-sel">⬇ CSV</button>
       <button class="btn perigo" data-gx-act="excluir">🗑 Excluir</button>
       <span class="spacer"></span><button class="btn" id="gx-limpar">limpar seleção</button></div>`
-    :`<div class="muted small" style="margin-top:10px">Marque tickets na primeira coluna para habilitar as <strong>ações em massa</strong> (atribuir · alterar status · comentar · reprogramar · excluir).</div>`;
+    :`<div class="muted small" style="margin-top:10px">Marque tickets na primeira coluna para habilitar as <strong>ações em massa</strong> (atribuir · alterar status · comentar · reprogramar · tratado · CSV · excluir). As <strong>ações rápidas</strong> de cada linha reprogramam ou pedem atualização em 1 clique.</div>`;
   cont.replaceChildren(el(`<div>
     ${faixaId}
     <div class="card full">
@@ -6453,12 +6583,13 @@ function renderGestao(){
       <div class="ap-filtros">
         <div class="campo"><label>Vencimento até</label><input type="date" id="gx-ate" value="${escA(g.ate)}"></div>
         <div class="campo"><label>Projeto</label><select id="gx-fproj"><option value="">todos</option>${projetos.map(x=>`<option value="${escA(x)}" ${g.fProj===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
-        <div class="campo"><label>Responsável</label><select id="gx-fresp"><option value="">todos</option><option value="__sem__" ${g.fResp==='__sem__'?'selected':''}>— sem responsável —</option>${resps.map(([a,n])=>`<option value="${escA(a)}" ${g.fResp===a?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+        <div class="campo"><label>Responsável</label><select id="gx-fresp"><option value="">todos</option><option value="__sem__" ${g.fResp==='__sem__'?'selected':''}>— sem responsável —</option>${resps.map(([x,n])=>`<option value="${escA(x)}" ${g.fResp===x?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
         <div class="campo"><label>Status</label><select id="gx-fstatus"><option value="">todos</option>${statuses.map(x=>`<option ${g.fStatus===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
         <div class="campo"><label>Buscar</label><input type="search" id="gx-busca" placeholder="código, resumo, pessoa…" value="${escA(g.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-refresh">Atualizar</button></div>
       </div>
       ${viewToggle}
+      ${presets}
       ${corpo}
       ${bar}
     </div></div>`));
@@ -6570,6 +6701,7 @@ function rvExecuta(){
   fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(r=>r.json()).then(j=>{ if(!_rv) return; _rv.executando=false;
       if(!j.ok){ _rv.erro=j.erro||'Falha ao vincular.'; renderRvModal(); return; }
+      logAcao({acao:'vincular reunião', t:rv.m.k, para:j.destino||'', motivo:rv.modo==='criar'?'ticket novo':'ticket existente', ok:true});
       _rv.resultado=j; renderRvModal();
       estado.reuvinc.dados=null; carregaReuVinc(true);
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
@@ -7504,6 +7636,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 document.getElementById('btn-metas').addEventListener('click', abreMetas);
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
+document.getElementById('btn-log').addEventListener('click', abreLogAcoes);
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
 // Modo claro/escuro (persistido em localStorage; o tema já foi aplicado cedo no <head>).
 function aplicaTema(t){
@@ -7592,6 +7725,19 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   const g=estado.gestao;
   if(t.hasAttribute&&t.hasAttribute('data-gx-vis')){ g.vis=t.getAttribute('data-gx-vis'); renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-preset')){ const v=t.getAttribute('data-gx-preset');
+    g.preset=(g.preset===v?'':v); renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-r')){ const [k,acao]=t.getAttribute('data-gx-r').split('|');
+    abreModalReprog([k], acao==='DATA'?'HOJE':acao); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
+  if(t.id==='gx-tratar'){ const ks=gxSelKeys(); if(!ks.length) return;
+    cfg.tratados=cfg.tratados||{}; const quem=(idApontar()||{}).nome||'';
+    const desmarca=ks.every(k=>cfg.tratados[k]);
+    ks.forEach(k=>{ if(desmarca){ delete cfg.tratados[k]; } else { cfg.tratados[k]={q:hojeSP(),u:quem};
+      logAcao({acao:'tratado',t:k,ok:true},false); } });
+    salvaCfg(); toast(desmarca?'Marcação de tratado removida.':`✓ ${ks.length} ticket(s) marcados como tratados.`,'ok');
+    renderGestao(); return; }
+  if(t.id==='gx-csv-sel'){ gxExportaCSV(); return; }
   if(t.id==='gx-retry'){ g.erro=''; g.dados=null; renderGestao(); }
   else if(t.id==='gx-refresh'){ g.dados=null; carregaGestao(true); }
   else if(t.id==='gx-limpar'){ g.sel={}; renderGestao(); }
@@ -7602,6 +7748,8 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   else if(t.id==='gx-fproj'){ g.fProj=t.value; renderGestao(); }
   else if(t.id==='gx-fresp'){ g.fResp=t.value; renderGestao(); }
   else if(t.id==='gx-fstatus'){ g.fStatus=t.value; renderGestao(); }
+  else if(t.id==='gx-ord'){ g.ord=t.value; renderGestao(); }
+  else if(t.id==='gx-semtrat'){ g.semTrat=t.checked; renderGestao(); }
   else if(t.id==='gx-all'){ const l=gxLista(); l.forEach(x=>{ if(t.checked) g.sel[x.k]=true; else delete g.sel[x.k]; }); renderGestao(); }
   else if(t.classList&&t.classList.contains('gx-chk')){ const k=t.getAttribute('data-k');
     if(t.checked) g.sel[k]=true; else delete g.sel[k]; renderGestao(); }
@@ -7817,9 +7965,13 @@ document.getElementById('modal-body').addEventListener('input', (e)=>{
   else if(e.target && e.target.id==='alx-outro') alxAtualizaComent();
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
+  if(e.target && e.target.id==='gx-com-tpl'){ const t=GX_TPLS.find(x=>x[0]===e.target.value);
+    const ta=document.getElementById('gx-com-texto'); if(ta&&t) ta.value=t[2]; return; }
   if(e.target && e.target.id==='pl-csv-head'){ e.target.setAttribute('data-touched','1'); atualizaPreviewCSV(); }
   else if(e.target && e.target.id==='folga-modo'){ folgaToggle(); }
   else if(e.target && e.target.id==='alx-motivo'){ alxAtualizaComent(); }
+  else if(e.target && e.target.id==='alx-data'){ const v=e.target.value;
+    if(_alxReprog && /^\d{4}-\d{2}-\d{2}$/.test(v)){ _alxReprog.nova=v; alxAtualizaComent(); } }
   else if(e.target && e.target.id==='alx-atrib-pessoa'){ alxAtribAtualizaComent(); }
 });
 
