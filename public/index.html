@@ -822,6 +822,19 @@
   .fx-item:first-child{border-top:none}
   .fx-quando{flex:0 0 84px;color:var(--muted);font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .fx-txt{min-width:0} .fx-txt a{color:var(--grafite);text-decoration:none} .fx-txt a:hover{color:var(--cerceta)}
+  /* Ações de hoje — tela inicial de comando */
+  .ax-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  .ax-card{border:1px solid var(--linha);border-left-width:5px;border-radius:12px;background:var(--cartao);padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-height:128px}
+  .ax-card.ok{border-left-color:#188918} .ax-card.aten{border-left-color:#E76500}
+  .ax-card.crit{border-left-color:#D20A0A} .ax-card.load{border-left-color:var(--linha)}
+  .ax-top{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
+  .ax-top .spacer{flex:1}
+  .ax-num{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  .ax-var{font-size:11px;color:var(--muted);white-space:nowrap}
+  .ax-var.up{color:#B91C1C;font-weight:700} .ax-var.down{color:#188918;font-weight:700}
+  .ax-det{font-size:12px;color:var(--muted);min-height:16px}
+  .ax-foot{margin-top:auto}
+  .ax-fontes{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin:2px 0 12px;flex-wrap:wrap}
   /* Gestão de Tickets — seleção múltipla + ações em massa */
   .gx-bar{position:sticky;bottom:10px;z-index:8;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
     border:1px solid var(--cerceta);border-radius:12px;background:var(--cartao);box-shadow:0 6px 18px rgba(0,0,0,.15);padding:9px 14px;margin-top:12px}
@@ -1219,6 +1232,7 @@
     <div class="spacer"></div>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
+      <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
       <div class="navg">
         <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
@@ -1352,7 +1366,7 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 // mudar, troque aqui. (Usa o que vier do servidor em meta.jiraBase, se existir.)
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
-const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
+const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
@@ -1365,6 +1379,7 @@ const estado = { periodo:'7d', vista:'visao', tempo:null, atividade:null, usuari
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
+  acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
@@ -1728,7 +1743,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 // per = seletor de Período · fil = filtros pessoa/categoria/projeto/tipo · exp = Exportar CSV/PDF.
 // Telas operacionais/formulário (apontar, planejar, gestão…) têm controles próprios: nada disso aparece.
 const VCHROME={
-  visao:{per:1,exp:1}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
+  visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
@@ -1743,6 +1758,7 @@ function aplicaChrome(){
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
+  if(estado.vista==='acoes') return renderAcoes();
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
@@ -2161,6 +2177,110 @@ function drill(type,key){
 // ======================= VISÃO GERAL EXECUTIVA =======================
 // Tela executiva: uma pergunta de gestão por bloco, com acesso direto ao detalhe.
 // (AMS/receita ficam fora daqui — são exclusivos da aba AMS & Governança.)
+// ============== AÇÕES DE HOJE — tela inicial de comando ==============
+// Seis pontos de atenção com quantidade, severidade, variação vs. o último dia
+// visto (histórico local) e "Ver casos" abrindo a tela certa já filtrada.
+function axCarregaVenc(forca){
+  const ax=estado.acoes; ax.carregando=true; ax.erro='';
+  const ate=somaDias(hojeSP(),30);
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ ax.carregando=false;
+      if(j.erro){ ax.erro=humanizaErro(j.erro); } else ax.venc=j;
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+}
+function axCarregaMes(){
+  const ax=estado.acoes; ax.mesCarr=true; ax.mesErro='';
+  const hoje=hojeSP(); const ini=hoje.slice(0,8)+'01';
+  fetch(`/api/tempo?desde=${encodeURIComponent(ini)}&ate=${encodeURIComponent(hoje)}`)
+    .then(r=>r.json()).then(j=>{ ax.mesCarr=false;
+      if(j.erro){ ax.mesErro=humanizaErro(j.erro); } else ax.mes=j.worklogs||[];
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(e=>{ ax.mesCarr=false; ax.mesErro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+}
+// Histórico local (21 dias) para a variação "vs. dia anterior visto".
+const AX_HIST_KEY='jirainsight_axhist_v1';
+function axVariacao(counts){
+  let hist={}; try{ hist=JSON.parse(localStorage.getItem(AX_HIST_KEY))||{}; }catch(e){}
+  const hoje=hojeSP(); hist[hoje]=counts;
+  const dias=Object.keys(hist).sort(); while(dias.length>21) delete hist[dias.shift()];
+  try{ localStorage.setItem(AX_HIST_KEY, JSON.stringify(hist)); }catch(e){}
+  const ant=Object.keys(hist).filter(d=>d<hoje).sort().pop();
+  return { ant, de: ant?hist[ant]:null };
+}
+function renderAcoes(){
+  const cont=document.getElementById('conteudo');
+  const ax=estado.acoes; const hoje=hojeSP();
+  if(!ax.venc && !ax.carregando && !ax.erro) axCarregaVenc(false);
+  const temContratos=(cfg.contratos||[]).some(c=>c&&(Number(c.tetoMes)>0||Number(c.minMes)>0)&&(c.projetos||[]).length);
+  if(temContratos && !ax.mes && !ax.mesCarr && !ax.mesErro) axCarregaMes();
+  const tks=(ax.venc&&ax.venc.tickets)||null;
+  // ---- contagens ----
+  const nAtras = tks? tks.filter(t=>t.venc&&t.venc<hoje).length : null;
+  const vh = tks? tks.filter(t=>t.venc===hoje).length : 0;
+  const nSemAtu = tks? tks.filter(t=>gxDiasSemAtu(t,hoje)>5).length : null;
+  const nSemResp = tks? tks.filter(t=>!t.respId).length : null;
+  const nCli = tks? tks.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||'')).length : null;
+  let nMeta=null, metaDet='';
+  if(estado.tempo && estado.atividade){ const ts=calcTimesheet(); const comEsp=ts.linhas.filter(l=>l.esperado>0);
+    const ab=comEsp.filter(l=>(l.tot/l.esperado)<0.9); nMeta=ab.length;
+    metaDet=ab.length?`${ab.slice(0,3).map(l=>l.nome||'').filter(Boolean).join(' · ')}${ab.length>3?' …':''}`:`todas as ${comEsp.length} pessoas ≥ 90% no período`; }
+  let nFat=null, fatDet='';
+  if(!temContratos){ nFat=0; fatDet='nenhum contrato com mínimo/teto mensal no Admin'; }
+  else if(ax.mesErro){ fatDet=''; }
+  else if(ax.mes){
+    const porProj={}; ax.mes.forEach(w=>{ if(w.f) porProj[w.p]=(porProj[w.p]||0)+(Number(w.s)||0); });
+    const diaFrac=Math.min(1,(+hoje.slice(8,10))/28); const nomes=[];
+    (cfg.contratos||[]).forEach(c=>{ if(!c||!(c.projetos||[]).length) return;
+      const teto=Number(c.tetoMes)||0, min=Number(c.minMes)||0; if(!teto&&!min) return;
+      const h=(c.projetos||[]).reduce((sm,p)=>sm+(porProj[p]||0),0)/3600;
+      if(teto>0 && h>teto*0.9) nomes.push(`${c.cliente||'?'} perto do teto (${Math.round(h)}h/${teto}h)`);
+      else if(min>0 && diaFrac>0.6 && h<min*diaFrac*0.7) nomes.push(`${c.cliente||'?'} abaixo do mínimo (${Math.round(h)}h; mín. ${min}h/mês)`);
+    });
+    nFat=nomes.length; fatDet=nomes.slice(0,2).join(' · ')||'consumo do mês dentro do esperado';
+  }
+  // ---- variação vs. último dia visto (só grava quando tudo carregou) ----
+  const counts={atras:nAtras, meta:nMeta, sematu:nSemAtu, semresp:nSemResp, fat:nFat, cli:nCli};
+  const prontos=Object.values(counts).every(v=>v!=null);
+  const vInfo=prontos?axVariacao(counts):null;
+  const varTag=(key)=>{ if(!vInfo||!vInfo.de||vInfo.de[key]==null) return '<span class="ax-var" title="Sem base de comparação ainda — a variação aparece a partir do próximo dia de uso">—</span>';
+    const d=counts[key]-vInfo.de[key]; const tit=`vs. ${alxDataBR(vInfo.ant)}`;
+    if(!d) return `<span class="ax-var" title="${escA(tit)}">= estável</span>`;
+    return d>0?`<span class="ax-var up" title="${escA(tit)}">▲ +${d}</span>`:`<span class="ax-var down" title="${escA(tit)}">▼ ${d}</span>`; };
+  const sev=(n,lim)=> n==null?'load':(n===0?'ok':(n>lim?'crit':'aten'));
+  const CARDS=[
+    { key:'atras', ic:'⏰', t:'Tickets atrasados', n:nAtras, cls:sev(nAtras,5), det: tks?`${vh} vencem hoje`:'' , goto:'atras', fonte:'jira' },
+    { key:'meta', ic:'⏱', t:'Pessoas abaixo da meta', n:nMeta, cls:sev(nMeta,2), det: metaDet, goto:'meta', fonte:'clock' },
+    { key:'sematu', ic:'🕓', t:'Sem atualização há +5 dias', n:nSemAtu, cls:sev(nSemAtu,8), det: tks?'sem nenhuma movimentação no Jira':'', goto:'sematu', fonte:'jira' },
+    { key:'semresp', ic:'👤', t:'Tickets sem responsável', n:nSemResp, cls:sev(nSemResp,3), det: tks?'ninguém atribuído':'', goto:'semresp', fonte:'jira' },
+    { key:'fat', ic:'💰', t:'Risco de faturamento', n:nFat, cls:sev(nFat,1), det: fatDet, goto:'fat', fonte:'mes' },
+    { key:'cli', ic:'⏸', t:'Aguardando cliente', n:nCli, cls:sev(nCli,999), det: tks?'dependem de retorno externo':'', goto:'cli', fonte:'jira' },
+  ];
+  const cardHtml=(c)=>{
+    let corpo;
+    if(c.n==null){
+      const carr = c.fonte==='clock' ? (estado.tempo?'Calculando metas…':'Carregando dados do Clockwork…')
+        : c.fonte==='mes' ? (ax.mesErro?'':'Carregando as horas do mês…') : (ax.erro?'':'Carregando dados do Jira…');
+      const erro = c.fonte==='clock' ? '' : c.fonte==='mes' ? ax.mesErro : ax.erro;
+      corpo = erro
+        ? `<div class="ax-det" style="color:#B91C1C">${esc(erro)}</div><div class="ax-foot"><button class="btn" id="${c.fonte==='mes'?'ax-mes-retry':'ax-retry'}">Tentar de novo</button></div>`
+        : `<div class="ax-num muted">…</div><div class="ax-det">${esc(carr)}</div>`;
+    } else {
+      corpo = `<div class="ax-num">${c.n}</div><div class="ax-det">${esc(c.det||'')}</div>
+        <div class="ax-foot"><button class="btn ${c.n>0?'primario':''}" data-ax-goto="${c.goto}">Ver casos →</button></div>`;
+    }
+    return `<div class="ax-card ${c.cls}"><div class="ax-top"><span>${c.ic}</span> ${esc(c.t)} <span class="spacer"></span>${c.n!=null?varTag(c.key):''}</div>${corpo}</div>`;
+  };
+  const fJira = ax.erro?'⚠ Jira com falha':(tks?'✓ Jira':'⏳ Carregando dados do Jira…');
+  const fClock = estado.tempo?'✓ Clockwork':'⏳ Carregando dados do Clockwork…';
+  const fMes = !temContratos?'' : ax.mesErro?'⚠ horas do mês com falha' : ax.mes?'✓ horas do mês':'⏳ calculando faturamento…';
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>⚡ Ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora — clique em "Ver casos" para agir</span></h2>
+      <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><span class="muted small">variação ▲▼ = vs. o último dia de uso</span></div>
+      <div class="ax-grid">${CARDS.map(cardHtml).join('')}</div>
+    </div></div>`));
+}
 function renderVisao(){
   const cont=document.getElementById('conteudo');
   if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el(skeletonPainel())); return; }
@@ -7377,7 +7497,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -7497,7 +7617,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -7707,6 +7827,18 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
     estado.reclass.busca=e.target.value; renderReclass();
     const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
   }
+});
+// ---- Ações de hoje: Ver casos → tela certa com o preset aplicado ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const g=e.target.closest&&e.target.closest('[data-ax-goto]');
+  if(g){ const k=g.getAttribute('data-ax-goto');
+    if(k==='meta'){ vaiPara('timesheet'); return; }
+    if(k==='fat'){ vaiPara('receita'); return; }
+    estado.gestao.preset={atras:'atrasados',sematu:'sematu',semresp:'semresp',cli:'cliente'}[k]||'';
+    vaiPara('gestao'); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='ax-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
+  else if(t.id==='ax-mes-retry'){ estado.acoes.mesErro=''; estado.acoes.mes=null; renderAcoes(); }
 });
 // ---- Gestão de Tickets: filtros, seleção e ações em massa ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
