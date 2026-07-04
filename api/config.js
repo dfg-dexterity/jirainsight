@@ -209,11 +209,31 @@ export default async function handler(req, res) {
       if (!auth.ok) return json(res, 401, { configurado: true, ok: false, erro: auth.erro });
       const body = await lerBody(req);
       const data = (body && typeof body === 'object' && !Array.isArray(body)) ? body : {};
+      // Concorrência otimista: o cliente manda a rev (updated_at) da config em que se
+      // baseou. Se outra pessoa/aba gravou depois, RECUSAMOS a sobrescrita e devolvemos
+      // o remoto para o cliente mesclar — nunca last-writer-wins do documento inteiro.
+      const baseRev = String(data.__rev || '');
+      delete data.__rev;
       // Guarda de tamanho: a config do time é pequena; rejeita payloads anômalos.
       if (JSON.stringify(data).length > 262144) {
         return json(res, 413, { configurado: true, ok: false, erro: 'Configuração grande demais.' });
       }
-      const payload = [{ id: ID, data, updated_at: new Date().toISOString() }];
+      const rAt = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data,updated_at`, { headers });
+      const rowsAt = rAt.ok ? await rAt.json() : [];
+      const atual = Array.isArray(rowsAt) && rowsAt[0];
+      // Compara por época: o Postgres devolve "+00:00" e o JS grava "Z" — a string
+      // difere mesmo quando o instante é o mesmo (senão todo salvar viraria conflito).
+      const emMs = (s) => { const t = Date.parse(String(s || '')); return Number.isFinite(t) ? t : null; };
+      if (atual && atual.updated_at && emMs(baseRev) !== emMs(atual.updated_at)) {
+        // Também bloqueia clientes antigos (sem __rev): eles precisam recarregar a página.
+        return json(res, 200, {
+          configurado: true, ok: false, conflito: true,
+          data: atual.data || {}, rev: atual.updated_at,
+          erro: 'A config foi alterada por outra pessoa/aba — mesclando e tentando de novo.',
+        });
+      }
+      const novoRev = new Date().toISOString();
+      const payload = [{ id: ID, data, updated_at: novoRev }];
       const r = await fetch(`${base}/rest/v1/${TABELA}?on_conflict=id`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -223,17 +243,18 @@ export default async function handler(req, res) {
         const t = await r.text();
         return json(res, 200, { configurado: true, ok: false, erro: t.slice(0, 300) });
       }
-      return json(res, 200, { configurado: true, ok: true });
+      return json(res, 200, { configurado: true, ok: true, rev: novoRev });
     }
 
-    const r = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+    const r = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data,updated_at`, { headers });
     if (!r.ok) {
       const t = await r.text();
       return json(res, 200, { configurado: true, data: {}, erro: t.slice(0, 300) });
     }
     const rows = await r.json();
     const data = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
-    return json(res, 200, { configurado: true, data });
+    const rev = (Array.isArray(rows) && rows[0] && rows[0].updated_at) || '';
+    return json(res, 200, { configurado: true, data, rev });
   } catch (err) {
     return json(res, 200, { configurado: true, ok: false, erro: String(err && err.message ? err.message : err) });
   }

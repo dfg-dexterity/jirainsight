@@ -1434,27 +1434,75 @@ function carregaCfg(){
 function salvaCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} salvaCfgRemota(); }
 let cfg = carregaCfg();
 let cfgShared = false;   // true quando a config vem/vai para o servidor (time)
+// ---- Proteção contra perda de dados na config compartilhada ----
+// O servidor versiona a config (rev). Toda gravação envia a rev de base; se outra
+// pessoa/aba gravou depois, o servidor recusa e devolve o remoto — o cliente então
+// ADOTA o remoto e re-aplica só as chaves que ESTA sessão alterou (merge), regravando.
+// Sem conexão (ex.: janela de deploy), as mudanças ficam locais e sincronizam depois.
+let _cfgRev=null;                                  // rev da última config remota adotada
+let _cfgBase=JSON.parse(JSON.stringify(cfg));      // base p/ diff (o que esta sessão mudou)
+let _cfgConectada=false, _cfgSujo=false, _cfgRetryT=null, _cfgAvisou=false;
+function cfgAdotaRemoto(j){
+  const remoto=Object.assign(cfgDefaults(), (j&&j.data)||{});
+  if(_cfgBase){ Object.keys(cfg).forEach(k=>{     // preserva o que esta sessão alterou
+    try{ if(JSON.stringify(cfg[k])!==JSON.stringify(_cfgBase[k])) remoto[k]=cfg[k]; }catch(e){} }); }
+  cfg=remoto; _cfgRev=(j&&j.rev)||null; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgConectada=true;
+}
+function avisaCfgOffline(){ if(_cfgAvisou) return; _cfgAvisou=true;
+  try{ toast('⚠ Sem conexão com a config compartilhada — suas mudanças estão salvas neste navegador e serão sincronizadas ao reconectar.','warn'); }catch(e){} }
+function agendaCfgRetry(){ if(_cfgRetryT) return;
+  _cfgRetryT=setTimeout(async ()=>{ _cfgRetryT=null;
+    try{ const j=await fetch('/api/config').then(r=>r.json());
+      if(j && j.configurado){ cfgShared=true; cfgAdotaRemoto(j);
+        if(_cfgSujo) salvaCfgRemota();
+        try{ render(); }catch(e){}
+        return; }
+    }catch(e){}
+    agendaCfgRetry();
+  }, 25000); }
 // Carrega a config compartilhada do servidor (se configurado); senão, mantém a local.
 async function carregaCfgRemota(){
   try{
     const j = await fetch('/api/config').then(r=>r.json());
     if(j && j.configurado){
       cfgShared = true;
-      if(j.data && typeof j.data==='object' && Object.keys(j.data).length)
-        cfg = Object.assign(cfgDefaults(), j.data);
+      if(j.data && typeof j.data==='object' && Object.keys(j.data).length){
+        // Adota o remoto; edições feitas antes da resposta chegar são re-aplicadas pelo diff.
+        cfgAdotaRemoto(j);
+      } else { _cfgConectada=true; _cfgRev=(j&&j.rev)||null; _cfgBase=JSON.parse(JSON.stringify(cfg)); }
     }
-  }catch(e){ /* mantém local */ }
+  }catch(e){ _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }
 }
 // Salva no servidor (quando compartilhado). Dispara junto com o salvar local.
 // Exige credenciais do Jira (a gravação não é anônima); envia-as por cabeçalho.
 function salvaCfgRemota(){
+  if(!_cfgConectada){                     // sem conexão (boot falhou ou caiu depois)
+    if(cfgShared || _cfgRetryT){ _cfgSujo=true; avisaCfgOffline(); agendaCfgRetry(); }
+    return;
+  }
   if(!cfgShared) return;
   const id=idApontar();
   const h={'Content-Type':'application/json'};
   if(id){ h['X-Jira-Email']=id.email; h['X-Jira-Token']=id.token; }
-  try{ fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(cfg) })
-    .then(r=>r.json()).then(j=>{ if(j && j.ok===false) console.warn('Config não salva no servidor:', j.erro||''); })
-    .catch(()=>{}); }catch(e){}
+  const corpo=Object.assign({ __rev:_cfgRev||'' }, cfg);
+  try{ fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(corpo) })
+    .then(r=>r.json()).then(j=>{
+      if(j && j.ok){ _cfgRev=j.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; return; }
+      if(j && j.conflito){
+        // Outra pessoa/aba gravou depois de nós: adota o remoto, re-aplica o que
+        // ESTA sessão mudou e tenta de novo com a rev nova (uma vez).
+        cfgAdotaRemoto(j);
+        const corpo2=Object.assign({ __rev:_cfgRev||'' }, cfg);
+        fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(corpo2) })
+          .then(r=>r.json()).then(j2=>{ if(j2 && j2.ok){ _cfgRev=j2.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; } })
+          .catch(()=>{ _cfgSujo=true; });
+        try{ toast('↻ Config atualizada por outra pessoa — suas mudanças foram mescladas por cima.','warn'); }catch(e){}
+        try{ render(); }catch(e){}
+        return;
+      }
+      if(j && j.ok===false) console.warn('Config não salva no servidor:', j.erro||'');
+    })
+    .catch(()=>{ _cfgSujo=true; _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }); }catch(e){}
 }
 // Meta diária (em segundos) de uma pessoa: override individual ou meta global.
 function metaSegDe(a){
