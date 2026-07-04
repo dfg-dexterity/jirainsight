@@ -793,6 +793,13 @@
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
+  .gt-dup{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:4;display:none;cursor:pointer;
+    background:rgba(255,255,255,.92);color:#334155;border-radius:5px;padding:0 5px;font-size:12px;line-height:18px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .gt-bar:hover .gt-dup{display:block}
+  .gt-name{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
+  .gt-nm{font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gt-nh{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .gt-nh.disp{color:#0064D9} .gt-nh.saud{color:#188918} .gt-nh.aten{color:#B45309} .gt-nh.crit{color:#B91C1C}
   /* Alocações — board por pessoa (edição inline estilo Monday/Asana; salva sozinho) */
   .gt-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .ab-grupo{border:1px solid var(--linha);border-radius:10px;margin-bottom:12px;background:var(--cartao);overflow:hidden}
@@ -800,7 +807,16 @@
   .ab-av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 26px}
   .ab-nome{font-weight:700;font-size:13.5px}
   .ab-res{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 30px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row:hover{background:var(--hoverbg)}
+  .ab-cols{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;padding:7px 12px 3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;border-top:1px solid var(--linha2)}
+  .ab-acts{display:inline-flex;gap:2px;justify-content:flex-end}
+  /* Tipo como pílula colorida (estilo status do Monday) */
+  select.ab-tipo{border-radius:999px;font-weight:700;color:#fff;border:1px solid transparent;text-align:center;padding:4px 8px;cursor:pointer}
+  select.ab-tipo option{background:var(--cartao);color:var(--grafite);font-weight:600}
+  select.ab-tipo.t-faturavel{background:#188918} select.ab-tipo.t-fechado{background:#0F766E}
+  select.ab-tipo.t-ams{background:#0070F2} select.ab-tipo.t-prevenda{background:#B45309}
+  select.ab-tipo.t-interno{background:#64748B} select.ab-tipo.t-treino{background:#7858FF}
   .ab-row.past{opacity:.55}
   .ab-row select,.ab-row input{border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:13px;background:transparent;color:var(--grafite);width:100%;min-width:0}
   .ab-row select:hover,.ab-row input:hover{border-color:var(--linha)}
@@ -1261,11 +1277,18 @@
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" id="navg-ams-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Governança <span class="nav-car">▾</span></button>
+        <button class="navg-b" id="navg-ams-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Receita <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
-          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Admin</button>
+        </div>
+      </div>
+      <div class="navg">
+        <button class="navg-b" id="navg-cfg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-admin"/></svg>Configurações <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Contratos (Admin)</button>
+          <button data-acao="metas"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Metas &amp; ausências</button>
+          <button data-acao="log"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Histórico de ações</button>
         </div>
       </div>
     </div>
@@ -1296,9 +1319,7 @@
       <div class="hdrmenu" id="grp-mais">
         <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⋯ Mais<span class="nov-dot" id="mais-dot" hidden></span></button>
         <div class="hdrmenu-m">
-          <button id="btn-metas">🎯 Metas &amp; ausências</button>
           <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
-          <button id="btn-log">🗒 Histórico de ações</button>
           <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
         </div>
       </div>
@@ -1319,9 +1340,9 @@
 
   <footer>
     <strong>Fontes:</strong> tempo (horas, faturável) vem do Clockwork; atividade
-    (tickets, alterações, transições, comentários) vem do changelog do Jira — a atribuição
+    (tickets, alterações, transições, comentários) vem do histórico de alterações do Jira — a atribuição
     é por <em>autor da alteração</em>, não por responsável.
-    <br><strong>Timesheet / Ranking:</strong> a lacuna ("horários não preenchidos") compara as horas
+    <br><strong>Timesheet / Ranking:</strong> as <em>horas faltantes</em> ("horários não preenchidos") comparam as horas
     apontadas no Clockwork com a meta por dia útil (padrão <em>8h, seg–sex</em>, ajustável em
     <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
     Clique no nome de qualquer pessoa para ver o detalhe.
@@ -2078,8 +2099,8 @@ function abrePessoa(a){
     <div class="muted small">${esc(d.meta.startDate||'')} → ${esc(d.meta.endDate||'')}</div>
     <div class="det-kpis">
       <div class="kpi t"><div class="v">${fmtH(d.tot)}</div><div class="l">Horas apontadas</div></div>
-      <div class="kpi t"><div class="v">${d.tot?pct(d.fat,d.tot):0}%</div><div class="l">Faturável</div></div>
-      <div class="kpi w"><div class="v">${d.lacuna>0?fmtH(d.lacuna):'0h'}</div><div class="l">Falta apontar</div></div>
+      <div class="kpi t"><div class="v">${d.tot?pct(d.fat,d.tot):0}%</div><div class="l">Horas faturáveis</div></div>
+      <div class="kpi w"><div class="v">${d.lacuna>0?fmtH(d.lacuna):'0h'}</div><div class="l">Horas faltantes</div></div>
     </div>
     <div class="sec">Tendência — horas por dia</div>
     ${sparkline(vals)}
@@ -2126,7 +2147,7 @@ function blocoDetalhe(d, secoes){
   const vals=listaDias(meta.startDate,meta.endDate).map(x=>d.porDia[x]||0);
   let html=`<div class="det-kpis">
     <div class="kpi t"><div class="v">${fmtH(d.tot)}</div><div class="l">Horas apontadas</div></div>
-    <div class="kpi t"><div class="v">${d.tot?pct(d.fat,d.tot):0}%</div><div class="l">Faturável</div></div>
+    <div class="kpi t"><div class="v">${d.tot?pct(d.fat,d.tot):0}%</div><div class="l">Horas faturáveis</div></div>
     <div class="kpi a"><div class="v">${d.tickets.size}</div><div class="l">Tickets</div></div>
   </div>`;
   if(secoes.includes('trend') && vals.some(v=>v)) html+=`<div class="sec">Tendência — horas por dia</div>${sparkline(vals)}`;
@@ -2324,7 +2345,7 @@ function renderVisao(){
 
   const hero=`<div class="vg-hero">
     <div class="vg-k ${clsMeta}"><div class="v">${pctMeta}%</div><div class="l">Apontamento do time</div><div class="s">${fmtH(totTot)} de ${fmtH(totEsp)}</div></div>
-    <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s">${d.kpi.fatPct}% faturável</div></div>
+    <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s">${d.kpi.fatPct}% de horas faturáveis</div></div>
     <div class="vg-k ${cSev.critico>0?'bad':'good'}"><div class="v">${alertasProntos?cSev.critico:alTok}</div><div class="l">Alertas críticos</div><div class="s">${alertasProntos?(cSev.alto+' altos · '+cSev.medio+' médios'):(a.erro?'indisponível':'analisando')}</div></div>
     <div class="vg-k ${clsDia}"><div class="v">${emDia}/${totalPessoas}</div><div class="l">Pessoas em dia</div><div class="s">≥ 90% da meta</div></div>
     <div class="vg-k ${(venc>0)?'bad':'good'}"><div class="v">${alertasProntos?venc:alTok}</div><div class="l">Tickets vencidos</div><div class="s">${alertasProntos?(vh+' vencem hoje'):(a.erro?'indisponível':'analisando')}</div></div>
@@ -2485,7 +2506,7 @@ function renderResumo(){
   cont.replaceChildren(el(`<div>
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtH(k.segTot)}</div><div class="l">Horas apontadas</div></div>
-      <div class="kpi t"><div class="v">${k.fatPct}%</div><div class="l">Faturável</div></div>
+      <div class="kpi t"><div class="v">${k.fatPct}%</div><div class="l">Horas faturáveis</div></div>
       <div class="kpi a"><div class="v">${k.tocadas}</div><div class="l">Tickets tocados</div></div>
       <div class="kpi a"><div class="v">${k.transTot}</div><div class="l">Transições</div></div>
       <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
@@ -5722,8 +5743,11 @@ function alocViewGantt(rows, pess){
     const bars=als.map(it=>{ const x=it.x; const left=it.s*D, w=(it.e-it.s+1)*D, top=padT+it.row*(barH+gap); const ci=gtCor(x.projeto);
       const nf=!ALOC_FAT.has(x.tipo||'faturavel'); const idx=full.indexOf(x);
       const tip=`${x.projeto||'—'} · ${nm(a)}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
-      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
-    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))}">${esc(nm(a))}</div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
+      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-dup" data-gt-dup="${escA(x.id)}" title="Duplicar esta alocação">⧉</span><span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
+    // Coluna fixa: nome + horas alocadas × capacidade da SEMANA ATUAL (sempre visível).
+    const wAtu=semChave(hojeSP()); const alAtu=alocAlocadoSemana(rows,a,wAtu); const capAtu=alocCapacSemana(a,wAtu);
+    const uAtu=capAtu?Math.round(alAtu/capAtu*100):(alAtu>0?999:0); const [clsAtu]=alocStatus(uAtu);
+    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))} — alocado nesta semana: ${escA(alocH(alAtu))} de ${escA(alocH(capAtu))}"><span class="gt-nm">${esc(nm(a))}</span><span class="gt-nh ${clsAtu}">${alocH(alAtu)}/${alocH(capAtu)} · ${uAtu}%</span></div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
   }).join('');
   const head=`<div class="gt-head"><div class="gt-corner"></div><div class="gt-htl" style="width:${totalPx}px"><div class="gt-months">${monthsHtml}</div><div class="gt-weeks">${weeksHtml}</div></div></div>`;
   const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
@@ -5886,15 +5910,15 @@ function renderAlocacao(){
       const pct=alocPctDe(pid,a.hSemana);
       return `<div class="ab-row${past?' past':''}">
         <span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(a.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(a.id)}">${prOpt}</select></span>
-        <select data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
+        <select class="ab-tipo t-${escA(a.tipo||'faturavel')}" data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
         <input type="date" data-ab-f="inicio|${escA(a.id)}" value="${escA(a.inicio)}" title="Início">
         <input type="date" data-ab-f="fim|${escA(a.id)}" value="${escA(a.fim)}" title="Fim">
         <span class="ab-pctc"><input type="number" data-ab-pct="${escA(a.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(a.hSemana)||0)}/sem</span></span>
-        <button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></div>`;
+        <span class="ab-acts"><button class="ab-x" data-ab-dup="${escA(a.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></span></div>`;
     }).join('');
     const add=pid?`<div class="ab-add"><select data-ab-addproj="${escA(pid)}">${addOpt}</select></div>`:'';
     return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(nome)}</span>${res}</div>
-      ${linhas||'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
+      ${linhas?`<div class="ab-cols"><span>Projeto</span><span>Tipo</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>${linhas}`:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
   }).join('');
   const jaNoBoard=new Set(pessBoard);
   const pessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.filter(([id])=>!jaNoBoard.has(id)).map(([id,p])=>`<option value="${escA(id)}">${esc(p.nome||id)}</option>`).join('');
@@ -6339,7 +6363,7 @@ function renderReceita(){
       <div class="kpi t"><div class="v">${fmtBRL(totValor)}</div><div class="l">Receita estimada</div></div>
       <div class="kpi t"><div class="v">${fmtH(totSeg)}</div><div class="l">Horas consumidas</div></div>
       <div class="kpi a"><div class="v">${totContr}h</div><div class="l">Horas contratadas</div></div>
-      <div class="kpi t"><div class="v">${totSeg?Math.round(totFat/totSeg*100):0}%</div><div class="l">Faturável</div></div>
+      <div class="kpi t"><div class="v">${totSeg?Math.round(totFat/totSeg*100):0}%</div><div class="l">Horas faturáveis</div></div>
       <div class="kpi w"><div class="v">${emRisco}</div><div class="l">Contratos em risco</div></div>
     </div>
     <div class="card full"><h2>💰 Bolsa de horas & projetos <span>${outros.length} contrato(s)</span></h2>
@@ -7041,7 +7065,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>As telas (por grupo do menu)</summary><div class="help-body"><ul>
       <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
       <li><b>Análise › Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
-      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com a lacuna (o que falta para a meta).</li>
+      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta).</li>
       <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
       <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto e aponte reuniões para várias pessoas.</li>
@@ -7052,9 +7076,9 @@ function abreAjuda(){
       <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
       <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos.</li>
-      <li><b>AMS &amp; Governança › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
-      <li><b>AMS &amp; Governança › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
-      <li><b>AMS &amp; Governança › ⚙️ Admin</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
+      <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
+      <li><b>AMS &amp; Receita › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
+      <li><b>Configurações › ⚙️ Contratos (Admin)</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -7066,7 +7090,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>Navegação, novidades e versão</summary><div class="help-body">
       <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início</b>. Os controles do topo aparecem
       <b>só onde fazem sentido</b>: Período/filtros/Exportar nas telas de análise; as telas operacionais têm controles próprios.
-      Em <b>⋯ Mais</b> ficam <b>🎯 Metas</b>, <b>✨ Novidades</b> (pontinho vermelho = tem coisa que você não viu) e a <b>❓ Ajuda</b>; <b>🌙</b> alterna claro/escuro.
+      Em <b>Configurações</b> ficam <b>Contratos (Admin)</b>, <b>🎯 Metas & ausências</b> e o <b>🗒 Histórico de ações</b>; em <b>⋯ Mais</b>, <b>✨ Novidades</b> e a <b>❓ Ajuda</b>; <b>🌙</b> alterna claro/escuro.
       No <b>rodapé</b> fica a <b>versão em produção</b> com link para o pull request no GitHub.
       <b>↑ Topo</b>: botão flutuante que aparece ao rolar. Links são <b>compartilháveis</b>: a aba e os filtros ficam na URL.
     </div></details>
@@ -7143,7 +7167,7 @@ function abreAjuda(){
       confira antes de qualquer decisão. <i>Requer a chave de IA configurada pelo administrador.</i>
     </div></details>
     <details class="help-sec"><summary>Metas, ausências e feriados</summary><div class="help-body">
-      Em <b>⋯ Mais → 🎯 Metas</b>: meta de horas (global ou por pessoa), ausências, feriados nacionais (com Carnaval,
+      Em <b>Configurações → 🎯 Metas & ausências</b>: meta de horas (global ou por pessoa), ausências, feriados nacionais (com Carnaval,
       Sexta-feira Santa e Corpus Christi) e <b>usuários externos a ocultar</b> (somem de todas as visões).
       Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
@@ -7205,13 +7229,14 @@ const TOUR=[
   {sel:'#navg-an-b',titulo:'Análise',texto:'Resumo (KPIs, horas, faturável e resumo por IA), Timesheet (pessoa × dia com lacuna vs. meta), Ranking (cumprimento de apontamento) e Tickets (issues do período, agrupáveis).'},
   {sel:'#navg-op-b',titulo:'Operação',texto:'O dia a dia: ⏱ Apontar (horas, status, vencimento, comentário, responsável — em Lista/Tabela/Quadro); 🛠 Gestão de Tickets (seleção múltipla + ações em massa: atribuir, status, comentar, reprogramar e excluir); 🚨 Alertas (atrasados com reprogramação justificada); 🔀 Reclassificar (mover reuniões de projeto); 🔗 Vincular Reuniões (transforma reunião em ticket de apoio funcional de AMS, ou comenta num ticket aberto, e exclui a reunião).'},
   {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa com % por projeto, utilização semanal, linha do tempo com arrastar-e-soltar, visões por projeto/empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote, inclusive dentro de épicos).'},
-  {sel:'#navg-ams-b',titulo:'AMS & Governança',texto:'AMS (um contrato por vez, por ciclo: banco de horas, faturamento e chamados, com PDF); 💰 Receita (bolsa de horas e projetos: consumo × contratado e receita estimada); ⚙️ Admin (cadastro de clientes/contratos, base do AMS e da Receita).'},
+  {sel:'#navg-ams-b',titulo:'AMS & Receita',texto:'AMS (um contrato por vez, por ciclo: banco de horas, faturamento e chamados, com PDF) e 💰 Receita (bolsa de horas e projetos: consumo × contratado e receita estimada).'},
+  {sel:'#navg-cfg-b',titulo:'Configurações',texto:'⚙️ Contratos (Admin — base do AMS/Receita e do risco de faturamento), 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar) e 🗒 Histórico de ações (auditoria do que o time fez pelo painel).'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
   {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
   {sel:'#btn-tema',titulo:'Claro / escuro',texto:'Alterne o tema do painel — a preferência fica salva no navegador.'},
-  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'Aqui ficam 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar — compartilhados com o time), ✨ Novidades (o pontinho vermelho avisa quando há algo novo) e ❓ Ajuda & feedback — este tour, o passo a passo de cada tela e os canais de dúvida/sugestão/bug.'},
+  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo) e ❓ Ajuda & feedback — este tour, o passo a passo de cada tela e os canais de dúvida/sugestão/bug.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
 let _tourI=0;
@@ -7575,8 +7600,16 @@ async function recarrega(){
     }
   }catch(e){
     cont.innerHTML='';
+    const msg=String(e.message||e);
+    const fonte=/clockwork|tempo/i.test(msg)?'Clockwork (horas)':/jira|atividade/i.test(msg)?'Jira (movimentações)':'API do painel';
+    const causa=/failed to fetch|network|rede/i.test(msg)?'sem conexão com o servidor (rede/VPN ou deploy em andamento)'
+      :/401|403|token/i.test(msg)?'credenciais da conta de serviço inválidas ou expiradas'
+      :/429/.test(msg)?'limite de requisições atingido — aguarde um instante':'instabilidade momentânea na fonte de dados';
     document.getElementById('erro-box').innerHTML =
-      `<div class="erro"><strong>Falha ao carregar.</strong> ${esc(e.message||e)}</div>`;
+      `<div class="erro"><strong>Falha ao carregar — ${esc(fonte)}.</strong> ${esc(msg)}
+        <div class="muted small" style="margin-top:6px">Possível causa: ${esc(causa)}. Ação recomendada: tente de novo; se persistir, verifique as variáveis na Vercel ou fale com o administrador.</div>
+        <button class="btn" id="erro-retry" style="margin-top:8px">↻ Tentar de novo</button></div>`;
+    const rb=document.getElementById('erro-retry'); if(rb) rb.addEventListener('click', recarrega);
   }
 }
 
@@ -7587,6 +7620,11 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   const hb=ev.target.closest('.navg-b');
   if(hb){ const g=hb.closest('.navg'); const abrir=!g.classList.contains('open');
     fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); }
+    ev.stopPropagation(); return; }
+  // Item de ação (abre modal, não troca de aba).
+  const ac=ev.target.closest('[data-acao]');
+  if(ac){ fechaMenusNav(); const a=ac.getAttribute('data-acao');
+    if(a==='metas') abreMetas(); else if(a==='log') abreLogAcoes();
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
@@ -7754,9 +7792,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderAMS(); }
 });
-document.getElementById('btn-metas').addEventListener('click', abreMetas);
+{ const bm=document.getElementById('btn-metas'); if(bm) bm.addEventListener('click', abreMetas); }
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
-document.getElementById('btn-log').addEventListener('click', abreLogAcoes);
+{ const bl=document.getElementById('btn-log'); if(bl) bl.addEventListener('click', abreLogAcoes); }
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
 // Modo claro/escuro (persistido em localStorage; o tema já foi aplicado cedo no <head>).
 function aplicaTema(t){
@@ -8004,9 +8042,15 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
     if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
+  if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
+    const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
+    const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
+    if(ix>=0){ const c=JSON.parse(JSON.stringify(rs[ix])); c.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      rs.splice(ix+1,0,c); alocPersiste(); toast('✓ Alocação duplicada — ajuste o período/% da cópia.','ok'); renderAlocacao(); }
+    return; }
   if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
@@ -8046,6 +8090,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
 let _gtDrag=null;
 document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
   if(e.button!==undefined && e.button!==0) return;
+  if(e.target.closest&&e.target.closest('.gt-dup')) return;   // duplicar não é arrastar
   const bar=e.target.closest&&e.target.closest('[data-gt-idx]'); if(!bar) return;
   const h=e.target.closest('[data-gt-h]'); const mode=h?('resize-'+h.getAttribute('data-gt-h')):'move';
   const rows=alocRows(); const idx=+bar.getAttribute('data-gt-idx'); const a=rows[idx]; if(!a) return;
