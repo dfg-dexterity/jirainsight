@@ -8235,6 +8235,50 @@ document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fimTour(); fechaModal(); } });
 
+// ---- Copiar/colar datas (estilo Monday/Asana) — vale em QUALQUER campo de data ----
+// Ctrl/Cmd+C num campo de data copia a data; Ctrl/Cmd+V em outro cola e dispara o
+// mesmo fluxo de um ajuste manual (salva na hora, ex.: board de alocação).
+// Aceita 23/08/2026, 23/08/26, 23/08 (ano atual), 2026-08-23 e datas do Excel.
+function dataDeTexto(txt){
+  const s=String(txt||'').trim();
+  let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return validaIso(`${m[1]}-${m[2]}-${m[3]}`);
+  m=s.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
+  if(!m) return '';
+  let d=+m[1], mo=+m[2];
+  if(mo>12 && d<=12){ const t=d; d=mo; mo=t; }        // veio como mm/dd (Excel en-US)
+  let ano=m[3] ? (m[3].length===2 ? 2000+ +m[3] : +m[3]) : +hojeSP().slice(0,4);
+  if(d<1||d>31||mo<1||mo>12||ano<1990||ano>2100) return '';
+  return validaIso(`${ano}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+}
+// Garante que a data existe de verdade (31/02 etc. viram '').
+function validaIso(iso){
+  try{ return new Date(iso+'T00:00:00Z').toISOString().slice(0,10)===iso ? iso : ''; }catch(e){ return ''; }
+}
+const dataBR=(iso)=> iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : '';
+document.addEventListener('paste', (e)=>{
+  const t=(e.target&&e.target.tagName==='INPUT')?e.target:document.activeElement;
+  if(!t||t.tagName!=='INPUT'||t.type!=='date'||t.disabled||t.readOnly) return;
+  const txt=(e.clipboardData&&e.clipboardData.getData)?e.clipboardData.getData('text'):'';
+  e.preventDefault();
+  const iso=dataDeTexto(txt);
+  if(!iso){ try{ toast('Não entendi a data colada — use 23/08/2026 ou 2026-08-23.','warn'); }catch(_){} return; }
+  if(t.value===iso) return;
+  t.value=iso;
+  t.dispatchEvent(new Event('change',{bubbles:true}));
+  try{ toast('📋 '+dataBR(iso)+' colada'); }catch(_){}
+});
+document.addEventListener('keydown', (e)=>{
+  if(!(e.ctrlKey||e.metaKey) || (e.key||'').toLowerCase()!=='c') return;
+  const t=document.activeElement;
+  if(!t||t.tagName!=='INPUT'||t.type!=='date'||!t.value) return;
+  const txt=dataBR(t.value);
+  const avisa=()=>{ try{ toast('📋 Data copiada: '+txt+' — Ctrl+V em outro campo de data'); }catch(_){} };
+  try{ navigator.clipboard.writeText(txt).then(avisa,()=>{}); }
+  catch(_){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); try{ if(document.execCommand('copy')) avisa(); }catch(__){} ta.remove(); }
+});
+
 // Drill-down e clique em pessoa (vale em qualquer visão E dentro dos modais,
 // permitindo navegação encadeada: projeto → pessoa → projeto…).
 document.addEventListener('click', (e)=>{
