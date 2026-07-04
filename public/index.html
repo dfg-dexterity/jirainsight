@@ -793,6 +793,13 @@
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
+  .gt-dup{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:4;display:none;cursor:pointer;
+    background:rgba(255,255,255,.92);color:#334155;border-radius:5px;padding:0 5px;font-size:12px;line-height:18px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .gt-bar:hover .gt-dup{display:block}
+  .gt-name{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
+  .gt-nm{font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gt-nh{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .gt-nh.disp{color:#0064D9} .gt-nh.saud{color:#188918} .gt-nh.aten{color:#B45309} .gt-nh.crit{color:#B91C1C}
   /* Alocações — board por pessoa (edição inline estilo Monday/Asana; salva sozinho) */
   .gt-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .ab-grupo{border:1px solid var(--linha);border-radius:10px;margin-bottom:12px;background:var(--cartao);overflow:hidden}
@@ -800,7 +807,16 @@
   .ab-av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 26px}
   .ab-nome{font-weight:700;font-size:13.5px}
   .ab-res{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 30px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row:hover{background:var(--hoverbg)}
+  .ab-cols{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;padding:7px 12px 3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;border-top:1px solid var(--linha2)}
+  .ab-acts{display:inline-flex;gap:2px;justify-content:flex-end}
+  /* Tipo como pílula colorida (estilo status do Monday) */
+  select.ab-tipo{border-radius:999px;font-weight:700;color:#fff;border:1px solid transparent;text-align:center;padding:4px 8px;cursor:pointer}
+  select.ab-tipo option{background:var(--cartao);color:var(--grafite);font-weight:600}
+  select.ab-tipo.t-faturavel{background:#188918} select.ab-tipo.t-fechado{background:#0F766E}
+  select.ab-tipo.t-ams{background:#0070F2} select.ab-tipo.t-prevenda{background:#B45309}
+  select.ab-tipo.t-interno{background:#64748B} select.ab-tipo.t-treino{background:#7858FF}
   .ab-row.past{opacity:.55}
   .ab-row select,.ab-row input{border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:13px;background:transparent;color:var(--grafite);width:100%;min-width:0}
   .ab-row select:hover,.ab-row input:hover{border-color:var(--linha)}
@@ -5727,8 +5743,11 @@ function alocViewGantt(rows, pess){
     const bars=als.map(it=>{ const x=it.x; const left=it.s*D, w=(it.e-it.s+1)*D, top=padT+it.row*(barH+gap); const ci=gtCor(x.projeto);
       const nf=!ALOC_FAT.has(x.tipo||'faturavel'); const idx=full.indexOf(x);
       const tip=`${x.projeto||'—'} · ${nm(a)}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
-      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
-    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))}">${esc(nm(a))}</div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
+      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-dup" data-gt-dup="${escA(x.id)}" title="Duplicar esta alocação">⧉</span><span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
+    // Coluna fixa: nome + horas alocadas × capacidade da SEMANA ATUAL (sempre visível).
+    const wAtu=semChave(hojeSP()); const alAtu=alocAlocadoSemana(rows,a,wAtu); const capAtu=alocCapacSemana(a,wAtu);
+    const uAtu=capAtu?Math.round(alAtu/capAtu*100):(alAtu>0?999:0); const [clsAtu]=alocStatus(uAtu);
+    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))} — alocado nesta semana: ${escA(alocH(alAtu))} de ${escA(alocH(capAtu))}"><span class="gt-nm">${esc(nm(a))}</span><span class="gt-nh ${clsAtu}">${alocH(alAtu)}/${alocH(capAtu)} · ${uAtu}%</span></div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
   }).join('');
   const head=`<div class="gt-head"><div class="gt-corner"></div><div class="gt-htl" style="width:${totalPx}px"><div class="gt-months">${monthsHtml}</div><div class="gt-weeks">${weeksHtml}</div></div></div>`;
   const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
@@ -5891,15 +5910,15 @@ function renderAlocacao(){
       const pct=alocPctDe(pid,a.hSemana);
       return `<div class="ab-row${past?' past':''}">
         <span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(a.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(a.id)}">${prOpt}</select></span>
-        <select data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
+        <select class="ab-tipo t-${escA(a.tipo||'faturavel')}" data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
         <input type="date" data-ab-f="inicio|${escA(a.id)}" value="${escA(a.inicio)}" title="Início">
         <input type="date" data-ab-f="fim|${escA(a.id)}" value="${escA(a.fim)}" title="Fim">
         <span class="ab-pctc"><input type="number" data-ab-pct="${escA(a.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(a.hSemana)||0)}/sem</span></span>
-        <button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></div>`;
+        <span class="ab-acts"><button class="ab-x" data-ab-dup="${escA(a.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></span></div>`;
     }).join('');
     const add=pid?`<div class="ab-add"><select data-ab-addproj="${escA(pid)}">${addOpt}</select></div>`:'';
     return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(nome)}</span>${res}</div>
-      ${linhas||'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
+      ${linhas?`<div class="ab-cols"><span>Projeto</span><span>Tipo</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>${linhas}`:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
   }).join('');
   const jaNoBoard=new Set(pessBoard);
   const pessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.filter(([id])=>!jaNoBoard.has(id)).map(([id,p])=>`<option value="${escA(id)}">${esc(p.nome||id)}</option>`).join('');
@@ -8023,9 +8042,15 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
     if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
+  if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
+    const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
+    const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
+    if(ix>=0){ const c=JSON.parse(JSON.stringify(rs[ix])); c.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      rs.splice(ix+1,0,c); alocPersiste(); toast('✓ Alocação duplicada — ajuste o período/% da cópia.','ok'); renderAlocacao(); }
+    return; }
   if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
   if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
@@ -8065,6 +8090,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
 let _gtDrag=null;
 document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
   if(e.button!==undefined && e.button!==0) return;
+  if(e.target.closest&&e.target.closest('.gt-dup')) return;   // duplicar não é arrastar
   const bar=e.target.closest&&e.target.closest('[data-gt-idx]'); if(!bar) return;
   const h=e.target.closest('[data-gt-h]'); const mode=h?('resize-'+h.getAttribute('data-gt-h')):'move';
   const rows=alocRows(); const idx=+bar.getAttribute('data-gt-idx'); const a=rows[idx]; if(!a) return;
