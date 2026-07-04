@@ -5885,46 +5885,72 @@ function renderAlocacao(){
     const u=cap?Math.round(al/cap*100):(al>0?999:0); const [cls,lbl]=alocStatus(u);
     return `<tr><td>${esc(nm(a))}</td><td class="num">${alocH(n?cap/n:0)}/sem</td><td class="num">${alocH(n?al/n:0)}/sem</td><td class="num">${u}%</td><td><span class="aloc-badge ${cls}">${lbl}</span></td></tr>`; }).join('');
   const resumoTab = pessoasOrd.length ? `<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th class="num">Capacidade</th><th class="num">Alocado</th><th class="num">Utilização</th><th>Status</th></tr></thead><tbody>${resumo}</tbody></table></div>` : '';
-  // Board por pessoa (estilo Monday/Asana): grupos por pessoa → projetos com % da capacidade.
-  // Edição inline, sem modo/botão de salvar — toda alteração persiste na hora (alocPersiste).
+  // Board de planejamento (estilo Monday): o AGRUPAMENTO acompanha a visão selecionada —
+  // Por Pessoa (padrão/Gantt/Simulação) · Por Projeto · Empresa (por tipo) · Por Skill.
+  // Edição inline, sem botão de salvar — toda alteração persiste na hora (alocPersiste).
   const hj=hojeSP(); const semAtual=semChave(hj);
-  const porPessoa={};
-  rows.forEach((a,i)=>{ const k=a.accountId||''; (porPessoa[k]=porPessoa[k]||[]).push({a,i}); });
-  (estado.alocacao.pessNovas||[]).forEach(id=>{ if(!porPessoa[id]) porPessoa[id]=[]; });
-  const pessBoard=Object.keys(porPessoa).sort((x,y)=>nm(x).localeCompare(nm(y),'pt'));
-  const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
-  const grupos=pessBoard.map(pid=>{
-    const its=porPessoa[pid].slice().sort((p,q)=>String(p.a.inicio).localeCompare(String(q.a.inicio)));
-    const nome=pid?nm(pid):'Sem pessoa';
-    const cor=GT_PALB[gtCor(pid||nome)];
-    const inic=(nome||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
-    const nom=alocSemNomH(pid); const alHoje=pid?alocAlocadoSemana(rows,pid,semAtual):0;
-    const u=nom?Math.round(alHoje/nom*100):0; const [cls,lbl]=alocStatus(u);
-    const res=pid?`<span class="ab-res">${its.length} projeto${its.length===1?'':'s'} · esta semana <strong>${alocH(alHoje)}</strong> de ${alocH(nom)}</span>${u>0?` <span class="aloc-badge ${cls}">${u}% · ${esc(lbl)}</span>`:''}`
-      :'<span class="ab-res">linhas sem pessoa — defina o projeto/período ou remova</span>';
-    const linhas=its.map(({a})=>{
-      const prSolto=a.projeto && !projs.some(p=>p.key===a.projeto); // projeto fora da lista (ex.: arquivado) — preserva
-      const prOpt='<option value="">— projeto —</option>'+(prSolto?`<option value="${escA(a.projeto)}" selected>${esc(a.projeto)}</option>`:'')+projs.map(p=>`<option value="${escA(p.key)}" ${a.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
-      const tOpt=ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(a.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('');
-      const past=/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.fim<hj;
-      const pct=alocPctDe(pid,a.hSemana);
-      return `<div class="ab-row${past?' past':''}">
-        <span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(a.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(a.id)}">${prOpt}</select></span>
-        <select class="ab-tipo t-${escA(a.tipo||'faturavel')}" data-ab-f="tipo|${escA(a.id)}">${tOpt}</select>
-        <input type="date" data-ab-f="inicio|${escA(a.id)}" value="${escA(a.inicio)}" title="Início">
-        <input type="date" data-ab-f="fim|${escA(a.id)}" value="${escA(a.fim)}" title="Fim">
-        <span class="ab-pctc"><input type="number" data-ab-pct="${escA(a.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(a.hSemana)||0)}/sem</span></span>
-        <span class="ab-acts"><button class="ab-x" data-ab-dup="${escA(a.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(a.id)}" title="Remover do projeto">×</button></span></div>`;
-    }).join('');
-    const add=pid?`<div class="ab-add"><select data-ab-addproj="${escA(pid)}">${addOpt}</select></div>`:'';
-    return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(nome)}</span>${res}</div>
-      ${linhas?`<div class="ab-cols"><span>Projeto</span><span>Tipo</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>${linhas}`:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhum projeto ainda — use "+ adicionar projeto…" abaixo.</span></div>'}${add}</div>`;
+  const visaoB=estado.alocacao.visao||'pessoa';
+  const modoB = visaoB==='projeto'?'projeto' : visaoB==='skill'?'skill' : visaoB==='empresa'?'tipo' : 'pessoa';
+  const ativaSem=(x)=>/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(x.fim)&&x.inicio<=somaDias(semAtual,6)&&x.fim>=semAtual;
+  const pessoaSel=(x)=>'<select data-ab-f="accountId|'+escA(x.id)+'"><option value="">— pessoa —</option>'+
+    pordPess.map(([id,pp])=>`<option value="${escA(id)}" ${x.accountId===id?'selected':''}>${esc(pp.nome||id)}</option>`).join('')+'</select>';
+  const projetoSel=(x)=>{ const prSolto=x.projeto && !projs.some(pp=>pp.key===x.projeto);
+    return `<span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(x.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(x.id)}"><option value="">— projeto —</option>${prSolto?`<option value="${escA(x.projeto)}" selected>${esc(x.projeto)}</option>`:''}${projs.map(pp=>`<option value="${escA(pp.key)}" ${x.projeto===pp.key?'selected':''}>${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('')}</select></span>`; };
+  const tipoSel=(x)=>`<select class="ab-tipo t-${escA(x.tipo||'faturavel')}" data-ab-f="tipo|${escA(x.id)}">${ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(x.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  const linhaDe=(x)=>{
+    const past=/^\d{4}-\d{2}-\d{2}$/.test(x.fim)&&x.fim<hj;
+    const pct=alocPctDe(x.accountId,x.hSemana);
+    const col1 = modoB==='pessoa' ? projetoSel(x) : pessoaSel(x);
+    const col2 = (modoB==='pessoa'||modoB==='projeto') ? tipoSel(x) : projetoSel(x);
+    return `<div class="ab-row${past?' past':''}">${col1}${col2}
+      <input type="date" data-ab-f="inicio|${escA(x.id)}" value="${escA(x.inicio)}" title="Início">
+      <input type="date" data-ab-f="fim|${escA(x.id)}" value="${escA(x.fim)}" title="Fim">
+      <span class="ab-pctc"><input type="number" data-ab-pct="${escA(x.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(x.hSemana)||0)}/sem</span></span>
+      <span class="ab-acts"><button class="ab-x" data-ab-dup="${escA(x.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(x.id)}" title="Remover">×</button></span></div>`;
+  };
+  const cab = modoB==='pessoa' ? ['Projeto','Tipo'] : modoB==='projeto' ? ['Pessoa','Tipo'] : ['Pessoa','Projeto'];
+  const colsHtml=`<div class="ab-cols"><span>${cab[0]}</span><span>${cab[1]}</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>`;
+  const chaveDe=(x)=> modoB==='pessoa'?(x.accountId||'') : modoB==='projeto'?(x.projeto||'') : modoB==='tipo'?(x.tipo||'faturavel') : alocSkillPrim(x.accountId);
+  const gruposMap={};
+  rows.forEach(x=>{ const k=chaveDe(x); (gruposMap[k]=gruposMap[k]||[]).push(x); });
+  if(modoB==='pessoa') (estado.alocacao.pessNovas||[]).forEach(id=>{ if(!gruposMap[id]) gruposMap[id]=[]; });
+  const rotuloDe=(k)=> modoB==='pessoa'?(k?nm(k):'Sem pessoa')
+    : modoB==='projeto'?(k?`${k} — ${((projs.find(pp=>pp.key===k)||{}).nome||'')}`:'Sem projeto')
+    : modoB==='tipo'?(((ALOC_TIPOS.find(([t])=>t===k))||[k,k])[1]) : (k||'Sem skill');
+  const chaves=Object.keys(gruposMap).sort((x,y)=>rotuloDe(x).localeCompare(rotuloDe(y),'pt'));
+  const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(pp=>`<option value="${escA(pp.key)}">${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('');
+  const addPessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.map(([id,pp])=>`<option value="${escA(id)}">${esc(pp.nome||id)}</option>`).join('');
+  const grupos=chaves.map(k=>{
+    const its=gruposMap[k].slice().sort((x,y)=>String(x.inicio).localeCompare(String(y.inicio)));
+    const rot=rotuloDe(k); const cor=GT_PALB[gtCor(k||rot)];
+    const inic=(rot||'?').split(/\s+/).map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
+    let res='';
+    if(modoB==='pessoa'){
+      const nomH=alocSemNomH(k); const alHoje=k?alocAlocadoSemana(rows,k,semAtual):0;
+      const u=nomH?Math.round(alHoje/nomH*100):0; const [cls,lbl]=alocStatus(u);
+      res=k?`<span class="ab-res">${its.length} projeto${its.length===1?'':'s'} · esta semana <strong>${alocH(alHoje)}</strong> de ${alocH(nomH)}</span>${u>0?` <span class="aloc-badge ${cls}">${u}% · ${esc(lbl)}</span>`:''}`
+        :'<span class="ab-res">linhas sem pessoa — defina ou remova</span>';
+    } else {
+      const hAtiva=its.filter(ativaSem).reduce((s2,x)=>s2+(Number(x.hSemana)||0),0);
+      const nPess=new Set(its.map(x=>x.accountId).filter(Boolean)).size;
+      res=`<span class="ab-res">${nPess} pessoa${nPess===1?'':'s'} · ${its.length} alocação(ões) · esta semana <strong>${alocH(hAtiva)}</strong>/sem</span>`;
+    }
+    const linhas=its.map(linhaDe).join('');
+    const add = (modoB==='pessoa' && k) ? `<div class="ab-add"><select data-ab-addproj="${escA(k)}">${addOpt}</select></div>`
+      : (modoB==='projeto' && k) ? `<div class="ab-add"><select data-ab-addpessproj="${escA(k)}">${addPessOpt}</select></div>` : '';
+    return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(rot)}</span>${res}</div>
+      ${linhas?colsHtml+linhas:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhuma alocação ainda.</span></div>'}${add}</div>`;
   }).join('');
-  const jaNoBoard=new Set(pessBoard);
-  const pessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.filter(([id])=>!jaNoBoard.has(id)).map(([id,p])=>`<option value="${escA(id)}">${esc(p.nome||id)}</option>`).join('');
-  const edCard=`<div style="margin:2px 0 10px"><span class="muted small" style="font-weight:600">Planejamento por pessoa</span> <span class="muted small">— atribua a pessoa aos projetos e ajuste o <strong>%</strong> de alocação; edite direto nos campos, <strong>salva sozinho</strong>.</span></div>
+  const jaNoBoard=new Set(modoB==='pessoa'?chaves:[]);
+  const pessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.filter(([id])=>!jaNoBoard.has(id)).map(([id,pp])=>`<option value="${escA(id)}">${esc(pp.nome||id)}</option>`).join('');
+  const tituloB = modoB==='pessoa'?'Planejamento por pessoa': modoB==='projeto'?'Planejamento por projeto': modoB==='tipo'?'Planejamento por tipo (Empresa)':'Planejamento por skill';
+  const dicaB = modoB==='pessoa'?'atribua a pessoa aos projetos e ajuste o <strong>%</strong> de alocação'
+    : modoB==='projeto'?'monte a <strong>equipe de cada projeto</strong> e ajuste o % de cada pessoa'
+    : modoB==='tipo'?'as alocações agrupadas por <strong>tipo</strong> (o tipo é editado na visão Por Pessoa/Por Projeto)'
+    : 'as alocações agrupadas pela <strong>skill principal</strong> de cada pessoa (cadastre as skills na visão Por Skill)';
+  const edCard=`<div style="margin:2px 0 10px"><span class="muted small" style="font-weight:600">${tituloB}</span> <span class="muted small">— ${dicaB}; edite direto nos campos, <strong>salva sozinho</strong>.</span></div>
       ${grupos||'<div class="muted small" style="margin-bottom:10px">Ninguém alocado ainda — comece adicionando uma pessoa abaixo.</div>'}
-      <div class="ab-pess"><select data-ab-pess="1">${pessOpt}</select></div>
+      ${modoB==='pessoa'?`<div class="ab-pess"><select data-ab-pess="1">${pessOpt}</select></div>`:''}
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
@@ -8080,6 +8106,10 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
     if(a){ a[p[0]]=t.value; alocPersiste(); } alocRedraw(); return; }
   if(t.matches('[data-ab-pct]')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-pct'));
     if(a){ const pct=Math.max(0,Number(t.value)||0); a.hSemana=Math.round(pct/100*alocSemNomH(a.accountId)*2)/2; alocPersiste(); } alocRedraw(); return; }
+  if(t.matches('[data-ab-addpessproj]')){ const k=t.getAttribute('data-ab-addpessproj'); const pid=t.value; if(!pid||!k) return;
+    const ini=semChave(hojeSP());
+    alocRows().push(Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) }));
+    alocPersiste(); alocRedraw(); return; }
   if(t.matches('[data-ab-addproj]')){ const pid=t.getAttribute('data-ab-addproj'); const k=t.value; if(!pid||!k) return;
     const ini=semChave(hojeSP());
     alocRows().push(Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) }));
