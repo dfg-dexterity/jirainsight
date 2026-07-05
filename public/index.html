@@ -1459,7 +1459,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{} }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -5783,8 +5783,17 @@ function alocTipoDe(x){ return (x&&x.projeto&&(cfg.projTipos||{})[x.projeto]) ||
 // Função da pessoa NAQUELA alocação (permite a mesma pessoa 2× no mesmo projeto com
 // funções diferentes); sem função explícita, vale a skill principal da pessoa.
 function alocFuncaoDe(x){ return (x&&x.funcao) || alocSkillPrim(x&&x.accountId); }
+// ---- Pessoas planejadas (ainda não contratadas): planeje a vaga antes de contratar ----
+function ppLista(){ if(!Array.isArray(cfg.pessoasPlanejadas)) cfg.pessoasPlanejadas=[]; return cfg.pessoasPlanejadas; }
+function ppDe(a){ return String(a||'').startsWith('plan_') ? ppLista().find(p=>p.id===a) : null; }
+function ppNova(){ return { id:'plan_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nome:'', skills:[], hSem:40, custoH:0, inicio:'', obs:'' }; }
+// Pessoas da ALOCAÇÃO = pessoas reais (Jira/Clockwork) + planejadas (🔮 no nome).
+// Só a Alocação usa isto — as demais telas continuam vendo apenas pessoas reais.
+function alocPessoas(){ const out=Object.assign({}, pessoasUnidas());
+  ppLista().forEach(p=>{ out[p.id]={ nome:(p.nome||'A contratar')+' 🔮' }; }); return out; }
 // Semana nominal (h) da pessoa = jornada de Metas × 5 dias — base da conversão % ↔ h/sem.
-function alocSemNomH(a){ return metaSegDe(a)/3600*5; }
+// Pessoa planejada usa a capacidade cadastrada na vaga.
+function alocSemNomH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.hSem)||40); return metaSegDe(a)/3600*5; }
 function alocPctDe(a, h){ const n=alocSemNomH(a); return n?Math.round((Number(h)||0)/n*100):0; }
 // Board por pessoa: toda alteração persiste na hora (config compartilhada), sem botão "salvar".
 function alocPersiste(){ cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); }
@@ -5798,7 +5807,13 @@ function alocSemanas(rows){
   while(out.length<6 && g<78){ out.push(somaDias(out[out.length-1],7)); g++; }
   return out; }
 // Capacidade (h) de uma pessoa numa semana: dias úteis (não feriado, não ausência) × jornada.
-function alocCapacSemana(a, w){ const jor=metaSegDe(a)/3600; let h=0;
+// Pessoa planejada: h/sem da vaga ÷ 5, e capacidade ZERO antes do início previsto.
+function alocCapacSemana(a, w){
+  const pp=ppDe(a);
+  if(pp){ const jor=Math.max(0,Number(pp.hSem)||40)/5; let h=0;
+    for(let i=0;i<7;i++){ const d=somaDias(w,i); if(!ehUtil(d)||ehFeriado(d)) continue;
+      if(pp.inicio && d<pp.inicio) continue; h+=jor; } return h; }
+  const jor=metaSegDe(a)/3600; let h=0;
   for(let i=0;i<7;i++){ const d=somaDias(w,i); if(ehUtil(d)&&!ehFeriado(d)&&!ehAusencia(a,d)) h+=jor; } return h; }
 // Alocado (h/semana) de uma pessoa numa semana = soma das alocações ativas naquela semana.
 function alocAlocadoSemana(rows, a, w){ const wi=w, wf=somaDias(w,6); let h=0;
@@ -5882,9 +5897,13 @@ function alocViewEmpresa(rows, pess){
       <tr class="pl-tot"><td>Não faturável <span class="muted" style="font-weight:400">(pré-venda + interno + treino)</span></td><td class="num">${alocH(nfat)}</td><td class="num">${alTot?Math.round(nfat/alTot*100):0}%</td></tr></tfoot></table></div>`;
 }
 // ---- Fase D: Skills/competências + filtros ----
-function alocSkills(a){ const s=(cfg.skills||{})[a]; return Array.isArray(s)?s.filter(Boolean):(s?String(s).split(',').map(x=>x.trim()).filter(Boolean):[]); }
+function alocSkills(a){ const pp=ppDe(a); if(pp) return Array.isArray(pp.skills)?pp.skills.filter(Boolean):[];
+  const s=(cfg.skills||{})[a]; return Array.isArray(s)?s.filter(Boolean):(s?String(s).split(',').map(x=>x.trim()).filter(Boolean):[]); }
+// Grava as skills no lugar certo (cfg.skills para pessoa real; a própria vaga para planejada).
+function alocSkillsSet(a, arr){ const pp=ppDe(a); if(pp){ pp.skills=arr; } else { cfg.skills=cfg.skills||{}; cfg.skills[a]=arr; } salvaCfg(); }
 function alocSkillPrim(a){ const s=alocSkills(a); return s[0]||'Sem skill'; }
-function alocSkillsTodas(){ const set=new Set(); Object.keys(cfg.skills||{}).forEach(a=>alocSkills(a).forEach(s=>set.add(s))); return [...set].sort(); }
+function alocSkillsTodas(){ const set=new Set(); Object.keys(cfg.skills||{}).forEach(a=>alocSkills(a).forEach(s=>set.add(s)));
+  ppLista().forEach(p=>(p.skills||[]).forEach(s=>{ if(s) set.add(s); })); return [...set].sort(); }
 function alocFiltraRows(rows){ const f=estado.alocacao; let r=rows;
   if(f.fProj) r=r.filter(a=>a.projeto===f.fProj);
   if(f.fSkill) r=r.filter(a=>a.funcao===f.fSkill || alocSkills(a.accountId).includes(f.fSkill));
@@ -5910,6 +5929,25 @@ function alocViewSkill(rows, pess){
     <div class="muted small" style="font-weight:600;margin:16px 0 4px">Skills por pessoa <span class="muted" style="font-weight:400">(quantas quiser — digite e dê Enter; a <strong>1ª é a principal</strong>, use ★ para promover · salva sozinho)</span></div>
     ${datalist}
     <div class="pl-wrap"><table class="pl-tab"><thead><tr><th style="width:220px">Pessoa</th><th>Skills</th></tr></thead><tbody>${skEd||'<tr><td colspan="2" class="muted small">Adicione alocações para listar as pessoas.</td></tr>'}</tbody></table></div>`;
+}
+// ---- A contratar: cadastro de pessoas planejadas (vagas) para planejar antes de contratar ----
+function alocViewACont(rows){
+  const pps=ppLista();
+  const linhas=pps.map(p=>{
+    const nAl=rows.filter(a=>a.accountId===p.id).length;
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:6px">🔮<input type="text" data-pp-f="nome|${escA(p.id)}" value="${escA(p.nome||'')}" placeholder="ex.: Consultor SAP Sr. (vaga)"></span></td>
+      <td><input type="text" data-pp-f="skills|${escA(p.id)}" value="${escA((p.skills||[]).join(', '))}" placeholder="skills por vírgula (1ª = principal)"></td>
+      <td class="num"><input type="number" data-pp-f="hSem|${escA(p.id)}" value="${escA(String(p.hSem!=null?p.hSem:40))}" min="0" step="4" style="max-width:76px"> h/sem</td>
+      <td class="num"><input type="number" data-pp-f="custoH|${escA(p.id)}" value="${escA(p.custoH?String(p.custoH):'')}" min="0" step="10" style="max-width:96px" placeholder="R$/h" data-tip="Custo/hora previsto — usado nos relatórios de custo"></td>
+      <td><input type="date" data-pp-f="inicio|${escA(p.id)}" value="${escA(p.inicio||'')}" data-tip="Início previsto — antes desta data a capacidade da vaga é ZERO"></td>
+      <td class="num">${nAl}</td>
+      <td><button class="ab-x" data-pp-del="${escA(p.id)}" title="Remover a vaga (remove também as alocações dela)">×</button></td></tr>`;
+  }).join('');
+  return `<div class="muted small" style="margin:6px 0 10px">Planeje com pessoas que você <strong>ainda não contratou</strong>: cadastre a vaga e ela entra no <strong>board</strong>, na <strong>Linha do tempo</strong>, na análise <strong>Por Skill</strong> e na <strong>Simulação</strong> como uma pessoa normal, marcada com <strong>🔮</strong>. A capacidade usa as <strong>h/sem</strong> da vaga e é <strong>zero antes do início previsto</strong>. Contratou? Troque a pessoa nas alocações e remova a vaga. Tudo <strong>salva sozinho</strong> (config do time).</div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th style="min-width:220px">Nome / vaga</th><th style="min-width:220px">Skills</th><th class="num">Capacidade</th><th class="num">Custo previsto</th><th>Início previsto</th><th class="num">Alocações</th><th></th></tr></thead>
+    <tbody>${linhas||'<tr><td colspan="7" class="muted small">Nenhuma vaga planejada ainda — adicione abaixo e depois aloque a vaga aos projetos no board.</td></tr>'}</tbody></table></div>
+    <div style="margin-top:10px"><button class="btn primario" data-pp-add="1">+ adicionar pessoa planejada</button></div>`;
 }
 // ---- Projetos: o TIPO/categoria é definido por projeto (e herdado pelas alocações) ----
 function alocViewProjetos(rows){
@@ -6106,7 +6144,7 @@ function renderAlocacao(){
   // Guarda a rolagem horizontal do Gantt para restaurar após o re-render (arrastar/zoom não "pulam").
   const _gtPrev=cont.querySelector('.gt-scroll'); const _gtSL=_gtPrev?_gtPrev.scrollLeft:null;
   const rows=alocRows(); const rv=alocFiltraRows(rows); const gran=estado.alocacao.gran||'semana';
-  const pess=pessoasUnidas();
+  const pess=alocPessoas();   // pessoas reais + planejadas (🔮), só nesta tela
   const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
   const pordPess=Object.entries(pess).filter(([a,p])=>!RE_EXCLUIR.test((p&&p.nome)||'')).sort((x,y)=>((x[1].nome||'')).localeCompare(y[1].nome||'','pt'));
   const M=alocMatriz(rv, gran);
@@ -6220,7 +6258,7 @@ function renderAlocacao(){
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
-  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',simulacao:'Cenários "e se…" e busca de disponibilidade'};
+  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',acontratar:'Cadastre vagas (pessoas ainda não contratadas) para planejar com elas 🔮',simulacao:'Cenários "e se…" e busca de disponibilidade'};
   const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}" title="${escA(V_DESC[v]||'')}">${l}</button>`;
   const fSkill=estado.alocacao.fSkill||'', fProj=estado.alocacao.fProj||'';
   const projetosAloc=[...new Set(rows.map(a=>a.projeto).filter(Boolean))].sort();
@@ -6232,9 +6270,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('simulacao','Simulação')}</div>
-      <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos')?'':filtros}</div>
-      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('acontratar','A contratar 🔮')} ${vBtn('simulacao','Simulação')}</div>
+      <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos'||visao==='acontratar')?'':filtros}</div>
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='acontratar'?alocViewACont(rows):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">${edCard}</div></div>`));
   // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
@@ -7365,7 +7403,7 @@ function abreAjuda(){
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
-      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill e <b>simulação "e se…"</b>.</li>
+      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b> e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
       <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
@@ -8342,7 +8380,16 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-pp-add')){ ppLista().push(ppNova()); salvaCfg(); renderAlocacao();
+    setTimeout(()=>{ const ins=document.querySelectorAll('[data-pp-f^="nome|"]'); const ult=ins[ins.length-1]; if(ult) ult.focus(); },40);
+    return; }
+  if(t.hasAttribute('data-pp-del')){ const id=t.getAttribute('data-pp-del');
+    const nAl=alocRows().filter(a=>a.accountId===id).length;
+    estado.alocacao.rows=alocRows().filter(a=>a.accountId!==id);
+    cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows));
+    cfg.pessoasPlanejadas=ppLista().filter(p=>p.id!==id);
+    salvaCfg(); toast(nAl?`Vaga removida junto com ${nAl} alocação(ões).`:'Vaga removida.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
     if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-cpd')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-cpd'));
@@ -8353,9 +8400,9 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
         try{ if(document.execCommand('copy')) done(); }catch(__){} ta.remove(); } }
     return; }
   if(t.hasAttribute('data-al-skdel')){ const v=t.getAttribute('data-al-skdel'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
-    cfg.skills=cfg.skills||{}; cfg.skills[a]=alocSkills(a).filter(x=>x!==s); salvaCfg(); renderAlocacao(); return; }
+    alocSkillsSet(a, alocSkills(a).filter(x=>x!==s)); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-skprim')){ const v=t.getAttribute('data-al-skprim'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
-    cfg.skills=cfg.skills||{}; cfg.skills[a]=[s, ...alocSkills(a).filter(x=>x!==s)]; salvaCfg(); renderAlocacao(); return; }
+    alocSkillsSet(a, [s, ...alocSkills(a).filter(x=>x!==s)]); renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
     const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
     const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
@@ -8381,8 +8428,8 @@ document.getElementById('conteudo').addEventListener('keydown', (e)=>{
   e.preventDefault();
   const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
   if(!a||!s) return;
-  cfg.skills=cfg.skills||{}; const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
-  cfg.skills[a]=cur; salvaCfg(); t.value=''; alocRedraw();
+  const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+  alocSkillsSet(a, cur); t.value=''; alocRedraw();
   setTimeout(()=>{ const nb=[...document.querySelectorAll('.al-skadd')].find(x=>x.getAttribute('data-al-skadd')===a); if(nb) nb.focus(); },40);
 });
 // Re-render ADIADO (fora do dispatch do change): trocar o DOM no meio do evento —
@@ -8396,9 +8443,14 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
   if(t.matches('[data-al-ptipo]')){ const k=t.getAttribute('data-al-ptipo'); cfg.projTipos=cfg.projTipos||{};
     if(t.value) cfg.projTipos[k]=t.value; else delete cfg.projTipos[k];
     salvaCfg(); alocRedraw(); return; }
+  if(t.matches('[data-pp-f]')){ const p=t.getAttribute('data-pp-f').split('|'); const pp=ppLista().find(x=>x.id===p[1]);
+    if(pp){ if(p[0]==='skills') pp.skills=t.value.split(',').map(x=>x.trim()).filter(Boolean);
+      else if(p[0]==='hSem'||p[0]==='custoH') pp[p[0]]=Math.max(0,Number(t.value)||0);
+      else pp[p[0]]=t.value;
+      salvaCfg(); } alocRedraw(); return; }
   if(t.matches('.al-skadd')){ const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
-    if(a&&s){ cfg.skills=cfg.skills||{}; const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
-      cfg.skills[a]=cur; salvaCfg(); t.value=''; alocRedraw(); } return; }
+    if(a&&s){ const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+      alocSkillsSet(a, cur); t.value=''; alocRedraw(); } return; }
   if(t.matches('[data-sim-f]')){ simSync(); alocRedraw(); return; }
   if(t.matches('[data-find-f]')){ simFindSync(); alocRedraw(); return; }
   // Board por pessoa: campos referenciam a alocação por ID (um "change" tardio do DOM
