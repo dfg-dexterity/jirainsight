@@ -6088,7 +6088,7 @@ function alocViewGantt(rows, pess){
       return `<div class="gt-hb ${cls}" style="left:${off*D}px;width:${wpx}px" data-tip="${escA(nm(a))} · ${esc(fmtBR(w))}: ${alocH(al)} de ${alocH(cap)} (${u}%)"></div>`; }).join('');
     const bars=als.map(it=>{ const x=it.x; const left=it.s*D, w=(it.e-it.s+1)*D, top=padT+it.row*(barH+gap); const ci=gtCor(x.projeto);
       const nf=!ALOC_FAT.has(alocTipoDe(x)); const idx=full.indexOf(x);
-      const tip=`${x.projeto||'—'} · ${nm(a)}${x.funcao?` · ${x.funcao}`:''}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
+      const tip=`${x.projeto||'—'} · ${nm(a)}${x.funcao?` · ${x.funcao}`:''}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem\nClique para ver os detalhes do projeto`;
       return `<div class="gt-bar gtc${ci}${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-dup" data-gt-dup="${escA(x.id)}" title="Duplicar esta alocação">⧉</span><span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
     // Coluna fixa: nome + horas alocadas × capacidade da SEMANA ATUAL (sempre visível).
     const wAtu=semChave(hojeSP()); const alAtu=alocAlocadoSemana(rows,a,wAtu); const capAtu=alocCapacSemana(a,wAtu);
@@ -8382,6 +8382,9 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='pl-tpl-conf'){ confirmaSalvarTemplatePl(); }
   else if(t.id==='pl-tpl-cancel'){ fechaModal(); }
+  else if(t.id==='gtinfo-fechar'){ fechaModal(); }
+  else if(t.hasAttribute('data-gtinfo-filtrar')){ estado.alocacao.fProj=t.getAttribute('data-gtinfo-filtrar');
+    fechaModal(); if(estado.vista==='alocacao') renderAlocacao(); }
 });
 // ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
@@ -8593,8 +8596,55 @@ document.addEventListener('pointerup', (e)=>{ const g=_gtDrag; if(!g) return; _g
     if(a){ const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); a.inicio=nx.ini; a.fim=nx.fim;
       alocPersiste(); toast('✓ Alocação atualizada e salva.','ok'); }
     renderAlocacao();
-  } else { g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent=''; }
+  } else {
+    g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent='';
+    // Clique sem arrastar: abre os detalhes do projeto daquela barra.
+    if(!g.moved){ const a=alocRows()[g.idx]; if(a) abreGtInfo(a); }
+  }
 });
+// Painel ao CLICAR numa barra do Gantt: o projeto (nome, tipo herdado), a alocação
+// clicada e o resumo do projeto no plano (equipe, horas e custo previsto).
+function abreGtInfo(al){
+  const pess=alocPessoas(); const nm=(id)=>(pess[id]&&pess[id].nome)||id;
+  const k=al.projeto||'—';
+  const pj=(_projetosCache||[]).find(p=>p.key===k);
+  const tipo=alocTipoDe(al); const tipoL=((ALOC_TIPOS.find(([t])=>t===tipo))||[tipo,tipo])[1];
+  const rows=alocRows().filter(x=>x.projeto===k && /^\d{4}-\d{2}-\d{2}$/.test(x.inicio) && /^\d{4}-\d{2}-\d{2}$/.test(x.fim));
+  const per=alocPeriodo(rows);
+  const semanas=rows.length?alocSemanas(rows).filter(w=>!per.fim||w<=semChave(per.fim)):[];
+  let plan=0, custo=0, semCusto=false;
+  semanas.forEach(w=>{ const wf=somaDias(w,6); rows.forEach(x=>{ if(x.inicio<=wf&&x.fim>=w){
+    const h=Number(x.hSemana)||0; plan+=h; const c=alocCustoH(x.accountId);
+    if(c>0) custo+=h*c; else if(x.accountId) semCusto=true; } }); });
+  const equipe=rows.slice().sort((x,y)=>nm(x.accountId).localeCompare(nm(y.accountId),'pt')).map(x=>`
+    <tr${x.id===al.id?' style="font-weight:700"':''}><td>${esc(nm(x.accountId))}${x.id===al.id?' ◄':''}</td><td>${esc(x.funcao||'—')}</td>
+      <td>${esc(fmtBR(x.inicio))} – ${esc(fmtBR(x.fim))}</td>
+      <td class="num">${alocH(Number(x.hSemana)||0)}/sem · ${alocPctDe(x.accountId,x.hSemana)}%</td></tr>`).join('');
+  let url=''; try{ url=`${jiraBase()}/projects/${encodeURIComponent(k)}`; }catch(_){}
+  abreModal(`
+    <h2><i class="gt-dot gtc${gtCor(k)}"></i> ${esc(k)}${pj&&pj.nome?(' — '+esc(pj.nome)):''} <span>projeto na alocação</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 4px">
+      <span class="ab-tdot t-${escA(tipo)}"></span><strong>${esc(tipoL)}</strong>
+      <span class="muted small">(tipo do projeto — aba Projetos)</span>
+      ${url&&k!=='—'?`<span class="spacer"></span><a href="${escA(url)}" target="_blank" rel="noopener">abrir no Jira ↗</a>`:''}
+    </div>
+    <div class="pl-destino" style="margin:10px 0"><strong>Alocação clicada:</strong>
+      ${esc(nm(al.accountId))}${al.funcao?` · ${esc(al.funcao)}`:''} ·
+      ${esc(fmtBR(al.inicio))} – ${esc(fmtBR(al.fim))} · <strong>${alocH(Number(al.hSemana)||0)}/sem</strong>
+      <span class="muted">(${alocPctDe(al.accountId,al.hSemana)}% da capacidade da pessoa)</span></div>
+    <div class="muted small" style="font-weight:600;margin:12px 0 4px">Equipe do projeto
+      <span class="muted" style="font-weight:400">(${rows.length} alocação(ões)${per.ini?` · ${esc(fmtBR(per.ini))} – ${esc(fmtBR(per.fim))}`:''})</span></div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th>Função</th><th>Período</th><th class="num">Alocação</th></tr></thead>
+      <tbody>${equipe||'<tr><td colspan="4" class="muted small">—</td></tr>'}</tbody></table></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+      <span><strong>${alocH(plan)}</strong> <span class="muted small">planejadas no horizonte do projeto</span></span>
+      ${custo>0?`<span><strong>R$ ${Math.round(custo).toLocaleString('pt-BR')}</strong> <span class="muted small">custo previsto${semCusto?' (parcial — há gente sem custo/h)':''}</span></span>`:''}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn primario" data-gtinfo-filtrar="${escA(k)}">🔎 Filtrar este projeto na tela</button>
+      <button class="btn" id="gtinfo-fechar">Fechar</button>
+    </div>`);
+}
 // ---- Administração: cadastro de contratos ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
