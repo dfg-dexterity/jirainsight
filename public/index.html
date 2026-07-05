@@ -1459,7 +1459,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{} }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -5791,6 +5791,10 @@ function ppNova(){ return { id:'plan_'+Date.now().toString(36)+Math.random().toS
 // Só a Alocação usa isto — as demais telas continuam vendo apenas pessoas reais.
 function alocPessoas(){ const out=Object.assign({}, pessoasUnidas());
   ppLista().forEach(p=>{ out[p.id]={ nome:(p.nome||'A contratar')+' 🔮' }; }); return out; }
+// Custo/hora da pessoa: vaga usa o custo previsto do cadastro; pessoa real usa
+// cfg.custosPessoa (manual ou importado do Odoo). 0 = sem custo cadastrado.
+function alocCustoH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.custoH)||0);
+  return Math.max(0,Number((cfg.custosPessoa||{})[a])||0); }
 // Semana nominal (h) da pessoa = jornada de Metas × 5 dias — base da conversão % ↔ h/sem.
 // Pessoa planejada usa a capacidade cadastrada na vaga.
 function alocSemNomH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.hSem)||40); return metaSegDe(a)/3600*5; }
@@ -5929,6 +5933,66 @@ function alocViewSkill(rows, pess){
     <div class="muted small" style="font-weight:600;margin:16px 0 4px">Skills por pessoa <span class="muted" style="font-weight:400">(quantas quiser — digite e dê Enter; a <strong>1ª é a principal</strong>, use ★ para promover · salva sozinho)</span></div>
     ${datalist}
     <div class="pl-wrap"><table class="pl-tab"><thead><tr><th style="width:220px">Pessoa</th><th>Skills</th></tr></thead><tbody>${skEd||'<tr><td colspan="2" class="muted small">Adicione alocações para listar as pessoas.</td></tr>'}</tbody></table></div>`;
+}
+// ---- Relatórios de alocação: horas (e custo) por pessoa/projeto/tipo/função, mês a mês ----
+// A hora é atribuída ao MÊS da segunda-feira da semana (consistente com o resto da tela).
+function alocRelDados(rows, pess){
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const R=estado.alocacao.rel=estado.alocacao.rel||{};
+  const per=alocPeriodo(rows);
+  if(!R.ini) R.ini=per.ini||semChave(hojeSP());
+  if(!R.fim||R.fim<R.ini) R.fim=per.fim&&per.fim>R.ini?per.fim:somaDias(R.ini,7*12);
+  const grupo=R.grupo||'pessoa';
+  const wks=[]; { let w=semChave(R.ini); const wf=semChave(R.fim); let g=0; while(w<=wf&&g<160){ wks.push(w); w=somaDias(w,7); g++; } }
+  const meses=[...new Set(wks.map(w=>w.slice(0,7)))];
+  const chave=(a)=> grupo==='projeto'?(a.projeto||'—') : grupo==='tipo'?alocTipoDe(a) : grupo==='skill'?alocFuncaoDe(a) : (a.accountId||'—');
+  const rotulo=(k)=> grupo==='tipo'?(((ALOC_TIPOS.find(([t])=>t===k))||[k,k])[1]) : grupo==='pessoa'?nm(k) : (k||'—');
+  const dados={}; let totH=0, totC=0; const semCusto=new Set(); const mesTot={};
+  wks.forEach(w=>{ const wf=somaDias(w,6); const ym=w.slice(0,7);
+    rows.forEach(a=>{ if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return;
+      if(a.inicio>wf||a.fim<w) return;
+      const h=Number(a.hSemana)||0; if(!h) return;
+      const k=chave(a); const d=dados[k]=dados[k]||{h:0,c:0,meses:{}};
+      d.h+=h; d.meses[ym]=(d.meses[ym]||0)+h; totH+=h; mesTot[ym]=(mesTot[ym]||0)+h;
+      const cH=alocCustoH(a.accountId);
+      if(cH>0){ d.c+=h*cH; totC+=h*cH; } else if(a.accountId) semCusto.add(a.accountId);
+    }); });
+  const linhas=Object.keys(dados).sort((x,y)=>dados[y].h-dados[x].h)
+    .map(k=>({ k, rot:rotulo(k), h:dados[k].h, c:dados[k].c, meses:dados[k].meses }));
+  return { R, grupo, meses, mesTot, linhas, totH, totC, semCusto:[...semCusto].map(nm) };
+}
+function alocViewRelatorios(rows, pess){
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const D=alocRelDados(rows, pess);
+  const fmtR=(v)=> v?('R$ '+Math.round(v).toLocaleString('pt-BR')):'—';
+  const gruposSel=[['pessoa','Por pessoa'],['projeto','Por projeto'],['tipo','Por tipo'],['skill','Por função/skill']];
+  const controles=`<div class="ap-filtros" style="margin:6px 0 12px">
+      <div class="campo"><label>Agrupar</label><select data-al-relg>${gruposSel.map(([v,l])=>`<option value="${v}" ${D.grupo===v?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="campo"><label>De</label><input type="date" data-al-relini value="${escA(D.R.ini)}"></div>
+      <div class="campo"><label>Até</label><input type="date" data-al-relfim value="${escA(D.R.fim)}"></div>
+      <div class="campo"><label>&nbsp;</label><button class="btn" data-al-relcsv="1">⬇ Exportar CSV</button></div>
+      <div class="campo"><label>&nbsp;</label><button class="btn" data-al-odoo="1" data-tip="Busca o custo/h dos funcionários no Odoo (hr.employee) e grava na config do time — requer ODOO_URL/DB/LOGIN/API_KEY na Vercel">↻ Importar custos do Odoo</button></div>
+    </div>`;
+  const thM=D.meses.map(m=>`<th class="num">${esc(labelMesAbbr(m))}</th>`).join('');
+  const linhas=D.linhas.map(l=>`<tr><td>${esc(l.rot)}</td>${D.meses.map(m=>`<td class="num">${l.meses[m]?alocH(l.meses[m]):'·'}</td>`).join('')}
+      <td class="num"><strong>${alocH(l.h)}</strong></td><td class="num">${D.totH?Math.round(l.h/D.totH*100)+'%':'—'}</td><td class="num">${fmtR(l.c)}</td></tr>`).join('');
+  const tot=`<tr class="pl-tot"><td>Total</td>${D.meses.map(m=>`<td class="num">${D.mesTot[m]?alocH(D.mesTot[m]):'·'}</td>`).join('')}
+      <td class="num">${alocH(D.totH)}</td><td class="num">${D.totH?'100%':'—'}</td><td class="num">${fmtR(D.totC)}</td></tr>`;
+  const avisoCusto=D.semCusto.length?`<div class="aviso" style="margin-top:10px">⚠ ${D.semCusto.length} pessoa(s) alocada(s) <strong>sem custo/h cadastrado</strong> (${esc(D.semCusto.slice(0,4).join(', '))}${D.semCusto.length>4?'…':''}) — o custo total está <strong>subestimado</strong>. Cadastre abaixo ou importe do Odoo.</div>`:'';
+  // Editor de custo/h por pessoa (vagas editam na aba A contratar)
+  const pessoasAloc=[...new Set(rows.map(a=>a.accountId).filter(Boolean))].sort((a,b)=>nm(a).localeCompare(nm(b),'pt'));
+  const custosEd=pessoasAloc.map(a=>{ const pp=ppDe(a);
+    return `<tr><td>${esc(nm(a))}</td><td class="num">${pp
+      ?`<span class="muted small" data-tip="Vaga — edite o custo previsto na aba A contratar">${pp.custoH?('R$ '+pp.custoH+'/h'):'—'} (vaga)</span>`
+      :`<input type="number" data-al-custo="${escA(a)}" value="${escA((cfg.custosPessoa||{})[a]?String(cfg.custosPessoa[a]):'')}" min="0" step="10" placeholder="R$/h" style="max-width:110px">`}</td></tr>`; }).join('');
+  return `<div class="muted small" style="margin:6px 0 4px">Horas <strong>planejadas</strong> (e custo previsto) no período, mês a mês — use os filtros de skill/projeto acima para recortar. O custo usa o <strong>R$/h de cada pessoa</strong> (manual ou do Odoo) e o custo previsto das vagas 🔮.</div>
+    ${controles}
+    ${D.linhas.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>${esc((gruposSel.find(([v])=>v===D.grupo)||[])[1]||'Grupo')}</th>${thM}<th class="num">Total h</th><th class="num">%</th><th class="num">Custo</th></tr></thead>
+      <tbody>${linhas}</tbody><tfoot>${tot}</tfoot></table></div>`
+      :'<div class="muted small">Nenhuma alocação no período escolhido.</div>'}
+    ${avisoCusto}
+    <div class="muted small" style="font-weight:600;margin:16px 0 4px">💰 Custo/h por pessoa <span class="muted" style="font-weight:400">(salvo na config do time · usado só nos relatórios)</span></div>
+    <div class="pl-wrap"><table class="pl-tab" style="max-width:520px"><thead><tr><th>Pessoa</th><th class="num">Custo (R$/h)</th></tr></thead><tbody>${custosEd||'<tr><td colspan="2" class="muted small">Sem pessoas alocadas no período.</td></tr>'}</tbody></table></div>`;
 }
 // ---- A contratar: cadastro de pessoas planejadas (vagas) para planejar antes de contratar ----
 function alocViewACont(rows){
@@ -6258,7 +6322,7 @@ function renderAlocacao(){
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
-  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',acontratar:'Cadastre vagas (pessoas ainda não contratadas) para planejar com elas 🔮',simulacao:'Cenários "e se…" e busca de disponibilidade'};
+  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',acontratar:'Cadastre vagas (pessoas ainda não contratadas) para planejar com elas 🔮',relatorios:'Horas e custo planejados por pessoa/projeto/tipo/função, mês a mês, com CSV',simulacao:'Cenários "e se…" e busca de disponibilidade'};
   const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}" title="${escA(V_DESC[v]||'')}">${l}</button>`;
   const fSkill=estado.alocacao.fSkill||'', fProj=estado.alocacao.fProj||'';
   const projetosAloc=[...new Set(rows.map(a=>a.projeto).filter(Boolean))].sort();
@@ -6270,9 +6334,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('acontratar','A contratar 🔮')} ${vBtn('simulacao','Simulação')}</div>
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('acontratar','A contratar 🔮')} ${vBtn('relatorios','📊 Relatórios')} ${vBtn('simulacao','Simulação')}</div>
       <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos'||visao==='acontratar')?'':filtros}</div>
-      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='acontratar'?alocViewACont(rows):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='acontratar'?alocViewACont(rows):visao==='relatorios'?alocViewRelatorios(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">${edCard}</div></div>`));
   // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
@@ -7403,7 +7467,7 @@ function abreAjuda(){
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
-      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b> e <b>simulação "e se…"</b>.</li>
+      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas e custo por pessoa/projeto/tipo/função, mês a mês, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
       <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
@@ -8380,7 +8444,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-odoo],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-pp-add')){ ppLista().push(ppNova()); salvaCfg(); renderAlocacao();
     setTimeout(()=>{ const ins=document.querySelectorAll('[data-pp-f^="nome|"]'); const ult=ins[ins.length-1]; if(ult) ult.focus(); },40);
     return; }
@@ -8403,6 +8467,35 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     alocSkillsSet(a, alocSkills(a).filter(x=>x!==s)); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-skprim')){ const v=t.getAttribute('data-al-skprim'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
     alocSkillsSet(a, [s, ...alocSkills(a).filter(x=>x!==s)]); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-relcsv')){
+    const pess=alocPessoas(); const D=alocRelDados(alocFiltraRows(alocRows()), pess);
+    const gl={pessoa:'Pessoa',projeto:'Projeto',tipo:'Tipo',skill:'Função/Skill'}[D.grupo]||'Grupo';
+    const head=[gl, ...D.meses.map(labelMesAbbr), 'Total h', '%', 'Custo R$'];
+    const rowsCsv=D.linhas.map(l=>[l.rot, ...D.meses.map(m=>l.meses[m]?Math.round(l.meses[m]*10)/10:''),
+      Math.round(l.h*10)/10, D.totH?Math.round(l.h/D.totH*100)+'%':'', l.c?Math.round(l.c):'']);
+    rowsCsv.push(['Total', ...D.meses.map(m=>D.mesTot[m]?Math.round(D.mesTot[m]*10)/10:''), Math.round(D.totH*10)/10, D.totH?'100%':'', D.totC?Math.round(D.totC):'']);
+    baixaCSV('relatorio_alocacao.csv',[head,...rowsCsv]);
+    return; }
+  if(t.hasAttribute('data-al-odoo')){
+    t.disabled=true; t.textContent='Importando…';
+    fetch('/api/usuarios?custos=1').then(r=>r.json()).then(j=>{
+      if(!j || j.configurado===false || j.erro){ toast((j&&j.erro)||'Odoo não configurado.','warn'); renderAlocacao(); return; }
+      const porEmail={}, porNome={};
+      (j.custos||[]).forEach(c=>{ if(c.custo>0){ if(c.email) porEmail[c.email]=c.custo; if(c.nome) porNome[c.nome.trim().toLowerCase()]=c.custo; } });
+      let ok=0; const sem=[];
+      cfg.custosPessoa=cfg.custosPessoa||{};
+      Object.entries(pessoasUnidas()).forEach(([a,p])=>{
+        if(RE_EXCLUIR.test((p&&p.nome)||'')) return;
+        const em=((p&&p.email)||'').toLowerCase(); const nomeN=((p&&p.nome)||'').trim().toLowerCase();
+        const c=(em&&porEmail[em]!=null)?porEmail[em]:(porNome[nomeN]!=null?porNome[nomeN]:null);
+        if(c!=null){ cfg.custosPessoa[a]=c; ok++; } else sem.push((p&&p.nome)||a);
+      });
+      if(ok) salvaCfg();
+      toast(ok?`✓ ${ok} custo(s) importado(s) do Odoo (campo ${j.campo||'hourly_cost'})${sem.length?` · sem correspondência: ${sem.slice(0,3).join(', ')}${sem.length>3?'…':''}`:''}`
+        :'Nenhum funcionário do Odoo casou com as pessoas do Jira (por e-mail/nome).', ok?'ok':'warn');
+      renderAlocacao();
+    }).catch(e=>{ toast('Erro ao consultar o Odoo: '+(e.message||e),'err'); renderAlocacao(); });
+    return; }
   if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
     const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
     const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
@@ -8448,6 +8541,12 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
       else if(p[0]==='hSem'||p[0]==='custoH') pp[p[0]]=Math.max(0,Number(t.value)||0);
       else pp[p[0]]=t.value;
       salvaCfg(); } alocRedraw(); return; }
+  if(t.matches('[data-al-relg]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).grupo=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-relini]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).ini=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-relfim]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).fim=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-custo]')){ const a=t.getAttribute('data-al-custo'); cfg.custosPessoa=cfg.custosPessoa||{};
+    const v=Math.max(0,Number(t.value)||0); if(v) cfg.custosPessoa[a]=v; else delete cfg.custosPessoa[a];
+    salvaCfg(); alocRedraw(); return; }
   if(t.matches('.al-skadd')){ const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
     if(a&&s){ const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
       alocSkillsSet(a, cur); t.value=''; alocRedraw(); } return; }
