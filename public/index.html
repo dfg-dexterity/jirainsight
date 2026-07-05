@@ -796,6 +796,22 @@
   .gt-bar:hover{box-shadow:0 2px 7px rgba(0,0,0,.22)}
   .gt-bar.dragging{cursor:grabbing;opacity:.9;z-index:9;box-shadow:0 4px 12px rgba(0,0,0,.28)}
   .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0 5px,transparent 5px 10px)}
+  [data-theme="dark"] .gt-bar.nf{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 5px,transparent 5px 10px)}
+  /* Paleta do Gantt/board por CLASSE, com variante clara e escura (estilos inline não trocam de tema). */
+  .gtc0{--gtb:#DBEAFE;--gtt:#1D4ED8} .gtc1{--gtb:#DCFCE7;--gtt:#15803D} .gtc2{--gtb:#FEF9C3;--gtt:#A16207}
+  .gtc3{--gtb:#FCE7F3;--gtt:#BE185D} .gtc4{--gtb:#E0E7FF;--gtt:#4338CA} .gtc5{--gtb:#FFE4E6;--gtt:#BE123C}
+  .gtc6{--gtb:#CCFBF1;--gtt:#0F766E} .gtc7{--gtb:#FFEDD5;--gtt:#C2410C} .gtc8{--gtb:#EDE9FE;--gtt:#6D28D9}
+  .gtc9{--gtb:#E0F2FE;--gtt:#0369A1}
+  [data-theme="dark"] .gtc0{--gtb:#1C3560;--gtt:#8FBEF7} [data-theme="dark"] .gtc1{--gtb:#173B2C;--gtt:#7FD9A2}
+  [data-theme="dark"] .gtc2{--gtb:#3A3113;--gtt:#E5C567} [data-theme="dark"] .gtc3{--gtb:#3D1B2E;--gtt:#F3A8CB}
+  [data-theme="dark"] .gtc4{--gtb:#272A55;--gtt:#A9B4F8} [data-theme="dark"] .gtc5{--gtb:#3F1D26;--gtt:#F5A2B1}
+  [data-theme="dark"] .gtc6{--gtb:#123833;--gtt:#79D9CB} [data-theme="dark"] .gtc7{--gtb:#3D2717;--gtt:#F0A470}
+  [data-theme="dark"] .gtc8{--gtb:#2C2350;--gtt:#C4B0F5} [data-theme="dark"] .gtc9{--gtb:#143043;--gtt:#7CC6EF}
+  .gt-bar[class*="gtc"]{background-color:var(--gtb);border-left-color:var(--gtt);color:var(--gtt)}
+  [data-theme="dark"] .gt-bar[class*="gtc"]{box-shadow:0 1px 2px rgba(0,0,0,.4)}
+  i.gt-dot[class*="gtc"]{background:var(--gtt)}
+  .ab-head[class*="gtc"]{border-left-color:var(--gtt)} .ab-head[class*="gtc"] .ab-av{background:var(--gtt)}
+  [data-theme="dark"] .ab-head[class*="gtc"] .ab-av{color:#10202F}
   .gt-h{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;z-index:3}
   .gt-h.l{left:0} .gt-h.r{right:0}
   .gt-dup{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:4;display:none;cursor:pointer;
@@ -812,10 +828,22 @@
   .ab-av{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 26px}
   .ab-nome{font-weight:700;font-size:13.5px}
   .ab-res{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
+  .ab-row{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 96px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--linha2)}
   .ab-row:hover{background:var(--hoverbg)}
-  .ab-cols{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 62px;gap:8px;padding:7px 12px 3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;border-top:1px solid var(--linha2)}
-  .ab-acts{display:inline-flex;gap:2px;justify-content:flex-end}
+  .ab-cols{display:grid;grid-template-columns:minmax(170px,1.5fr) 132px 138px 138px 168px 96px;gap:8px;padding:7px 12px 3px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700;border-top:1px solid var(--linha2)}
+  .ab-acts{display:inline-flex;gap:2px;justify-content:flex-end;align-items:center}
+  /* Bolinha do TIPO (definido por projeto na aba Projetos) em cada linha do board */
+  .ab-tdot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 11px;margin-right:2px}
+  .ab-tdot.t-faturavel{background:#188918} .ab-tdot.t-fechado{background:#0F766E} .ab-tdot.t-ams{background:#0070F2}
+  .ab-tdot.t-prevenda{background:#B45309} .ab-tdot.t-interno{background:#64748B} .ab-tdot.t-treino{background:#7858FF}
+  /* Skills por pessoa: chips (a 1ª é a principal) + campo de adicionar */
+  .al-skcell{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .al-chip{display:inline-flex;align-items:center;gap:3px;background:var(--cartao2);border:1px solid var(--linha);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+  .al-chip.prim{background:#E7F0FB;border-color:#A6C8F0;color:#0B5FBF}
+  [data-theme="dark"] .al-chip.prim{background:#1C3560;border-color:#2E5288;color:#8FBEF7}
+  .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
+  .al-chip-b:hover{opacity:1}
+  .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
   /* Tipo como pílula colorida (estilo status do Monday) */
   select.ab-tipo{border-radius:999px;font-weight:700;color:#fff;border:1px solid transparent;text-align:center;padding:4px 8px;cursor:pointer}
   select.ab-tipo option{background:var(--cartao);color:var(--grafite);font-weight:600}
@@ -1431,7 +1459,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{} }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -5742,13 +5770,19 @@ function planAcompHTML(d){
 // Aloca pessoas a PROJETOS por período, em HORAS/SEMANA. A grade mostra a utilização por
 // pessoa × semana/mês: alocado ÷ capacidade (jornada − fins de semana/feriados/ausências),
 // com status em 4 níveis (≤80 disponível · 80–100 saudável · 100–120 atenção · >120 crítico).
-function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', tipo:'faturavel', inicio:'', fim:'', hSemana:20 }; }
+function alocNova(){ return { id:'al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), accountId:'', projeto:'', tipo:'faturavel', funcao:'', inicio:'', fim:'', hSemana:20 }; }
 function alocRows(){ if(!estado.alocacao.rows) estado.alocacao.rows=JSON.parse(JSON.stringify(cfg.alocacoes||[])).map(a=>{
     if(a.hSemana==null) a.hSemana = a.pct!=null ? Math.round((Number(a.pct)||0)/100*40) : 0; if(a.tipo==null) a.tipo='faturavel';
     if(!a.id) a.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); return a; }); return estado.alocacao.rows; }
 // Tipos de alocação (para a visão de capacidade da empresa). Os 3 primeiros contam como faturável.
 const ALOC_TIPOS=[['faturavel','Faturável'],['fechado','Projeto fechado'],['ams','AMS'],['prevenda','Pré-venda'],['interno','Interno'],['treino','Treinamento']];
 const ALOC_FAT=new Set(['faturavel','fechado','ams']);
+// Tipo/categoria definido POR PROJETO (aba Projetos → cfg.projTipos); a linha guarda
+// um fallback (alocações antigas / projeto ainda sem cadastro).
+function alocTipoDe(x){ return (x&&x.projeto&&(cfg.projTipos||{})[x.projeto]) || (x&&x.tipo) || 'faturavel'; }
+// Função da pessoa NAQUELA alocação (permite a mesma pessoa 2× no mesmo projeto com
+// funções diferentes); sem função explícita, vale a skill principal da pessoa.
+function alocFuncaoDe(x){ return (x&&x.funcao) || alocSkillPrim(x&&x.accountId); }
 // Semana nominal (h) da pessoa = jornada de Metas × 5 dias — base da conversão % ↔ h/sem.
 function alocSemNomH(a){ return metaSegDe(a)/3600*5; }
 function alocPctDe(a, h){ const n=alocSemNomH(a); return n?Math.round((Number(h)||0)/n*100):0; }
@@ -5829,7 +5863,7 @@ function alocViewEmpresa(rows, pess){
   let alTot=0; const porTipo={}; ALOC_TIPOS.forEach(([k])=>porTipo[k]=0);
   semanas.forEach(w=>{ const wf=somaDias(w,6); rows.forEach(a=>{ if(!a.accountId) return;
     if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return;
-    if(a.inicio<=wf&&a.fim>=w){ const h=Number(a.hSemana)||0; alTot+=h; const t=a.tipo||'faturavel'; porTipo[t]=(porTipo[t]||0)+h; } }); });
+    if(a.inicio<=wf&&a.fim>=w){ const h=Number(a.hSemana)||0; alTot+=h; const t=alocTipoDe(a); porTipo[t]=(porTipo[t]||0)+h; } }); });
   const disp=Math.max(0,capTot-alTot); const util=capTot?Math.round(alTot/capTot*100):0;
   let fat=0; ALOC_FAT.forEach(k=>fat+=porTipo[k]||0); const nfat=alTot-fat;
   const kpis=`<div class="ams-kpis">
@@ -5853,7 +5887,7 @@ function alocSkillPrim(a){ const s=alocSkills(a); return s[0]||'Sem skill'; }
 function alocSkillsTodas(){ const set=new Set(); Object.keys(cfg.skills||{}).forEach(a=>alocSkills(a).forEach(s=>set.add(s))); return [...set].sort(); }
 function alocFiltraRows(rows){ const f=estado.alocacao; let r=rows;
   if(f.fProj) r=r.filter(a=>a.projeto===f.fProj);
-  if(f.fSkill) r=r.filter(a=>alocSkills(a.accountId).includes(f.fSkill));
+  if(f.fSkill) r=r.filter(a=>a.funcao===f.fSkill || alocSkills(a.accountId).includes(f.fSkill));
   return r; }
 // Visão por Skill: capacidade × demanda por competência (skill principal da pessoa).
 function alocViewSkill(rows, pess){
@@ -5862,23 +5896,52 @@ function alocViewSkill(rows, pess){
   const grupos={};
   pessoas.forEach(a=>{ const sk=alocSkillPrim(a); const g=grupos[sk]||(grupos[sk]={cap:0,dem:0,n:0}); g.n++; semanas.forEach(w=>{ g.cap+=alocCapacSemana(a,w); }); });
   semanas.forEach(w=>{ const wf=somaDias(w,6); rows.forEach(a=>{ if(!a.accountId) return; if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return;
-    if(a.inicio<=wf&&a.fim>=w){ const sk=alocSkillPrim(a.accountId); if(grupos[sk]) grupos[sk].dem+=Number(a.hSemana)||0; } }); });
+    if(a.inicio<=wf&&a.fim>=w){ const sk=alocFuncaoDe(a); const g=grupos[sk]||(grupos[sk]={cap:0,dem:0,n:0}); g.dem+=Number(a.hSemana)||0; } }); });
   const skillsOrd=Object.keys(grupos).sort();
   const rowsHtml=skillsOrd.map(sk=>{ const g=grupos[sk]; const gap=g.cap-g.dem; const util=g.cap?Math.round(g.dem/g.cap*100):0; const [cls]=alocStatus(util);
     return `<tr><td>${esc(sk)} <span class="muted small">(${g.n})</span></td><td class="num">${alocH(g.cap)}</td><td class="num">${alocH(g.dem)}</td><td class="num" style="color:${gap<0?'#B91C1C':'#188918'};font-weight:600">${gap<0?'−':'+'}${alocH(Math.abs(gap))}</td><td class="num"><span class="aloc-badge ${cls}">${util}%</span></td></tr>`; }).join('');
-  const skEd=pessoas.slice().sort((a,b)=>nm(a).localeCompare(nm(b),'pt')).map(a=>`<tr><td>${esc(nm(a))}</td><td><input type="text" class="aloc-skin" data-al-skill="${escA(a)}" value="${escA(alocSkills(a).join(', '))}" placeholder="ex.: SAP TRM, Integrações"></td></tr>`).join('');
-  return `<div class="muted small" style="margin:6px 0 10px">Capacidade × <strong>demanda</strong> por competência (skill <strong>principal</strong> da pessoa, no período). <span style="color:#B91C1C">Gap negativo = falta capacidade</span>.</div>
+  const datalist=`<datalist id="al-sklist">${alocSkillsTodas().map(s=>`<option value="${escA(s)}"></option>`).join('')}</datalist>`;
+  const skEd=pessoas.slice().sort((a,b)=>nm(a).localeCompare(nm(b),'pt')).map(a=>{
+    const chips=alocSkills(a).map((s,i)=>`<span class="al-chip${i===0?' prim':''}" data-tip="${i===0?'Skill principal':'Clique na ★ para tornar principal'}">${esc(s)}${i>0?`<button class="al-chip-b" data-al-skprim="${escA(a)}|${escA(s)}" title="Tornar principal">★</button>`:''}<button class="al-chip-b" data-al-skdel="${escA(a)}|${escA(s)}" title="Remover">×</button></span>`).join('');
+    return `<tr><td>${esc(nm(a))}</td><td class="al-skcell">${chips}<input type="text" class="al-skadd" data-al-skadd="${escA(a)}" list="al-sklist" placeholder="+ skill (Enter)"></td></tr>`;
+  }).join('');
+  return `<div class="muted small" style="margin:6px 0 10px">Capacidade × <strong>demanda</strong> por competência no período — a demanda usa a <strong>função de cada alocação</strong> (ou a skill principal da pessoa); a capacidade conta na skill <strong>principal</strong>. <span style="color:#B91C1C">Gap negativo = falta capacidade</span>.</div>
     ${skillsOrd.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Skill</th><th class="num">Capacidade</th><th class="num">Demanda</th><th class="num">Gap</th><th class="num">Utilização</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`:'<div class="muted small">Cadastre as skills das pessoas abaixo para ver a análise.</div>'}
-    <div class="muted small" style="font-weight:600;margin:16px 0 4px">Skills por pessoa <span class="muted" style="font-weight:400">(separe por vírgula; a 1ª é a principal · salva ao sair do campo)</span></div>
-    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th>Skills</th></tr></thead><tbody>${skEd||'<tr><td colspan="2" class="muted small">Adicione alocações para listar as pessoas.</td></tr>'}</tbody></table></div>`;
+    <div class="muted small" style="font-weight:600;margin:16px 0 4px">Skills por pessoa <span class="muted" style="font-weight:400">(quantas quiser — digite e dê Enter; a <strong>1ª é a principal</strong>, use ★ para promover · salva sozinho)</span></div>
+    ${datalist}
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th style="width:220px">Pessoa</th><th>Skills</th></tr></thead><tbody>${skEd||'<tr><td colspan="2" class="muted small">Adicione alocações para listar as pessoas.</td></tr>'}</tbody></table></div>`;
+}
+// ---- Projetos: o TIPO/categoria é definido por projeto (e herdado pelas alocações) ----
+function alocViewProjetos(rows){
+  const usados={}; rows.forEach(a=>{ if(a.projeto){ const u=usados[a.projeto]=usados[a.projeto]||{n:0,pess:new Set(),tipos:{}};
+    u.n++; if(a.accountId) u.pess.add(a.accountId); const t=a.tipo||'faturavel'; u.tipos[t]=(u.tipos[t]||0)+1; } });
+  const cat=(_projetosCache||[]).map(p=>p.key);
+  const keys=[...new Set([...Object.keys(usados), ...cat])].sort();
+  const nomeDe=(k)=>{ const p=(_projetosCache||[]).find(x=>x.key===k); return (p&&p.nome)||''; };
+  // Sugestão para projetos ainda sem cadastro: o tipo mais comum nas alocações existentes.
+  const sugestao=(k)=>{ const u=usados[k]; if(!u) return '';
+    return Object.entries(u.tipos).sort((a,b)=>b[1]-a[1]).map(x=>x[0])[0]||''; };
+  const linhas=keys.map(k=>{
+    const def=(cfg.projTipos||{})[k]||''; const sug=def?'':sugestao(k);
+    const u=usados[k];
+    const opt=`<option value="">${sug?`— herdando das linhas (${esc(((ALOC_TIPOS.find(([t])=>t===sug))||[sug,sug])[1])}) —`:'— definir —'}</option>`+
+      ALOC_TIPOS.map(([t,l])=>`<option value="${t}" ${def===t?'selected':''}>${esc(l)}</option>`).join('');
+    const tp=def||sug||'';
+    return `<tr${u?'':' class="muted"'}><td><i class="gt-dot gtc${gtCor(k)}"></i><strong>${esc(k)}</strong> <span class="muted small">${esc(nomeDe(k))}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:7px">${tp?`<i class="ab-tdot t-${escA(tp)}"></i>`:''}<select class="ab-tipo t-${escA(tp||'faturavel')}" data-al-ptipo="${escA(k)}" style="max-width:210px">${opt}</select></span></td>
+      <td class="num">${u?u.n:'—'}</td><td class="num">${u?u.pess.size:'—'}</td></tr>`;
+  }).join('');
+  return `<div class="muted small" style="margin:6px 0 10px">O <strong>tipo/categoria</strong> (faturável, AMS, interno…) é definido <strong>uma vez por projeto</strong> aqui — todas as alocações do projeto herdam automaticamente (a bolinha colorida em cada linha do board mostra o tipo herdado). Alterações <strong>salvam sozinhas</strong> e valem para o time.</div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Projeto</th><th>Tipo (vale para o projeto todo)</th><th class="num">Alocações</th><th class="num">Pessoas</th></tr></thead>
+      <tbody>${linhas||'<tr><td colspan="4" class="muted small">Nenhum projeto ainda — adicione alocações ou aguarde o catálogo do Jira carregar.</td></tr>'}</tbody></table></div>`;
 }
 // ---- Fase E: Gantt / linha do tempo com arrastar-e-soltar ----
 // Diferença/soma em dias corridos (calendário, sem pular fim de semana) — para a geometria.
 function gtDiff(a,b){ const [ay,am,ad]=a.split('-').map(Number),[by,bm,bd]=b.split('-').map(Number); return Math.round((Date.UTC(by,bm-1,bd)-Date.UTC(ay,am-1,ad))/86400000); }
 function gtAdd(s,n){ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); }
-const GT_PAL =['#DBEAFE','#DCFCE7','#FEF9C3','#FCE7F3','#E0E7FF','#FFE4E6','#CCFBF1','#FFEDD5','#EDE9FE','#E0F2FE'];
-const GT_PALB=['#1D4ED8','#15803D','#A16207','#BE185D','#4338CA','#BE123C','#0F766E','#C2410C','#6D28D9','#0369A1'];
-function gtCor(key){ let h=0; const s=String(key||'—'); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h%GT_PAL.length; }
+// As cores do Gantt/board são as classes .gtc0–.gtc9 (com variante clara e escura no CSS).
+const GT_NCORES=10;
+function gtCor(key){ let h=0; const s=String(key||'—'); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h%GT_NCORES; }
 function gtZoom(){ return Math.max(10,Math.min(44, estado.alocacao.gz||22)); }
 // Datas resultantes de um arraste em andamento (para o preview ao vivo e o commit).
 function gtDatas(mode, ini, fim, dd){ let ni=ini, nf=fim;
@@ -5922,9 +5985,9 @@ function alocViewGantt(rows, pess){
       const u=cap?Math.round(al/cap*100):999; const [cls]=alocStatus(u); const off=gtDiff(start,w); const wpx=Math.min(7,totalD-off)*D;
       return `<div class="gt-hb ${cls}" style="left:${off*D}px;width:${wpx}px" data-tip="${escA(nm(a))} · ${esc(fmtBR(w))}: ${alocH(al)} de ${alocH(cap)} (${u}%)"></div>`; }).join('');
     const bars=als.map(it=>{ const x=it.x; const left=it.s*D, w=(it.e-it.s+1)*D, top=padT+it.row*(barH+gap); const ci=gtCor(x.projeto);
-      const nf=!ALOC_FAT.has(x.tipo||'faturavel'); const idx=full.indexOf(x);
-      const tip=`${x.projeto||'—'} · ${nm(a)}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
-      return `<div class="gt-bar${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px;background:${GT_PAL[ci]};border-left-color:${GT_PALB[ci]};color:${GT_PALB[ci]}" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-dup" data-gt-dup="${escA(x.id)}" title="Duplicar esta alocação">⧉</span><span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
+      const nf=!ALOC_FAT.has(alocTipoDe(x)); const idx=full.indexOf(x);
+      const tip=`${x.projeto||'—'} · ${nm(a)}${x.funcao?` · ${x.funcao}`:''}\n${fmtBR(x.inicio)}–${fmtBR(x.fim)} · ${x.hSemana||0}h/sem`;
+      return `<div class="gt-bar gtc${ci}${nf?' nf':''}" data-gt-idx="${idx}" style="left:${left}px;width:${w}px;top:${top}px" title="${escA(tip)}"><span class="gt-h l" data-gt-h="l"></span>${esc(x.projeto||'—')} · ${x.hSemana||0}h<span class="gt-dup" data-gt-dup="${escA(x.id)}" title="Duplicar esta alocação">⧉</span><span class="gt-h r" data-gt-h="r"></span></div>`; }).join('');
     // Coluna fixa: nome + horas alocadas × capacidade da SEMANA ATUAL (sempre visível).
     const wAtu=semChave(hojeSP()); const alAtu=alocAlocadoSemana(rows,a,wAtu); const capAtu=alocCapacSemana(a,wAtu);
     const uAtu=capAtu?Math.round(alAtu/capAtu*100):(alAtu>0?999:0); const [clsAtu]=alocStatus(uAtu);
@@ -6033,9 +6096,9 @@ function alocViewSimulacao(_rows, pess){
 }
 // Lembra visão/granularidade/zoom da Alocação entre sessões (só no navegador, não é config compartilhada).
 const ALOC_UI_KEY='dexterity_aloc_ui_v1';
-function alocUISave(){ try{ localStorage.setItem(ALOC_UI_KEY, JSON.stringify({ visao:estado.alocacao.visao, gran:estado.alocacao.gran, gz:estado.alocacao.gz })); }catch(e){} }
+function alocUISave(){ try{ localStorage.setItem(ALOC_UI_KEY, JSON.stringify({ visao:estado.alocacao.visao, gran:estado.alocacao.gran, gz:estado.alocacao.gz, ordB:estado.alocacao.ordB })); }catch(e){} }
 function alocUILoad(){ if(estado.alocacao._ui) return; estado.alocacao._ui=true;
-  try{ const u=JSON.parse(localStorage.getItem(ALOC_UI_KEY)||'{}'); if(u&&typeof u==='object'){ if(u.visao) estado.alocacao.visao=u.visao; if(u.gran) estado.alocacao.gran=u.gran; if(u.gz) estado.alocacao.gz=u.gz; } }catch(e){} }
+  try{ const u=JSON.parse(localStorage.getItem(ALOC_UI_KEY)||'{}'); if(u&&typeof u==='object'){ if(u.visao) estado.alocacao.visao=u.visao; if(u.gran) estado.alocacao.gran=u.gran; if(u.gz) estado.alocacao.gz=u.gz; if(u.ordB) estado.alocacao.ordB=u.ordB; } }catch(e){} }
 function renderAlocacao(){
   const cont=document.getElementById('conteudo');
   alocUILoad();
@@ -6076,22 +6139,27 @@ function renderAlocacao(){
   const pessoaSel=(x)=>'<select data-ab-f="accountId|'+escA(x.id)+'"><option value="">— pessoa —</option>'+
     pordPess.map(([id,pp])=>`<option value="${escA(id)}" ${x.accountId===id?'selected':''}>${esc(pp.nome||id)}</option>`).join('')+'</select>';
   const projetoSel=(x)=>{ const prSolto=x.projeto && !projs.some(pp=>pp.key===x.projeto);
-    return `<span style="display:flex;align-items:center;min-width:0"><i class="gt-dot" style="background:${GT_PALB[gtCor(x.projeto)]};flex:0 0 9px"></i><select data-ab-f="projeto|${escA(x.id)}"><option value="">— projeto —</option>${prSolto?`<option value="${escA(x.projeto)}" selected>${esc(x.projeto)}</option>`:''}${projs.map(pp=>`<option value="${escA(pp.key)}" ${x.projeto===pp.key?'selected':''}>${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('')}</select></span>`; };
-  const tipoSel=(x)=>`<select class="ab-tipo t-${escA(x.tipo||'faturavel')}" data-ab-f="tipo|${escA(x.id)}">${ALOC_TIPOS.map(([k,l])=>`<option value="${k}" ${(x.tipo||'faturavel')===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+    return `<span style="display:flex;align-items:center;min-width:0"><i class="gt-dot gtc${gtCor(x.projeto)}" style="flex:0 0 9px"></i><select data-ab-f="projeto|${escA(x.id)}"><option value="">— projeto —</option>${prSolto?`<option value="${escA(x.projeto)}" selected>${esc(x.projeto)}</option>`:''}${projs.map(pp=>`<option value="${escA(pp.key)}" ${x.projeto===pp.key?'selected':''}>${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('')}</select></span>`; };
+  const skillsCat=alocSkillsTodas();
+  const funcaoSel=(x)=>{ const opts=[...new Set([...(x.funcao?[x.funcao]:[]), ...alocSkills(x.accountId), ...skillsCat])];
+    return `<select data-ab-f="funcao|${escA(x.id)}" data-tip="Função da pessoa NESTA alocação — a mesma pessoa pode entrar mais de uma vez no mesmo projeto, com funções diferentes. As opções vêm das skills (aba Por Skill).">
+      <option value="">— função —</option>${opts.map(s=>`<option value="${escA(s)}" ${x.funcao===s?'selected':''}>${esc(s)}</option>`).join('')}</select>`; };
+  const tipoDot=(x)=>{ const tp=alocTipoDe(x); const lbl=((ALOC_TIPOS.find(([k])=>k===tp))||[tp,tp])[1];
+    return `<i class="ab-tdot t-${escA(tp)}" data-tip="Tipo: ${escA(lbl)} — definido por PROJETO na aba Projetos"></i>`; };
   const linhaDe=(x)=>{
     const past=/^\d{4}-\d{2}-\d{2}$/.test(x.fim)&&x.fim<hj;
     const pct=alocPctDe(x.accountId,x.hSemana);
     const col1 = modoB==='pessoa' ? projetoSel(x) : pessoaSel(x);
-    const col2 = (modoB==='pessoa'||modoB==='projeto') ? tipoSel(x) : projetoSel(x);
+    const col2 = (modoB==='pessoa'||modoB==='projeto') ? funcaoSel(x) : projetoSel(x);
     return `<div class="ab-row${past?' past':''}">${col1}${col2}
-      <input type="date" data-ab-f="inicio|${escA(x.id)}" value="${escA(x.inicio)}" title="Início">
-      <input type="date" data-ab-f="fim|${escA(x.id)}" value="${escA(x.fim)}" title="Fim">
+      <input type="date" data-ab-f="inicio|${escA(x.id)}" value="${escA(x.inicio)}" title="Início" data-tip="Início — Ctrl+C copia · Ctrl+V cola (aceita um período inteiro: 29/06/2026 – 23/08/2026)">
+      <input type="date" data-ab-f="fim|${escA(x.id)}" value="${escA(x.fim)}" title="Fim" data-tip="Fim — Ctrl+C copia · Ctrl+V cola (aceita um período inteiro)">
       <span class="ab-pctc"><input type="number" data-ab-pct="${escA(x.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(x.hSemana)||0)}/sem</span></span>
-      <span class="ab-acts"><button class="ab-x" data-ab-dup="${escA(x.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(x.id)}" title="Remover">×</button></span></div>`;
+      <span class="ab-acts">${tipoDot(x)}<button class="ab-x" data-ab-cpd="${escA(x.id)}" title="Copiar o período (início – fim) para colar em outra linha" style="font-size:12px">📋</button><button class="ab-x" data-ab-dup="${escA(x.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(x.id)}" title="Remover">×</button></span></div>`;
   };
-  const cab = modoB==='pessoa' ? ['Projeto','Tipo'] : modoB==='projeto' ? ['Pessoa','Tipo'] : ['Pessoa','Projeto'];
+  const cab = modoB==='pessoa' ? ['Projeto','Função'] : modoB==='projeto' ? ['Pessoa','Função'] : ['Pessoa','Projeto'];
   const colsHtml=`<div class="ab-cols"><span>${cab[0]}</span><span>${cab[1]}</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>`;
-  const chaveDe=(x)=> modoB==='pessoa'?(x.accountId||'') : modoB==='projeto'?(x.projeto||'') : modoB==='tipo'?(x.tipo||'faturavel') : alocSkillPrim(x.accountId);
+  const chaveDe=(x)=> modoB==='pessoa'?(x.accountId||'') : modoB==='projeto'?(x.projeto||'') : modoB==='tipo'?alocTipoDe(x) : alocFuncaoDe(x);
   const gruposMap={};
   rows.forEach(x=>{ const k=chaveDe(x); (gruposMap[k]=gruposMap[k]||[]).push(x); });
   if(modoB==='pessoa') (estado.alocacao.pessNovas||[]).forEach(id=>{ if(!gruposMap[id]) gruposMap[id]=[]; });
@@ -6101,9 +6169,19 @@ function renderAlocacao(){
   const chaves=Object.keys(gruposMap).sort((x,y)=>rotuloDe(x).localeCompare(rotuloDe(y),'pt'));
   const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(pp=>`<option value="${escA(pp.key)}">${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('');
   const addPessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.map(([id,pp])=>`<option value="${escA(id)}">${esc(pp.nome||id)}</option>`).join('');
+  // Ordenação das linhas dentro de cada grupo — escolhida pelo usuário (lembrada no navegador).
+  const ordB=estado.alocacao.ordB||'inicio';
+  const rotLin=(x)=> modoB==='pessoa' ? (x.projeto||'') : nm(x.accountId||'');
+  const alocOrdena=(arr)=>{ const c=arr.slice();
+    if(ordB==='insercao') return c;
+    if(ordB==='fim') return c.sort((x,y)=>String(x.fim||'9999').localeCompare(String(y.fim||'9999')));
+    if(ordB==='alfa') return c.sort((x,y)=>rotLin(x).localeCompare(rotLin(y),'pt'));
+    if(ordB==='horas') return c.sort((x,y)=>(Number(y.hSemana)||0)-(Number(x.hSemana)||0));
+    return c.sort((x,y)=>String(x.inicio||'9999').localeCompare(String(y.inicio||'9999')));
+  };
   const grupos=chaves.map(k=>{
-    const its=gruposMap[k].slice().sort((x,y)=>String(x.inicio).localeCompare(String(y.inicio)));
-    const rot=rotuloDe(k); const cor=GT_PALB[gtCor(k||rot)];
+    const its=alocOrdena(gruposMap[k]);
+    const rot=rotuloDe(k); const ci=gtCor(k||rot);
     const inic=(rot||'?').split(/\s+/).map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase();
     let res='';
     if(modoB==='pessoa'){
@@ -6119,7 +6197,7 @@ function renderAlocacao(){
     const linhas=its.map(linhaDe).join('');
     const add = (modoB==='pessoa' && k) ? `<div class="ab-add"><select data-ab-addproj="${escA(k)}">${addOpt}</select></div>`
       : (modoB==='projeto' && k) ? `<div class="ab-add"><select data-ab-addpessproj="${escA(k)}">${addPessOpt}</select></div>` : '';
-    return `<div class="ab-grupo"><div class="ab-head" style="border-left-color:${cor}"><span class="ab-av" style="background:${cor}">${esc(inic)}</span><span class="ab-nome">${esc(rot)}</span>${res}</div>
+    return `<div class="ab-grupo"><div class="ab-head gtc${ci}"><span class="ab-av">${esc(inic)}</span><span class="ab-nome">${esc(rot)}</span>${res}</div>
       ${linhas?colsHtml+linhas:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhuma alocação ainda.</span></div>'}${add}</div>`;
   }).join('');
   const jaNoBoard=new Set(modoB==='pessoa'?chaves:[]);
@@ -6127,15 +6205,22 @@ function renderAlocacao(){
   const tituloB = modoB==='pessoa'?'Planejamento por pessoa': modoB==='projeto'?'Planejamento por projeto': modoB==='tipo'?'Planejamento por tipo (Empresa)':'Planejamento por skill';
   const dicaB = modoB==='pessoa'?'atribua a pessoa aos projetos e ajuste o <strong>%</strong> de alocação'
     : modoB==='projeto'?'monte a <strong>equipe de cada projeto</strong> e ajuste o % de cada pessoa'
-    : modoB==='tipo'?'as alocações agrupadas por <strong>tipo</strong> (o tipo é editado na visão Por Pessoa/Por Projeto)'
-    : 'as alocações agrupadas pela <strong>skill principal</strong> de cada pessoa (cadastre as skills na visão Por Skill)';
-  const edCard=`<div style="margin:2px 0 10px"><span class="muted small" style="font-weight:600">${tituloB}</span> <span class="muted small">— ${dicaB}; edite direto nos campos, <strong>salva sozinho</strong>.</span></div>
+    : modoB==='tipo'?'as alocações agrupadas por <strong>tipo</strong> — o tipo é definido <strong>por projeto</strong>, na aba Projetos'
+    : 'as alocações agrupadas pela <strong>função de cada alocação</strong> (ou a skill principal da pessoa — cadastre na visão Por Skill)';
+  const ordSel=`<select class="aloc-fsel" data-al-ordb data-tip="Como ordenar as linhas dentro de cada grupo (fica lembrado neste navegador)">
+      <option value="inicio" ${ordB==='inicio'?'selected':''}>ordenar: Início</option>
+      <option value="fim" ${ordB==='fim'?'selected':''}>ordenar: Fim</option>
+      <option value="alfa" ${ordB==='alfa'?'selected':''}>ordenar: A–Z</option>
+      <option value="horas" ${ordB==='horas'?'selected':''}>ordenar: h/sem ↓</option>
+      <option value="insercao" ${ordB==='insercao'?'selected':''}>ordenar: como inseri</option>
+    </select>`;
+  const edCard=`<div style="margin:2px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="muted small" style="font-weight:600">${tituloB}</span> <span class="muted small">— ${dicaB}; edite direto nos campos, <strong>salva sozinho</strong>.</span><span class="spacer"></span>${ordSel}</div>
       ${grupos||'<div class="muted small" style="margin-bottom:10px">Ninguém alocado ainda — comece adicionando uma pessoa abaixo.</div>'}
       ${modoB==='pessoa'?`<div class="ab-pess"><select data-ab-pess="1">${pessOpt}</select></div>`:''}
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
-  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap)',simulacao:'Cenários "e se…" e busca de disponibilidade'};
+  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',simulacao:'Cenários "e se…" e busca de disponibilidade'};
   const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}" title="${escA(V_DESC[v]||'')}">${l}</button>`;
   const fSkill=estado.alocacao.fSkill||'', fProj=estado.alocacao.fProj||'';
   const projetosAloc=[...new Set(rows.map(a=>a.projeto).filter(Boolean))].sort();
@@ -6147,9 +6232,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('simulacao','Simulação')}</div>
-      <div class="aloc-filtros" style="margin:0 0 12px">${visao==='simulacao'?'':filtros}</div>
-      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('simulacao','Simulação')}</div>
+      <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos')?'':filtros}</div>
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">${edCard}</div></div>`));
   // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
@@ -8257,9 +8342,20 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
     if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
+  if(t.hasAttribute('data-ab-cpd')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-cpd'));
+    if(a){ const txt=(a.inicio?dataBR(a.inicio):'?')+' – '+(a.fim?dataBR(a.fim):'?');
+      const done=()=>{ try{ toast('📋 Período copiado: '+txt+' — Ctrl+V em um campo de data de outra linha preenche início E fim'); }catch(_){} };
+      try{ navigator.clipboard.writeText(txt).then(done,()=>{}); }
+      catch(_){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select();
+        try{ if(document.execCommand('copy')) done(); }catch(__){} ta.remove(); } }
+    return; }
+  if(t.hasAttribute('data-al-skdel')){ const v=t.getAttribute('data-al-skdel'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
+    cfg.skills=cfg.skills||{}; cfg.skills[a]=alocSkills(a).filter(x=>x!==s); salvaCfg(); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-skprim')){ const v=t.getAttribute('data-al-skprim'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
+    cfg.skills=cfg.skills||{}; cfg.skills[a]=[s, ...alocSkills(a).filter(x=>x!==s)]; salvaCfg(); renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
     const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
     const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
@@ -8279,6 +8375,16 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-al-visao')){ estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-real')){ alocCarregaReal(alocRows(), true); }
 });
+// Enter no campo "+ skill" adiciona a skill (o change cobre a escolha via datalist/blur).
+document.getElementById('conteudo').addEventListener('keydown', (e)=>{
+  const t=e.target; if(!t||!t.matches||!t.matches('.al-skadd')||e.key!=='Enter') return;
+  e.preventDefault();
+  const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
+  if(!a||!s) return;
+  cfg.skills=cfg.skills||{}; const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+  cfg.skills[a]=cur; salvaCfg(); t.value=''; alocRedraw();
+  setTimeout(()=>{ const nb=[...document.querySelectorAll('.al-skadd')].find(x=>x.getAttribute('data-al-skadd')===a); if(nb) nb.focus(); },40);
+});
 // Re-render ADIADO (fora do dispatch do change): trocar o DOM no meio do evento —
 // com o campo ainda focado — dispara blur/change reentrantes e quebra o replaceChildren.
 let _alocRedrawT=null;
@@ -8286,7 +8392,13 @@ function alocRedraw(){ clearTimeout(_alocRedrawT); _alocRedrawT=setTimeout(()=>{
 document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.target; if(!t||!t.matches) return;
   if(t.matches('[data-al-fskill]')){ estado.alocacao.fSkill=t.value; alocRedraw(); return; }
   if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; alocRedraw(); return; }
-  if(t.matches('[data-al-skill]')){ const a=t.getAttribute('data-al-skill'); cfg.skills=cfg.skills||{}; cfg.skills[a]=t.value.split(',').map(x=>x.trim()).filter(Boolean); salvaCfg(); alocRedraw(); return; }
+  if(t.matches('[data-al-ordb]')){ estado.alocacao.ordB=t.value; alocUISave(); alocRedraw(); return; }
+  if(t.matches('[data-al-ptipo]')){ const k=t.getAttribute('data-al-ptipo'); cfg.projTipos=cfg.projTipos||{};
+    if(t.value) cfg.projTipos[k]=t.value; else delete cfg.projTipos[k];
+    salvaCfg(); alocRedraw(); return; }
+  if(t.matches('.al-skadd')){ const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
+    if(a&&s){ cfg.skills=cfg.skills||{}; const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+      cfg.skills[a]=cur; salvaCfg(); t.value=''; alocRedraw(); } return; }
   if(t.matches('[data-sim-f]')){ simSync(); alocRedraw(); return; }
   if(t.matches('[data-find-f]')){ simFindSync(); alocRedraw(); return; }
   // Board por pessoa: campos referenciam a alocação por ID (um "change" tardio do DOM
@@ -8397,12 +8509,30 @@ function validaIso(iso){
   try{ return new Date(iso+'T00:00:00Z').toISOString().slice(0,10)===iso ? iso : ''; }catch(e){ return ''; }
 }
 const dataBR=(iso)=> iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : '';
+// Todas as datas reconhecidas num texto (para colar um PERÍODO inteiro de uma vez).
+function datasDeTexto(txt){
+  const out=[]; const re=/\d{4}-\d{2}-\d{2}|\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?/g;
+  const s=String(txt||''); let m;
+  while((m=re.exec(s)) && out.length<4){ const iso=dataDeTexto(m[0]); if(iso) out.push(iso); }
+  return out;
+}
 document.addEventListener('paste', (e)=>{
   const t=(e.target&&e.target.tagName==='INPUT')?e.target:document.activeElement;
   if(!t||t.tagName!=='INPUT'||t.type!=='date'||t.disabled||t.readOnly) return;
   const txt=(e.clipboardData&&e.clipboardData.getData)?e.clipboardData.getData('text'):'';
   e.preventDefault();
-  const iso=dataDeTexto(txt);
+  const todas=datasDeTexto(txt);
+  // Período completo ("29/06/2026 – 23/08/2026") colado num campo do board de alocação:
+  // preenche início E fim da linha de uma vez (e salva, como uma edição manual).
+  if(todas.length>=2 && t.hasAttribute('data-ab-f')){
+    const id=t.getAttribute('data-ab-f').split('|')[1];
+    const a=(typeof alocRows==='function')?alocRows().find(r=>r.id===id):null;
+    if(a){ const par=todas.slice(0,2).sort();
+      a.inicio=par[0]; a.fim=par[1]; alocPersiste(); alocRedraw();
+      try{ toast('📋 Período '+dataBR(par[0])+' – '+dataBR(par[1])+' colado'); }catch(_){}
+      return; }
+  }
+  const iso=todas[0]||'';
   if(!iso){ try{ toast('Não entendi a data colada — use 23/08/2026 ou 2026-08-23.','warn'); }catch(_){} return; }
   if(t.value===iso) return;
   t.value=iso;
