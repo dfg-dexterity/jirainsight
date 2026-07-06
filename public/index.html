@@ -844,6 +844,12 @@
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
   .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
+  /* Trava por pessoa (aprovação do Diego) e conflito de sobreposição */
+  .ab-row.travada select,.ab-row.travada input,.ab-row.travada .ab-x{pointer-events:none;opacity:.55}
+  .ab-row.conflito{box-shadow:inset 3px 0 0 #DC2626;background:rgba(220,38,38,.06)}
+  [data-theme="dark"] .ab-row.conflito{background:rgba(220,38,38,.12)}
+  .ab-conf{font-style:normal;color:#DC2626;font-size:13px;cursor:help;margin-right:1px}
+  .ab-tv{padding:3px 9px;font-size:12px;margin-left:4px}
   /* Tipo como pílula colorida (estilo status do Monday) */
   select.ab-tipo{border-radius:999px;font-weight:700;color:#fff;border:1px solid transparent;text-align:center;padding:4px 8px;cursor:pointer}
   select.ab-tipo option{background:var(--cartao);color:var(--grafite);font-weight:600}
@@ -1459,7 +1465,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{} }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{} }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -5791,6 +5797,32 @@ function ppNova(){ return { id:'plan_'+Date.now().toString(36)+Math.random().toS
 // Só a Alocação usa isto — as demais telas continuam vendo apenas pessoas reais.
 function alocPessoas(){ const out=Object.assign({}, pessoasUnidas());
   ppLista().forEach(p=>{ out[p.id]={ nome:(p.nome||'A contratar')+' 🔮' }; }); return out; }
+// ---- Trava + aprovação (Diego): congela a alocação de uma pessoa até aprovar ----
+// cfg.alocTravas[accountId] = { status:'pendente'|'aprovado', por, quando, aprovadoPor?, quandoAprov? }
+function alocTravaDe(a){ return (cfg.alocTravas||{})[a]||null; }
+function alocTravada(a){ return !!alocTravaDe(a); }
+// O aprovador é o usuário identificado cujo nome/e-mail contém "Diego".
+function souAprovador(){ const id=idApontar(); if(!id) return false;
+  return /diego/i.test((id.nome||'')+' '+(id.email||'')); }
+function alocTravaBloqueia(a, avisa){
+  if(!alocTravada(a)) return false;
+  if(avisa!==false){ const t=alocTravaDe(a);
+    try{ toast(`🔒 Alocações travadas ${t&&t.status==='aprovado'?'(aprovadas pelo Diego)':'— aguardando aprovação do Diego'}. Destrave no cabeçalho da pessoa para editar.`,'warn'); }catch(_){} }
+  return true;
+}
+// Conflito: MESMA pessoa, MESMO projeto e MESMA função com períodos sobrepostos.
+// (Funções diferentes no mesmo projeto continuam permitidas — cada função é uma linha.)
+function alocConflitoDe(rows, x){
+  if(!x||!x.accountId||!x.projeto) return null;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(x.fim)) return null;
+  return rows.find(y=> y.id!==x.id && y.accountId===x.accountId && y.projeto===x.projeto
+    && String(y.funcao||'')===String(x.funcao||'')
+    && /^\d{4}-\d{2}-\d{2}$/.test(y.inicio) && /^\d{4}-\d{2}-\d{2}$/.test(y.fim)
+    && y.inicio<=x.fim && y.fim>=x.inicio) || null;
+}
+function alocAvisaConflito(cf){
+  try{ toast(`✕ Conflito: essa pessoa já está alocada neste projeto${cf.funcao?` como ${cf.funcao}`:''} em ${dataBR(cf.inicio)} – ${dataBR(cf.fim)}. Ajuste o período ou use uma FUNÇÃO diferente.`,'err'); }catch(_){}
+}
 // Custo/hora da pessoa: vaga usa o custo previsto do cadastro; pessoa real usa
 // cfg.custosPessoa (manual ou importado do Odoo). 0 = sem custo cadastrado.
 function alocCustoH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.custoH)||0);
@@ -5947,37 +5979,77 @@ function alocRelDados(rows, pess){
   const meses=[...new Set(wks.map(w=>w.slice(0,7)))];
   const chave=(a)=> grupo==='projeto'?(a.projeto||'—') : grupo==='tipo'?alocTipoDe(a) : grupo==='skill'?alocFuncaoDe(a) : (a.accountId||'—');
   const rotulo=(k)=> grupo==='tipo'?(((ALOC_TIPOS.find(([t])=>t===k))||[k,k])[1]) : grupo==='pessoa'?nm(k) : (k||'—');
-  const dados={}; let totH=0, totC=0; const semCusto=new Set(); const mesTot={};
+  const dados={}; let totH=0, totC=0; const semCusto=new Set(); const mesTot={}; const planSem={};
   wks.forEach(w=>{ const wf=somaDias(w,6); const ym=w.slice(0,7);
     rows.forEach(a=>{ if(!/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(a.fim)) return;
       if(a.inicio>wf||a.fim<w) return;
       const h=Number(a.hSemana)||0; if(!h) return;
       const k=chave(a); const d=dados[k]=dados[k]||{h:0,c:0,meses:{}};
       d.h+=h; d.meses[ym]=(d.meses[ym]||0)+h; totH+=h; mesTot[ym]=(mesTot[ym]||0)+h;
+      planSem[w]=(planSem[w]||0)+h;
       const cH=alocCustoH(a.accountId);
       if(cH>0){ d.c+=h*cH; totC+=h*cH; } else if(a.accountId) semCusto.add(a.accountId);
     }); });
+  // Realizado (Clockwork) no período — por grupo, total e semana a semana. Para
+  // função/skill não há como atribuir o apontamento a uma função → indisponível.
+  const RR=estado.alocacao.relReal||{};
+  const temReal=Array.isArray(RR.wl) && RR.range===R.ini+'|'+R.fim;
+  const grupoRealOk=grupo!=='skill';
+  const chaveReal=(w)=> grupo==='pessoa'?(w.a||'—') : grupo==='projeto'?(w.p||'—') : alocTipoDe({projeto:w.p});
+  const realPorG={}; const realSem={}; let realTot=0;
+  if(temReal){ RR.wl.forEach(w=>{ const dt=(w.d||'').slice(0,10); if(!dt||dt<R.ini||dt>R.fim) return;
+    const h=(Number(w.s)||0)/3600; realTot+=h;
+    const sw=semChave(dt); realSem[sw]=(realSem[sw]||0)+h;
+    if(grupoRealOk){ const k=chaveReal(w); realPorG[k]=(realPorG[k]||0)+h; } }); }
   const linhas=Object.keys(dados).sort((x,y)=>dados[y].h-dados[x].h)
-    .map(k=>({ k, rot:rotulo(k), h:dados[k].h, c:dados[k].c, meses:dados[k].meses }));
-  return { R, grupo, meses, mesTot, linhas, totH, totC, semCusto:[...semCusto].map(nm) };
+    .map(k=>({ k, rot:rotulo(k), h:dados[k].h, c:dados[k].c, meses:dados[k].meses,
+      real:(temReal&&grupoRealOk)?(realPorG[k]||0):null }));
+  return { R, grupo, meses, mesTot, linhas, totH, totC, semCusto:[...semCusto].map(nm),
+    wks, planSem, temReal, grupoRealOk, realSem, realTot,
+    realCarregando:!!RR.carregando, realErro:RR.erro||'' };
 }
 function alocViewRelatorios(rows, pess){
   const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const D=alocRelDados(rows, pess);
   const fmtR=(v)=> v?('R$ '+Math.round(v).toLocaleString('pt-BR')):'—';
   const gruposSel=[['pessoa','Por pessoa'],['projeto','Por projeto'],['tipo','Por tipo'],['skill','Por função/skill']];
+  const btnReal=D.realCarregando?'<button class="btn" disabled>Calculando…</button>'
+    :(D.temReal?'<button class="btn" data-al-relreal="1" data-tip="Recarrega as horas apontadas (Clockwork) do período">↻ recarregar realizado</button>'
+      :'<button class="btn primario" data-al-relreal="1" data-tip="Busca as horas APONTADAS nos tickets (Clockwork) no período e calcula a eficiência planejado × realizado">📈 Calcular realizado</button>');
   const controles=`<div class="ap-filtros" style="margin:6px 0 12px">
       <div class="campo"><label>Agrupar</label><select data-al-relg>${gruposSel.map(([v,l])=>`<option value="${v}" ${D.grupo===v?'selected':''}>${l}</option>`).join('')}</select></div>
       <div class="campo"><label>De</label><input type="date" data-al-relini value="${escA(D.R.ini)}"></div>
       <div class="campo"><label>Até</label><input type="date" data-al-relfim value="${escA(D.R.fim)}"></div>
+      <div class="campo"><label>&nbsp;</label>${btnReal}</div>
       <div class="campo"><label>&nbsp;</label><button class="btn" data-al-relcsv="1">⬇ Exportar CSV</button></div>
       <div class="campo"><label>&nbsp;</label><button class="btn" data-al-odoo="1" data-tip="Busca o custo/h dos funcionários no Odoo (hr.employee) e grava na config do time — requer ODOO_URL/DB/LOGIN/API_KEY na Vercel">↻ Importar custos do Odoo</button></div>
-    </div>`;
+    </div>
+    ${D.realErro?`<div class="aviso">${esc(D.realErro)} <button class="btn" data-al-relreal="1">tentar de novo</button></div>`:''}`;
+  // Eficiência = realizado ÷ planejado (≈100% é bom; muito abaixo = não executou; muito acima = estourou o plano)
+  const efiBadge=(p,r)=>{ if(!p) return '<span class="muted small">—</span>';
+    const e2=Math.round((r||0)/p*100); const cls=(e2>=85&&e2<=115)?'saud':((e2>=60&&e2<=150)?'aten':'crit');
+    return `<span class="aloc-badge ${cls}" data-tip="Realizado ÷ planejado">${e2}%</span>`; };
+  const mostraReal=D.temReal&&D.grupoRealOk;
   const thM=D.meses.map(m=>`<th class="num">${esc(labelMesAbbr(m))}</th>`).join('');
+  const thReal=mostraReal?'<th class="num">Realizado</th><th class="num">Eficiência</th>':'';
   const linhas=D.linhas.map(l=>`<tr><td>${esc(l.rot)}</td>${D.meses.map(m=>`<td class="num">${l.meses[m]?alocH(l.meses[m]):'·'}</td>`).join('')}
-      <td class="num"><strong>${alocH(l.h)}</strong></td><td class="num">${D.totH?Math.round(l.h/D.totH*100)+'%':'—'}</td><td class="num">${fmtR(l.c)}</td></tr>`).join('');
+      <td class="num"><strong>${alocH(l.h)}</strong></td><td class="num">${D.totH?Math.round(l.h/D.totH*100)+'%':'—'}</td>
+      ${mostraReal?`<td class="num">${alocH(l.real||0)}</td><td class="num">${efiBadge(l.h,l.real)}</td>`:''}
+      <td class="num">${fmtR(l.c)}</td></tr>`).join('');
   const tot=`<tr class="pl-tot"><td>Total</td>${D.meses.map(m=>`<td class="num">${D.mesTot[m]?alocH(D.mesTot[m]):'·'}</td>`).join('')}
-      <td class="num">${alocH(D.totH)}</td><td class="num">${D.totH?'100%':'—'}</td><td class="num">${fmtR(D.totC)}</td></tr>`;
+      <td class="num">${alocH(D.totH)}</td><td class="num">${D.totH?'100%':'—'}</td>
+      ${mostraReal?`<td class="num">${alocH(D.realTot)}</td><td class="num">${efiBadge(D.totH,D.realTot)}</td>`:''}
+      <td class="num">${fmtR(D.totC)}</td></tr>`;
+  // Semana a semana: planejado × realizado (o "realizado" vem dos apontamentos nos tickets)
+  const semTable=D.temReal?(()=>{
+    const semanas=[...new Set([...D.wks, ...Object.keys(D.realSem)])].sort().filter(w=>(D.planSem[w]||0)>0||(D.realSem[w]||0)>0);
+    if(!semanas.length) return '';
+    const trs=semanas.map(w=>{ const p=D.planSem[w]||0, r=D.realSem[w]||0;
+      return `<tr><td>${esc(fmtBR(w))}</td><td class="num">${alocH(p)}</td><td class="num">${alocH(r)}</td><td class="num">${efiBadge(p,r)}</td></tr>`; }).join('');
+    return `<div class="muted small" style="font-weight:600;margin:16px 0 4px">📈 Eficiência semana a semana <span class="muted" style="font-weight:400">(planejado × horas apontadas nos tickets, no recorte atual)</span></div>
+      <div class="pl-wrap"><table class="pl-tab" style="max-width:560px"><thead><tr><th>Semana</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Eficiência</th></tr></thead><tbody>${trs}</tbody></table></div>`;
+  })():'';
+  const notaSkill=(D.temReal&&!D.grupoRealOk)?'<div class="muted small" style="margin-top:6px">ℹ O realizado por <strong>função/skill</strong> não é possível (o apontamento no ticket não carrega a função) — use os agrupamentos por pessoa, projeto ou tipo.</div>':'';
   const avisoCusto=D.semCusto.length?`<div class="aviso" style="margin-top:10px">⚠ ${D.semCusto.length} pessoa(s) alocada(s) <strong>sem custo/h cadastrado</strong> (${esc(D.semCusto.slice(0,4).join(', '))}${D.semCusto.length>4?'…':''}) — o custo total está <strong>subestimado</strong>. Cadastre abaixo ou importe do Odoo.</div>`:'';
   // Editor de custo/h por pessoa (vagas editam na aba A contratar)
   const pessoasAloc=[...new Set(rows.map(a=>a.accountId).filter(Boolean))].sort((a,b)=>nm(a).localeCompare(nm(b),'pt'));
@@ -5987,9 +6059,11 @@ function alocViewRelatorios(rows, pess){
       :`<input type="number" data-al-custo="${escA(a)}" value="${escA((cfg.custosPessoa||{})[a]?String(cfg.custosPessoa[a]):'')}" min="0" step="10" placeholder="R$/h" style="max-width:110px">`}</td></tr>`; }).join('');
   return `<div class="muted small" style="margin:6px 0 4px">Horas <strong>planejadas</strong> (e custo previsto) no período, mês a mês — use os filtros de skill/projeto acima para recortar. O custo usa o <strong>R$/h de cada pessoa</strong> (manual ou do Odoo) e o custo previsto das vagas 🔮.</div>
     ${controles}
-    ${D.linhas.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>${esc((gruposSel.find(([v])=>v===D.grupo)||[])[1]||'Grupo')}</th>${thM}<th class="num">Total h</th><th class="num">%</th><th class="num">Custo</th></tr></thead>
+    ${D.linhas.length?`<div class="pl-wrap"><table class="pl-tab"><thead><tr><th>${esc((gruposSel.find(([v])=>v===D.grupo)||[])[1]||'Grupo')}</th>${thM}<th class="num">Total h</th><th class="num">%</th>${thReal}<th class="num">Custo</th></tr></thead>
       <tbody>${linhas}</tbody><tfoot>${tot}</tfoot></table></div>`
       :'<div class="muted small">Nenhuma alocação no período escolhido.</div>'}
+    ${notaSkill}
+    ${semTable}
     ${avisoCusto}
     <div class="muted small" style="font-weight:600;margin:16px 0 4px">💰 Custo/h por pessoa <span class="muted" style="font-weight:400">(salvo na config do time · usado só nos relatórios)</span></div>
     <div class="pl-wrap"><table class="pl-tab" style="max-width:520px"><thead><tr><th>Pessoa</th><th class="num">Custo (R$/h)</th></tr></thead><tbody>${custosEd||'<tr><td colspan="2" class="muted small">Sem pessoas alocadas no período.</td></tr>'}</tbody></table></div>`;
@@ -6093,7 +6167,7 @@ function alocViewGantt(rows, pess){
     // Coluna fixa: nome + horas alocadas × capacidade da SEMANA ATUAL (sempre visível).
     const wAtu=semChave(hojeSP()); const alAtu=alocAlocadoSemana(rows,a,wAtu); const capAtu=alocCapacSemana(a,wAtu);
     const uAtu=capAtu?Math.round(alAtu/capAtu*100):(alAtu>0?999:0); const [clsAtu]=alocStatus(uAtu);
-    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))} — alocado nesta semana: ${escA(alocH(alAtu))} de ${escA(alocH(capAtu))}"><span class="gt-nm">${esc(nm(a))}</span><span class="gt-nh ${clsAtu}">${alocH(alAtu)}/${alocH(capAtu)} · ${uAtu}%</span></div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
+    return `<div class="gt-lane" style="height:${laneH}px"><div class="gt-name" title="${escA(nm(a))} — alocado nesta semana: ${escA(alocH(alAtu))} de ${escA(alocH(capAtu))}${alocTravada(a)?' · alocações travadas (aprovação)':''}"><span class="gt-nm">${esc(nm(a))}${alocTravada(a)?' 🔒':''}</span><span class="gt-nh ${clsAtu}">${alocH(alAtu)}/${alocH(capAtu)} · ${uAtu}%</span></div><div class="gt-track" style="width:${totalPx}px;--d:${D}px">${heat}${today}${bars}</div></div>`;
   }).join('');
   const head=`<div class="gt-head"><div class="gt-corner"></div><div class="gt-htl" style="width:${totalPx}px"><div class="gt-months">${monthsHtml}</div><div class="gt-weeks">${weeksHtml}</div></div></div>`;
   const leg=`<div class="aloc-leg"><span><i class="disp"></i>≤80%</span><span><i class="saud"></i>80–100%</span><span><i class="aten"></i>100–120%</span><span><i class="crit"></i>&gt;120%</span><span style="margin-left:4px">▨ listrado = não faturável · cor = projeto · <span style="color:#B91C1C">|</span> linha vermelha = hoje</span></div>`;
@@ -6250,14 +6324,16 @@ function renderAlocacao(){
     return `<i class="ab-tdot t-${escA(tp)}" data-tip="Tipo: ${escA(lbl)} — definido por PROJETO na aba Projetos"></i>`; };
   const linhaDe=(x)=>{
     const past=/^\d{4}-\d{2}-\d{2}$/.test(x.fim)&&x.fim<hj;
+    const trav=alocTravada(x.accountId);
+    const cf=alocConflitoDe(rows,x);
     const pct=alocPctDe(x.accountId,x.hSemana);
     const col1 = modoB==='pessoa' ? projetoSel(x) : pessoaSel(x);
     const col2 = (modoB==='pessoa'||modoB==='projeto') ? funcaoSel(x) : projetoSel(x);
-    return `<div class="ab-row${past?' past':''}">${col1}${col2}
+    return `<div class="ab-row${past?' past':''}${trav?' travada':''}${cf?' conflito':''}">${col1}${col2}
       <input type="date" data-ab-f="inicio|${escA(x.id)}" value="${escA(x.inicio)}" title="Início" data-tip="Início — Ctrl+C copia · Ctrl+V cola (aceita um período inteiro: 29/06/2026 – 23/08/2026)">
       <input type="date" data-ab-f="fim|${escA(x.id)}" value="${escA(x.fim)}" title="Fim" data-tip="Fim — Ctrl+C copia · Ctrl+V cola (aceita um período inteiro)">
       <span class="ab-pctc"><input type="number" data-ab-pct="${escA(x.id)}" value="${pct}" min="0" step="5" title="% da capacidade da pessoa">% <span class="eq">= ${alocH(Number(x.hSemana)||0)}/sem</span></span>
-      <span class="ab-acts">${tipoDot(x)}<button class="ab-x" data-ab-cpd="${escA(x.id)}" title="Copiar o período (início – fim) para colar em outra linha" style="font-size:12px">📋</button><button class="ab-x" data-ab-dup="${escA(x.id)}" title="Duplicar esta alocação" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(x.id)}" title="Remover">×</button></span></div>`;
+      <span class="ab-acts">${cf?`<i class="ab-conf" data-tip="✕ CONFLITO: mesma pessoa, mesmo projeto e mesma função com período sobreposto (${escA(dataBR(cf.inicio))} – ${escA(dataBR(cf.fim))}). Ajuste o período ou defina funções diferentes.">⚠</i>`:''}${trav?'<i class="ab-conf" style="color:#64748B" data-tip="Alocações desta pessoa travadas (aguardando aprovação/aprovadas)">🔒</i>':''}${tipoDot(x)}<button class="ab-x" data-ab-cpd="${escA(x.id)}" title="Copiar o período (início – fim) para colar em outra linha" style="font-size:12px">📋</button><button class="ab-x" data-ab-dup="${escA(x.id)}" title="Duplicar esta alocação (a cópia entra na sequência do período)" style="font-size:12px">⧉</button><button class="ab-x" data-ab-del="${escA(x.id)}" title="Remover">×</button></span></div>`;
   };
   const cab = modoB==='pessoa' ? ['Projeto','Função'] : modoB==='projeto' ? ['Pessoa','Função'] : ['Pessoa','Projeto'];
   const colsHtml=`<div class="ab-cols"><span>${cab[0]}</span><span>${cab[1]}</span><span>Início</span><span>Fim</span><span>% Alocação</span><span></span></div>`;
@@ -6272,7 +6348,8 @@ function renderAlocacao(){
   const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(pp=>`<option value="${escA(pp.key)}">${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('');
   const addPessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.map(([id,pp])=>`<option value="${escA(id)}">${esc(pp.nome||id)}</option>`).join('');
   // Ordenação das linhas dentro de cada grupo — escolhida pelo usuário (lembrada no navegador).
-  const ordB=estado.alocacao.ordB||'inicio';
+  // Padrão: por PROJETO (A–Z) no planejamento por pessoa.
+  const ordB=estado.alocacao.ordB||'alfa';
   const rotLin=(x)=> modoB==='pessoa' ? (x.projeto||'') : nm(x.accountId||'');
   const alocOrdena=(arr)=>{ const c=arr.slice();
     if(ordB==='insercao') return c;
@@ -6299,7 +6376,19 @@ function renderAlocacao(){
     const linhas=its.map(linhaDe).join('');
     const add = (modoB==='pessoa' && k) ? `<div class="ab-add"><select data-ab-addproj="${escA(k)}">${addOpt}</select></div>`
       : (modoB==='projeto' && k) ? `<div class="ab-add"><select data-ab-addpessproj="${escA(k)}">${addPessOpt}</select></div>` : '';
-    return `<div class="ab-grupo"><div class="ab-head gtc${ci}"><span class="ab-av">${esc(inic)}</span><span class="ab-nome">${esc(rot)}</span>${res}</div>
+    // Trava/aprovação por pessoa (só no agrupamento Por Pessoa)
+    let trava='';
+    if(modoB==='pessoa' && k){
+      const tv=alocTravaDe(k);
+      if(!tv) trava=`<button class="btn ab-tv" data-al-travar="${escA(k)}" data-tip="Congela as alocações desta pessoa e envia para o Diego aprovar">🔒 Travar p/ aprovação</button>`;
+      else if(tv.status==='pendente'){
+        trava=`<span class="aloc-badge aten" data-tip="Enviado por ${escA(tv.por||'?')} em ${escA(dataBR((tv.quando||'').slice(0,10)))}">⏳ aguardando aprovação do Diego</span>`
+          +(souAprovador()
+            ?` <button class="btn ab-tv" data-al-aprovar="${escA(k)}">✓ Aprovar</button><button class="btn ab-tv" data-al-recusar="${escA(k)}" data-tip="Recusa e libera a edição">✕ Recusar</button>`
+            :` <button class="btn ab-tv" data-al-destravar="${escA(k)}" data-tip="Cancela o envio e libera a edição">destravar</button>`);
+      } else trava=`<span class="aloc-badge saud" data-tip="Aprovado por ${escA(tv.aprovadoPor||'Diego')} em ${escA(dataBR((tv.quandoAprov||'').slice(0,10)))}">🔒 aprovado</span> <button class="btn ab-tv" data-al-destravar="${escA(k)}" data-tip="Libera a edição (a aprovação é descartada)">destravar</button>`;
+    }
+    return `<div class="ab-grupo"><div class="ab-head gtc${ci}"><span class="ab-av">${esc(inic)}</span><span class="ab-nome">${esc(rot)}</span>${res}<span class="spacer"></span>${trava}</div>
       ${linhas?colsHtml+linhas:'<div class="ab-row" style="grid-template-columns:1fr"><span class="muted small">Nenhuma alocação ainda.</span></div>'}${add}</div>`;
   }).join('');
   const jaNoBoard=new Set(modoB==='pessoa'?chaves:[]);
@@ -6310,13 +6399,15 @@ function renderAlocacao(){
     : modoB==='tipo'?'as alocações agrupadas por <strong>tipo</strong> — o tipo é definido <strong>por projeto</strong>, na aba Projetos'
     : 'as alocações agrupadas pela <strong>função de cada alocação</strong> (ou a skill principal da pessoa — cadastre na visão Por Skill)';
   const ordSel=`<select class="aloc-fsel" data-al-ordb data-tip="Como ordenar as linhas dentro de cada grupo (fica lembrado neste navegador)">
+      <option value="alfa" ${ordB==='alfa'?'selected':''}>ordenar: ${modoB==='pessoa'?'Projeto (A–Z)':'Nome (A–Z)'}</option>
       <option value="inicio" ${ordB==='inicio'?'selected':''}>ordenar: Início</option>
       <option value="fim" ${ordB==='fim'?'selected':''}>ordenar: Fim</option>
-      <option value="alfa" ${ordB==='alfa'?'selected':''}>ordenar: A–Z</option>
       <option value="horas" ${ordB==='horas'?'selected':''}>ordenar: h/sem ↓</option>
       <option value="insercao" ${ordB==='insercao'?'selected':''}>ordenar: como inseri</option>
     </select>`;
-  const edCard=`<div style="margin:2px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="muted small" style="font-weight:600">${tituloB}</span> <span class="muted small">— ${dicaB}; edite direto nos campos, <strong>salva sozinho</strong>.</span><span class="spacer"></span>${ordSel}</div>
+  const pendAprov=souAprovador()?Object.entries(cfg.alocTravas||{}).filter(([,tv])=>tv&&tv.status==='pendente').map(([a])=>nm(a)):[];
+  const avisoAprov=pendAprov.length?`<div class="aviso" style="margin:0 0 10px">⏳ <strong>${pendAprov.length} alocação(ões) aguardando a SUA aprovação</strong>: ${esc(pendAprov.join(', '))} — aprove ou recuse no cabeçalho de cada pessoa (visão Por Pessoa).</div>`:'';
+  const edCard=`${avisoAprov}<div style="margin:2px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="muted small" style="font-weight:600">${tituloB}</span> <span class="muted small">— ${dicaB}; edite direto nos campos, <strong>salva sozinho</strong>.</span><span class="spacer"></span>${ordSel}</div>
       ${grupos||'<div class="muted small" style="margin-bottom:10px">Ninguém alocado ainda — comece adicionando uma pessoa abaixo.</div>'}
       ${modoB==='pessoa'?`<div class="ab-pess"><select data-ab-pess="1">${pessOpt}</select></div>`:''}
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
@@ -7467,7 +7558,7 @@ function abreAjuda(){
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
-      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho), utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas e custo por pessoa/projeto/tipo/função, mês a mês, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
+      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho; <b>bloqueia sobreposição</b> da mesma pessoa/projeto/função), <b>🔒 travar por pessoa com aprovação do Diego</b>, utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas, custo e <b>eficiência planejado × realizado</b> por semana, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
       <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
@@ -8447,7 +8538,27 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-odoo],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-al-travar')){ const a=t.getAttribute('data-al-travar'); const id=idApontar()||{};
+    cfg.alocTravas=cfg.alocTravas||{};
+    cfg.alocTravas[a]={ status:'pendente', por:id.nome||id.email||'—', quando:new Date().toISOString() };
+    logAcao({acao:'alocacao-travar', t:(alocPessoas()[a]||{}).nome||a, para:'aguardando aprovação (Diego)', ok:true}, false);
+    salvaCfg(); toast('🔒 Alocações travadas e enviadas para a aprovação do Diego.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-aprovar')){ const a=t.getAttribute('data-al-aprovar'); const id=idApontar()||{};
+    if(!souAprovador()){ toast('Só o Diego (aprovador) pode aprovar.','warn'); return; }
+    const tv=(cfg.alocTravas||{})[a]; if(!tv) return;
+    tv.status='aprovado'; tv.aprovadoPor=id.nome||id.email||'Diego'; tv.quandoAprov=new Date().toISOString();
+    logAcao({acao:'alocacao-aprovar', t:(alocPessoas()[a]||{}).nome||a, para:'aprovado', ok:true}, false);
+    salvaCfg(); toast('✓ Alocação aprovada — segue travada até destravar.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-recusar')){ const a=t.getAttribute('data-al-recusar');
+    if(!souAprovador()){ toast('Só o Diego (aprovador) pode recusar.','warn'); return; }
+    delete (cfg.alocTravas||{})[a];
+    logAcao({acao:'alocacao-recusar', t:(alocPessoas()[a]||{}).nome||a, para:'recusado — liberado para edição', ok:true}, false);
+    salvaCfg(); toast('✕ Recusado — a alocação voltou a ficar editável.','warn'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-destravar')){ const a=t.getAttribute('data-al-destravar');
+    delete (cfg.alocTravas||{})[a];
+    logAcao({acao:'alocacao-destravar', t:(alocPessoas()[a]||{}).nome||a, para:'liberado para edição', ok:true}, false);
+    salvaCfg(); toast('🔓 Destravado — edição liberada.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-pp-add')){ ppLista().push(ppNova()); salvaCfg(); renderAlocacao();
     setTimeout(()=>{ const ins=document.querySelectorAll('[data-pp-f^="nome|"]'); const ult=ins[ins.length-1]; if(ult) ult.focus(); },40);
     return; }
@@ -8458,7 +8569,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     cfg.pessoasPlanejadas=ppLista().filter(p=>p.id!==id);
     salvaCfg(); toast(nAl?`Vaga removida junto com ${nAl} alocação(ões).`:'Vaga removida.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
-    if(ix>=0){ rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
+    if(ix>=0){ if(alocTravaBloqueia(rs[ix].accountId)) return; rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
   if(t.hasAttribute('data-ab-cpd')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-cpd'));
     if(a){ const txt=(a.inicio?dataBR(a.inicio):'?')+' – '+(a.fim?dataBR(a.fim):'?');
       const done=()=>{ try{ toast('📋 Período copiado: '+txt+' — Ctrl+V em um campo de data de outra linha preenche início E fim'); }catch(_){} };
@@ -8473,11 +8584,30 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(t.hasAttribute('data-al-relcsv')){
     const pess=alocPessoas(); const D=alocRelDados(alocFiltraRows(alocRows()), pess);
     const gl={pessoa:'Pessoa',projeto:'Projeto',tipo:'Tipo',skill:'Função/Skill'}[D.grupo]||'Grupo';
-    const head=[gl, ...D.meses.map(labelMesAbbr), 'Total h', '%', 'Custo R$'];
+    const mr=D.temReal&&D.grupoRealOk;
+    const efi=(p,r)=>p?Math.round((r||0)/p*100)+'%':'';
+    const head=[gl, ...D.meses.map(labelMesAbbr), 'Total h', '%', ...(mr?['Realizado h','Eficiência']:[]), 'Custo R$'];
     const rowsCsv=D.linhas.map(l=>[l.rot, ...D.meses.map(m=>l.meses[m]?Math.round(l.meses[m]*10)/10:''),
-      Math.round(l.h*10)/10, D.totH?Math.round(l.h/D.totH*100)+'%':'', l.c?Math.round(l.c):'']);
-    rowsCsv.push(['Total', ...D.meses.map(m=>D.mesTot[m]?Math.round(D.mesTot[m]*10)/10:''), Math.round(D.totH*10)/10, D.totH?'100%':'', D.totC?Math.round(D.totC):'']);
+      Math.round(l.h*10)/10, D.totH?Math.round(l.h/D.totH*100)+'%':'',
+      ...(mr?[Math.round((l.real||0)*10)/10, efi(l.h,l.real)]:[]), l.c?Math.round(l.c):'']);
+    rowsCsv.push(['Total', ...D.meses.map(m=>D.mesTot[m]?Math.round(D.mesTot[m]*10)/10:''), Math.round(D.totH*10)/10, D.totH?'100%':'',
+      ...(mr?[Math.round(D.realTot*10)/10, efi(D.totH,D.realTot)]:[]), D.totC?Math.round(D.totC):'']);
+    if(D.temReal){ rowsCsv.push([]); rowsCsv.push(['Semana','Planejado h','Realizado h','Eficiência']);
+      [...new Set([...D.wks, ...Object.keys(D.realSem)])].sort()
+        .filter(w=>(D.planSem[w]||0)>0||(D.realSem[w]||0)>0)
+        .forEach(w=>rowsCsv.push([fmtBR(w), Math.round((D.planSem[w]||0)*10)/10, Math.round((D.realSem[w]||0)*10)/10, efi(D.planSem[w],D.realSem[w])])); }
     baixaCSV('relatorio_alocacao.csv',[head,...rowsCsv]);
+    return; }
+  if(t.hasAttribute('data-al-relreal')){
+    const R=estado.alocacao.rel=estado.alocacao.rel||{};
+    if(!R.ini||!R.fim){ toast('Defina o período do relatório primeiro.','warn'); return; }
+    const RR=estado.alocacao.relReal=estado.alocacao.relReal||{};
+    RR.carregando=true; RR.erro=''; RR.range=R.ini+'|'+R.fim; renderAlocacao();
+    fetch(`/api/tempo?desde=${encodeURIComponent(R.ini)}&ate=${encodeURIComponent(R.fim)}`).then(r=>r.json()).then(j=>{
+      RR.carregando=false;
+      if(j.erro){ RR.erro=humanizaErro(j.erro); RR.wl=null; } else RR.wl=j.worklogs||[];
+      if(estado.vista==='alocacao') renderAlocacao();
+    }).catch(e=>{ RR.carregando=false; RR.erro=humanizaErro(e); RR.wl=null; if(estado.vista==='alocacao') renderAlocacao(); });
     return; }
   if(t.hasAttribute('data-al-odoo')){
     t.disabled=true; t.textContent='Importando…';
@@ -8502,8 +8632,15 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
     const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
     const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
-    if(ix>=0){ const c=JSON.parse(JSON.stringify(rs[ix])); c.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      rs.splice(ix+1,0,c); alocPersiste(); toast('✓ Alocação duplicada — ajuste o período/% da cópia.','ok'); renderAlocacao(); }
+    if(ix>=0){ const o=rs[ix]; if(alocTravaBloqueia(o.accountId)) return;
+      const c=JSON.parse(JSON.stringify(o)); c.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      // A cópia entra NA SEQUÊNCIA do período original — evita o conflito de sobreposição.
+      if(/^\d{4}-\d{2}-\d{2}$/.test(o.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(o.fim)){
+        const len=gtDiff(o.inicio,o.fim); c.inicio=gtAdd(o.fim,1); c.fim=gtAdd(c.inicio,len);
+      }
+      const cf=alocConflitoDe(rs.concat([c]), c);
+      if(cf){ alocAvisaConflito(cf); return; }
+      rs.splice(ix+1,0,c); alocPersiste(); toast('✓ Duplicada na sequência do período — ajuste as datas/% da cópia.','ok'); renderAlocacao(); }
     return; }
   if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
   if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
@@ -8558,16 +8695,32 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.
   // Board por pessoa: campos referenciam a alocação por ID (um "change" tardio do DOM
   // antigo, disparado durante o re-render, no máximo regrava o mesmo valor — nunca a linha errada).
   if(t.matches('[data-ab-f]')){ const p=t.getAttribute('data-ab-f').split('|'); const a=alocRows().find(r=>r.id===p[1]);
-    if(a){ a[p[0]]=t.value; alocPersiste(); } alocRedraw(); return; }
+    if(a){
+      if(alocTravaBloqueia(a.accountId)){ alocRedraw(); return; }
+      const antigo=a[p[0]]; a[p[0]]=t.value;
+      if(p[0]==='accountId' && t.value && alocTravaBloqueia(t.value)){ a[p[0]]=antigo; alocRedraw(); return; }
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a[p[0]]=antigo; alocAvisaConflito(cf); alocRedraw(); return; }
+      alocPersiste();
+    } alocRedraw(); return; }
   if(t.matches('[data-ab-pct]')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-pct'));
-    if(a){ const pct=Math.max(0,Number(t.value)||0); a.hSemana=Math.round(pct/100*alocSemNomH(a.accountId)*2)/2; alocPersiste(); } alocRedraw(); return; }
+    if(a){ if(alocTravaBloqueia(a.accountId)){ alocRedraw(); return; }
+      const pct=Math.max(0,Number(t.value)||0); a.hSemana=Math.round(pct/100*alocSemNomH(a.accountId)*2)/2; alocPersiste(); } alocRedraw(); return; }
   if(t.matches('[data-ab-addpessproj]')){ const k=t.getAttribute('data-ab-addpessproj'); const pid=t.value; if(!pid||!k) return;
+    if(alocTravaBloqueia(pid)){ alocRedraw(); return; }
     const ini=semChave(hojeSP());
-    alocRows().push(Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) }));
+    const nova=Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) });
+    const cf=alocConflitoDe(alocRows().concat([nova]), nova);
+    if(cf){ alocAvisaConflito(cf); alocRedraw(); return; }
+    alocRows().push(nova);
     alocPersiste(); alocRedraw(); return; }
   if(t.matches('[data-ab-addproj]')){ const pid=t.getAttribute('data-ab-addproj'); const k=t.value; if(!pid||!k) return;
+    if(alocTravaBloqueia(pid)){ alocRedraw(); return; }
     const ini=semChave(hojeSP());
-    alocRows().push(Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) }));
+    const nova=Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) });
+    const cf=alocConflitoDe(alocRows().concat([nova]), nova);
+    if(cf){ alocAvisaConflito(cf); alocRedraw(); return; }
+    alocRows().push(nova);
     estado.alocacao.pessNovas=(estado.alocacao.pessNovas||[]).filter(x=>x!==pid);
     alocPersiste(); alocRedraw(); return; }
   if(t.matches('[data-ab-pess]')){ const id=t.value; if(id && !(estado.alocacao.pessNovas||[]).includes(id)) estado.alocacao.pessNovas.push(id); alocRedraw(); return; } });
@@ -8579,11 +8732,12 @@ document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
   const bar=e.target.closest&&e.target.closest('[data-gt-idx]'); if(!bar) return;
   const h=e.target.closest('[data-gt-h]'); const mode=h?('resize-'+h.getAttribute('data-gt-h')):'move';
   const rows=alocRows(); const idx=+bar.getAttribute('data-gt-idx'); const a=rows[idx]; if(!a) return;
-  _gtDrag={ idx, mode, x0:e.clientX, D:gtZoom(), ini:a.inicio, fim:a.fim, w0:parseFloat(bar.style.width)||0, bar, dd:0, moved:false };
+  _gtDrag={ idx, mode, x0:e.clientX, D:gtZoom(), ini:a.inicio, fim:a.fim, w0:parseFloat(bar.style.width)||0, bar, dd:0, moved:false, travada:alocTravada(a.accountId) };
   bar.classList.add('dragging'); try{ bar.setPointerCapture(e.pointerId); }catch(_){}
   e.preventDefault();
 });
 document.addEventListener('pointermove', (e)=>{ const g=_gtDrag; if(!g) return;
+  if(g.travada){ if(!g.avisou){ g.avisou=true; const a=alocRows()[g.idx]; if(a) alocTravaBloqueia(a.accountId); } return; }
   const dd=Math.round((e.clientX-g.x0)/g.D); if(dd!==g.dd) g.moved=true; g.dd=dd; const b=g.bar;
   if(g.mode==='move') b.style.transform=`translateX(${dd*g.D}px)`;
   else if(g.mode==='resize-r') b.style.width=Math.max(g.D, g.w0+dd*g.D)+'px';
@@ -8593,8 +8747,14 @@ document.addEventListener('pointermove', (e)=>{ const g=_gtDrag; if(!g) return;
 document.addEventListener('pointerup', (e)=>{ const g=_gtDrag; if(!g) return; _gtDrag=null;
   g.bar.classList.remove('dragging');
   if(g.moved && g.dd!==0){ const a=alocRows()[g.idx];
-    if(a){ const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); a.inicio=nx.ini; a.fim=nx.fim;
-      alocPersiste(); toast('✓ Alocação atualizada e salva.','ok'); }
+    if(a){
+      if(alocTravaBloqueia(a.accountId)){ renderAlocacao(); return; }
+      const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); const antigo={i:a.inicio,f:a.fim};
+      a.inicio=nx.ini; a.fim=nx.fim;
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); }
+      else { alocPersiste(); toast('✓ Alocação atualizada e salva.','ok'); }
+    }
     renderAlocacao();
   } else {
     g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent='';
@@ -8728,8 +8888,13 @@ document.addEventListener('paste', (e)=>{
   if(todas.length>=2 && t.hasAttribute('data-ab-f')){
     const id=t.getAttribute('data-ab-f').split('|')[1];
     const a=(typeof alocRows==='function')?alocRows().find(r=>r.id===id):null;
-    if(a){ const par=todas.slice(0,2).sort();
-      a.inicio=par[0]; a.fim=par[1]; alocPersiste(); alocRedraw();
+    if(a){
+      if(alocTravaBloqueia(a.accountId)) return;
+      const par=todas.slice(0,2).sort(); const antigo={i:a.inicio,f:a.fim};
+      a.inicio=par[0]; a.fim=par[1];
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); return; }
+      alocPersiste(); alocRedraw();
       try{ toast('📋 Período '+dataBR(par[0])+' – '+dataBR(par[1])+' colado'); }catch(_){}
       return; }
   }
