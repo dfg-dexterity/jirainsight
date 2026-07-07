@@ -7553,7 +7553,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>As telas (por grupo do menu)</summary><div class="help-body"><ul>
       <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
       <li><b>Análise › Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
-      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta).</li>
+      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta). O <b>⬇ Exportar</b> abre opções: matriz, <b>detalhado</b> (dia · pessoa · projeto · ticket), por <b>pessoa</b>, <b>projeto</b>, <b>ticket</b>, <b>tipo</b> ou projeto × pessoa — sempre no recorte dos filtros.</li>
       <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
       <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
@@ -7863,14 +7863,98 @@ function baixaCSV(nome, linhas){
   a.href=url; a.download=nome; document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(url);
 }
-function exportaCSV(){
-  if(!estado.tempo){ return; }
-  const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
-  if(estado.vista==='timesheet'){
+// Worklogs do período RESPEITANDO os filtros globais (pessoa/categoria/projeto/tipo).
+function tsWorklogsFiltrados(){
+  const f=filtros(); const ft=Object.assign({}, f, {ocultar:false});
+  const projs=projetosUnidos();
+  return ((estado.tempo&&estado.tempo.worklogs)||[]).filter(w=>{
+    if(!passa(w.p,w.t,projs,ft)) return false;
+    if(f.pessoa && w.a!==f.pessoa) return false;
+    return !!(w.d||'').slice(0,10);
+  });
+}
+// Modal de exportação do timesheet: escolha COMO agrupar (matriz, detalhado,
+// pessoa, projeto, ticket, tipo, projeto × pessoa) — sempre no recorte atual.
+function abreExportTimesheet(){
+  if(!estado.tempo){ toast('Aguarde os dados do período carregarem.','warn'); return; }
+  const n=tsWorklogsFiltrados().length;
+  abreModal(`
+    <h2>Exportar timesheet</h2>
+    <div class="muted small">Exporta as horas do <strong>período selecionado</strong>, respeitando os
+      filtros ativos (pessoa/categoria/projeto/tipo) — <strong>${n}</strong> apontamento(s) no recorte.</div>
+    <div class="campo" style="margin-top:12px;max-width:380px"><label>Agrupar por</label>
+      <select id="ts-exp-modo">
+        <option value="matriz">Pessoa × Dia (a matriz da tela)</option>
+        <option value="detalhado">Detalhado — Dia · Pessoa · Projeto · Ticket</option>
+        <option value="pessoa">Pessoa (totais)</option>
+        <option value="projeto">Projeto (totais)</option>
+        <option value="ticket">Ticket / issue (totais)</option>
+        <option value="tipo">Tipo de issue (totais)</option>
+        <option value="projpessoa">Projeto × Pessoa</option>
+      </select></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" id="ts-exp-cancel">Cancelar</button>
+      <button class="btn primario" id="ts-exp-ok">⬇ Exportar CSV</button>
+    </div>`);
+}
+function exportaTimesheet(modo){
+  const meta=(estado.tempo&&estado.tempo.meta)||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
+  if(modo==='matriz'){
     const { dias, linhas } = calcTimesheet();
     const head=['Pessoa','Total (h)','Lacuna (h)', ...dias];
     const rows=linhas.map(l=>[l.nome, dec(l.tot), dec(l.lacuna), ...dias.map(d=>dec(l.porDia[d]||0))]);
     baixaCSV(`timesheet_${per}.csv`, [head, ...rows]);
+    return;
+  }
+  const wls=tsWorklogsFiltrados();
+  const pess=pessoasUnidas(); const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const projs=(estado.tempo&&estado.tempo.projetos)||{};
+  const resumos=(estado.tempo&&estado.tempo.resumos)||{};
+  const projNome=(p)=> (projs[p]&&projs[p].nome) ? `${p} — ${projs[p].nome}` : (p||'—');
+  if(modo==='detalhado'){
+    // Uma linha por dia + pessoa + ticket (agrega múltiplos worklogs do mesmo dia).
+    const map={};
+    wls.forEach(w=>{ const d=(w.d||'').slice(0,10); const ch=`${d}|${w.a}|${w.k||''}`;
+      const r=map[ch]=map[ch]||{d,a:w.a,k:w.k||'',p:w.p||'',t:w.t||'',f:0,s:0};
+      r.s+=Number(w.s)||0; if(w.f) r.f=1; });
+    const rows=Object.values(map).sort((x,y)=>x.d.localeCompare(y.d)||nm(x.a).localeCompare(nm(y.a),'pt')||x.k.localeCompare(y.k));
+    baixaCSV(`timesheet_detalhado_${per}.csv`, [
+      ['Dia','Pessoa','Projeto','Ticket','Resumo','Tipo','Faturável','Horas'],
+      ...rows.map(r=>[r.d, nm(r.a), projNome(r.p), r.k, resumos[r.k]||'', r.t, r.f?'sim':'não', dec(r.s)])]);
+    return;
+  }
+  const chave={ pessoa:(w)=>w.a, projeto:(w)=>w.p||'—', ticket:(w)=>w.k||'—', tipo:(w)=>w.t||'—',
+    projpessoa:(w)=>`${w.p||'—'}|${w.a}` }[modo] || ((w)=>w.a);
+  const g={}; let tot=0;
+  wls.forEach(w=>{ const k=chave(w); const r=g[k]=g[k]||{s:0,fat:0,p:w.p||'',pess:new Set(),tick:new Set()};
+    const s=Number(w.s)||0; r.s+=s; if(w.f) r.fat+=s; r.pess.add(w.a); if(w.k) r.tick.add(w.k); tot+=s; });
+  const ord=Object.entries(g).sort((x,y)=>y[1].s-x[1].s);
+  const pc=(s)=> tot?Math.round(s/tot*100)+'%':'';
+  let head, rows, nomeArq;
+  if(modo==='pessoa'){ nomeArq='pessoa';
+    head=['Pessoa','Horas','Faturável (h)','% faturável','% do total','Tickets'];
+    rows=ord.map(([k,r])=>[nm(k), dec(r.s), dec(r.fat), r.s?Math.round(r.fat/r.s*100)+'%':'', pc(r.s), r.tick.size]);
+  } else if(modo==='projeto'){ nomeArq='projeto';
+    head=['Projeto','Horas','% do total','Faturável (h)','Pessoas','Tickets'];
+    rows=ord.map(([k,r])=>[projNome(k), dec(r.s), pc(r.s), dec(r.fat), r.pess.size, r.tick.size]);
+  } else if(modo==='ticket'){ nomeArq='ticket';
+    head=['Ticket','Resumo','Projeto','Horas','% do total','Pessoas','Link'];
+    rows=ord.map(([k,r])=>[k, resumos[k]||'', projNome(r.p), dec(r.s), pc(r.s), [...r.pess].map(nm).join(', '),
+      k!=='—'?`${jiraBase()}/browse/${k}`:'']);
+  } else if(modo==='tipo'){ nomeArq='tipo';
+    head=['Tipo de issue','Horas','% do total','Tickets','Pessoas'];
+    rows=ord.map(([k,r])=>[k, dec(r.s), pc(r.s), r.tick.size, r.pess.size]);
+  } else { nomeArq='projeto_pessoa';
+    head=['Projeto','Pessoa','Horas','% do total','Tickets'];
+    rows=ord.map(([k,r])=>{ const i=k.indexOf('|'); return [projNome(k.slice(0,i)), nm(k.slice(i+1)), dec(r.s), pc(r.s), r.tick.size]; });
+  }
+  baixaCSV(`timesheet_${nomeArq}_${per}.csv`, [head, ...rows]);
+}
+function exportaCSV(){
+  if(!estado.tempo){ return; }
+  const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
+  if(estado.vista==='timesheet'){
+    abreExportTimesheet();     // opções: matriz, detalhado, pessoa, projeto, ticket, tipo…
   } else if(estado.vista==='ranking'){
     const { linhas } = calcRanking();
     const rot={ok:'Em dia',warn:'Atrasado',bad:'Crítico',na:'-'};
@@ -8479,6 +8563,9 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='gtinfo-fechar'){ fechaModal(); }
   else if(t.hasAttribute('data-gtinfo-filtrar')){ estado.alocacao.fProj=t.getAttribute('data-gtinfo-filtrar');
     fechaModal(); if(estado.vista==='alocacao') renderAlocacao(); }
+  else if(t.id==='ts-exp-cancel'){ fechaModal(); }
+  else if(t.id==='ts-exp-ok'){ const m=(document.getElementById('ts-exp-modo')||{value:'matriz'}).value;
+    exportaTimesheet(m); fechaModal(); toast('⬇ CSV exportado.','ok'); }
 });
 // ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
