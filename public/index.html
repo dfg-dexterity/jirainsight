@@ -3561,6 +3561,7 @@ function renderApontar(){
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
+        ${id&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket: cria um ticket de apoio funcional (ou comenta num ticket aberto) com os detalhes e EXCLUI a reunião — o mesmo assistente da tela Vincular Reuniões">🔗 vincular a ticket</button>`:''}
       </div>
       ${logCtrl}
     </div>`;
@@ -7333,6 +7334,8 @@ function rvExecuta(){
       logAcao({acao:'vincular reunião', t:rv.m.k, para:j.destino||'', motivo:rv.modo==='criar'?'ticket novo':'ticket existente', ok:true});
       _rv.resultado=j; renderRvModal();
       estado.reuvinc.dados=null; carregaReuVinc(true);
+      // A reunião foi excluída: a aba Apontar recarrega as listas ao fechar o modal.
+      estado.apontar.porData={}; estado.apontar.recentes=null;
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
 }
 function renderReuVinc(){
@@ -7553,7 +7556,7 @@ function abreAjuda(){
       <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta).</li>
       <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto e aponte reuniões para várias pessoas.</li>
+      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
       <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Também em Lista/Tabela/Quadro.</li>
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
@@ -8451,7 +8454,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   if(t.id==='rv-modo-criar'){ _rv.modo='criar'; renderRvModal(); }
   else if(t.id==='rv-modo-exist'){ _rv.modo='existente'; if(!_rv.abertos&&!_rv.carregandoAb) rvCarregaAbertos(); else renderRvModal(); }
   else if(t.id==='rv-confirm'){ rvExecuta(); }
-  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal(); }
+  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal(); if(estado.vista==='apontar') renderApontar(); }
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
   const t=e.target; if(!t||!_rv) return;
@@ -8974,6 +8977,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     estado.apontar.recolhidos=r; renderApontar(); }
   else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
   else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
+  else if(t.hasAttribute('data-ap-vinc')){ escondeTip(); abreRvWizard(t.getAttribute('data-ap-vinc')); }
   else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
   else if(t.hasAttribute('data-cv-rec')){ escondeTip(); respondeConvite(t,true); }
   else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
