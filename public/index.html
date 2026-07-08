@@ -1476,7 +1476,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[] }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00' }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -8262,12 +8262,26 @@ function abreMetas(){
         <button class="btn" id="mt-add-fer">Adicionar feriado</button>
       </div>
     </div>
+
+    <div class="mt-sec">
+      <h3>📣 Ranking diário no Teams — horário do envio</h3>
+      <div class="muted small">O robô verifica <strong>a cada 30 minutos</strong> nos dias úteis e envia o ranking
+        ao canal <strong>a partir do horário escolhido</strong> (envia 1× por dia; sai em até ~30 min após a hora).
+        Vale para o time (config compartilhada). Requer o webhook do Teams configurado na Vercel.</div>
+      <div class="mt-form">
+        <div class="campo" style="max-width:160px"><label>Enviar às</label>
+          <select id="mt-teams-hora">${(()=>{ const cur=/^\d{2}:\d{2}$/.test(cfg.teamsHora||'')?cfg.teamsHora:'08:00'; const ops=[];
+            for(let h=6;h<=20;h++) for(const m of ['00','30']){ const v=String(h).padStart(2,'0')+':'+m;
+              ops.push(`<option value="${v}" ${v===cur?'selected':''}>${v}</option>`); }
+            return ops.join(''); })()}</select></div>
+      </div>
+    </div>
   `);
 }
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','apontar','planejar','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -9137,6 +9151,9 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
   else if(e.target && e.target.id==='alx-data'){ const v=e.target.value;
     if(_alxReprog && /^\d{4}-\d{2}-\d{2}$/.test(v)){ _alxReprog.nova=v; alxAtualizaComent(); } }
   else if(e.target && e.target.id==='alx-atrib-pessoa'){ alxAtribAtualizaComent(); }
+  else if(e.target && e.target.id==='mt-teams-hora'){ const v=e.target.value;
+    if(/^\d{2}:\d{2}$/.test(v)){ cfg.teamsHora=v; salvaCfg();
+      toast(`🕑 Ranking no Teams agendado para as ${v} (dias úteis).`,'ok'); } }
 });
 
 // Modal: fechar

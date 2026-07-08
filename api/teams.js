@@ -54,6 +54,34 @@ async function configCompartilhada() {
   } catch (e) { return def; }
 }
 
+// Estado do agendamento (último envio) — linha própria na tabela de config do
+// Supabase (id='teams_estado'), para o cron de 30 em 30 min não enviar 2×.
+// Sem Supabase, devolve null e o gate usa uma janela de 25 min como dedupe.
+async function teamsUltimoEnvio() {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return null;
+  try {
+    const r = await fetch(`${base}/rest/v1/jirainsight_config?id=eq.teams_estado&select=data`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    if (!r.ok) return '';
+    const rows = await r.json();
+    return String((rows && rows[0] && rows[0].data && rows[0].data.ultimoEnvio) || '');
+  } catch (e) { return ''; }
+}
+async function gravaTeamsUltimoEnvio(dia) {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return;
+  try {
+    await fetch(`${base}/rest/v1/jirainsight_config`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ id: 'teams_estado', data: { ultimoEnvio: dia } }),
+    });
+  } catch (e) { /* pior caso: um envio duplicado amanhã — preferível a não enviar */ }
+}
+
 async function worklogsDoDia(dia) {
   const token = process.env.CLOCKWORK_API_TOKEN;
   if (!token) throw new Error('CLOCKWORK_API_TOKEN não configurada');
@@ -115,6 +143,26 @@ export default async function handler(req, res) {
     // O cron roda seg–sex; ainda assim, pula feriados (a menos que ?forcar=1).
     if (!ehUtilBR(hoje, extras, removidos) && q.forcar !== '1' && !dry) {
       return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.` });
+    }
+
+    // Horário CONFIGURÁVEL (cfg.teamsHora, definido no painel em Metas): o cron do
+    // GitHub roda a cada 30 min com ?cron=1 e ESTE gate decide quando enviar (1× ao
+    // dia, a partir da hora escolhida). Chamadas manuais/dry não passam por aqui.
+    if (q.cron === '1' && !dry && q.forcar !== '1') {
+      const horaCfg = /^\d{2}:\d{2}$/.test(String(cfg.teamsHora || '')) ? cfg.teamsHora : '08:00';
+      const agora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+      if (agora < horaCfg) return json(res, 200, { enviado: false, aguardando: horaCfg, agora });
+      const ultimo = await teamsUltimoEnvio();
+      if (ultimo === hoje) return json(res, 200, { enviado: false, motivo: `Já enviado hoje (${hoje}).`, hora: horaCfg });
+      if (ultimo === null) {
+        // Sem Supabase para lembrar o último envio: janela de 25 min após a hora
+        // (o cron é de 30 em 30 min → no máximo 1 tique cai na janela).
+        const [h, m] = horaCfg.split(':').map(Number);
+        const [ha, ma] = agora.split(':').map(Number);
+        if ((ha * 60 + ma) - (h * 60 + m) >= 25) {
+          return json(res, 200, { enviado: false, motivo: 'Fora da janela de envio (sem Supabase para deduplicar).', hora: horaCfg, agora });
+        }
+      }
     }
 
     // Último dia útil FECHADO antes de hoje.
@@ -210,6 +258,7 @@ export default async function handler(req, res) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartao),
     });
     const okEnvio = r.status >= 200 && r.status < 300;
+    if (okEnvio && q.cron === '1') await gravaTeamsUltimoEnvio(hoje);
     return json(res, 200, {
       enviado: okEnvio, dia, status: r.status,
       pessoas: linhas.length, emDia: nEmDia, atrasadas: nAtrasadas, pctGeral,
