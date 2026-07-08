@@ -1476,7 +1476,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{} }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[] }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -2879,7 +2879,7 @@ function qaAnalisa(force){
     body:JSON.stringify({dias:q.dias, projeto:q.projeto, nocache:force?1:0})})
     .then(r=>r.json()).then(j=>{ q.carregando=false;
       if(!j.ok){ q.erro=j.erro||'Falha na análise.'; q.dados=null; }
-      else q.dados=j;
+      else { q.dados=j; qaRegistraSemana(j); }   // indicador semanal salvo na config do time
       if(estado.vista==='qualidade') renderQualidade();
     }).catch(e=>{ q.carregando=false; q.erro=String(e.message||e); if(estado.vista==='qualidade') renderQualidade(); });
 }
@@ -2890,6 +2890,12 @@ function qaCard(t){
   const icone={comentar:'💬',vencimento:'📅',atribuir:'👤',status:'🔀',dividir:'✂️',editar:'✏️'};
   const acts=t.acoes.map((a,i)=>
     `<button class="btn qa-act" data-qa-act="${escA(a.tipo)}" data-qa-k="${escA(t.k)}" data-qa-i="${i}" data-tip="${escA((a.texto||a.rotulo||'').slice(0,220))}">${icone[a.tipo]||'▸'} ${esc(a.rotulo)}</button>`).join('');
+  // Avisar a pessoa: comenta NO ticket marcando (@) o responsável (ou o relator) com
+  // os pontos a corrigir e o link das boas práticas.
+  const alvoId=t.respId||t.relatorId||''; const alvoNome=(t.respId?t.responsavel:t.relator)||'';
+  const avisar=(t.problemas.length&&alvoId)
+    ?`<button class="btn qa-act primario" data-qa-avisar="${escA(t.k)}" data-tip="Comenta no ticket marcando @${escA(alvoNome)}${t.respId?' (responsável)':' (relator)'} com os pontos a corrigir e o link das boas práticas">📣 Avisar ${esc(alvoNome.split(' ')[0]||'a pessoa')}</button>`
+    :'';
   return `<div class="ap-row qa-card ${escA(t.sinal)}">
     <div class="ap-l1">
       <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
@@ -2903,7 +2909,7 @@ function qaCard(t){
       <span class="aloc-badge ${cls}" data-tip="Nota de aderência às boas práticas (0–100)">${t.nota}</span>
     </div>
     ${probs?`<ul class="qa-probs">${probs}</ul>`:'<div class="muted small">✓ Sem violações relevantes das boas práticas.</div>'}
-    <div class="ap-chips qa-acts"><span class="muted small" style="align-self:center">Ações:</span>${acts}
+    <div class="ap-chips qa-acts"><span class="muted small" style="align-self:center">Ações:</span>${avisar}${acts}
       <button class="btn qa-act" data-qa-abrir="${escA(t.k)}">↗ Abrir no Jira</button></div>
   </div>`;
 }
@@ -2941,23 +2947,44 @@ function renderQualidade(){
       </div>
       <div class="qa-lista">${d.tickets.map(qaCard).join('')||'<div class="estado">Nenhum ticket criado no período.</div>'}</div>`;
   }
+  // Indicadores semanais (salvos na config do time a cada análise) — recorte do projeto atual.
+  const hist=(Array.isArray(cfg.qualidadeHist)?cfg.qualidadeHist:[]).filter(h=>(h.projeto||'')===(q.projeto||''));
+  const histHtml=hist.length?`
+    <div class="muted small" style="font-weight:600;margin:18px 0 4px">📈 Indicadores semanais
+      <span class="muted" style="font-weight:400">(salvos automaticamente a cada análise — 1 registro por semana · ${q.projeto?('projeto '+esc(q.projeto)):'todos os projetos'})</span></div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Semana</th><th class="num">Auditados</th><th class="num">Nota média</th><th class="num">Bons</th><th class="num">Atenção</th><th class="num">Críticos</th><th class="num">Sem vencimento</th><th class="num">Sem responsável</th></tr></thead>
+      <tbody>${hist.slice(0,26).map(h=>`<tr><td>${esc(fmtBR(h.sem))} <span class="muted small">(${esc(String(h.dias||'?'))}d)</span></td>
+        <td class="num">${h.n}</td>
+        <td class="num"><span class="aloc-badge ${h.media>=80?'saud':(h.media>=50?'aten':'crit')}">${h.media}</span></td>
+        <td class="num">${h.bons!=null?h.bons:'—'}</td><td class="num">${h.atencao}</td><td class="num">${h.criticos}</td>
+        <td class="num">${h.semVenc}</td><td class="num">${h.semResp}</td></tr>`).join('')}</tbody></table></div>`
+    :'';
   cont.replaceChildren(el(`<div><div class="card full">
       <h2>🔎 Qualidade dos Tickets <span>auditoria por IA × boas práticas TI-04-006 · menu de ações por ticket</span></h2>
-      ${controles}${corpo}
+      ${controles}${corpo}${histHtml}
     </div></div>`));
 }
 // Modal de comentário com o feedback sugerido pela IA (editável antes de publicar).
-function abreQaComentar(k, acao){
-  const id=idApontar();
-  abreModal(`<h2>💬 Comentar no ${esc(k)}</h2>
-    <div class="muted small">Feedback sugerido pela IA com base nas boas práticas — <strong>edite à vontade</strong>; será publicado como comentário no ticket, com o seu usuário.</div>
-    <textarea id="qa-com-texto" class="pl-texto" style="min-height:150px;margin-top:10px">${esc(acao.texto||acao.rotulo||'')}</textarea>
+// mencao (opcional) = {id, nome}: o comentário sai com a @menção à pessoa no início.
+let _qaMencao=null;
+function abreQaComentar(k, acao, mencao){
+  const id=idApontar(); _qaMencao=mencao||null;
+  abreModal(`<h2>${mencao?'📣 Avisar no':'💬 Comentar no'} ${esc(k)}</h2>
+    <div class="muted small">${mencao?`O comentário será publicado <strong>marcando @${esc(mencao.nome)}</strong> (o Jira notifica a pessoa) e com o link das boas práticas.`
+      :'Feedback sugerido pela IA com base nas boas práticas'} — <strong>edite à vontade</strong>; sai como comentário no ticket, com o seu usuário.</div>
+    <textarea id="qa-com-texto" class="pl-texto" style="min-height:170px;margin-top:10px">${esc(acao.texto||acao.rotulo||'')}</textarea>
     <div style="display:flex;gap:10px;margin-top:12px">
       <button class="btn" id="qa-com-cancel">Cancelar</button>
-      ${id?`<button class="btn primario" id="qa-com-pub" data-qa-com-k="${escA(k)}">Publicar comentário</button>`
+      ${id?`<button class="btn primario" id="qa-com-pub" data-qa-com-k="${escA(k)}">${mencao?`📣 Publicar marcando @${esc(mencao.nome.split(' ')[0])}`:'Publicar comentário'}</button>`
           :'<button class="btn" data-ap-act="config-id">Identificar-se para comentar</button>'}
     </div>
     <div class="ap-fb" id="qa-com-fb" hidden></div>`);
+}
+// Texto do aviso ao dono do ticket: problemas + link das boas práticas.
+function qaTextoAviso(t, urlBp){
+  const probs=t.problemas.map(p=>`• ${p.principio}: ${p.detalhe}`).join('\n');
+  return `este ticket precisa de alguns ajustes para seguir as nossas boas práticas de criação de tickets (TI-04-006):\n\n${probs}\n\n`+
+    `Boas práticas: ${urlBp}\n\nQualquer dúvida me chama! (aviso gerado pela Análise de Qualidade do painel Insights)`;
 }
 function publicaQaComentario(k){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
@@ -2965,14 +2992,40 @@ function publicaQaComentario(k){
   const fb=document.getElementById('qa-com-fb');
   if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva o comentário.'; } return; }
   const bt=document.getElementById('qa-com-pub'); if(bt){ bt.disabled=true; bt.textContent='Publicando…'; }
+  const men=_qaMencao;
+  const body={comentar:true,issue:k,texto,email:id.email,token:id.token};
+  if(men&&men.id){ body.mencionar=men.id; body.mencionarNome=men.nome||''; }
   fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json()).then(j=>{
-      if(j.ok){ logAcao({acao:'qualidade-feedback', t:k, para:'comentário publicado', ok:true});
-        toast(`✓ Feedback publicado em ${k}.`,'ok'); fechaModal(); }
+    body:JSON.stringify(body)}).then(r=>r.json()).then(j=>{
+      if(j.ok){ _qaMencao=null;
+        logAcao({acao:men?'qualidade-avisar':'qualidade-feedback', t:k, para:men?('@'+(men.nome||'')+' marcado no comentário'):'comentário publicado', ok:true});
+        toast(`✓ ${men?'Aviso publicado marcando @'+(men.nome||''):'Feedback publicado'} em ${k}.`,'ok'); fechaModal(); }
       else { if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao comentar.'); }
-        if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } }
+        if(bt){ bt.disabled=false; bt.textContent='Publicar'; } }
     }).catch(e=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
-      if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } });
+      if(bt){ bt.disabled=false; bt.textContent='Publicar'; } });
+}
+// Indicadores semanais: cada análise salva (na config do time) 1 registro por
+// semana × projeto — a última análise da semana vale.
+function qaRegistraSemana(d){
+  try{
+    if(!d || !Array.isArray(d.tickets) || !d.tickets.length) return;
+    const ts=d.tickets;
+    const ent={ sem: semChave(hojeSP()), projeto: d.projeto||'', dias: d.dias||0, n: ts.length,
+      media: Math.round(ts.reduce((s,t)=>s+(Number(t.nota)||0),0)/ts.length),
+      bons: ts.filter(t=>t.sinal==='bom').length,
+      atencao: ts.filter(t=>t.sinal==='atencao').length,
+      criticos: ts.filter(t=>t.sinal==='critico').length,
+      semVenc: ts.filter(t=>!t.vencimento).length,
+      semResp: ts.filter(t=>!t.responsavel).length,
+      quando: new Date().toISOString() };
+    cfg.qualidadeHist=Array.isArray(cfg.qualidadeHist)?cfg.qualidadeHist:[];
+    const i=cfg.qualidadeHist.findIndex(h=>h.sem===ent.sem && (h.projeto||'')===(ent.projeto||''));
+    if(i>=0) cfg.qualidadeHist[i]=ent; else cfg.qualidadeHist.push(ent);
+    cfg.qualidadeHist.sort((a,b)=>String(b.sem).localeCompare(String(a.sem)));
+    if(cfg.qualidadeHist.length>104) cfg.qualidadeHist.length=104;
+    salvaCfg();
+  }catch(e){}
 }
 
 function renderTimesheet(){
@@ -8528,6 +8581,14 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.id==='qa-analisar'){ qaAnalisa(false); }
   else if(t.id==='qa-refresh'){ qaAnalisa(true); }
   else if(t.hasAttribute('data-qa-abrir')){ window.open(`${jiraBase()}/browse/${encodeURIComponent(t.getAttribute('data-qa-abrir'))}`,'_blank'); }
+  else if(t.hasAttribute('data-qa-avisar')){
+    const k=t.getAttribute('data-qa-avisar');
+    const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); if(!tk) return;
+    const alvoId=tk.respId||tk.relatorId; const alvoNome=(tk.respId?tk.responsavel:tk.relator)||'';
+    if(!alvoId) return;
+    escondeTip();
+    abreQaComentar(k, { texto: qaTextoAviso(tk, (q.dados&&q.dados.url)||'') }, { id:alvoId, nome:alvoNome });
+  }
   else if(t.hasAttribute('data-qa-act')){
     const k=t.getAttribute('data-qa-k'); const i=+t.getAttribute('data-qa-i');
     const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); const a=tk&&tk.acoes[i]; if(!a) return;
