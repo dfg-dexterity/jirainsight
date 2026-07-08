@@ -844,6 +844,14 @@
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
   .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
+  /* Qualidade dos tickets (IA) */
+  .qa-lista{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .qa-card{cursor:default}
+  .qa-card.bom{border-left-color:#188918} .qa-card.atencao{border-left-color:#C77700} .qa-card.critico{border-left-color:#DC2626}
+  .qa-probs{margin:0 0 0 18px;padding:0;font-size:13px;color:var(--texto2)}
+  .qa-probs li{margin:3px 0}
+  .qa-acts{align-items:center;flex-wrap:wrap}
+  .qa-act{padding:4px 10px;font-size:12.5px}
   /* Trava por pessoa (aprovação do Diego) e conflito de sobreposição */
   .ab-row.travada select,.ab-row.travada input,.ab-row.travada .ab-x{pointer-events:none;opacity:.55}
   .ab-row.conflito{box-shadow:inset 3px 0 0 #DC2626;background:rgba(220,38,38,.06)}
@@ -1295,6 +1303,7 @@
           <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
           <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
           <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
+          <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
         </div>
       </div>
       <div class="navg">
@@ -1442,6 +1451,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false },
+  // Qualidade dos tickets (IA × boas práticas TI-04-006 do Notion)
+  qualidade:{ dias:14, projeto:'', dados:null, carregando:false, erro:'' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
@@ -1853,7 +1864,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 // Telas operacionais/formulário (apontar, planejar, gestão…) têm controles próprios: nada disso aparece.
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
-  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, receita:{per:1,exp:1},
+  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
 function aplicaChrome(){
@@ -1872,6 +1883,7 @@ function render(){
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
+  if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
@@ -2856,6 +2868,111 @@ function cardNaoApontou(){
   const nomes = faltam.map(l => `<span data-pessoa="${esc(l.a)}">${esc(l.nome)}</span>`).join(', ');
   return `<div class="aviso"><strong>${faltam.length}</strong> sem apontamento em
     <strong>${esc(ultimo)}</strong> (último dia útil): ${nomes}</div>`;
+}
+
+// ========== QUALIDADE DOS TICKETS: IA audita contra as boas práticas TI-04-006 ==========
+// A rubrica é lida AO VIVO da página pública do Notion (atualizou lá → a análise acompanha).
+function qaAnalisa(force){
+  const q=estado.qualidade;
+  q.carregando=true; q.erro=''; renderQualidade();
+  fetch('/api/resumo?acao=qualidade',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dias:q.dias, projeto:q.projeto, nocache:force?1:0})})
+    .then(r=>r.json()).then(j=>{ q.carregando=false;
+      if(!j.ok){ q.erro=j.erro||'Falha na análise.'; q.dados=null; }
+      else q.dados=j;
+      if(estado.vista==='qualidade') renderQualidade();
+    }).catch(e=>{ q.carregando=false; q.erro=String(e.message||e); if(estado.vista==='qualidade') renderQualidade(); });
+}
+function qaCard(t){
+  const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+  const cls=t.sinal==='bom'?'saud':(t.sinal==='atencao'?'aten':'crit');
+  const probs=t.problemas.map(p=>`<li><strong>${esc(p.principio)}</strong> — ${esc(p.detalhe)}</li>`).join('');
+  const icone={comentar:'💬',vencimento:'📅',atribuir:'👤',status:'🔀',dividir:'✂️',editar:'✏️'};
+  const acts=t.acoes.map((a,i)=>
+    `<button class="btn qa-act" data-qa-act="${escA(a.tipo)}" data-qa-k="${escA(t.k)}" data-qa-i="${i}" data-tip="${escA((a.texto||a.rotulo||'').slice(0,220))}">${icone[a.tipo]||'▸'} ${esc(a.rotulo)}</button>`).join('');
+  return `<div class="ap-row qa-card ${escA(t.sinal)}">
+    <div class="ap-l1">
+      <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
+      <span class="ap-resumo">${esc(t.resumo)}</span>
+      <span class="spacer"></span>
+      <span class="badge tipo-badge">${esc(t.tipo)}</span>
+      ${t.responsavel?`<span class="badge" data-tip="Responsável">👤 ${esc(t.responsavel)}</span>`:'<span class="badge venc-passado">sem responsável</span>'}
+      ${t.vencimento?`<span class="badge" data-tip="Vencimento">📅 ${esc(fmtBR(t.vencimento))}</span>`:'<span class="badge venc-passado">sem vencimento</span>'}
+      ${t.horasApontadas?`<span class="badge com-horas" data-tip="Horas apontadas${t.nSubtarefas?'':' — sem subtarefas'}">⏱ ${t.horasApontadas}h</span>`:''}
+      ${t.nSubtarefas?`<span class="badge" data-tip="Subtarefas">${t.nSubtarefas} sub</span>`:''}
+      <span class="aloc-badge ${cls}" data-tip="Nota de aderência às boas práticas (0–100)">${t.nota}</span>
+    </div>
+    ${probs?`<ul class="qa-probs">${probs}</ul>`:'<div class="muted small">✓ Sem violações relevantes das boas práticas.</div>'}
+    <div class="ap-chips qa-acts"><span class="muted small" style="align-self:center">Ações:</span>${acts}
+      <button class="btn qa-act" data-qa-abrir="${escA(t.k)}">↗ Abrir no Jira</button></div>
+  </div>`;
+}
+function renderQualidade(){
+  const cont=document.getElementById('conteudo');
+  const q=estado.qualidade;
+  if(!_projetosCache) garanteProjetos().catch(()=>{});
+  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const optProj='<option value="">todos os projetos</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${q.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const controles=`<div class="ap-filtros">
+      <div class="campo"><label>Tickets criados nos últimos</label><select id="qa-dias">${[7,14,30,60].map(d=>`<option value="${d}" ${q.dias===d?'selected':''}>${d} dias</option>`).join('')}</select></div>
+      <div class="campo"><label>Projeto</label><select id="qa-proj">${optProj}</select></div>
+      <div class="campo"><label>&nbsp;</label><button class="btn primario" id="qa-analisar" ${q.carregando?'disabled':''}>${q.carregando?'Analisando…':'🤖 Analisar qualidade'}</button></div>
+      ${q.dados?'<div class="campo"><label>&nbsp;</label><button class="btn" id="qa-refresh" data-tip="Ignora o cache (10 min) e reanalisa agora">↻ Reanalisar</button></div>':''}
+    </div>`;
+  let corpo='';
+  if(q.carregando) corpo='<div class="estado">🤖 Lendo as boas práticas no Notion e auditando os tickets… (pode levar ~1 min)</div>';
+  else if(q.erro) corpo=`<div class="erro"><strong>Falha na análise.</strong> ${esc(q.erro)}</div>`;
+  else if(!q.dados) corpo=`<div class="estado">Escolha o período/projeto e clique em <strong>🤖 Analisar qualidade</strong>.<br>
+      <span class="small">A IA lê as boas práticas <strong>direto do Notion (TI-04-006)</strong> — atualizou o documento lá, a análise acompanha — e audita cada ticket criado no período, com um <strong>menu de ações</strong> para corrigir na hora.</span></div>`;
+  else {
+    const d=q.dados;
+    const fonteBadge=d.fonte==='notion'
+      ?`<a class="badge" href="${escA(d.url)}" target="_blank" rel="noopener" data-tip="Rubrica lida AO VIVO desta página do Notion — atualize o documento e a próxima análise acompanha">📘 rubrica: Notion TI-04-006 ↗</a>`
+      :`<span class="badge venc-passado" data-tip="A página pública do Notion não pôde ser lida agora — usando a cópia local (snapshot) das boas práticas">📘 rubrica: cópia local</span>`;
+    const media=d.tickets.length?Math.round(d.tickets.reduce((s,t)=>s+t.nota,0)/d.tickets.length):0;
+    const nCrit=d.tickets.filter(t=>t.sinal==='critico').length, nAte=d.tickets.filter(t=>t.sinal==='atencao').length;
+    corpo=`
+      <div class="ia-geral" style="margin:4px 0 12px"><strong>Visão geral da IA:</strong> ${esc(d.geral||'—')}<span class="spacer"></span>${fonteBadge}</div>
+      <div class="kpis ts-kpis">
+        <div class="kpi a"><div class="v">${d.tickets.length}</div><div class="l">Tickets auditados (${d.dias}d${d.projeto?' · '+esc(d.projeto):''})</div></div>
+        <div class="kpi ${media>=80?'a':(media>=50?'t':'w')}"><div class="v">${media}</div><div class="l">Nota média</div></div>
+        <div class="kpi w"><div class="v">${nCrit}</div><div class="l">Críticos (&lt;50)</div></div>
+        <div class="kpi t"><div class="v">${nAte}</div><div class="l">Atenção (50–79)</div></div>
+      </div>
+      <div class="qa-lista">${d.tickets.map(qaCard).join('')||'<div class="estado">Nenhum ticket criado no período.</div>'}</div>`;
+  }
+  cont.replaceChildren(el(`<div><div class="card full">
+      <h2>🔎 Qualidade dos Tickets <span>auditoria por IA × boas práticas TI-04-006 · menu de ações por ticket</span></h2>
+      ${controles}${corpo}
+    </div></div>`));
+}
+// Modal de comentário com o feedback sugerido pela IA (editável antes de publicar).
+function abreQaComentar(k, acao){
+  const id=idApontar();
+  abreModal(`<h2>💬 Comentar no ${esc(k)}</h2>
+    <div class="muted small">Feedback sugerido pela IA com base nas boas práticas — <strong>edite à vontade</strong>; será publicado como comentário no ticket, com o seu usuário.</div>
+    <textarea id="qa-com-texto" class="pl-texto" style="min-height:150px;margin-top:10px">${esc(acao.texto||acao.rotulo||'')}</textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn" id="qa-com-cancel">Cancelar</button>
+      ${id?`<button class="btn primario" id="qa-com-pub" data-qa-com-k="${escA(k)}">Publicar comentário</button>`
+          :'<button class="btn" data-ap-act="config-id">Identificar-se para comentar</button>'}
+    </div>
+    <div class="ap-fb" id="qa-com-fb" hidden></div>`);
+}
+function publicaQaComentario(k){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const texto=(document.getElementById('qa-com-texto')||{value:''}).value.trim();
+  const fb=document.getElementById('qa-com-fb');
+  if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva o comentário.'; } return; }
+  const bt=document.getElementById('qa-com-pub'); if(bt){ bt.disabled=true; bt.textContent='Publicando…'; }
+  fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json()).then(j=>{
+      if(j.ok){ logAcao({acao:'qualidade-feedback', t:k, para:'comentário publicado', ok:true});
+        toast(`✓ Feedback publicado em ${k}.`,'ok'); fechaModal(); }
+      else { if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao comentar.'); }
+        if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } }
+    }).catch(e=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
+      if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } });
 }
 
 function renderTimesheet(){
@@ -7556,6 +7673,7 @@ function abreAjuda(){
       <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta). O <b>⬇ Exportar</b> abre opções: matriz, <b>detalhado</b> (dia · pessoa · projeto · ticket), por <b>pessoa</b>, <b>projeto</b>, <b>ticket</b>, <b>tipo</b> ou projeto × pessoa — sempre no recorte dos filtros.</li>
       <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
+      <li><b>Análise › 🔎 Qualidade (IA)</b> — a IA lê as <b>boas práticas TI-04-006 direto do Notion</b> e audita os tickets criados no período: nota 0–100, violações por princípio e um <b>menu de ações</b> por ticket (comentar feedback, definir vencimento, atribuir…).</li>
       <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
       <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Também em Lista/Tabela/Quadro.</li>
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
@@ -8403,6 +8521,32 @@ document.addEventListener('click', (e)=>{
   else if(t.id==='tour-fim'){ fimTour(); }
 });
 
+// ---- Qualidade dos Tickets (IA): analisar + menu de ações por ticket ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const q=estado.qualidade;
+  if(t.id==='qa-analisar'){ qaAnalisa(false); }
+  else if(t.id==='qa-refresh'){ qaAnalisa(true); }
+  else if(t.hasAttribute('data-qa-abrir')){ window.open(`${jiraBase()}/browse/${encodeURIComponent(t.getAttribute('data-qa-abrir'))}`,'_blank'); }
+  else if(t.hasAttribute('data-qa-act')){
+    const k=t.getAttribute('data-qa-k'); const i=+t.getAttribute('data-qa-i');
+    const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); const a=tk&&tk.acoes[i]; if(!a) return;
+    escondeTip();
+    if(a.tipo==='vencimento'){ abreModalReprog([k],''); }
+    else if(a.tipo==='atribuir'){ abreModalAtribuir([k]); }
+    else { abreQaComentar(k, a); }   // comentar / editar / dividir / status → feedback no ticket
+  }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.id) return;
+  if(t.id==='qa-dias'){ estado.qualidade.dias=Number(t.value)||14; }
+  else if(t.id==='qa-proj'){ estado.qualidade.projeto=t.value; }
+});
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='qa-com-cancel'){ fechaModal(); }
+  else if(t.id==='qa-com-pub'){ publicaQaComentario(t.getAttribute('data-qa-com-k')); }
+});
 // ---- Tela Reclassificar: cliques, seleção e busca ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest('button'); if(!t) return;

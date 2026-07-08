@@ -9,7 +9,7 @@
 //
 // Corpo: { periodo:{label,diasUteis}, equipe:{...}, pessoas:[{id,nome,...}] }
 // Resposta: { ok, geral, pessoas:[{id, resumo, sinal}] }
-import { json } from './_lib/util.js';
+import { json, jiraSearchAll, cacheGet, cacheSetTTL } from './_lib/util.js';
 import { sincronizaFolgas } from './_lib/folgaSync.js';
 
 const MODELO = process.env.ANTHROPIC_MODELO || 'claude-opus-4-8';
@@ -172,19 +172,197 @@ const SISTEMA = [
   '- Não use markdown pesado; texto corrido. Mantenha cada resumo curto.',
 ].join('\n');
 
-async function chamaClaude(apiKey, payload) {
+// ---------------------------------------------------------------------------
+// Análise de QUALIDADE dos tickets vs. as boas práticas TI-04-006 (Notion).
+// A rubrica é lida AO VIVO da página pública (o link pode ser atualizado a
+// qualquer momento); se a página não puder ser lida, usa um snapshot local.
+// Consolidada aqui pelo limite de 12 Serverless Functions.
+// ---------------------------------------------------------------------------
+const QUALIDADE_URL_PADRAO = 'https://dexterityitsolutions.notion.site/TI-04-006-Boas-Praticas-de-Cria-o-de-itens-do-Ticket-do-JIRA-2c7c69371e17803a9650c3e391599385';
+const MAX_TICKETS_Q = 30;
+// Snapshot condensado da TI-04-006 (fallback) — 13 princípios.
+const RUBRICA_LOCAL = [
+  'TI-04-006 — Boas práticas de criação de itens/tickets do Jira (Dexterity):',
+  'P1. Um ticket = um objetivo claro: descrever O QUE fazer, o motivo e o critério de aceite; nada de "ver isso"/"alinhar", sem contexto, múltiplos objetivos ou ticket como chat.',
+  'P2. Não apontar horas em Histórias: criar subtarefas para execução e apontar nelas; História é agrupador lógico.',
+  'P3. Todo ticket tem dono: um único responsável principal definido (nunca em branco, nunca "equipe", troca formal registrada).',
+  'P4. Status reflete a realidade: To Do = não começou; In Progress = execução ativa; Blocked = impedimento real; Done = concluído e validado. Não manipular status.',
+  'P5. Atualização contínua: registrar início, bloqueios e conclusões; nada de ticket parado sem comentário ou comentários genéricos ("seguindo").',
+  'P6. Tipo correto de item: Rotina p/ recorrente, Tarefa p/ entregável, História p/ agrupamento, Épico p/ grandes frentes.',
+  'P7. Status usado corretamente: mudar só com mudança real; Blocked para dependência externa; encerrar só com aceite cumprido.',
+  'P8. Nenhuma tarefa acumula mais de 8h consecutivas: quebrar em partes menores/subtarefas; não usar tarefa como "container de horas" por dias.',
+  'P9. Ticket representa entrega, não intenção: precisa de entregável verificável; nada de "pensar sobre", genérico ou lembrete pessoal.',
+  'P10. Reuniões/atividades administrativas têm procedimento próprio: não misturar reunião com tarefa técnica nem horas administrativas em tarefas de entrega.',
+  'P11. Não deixar itens abertos só para apontar horas: fechar ao concluir; trabalho de vários dias vira subtarefas por dia/etapa/entrega.',
+  'P12. Data limite = data REAL prevista de entrega (baseline): o campo de vencimento deve existir e refletir a realidade.',
+  'P13. Ticket como fonte central de informação: links para todos os arquivos/evidências relevantes no ticket (não só no Teams/e-mail).',
+  'Bugs: tipo Bug com comportamento atual, esperado, passos de reprodução, ambiente e evidências; título específico; um problema por bug; vincular ao ticket relacionado.',
+].join('\n');
+
+async function rubricaBoasPraticas() {
+  const ck = 'qualidade:rubrica';
+  const c = cacheGet(ck);
+  if (c) return c;
+  const url = (process.env.QUALIDADE_URL || QUALIDADE_URL_PADRAO).trim();
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; jirainsight)', Accept: 'text/html' } });
+    if (r.ok) {
+      const html = await r.text();
+      const t = html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#\d+;/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+      // Página publicada do Notion vem renderizada no HTML; se vier "vazia", cai no snapshot.
+      if (t.length > 1200) return cacheSetTTL(ck, { texto: t.slice(0, 24000), fonte: 'notion', url }, 30);
+    }
+  } catch (e) { /* sem rede/bloqueio → snapshot local */ }
+  return cacheSetTTL(ck, { texto: RUBRICA_LOCAL, fonte: 'local', url }, 30);
+}
+
+// ADF (descrição do Jira v3) -> texto simples.
+function adfTexto(n, out) {
+  if (!n) return '';
+  out = out || [];
+  if (Array.isArray(n)) { n.forEach((x) => adfTexto(x, out)); return out.join(''); }
+  if (n.type === 'text') out.push(n.text || '');
+  if (n.type === 'hardBreak' || n.type === 'paragraph') out.push('\n');
+  if (n.content) adfTexto(n.content, out);
+  return out.join('');
+}
+
+const SCHEMA_Q = {
+  type: 'object',
+  properties: {
+    geral: { type: 'string' },
+    tickets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          k: { type: 'string' },
+          nota: { type: 'number' },
+          sinal: { type: 'string', enum: ['bom', 'atencao', 'critico'] },
+          problemas: {
+            type: 'array',
+            items: { type: 'object', properties: { principio: { type: 'string' }, detalhe: { type: 'string' } }, required: ['principio', 'detalhe'], additionalProperties: false },
+          },
+          acoes: {
+            type: 'array',
+            items: { type: 'object', properties: { tipo: { type: 'string', enum: ['comentar', 'vencimento', 'atribuir', 'status', 'dividir', 'editar'] }, rotulo: { type: 'string' }, texto: { type: 'string' } }, required: ['tipo', 'rotulo'], additionalProperties: false },
+          },
+        },
+        required: ['k', 'nota', 'sinal', 'problemas', 'acoes'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['geral', 'tickets'],
+  additionalProperties: false,
+};
+
+const SISTEMA_Q = [
+  'Você é um auditor de qualidade de tickets do Jira da Dexterity IT. Recebe a RUBRICA',
+  '(as boas práticas oficiais TI-04-006, texto extraído do Notion) e uma lista de TICKETS',
+  'criados recentemente (com descrição, tipo, responsável, vencimento, horas apontadas e',
+  'nº de subtarefas). Avalie CADA ticket contra a rubrica, em português do Brasil.',
+  '',
+  'Para cada ticket devolva:',
+  '- nota: 0 a 100 (aderência às boas práticas; 100 = exemplar).',
+  '- sinal: "bom" (>=80), "atencao" (50–79) ou "critico" (<50).',
+  '- problemas: SÓ os princípios violados (máx. 4, os mais graves primeiro), cada um com o',
+  '  nº/nome curto do princípio (ex.: "P1 — objetivo claro") e um detalhe ESPECÍFICO deste',
+  '  ticket (cite o que falta ou está errado; nunca genérico).',
+  '- acoes: 1 a 3 ações práticas para o dono corrigir, escolhendo o tipo mais adequado:',
+  '  "comentar" (inclua em texto um comentário pronto, construtivo e educado, citando as boas',
+  '  práticas e pedindo a correção — será postado no ticket), "vencimento" (falta/errada a',
+  '  data limite), "atribuir" (sem responsável), "status" (status não reflete a realidade),',
+  '  "dividir" (mais de 8h acumuladas / vários objetivos → sugerir subtarefas) ou "editar"',
+  '  (resumo/descrição precisam ser reescritos; em texto sugira o novo resumo/descrição).',
+  '- Ticket bom (nota >= 80): problemas=[] e uma única ação "comentar" só se houver algo',
+  '  pequeno a melhorar; senão acoes=[].',
+  '',
+  'Regras: baseie-se APENAS nos dados fornecidos; não invente campos que não recebeu.',
+  'Descrição vazia/curta demais para o tipo é violação do P1. Horas apontadas em item de',
+  'tipo História violam o P2. Sem responsável viola o P3. Sem vencimento viola o P12.',
+  'Mais de 8h apontadas num ticket sem subtarefas sugere P8/P11.',
+  'Em "geral", escreva 2 a 3 frases sobre o padrão do lote (principais problemas recorrentes).',
+].join('\n');
+
+async function analisaQualidade(res, b, apiKey) {
+  const dias = Math.min(60, Math.max(1, Number(b.dias) || 14));
+  const projeto = String(b.projeto || '').trim().toUpperCase();
+  if (projeto && !/^[A-Z][A-Z0-9_]*$/.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
+  const ck = `qualidade:analise:${dias}:${projeto || '*'}`;
+  const c = cacheGet(ck);
+  if (c && !b.nocache) return json(res, 200, c);
+
+  const rubrica = await rubricaBoasPraticas();
+  const jql = `created >= -${dias}d${projeto ? ` AND project = ${projeto}` : ''} ORDER BY created DESC`;
+  const { issues } = await jiraSearchAll({
+    jql,
+    fields: ['summary', 'description', 'issuetype', 'status', 'assignee', 'duedate', 'created', 'reporter', 'priority', 'labels', 'timespent', 'subtasks', 'parent', 'project'],
+    pageSize: MAX_TICKETS_Q, maxPages: 1,
+  });
+  if (!issues.length) return json(res, 200, { ok: true, tickets: [], geral: 'Nenhum ticket criado no período.', fonte: rubrica.fonte, url: rubrica.url, dias, projeto });
+
+  const dados = issues.slice(0, MAX_TICKETS_Q).map((it) => {
+    const f = it.fields || {};
+    return {
+      k: it.key,
+      projeto: (f.project && f.project.key) || '',
+      tipo: (f.issuetype && f.issuetype.name) || '',
+      resumo: String(f.summary || '').slice(0, 255),
+      descricao: adfTexto(f.description).replace(/\s+/g, ' ').trim().slice(0, 900),
+      status: (f.status && f.status.name) || '',
+      responsavel: (f.assignee && f.assignee.displayName) || '',
+      relator: (f.reporter && f.reporter.displayName) || '',
+      vencimento: f.duedate || '',
+      criadoEm: String(f.created || '').slice(0, 10),
+      prioridade: (f.priority && f.priority.name) || '',
+      labels: Array.isArray(f.labels) ? f.labels.slice(0, 8) : [],
+      horasApontadas: Math.round(((Number(f.timespent) || 0) / 3600) * 10) / 10,
+      nSubtarefas: Array.isArray(f.subtasks) ? f.subtasks.length : 0,
+      temPai: !!f.parent,
+    };
+  });
+
+  const prompt = 'RUBRICA (boas práticas TI-04-006):\n\n' + rubrica.texto
+    + '\n\n---\n\nTICKETS PARA AUDITAR (JSON):\n\n' + JSON.stringify(dados);
+  const resultado = await chamaClaude(apiKey, null, { system: SISTEMA_Q, schema: SCHEMA_Q, prompt });
+
+  const porK = {}; (resultado.tickets || []).forEach((t) => { porK[String(t.k || '')] = t; });
+  const tickets = dados.map((d) => {
+    const a = porK[d.k] || { nota: 0, sinal: 'atencao', problemas: [], acoes: [] };
+    return {
+      ...d,
+      nota: Math.max(0, Math.min(100, Math.round(Number(a.nota) || 0))),
+      sinal: ['bom', 'atencao', 'critico'].includes(a.sinal) ? a.sinal : 'atencao',
+      problemas: (Array.isArray(a.problemas) ? a.problemas : []).slice(0, 4).map((p) => ({ principio: txt(p.principio, 60), detalhe: txt(p.detalhe, 400) })),
+      acoes: (Array.isArray(a.acoes) ? a.acoes : []).slice(0, 3).map((x) => ({
+        tipo: ['comentar', 'vencimento', 'atribuir', 'status', 'dividir', 'editar'].includes(x.tipo) ? x.tipo : 'comentar',
+        rotulo: txt(x.rotulo, 80), texto: txt(x.texto, 1500),
+      })),
+    };
+  });
+  const out = { ok: true, geral: String(resultado.geral || ''), tickets, fonte: rubrica.fonte, url: rubrica.url, dias, projeto, quando: new Date().toISOString() };
+  return json(res, 200, cacheSetTTL(ck, out, 10));
+}
+
+async function chamaClaude(apiKey, payload, custom) {
   const base = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
   const corpo = {
     model: MODELO,
     max_tokens: 8000,
-    system: SISTEMA,
+    system: (custom && custom.system) || SISTEMA,
     output_config: {
       effort: 'low',                       // tarefa de sumarização: rápida e barata
-      format: { type: 'json_schema', schema: SCHEMA },
+      format: { type: 'json_schema', schema: (custom && custom.schema) || SCHEMA },
     },
     messages: [{
       role: 'user',
-      content: 'Gere o resumo a partir destes dados (JSON):\n\n' + JSON.stringify(payload),
+      content: (custom && custom.prompt) || ('Gere o resumo a partir destes dados (JSON):\n\n' + JSON.stringify(payload)),
     }],
   };
   const r = await fetch(`${base}/v1/messages`, {
@@ -228,9 +406,12 @@ export default async function handler(req, res) {
       return json(res, 200, {
         ok: false,
         configurado: false,
-        erro: 'Resumo por IA não configurado. Defina a variável ANTHROPIC_API_KEY na Vercel.',
+        erro: 'Análise por IA não configurada. Defina a variável ANTHROPIC_API_KEY na Vercel.',
       });
     }
+
+    // Qualidade dos tickets vs. boas práticas TI-04-006 (rubrica lida do Notion).
+    if (acao === 'qualidade') return await analisaQualidade(res, b, apiKey);
 
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });
