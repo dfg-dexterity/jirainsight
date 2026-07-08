@@ -844,6 +844,14 @@
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
   .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
+  /* Qualidade dos tickets (IA) */
+  .qa-lista{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .qa-card{cursor:default}
+  .qa-card.bom{border-left-color:#188918} .qa-card.atencao{border-left-color:#C77700} .qa-card.critico{border-left-color:#DC2626}
+  .qa-probs{margin:0 0 0 18px;padding:0;font-size:13px;color:var(--texto2)}
+  .qa-probs li{margin:3px 0}
+  .qa-acts{align-items:center;flex-wrap:wrap}
+  .qa-act{padding:4px 10px;font-size:12.5px}
   /* Trava por pessoa (aprovação do Diego) e conflito de sobreposição */
   .ab-row.travada select,.ab-row.travada input,.ab-row.travada .ab-x{pointer-events:none;opacity:.55}
   .ab-row.conflito{box-shadow:inset 3px 0 0 #DC2626;background:rgba(220,38,38,.06)}
@@ -1295,6 +1303,7 @@
           <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
           <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
           <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
+          <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
         </div>
       </div>
       <div class="navg">
@@ -1442,6 +1451,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false },
+  // Qualidade dos tickets (IA × boas práticas TI-04-006 do Notion)
+  qualidade:{ dias:14, projeto:'', dados:null, carregando:false, erro:'' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
     movendo:false, resultado:null, taskId:'' },
   // Ajuda & feedback (projetos para o destino dos tickets de dúvida/sugestão/bug).
@@ -1853,7 +1864,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 // Telas operacionais/formulário (apontar, planejar, gestão…) têm controles próprios: nada disso aparece.
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
-  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, receita:{per:1,exp:1},
+  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
 function aplicaChrome(){
@@ -1872,6 +1883,7 @@ function render(){
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
+  if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='reclassificar') return renderReclass();
@@ -2858,6 +2870,111 @@ function cardNaoApontou(){
     <strong>${esc(ultimo)}</strong> (último dia útil): ${nomes}</div>`;
 }
 
+// ========== QUALIDADE DOS TICKETS: IA audita contra as boas práticas TI-04-006 ==========
+// A rubrica é lida AO VIVO da página pública do Notion (atualizou lá → a análise acompanha).
+function qaAnalisa(force){
+  const q=estado.qualidade;
+  q.carregando=true; q.erro=''; renderQualidade();
+  fetch('/api/resumo?acao=qualidade',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dias:q.dias, projeto:q.projeto, nocache:force?1:0})})
+    .then(r=>r.json()).then(j=>{ q.carregando=false;
+      if(!j.ok){ q.erro=j.erro||'Falha na análise.'; q.dados=null; }
+      else q.dados=j;
+      if(estado.vista==='qualidade') renderQualidade();
+    }).catch(e=>{ q.carregando=false; q.erro=String(e.message||e); if(estado.vista==='qualidade') renderQualidade(); });
+}
+function qaCard(t){
+  const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
+  const cls=t.sinal==='bom'?'saud':(t.sinal==='atencao'?'aten':'crit');
+  const probs=t.problemas.map(p=>`<li><strong>${esc(p.principio)}</strong> — ${esc(p.detalhe)}</li>`).join('');
+  const icone={comentar:'💬',vencimento:'📅',atribuir:'👤',status:'🔀',dividir:'✂️',editar:'✏️'};
+  const acts=t.acoes.map((a,i)=>
+    `<button class="btn qa-act" data-qa-act="${escA(a.tipo)}" data-qa-k="${escA(t.k)}" data-qa-i="${i}" data-tip="${escA((a.texto||a.rotulo||'').slice(0,220))}">${icone[a.tipo]||'▸'} ${esc(a.rotulo)}</button>`).join('');
+  return `<div class="ap-row qa-card ${escA(t.sinal)}">
+    <div class="ap-l1">
+      <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
+      <span class="ap-resumo">${esc(t.resumo)}</span>
+      <span class="spacer"></span>
+      <span class="badge tipo-badge">${esc(t.tipo)}</span>
+      ${t.responsavel?`<span class="badge" data-tip="Responsável">👤 ${esc(t.responsavel)}</span>`:'<span class="badge venc-passado">sem responsável</span>'}
+      ${t.vencimento?`<span class="badge" data-tip="Vencimento">📅 ${esc(fmtBR(t.vencimento))}</span>`:'<span class="badge venc-passado">sem vencimento</span>'}
+      ${t.horasApontadas?`<span class="badge com-horas" data-tip="Horas apontadas${t.nSubtarefas?'':' — sem subtarefas'}">⏱ ${t.horasApontadas}h</span>`:''}
+      ${t.nSubtarefas?`<span class="badge" data-tip="Subtarefas">${t.nSubtarefas} sub</span>`:''}
+      <span class="aloc-badge ${cls}" data-tip="Nota de aderência às boas práticas (0–100)">${t.nota}</span>
+    </div>
+    ${probs?`<ul class="qa-probs">${probs}</ul>`:'<div class="muted small">✓ Sem violações relevantes das boas práticas.</div>'}
+    <div class="ap-chips qa-acts"><span class="muted small" style="align-self:center">Ações:</span>${acts}
+      <button class="btn qa-act" data-qa-abrir="${escA(t.k)}">↗ Abrir no Jira</button></div>
+  </div>`;
+}
+function renderQualidade(){
+  const cont=document.getElementById('conteudo');
+  const q=estado.qualidade;
+  if(!_projetosCache) garanteProjetos().catch(()=>{});
+  const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
+  const optProj='<option value="">todos os projetos</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${q.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const controles=`<div class="ap-filtros">
+      <div class="campo"><label>Tickets criados nos últimos</label><select id="qa-dias">${[7,14,30,60].map(d=>`<option value="${d}" ${q.dias===d?'selected':''}>${d} dias</option>`).join('')}</select></div>
+      <div class="campo"><label>Projeto</label><select id="qa-proj">${optProj}</select></div>
+      <div class="campo"><label>&nbsp;</label><button class="btn primario" id="qa-analisar" ${q.carregando?'disabled':''}>${q.carregando?'Analisando…':'🤖 Analisar qualidade'}</button></div>
+      ${q.dados?'<div class="campo"><label>&nbsp;</label><button class="btn" id="qa-refresh" data-tip="Ignora o cache (10 min) e reanalisa agora">↻ Reanalisar</button></div>':''}
+    </div>`;
+  let corpo='';
+  if(q.carregando) corpo='<div class="estado">🤖 Lendo as boas práticas no Notion e auditando os tickets… (pode levar ~1 min)</div>';
+  else if(q.erro) corpo=`<div class="erro"><strong>Falha na análise.</strong> ${esc(q.erro)}</div>`;
+  else if(!q.dados) corpo=`<div class="estado">Escolha o período/projeto e clique em <strong>🤖 Analisar qualidade</strong>.<br>
+      <span class="small">A IA lê as boas práticas <strong>direto do Notion (TI-04-006)</strong> — atualizou o documento lá, a análise acompanha — e audita cada ticket criado no período, com um <strong>menu de ações</strong> para corrigir na hora.</span></div>`;
+  else {
+    const d=q.dados;
+    const fonteBadge=d.fonte==='notion'
+      ?`<a class="badge" href="${escA(d.url)}" target="_blank" rel="noopener" data-tip="Rubrica lida AO VIVO desta página do Notion — atualize o documento e a próxima análise acompanha">📘 rubrica: Notion TI-04-006 ↗</a>`
+      :`<span class="badge venc-passado" data-tip="A página pública do Notion não pôde ser lida agora — usando a cópia local (snapshot) das boas práticas">📘 rubrica: cópia local</span>`;
+    const media=d.tickets.length?Math.round(d.tickets.reduce((s,t)=>s+t.nota,0)/d.tickets.length):0;
+    const nCrit=d.tickets.filter(t=>t.sinal==='critico').length, nAte=d.tickets.filter(t=>t.sinal==='atencao').length;
+    corpo=`
+      <div class="ia-geral" style="margin:4px 0 12px"><strong>Visão geral da IA:</strong> ${esc(d.geral||'—')}<span class="spacer"></span>${fonteBadge}</div>
+      <div class="kpis ts-kpis">
+        <div class="kpi a"><div class="v">${d.tickets.length}</div><div class="l">Tickets auditados (${d.dias}d${d.projeto?' · '+esc(d.projeto):''})</div></div>
+        <div class="kpi ${media>=80?'a':(media>=50?'t':'w')}"><div class="v">${media}</div><div class="l">Nota média</div></div>
+        <div class="kpi w"><div class="v">${nCrit}</div><div class="l">Críticos (&lt;50)</div></div>
+        <div class="kpi t"><div class="v">${nAte}</div><div class="l">Atenção (50–79)</div></div>
+      </div>
+      <div class="qa-lista">${d.tickets.map(qaCard).join('')||'<div class="estado">Nenhum ticket criado no período.</div>'}</div>`;
+  }
+  cont.replaceChildren(el(`<div><div class="card full">
+      <h2>🔎 Qualidade dos Tickets <span>auditoria por IA × boas práticas TI-04-006 · menu de ações por ticket</span></h2>
+      ${controles}${corpo}
+    </div></div>`));
+}
+// Modal de comentário com o feedback sugerido pela IA (editável antes de publicar).
+function abreQaComentar(k, acao){
+  const id=idApontar();
+  abreModal(`<h2>💬 Comentar no ${esc(k)}</h2>
+    <div class="muted small">Feedback sugerido pela IA com base nas boas práticas — <strong>edite à vontade</strong>; será publicado como comentário no ticket, com o seu usuário.</div>
+    <textarea id="qa-com-texto" class="pl-texto" style="min-height:150px;margin-top:10px">${esc(acao.texto||acao.rotulo||'')}</textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn" id="qa-com-cancel">Cancelar</button>
+      ${id?`<button class="btn primario" id="qa-com-pub" data-qa-com-k="${escA(k)}">Publicar comentário</button>`
+          :'<button class="btn" data-ap-act="config-id">Identificar-se para comentar</button>'}
+    </div>
+    <div class="ap-fb" id="qa-com-fb" hidden></div>`);
+}
+function publicaQaComentario(k){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const texto=(document.getElementById('qa-com-texto')||{value:''}).value.trim();
+  const fb=document.getElementById('qa-com-fb');
+  if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva o comentário.'; } return; }
+  const bt=document.getElementById('qa-com-pub'); if(bt){ bt.disabled=true; bt.textContent='Publicando…'; }
+  fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json()).then(j=>{
+      if(j.ok){ logAcao({acao:'qualidade-feedback', t:k, para:'comentário publicado', ok:true});
+        toast(`✓ Feedback publicado em ${k}.`,'ok'); fechaModal(); }
+      else { if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao comentar.'); }
+        if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } }
+    }).catch(e=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
+      if(bt){ bt.disabled=false; bt.textContent='Publicar comentário'; } });
+}
+
 function renderTimesheet(){
   const cont=document.getElementById('conteudo');
   const { meta, dias, hoje, linhas } = calcTimesheet();
@@ -3561,6 +3678,7 @@ function renderApontar(){
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
+        ${id&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket: cria um ticket de apoio funcional (ou comenta num ticket aberto) com os detalhes e EXCLUI a reunião — o mesmo assistente da tela Vincular Reuniões">🔗 vincular a ticket</button>`:''}
       </div>
       ${logCtrl}
     </div>`;
@@ -7333,6 +7451,8 @@ function rvExecuta(){
       logAcao({acao:'vincular reunião', t:rv.m.k, para:j.destino||'', motivo:rv.modo==='criar'?'ticket novo':'ticket existente', ok:true});
       _rv.resultado=j; renderRvModal();
       estado.reuvinc.dados=null; carregaReuVinc(true);
+      // A reunião foi excluída: a aba Apontar recarrega as listas ao fechar o modal.
+      estado.apontar.porData={}; estado.apontar.recentes=null;
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
 }
 function renderReuVinc(){
@@ -7550,10 +7670,11 @@ function abreAjuda(){
     <details class="help-sec"><summary>As telas (por grupo do menu)</summary><div class="help-body"><ul>
       <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
       <li><b>Análise › Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
-      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta).</li>
+      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta). O <b>⬇ Exportar</b> abre opções: matriz, <b>detalhado</b> (dia · pessoa · projeto · ticket), por <b>pessoa</b>, <b>projeto</b>, <b>ticket</b>, <b>tipo</b> ou projeto × pessoa — sempre no recorte dos filtros.</li>
       <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto e aponte reuniões para várias pessoas.</li>
+      <li><b>Análise › 🔎 Qualidade (IA)</b> — a IA lê as <b>boas práticas TI-04-006 direto do Notion</b> e audita os tickets criados no período: nota 0–100, violações por princípio e um <b>menu de ações</b> por ticket (comentar feedback, definir vencimento, atribuir…).</li>
+      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
       <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Também em Lista/Tabela/Quadro.</li>
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
@@ -7860,14 +7981,98 @@ function baixaCSV(nome, linhas){
   a.href=url; a.download=nome; document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(url);
 }
-function exportaCSV(){
-  if(!estado.tempo){ return; }
-  const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
-  if(estado.vista==='timesheet'){
+// Worklogs do período RESPEITANDO os filtros globais (pessoa/categoria/projeto/tipo).
+function tsWorklogsFiltrados(){
+  const f=filtros(); const ft=Object.assign({}, f, {ocultar:false});
+  const projs=projetosUnidos();
+  return ((estado.tempo&&estado.tempo.worklogs)||[]).filter(w=>{
+    if(!passa(w.p,w.t,projs,ft)) return false;
+    if(f.pessoa && w.a!==f.pessoa) return false;
+    return !!(w.d||'').slice(0,10);
+  });
+}
+// Modal de exportação do timesheet: escolha COMO agrupar (matriz, detalhado,
+// pessoa, projeto, ticket, tipo, projeto × pessoa) — sempre no recorte atual.
+function abreExportTimesheet(){
+  if(!estado.tempo){ toast('Aguarde os dados do período carregarem.','warn'); return; }
+  const n=tsWorklogsFiltrados().length;
+  abreModal(`
+    <h2>Exportar timesheet</h2>
+    <div class="muted small">Exporta as horas do <strong>período selecionado</strong>, respeitando os
+      filtros ativos (pessoa/categoria/projeto/tipo) — <strong>${n}</strong> apontamento(s) no recorte.</div>
+    <div class="campo" style="margin-top:12px;max-width:380px"><label>Agrupar por</label>
+      <select id="ts-exp-modo">
+        <option value="matriz">Pessoa × Dia (a matriz da tela)</option>
+        <option value="detalhado">Detalhado — Dia · Pessoa · Projeto · Ticket</option>
+        <option value="pessoa">Pessoa (totais)</option>
+        <option value="projeto">Projeto (totais)</option>
+        <option value="ticket">Ticket / issue (totais)</option>
+        <option value="tipo">Tipo de issue (totais)</option>
+        <option value="projpessoa">Projeto × Pessoa</option>
+      </select></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" id="ts-exp-cancel">Cancelar</button>
+      <button class="btn primario" id="ts-exp-ok">⬇ Exportar CSV</button>
+    </div>`);
+}
+function exportaTimesheet(modo){
+  const meta=(estado.tempo&&estado.tempo.meta)||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
+  if(modo==='matriz'){
     const { dias, linhas } = calcTimesheet();
     const head=['Pessoa','Total (h)','Lacuna (h)', ...dias];
     const rows=linhas.map(l=>[l.nome, dec(l.tot), dec(l.lacuna), ...dias.map(d=>dec(l.porDia[d]||0))]);
     baixaCSV(`timesheet_${per}.csv`, [head, ...rows]);
+    return;
+  }
+  const wls=tsWorklogsFiltrados();
+  const pess=pessoasUnidas(); const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const projs=(estado.tempo&&estado.tempo.projetos)||{};
+  const resumos=(estado.tempo&&estado.tempo.resumos)||{};
+  const projNome=(p)=> (projs[p]&&projs[p].nome) ? `${p} — ${projs[p].nome}` : (p||'—');
+  if(modo==='detalhado'){
+    // Uma linha por dia + pessoa + ticket (agrega múltiplos worklogs do mesmo dia).
+    const map={};
+    wls.forEach(w=>{ const d=(w.d||'').slice(0,10); const ch=`${d}|${w.a}|${w.k||''}`;
+      const r=map[ch]=map[ch]||{d,a:w.a,k:w.k||'',p:w.p||'',t:w.t||'',f:0,s:0};
+      r.s+=Number(w.s)||0; if(w.f) r.f=1; });
+    const rows=Object.values(map).sort((x,y)=>x.d.localeCompare(y.d)||nm(x.a).localeCompare(nm(y.a),'pt')||x.k.localeCompare(y.k));
+    baixaCSV(`timesheet_detalhado_${per}.csv`, [
+      ['Dia','Pessoa','Projeto','Ticket','Resumo','Tipo','Faturável','Horas'],
+      ...rows.map(r=>[r.d, nm(r.a), projNome(r.p), r.k, resumos[r.k]||'', r.t, r.f?'sim':'não', dec(r.s)])]);
+    return;
+  }
+  const chave={ pessoa:(w)=>w.a, projeto:(w)=>w.p||'—', ticket:(w)=>w.k||'—', tipo:(w)=>w.t||'—',
+    projpessoa:(w)=>`${w.p||'—'}|${w.a}` }[modo] || ((w)=>w.a);
+  const g={}; let tot=0;
+  wls.forEach(w=>{ const k=chave(w); const r=g[k]=g[k]||{s:0,fat:0,p:w.p||'',pess:new Set(),tick:new Set()};
+    const s=Number(w.s)||0; r.s+=s; if(w.f) r.fat+=s; r.pess.add(w.a); if(w.k) r.tick.add(w.k); tot+=s; });
+  const ord=Object.entries(g).sort((x,y)=>y[1].s-x[1].s);
+  const pc=(s)=> tot?Math.round(s/tot*100)+'%':'';
+  let head, rows, nomeArq;
+  if(modo==='pessoa'){ nomeArq='pessoa';
+    head=['Pessoa','Horas','Faturável (h)','% faturável','% do total','Tickets'];
+    rows=ord.map(([k,r])=>[nm(k), dec(r.s), dec(r.fat), r.s?Math.round(r.fat/r.s*100)+'%':'', pc(r.s), r.tick.size]);
+  } else if(modo==='projeto'){ nomeArq='projeto';
+    head=['Projeto','Horas','% do total','Faturável (h)','Pessoas','Tickets'];
+    rows=ord.map(([k,r])=>[projNome(k), dec(r.s), pc(r.s), dec(r.fat), r.pess.size, r.tick.size]);
+  } else if(modo==='ticket'){ nomeArq='ticket';
+    head=['Ticket','Resumo','Projeto','Horas','% do total','Pessoas','Link'];
+    rows=ord.map(([k,r])=>[k, resumos[k]||'', projNome(r.p), dec(r.s), pc(r.s), [...r.pess].map(nm).join(', '),
+      k!=='—'?`${jiraBase()}/browse/${k}`:'']);
+  } else if(modo==='tipo'){ nomeArq='tipo';
+    head=['Tipo de issue','Horas','% do total','Tickets','Pessoas'];
+    rows=ord.map(([k,r])=>[k, dec(r.s), pc(r.s), r.tick.size, r.pess.size]);
+  } else { nomeArq='projeto_pessoa';
+    head=['Projeto','Pessoa','Horas','% do total','Tickets'];
+    rows=ord.map(([k,r])=>{ const i=k.indexOf('|'); return [projNome(k.slice(0,i)), nm(k.slice(i+1)), dec(r.s), pc(r.s), r.tick.size]; });
+  }
+  baixaCSV(`timesheet_${nomeArq}_${per}.csv`, [head, ...rows]);
+}
+function exportaCSV(){
+  if(!estado.tempo){ return; }
+  const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
+  if(estado.vista==='timesheet'){
+    abreExportTimesheet();     // opções: matriz, detalhado, pessoa, projeto, ticket, tipo…
   } else if(estado.vista==='ranking'){
     const { linhas } = calcRanking();
     const rot={ok:'Em dia',warn:'Atrasado',bad:'Crítico',na:'-'};
@@ -8316,6 +8521,32 @@ document.addEventListener('click', (e)=>{
   else if(t.id==='tour-fim'){ fimTour(); }
 });
 
+// ---- Qualidade dos Tickets (IA): analisar + menu de ações por ticket ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const q=estado.qualidade;
+  if(t.id==='qa-analisar'){ qaAnalisa(false); }
+  else if(t.id==='qa-refresh'){ qaAnalisa(true); }
+  else if(t.hasAttribute('data-qa-abrir')){ window.open(`${jiraBase()}/browse/${encodeURIComponent(t.getAttribute('data-qa-abrir'))}`,'_blank'); }
+  else if(t.hasAttribute('data-qa-act')){
+    const k=t.getAttribute('data-qa-k'); const i=+t.getAttribute('data-qa-i');
+    const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); const a=tk&&tk.acoes[i]; if(!a) return;
+    escondeTip();
+    if(a.tipo==='vencimento'){ abreModalReprog([k],''); }
+    else if(a.tipo==='atribuir'){ abreModalAtribuir([k]); }
+    else { abreQaComentar(k, a); }   // comentar / editar / dividir / status → feedback no ticket
+  }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.id) return;
+  if(t.id==='qa-dias'){ estado.qualidade.dias=Number(t.value)||14; }
+  else if(t.id==='qa-proj'){ estado.qualidade.projeto=t.value; }
+});
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='qa-com-cancel'){ fechaModal(); }
+  else if(t.id==='qa-com-pub'){ publicaQaComentario(t.getAttribute('data-qa-com-k')); }
+});
 // ---- Tela Reclassificar: cliques, seleção e busca ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest('button'); if(!t) return;
@@ -8451,7 +8682,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   if(t.id==='rv-modo-criar'){ _rv.modo='criar'; renderRvModal(); }
   else if(t.id==='rv-modo-exist'){ _rv.modo='existente'; if(!_rv.abertos&&!_rv.carregandoAb) rvCarregaAbertos(); else renderRvModal(); }
   else if(t.id==='rv-confirm'){ rvExecuta(); }
-  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal(); }
+  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal(); if(estado.vista==='apontar') renderApontar(); }
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
   const t=e.target; if(!t||!_rv) return;
@@ -8476,6 +8707,9 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='gtinfo-fechar'){ fechaModal(); }
   else if(t.hasAttribute('data-gtinfo-filtrar')){ estado.alocacao.fProj=t.getAttribute('data-gtinfo-filtrar');
     fechaModal(); if(estado.vista==='alocacao') renderAlocacao(); }
+  else if(t.id==='ts-exp-cancel'){ fechaModal(); }
+  else if(t.id==='ts-exp-ok'){ const m=(document.getElementById('ts-exp-modo')||{value:'matriz'}).value;
+    exportaTimesheet(m); fechaModal(); toast('⬇ CSV exportado.','ok'); }
 });
 // ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
@@ -8974,6 +9208,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     estado.apontar.recolhidos=r; renderApontar(); }
   else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
   else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
+  else if(t.hasAttribute('data-ap-vinc')){ escondeTip(); abreRvWizard(t.getAttribute('data-ap-vinc')); }
   else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
   else if(t.hasAttribute('data-cv-rec')){ escondeTip(); respondeConvite(t,true); }
   else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
