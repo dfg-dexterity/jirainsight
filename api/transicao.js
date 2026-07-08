@@ -91,8 +91,17 @@ export default async function handler(req, res) {
       const texto = String(b.texto || '').trim();
       if (!texto) return json(res, 400, { erro: 'Comentário vazio.' });
       if (texto.length > 30000) return json(res, 400, { erro: 'Comentário longo demais.' });
+      const corpo = adf(texto);
+      // Menção opcional: marca a pessoa (@) no início do comentário — o Jira notifica.
+      const menId = String(b.mencionar || '').trim();
+      if (menId && /^[\w:-]{5,128}$/.test(menId) && corpo.content) {
+        corpo.content.unshift({ type: 'paragraph', content: [
+          { type: 'mention', attrs: { id: menId } },
+          { type: 'text', text: ' —' },
+        ] });
+      }
       const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/comment`, {
-        method: 'POST', headers, body: JSON.stringify({ body: adf(texto) }),
+        method: 'POST', headers, body: JSON.stringify({ body: corpo }),
       });
       if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para comentar neste chamado.' });
       if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
