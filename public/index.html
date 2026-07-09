@@ -4598,7 +4598,7 @@ const ARV_DEFS=[
   ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:''}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',depto:null}, criando:false, feito:null, erro:'' };
   return pl.arv; }
 // Sugestão de projeto conforme a folha: AMS (categoria), interno ou tarefas avulsas/ADM.
 function arvProjetosSugeridos(filtro){
@@ -4631,14 +4631,21 @@ function renderOndeCrio(){
     let form='';
     if(podeCriar){
       const f=a.form;
-      const sug=arvProjetosSugeridos(no.filtro||'');
-      if(!f.projeto && sug.length) f.projeto=sug[0].key;          // 1º sugerido já selecionado
-      if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
       const ps=(_projetosCache||[]).slice().sort((x,y)=>x.key.localeCompare(y.key));
+      // Tarefas AVULSAS/administrativas: o ÚNICO projeto permitido é o TAD.
+      const ehAvulsa=no.filtro==='avulsa';
+      let sug=arvProjetosSugeridos(no.filtro||'');
+      if(ehAvulsa){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
+      if(ehAvulsa) f.projeto=(sug[0]&&sug[0].key)||'';
+      else if(!f.projeto && sug.length) f.projeto=sug[0].key;     // 1º sugerido já selecionado
+      if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
+      if(ehAvulsa && f.depto==null && no.depto) f.depto=no.depto;       // departamento da folha
       const sugSet=new Set(sug.map(p=>p.key));
-      const optProj='<option value="">— escolha —</option>'
-        +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
-        +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
+      const optProj = ehAvulsa
+        ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].key)} — ${esc(sug[0].nome||'')}</option>`:'<option value="">projeto TAD não encontrado</option>')
+        : '<option value="">— escolha —</option>'
+          +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
+          +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
       const proj=ps.find(p=>p.key===f.projeto);
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
@@ -4648,7 +4655,9 @@ function renderOndeCrio(){
       const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([ac,n])=>`<option value="${escA(ac)}" ${f.respId===ac?'selected':''}>${esc(n)}</option>`).join('');
       form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':''}</div>
         <div class="pl-grid">
-          <div class="campo"><label>Projeto</label><select class="arv-in" data-arv-f="projeto">${optProj}</select></div>
+          <div class="campo"><label>Projeto${ehAvulsa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${ehAvulsa?'disabled data-tip="Tarefas avulsas/administrativas só podem nascer no projeto TAD"':''}>${optProj}</select></div>
+          ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
+            <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
           <div class="campo"><label>Tipo</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
           <div class="campo"><label>Responsável</label><select class="arv-in" data-arv-f="respId">${optResp}</select></div>
@@ -4700,15 +4709,17 @@ async function arvCria(){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   a.erro='';
   if(!f.projeto){ a.erro='Escolha o projeto.'; renderOndeCrio(); return; }
+  if(no.filtro==='avulsa' && !(f.depto||'').trim()){ a.erro='Escolha o Departamento Dexterity (obrigatório nas tarefas avulsas).'; renderOndeCrio(); return; }
   if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderOndeCrio(); return; }
   if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
     a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderOndeCrio(); return; }
   if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
-  const rodape=`Classificação (árvore de decisão): ${no.badge}${no.depto?` · ${no.depto}`:''}`;
+  const depto=(no.filtro==='avulsa'?(f.depto||''):(no.depto||'')).trim();
+  const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}`;
   const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
     descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
     respId:f.respId||'', paiKey:no.subtarefa?(f.paiKey||'').trim().toUpperCase():'',
-    estimativa:'', labels:[], venc:f.venc||'' };
+    estimativa:'', labels:[], venc:f.venc||'', departamento:depto };
   a.criando=true; renderOndeCrio();
   try{
     const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},

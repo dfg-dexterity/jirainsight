@@ -4,7 +4,35 @@
 //
 // Corpo: { itens:[{projeto, tipoId, resumo, descricao?, respId?, paiKey?}], email, token }
 // Resposta: { ok, criados:[{indice,key,resumo}], erros:[{indice,erro}] }
-import { jiraBase, cacheClear, json } from './_lib/util.js';
+import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json } from './_lib/util.js';
+
+// Campo "Departamento Dexterity" (tarefas avulsas/TAD): o id do custom field é
+// resolvido pelo NOME via createmeta do projeto (cache 30 min). Se o campo não
+// existir no projeto, o ticket é criado sem ele e a resposta traz um aviso.
+async function campoDepartamento(base, headers, projeto) {
+  const ck = `criar:depto:${projeto}`;
+  const c = cacheGet(ck);
+  if (c !== null && c !== undefined) return c;
+  let out = null;
+  try {
+    const r = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}&expand=projects.issuetypes.fields`, { headers });
+    if (r.ok) {
+      const j = await r.json();
+      const tipos = (j.projects && j.projects[0] && j.projects[0].issuetypes) || [];
+      for (const t of tipos) {
+        for (const [fid, f] of Object.entries(t.fields || {})) {
+          if (/departamento\s*dexterity/i.test(f.name || '')) {
+            out = { id: fid, tipo: (f.schema && f.schema.type) || 'option',
+              valores: (f.allowedValues || []).map((v) => ({ id: v.id, value: v.value || v.name || '' })) };
+            break;
+          }
+        }
+        if (out) break;
+      }
+    }
+  } catch (e) { /* segue sem o campo */ }
+  return cacheSetTTL(ck, out, 30);
+}
 
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
@@ -136,6 +164,14 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
     };
 
+    // "Departamento Dexterity": resolve o custom field por projeto (só quando usado).
+    const metaDepto = {};
+    const avisos = [];
+    for (const p of [...new Set(itens.filter((it) => it.departamento).map((it) => String(it.projeto || '').toUpperCase()))]) {
+      metaDepto[p] = await campoDepartamento(base, headers, p);
+      if (!metaDepto[p]) avisos.push(`Campo "Departamento Dexterity" não encontrado no projeto ${p} — ticket(s) criado(s) sem o campo.`);
+    }
+
     const criados = [];
     // O endpoint bulk aceita até 50 por chamada — fatia o lote.
     for (let i = 0; i < itens.length; i += 50) {
@@ -152,6 +188,18 @@ export default async function handler(req, res) {
         if (it.estimativa) fields.timetracking = { originalEstimate: String(it.estimativa).trim() };
         if (it.venc) fields.duedate = String(it.venc);
         if (Array.isArray(it.labels) && it.labels.length) fields.labels = it.labels.map(String);
+        if (it.departamento) {
+          const m = metaDepto[String(it.projeto || '').toUpperCase()];
+          if (m && m.id) {
+            const alvo = String(it.departamento).trim().slice(0, 80);
+            if (m.valores && m.valores.length) {
+              const op = m.valores.find((v) => v.value.toLowerCase() === alvo.toLowerCase())
+                || m.valores.find((v) => v.value.toLowerCase().includes(alvo.toLowerCase().split(' ')[0]));
+              fields[m.id] = op ? { id: op.id } : { value: alvo };
+            } else if (m.tipo === 'string') fields[m.id] = alvo;
+            else fields[m.id] = { value: alvo };
+          }
+        }
         return { fields };
       });
 
@@ -189,7 +237,7 @@ export default async function handler(req, res) {
     cacheClear('venc:');
     cacheClear('epicos:');
 
-    return json(res, 200, { ok: erros.length === 0, criados, erros });
+    return json(res, 200, { ok: erros.length === 0, criados, erros, ...(avisos.length ? { avisos } : {}) });
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });
   }
