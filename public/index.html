@@ -844,6 +844,9 @@
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
   .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
+  /* Linha da Gestão com os controles do Apontar embutidos */
+  .ap-row.gx-emb{border:none;border-left:none;border-radius:0;padding:0;background:transparent;box-shadow:none}
+  .ap-row.gx-emb:hover{box-shadow:none}
   /* 🌳 Árvore de decisão (Criação de Ticket) */
   .arv-trilha{font-size:12px;color:var(--muted);margin:2px 0 10px;padding:6px 10px;background:var(--cartao2);border-radius:8px}
   .arv-titulo{margin:2px 0 2px;font-size:17px}
@@ -1340,6 +1343,7 @@
           <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Alocação</button>
           <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
           <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
+          <button data-v="ondecrio"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🌳 Onde crio o ticket?</button>
         </div>
       </div>
       <div class="navg">
@@ -1883,7 +1887,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
-  ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, reclassificar:{},
+  ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
@@ -1904,6 +1908,7 @@ function render(){
   if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
+  if(estado.vista==='ondecrio') return renderOndeCrio();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='reuvinc') return renderReuVinc();
   if(estado.vista==='gestao') return renderGestao();
@@ -3990,6 +3995,7 @@ async function executaTransicao(btn){
       const stBtn=row.querySelector('[data-ap-st]'); if(stBtn) stBtn.textContent=`${novo} ▾`;
       const dados=estado.apontar.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.status=novo;
+      const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg) tg.status=novo;
       const fechou=(catg==='done');
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
       if(fechou){
@@ -3999,7 +4005,7 @@ async function executaTransicao(btn){
         row.classList.add('feito');
         area.innerHTML=`<span class="ap-fb ok">✓ ${esc(k)} concluído — saindo da lista…</span>`;
         row.style.transition='opacity .5s ease'; row.style.opacity='.35';
-        setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, 1100);
+        setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='gestao') renderGestao(); }, 1100);
       } else {
         area.innerHTML=`<span class="ap-fb ok">✓ Status atualizado para “${esc(novo)}”.</span>`;
         setTimeout(()=>{ area.remove(); }, 3000);
@@ -4053,6 +4059,7 @@ async function executaReagendar(btn){
     if(j.ok){
       const dados=ap.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.venc=nova||'';
+      const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg) tg.venc=nova||'';
       estado.cache={};
       // Sai da lista se deixou de pertencer à janela atual (sem data e não estamos incluindo sem-data; ou venc além da data-limite).
       const saiu=(!nova && !ap.semVenc) || (nova && nova>ap.ate);
@@ -4061,7 +4068,7 @@ async function executaReagendar(btn){
       fb.textContent = nova ? `✓ ${k} reagendado para ${fmtBR(nova)}.` : `✓ Vencimento de ${k} removido.`;
       row.classList.add('feito');
       if(saiu){ row.style.transition='opacity .5s ease'; row.style.opacity='.35'; }
-      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, saiu?1100:850);
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='gestao') renderGestao(); }, saiu?1100:850);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao reagendar.';
       [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
@@ -4111,6 +4118,7 @@ async function executaTransferir(btn){
       const dados=ap.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
       if(t){ t.respId=accountId||''; t.resp=novoNome||''; }
+      const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg){ tg.respId=accountId||''; tg.resp=novoNome||''; }
       estado.cache={};
       // Some da lista se o filtro "Só os meus" estiver ligado e não for mais minha.
       const saiu = ap.soMeus && id.accountId && (accountId!==id.accountId);
@@ -4118,7 +4126,7 @@ async function executaTransferir(btn){
       fb.classList.add('ok'); fb.textContent = accountId?`✓ ${k} transferido para ${novoNome}.`:`✓ ${k} sem responsável.`;
       row.classList.add('feito');
       if(saiu){ row.style.transition='opacity .5s ease'; row.style.opacity='.35'; }
-      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, saiu?1100:850);
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='gestao') renderGestao(); }, saiu?1100:850);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao transferir.';
       [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
@@ -4505,7 +4513,6 @@ function renderPlanejar(){
     return;
   }
 
-  if(pl.modo==='arvore') return renderPlanejarArvore();
   if(pl.resultados) return renderPlanejarResultado();
   if(pl.itens) return renderPlanejarRevisao();
   renderPlanejarForm();
@@ -4591,7 +4598,7 @@ const ARV_DEFS=[
   ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:'',venc:'',paiKey:''}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:''}, criando:false, feito:null, erro:'' };
   return pl.arv; }
 // Sugestão de projeto conforme a folha: AMS (categoria), interno ou tarefas avulsas/ADM.
 function arvProjetosSugeridos(filtro){
@@ -4603,14 +4610,14 @@ function arvProjetosSugeridos(filtro){
   return [];
 }
 
-function renderPlanejarArvore(){
+function renderOndeCrio(){
   const cont=document.getElementById('conteudo');
-  const pl=estado.planejar; const a=arvEstado(); const id=idApontar();
+  const a=arvEstado(); const id=idApontar();
+  // Catálogo de projetos (para as sugestões e o formulário do último passo).
+  if(!_projetosCache){
+    garanteProjetos().then(()=>{ if(estado.vista==='ondecrio') renderOndeCrio(); }).catch(()=>{});
+  }
   const no=ARV_NOS[a.no]||ARV_NOS.start;
-  const chips=`<div class="ap-chips" style="margin-bottom:12px">
-      <button class="chip" aria-pressed="false" data-pl-modo="lote">Criação em lote</button>
-      <button class="chip" aria-pressed="false" data-pl-modo="epico">Planejamento de épico</button>
-      <button class="chip" aria-pressed="true" data-pl-modo="arvore">🌳 Árvore de decisão</button></div>`;
   const trilha=a.hist.length?`<div class="arv-trilha">${a.hist.map(h=>esc(h.label)).join(' → ')}</div>`:'';
   const defs=`<details class="arv-defs"><summary>📖 Conceitos-chave</summary>
       ${ARV_DEFS.map(([t2,x])=>`<div class="arv-def"><strong>${esc(t2)}</strong><div class="muted small">${esc(x)}</div></div>`).join('')}</details>`;
@@ -4625,7 +4632,8 @@ function renderPlanejarArvore(){
     if(podeCriar){
       const f=a.form;
       const sug=arvProjetosSugeridos(no.filtro||'');
-      if(!f.projeto && sug.length===1) f.projeto=sug[0].key;
+      if(!f.projeto && sug.length) f.projeto=sug[0].key;          // 1º sugerido já selecionado
+      if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
       const ps=(_projetosCache||[]).slice().sort((x,y)=>x.key.localeCompare(y.key));
       const sugSet=new Set(sug.map(p=>p.key));
       const optProj='<option value="">— escolha —</option>'
@@ -4636,6 +4644,7 @@ function renderPlanejarArvore(){
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
       const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
       const pessoas=Object.entries(pessoasUnidas()).map(([ac,o])=>[ac,(o&&o.nome)||ac]).sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+      if(f.respId && !pessoas.some(([ac])=>ac===f.respId)) pessoas.unshift([f.respId,(id&&id.nome)||'Você']);
       const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([ac,n])=>`<option value="${escA(ac)}" ${f.respId===ac?'selected':''}>${esc(n)}</option>`).join('');
       form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':''}</div>
         <div class="pl-grid">
@@ -4678,9 +4687,8 @@ function renderPlanejarArvore(){
   }
   cont.replaceChildren(el(`<div>
     <div class="card full">
-      <h2>Criação de Ticket <span>🌳 árvore de decisão — governança de tickets (TI-04-006)</span></h2>
-      ${chips}
-      <div class="pl-dica">Responda as perguntas para descobrir <strong>onde o ticket deve nascer</strong> — no fim, crie o ticket ali mesmo, já no projeto certo.</div>
+      <h2>🌳 Onde crio o ticket? <span>árvore de decisão — governança de tickets (TI-04-006)</span></h2>
+      <div class="pl-dica">Responda as perguntas para descobrir <strong>onde o ticket deve nascer</strong> — no fim, crie o ticket ali mesmo, já no projeto certo e <strong>atribuído a você</strong>.</div>
       ${corpo}
       ${defs}
     </div>
@@ -4691,17 +4699,17 @@ async function arvCria(){
   const a=arvEstado(); const no=ARV_NOS[a.no]||{}; const f=a.form;
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   a.erro='';
-  if(!f.projeto){ a.erro='Escolha o projeto.'; renderPlanejar(); return; }
-  if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderPlanejar(); return; }
+  if(!f.projeto){ a.erro='Escolha o projeto.'; renderOndeCrio(); return; }
+  if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderOndeCrio(); return; }
   if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
-    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderPlanejar(); return; }
-  if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderPlanejar(); return; }
+    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderOndeCrio(); return; }
+  if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
   const rodape=`Classificação (árvore de decisão): ${no.badge}${no.depto?` · ${no.depto}`:''}`;
   const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
     descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
     respId:f.respId||'', paiKey:no.subtarefa?(f.paiKey||'').trim().toUpperCase():'',
     estimativa:'', labels:[], venc:f.venc||'' };
-  a.criando=true; renderPlanejar();
+  a.criando=true; renderOndeCrio();
   try{
     const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({itens:[item],email:id.email,token:id.token})}).then(r=>r.json());
@@ -4713,7 +4721,7 @@ async function arvCria(){
       estado.cache={};
     } else a.erro=(j&&(j.erro||(j.erros&&j.erros[0]&&j.erros[0].erro)))||'Falha ao criar o ticket.';
   }catch(e){ a.criando=false; a.erro='Erro de rede: '+(e.message||e); }
-  renderPlanejar();
+  renderOndeCrio();
 }
 
 function renderPlanejarForm(){
@@ -4798,7 +4806,7 @@ function renderPlanejarForm(){
       <div class="ap-chips" style="margin-bottom:12px">
         <button class="chip" aria-pressed="${pl.modo==='lote'}" data-pl-modo="lote">Criação em lote</button>
         <button class="chip" aria-pressed="${pl.modo==='epico'}" data-pl-modo="epico">Planejamento de épico</button>
-        <button class="chip" aria-pressed="false" data-pl-modo="arvore" data-tip="Não sabe onde abrir o ticket? Responda a árvore de decisão e crie o ticket no lugar certo">🌳 Árvore de decisão</button>
+        <button class="chip" aria-pressed="false" data-goto="ondecrio" data-tip="Não sabe onde abrir o ticket? A árvore de decisão guia e cria o ticket no lugar certo">🌳 Onde crio o ticket?</button>
       </div>
       <div class="pl-dica">${modoDica}</div>
       <div class="pl-grid">
@@ -7537,25 +7545,40 @@ function renderGestao(){
         <tbody>${rows||'<tr><td colspan="13" class="muted small">Nada encontrado com esses filtros.</td></tr>'}</tbody></table></div>`;
   };
   // ---- Lista (cards operacionais) ----
+  // Lista: MESMAS ações por linha da aba Apontar (status, vencimento, responsável,
+  // comentar, mover, vincular reunião) — só sem o apontamento de horas. Os painéis
+  // do Apontar exigem a estrutura .ap-row/.ap-l2, embutida aqui (classe gx-emb).
+  const idAp=idApontar();
+  const gxVencBtn=(t,atras)=>{
+    if(!idAp) return t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?`⚠ ${esc(alxDataBR(t.venc))} · ${atras}d`:esc(alxDataBR(t.venc))}</span>`:'<span class="badge">sem vencimento</span>';
+    if(!t.venc) return `<button class="badge st-btn sem-venc" data-ap-venc="${escA(t.k)}" data-tip="Sem data — clique para definir o vencimento">📅 definir vencimento ▾</button>`;
+    return `<button class="badge st-btn ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}" data-ap-venc="${escA(t.k)}" data-tip="Vencimento — clique para reagendar">📅 ${atras?`⚠ ${esc(alxDataBR(t.venc))} · ${atras}d`:esc(alxDataBR(t.venc))} ▾</button>`;
+  };
   const htmlLista=()=>{
     if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
     return `<div class="muted small" style="margin:0 0 8px"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-all" ${todosVis?'checked':''}> selecionar todos (${lista.length})</label></div>`+
       lista.map(t=>{ const atras=gxAtrasoDias(t,hoje);
+      const ehReuniao=RE_ROTINA.test(t.t||'')||/reuni/i.test(t.resumo||'');
       return `<div class="gx-lrow ${g.sel[t.k]?'sel':''}">
         ${chk(t)}
-        <div style="flex:1;min-width:0">
-          <div class="l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span>${tratado(t)}<span class="spacer"></span>${riscoBadge(t)}</div>
-          <div class="l2">
+        <div class="ap-row gx-emb" data-k="${escA(t.k)}" style="flex:1;min-width:0">
+          <div class="ap-l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span>${tratado(t)}<span class="spacer"></span>${riscoBadge(t)}</div>
+          <div class="ap-l2">
             <span class="badge">${esc(t.p)}</span>
             <span class="badge">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t||'—')}</span>
-            <span class="badge">${esc(t.status)}</span>
+            ${idAp?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`:`<span class="badge">${esc(t.status)}</span>`}
             ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
-            ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?`⚠ ${esc(alxDataBR(t.venc))} · ${atras}d`:esc(alxDataBR(t.venc))}</span>`:'<span class="badge">sem vencimento</span>'}
-            <span class="badge" title="Última movimentação no Jira">🕓 ${esc(upTxt(t))}</span>
+            ${gxVencBtn(t,atras)}
+            <span class="badge" data-tip="Última movimentação no Jira (comentário/alteração) — NÃO é atraso de vencimento">🕓 sem atualização: ${esc(upTxt(t))}</span>
             <span class="badge" title="Horas apontadas${t.est?' / estimativa':''}">⏱ ${t.seg?fmtH(t.seg):'0h'}${t.est?` / ${fmtH(t.est)}`:''}</span>
-            <span class="badge">${esc(t.resp||'sem responsável')}</span>
+            ${idAp?(t.resp?`<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
+                :`<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`)
+              :`<span class="badge">${esc(t.resp||'sem responsável')}</span>`}
+            ${idAp?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
+            ${idAp?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
+            ${idAp&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket (cria/comenta e EXCLUI a reunião)">🔗 vincular a ticket</button>`:''}
           </div>
-          <div class="l2" style="margin-top:6px">${acts(t)}</div>
+          <div class="ap-l2" style="margin-top:6px">${acts(t)}</div>
         </div></div>`; }).join('');
   };
   // ---- Quadro (kanban por status) ----
@@ -7953,13 +7976,13 @@ function abreAjuda(){
       <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
       <li><b>Análise › 🔎 Qualidade (IA)</b> — a IA lê as <b>boas práticas TI-04-006 direto do Notion</b> e audita os tickets criados no período: nota 0–100, violações por princípio e um <b>menu de ações</b> por ticket (comentar feedback, definir vencimento, atribuir…).</li>
       <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
-      <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Também em Lista/Tabela/Quadro.</li>
+      <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Na visão <b>Lista</b>, cada linha tem as <b>mesmas ações do Apontar</b> (mover status, reagendar, transferir responsável, comentar, mover de projeto, vincular reunião) — só sem o apontamento de horas.</li>
       <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
       <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
       <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho; <b>bloqueia sobreposição</b> da mesma pessoa/projeto/função), <b>🔒 travar por pessoa com aprovação do Diego</b>, utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas, custo e <b>eficiência planejado × realizado</b> por semana, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
-      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>. Não sabe onde abrir? A <b>🌳 Árvore de decisão</b> guia pelas perguntas da governança (TI-04-006) e <b>cria o ticket no projeto certo</b> no último passo.</li>
+      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>. Não sabe onde abrir? Use <b>Planejamento › 🌳 Onde crio o ticket?</b> — a árvore de decisão guia pelas perguntas da governança (TI-04-006) e <b>cria o ticket no projeto certo</b> no último passo, já <b>atribuído a você</b>.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
       <li><b>AMS &amp; Receita › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
       <li><b>Configurações › ⚙️ Contratos (Admin)</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
@@ -8506,7 +8529,7 @@ function abreMetas(){
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -8880,8 +8903,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   if(e.target && e.target.id==='rc-busca'){
-    estado.reclass.busca=e.target.value; renderReclass();
-    const nb=document.getElementById('rc-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
+    buscaComposta(e,(v)=>{ estado.reclass.busca=v; },renderReclass,'rc-busca');
   }
 });
 // ---- Ações de hoje: Ver casos → tela certa com o preset aplicado ----
@@ -8943,8 +8965,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     if(t.checked) g.sel[k]=true; else delete g.sel[k]; renderGestao(); }
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{
-  if(e.target&&e.target.id==='gx-busca'){ estado.gestao.busca=e.target.value; renderGestao();
-    const nb=document.getElementById('gx-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
+  if(e.target&&e.target.id==='gx-busca'){ buscaComposta(e,(v)=>{ estado.gestao.busca=v; },renderGestao,'gx-busca'); }
 });
 document.getElementById('modal-body').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
@@ -9557,10 +9578,10 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
   else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
     const o=no&&no.op&&no.op[+t.getAttribute('data-arv-op')];
-    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro=''; renderPlanejar(); } }
+    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro=''; renderOndeCrio(); } }
   else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
-    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderPlanejar(); }
-  else if(t.hasAttribute('data-arv-reiniciar')){ const pl2=estado.planejar; pl2.arv=null; arvEstado(); renderPlanejar(); }
+    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderOndeCrio(); }
+  else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
@@ -9573,7 +9594,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   else if(t.id==='pl-venc'){ pl.venc=t.value; }
   else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
   else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
-    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; renderPlanejar(); } }
+    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; renderOndeCrio(); } }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
@@ -9594,12 +9615,29 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
   }
 });
 
+// Re-render de busca SEM matar a composição de acentos (teclas mortas: ´ + a):
+// enquanto o navegador compõe o caractere, só guarda o valor; o re-render (que
+// substituiria o input e abortaria a composição) sai num debounce curto depois.
+let _buscaT=null;
+function buscaComposta(e, grava, rerender, idInput){
+  grava(e.target.value);
+  if(e.isComposing) return;
+  clearTimeout(_buscaT);
+  _buscaT=setTimeout(()=>{ rerender();
+    const nb=document.getElementById(idInput);
+    if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } },140);
+}
+// Fim da composição (acento confirmado): dispara o fluxo normal da busca.
+document.getElementById('conteudo').addEventListener('compositionend',(e)=>{
+  const id2=e.target&&e.target.id;
+  if(id2==='ap-busca'||id2==='gx-busca'||id2==='rc-busca'){
+    setTimeout(()=>{ if(e.target&&e.target.isConnected) e.target.dispatchEvent(new Event('input',{bubbles:true})); },0);
+  }
+});
 // Busca da tela Apontar (mantém o foco ao re-renderizar).
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   if(e.target && e.target.id==='ap-busca'){
-    estado.apontar.busca=e.target.value; renderApontar();
-    const nb=document.getElementById('ap-busca');
-    if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); }
+    buscaComposta(e,(v)=>{ estado.apontar.busca=v; },renderApontar,'ap-busca');
   }
 });
 // Enter no campo de tempo/comentário envia o apontamento da linha.
