@@ -3,8 +3,9 @@
 // e devolve eventos compactos + mapas de apoio. A atribuição "quem fez" vem do
 // AUTOR no changelog (não do assignee).
 import {
-  rangeFor, normalizaJanela, cacheGet, cacheSet, cacheSetTTL, jiraBase, jiraSearchAll, json,
+  rangeFor, normalizaJanela, cacheGet, cacheSet, cacheSetTTL, jiraBase, json,
 } from './_lib/util.js';
+import { coletaAtividade } from './_lib/atividade.js';
 
 // GET /api/atividade?fluxo=1 — Fluxo de atividade do Jira (feed Atom do activity stream).
 // O stream exige autenticação e não tem CORS: o servidor busca com a conta de serviço
@@ -52,101 +53,21 @@ export default async function handler(req, res) {
     if (cached) return json(res, 200, cached);
 
     const r = rangeFor(janela);
-    const inicio = new Date(r.startISO).getTime();
-    const fim = new Date(r.endISO).getTime();   // limite superior (janelas passadas)
-    const naJanela = (iso) => {
-      const t = new Date(iso).getTime();
-      return t >= inicio && t <= fim;
-    };
-
-    // Issues atualizadas na janela, com changelog e campos mínimos.
-    const { issues, pages, truncado } = await jiraSearchAll({
-      jql: `updated >= "${r.startDate}" ORDER BY updated ASC`,
-      fields: ['project', 'issuetype', 'created', 'reporter', 'resolutiondate', 'comment', 'summary'],
-      expand: 'changelog',
-      pageSize: 100,
-    });
-
-    const eventos = [];            // {k,p,t,a,e,d}
-    const pessoas = {};            // accountId -> {nome,email}
-    const projetos = {};           // key -> {nome,categoria}
-    const resumos = {};            // issueKey -> título (summary) da issue
-    const concluidasPorProj = {};  // key -> n
-    let concluidasTotal = 0;
-
-    const registraPessoa = (u) => {
-      if (!u || !u.accountId) return null;
-      if (!pessoas[u.accountId]) {
-        pessoas[u.accountId] = {
-          nome: u.displayName || u.accountId,
-          email: u.emailAddress || '',
-        };
-      }
-      return u.accountId;
-    };
-
-    for (const it of issues) {
-      const f = it.fields || {};
-      const proj = f.project || {};
-      const pk = proj.key || '—';
-      const tipo = (f.issuetype && f.issuetype.name) || '—';
-      if (!projetos[pk]) {
-        projetos[pk] = {
-          nome: proj.name || pk,
-          categoria: (proj.projectCategory && proj.projectCategory.name) || 'Sem categoria',
-        };
-      }
-      if (f.summary && !resumos[it.key]) resumos[it.key] = f.summary;
-
-      // Criação dentro da janela -> atribui ao reporter.
-      if (f.created && naJanela(f.created)) {
-        const a = registraPessoa(f.reporter);
-        if (a) eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'criado', d: f.created });
-      }
-
-      // Concluídas (agregado, sem atribuição individual em v1).
-      if (f.resolutiondate && naJanela(f.resolutiondate)) {
-        concluidasTotal += 1;
-        concluidasPorProj[pk] = (concluidasPorProj[pk] || 0) + 1;
-      }
-
-      // Comentários na janela.
-      const coments = (f.comment && f.comment.comments) || [];
-      for (const c of coments) {
-        if (c.created && naJanela(c.created)) {
-          const a = registraPessoa(c.author);
-          if (a) eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'comentario', d: c.created });
-        }
-      }
-
-      // Changelog: cada history = uma ação de um usuário.
-      const histories = (it.changelog && it.changelog.histories) || [];
-      for (const h of histories) {
-        if (!h.created || !naJanela(h.created)) continue;
-        const a = registraPessoa(h.author);
-        if (!a) continue;
-        const items = h.items || [];
-        const houveTransicao = items.some((x) => x.field === 'status' || x.fieldId === 'status');
-        eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'alteracao', d: h.created });
-        if (houveTransicao) {
-          eventos.push({ k: it.key, p: pk, t: tipo, a, e: 'transicao', d: h.created });
-        }
-      }
-    }
+    const col = await coletaAtividade(r);
 
     const payload = {
       meta: {
         ...r,
-        totalIssues: issues.length,
-        paginas: pages,
-        truncado,
-        concluidasTotal,
-        concluidasPorProjeto: concluidasPorProj,
+        totalIssues: col.totalIssues,
+        paginas: col.paginas,
+        truncado: col.truncado,
+        concluidasTotal: col.concluidasTotal,
+        concluidasPorProjeto: col.concluidasPorProjeto,
       },
-      pessoas,
-      projetos,
-      resumos,
-      eventos,
+      pessoas: col.pessoas,
+      projetos: col.projetos,
+      resumos: col.resumos,
+      eventos: col.eventos,
     };
     return json(res, 200, cacheSet(ck, payload));
   } catch (err) {
