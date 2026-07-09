@@ -7296,7 +7296,10 @@ function gxDiasSemAtu(t,hoje){ const up=(t.up||'').slice(0,10); if(!up) return 9
 function gxRisco(t,hoje){
   let sc=0; const atraso=gxAtrasoDias(t,hoje);
   if(atraso>0) sc+=25+Math.min(25,Math.round(atraso*2.5));
-  const dU=gxDiasSemAtu(t,hoje); if(dU>5) sc+=Math.min(20,(dU-5)*2+8);
+  // "Sem atualização" só pesa quando o ticket está em curso (sem vencimento ou
+  // vencendo/vencido) — item AGENDADO para o futuro não é cobrado por silêncio.
+  const emCurso=!t.venc || t.venc<=hoje;
+  const dU=gxDiasSemAtu(t,hoje); if(emCurso && dU>5) sc+=Math.min(20,(dU-5)*2+8);
   if(/highest|urgent|cr[ií]tic|blocker/i.test(t.prio||'')) sc+=15; else if(/\bhigh\b|alta/i.test(t.prio||'')) sc+=8;
   if(t.est>0 && t.seg>t.est) sc+=15;
   if(!t.respId) sc+=10;
@@ -7314,7 +7317,7 @@ function gxLista(){
   if(g.busca){ const q=g.busca.toLowerCase(); l=l.filter(t=>(t.k+' '+t.resumo+' '+t.status+' '+(t.resp||'')).toLowerCase().includes(q)); }
   if(g.preset==='atrasados') l=l.filter(t=>t.venc&&t.venc<hoje);
   else if(g.preset==='hoje') l=l.filter(t=>t.venc===hoje);
-  else if(g.preset==='sematu') l=l.filter(t=>gxDiasSemAtu(t,hoje)>5);
+  else if(g.preset==='sematu') l=l.filter(t=>(!t.venc||t.venc<=hoje) && gxDiasSemAtu(t,hoje)>5);
   else if(g.preset==='semresp') l=l.filter(t=>!t.respId);
   else if(g.preset==='semvenc') l=l.filter(t=>!t.venc);
   else if(g.preset==='cliente') l=l.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||''));
@@ -7545,7 +7548,7 @@ function renderGestao(){
         <td>${esc(t.resp||'—')}</td>
         <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td>
         <td class="num ${atras?'gx-venc atrasado':''}">${atras?atras+'d':'—'}</td>
-        <td class="num" title="Última movimentação no Jira">${esc(upTxt(t))}</td>
+        <td class="num" title="${(!t.venc||t.venc<=hoje)?'Última movimentação no Jira':'Agendado para o futuro — sem cobrança de atualização'}">${(!t.venc||t.venc<=hoje)?esc(upTxt(t)):'—'}</td>
         <td class="num" title="Horas apontadas">${t.seg?fmtH(t.seg):'—'}</td>
         <td class="num" title="Estimativa original">${t.est?fmtH(t.est):'—'}</td>
         <td>${riscoBadge(t)}</td>
@@ -7580,7 +7583,7 @@ function renderGestao(){
             ${idAp?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`:`<span class="badge">${esc(t.status)}</span>`}
             ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
             ${gxVencBtn(t,atras)}
-            <span class="badge" data-tip="Última movimentação no Jira (comentário/alteração) — NÃO é atraso de vencimento">🕓 sem atualização: ${esc(upTxt(t))}</span>
+            ${(!t.venc||t.venc<=hoje)?`<span class="badge" data-tip="Última movimentação no Jira (comentário/alteração) — NÃO é atraso de vencimento">🕓 sem atualização: ${esc(upTxt(t))}</span>`:''}
             <span class="badge" title="Horas apontadas${t.est?' / estimativa':''}">⏱ ${t.seg?fmtH(t.seg):'0h'}${t.est?` / ${fmtH(t.est)}`:''}</span>
             ${idAp?(t.resp?`<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
                 :`<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`)
