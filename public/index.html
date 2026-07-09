@@ -848,7 +848,11 @@
   .ap-row.gx-emb{border:none;border-left:none;border-radius:0;padding:0;background:transparent;box-shadow:none}
   .ap-row.gx-emb:hover{box-shadow:none}
   /* 🌳 Árvore de decisão (Criação de Ticket) */
-  .arv-trilha{font-size:12px;color:var(--muted);margin:2px 0 10px;padding:6px 10px;background:var(--cartao2);border-radius:8px}
+  .arv-trilha{font-size:12px;color:var(--muted);margin:2px 0 10px;padding:6px 10px;background:var(--cartao2);border-radius:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  .arv-bc{border:none;background:none;padding:2px 4px;font-size:12px;color:var(--azulforte,#0B5FBF);cursor:pointer;border-radius:6px;font-family:var(--corpo)}
+  .arv-bc:hover{background:var(--hoverbg);text-decoration:underline}
+  .arv-sep{opacity:.6}
+  .arv-atual{color:var(--grafite)}
   .arv-titulo{margin:2px 0 2px;font-size:17px}
   .arv-ops{display:flex;flex-direction:column;gap:8px;max-width:640px}
   .arv-op{text-align:left;border:1px solid var(--linha);border-left-width:5px;border-radius:10px;padding:11px 14px;
@@ -4605,7 +4609,7 @@ function arvProjetosSugeridos(filtro){
   const ps=(_projetosCache||[]);
   const m=(p)=>`${p.key} ${p.nome||''} ${p.categoria||''}`;
   if(filtro==='ams') return ps.filter(p=>ehCategoriaAMS(p.categoria));
-  if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)));
+  if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)) && !/avuls|tad/i.test(m(p)));
   if(filtro==='avulsa') return ps.filter(p=>/avuls|(^|\s)adm|tad/i.test(m(p)));
   return [];
 }
@@ -4618,7 +4622,13 @@ function renderOndeCrio(){
     garanteProjetos().then(()=>{ if(estado.vista==='ondecrio') renderOndeCrio(); }).catch(()=>{});
   }
   const no=ARV_NOS[a.no]||ARV_NOS.start;
-  const trilha=a.hist.length?`<div class="arv-trilha">${a.hist.map(h=>esc(h.label)).join(' → ')}</div>`:'';
+  // Breadcrumbs clicáveis: cada passo volta para a PERGUNTA daquele ponto.
+  const atualRot=no.result?`📌 ${no.badge}`:`❓ pergunta ${a.hist.length+1}`;
+  const trilha=a.hist.length?`<div class="arv-trilha">
+      <button class="arv-bc" data-arv-bc="-1" data-tip="Voltar ao início (mantém o que você já digitou)">🏠 Início</button>
+      ${a.hist.map((h,i)=>`<span class="arv-sep">→</span><button class="arv-bc" data-arv-bc="${i}" data-tip="Voltar para esta etapa">${esc(h.label)}</button>`).join('')}
+      <span class="arv-sep">→</span><strong class="arv-atual">${esc(atualRot)}</strong>
+    </div>`:'';
   const defs=`<details class="arv-defs"><summary>📖 Conceitos-chave</summary>
       ${ARV_DEFS.map(([t2,x])=>`<div class="arv-def"><strong>${esc(t2)}</strong><div class="muted small">${esc(x)}</div></div>`).join('')}</details>`;
   let corpo='';
@@ -9592,9 +9602,24 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
   else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
     const o=no&&no.op&&no.op[+t.getAttribute('data-arv-op')];
-    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro=''; renderOndeCrio(); } }
+    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro='';
+      // ENTRAR numa folha reaplica as sugestões DELA (senão, ao voltar e escolher
+      // outro departamento/contexto, projeto/departamento antigos ficavam grudados).
+      const prox=ARV_NOS[o.next];
+      if(prox && prox.result && prox.cria){
+        const ps=(_projetosCache||[]);
+        let sug=arvProjetosSugeridos(prox.filtro||'');
+        if(prox.filtro==='avulsa'){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
+        a.form.projeto=(sug[0]&&sug[0].key)||'';
+        a.form.tipoId='';
+        a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
+      }
+      renderOndeCrio(); } }
   else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
     const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderOndeCrio(); }
+  else if(t.hasAttribute('data-arv-bc')){ const a=arvEstado(); const i=+t.getAttribute('data-arv-bc');
+    if(i<0){ a.no='start'; a.hist=[]; } else if(a.hist[i]){ a.no=a.hist[i].id; a.hist=a.hist.slice(0,i); }
+    a.erro=''; a.feito=null; renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
 });
