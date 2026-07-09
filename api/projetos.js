@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     let startAt = 0;
     for (let page = 0; page < 10; page += 1) {
       const r = await fetch(
-        `${base}/rest/api/3/project/search?expand=issueTypes&maxResults=50&startAt=${startAt}`,
+        `${base}/rest/api/3/project/search?expand=issueTypes,description&maxResults=50&startAt=${startAt}`,
         { headers },
       );
       if (!r.ok) {
@@ -98,6 +98,7 @@ export default async function handler(req, res) {
           key: p.key,
           nome: p.name || p.key,
           categoria: (p.projectCategory && p.projectCategory.name) || 'Sem categoria',
+          descricao: String(p.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400),
           tipos: (p.issueTypes || []).map((t) => ({
             id: t.id,
             nome: t.name || '',

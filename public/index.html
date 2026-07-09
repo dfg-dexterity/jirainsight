@@ -866,6 +866,19 @@
   .arv-badge.t-teal{background:#0F766E} .arv-badge.t-purple{background:#6D28D9}
   .arv-badge.t-orange{background:#C2410C} .arv-badge.t-moss{background:#3F6212}
   .arv-badge.t-grafite{background:#475569}
+  .arv-projs{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;max-width:960px;margin-top:8px}
+  .arv-pcard{text-align:left;border:1px solid var(--linha);border-left-width:5px;border-radius:10px;padding:12px 14px;
+    background:var(--cartao);color:var(--grafite);cursor:pointer;font-family:var(--corpo);
+    display:flex;flex-direction:column;gap:5px;transition:background .12s ease, transform .06s ease}
+  .arv-pcard:hover{background:var(--hoverbg);transform:translateY(-1px)}
+  .arv-pcard.t-teal{border-left-color:#0F766E} .arv-pcard.t-purple{border-left-color:#6D28D9}
+  .arv-pcard.t-orange{border-left-color:#C2410C} .arv-pcard.t-moss{border-left-color:#3F6212}
+  .arv-pcard.t-grafite{border-left-color:#475569}
+  .arv-pcard-t{font-weight:700;font-size:14px;line-height:1.35}
+  .arv-pcard-k{font-weight:600;font-size:11px;color:var(--muted);border:1px solid var(--linha);border-radius:999px;padding:1px 8px;margin-left:4px;white-space:nowrap}
+  .arv-pcard-d{font-size:12.5px;color:var(--texto2);line-height:1.45}
+  .arv-proj-fixo{display:flex;align-items:center;gap:8px;border:1px solid var(--linha);border-radius:8px;padding:7px 10px;background:var(--cartao2);font-size:13.5px}
+  .arv-proj-fixo .arv-troca{padding:2px 9px;font-size:11.5px;margin-left:auto}
   .arv-defs{margin-top:18px;border-top:1px solid var(--linha2);padding-top:10px}
   .arv-defs>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
   .arv-def{margin:8px 0 0 4px;font-size:13px}
@@ -4562,11 +4575,28 @@ const ARV_NOS={
     bullets:['Não abrir como tarefa administrativa ou avulsa.',
       'Vincular ao entregável, fase ou frente correta do projeto SAP.',
       'Se o ticket responsável ainda não existir, alinhar com o gerente de projeto para criar com a estrutura correta.'] },
-  interno:{ result:true, tone:'moss', badge:'Projeto Interno', title:'Abrir no projeto interno correspondente', cria:true, filtro:'interno',
-    text:'Use projeto interno quando a demanda fizer parte de uma iniciativa estruturada da própria empresa.',
-    bullets:['Implantação do Odoo, criação de aceleradores, revisão de processo, construção de playbooks.',
+  interno:{ q:'Qual é a natureza do trabalho interno?',
+    helper:'Cada frente interna tem os seus próprios projetos no Jira — escolha a que descreve melhor a atividade.',
+    op:[ {label:'Melhorias Internas', next:'interno_imi', tone:'moss'},
+      {label:'Produtos e aceleradores Dexterity', next:'interno_ipa', tone:'teal'},
+      {label:'Tarefas, Processos e Rotinas', next:'interno_itpr', tone:'purple'} ] },
+  interno_imi:{ result:true, tone:'moss', badge:'Melhorias Internas', title:'Escolha o projeto de melhoria interna', cria:true,
+    filtro:'cat', catRe:/^\s*IMI\b|melhorias\s+internas/i, catNome:'IMI | Interno - Melhorias Internas', escolheProjeto:true,
+    text:'Iniciativas de evolução da própria Dexterity: melhorar processos, ferramentas e formas de trabalhar.',
+    bullets:['Implantação do Odoo, revisão de processo, construção de playbooks.',
       'Precisa ter dono, objetivo e entregável claro.',
-      'Não misture com administrativo só porque não é para cliente.'] },
+      'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
+  interno_ipa:{ result:true, tone:'teal', badge:'Produtos e aceleradores', title:'Escolha o projeto de produto ou acelerador', cria:true,
+    filtro:'cat', catRe:/^\s*IPA\b|produtos\s+e\s+aceleradores/i, catNome:'IPA | Interno - Produtos e aceleradores Dexterity', escolheProjeto:true,
+    text:'Construção de produtos próprios e aceleradores reutilizáveis da Dexterity.',
+    bullets:['Aceleradores SAP, componentes reutilizáveis, produtos internos.',
+      'O resultado é um ativo da empresa, não uma entrega para um cliente específico.',
+      'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
+  interno_itpr:{ result:true, tone:'purple', badge:'Tarefas, Processos e Rotinas', title:'Escolha o projeto de tarefas, processos e rotinas', cria:true,
+    filtro:'cat', catRe:/^\s*ITPR\b|tarefas.{0,3}\s*processos\s+e\s+rotinas/i, catNome:'ITPR | Interno - Tarefas, Processos e Rotinas', escolheProjeto:true,
+    text:'Trabalho interno estruturado em processos e rotinas contínuas que têm projeto próprio no Jira.',
+    bullets:['Rotinas internas organizadas em projeto próprio (diferente das tarefas avulsas do TAD).',
+      'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
   administrativa:{ result:true, tone:'orange', badge:'Tarefa Administrativa', title:'Abrir como tarefa administrativa', cria:true, filtro:'avulsa',
     text:'Use essa categoria para o trabalho recorrente e operacional que sustenta a empresa.',
     bullets:['Rotinas financeiras, cadastros, controles obrigatórios, acessos, contratos, pagamentos e agenda operacional.',
@@ -4604,11 +4634,13 @@ const ARV_DEFS=[
 function arvEstado(){ const pl=estado.planejar;
   if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',depto:null}, criando:false, feito:null, erro:'' };
   return pl.arv; }
-// Sugestão de projeto conforme a folha: AMS (categoria), interno ou tarefas avulsas/ADM.
-function arvProjetosSugeridos(filtro){
+// Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe),
+// interno genérico ou tarefas avulsas/ADM.
+function arvProjetosSugeridos(filtro, catRe){
   const ps=(_projetosCache||[]);
   const m=(p)=>`${p.key} ${p.nome||''} ${p.categoria||''}`;
   if(filtro==='ams') return ps.filter(p=>ehCategoriaAMS(p.categoria));
+  if(filtro==='cat') return ps.filter(p=>catRe && catRe.test(p.categoria||'') && p.key!=='TAD');
   if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)) && !/avuls|tad/i.test(m(p)));
   if(filtro==='avulsa') return ps.filter(p=>/avuls|(^|\s)adm|tad/i.test(m(p)));
   return [];
@@ -4644,12 +4676,31 @@ function renderOndeCrio(){
       const ps=(_projetosCache||[]).slice().sort((x,y)=>x.key.localeCompare(y.key));
       // Tarefas AVULSAS/administrativas: o ÚNICO projeto permitido é o TAD.
       const ehAvulsa=no.filtro==='avulsa';
-      let sug=arvProjetosSugeridos(no.filtro||'');
+      const escolhe=!!no.escolheProjeto;      // folha com escolha explícita de projeto (cards)
+      let sug=arvProjetosSugeridos(no.filtro||'', no.catRe);
       if(ehAvulsa){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
       if(ehAvulsa) f.projeto=(sug[0]&&sug[0].key)||'';
-      else if(!f.projeto && sug.length) f.projeto=sug[0].key;     // 1º sugerido já selecionado
+      else if(!escolhe && !f.projeto && sug.length) f.projeto=sug[0].key;   // 1º sugerido já selecionado
       if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
       if(ehAvulsa && f.depto==null && no.depto) f.depto=no.depto;       // departamento da folha
+      if(escolhe && !f.projeto){
+      // Escolha user-friendly do projeto: um card por projeto da categoria,
+      // com o nome e a descrição do objetivo (vinda do Jira).
+      const cards=sug.length
+        ?`<div class="arv-projs">${sug.map(p=>`<button class="arv-pcard t-${escA(no.tone)}" data-arv-proj="${escA(p.key)}">
+              <span class="arv-pcard-t">${esc(p.nome||p.key)} <span class="arv-pcard-k">${esc(p.key)}</span></span>
+              <span class="arv-pcard-d">${esc(p.descricao||'Sem descrição do objetivo cadastrada no Jira.')}</span>
+            </button>`).join('')}</div>`
+        :(_projetosCache
+          ?`<div class="ap-fb err" style="margin-top:8px">Nenhum projeto encontrado na categoria “${esc(no.catNome||'')}”. Confira a categoria dos projetos no Jira.</div>`
+          :'<div class="muted" style="margin-top:8px">Carregando projetos…</div>');
+      form=`<div class="sec" style="margin:16px 0 6px">Escolha o projeto <span class="muted">— categoria ${esc(no.catNome||'')}</span></div>
+        ${cards}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn" data-arv-voltar="1">← Voltar</button>
+          <button class="btn" data-arv-reiniciar="1">Reiniciar</button>
+        </div>`;
+      } else {
       const sugSet=new Set(sug.map(p=>p.key));
       const optProj = ehAvulsa
         ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].key)} — ${esc(sug[0].nome||'')}</option>`:'<option value="">projeto TAD não encontrado</option>')
@@ -4657,6 +4708,13 @@ function renderOndeCrio(){
           +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
           +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
       const proj=ps.find(p=>p.key===f.projeto);
+      // Projeto escolhido via card: aparece fixo, com a descrição e um botão para trocar.
+      const campoProjeto = escolhe
+        ? `<div class="campo"><label>Projeto</label>
+            <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
+              <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos desta categoria">trocar</button></div>
+            ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`
+        : `<div class="campo"><label>Projeto${ehAvulsa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${ehAvulsa?'disabled data-tip="Tarefas avulsas/administrativas só podem nascer no projeto TAD"':''}>${optProj}</select></div>`;
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
       const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
@@ -4665,7 +4723,7 @@ function renderOndeCrio(){
       const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([ac,n])=>`<option value="${escA(ac)}" ${f.respId===ac?'selected':''}>${esc(n)}</option>`).join('');
       form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':''}</div>
         <div class="pl-grid">
-          <div class="campo"><label>Projeto${ehAvulsa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${ehAvulsa?'disabled data-tip="Tarefas avulsas/administrativas só podem nascer no projeto TAD"':''}>${optProj}</select></div>
+          ${campoProjeto}
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
@@ -4683,6 +4741,7 @@ function renderOndeCrio(){
               :'<button class="btn" data-ap-act="config-id">Identificar-se para criar</button>'}
         </div>
         <div class="ap-fb" id="arv-fb" ${a.erro?'':'hidden'}>${esc(a.erro||'')}</div>`;
+      }
     } else {
       form=`<div style="display:flex;gap:10px;margin-top:14px">
           <button class="btn" data-arv-voltar="1">← Voltar</button>
@@ -9608,13 +9667,18 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       const prox=ARV_NOS[o.next];
       if(prox && prox.result && prox.cria){
         const ps=(_projetosCache||[]);
-        let sug=arvProjetosSugeridos(prox.filtro||'');
+        let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
         if(prox.filtro==='avulsa'){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
-        a.form.projeto=(sug[0]&&sug[0].key)||'';
+        // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
+        a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
         a.form.tipoId='';
         a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
       }
       renderOndeCrio(); } }
+  else if(t.hasAttribute('data-arv-proj')){ const a=arvEstado();
+    a.form.projeto=t.getAttribute('data-arv-proj')||''; a.form.tipoId=''; a.erro=''; renderOndeCrio(); }
+  else if(t.hasAttribute('data-arv-trocaproj')){ const a=arvEstado();
+    a.form.projeto=''; a.form.tipoId=''; a.erro=''; renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
     const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-bc')){ const a=arvEstado(); const i=+t.getAttribute('data-arv-bc');
