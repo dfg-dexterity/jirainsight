@@ -844,6 +844,24 @@
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
   .al-skadd{border:1px dashed var(--linha);border-radius:999px;padding:3px 10px;font-size:12px;max-width:160px;background:transparent;color:var(--grafite)}
+  /* 🌳 Árvore de decisão (Criação de Ticket) */
+  .arv-trilha{font-size:12px;color:var(--muted);margin:2px 0 10px;padding:6px 10px;background:var(--cartao2);border-radius:8px}
+  .arv-titulo{margin:2px 0 2px;font-size:17px}
+  .arv-ops{display:flex;flex-direction:column;gap:8px;max-width:640px}
+  .arv-op{text-align:left;border:1px solid var(--linha);border-left-width:5px;border-radius:10px;padding:11px 14px;
+    background:var(--cartao);color:var(--grafite);cursor:pointer;font-size:14px;font-weight:600;font-family:var(--corpo);
+    transition:background .12s ease, transform .06s ease}
+  .arv-op:hover{background:var(--hoverbg);transform:translateX(2px)}
+  .arv-op.t-teal{border-left-color:#0F766E} .arv-op.t-purple{border-left-color:#6D28D9}
+  .arv-op.t-orange{border-left-color:#C2410C} .arv-op.t-moss{border-left-color:#3F6212}
+  .arv-op.t-grafite{border-left-color:#475569}
+  .arv-badge{display:inline-block;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;color:#fff}
+  .arv-badge.t-teal{background:#0F766E} .arv-badge.t-purple{background:#6D28D9}
+  .arv-badge.t-orange{background:#C2410C} .arv-badge.t-moss{background:#3F6212}
+  .arv-badge.t-grafite{background:#475569}
+  .arv-defs{margin-top:18px;border-top:1px solid var(--linha2);padding-top:10px}
+  .arv-defs>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+  .arv-def{margin:8px 0 0 4px;font-size:13px}
   /* Qualidade dos tickets (IA) */
   .qa-lista{display:flex;flex-direction:column;gap:10px;margin-top:12px}
   .qa-card{cursor:default}
@@ -4487,9 +4505,215 @@ function renderPlanejar(){
     return;
   }
 
+  if(pl.modo==='arvore') return renderPlanejarArvore();
   if(pl.resultados) return renderPlanejarResultado();
   if(pl.itens) return renderPlanejarRevisao();
   renderPlanejarForm();
+}
+
+// ================= 🌳 ÁRVORE DE DECISÃO: onde abrir o ticket? =================
+// Guia de governança (TI-04-006): perguntas encadeadas até a recomendação — e,
+// quando a recomendação é abrir um ticket, o ÚLTIMO PASSO cria o ticket ali mesmo.
+// Folhas "sap_fale_gp" NÃO criam ticket (a regra é justamente não criar paralelo).
+const ARV_NOS={
+  start:{ q:'A atividade pertence claramente a um cliente, contrato ou iniciativa já existente?',
+    helper:'Se já existe um projeto, contrato ou frente formal, o ticket deve nascer lá.',
+    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal'}, {label:'Não', next:'adminOuAvulsa', tone:'grafite'} ] },
+  tipoProjeto:{ q:'Qual é o contexto principal da atividade?', helper:'Escolha a natureza do vínculo da atividade.',
+    op:[ {label:'Projeto AMS', next:'ams', tone:'teal'}, {label:'Projeto SAP', next:'sap_entregavel', tone:'purple'},
+      {label:'Projeto Interno', next:'interno', tone:'moss'}, {label:'Nenhum destes', next:'adminOuAvulsa', tone:'grafite'} ] },
+  sap_entregavel:{ q:'A atividade ajuda na entrega de algum entregável do projeto SAP?',
+    helper:'Entregável é qualquer item formal que será entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
+    op:[ {label:'Sim, ajuda em um entregável', next:'sap_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'sap_fale_gp', tone:'grafite'} ] },
+  sap_planejado:{ q:'Esse entregável não foi planejado?',
+    helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
+    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
+  adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
+    helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa.',
+    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'administrativa', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'} ] },
+  departamento:{ q:'Qual departamento é o dono da demanda avulsa?', helper:'Abra o ticket como tarefa avulsa no departamento responsável.',
+    op:[ {label:'Comercial & Relacionamento', next:'dept_comercial', tone:'teal'}, {label:'Projetos & Entregas', next:'dept_projetos', tone:'purple'},
+      {label:'Financeiro', next:'dept_financeiro', tone:'moss'}, {label:'Pessoas & Cultura', next:'dept_pessoas', tone:'orange'},
+      {label:'Administrativo & Compliance', next:'dept_admin', tone:'grafite'}, {label:'Inovação & Melhoria', next:'dept_inovacao', tone:'teal'},
+      {label:'Governança & Estratégia', next:'dept_governanca', tone:'purple'} ] },
+  ams:{ result:true, tone:'teal', badge:'Projeto AMS', title:'Abrir no projeto AMS do cliente', cria:true, filtro:'ams',
+    text:'Use o projeto AMS quando a atividade fizer parte da sustentação, suporte recorrente, pequenas melhorias ou operação contínua de um contrato AMS.',
+    bullets:['Incidente, atendimento recorrente, pequena melhoria, suporte funcional ou técnico.',
+      'Se existe cliente e contrato AMS ativo, não abra como administrativo nem avulso.',
+      'O ticket deve refletir o cliente e a frente correta de atendimento.'] },
+  sap_fale_gp:{ result:true, tone:'grafite', badge:'Projeto SAP', title:'Fale com o gerente de projeto', cria:false,
+    text:'Não crie um ticket paralelo quando a atividade não estiver claramente ligada a um entregável ou quando o entregável já estava planejado e você não sabe qual ticket usar.',
+    bullets:['O gerente de projeto deve indicar o ticket correto para apontamento.',
+      'Evite duplicar tickets de entregáveis já planejados.',
+      'Se for necessário novo ticket, ele deve manter vínculo com o escopo, fase e entregável correto.'] },
+  sap_ticket_responsavel:{ result:true, tone:'purple', badge:'Projeto SAP', title:'Coloque no ticket responsável', cria:true, filtro:'', subtarefa:true,
+    text:'Quando a atividade ajuda em um entregável que não foi planejado, ela deve ser registrada no ticket responsável pelo entregável ou criada como SUBTAREFA vinculada a ele.',
+    bullets:['Não abrir como tarefa administrativa ou avulsa.',
+      'Vincular ao entregável, fase ou frente correta do projeto SAP.',
+      'Se o ticket responsável ainda não existir, alinhar com o gerente de projeto para criar com a estrutura correta.'] },
+  interno:{ result:true, tone:'moss', badge:'Projeto Interno', title:'Abrir no projeto interno correspondente', cria:true, filtro:'interno',
+    text:'Use projeto interno quando a demanda fizer parte de uma iniciativa estruturada da própria empresa.',
+    bullets:['Implantação do Odoo, criação de aceleradores, revisão de processo, construção de playbooks.',
+      'Precisa ter dono, objetivo e entregável claro.',
+      'Não misture com administrativo só porque não é para cliente.'] },
+  administrativa:{ result:true, tone:'orange', badge:'Tarefa Administrativa', title:'Abrir como tarefa administrativa', cria:true, filtro:'avulsa',
+    text:'Use essa categoria para o trabalho recorrente e operacional que sustenta a empresa.',
+    bullets:['Rotinas financeiras, cadastros, controles obrigatórios, acessos, contratos, pagamentos e agenda operacional.',
+      'A lógica é sustentação da operação da empresa, não transformação.',
+      'Se a atividade se repete ou faz parte do funcionamento normal da empresa, tende a ser administrativa.'] },
+  dept_comercial:{ result:true, tone:'teal', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Comercial & Relacionamento', cria:true, filtro:'avulsa', depto:'Comercial & Relacionamento',
+    text:'Use quando a demanda for pontual e o dono natural for a área comercial ou de relacionamento.',
+    bullets:['Material comercial específico, follow-up especial, contato com parceiro, apoio a proposta pontual.'] },
+  dept_projetos:{ result:true, tone:'purple', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Projetos & Entregas', cria:true, filtro:'avulsa', depto:'Projetos & Entregas',
+    text:'Use quando a demanda for pontual e ligada à operação de delivery, mas sem pertencer a um projeto formal.',
+    bullets:['Apoio operacional isolado, ajuste de rito, revisão pontual de formato de entrega.'] },
+  dept_financeiro:{ result:true, tone:'moss', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Financeiro', cria:true, filtro:'avulsa', depto:'Financeiro',
+    text:'Use quando a demanda financeira for pontual, específica e fora da rotina padrão.',
+    bullets:['Análise extraordinária, levantamento especial, ajuste não recorrente.'] },
+  dept_pessoas:{ result:true, tone:'orange', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Pessoas & Cultura', cria:true, filtro:'avulsa', depto:'Pessoas & Cultura',
+    text:'Use quando a demanda for pontual e ligada a pessoas, cultura ou desenvolvimento interno.',
+    bullets:['Ação específica de onboarding, comunicação interna isolada, dinâmica pontual de equipe.'] },
+  dept_admin:{ result:true, tone:'grafite', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Administrativo & Compliance', cria:true, filtro:'avulsa', depto:'Administrativo & Compliance',
+    text:'Use quando a demanda for pontual em temas administrativos, contratuais ou de conformidade, sem virar rotina operacional.',
+    bullets:['Solicitação específica de documento, revisão pontual de cláusula, demanda eventual de compliance.'] },
+  dept_inovacao:{ result:true, tone:'teal', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Inovação & Melhoria', cria:true, filtro:'avulsa', depto:'Inovação & Melhoria',
+    text:'Use quando for uma melhoria ou experimento pequeno que ainda não virou projeto interno.',
+    bullets:['Teste de automação, prova de conceito, ideia de melhoria ainda exploratória.'] },
+  dept_governanca:{ result:true, tone:'purple', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Governança & Estratégia', cria:true, filtro:'avulsa', depto:'Governança & Estratégia',
+    text:'Use quando a demanda for pontual e ligada a gestão, estrutura, indicadores, decisões ou direcionamento estratégico.',
+    bullets:['Análise executiva específica, definição pontual de regra, estudo isolado de estrutura.'] },
+};
+const ARV_DEFS=[
+  ['Projetos AMS','Atividades executadas dentro de um contrato recorrente de suporte, sustentação, pequenas melhorias ou atendimento contínuo a cliente.'],
+  ['Projetos SAP','Atividades vinculadas a entregáveis formais de cliente. Exigem validação do entregável e do planejamento antes de decidir o ticket.'],
+  ['Projetos Internos','Iniciativas estruturadas da própria Dexterity com objetivo, dono, entregáveis e continuidade.'],
+  ['Tarefa Administrativa','Trabalho recorrente e operacional para manter a empresa funcionando. Sustenta a operação, não transforma a empresa.'],
+  ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
+];
+function arvEstado(){ const pl=estado.planejar;
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:'',venc:'',paiKey:''}, criando:false, feito:null, erro:'' };
+  return pl.arv; }
+// Sugestão de projeto conforme a folha: AMS (categoria), interno ou tarefas avulsas/ADM.
+function arvProjetosSugeridos(filtro){
+  const ps=(_projetosCache||[]);
+  const m=(p)=>`${p.key} ${p.nome||''} ${p.categoria||''}`;
+  if(filtro==='ams') return ps.filter(p=>ehCategoriaAMS(p.categoria));
+  if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)));
+  if(filtro==='avulsa') return ps.filter(p=>/avuls|(^|\s)adm|tad/i.test(m(p)));
+  return [];
+}
+
+function renderPlanejarArvore(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar; const a=arvEstado(); const id=idApontar();
+  const no=ARV_NOS[a.no]||ARV_NOS.start;
+  const chips=`<div class="ap-chips" style="margin-bottom:12px">
+      <button class="chip" aria-pressed="false" data-pl-modo="lote">Criação em lote</button>
+      <button class="chip" aria-pressed="false" data-pl-modo="epico">Planejamento de épico</button>
+      <button class="chip" aria-pressed="true" data-pl-modo="arvore">🌳 Árvore de decisão</button></div>`;
+  const trilha=a.hist.length?`<div class="arv-trilha">${a.hist.map(h=>esc(h.label)).join(' → ')}</div>`:'';
+  const defs=`<details class="arv-defs"><summary>📖 Conceitos-chave</summary>
+      ${ARV_DEFS.map(([t2,x])=>`<div class="arv-def"><strong>${esc(t2)}</strong><div class="muted small">${esc(x)}</div></div>`).join('')}</details>`;
+  let corpo='';
+  if(a.feito){
+    const url=`${jiraBase()}/browse/${encodeURIComponent(a.feito.key)}`;
+    corpo=`<div class="pl-res-ok">✓ Ticket criado: <a href="${url}" target="_blank" rel="noopener">${esc(a.feito.key)} ↗</a> — ${esc(a.feito.resumo)}</div>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primario" data-arv-reiniciar="1">🌳 Classificar outra atividade</button></div>`;
+  } else if(no.result){
+    const podeCriar=!!no.cria;
+    let form='';
+    if(podeCriar){
+      const f=a.form;
+      const sug=arvProjetosSugeridos(no.filtro||'');
+      if(!f.projeto && sug.length===1) f.projeto=sug[0].key;
+      const ps=(_projetosCache||[]).slice().sort((x,y)=>x.key.localeCompare(y.key));
+      const sugSet=new Set(sug.map(p=>p.key));
+      const optProj='<option value="">— escolha —</option>'
+        +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
+        +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
+      const proj=ps.find(p=>p.key===f.projeto);
+      const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
+      if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
+      const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
+      const pessoas=Object.entries(pessoasUnidas()).map(([ac,o])=>[ac,(o&&o.nome)||ac]).sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+      const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([ac,n])=>`<option value="${escA(ac)}" ${f.respId===ac?'selected':''}>${esc(n)}</option>`).join('');
+      form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':''}</div>
+        <div class="pl-grid">
+          <div class="campo"><label>Projeto</label><select class="arv-in" data-arv-f="projeto">${optProj}</select></div>
+          ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
+          <div class="campo"><label>Tipo</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
+          <div class="campo"><label>Responsável</label><select class="arv-in" data-arv-f="respId">${optResp}</select></div>
+          <div class="campo"><label>Vencimento <span class="muted">(opcional)</span></label><input type="date" class="arv-in" data-arv-f="venc" value="${escA(f.venc||'')}"></div>
+        </div>
+        <div class="campo"><label>Resumo do ticket</label><input type="text" class="arv-in" data-arv-f="resumo" value="${escA(f.resumo||'')}" maxlength="255" placeholder="o que será feito — objetivo claro (P1)"></div>
+        <div class="campo"><label>Descrição <span class="muted">(motivo + critério de aceite)</span></label>
+          <textarea class="pl-texto" style="min-height:90px" data-arv-f="descricao" placeholder="Por quê:\nCritério de aceite:">${esc(f.descricao||'')}</textarea></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn" data-arv-voltar="1">← Voltar</button>
+          <button class="btn" data-arv-reiniciar="1">Reiniciar</button>
+          ${id?`<button class="btn primario" data-arv-criar="1" ${a.criando?'disabled':''}>${a.criando?'Criando…':'Criar ticket'}</button>`
+              :'<button class="btn" data-ap-act="config-id">Identificar-se para criar</button>'}
+        </div>
+        <div class="ap-fb" id="arv-fb" ${a.erro?'':'hidden'}>${esc(a.erro||'')}</div>`;
+    } else {
+      form=`<div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn" data-arv-voltar="1">← Voltar</button>
+          <button class="btn primario" data-arv-reiniciar="1">Reiniciar</button></div>`;
+    }
+    corpo=`${trilha}
+      <span class="arv-badge t-${escA(no.tone)}">${esc(no.badge)}</span>
+      <h3 class="arv-titulo">${esc(no.title)}</h3>
+      <div class="muted" style="margin:4px 0 8px">${esc(no.text)}</div>
+      <ul class="qa-probs">${no.bullets.map(b2=>`<li>${esc(b2)}</li>`).join('')}</ul>
+      ${form}`;
+  } else {
+    corpo=`${trilha}
+      <h3 class="arv-titulo">${esc(no.q)}</h3>
+      <div class="muted small" style="margin:4px 0 12px">${esc(no.helper)}</div>
+      <div class="arv-ops">${no.op.map((o,i)=>`<button class="arv-op t-${escA(o.tone)}" data-arv-op="${i}">${esc(o.label)}</button>`).join('')}</div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        ${a.hist.length?'<button class="btn" data-arv-voltar="1">← Voltar</button>':''}
+        ${a.hist.length?'<button class="btn" data-arv-reiniciar="1">Reiniciar</button>':''}
+      </div>`;
+  }
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>Criação de Ticket <span>🌳 árvore de decisão — governança de tickets (TI-04-006)</span></h2>
+      ${chips}
+      <div class="pl-dica">Responda as perguntas para descobrir <strong>onde o ticket deve nascer</strong> — no fim, crie o ticket ali mesmo, já no projeto certo.</div>
+      ${corpo}
+      ${defs}
+    </div>
+  </div>`));
+}
+// Cria o ticket da folha da árvore (1 item, mesma API da criação em lote).
+async function arvCria(){
+  const a=arvEstado(); const no=ARV_NOS[a.no]||{}; const f=a.form;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  a.erro='';
+  if(!f.projeto){ a.erro='Escolha o projeto.'; renderPlanejar(); return; }
+  if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderPlanejar(); return; }
+  if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
+    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderPlanejar(); return; }
+  if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderPlanejar(); return; }
+  const rodape=`Classificação (árvore de decisão): ${no.badge}${no.depto?` · ${no.depto}`:''}`;
+  const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
+    descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
+    respId:f.respId||'', paiKey:no.subtarefa?(f.paiKey||'').trim().toUpperCase():'',
+    estimativa:'', labels:[], venc:f.venc||'' };
+  a.criando=true; renderPlanejar();
+  try{
+    const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({itens:[item],email:id.email,token:id.token})}).then(r=>r.json());
+    a.criando=false;
+    const ok=j&&j.criados&&j.criados[0];
+    if(ok){ a.feito={key:ok.key, resumo:item.resumo};
+      logAcao({acao:'arvore-criar', t:ok.key, para:no.badge, ok:true});
+      toast(`✓ Ticket ${ok.key} criado (${no.badge}).`,'ok');
+      estado.cache={};
+    } else a.erro=(j&&(j.erro||(j.erros&&j.erros[0]&&j.erros[0].erro)))||'Falha ao criar o ticket.';
+  }catch(e){ a.criando=false; a.erro='Erro de rede: '+(e.message||e); }
+  renderPlanejar();
 }
 
 function renderPlanejarForm(){
@@ -4574,6 +4798,7 @@ function renderPlanejarForm(){
       <div class="ap-chips" style="margin-bottom:12px">
         <button class="chip" aria-pressed="${pl.modo==='lote'}" data-pl-modo="lote">Criação em lote</button>
         <button class="chip" aria-pressed="${pl.modo==='epico'}" data-pl-modo="epico">Planejamento de épico</button>
+        <button class="chip" aria-pressed="false" data-pl-modo="arvore" data-tip="Não sabe onde abrir o ticket? Responda a árvore de decisão e crie o ticket no lugar certo">🌳 Árvore de decisão</button>
       </div>
       <div class="pl-dica">${modoDica}</div>
       <div class="pl-grid">
@@ -7734,7 +7959,7 @@ function abreAjuda(){
       <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
       <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho; <b>bloqueia sobreposição</b> da mesma pessoa/projeto/função), <b>🔒 travar por pessoa com aprovação do Diego</b>, utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas, custo e <b>eficiência planejado × realizado</b> por semana, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
       <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
-      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>.</li>
+      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>. Não sabe onde abrir? A <b>🌳 Árvore de decisão</b> guia pelas perguntas da governança (TI-04-006) e <b>cria o ticket no projeto certo</b> no último passo.</li>
       <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
       <li><b>AMS &amp; Receita › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
       <li><b>Configurações › ⚙️ Contratos (Admin)</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
@@ -9330,6 +9555,13 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='pl-novo'){ pl.resultados=null; pl.texto=''; renderPlanejar(); }
   else if(t.id==='pl-tpl-salvar'){ abreSalvarTemplatePl(); }
   else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
+  else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
+    const o=no&&no.op&&no.op[+t.getAttribute('data-arv-op')];
+    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro=''; renderPlanejar(); } }
+  else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
+    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderPlanejar(); }
+  else if(t.hasAttribute('data-arv-reiniciar')){ const pl2=estado.planejar; pl2.arv=null; arvEstado(); renderPlanejar(); }
+  else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
@@ -9340,6 +9572,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   else if(t.id==='pl-labels'){ pl.labels=t.value; }
   else if(t.id==='pl-venc'){ pl.venc=t.value; }
   else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
+  else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
+    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; renderPlanejar(); } }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
