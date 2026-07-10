@@ -4944,7 +4944,16 @@ const ARV_NOS={
       {label:'Projeto Interno', next:'interno', tone:'moss'}, {label:'Nenhum destes', next:'adminOuAvulsa', tone:'grafite'} ] },
   sap_entregavel:{ q:'A atividade ajuda na entrega de algum entregável do projeto SAP?',
     helper:'Entregável é qualquer item formal que será entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
-    op:[ {label:'Sim, ajuda em um entregável', next:'sap_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'sap_fale_gp', tone:'grafite'} ] },
+    op:[ {label:'Sim, ajuda em um entregável', next:'sap_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'sap_alinhamento', tone:'grafite'} ] },
+  sap_alinhamento:{ q:'É uma tarefa de alinhamento que não está relacionada a nenhum entregável?',
+    helper:'Alinhamentos, reuniões de acompanhamento, status e atividades de gestão do projeto não produzem um entregável específico — e são registrados no épico de GESTÃO do projeto.',
+    op:[ {label:'Sim, é alinhamento/gestão', next:'sap_gestao', tone:'purple'},
+      {label:'Não', next:'sap_fale_gp', tone:'grafite'} ] },
+  sap_gestao:{ result:true, tone:'purple', badge:'Projeto SAP — Gestão', title:'Crie o ticket no épico de Gestão do projeto', cria:true, filtro:'sap', epico:true,
+    text:'Tarefas de alinhamento e gestão que não estão ligadas a nenhum entregável nascem DENTRO do épico de Gestão do projeto em questão.',
+    bullets:['Alinhamentos, reuniões de acompanhamento, status report e gestão do projeto.',
+      'Escolha o projeto e o épico de Gestão — o ticket é criado dentro dele.',
+      'Se o projeto não tiver épico de Gestão, fale com o gerente do projeto.'] },
   sap_planejado:{ q:'Esse entregável não foi planejado?',
     helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
     op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
@@ -5028,7 +5037,7 @@ const ARV_DEFS=[
   ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',depto:null}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null}, criando:false, feito:null, erro:'' };
   return pl.arv; }
 // Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe),
 // interno genérico ou tarefas avulsas/ADM.
@@ -5036,6 +5045,7 @@ function arvProjetosSugeridos(filtro, catRe){
   const ps=(_projetosCache||[]);
   const m=(p)=>`${p.key} ${p.nome||''} ${p.categoria||''}`;
   if(filtro==='ams') return ps.filter(p=>ehCategoriaAMS(p.categoria));
+  if(filtro==='sap') return ps.filter(p=>/\bsap\b/i.test(m(p)) && !ehCategoriaAMS(p.categoria));
   if(filtro==='cat') return ps.filter(p=>catRe && catRe.test(p.categoria||'') && p.key!=='TAD');
   if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)) && !/avuls|tad/i.test(m(p)));
   if(filtro==='avulsa') return ps.filter(p=>/avuls|(^|\s)adm|tad/i.test(m(p)));
@@ -5111,15 +5121,47 @@ function renderOndeCrio(){
               <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos desta categoria">trocar</button></div>
             ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`
         : `<div class="campo"><label>Projeto${ehAvulsa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${ehAvulsa?'disabled data-tip="Tarefas avulsas/administrativas só podem nascer no projeto TAD"':''}>${optProj}</select></div>`;
+      // Folha "no épico de Gestão": o ticket nasce DENTRO de um épico do projeto —
+      // carrega os épicos (mesmo cache do Planejar) e pré-seleciona o de Gestão (⭐).
+      let campoEpico='';
+      if(no.epico){
+        const pl2=estado.planejar;
+        const ep=f.projeto?pl2.epicosPorProj[f.projeto]:null;
+        if(f.projeto && !ep && !pl2.carregandoEpicos){
+          pl2.carregandoEpicos=true;
+          fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
+            pl2.carregandoEpicos=false;
+            pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
+            if(estado.vista==='ondecrio') renderOndeCrio();
+          }).catch(e2=>{ pl2.carregandoEpicos=false;
+            pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
+            if(estado.vista==='ondecrio') renderOndeCrio(); });
+        }
+        let selEp;
+        if(!f.projeto) selEp='<select disabled><option>escolha o projeto</option></select>';
+        else if(!ep) selEp='<select disabled><option>carregando épicos…</option></select>';
+        else if(ep.erro) selEp=`<select disabled><option>erro: ${esc(ep.erro)}</option></select>`;
+        else if(!(ep.epicos||[]).length) selEp='<select disabled><option>projeto sem épicos abertos</option></select>';
+        else {
+          if(!f.epicoKey || !(ep.epicos||[]).some(x=>x.k===f.epicoKey)){
+            const g=(ep.epicos||[]).find(x=>/gest/i.test(x.resumo||''));
+            f.epicoKey=(g&&g.k)||'';
+          }
+          selEp=`<select class="arv-in" data-arv-f="epicoKey"><option value="">— escolha o épico —</option>${
+            (ep.epicos||[]).map(x=>`<option value="${escA(x.k)}" ${f.epicoKey===x.k?'selected':''}>${esc(x.k)} — ${esc((x.resumo||'').slice(0,55))}${/gest/i.test(x.resumo||'')?' ⭐':''}</option>`).join('')}</select>`;
+        }
+        campoEpico=`<div class="campo"><label>Épico de Gestão <span class="muted">(o ticket nasce dentro dele)</span></label>${selEp}</div>`;
+      }
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
       const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
       const pessoas=Object.entries(pessoasUnidas()).map(([ac,o])=>[ac,(o&&o.nome)||ac]).sort((x,y)=>x[1].localeCompare(y[1],'pt'));
       if(f.respId && !pessoas.some(([ac])=>ac===f.respId)) pessoas.unshift([f.respId,(id&&id.nome)||'Você']);
       const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([ac,n])=>`<option value="${escA(ac)}" ${f.respId===ac?'selected':''}>${esc(n)}</option>`).join('');
-      form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':''}</div>
+      form=`<div class="sec" style="margin:16px 0 6px">Último passo: criar o ticket ${no.subtarefa?'(como <strong>subtarefa</strong> do ticket responsável)':(no.epico?'(dentro do <strong>épico de Gestão</strong> do projeto)':'')}</div>
         <div class="pl-grid">
           ${campoProjeto}
+          ${campoEpico}
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
@@ -5178,12 +5220,16 @@ async function arvCria(){
   if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderOndeCrio(); return; }
   if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
     a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderOndeCrio(); return; }
+  if(no.epico && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.epicoKey||'').trim().toUpperCase())){
+    a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; renderOndeCrio(); return; }
   if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
   const depto=(no.filtro==='avulsa'?(f.depto||''):(no.depto||'')).trim();
   const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}`;
   const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
     descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
-    respId:f.respId||'', paiKey:no.subtarefa?(f.paiKey||'').trim().toUpperCase():'',
+    respId:f.respId||'',
+    paiKey: no.subtarefa ? (f.paiKey||'').trim().toUpperCase()
+          : (no.epico ? (f.epicoKey||'').trim().toUpperCase() : ''),
     estimativa:'', labels:[], venc:f.venc||'', departamento:depto };
   a.criando=true; renderOndeCrio();
   try{
@@ -10230,7 +10276,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
         if(prox.filtro==='avulsa'){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
         // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
         a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
-        a.form.tipoId='';
+        a.form.tipoId=''; a.form.epicoKey='';
         a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
       }
       renderOndeCrio(); } }
@@ -10256,7 +10302,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   else if(t.id==='pl-venc'){ pl.venc=t.value; }
   else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
   else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
-    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; renderOndeCrio(); } }
+    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; renderOndeCrio(); } }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
