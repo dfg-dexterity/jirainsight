@@ -9,7 +9,7 @@
 //
 // Corpo: { periodo:{label,diasUteis}, equipe:{...}, pessoas:[{id,nome,...}] }
 // Resposta: { ok, geral, pessoas:[{id, resumo, sinal}] }
-import { json, jiraSearchAll, cacheGet, cacheSetTTL } from './_lib/util.js';
+import { json, jiraSearchAll, cacheGet, cacheSetTTL, worklogsEnriquecidos, configCompartilhada, feriadosBR } from './_lib/util.js';
 import { sincronizaFolgas } from './_lib/folgaSync.js';
 import { chamaClaude } from './_lib/ia.js';
 
@@ -156,25 +156,31 @@ const RUBRICA_LOCAL = [
   'Bugs: tipo Bug com comportamento atual, esperado, passos de reprodução, ambiente e evidências; título específico; um problema por bug; vincular ao ticket relacionado.',
 ].join('\n');
 
+// Busca uma página PUBLICADA do Notion (notion.site) e devolve o texto puro, ou ''
+// quando a página não pode ser lida / vem "vazia" (não publicada, bloqueio, rede).
+async function paginaNotionTexto(url, minLen) {
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; jirainsight)', Accept: 'text/html' } });
+    if (!r.ok) return '';
+    const html = await r.text();
+    const t = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#\d+;/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+    // Página publicada do Notion vem renderizada no HTML; se vier "vazia", cai no snapshot.
+    return t.length > (minLen || 1200) ? t.slice(0, 24000) : '';
+  } catch (e) { return ''; }
+}
+
 async function rubricaBoasPraticas() {
   const ck = 'qualidade:rubrica';
   const c = cacheGet(ck);
   if (c) return c;
   const url = (process.env.QUALIDADE_URL || QUALIDADE_URL_PADRAO).trim();
-  try {
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; jirainsight)', Accept: 'text/html' } });
-    if (r.ok) {
-      const html = await r.text();
-      const t = html
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"').replace(/&#\d+;/g, ' ')
-        .replace(/\s+/g, ' ').trim();
-      // Página publicada do Notion vem renderizada no HTML; se vier "vazia", cai no snapshot.
-      if (t.length > 1200) return cacheSetTTL(ck, { texto: t.slice(0, 24000), fonte: 'notion', url }, 30);
-    }
-  } catch (e) { /* sem rede/bloqueio → snapshot local */ }
+  const t = await paginaNotionTexto(url, 1200);
+  if (t) return cacheSetTTL(ck, { texto: t, fonte: 'notion', url }, 30);
   return cacheSetTTL(ck, { texto: RUBRICA_LOCAL, fonte: 'local', url }, 30);
 }
 
@@ -309,6 +315,297 @@ async function analisaQualidade(res, b, apiKey) {
   return json(res, 200, cacheSetTTL(ck, out, 10));
 }
 
+// ---------------------------------------------------------------------------
+// 🕵️ AUDITORIA DE TICKETS — validações diárias de apontamentos (TI-04-014).
+// A pessoa é escolhida no painel; o servidor junta os apontamentos do período
+// (Clockwork, de TODO o time — para saber quem mais apontou nas reuniões), os
+// detalhes dos tickets envolvidos (Jira) e o planejamento de alocação (config
+// compartilhada), e a IA aplica as REGRAS LIDAS AO VIVO da página TI-04-014
+// (env AUDITORIA_URL; fallback: snapshot local das regras).
+// ---------------------------------------------------------------------------
+const AUDITORIA_URL_PADRAO = 'https://dexterityitsolutions.notion.site/TI-04-014-Valida-es-di-rias-de-apontamentos-398c69371e1780bd9688e046fbd53e61';
+const MAX_TICKETS_AUD = 45;
+const RUBRICA_AUD_LOCAL = [
+  'TI-04-014 — Validações diárias de apontamentos (Dexterity):',
+  'REUNIÕES:',
+  'R1. Toda reunião deve ter sido criada pela AUTOMAÇÃO. Reunião criada manualmente por uma pessoa indica erro do robô — abrir ticket no Jira avisando do erro.',
+  'R2. Reunião deve ter MAIS DE UMA pessoa apontando horas. Se só uma pessoa apontou, é preciso convidar os demais participantes para apontar.',
+  'R3. Reunião de CLIENTE deve estar no projeto do cliente. Reunião de cliente ativo parada em projeto administrativo/interno está no projeto errado (reclassificar).',
+  'R4. Reunião com horas apontadas e vencimento atrasado há mais de 1 dia deve estar CONCLUÍDA. Reunião atrasada e ainda aberta precisa ser concluída.',
+  'R5. Não pode existir ticket de outro tipo (Tarefa etc.) que na prática é uma reunião (resumo/descrição de reunião) — deve ser do tipo Reunião.',
+  'APONTAMENTOS DA PESSOA:',
+  'A1. O número de apontamentos por dia trabalhado deve ser MAIOR que 1. Um único apontamento no dia indica que a pessoa lançou o dia inteiro numa só tarefa — incorreto (detalhar o dia por atividade).',
+  'A2. Os apontamentos devem estar nos projetos corretos, coerentes com a alocação planejada da pessoa.',
+  'PLANEJADO × REALIZADO:',
+  'P1. As horas realizadas por projeto devem seguir o planejamento de alocação da pessoa no período; desvios grandes (projeto planejado sem horas, ou muitas horas fora do planejado) devem ser apontados.',
+].join('\n');
+
+async function rubricaAuditoria() {
+  const ck = 'auditoria:rubrica';
+  const c = cacheGet(ck);
+  if (c) return c;
+  const url = (process.env.AUDITORIA_URL || AUDITORIA_URL_PADRAO).trim();
+  const t = await paginaNotionTexto(url, 700);
+  if (t) return cacheSetTTL(ck, { texto: t, fonte: 'notion', url }, 30);
+  return cacheSetTTL(ck, { texto: RUBRICA_AUD_LOCAL, fonte: 'local', url }, 30);
+}
+
+const SCHEMA_AUD = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['resumo', 'corretos', 'incorretos', 'acoes'],
+  properties: {
+    resumo: { type: 'string' },
+    corretos: {
+      type: 'array',
+      items: { type: 'object', additionalProperties: false, required: ['titulo', 'detalhe'], properties: { titulo: { type: 'string' }, detalhe: { type: 'string' } } },
+    },
+    incorretos: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false, required: ['regra', 'detalhe', 'gravidade', 'tickets'],
+        properties: {
+          regra: { type: 'string' }, detalhe: { type: 'string' },
+          gravidade: { type: 'string', enum: ['atencao', 'critico'] },
+          tickets: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    acoes: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false, required: ['tipo', 'rotulo'],
+        properties: {
+          tipo: { type: 'string', enum: ['comentar', 'vencimento', 'status', 'convidar', 'reclassificar', 'criar', 'outro'] },
+          rotulo: { type: 'string' }, texto: { type: 'string' }, ticket: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+const SISTEMA_AUD = [
+  'Você é um auditor de apontamentos de horas da Dexterity IT. Recebe a RUBRICA (as',
+  'validações diárias oficiais TI-04-014, texto extraído do Notion) e os DADOS de UMA',
+  'pessoa num período: apontamentos por dia, reuniões em que ela apontou (participantes',
+  'que apontaram, criador, projeto/categoria, status, vencimento e atraso), demais tickets',
+  'apontados e o planejamento de alocação (planejado × realizado por projeto).',
+  'Aplique CADA regra da rubrica aos dados, em português do Brasil.',
+  '',
+  'Regras:',
+  '- Baseie-se EXCLUSIVAMENTE nos dados fornecidos; nunca invente tickets, números ou nomes.',
+  '- "resumo": 2 a 4 frases com o balanço da pessoa no período (o que vai bem e o que precisa de ajuste).',
+  '- "corretos": o que está EM CONFORMIDADE com a rubrica — título curto + detalhe factual com números.',
+  '- "incorretos": cada não conformidade com a regra violada (nome curto da regra), o detalhe',
+  '  COM NÚMEROS/DATAS, a gravidade ("critico" para violação clara/recorrente; "atencao" para',
+  '  pontual ou dúvida) e as chaves dos tickets envolvidos (apenas chaves presentes nos dados).',
+  '- "acoes": ações CONCRETAS para ajustar, uma por problema quando possível — tipo "comentar"',
+  '  (avisar no ticket), "vencimento" (reprogramar), "status" (concluir/mover), "convidar" (chamar',
+  '  os participantes para apontar na reunião), "reclassificar" (mover de projeto/tipo), "criar"',
+  '  (abrir ticket novo, ex.: avisar erro da automação) ou "outro". Preencha "ticket" quando a',
+  '  ação é sobre um ticket específico e "texto" com a mensagem/instrução sugerida, pronta para uso.',
+  '- Sábados, domingos, os FERIADOS listados nos dados e os períodos de ausência informados NÃO contam como dia sem apontamento.',
+  '- Se os dados não permitirem avaliar uma regra, simplesmente não a liste em "incorretos".',
+].join('\n');
+
+const spDiaAud = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d || new Date());
+const somaDiasAud = (s, n) => { const t = new Date(`${s}T12:00:00-03:00`); t.setUTCDate(t.getUTCDate() + n); return spDiaAud(t); };
+
+async function auditaApontamentos(res, b, apiKey) {
+  const accountId = String(b.accountId || '').trim();
+  if (!accountId || !/^[\w:-]{5,128}$/.test(accountId)) return json(res, 400, { erro: 'Escolha a pessoa a auditar (accountId inválido).' });
+  const dias = Math.min(31, Math.max(1, Number(b.dias) || 7));
+  const ck = `auditoria:${accountId}:${dias}`;
+  const c = cacheGet(ck);
+  if (c && !b.nocache) return json(res, 200, c);
+
+  const ate = spDiaAud();
+  const de = somaDiasAud(ate, -(dias - 1));
+  const [rubrica, enr, cfg] = await Promise.all([
+    rubricaAuditoria(),
+    worklogsEnriquecidos(de, ate),
+    configCompartilhada({ metaGlobalH: 8, metasPessoa: {}, ausencias: [], alocacoes: [] }),
+  ]);
+
+  const wl = enr.worklogs.filter((w) => w.a === accountId);
+  const nome = txt(b.nome || (enr.pessoas[accountId] && enr.pessoas[accountId].nome) || accountId, 80);
+  const ausencias = (cfg.ausencias || []).filter((x) => x && x.a === accountId && !(x.ate < de || x.de > ate))
+    .map((x) => ({ de: x.de, ate: x.ate }));
+  // Feriados nacionais dentro do período (não contam como dia sem apontamento).
+  const feriados = [];
+  for (let d = de, g = 0; d <= ate && g < 40; d = somaDiasAud(d, 1), g += 1) {
+    if (feriadosBR(+d.slice(0, 4)).has(d)) feriados.push(d);
+  }
+  if (!wl.length) {
+    // Ausência cadastrada no período explica a falta de horas — não é violação clara.
+    const temAus = ausencias.length > 0;
+    const ausTxt = ausencias.map((x) => `${x.de} → ${x.ate}`).join(', ');
+    const out = {
+      ok: true, pessoa: { id: accountId, nome }, de, ate, dias, fonte: rubrica.fonte, url: rubrica.url,
+      resumo: `Sem apontamentos de ${nome} no período (${de} → ${ate}).${temAus ? ` Há ausência cadastrada (${ausTxt}), o que pode explicar.` : ''}`,
+      corretos: [],
+      incorretos: [{
+        regra: 'Apontamentos diários',
+        detalhe: `Nenhuma hora apontada entre ${de} e ${ate}.${temAus ? ` Ausência cadastrada: ${ausTxt}.` : ''}`,
+        gravidade: temAus ? 'atencao' : 'critico', tickets: [],
+      }],
+      acoes: [{ tipo: 'outro', rotulo: 'Verificar com a pessoa e reforçar o apontamento diário', texto: `Nenhum apontamento de ${nome} entre ${de} e ${ate}. ${temAus ? `Há ausência cadastrada (${ausTxt}) — confirmar se cobre todo o período.` : 'Confirmar se houve férias/ausência; se não, reforçar o apontamento diário no Clockwork.'}`, ticket: '' }],
+      stats: { horas: 0, apontamentos: 0, diasComApontamento: 0, reunioes: 0, tickets: 0 },
+      quando: new Date().toISOString(),
+    };
+    return json(res, 200, cacheSetTTL(ck, out, 10));
+  }
+
+  const ehReuniao = (t) => /reuni/i.test(String(t || ''));
+
+  // Por dia: nº de apontamentos, tickets distintos e horas (regra "mais de 1 por dia").
+  const porDiaMap = {};
+  wl.forEach((w) => {
+    const d = String(w.d || '').slice(0, 10); if (!d) return;
+    const r = porDiaMap[d] || (porDiaMap[d] = { d, apontamentos: 0, tickets: new Set(), horas: 0 });
+    r.apontamentos += 1; if (w.k) r.tickets.add(w.k); r.horas += w.s;
+  });
+  const porDia = Object.values(porDiaMap).sort((a, b2) => (a.d < b2.d ? -1 : 1))
+    .map((r) => ({ dia: r.d, apontamentos: r.apontamentos, ticketsDistintos: r.tickets.size, horas: +(r.horas / 3600).toFixed(1) }));
+
+  // Reuniões em que a pessoa apontou + quem MAIS apontou nelas (todo o time, no período).
+  const chavesPessoa = [...new Set(wl.map((w) => w.k).filter(Boolean))];
+  const reunioesKeys = new Set(wl.filter((w) => ehReuniao(w.t)).map((w) => w.k).filter(Boolean));
+  const partPorK = {}; const totalPorK = {};
+  enr.worklogs.forEach((w) => {
+    if (!w.k || !reunioesKeys.has(w.k)) return;
+    (partPorK[w.k] = partPorK[w.k] || new Set()).add(w.a);
+    totalPorK[w.k] = (totalPorK[w.k] || 0) + w.s;
+  });
+  const horasDe = {}; wl.forEach((w) => { if (w.k) horasDe[w.k] = (horasDe[w.k] || 0) + w.s; });
+
+  // Corte único e consistente em MAX_TICKETS_AUD: reuniões primeiro (são o foco das
+  // regras), depois os demais por horas — detalhes do Jira e payload usam o MESMO corte.
+  const chaves = [...chavesPessoa]
+    .sort((a, b2) => ((reunioesKeys.has(b2) ? 1 : 0) - (reunioesKeys.has(a) ? 1 : 0)) || ((horasDe[b2] || 0) - (horasDe[a] || 0)))
+    .slice(0, MAX_TICKETS_AUD);
+  const ticketsForaDoCorte = chavesPessoa.length - chaves.length;
+  const detalhes = {};
+  if (chaves.length) {
+    const { issues } = await jiraSearchAll({
+      jql: `key in (${chaves.join(',')})`,
+      fields: ['summary', 'description', 'issuetype', 'status', 'duedate', 'resolutiondate', 'reporter', 'created', 'project', 'assignee'],
+      pageSize: 100, maxPages: 1,
+    });
+    issues.forEach((it) => {
+      const f = it.fields || {};
+      detalhes[it.key] = {
+        resumo: String(f.summary || '').slice(0, 200),
+        descTrecho: adfTexto(f.description).replace(/\s+/g, ' ').trim().slice(0, 260),
+        tipo: (f.issuetype && f.issuetype.name) || '',
+        status: (f.status && f.status.name) || '',
+        concluido: !!f.resolutiondate || String((f.status && f.status.statusCategory && f.status.statusCategory.key) || '') === 'done',
+        vencimento: f.duedate || '',
+        criadoPor: (f.reporter && f.reporter.displayName) || '',
+        criadoEm: String(f.created || '').slice(0, 10),
+        responsavel: (f.assignee && f.assignee.displayName) || '',
+        projeto: (f.project && f.project.key) || '',
+        projetoNome: (f.project && f.project.name) || '',
+        categoria: (f.project && f.project.projectCategory && f.project.projectCategory.name) || 'Sem categoria',
+      };
+    });
+  }
+
+  const reunioes = chaves.filter((k) => reunioesKeys.has(k)).map((k) => {
+    const dt = detalhes[k] || {};
+    const atrasoDias = (dt.vencimento && dt.vencimento < ate)
+      ? Math.round((new Date(ate) - new Date(dt.vencimento)) / 86400000) : 0;
+    return {
+      k, resumo: dt.resumo || enr.resumos[k] || '', projeto: dt.projeto || '', projetoNome: dt.projetoNome || '',
+      categoria: dt.categoria || '', tipo: dt.tipo || 'Reunião', status: dt.status || '', concluida: !!dt.concluido,
+      vencimento: dt.vencimento || '', atrasoDias, criadoPor: dt.criadoPor || '', criadoEm: dt.criadoEm || '',
+      participantesQueApontaram: (partPorK[k] ? partPorK[k].size : 1),
+      horasDaPessoa: +((horasDe[k] || 0) / 3600).toFixed(1),
+      horasTotais: +(((totalPorK[k] || 0)) / 3600).toFixed(1),
+    };
+  });
+  const tarefas = chaves.filter((k) => !reunioesKeys.has(k)).map((k) => {
+    const dt = detalhes[k] || {};
+    return {
+      k, resumo: dt.resumo || enr.resumos[k] || '', projeto: dt.projeto || '', categoria: dt.categoria || '',
+      tipo: dt.tipo || '', status: dt.status || '', concluida: !!dt.concluido, vencimento: dt.vencimento || '',
+      descTrecho: dt.descTrecho || '', horasDaPessoa: +((horasDe[k] || 0) / 3600).toFixed(1),
+    };
+  });
+
+  // Planejado × realizado por projeto (alocações da config compartilhada, pró-rata no
+  // período). Espelha o painel: linhas só contam com inicio E fim válidos (AAAA-MM-DD),
+  // e alocações legadas guardavam % (pct) em vez de hSemana — mesma migração do front.
+  const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+  const overlapSemanas = (a) => {
+    if (!RE_DATA.test(a.inicio || '') || !RE_DATA.test(a.fim || '')) return 0;
+    const ini = a.inicio > de ? a.inicio : de;
+    const fim = a.fim < ate ? a.fim : ate;
+    if (ini > fim) return 0;
+    return Math.max(0, (new Date(fim) - new Date(ini)) / 86400000 + 1) / 7;
+  };
+  const hSemanaDe = (a) => (a.hSemana != null ? (Number(a.hSemana) || 0)
+    : (a.pct != null ? Math.round((Number(a.pct) || 0) / 100 * 40) : 0));
+  const planejado = {};
+  (cfg.alocacoes || []).filter((a) => a && a.accountId === accountId && a.projeto).forEach((a) => {
+    const h = hSemanaDe(a) * overlapSemanas(a);
+    if (h > 0) planejado[a.projeto] = +((planejado[a.projeto] || 0) + h).toFixed(1);
+  });
+  const realizadoSeg = {};
+  wl.forEach((w) => { realizadoSeg[w.p] = (realizadoSeg[w.p] || 0) + w.s; });
+  const realizado = {};
+  Object.keys(realizadoSeg).forEach((p) => { realizado[p] = +(realizadoSeg[p] / 3600).toFixed(1); });
+
+  const metaHDia = Math.max(0, Number((cfg.metasPessoa || {})[accountId] != null ? cfg.metasPessoa[accountId] : cfg.metaGlobalH) || 0);
+
+  const payload = {
+    pessoa: { id: accountId, nome },
+    periodo: {
+      de, ate, dias,
+      observacao: 'sábados, domingos, os feriados listados e as ausências não contam como dia de trabalho'
+        + (ticketsForaDoCorte > 0 ? `; ${ticketsForaDoCorte} ticket(s) com poucas horas ficaram fora da amostra` : ''),
+    },
+    metaHorasPorDiaUtil: metaHDia,
+    feriados,
+    ausencias,
+    apontamentosPorDia: porDia,
+    reunioes,
+    tarefas,
+    alocacao: { planejadoHorasPorProjeto: planejado, realizadoHorasPorProjeto: realizado },
+  };
+  const prompt = 'RUBRICA (validações diárias TI-04-014):\n\n' + rubrica.texto
+    + '\n\n---\n\nDADOS DA PESSOA PARA AUDITAR (JSON):\n\n' + JSON.stringify(payload);
+  const resultado = await chamaClaude(apiKey, null, { system: SISTEMA_AUD, schema: SCHEMA_AUD, prompt });
+
+  const chavesOk = new Set(chavesPessoa);
+  const TIPOS_ACAO = ['comentar', 'vencimento', 'status', 'convidar', 'reclassificar', 'criar', 'outro'];
+  const out = {
+    ok: true, pessoa: { id: accountId, nome }, de, ate, dias, fonte: rubrica.fonte, url: rubrica.url,
+    resumo: txt(resultado.resumo, 1200),
+    corretos: (Array.isArray(resultado.corretos) ? resultado.corretos : []).slice(0, 10)
+      .map((x) => ({ titulo: txt(x.titulo, 90), detalhe: txt(x.detalhe, 400) })),
+    incorretos: (Array.isArray(resultado.incorretos) ? resultado.incorretos : []).slice(0, 12)
+      .map((x) => ({
+        regra: txt(x.regra, 90), detalhe: txt(x.detalhe, 500),
+        gravidade: x.gravidade === 'critico' ? 'critico' : 'atencao',
+        tickets: (Array.isArray(x.tickets) ? x.tickets : []).map(String).filter((k) => chavesOk.has(k)).slice(0, 8),
+      })),
+    acoes: (Array.isArray(resultado.acoes) ? resultado.acoes : []).slice(0, 12)
+      .map((x) => ({
+        tipo: TIPOS_ACAO.includes(x.tipo) ? x.tipo : 'outro',
+        rotulo: txt(x.rotulo, 90), texto: txt(x.texto, 1500),
+        ticket: chavesOk.has(String(x.ticket || '')) ? String(x.ticket) : '',
+      })),
+    stats: {
+      horas: +((wl.reduce((s, w) => s + w.s, 0)) / 3600).toFixed(1),
+      apontamentos: wl.length, diasComApontamento: porDia.length,
+      reunioes: reunioes.length, tickets: chavesPessoa.length,
+    },
+    quando: new Date().toISOString(),
+  };
+  return json(res, 200, cacheSetTTL(ck, out, 10));
+}
+
 export default async function handler(req, res) {
   try {
     // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
@@ -334,6 +631,9 @@ export default async function handler(req, res) {
 
     // Qualidade dos tickets vs. boas práticas TI-04-006 (rubrica lida do Notion).
     if (acao === 'qualidade') return await analisaQualidade(res, b, apiKey);
+
+    // 🕵️ Auditoria de apontamentos de UMA pessoa vs. validações TI-04-014 (Notion).
+    if (acao === 'auditoria') return await auditaApontamentos(res, b, apiKey);
 
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });

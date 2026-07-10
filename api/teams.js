@@ -9,7 +9,7 @@
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
 // pelos horários configurados no painel (cfg.teamsHora e cfg.teamsResumo).
-import { jiraBase, jiraUsuariosAtivos, json } from './_lib/util.js';
+import { jiraBase, jiraUsuariosAtivos, json, configCompartilhada as cfgCompartilhada, feriadosBR } from './_lib/util.js';
 import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 
@@ -20,21 +20,6 @@ const MAX_PESSOAS_RESUMO = 25;
 function spDate(d) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d); }
 function addDias(s, n) { const t = new Date(`${s}T12:00:00-03:00`); t.setUTCDate(t.getUTCDate() + n); return spDate(t); }
 function diaSemana(s) { return new Date(`${s}T12:00:00-03:00`).getUTCDay(); }
-function pascoa(ano) {
-  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4,
-    f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
-    i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(Date.UTC(ano, mes - 1, dia));
-}
-function feriadosBR(ano) {
-  const p = pascoa(ano); const iso = (d) => d.toISOString().slice(0, 10);
-  const ad = (n) => { const x = new Date(p); x.setUTCDate(x.getUTCDate() + n); return iso(x); };
-  const f = new Set([`${ano}-01-01`, ad(-48), ad(-47), ad(-2), `${ano}-04-21`, `${ano}-05-01`, ad(60),
-    `${ano}-09-07`, `${ano}-10-12`, `${ano}-11-02`, `${ano}-11-15`, `${ano}-12-25`]);
-  if (ano >= 2024) f.add(`${ano}-11-20`);
-  return f;
-}
 function ehUtilBR(s, extras, removidos) {
   const w = diaSemana(s);
   if (w === 0 || w === 6) return false;
@@ -44,18 +29,8 @@ function ehUtilBR(s, extras, removidos) {
 }
 
 // Config compartilhada (metas/ausências/feriados/horários) do Supabase, se configurado.
-async function configCompartilhada() {
-  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-  const key = process.env.SUPABASE_ANON_KEY || '';
-  const def = { metaGlobalH: 8, metasPessoa: {}, ausencias: [], feriadosExtra: {}, feriadosRemovidos: [], ocultos: [] };
-  if (!base || !key) return def;
-  try {
-    const r = await fetch(`${base}/rest/v1/jirainsight_config?id=eq.default&select=data`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    if (!r.ok) return def;
-    const rows = await r.json();
-    return Object.assign(def, (rows && rows[0] && rows[0].data) || {});
-  } catch (e) { return def; }
+function configCompartilhada() {
+  return cfgCompartilhada({ metaGlobalH: 8, metasPessoa: {}, ausencias: [], feriadosExtra: {}, feriadosRemovidos: [], ocultos: [] });
 }
 
 // Estado do agendamento (último envio de CADA tipo) — linha própria na tabela de

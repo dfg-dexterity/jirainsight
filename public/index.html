@@ -917,6 +917,19 @@
   .rklb-bar i{display:block;height:100%;background:#0070F2;border-radius:999px}
   .rklb-chips{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--texto2)}
   .rklb-chips span{border:1px solid var(--linha2);border-radius:999px;padding:2px 8px;background:var(--cartao2)}
+  /* 🕵️ Auditoria de Tickets (TI-04-014) */
+  .aud-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:12px}
+  .aud-card{border-top:3px solid var(--linha)}
+  .aud-card.ok{border-top-color:#188918}
+  .aud-card.bad{border-top-color:#C2410C}
+  .aud-card.act{border-top-color:#0070F2}
+  .aud-ok li{margin:6px 0}
+  .aud-prob{border:1px solid var(--linha2);border-left:4px solid #C77700;border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--cartao2)}
+  .aud-prob.critico{border-left-color:#DC2626}
+  .aud-prob-t{display:flex;gap:8px;align-items:center;font-size:13.5px}
+  .aud-prob-d{font-size:13px;color:var(--texto2);margin-top:4px}
+  .aud-prob-k{font-size:12px;margin-top:5px}
+  .aud-acao{display:flex;gap:8px;align-items:center;margin:7px 0;flex-wrap:wrap}
   /* ⚙️ Central de configurações */
   .cfgc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px}
   .cfgc-sec{border-top:1px solid var(--linha2);padding-top:10px;margin-top:12px}
@@ -1388,6 +1401,7 @@
           <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
           <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
           <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
+          <button data-v="audit"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🕵️ Auditoria de Tickets</button>
         </div>
       </div>
       <div class="navg">
@@ -1552,6 +1566,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   admin:{ editId:null },
   // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
   ranking:{ aba:'apontamento' },
+  // 🕵️ Auditoria de Tickets (apontamentos × validações TI-04-014, por pessoa).
+  audit:{ accountId:'', dias:7, dados:null, carregando:false, erro:'' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
@@ -1955,7 +1971,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -1973,6 +1989,7 @@ function render(){
   if(estado.vista==='ranking') return renderRanking();
   if(estado.vista==='tickets') return renderTickets();
   if(estado.vista==='qualidade') return renderQualidade();
+  if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='ondecrio') return renderOndeCrio();
@@ -3118,6 +3135,136 @@ function qaRegistraSemana(d){
     salvaCfg();
   }catch(e){}
 }
+
+// ================== 🕵️ Auditoria de Tickets (validações TI-04-014, por pessoa) ==================
+// A pessoa é escolhida na tela; o servidor junta apontamentos (Clockwork), detalhes
+// dos tickets (Jira) e a alocação planejada, e a IA aplica as regras lidas AO VIVO
+// da página TI-04-014 — o resultado separa o que está correto, o que não está e as
+// ações para ajustar (com botões acionáveis).
+function audAnalisa(force){
+  const q=estado.audit;
+  if(!q.accountId){ q.erro='Escolha a pessoa que você quer auditar.'; q.dados=null; renderAudit(); return; }
+  const nome=((pessoasUnidas()[q.accountId]||{}).nome)||'';
+  q.carregando=true; q.erro=''; renderAudit();
+  fetch('/api/resumo?acao=auditoria',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({accountId:q.accountId, nome, dias:q.dias, nocache:force?1:0})})
+    .then(r=>r.json()).then(j=>{ q.carregando=false;
+      if(!j.ok){ q.erro=humanizaErro(j.erro||'Falha na auditoria.'); q.dados=null; }
+      else q.dados=j;
+      if(estado.vista==='audit') renderAudit();
+    }).catch(e=>{ q.carregando=false; q.erro=humanizaErro(e); if(estado.vista==='audit') renderAudit(); });
+}
+// Ação sem ticket específico (ex.: criar ticket avisando erro da automação): modal
+// com o texto sugerido pronto para copiar + atalho para a Criação de Ticket.
+function abreAudAcao(a){
+  abreModal(`<h2>🔧 ${esc(a.rotulo)}</h2>
+    <div class="muted small">Sugestão da auditoria (TI-04-014) — copie/ajuste o texto e execute a ação.</div>
+    <textarea id="aud-acao-texto" class="pl-texto" style="min-height:150px;margin-top:10px">${esc(a.texto||a.rotulo||'')}</textarea>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn" id="aud-acao-copia">📋 Copiar texto</button>
+      ${a.tipo==='criar'?'<button class="btn primario" id="aud-acao-criar">📝 Abrir Criação de Ticket</button>':''}
+      <button class="btn" id="aud-acao-fechar">Fechar</button>
+    </div>`);
+}
+function renderAudit(){
+  const cont=document.getElementById('conteudo');
+  const q=estado.audit;
+  const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const optP='<option value="">— escolha a pessoa —</option>'+pessoas.map(([a,n])=>
+    `<option value="${escA(a)}" ${q.accountId===a?'selected':''}>${esc(n)}</option>`).join('');
+  const controles=`<div class="ap-filtros">
+      <div class="campo"><label>Pessoa a auditar</label><select id="aud-pessoa">${optP}</select></div>
+      <div class="campo"><label>Período</label><select id="aud-dias">${[3,7,14,30].map(d=>`<option value="${d}" ${q.dias===d?'selected':''}>últimos ${d} dias</option>`).join('')}</select></div>
+      <div class="campo"><label>&nbsp;</label><button class="btn primario" id="aud-analisar" ${q.carregando?'disabled':''}>${q.carregando?'Auditando…':'🕵️ Auditar apontamentos'}</button></div>
+      ${q.dados?'<div class="campo"><label>&nbsp;</label><button class="btn" id="aud-refresh" data-tip="Ignora o cache (10 min) e reaudita agora">↻ Reauditar</button></div>':''}
+    </div>`;
+  let corpo='';
+  if(q.carregando) corpo='<div class="estado">🕵️ Lendo as validações (TI-04-014) no Notion e auditando os apontamentos… (pode levar ~1 min)</div>';
+  else if(q.erro) corpo=`<div class="erro"><strong>Falha na auditoria.</strong> ${esc(q.erro)}</div>`;
+  else if(!q.dados) corpo=`<div class="estado">Escolha a <strong>pessoa</strong> e clique em <strong>🕵️ Auditar apontamentos</strong>.<br>
+      <span class="small">A IA lê as validações <strong>direto do Notion (TI-04-014)</strong> — atualizou o documento lá, a auditoria acompanha —
+      e verifica os apontamentos da pessoa: reuniões (automação, participantes, projeto certo, atraso),
+      apontamentos por dia e o planejado × realizado da alocação. O resultado separa <strong>o que está correto</strong>,
+      <strong>o que não está</strong> e <strong>as ações para ajustar</strong>.</span></div>`;
+  else {
+    const d=q.dados;
+    const fonteBadge=d.fonte==='notion'
+      ?`<a class="badge" href="${escA(d.url)}" target="_blank" rel="noopener" data-tip="Regras lidas AO VIVO desta página do Notion — atualize o documento e a próxima auditoria acompanha">📘 regras: Notion TI-04-014 ↗</a>`
+      :`<span class="badge venc-passado" data-tip="A página do Notion não pôde ser lida agora (publique-a na web para leitura ao vivo) — usando a cópia local das regras">📘 regras: cópia local</span>`;
+    const nCrit=d.incorretos.filter(x=>x.gravidade==='critico').length;
+    const nAte=d.incorretos.length-nCrit;
+    const linkK=(k)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)}</a>`;
+    const okHtml=d.corretos.length
+      ?`<ul class="qa-probs aud-ok">${d.corretos.map(c=>`<li><strong>${esc(c.titulo)}</strong> — ${esc(c.detalhe)}</li>`).join('')}</ul>`
+      :'<div class="muted small">A IA não destacou pontos em conformidade neste período.</div>';
+    const badHtml=d.incorretos.length
+      ?d.incorretos.map(x=>`<div class="aud-prob ${escA(x.gravidade)}">
+          <div class="aud-prob-t"><span class="aloc-badge ${x.gravidade==='critico'?'crit':'aten'}">${x.gravidade==='critico'?'crítico':'atenção'}</span>
+            <strong>${esc(x.regra)}</strong></div>
+          <div class="aud-prob-d">${esc(x.detalhe)}</div>
+          ${x.tickets.length?`<div class="aud-prob-k">🎟 ${x.tickets.map(linkK).join(' · ')}</div>`:''}
+        </div>`).join('')
+      :'<div class="pl-res-ok">✓ Nenhuma não conformidade encontrada no período.</div>';
+    const icone={comentar:'💬',vencimento:'📅',status:'🔀',convidar:'👥',reclassificar:'🔁',criar:'➕',outro:'🛠'};
+    const acoesHtml=d.acoes.length
+      ?d.acoes.map((a,i)=>`<div class="aud-acao">
+          <button class="btn qa-act" data-aud-act="${i}" data-tip="${escA((a.texto||a.rotulo||'').slice(0,220))}">${icone[a.tipo]||'▸'} ${esc(a.rotulo)}</button>
+          ${a.ticket?`<span class="muted small">${linkK(a.ticket)}</span>`:''}
+        </div>`).join('')
+      :'<div class="muted small">Sem ações sugeridas — nada a ajustar. 🎉</div>';
+    corpo=`
+      <div class="ia-geral" style="margin:4px 0 12px"><strong>Balanço da IA — ${esc(d.pessoa.nome)} (${esc(fmtBR(d.de))} → ${esc(fmtBR(d.ate))}):</strong>
+        ${esc(d.resumo||'—')}<span class="spacer"></span>${fonteBadge}</div>
+      <div class="kpis ts-kpis">
+        <div class="kpi t"><div class="v">${esc(String(d.stats.horas))}h</div><div class="l">Horas apontadas (${d.dias}d)</div></div>
+        <div class="kpi t"><div class="v">${d.stats.apontamentos}</div><div class="l">Apontamentos</div></div>
+        <div class="kpi t"><div class="v">${d.stats.diasComApontamento}</div><div class="l">Dias com apontamento</div></div>
+        <div class="kpi t"><div class="v">${d.stats.reunioes}</div><div class="l">Reuniões apontadas</div></div>
+        <div class="kpi ${nCrit?'w':'a'}"><div class="v">${nCrit}</div><div class="l">Achados críticos</div></div>
+        <div class="kpi t"><div class="v">${nAte}</div><div class="l">Pontos de atenção</div></div>
+      </div>
+      <div class="aud-grid">
+        <div class="card aud-card ok"><h2>✅ O que está correto</h2>${okHtml}</div>
+        <div class="card aud-card bad"><h2>⚠️ O que não está correto</h2>${badHtml}</div>
+        <div class="card aud-card act"><h2>🔧 Ações para ajustar</h2>${acoesHtml}</div>
+      </div>`;
+  }
+  cont.replaceChildren(el(`<div><div class="card full">
+      <h2>🕵️ Auditoria de Tickets <span>validações diárias de apontamentos por pessoa · IA × TI-04-014</span></h2>
+      ${controles}${corpo}
+    </div></div>`));
+}
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const q=estado.audit;
+  if(t.id==='aud-analisar'){ audAnalisa(false); }
+  else if(t.id==='aud-refresh'){ audAnalisa(true); }
+  else if(t.hasAttribute('data-aud-act')){
+    const a=q.dados&&q.dados.acoes[+t.getAttribute('data-aud-act')]; if(!a) return;
+    escondeTip();
+    if(a.tipo==='vencimento'&&a.ticket) abreModalReprog([a.ticket],'');
+    else if(a.tipo==='criar') abreAudAcao(a);        // criar ticket novo (mesmo citando um existente)
+    else if(a.ticket) abreQaComentar(a.ticket, a);   // comentar/status/convidar/reclassificar → feedback no ticket
+    else abreAudAcao(a);
+  }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.id) return;
+  if(t.id==='aud-pessoa'){ estado.audit.accountId=t.value; estado.audit.erro=''; }
+  else if(t.id==='aud-dias'){ estado.audit.dias=Number(t.value)||7; }
+});
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='aud-acao-fechar'){ fechaModal(); }
+  else if(t.id==='aud-acao-criar'){ fechaModal(); vaiPara('planejar'); }
+  else if(t.id==='aud-acao-copia'){
+    const tx=(document.getElementById('aud-acao-texto')||{value:''}).value;
+    Promise.resolve().then(()=>navigator.clipboard.writeText(tx))
+      .then(()=>toast('✓ Texto copiado.','ok'))
+      .catch(()=>toast('Não foi possível copiar automaticamente — selecione e copie o texto.','err'));
+  }
+});
 
 function renderTimesheet(){
   const cont=document.getElementById('conteudo');
@@ -9014,7 +9161,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
