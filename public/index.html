@@ -859,6 +859,8 @@
     background:var(--cartao);color:var(--grafite);cursor:pointer;font-size:14px;font-weight:600;font-family:var(--corpo);
     transition:background .12s ease, transform .06s ease}
   .arv-op:hover{background:var(--hoverbg);transform:translateX(2px)}
+  .arv-op-l{display:block}
+  .arv-op-d{display:block;font-size:12px;font-weight:400;color:var(--texto2);margin-top:3px;line-height:1.4}
   .arv-op.t-teal{border-left-color:#0F766E} .arv-op.t-purple{border-left-color:#6D28D9}
   .arv-op.t-orange{border-left-color:#C2410C} .arv-op.t-moss{border-left-color:#3F6212}
   .arv-op.t-grafite{border-left-color:#475569}
@@ -4940,8 +4942,17 @@ const ARV_NOS={
     helper:'Se já existe um projeto, contrato ou frente formal, o ticket deve nascer lá.',
     op:[ {label:'Sim', next:'tipoProjeto', tone:'teal'}, {label:'Não', next:'adminOuAvulsa', tone:'grafite'} ] },
   tipoProjeto:{ q:'Qual é o contexto principal da atividade?', helper:'Escolha a natureza do vínculo da atividade.',
-    op:[ {label:'Projeto AMS', next:'ams', tone:'teal'}, {label:'Projeto SAP', next:'sap_entregavel', tone:'purple'},
+    op:[ {label:'Projeto AMS', next:'ams_parceria', tone:'teal'}, {label:'Projeto SAP', next:'sap_entregavel', tone:'purple'},
       {label:'Projeto Interno', next:'interno', tone:'moss'}, {label:'Nenhum destes', next:'adminOuAvulsa', tone:'grafite'} ] },
+  ams_parceria:{ q:'O AMS é por parceria?',
+    helper:'Atendimentos AMS executados por meio de uma consultoria PARCEIRA têm projeto próprio (DAMS | Consultorias Parceiras). AMS direto com o cliente segue no projeto do cliente.',
+    op:[ {label:'Sim, é via consultoria parceira', next:'ams_dams', tone:'teal'},
+      {label:'Não, é AMS direto com o cliente', next:'ams', tone:'grafite'} ] },
+  ams_dams:{ result:true, tone:'teal', badge:'AMS — Parceria', title:'Abrir no projeto DAMS | Consultorias Parceiras', cria:true, filtro:'ams', soProjeto:'DAMS',
+    text:'Atendimentos AMS feitos por meio de consultorias parceiras nascem SEMPRE no projeto DAMS | Consultorias Parceiras.',
+    bullets:['O projeto é fixo: DAMS | Consultorias Parceiras (único permitido neste caminho).',
+      'Identifique o cliente e a consultoria parceira no resumo/descrição do ticket.',
+      'Os demais campos funcionam como no AMS direto.'] },
   sap_entregavel:{ q:'A atividade ajuda na entrega de algum entregável do projeto SAP?',
     helper:'Entregável é qualquer item formal que será entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
     op:[ {label:'Sim, ajuda em um entregável', next:'sap_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'sap_alinhamento', tone:'grafite'} ] },
@@ -4959,12 +4970,29 @@ const ARV_NOS={
     op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
   adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
     helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa.',
-    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'administrativa', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'} ] },
-  departamento:{ q:'Qual departamento é o dono da demanda avulsa?', helper:'Abra o ticket como tarefa avulsa no departamento responsável.',
-    op:[ {label:'Comercial & Relacionamento', next:'dept_comercial', tone:'teal'}, {label:'Projetos & Entregas', next:'dept_projetos', tone:'purple'},
-      {label:'Financeiro', next:'dept_financeiro', tone:'moss'}, {label:'Pessoas & Cultura', next:'dept_pessoas', tone:'orange'},
-      {label:'Administrativo & Compliance', next:'dept_admin', tone:'grafite'}, {label:'Inovação & Melhoria', next:'dept_inovacao', tone:'teal'},
-      {label:'Governança & Estratégia', next:'dept_governanca', tone:'purple'} ] },
+    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'} ] },
+  adm_freq:{ q:'Isso se repete com que frequência?',
+    helper:'A frequência da rotina define o tipo do ticket — ele já vem pré-selecionado na tela de criação.',
+    op:[ {label:'Diariamente', next:'adm_primeira', tone:'orange', set:{freqAdm:'diária'}, desc:'Rotina executada todo dia útil (ex.: conferências diárias, monitoramentos).'},
+      {label:'Semanalmente', next:'adm_primeira', tone:'teal', set:{freqAdm:'semanal'}, desc:'Rotina executada 1× por semana (ex.: fechamentos semanais, relatórios).'},
+      {label:'Mensalmente', next:'adm_primeira', tone:'purple', set:{freqAdm:'mensal'}, desc:'Rotina executada 1× por mês (ex.: faturamento, folha, apurações mensais).'} ] },
+  adm_primeira:{ q:'É a primeira vez que você está fazendo esta atividade?',
+    helper:'Rotinas recorrentes reutilizam o ticket: o anterior precisa ser finalizado antes de criar o próximo.',
+    op:[ {label:'Sim, é a primeira vez', next:'administrativa', tone:'orange'},
+      {label:'Não, já fiz antes', next:'adm_repetida', tone:'grafite'} ] },
+  adm_repetida:{ result:true, tone:'grafite', badge:'Tarefa Administrativa', title:'Finalize o ticket anterior antes de criar outro', cria:false,
+    text:'Você provavelmente não finalizou o ticket anterior desta rotina — e ele é necessário para poder criar o próximo.',
+    bullets:['Localize o ticket da rotina (aba Gestão de Tickets ou Apontar) e conclua-o.',
+      'Rotinas recorrentes não devem acumular tickets abertos em paralelo.',
+      'Depois de concluir o anterior, volte aqui e crie o novo pela árvore.'] },
+  departamento:{ q:'Qual departamento é o dono da demanda avulsa?', helper:'Abra o ticket como tarefa avulsa no departamento responsável — as descrições ajudam a escolher.',
+    op:[ {label:'Comercial & Relacionamento', next:'dept_comercial', tone:'teal', desc:'Propostas e materiais comerciais, contato com clientes/parceiros, follow-ups de venda e relacionamento.'},
+      {label:'Projetos & Entregas', next:'dept_projetos', tone:'purple', desc:'Operação de delivery: ritos, formatos de entrega, apoio operacional a projetos sem projeto formal.'},
+      {label:'Financeiro', next:'dept_financeiro', tone:'moss', desc:'Faturamento, pagamentos, cobranças, análises e levantamentos financeiros pontuais.'},
+      {label:'Pessoas & Cultura', next:'dept_pessoas', tone:'orange', desc:'Onboarding, comunicação interna, treinamentos, clima e dinâmicas de equipe.'},
+      {label:'Administrativo & Compliance', next:'dept_admin', tone:'grafite', desc:'Documentos, contratos, cadastros, acessos e demandas de conformidade.'},
+      {label:'Inovação & Melhoria', next:'dept_inovacao', tone:'teal', desc:'Provas de conceito, automações e experimentos de melhoria que ainda não viraram projeto.'},
+      {label:'Governança & Estratégia', next:'dept_governanca', tone:'purple', desc:'Indicadores, análises executivas, definição de regras e direcionamento estratégico.'} ] },
   ams:{ result:true, tone:'teal', badge:'Projeto AMS', title:'Abrir no projeto AMS do cliente', cria:true, filtro:'ams',
     text:'Use o projeto AMS quando a atividade fizer parte da sustentação, suporte recorrente, pequenas melhorias ou operação contínua de um contrato AMS.',
     bullets:['Incidente, atendimento recorrente, pequena melhoria, suporte funcional ou técnico.',
@@ -5002,7 +5030,7 @@ const ARV_NOS={
     text:'Trabalho interno estruturado em processos e rotinas contínuas que têm projeto próprio no Jira.',
     bullets:['Rotinas internas organizadas em projeto próprio (diferente das tarefas avulsas do TAD).',
       'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
-  administrativa:{ result:true, tone:'orange', badge:'Tarefa Administrativa', title:'Abrir como tarefa administrativa', cria:true, filtro:'avulsa',
+  administrativa:{ result:true, tone:'orange', badge:'Tarefa Administrativa', title:'Abrir como tarefa administrativa', cria:true, filtro:'avulsa', tipoPorFreq:true,
     text:'Use essa categoria para o trabalho recorrente e operacional que sustenta a empresa.',
     bullets:['Rotinas financeiras, cadastros, controles obrigatórios, acessos, contratos, pagamentos e agenda operacional.',
       'A lógica é sustentação da operação da empresa, não transformação.',
@@ -5037,7 +5065,7 @@ const ARV_DEFS=[
   ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null,freqAdm:''}, criando:false, feito:null, erro:'' };
   return pl.arv; }
 // Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe),
 // interno genérico ou tarefas avulsas/ADM.
@@ -5083,9 +5111,10 @@ function renderOndeCrio(){
       // Tarefas AVULSAS/administrativas: o ÚNICO projeto permitido é o TAD.
       const ehAvulsa=no.filtro==='avulsa';
       const escolhe=!!no.escolheProjeto;      // folha com escolha explícita de projeto (cards)
+      // Projeto ÚNICO permitido na folha: TAD (avulsas/administrativas) ou soProjeto (ex.: DAMS).
+      const chaveFixa = ehAvulsa ? 'TAD' : (no.soProjeto||'');
       let sug=arvProjetosSugeridos(no.filtro||'', no.catRe);
-      if(ehAvulsa){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
-      if(ehAvulsa) f.projeto=(sug[0]&&sug[0].key)||'';
+      if(chaveFixa){ const px=ps.find(p=>p.key===chaveFixa)||sug[0]; sug=px?[px]:[]; f.projeto=(sug[0]&&sug[0].key)||''; }
       else if(!escolhe && !f.projeto && sug.length) f.projeto=sug[0].key;   // 1º sugerido já selecionado
       if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
       if(ehAvulsa && f.depto==null && no.depto) f.depto=no.depto;       // departamento da folha
@@ -5108,8 +5137,8 @@ function renderOndeCrio(){
         </div>`;
       } else {
       const sugSet=new Set(sug.map(p=>p.key));
-      const optProj = ehAvulsa
-        ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].key)} — ${esc(sug[0].nome||'')}</option>`:'<option value="">projeto TAD não encontrado</option>')
+      const optProj = chaveFixa
+        ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].key)} — ${esc(sug[0].nome||'')}</option>`:`<option value="">projeto ${esc(chaveFixa)} não encontrado</option>`)
         : '<option value="">— escolha —</option>'
           +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
           +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
@@ -5120,7 +5149,7 @@ function renderOndeCrio(){
             <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
               <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos desta categoria">trocar</button></div>
             ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`
-        : `<div class="campo"><label>Projeto${ehAvulsa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${ehAvulsa?'disabled data-tip="Tarefas avulsas/administrativas só podem nascer no projeto TAD"':''}>${optProj}</select></div>`;
+        : `<div class="campo"><label>Projeto${chaveFixa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${chaveFixa?`disabled data-tip="${ehAvulsa?'Tarefas avulsas/administrativas só podem nascer no projeto TAD':escA('Este caminho só permite criar no projeto '+chaveFixa)}"`:''}>${optProj}</select></div>`;
       // Folha "no épico de Gestão": o ticket nasce DENTRO de um épico do projeto —
       // carrega os épicos (mesmo cache do Planejar) e pré-seleciona o de Gestão (⭐).
       let campoEpico='';
@@ -5153,6 +5182,13 @@ function renderOndeCrio(){
         campoEpico=`<div class="campo"><label>Épico de Gestão <span class="muted">(o ticket nasce dentro dele)</span></label>${selEp}</div>`;
       }
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
+      // Rotina administrativa: a FREQUÊNCIA respondida na árvore pré-seleciona o tipo
+      // (ex.: "Rotina Semanal"); se o projeto não tiver tipo equivalente, cai no padrão.
+      if(no.tipoPorFreq && f.freqAdm && !f.tipoId){
+        const REF={ 'diária':/di[aá]ri/i, semanal:/semana/i, mensal:/mensal|m[eê]s/i }[f.freqAdm];
+        const tf=REF?tipos.find(t2=>REF.test(t2.nome||'')):null;
+        if(tf) f.tipoId=tf.id;
+      }
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
       const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
       const pessoas=Object.entries(pessoasUnidas()).map(([ac,o])=>[ac,(o&&o.nome)||ac]).sort((x,y)=>x[1].localeCompare(y[1],'pt'));
@@ -5165,7 +5201,7 @@ function renderOndeCrio(){
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
-          <div class="campo"><label>Tipo</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
+          <div class="campo"><label>Tipo${no.tipoPorFreq&&f.freqAdm?` <span class="muted">(rotina ${esc(f.freqAdm)})</span>`:''}</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
           <div class="campo"><label>Responsável</label><select class="arv-in" data-arv-f="respId">${optResp}</select></div>
           <div class="campo"><label>Vencimento <span class="muted">(opcional)</span></label><input type="date" class="arv-in" data-arv-f="venc" value="${escA(f.venc||'')}"></div>
         </div>
@@ -5195,7 +5231,7 @@ function renderOndeCrio(){
     corpo=`${trilha}
       <h3 class="arv-titulo">${esc(no.q)}</h3>
       <div class="muted small" style="margin:4px 0 12px">${esc(no.helper)}</div>
-      <div class="arv-ops">${no.op.map((o,i)=>`<button class="arv-op t-${escA(o.tone)}" data-arv-op="${i}">${esc(o.label)}</button>`).join('')}</div>
+      <div class="arv-ops">${no.op.map((o,i)=>`<button class="arv-op t-${escA(o.tone)}" data-arv-op="${i}"><span class="arv-op-l">${esc(o.label)}</span>${o.desc?`<span class="arv-op-d">${esc(o.desc)}</span>`:''}</button>`).join('')}</div>
       <div style="display:flex;gap:10px;margin-top:14px">
         ${a.hist.length?'<button class="btn" data-arv-voltar="1">← Voltar</button>':''}
         ${a.hist.length?'<button class="btn" data-arv-reiniciar="1">Reiniciar</button>':''}
@@ -5224,7 +5260,7 @@ async function arvCria(){
     a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; renderOndeCrio(); return; }
   if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
   const depto=(no.filtro==='avulsa'?(f.depto||''):(no.depto||'')).trim();
-  const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}`;
+  const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}${no.tipoPorFreq&&f.freqAdm?` · rotina ${f.freqAdm}`:''}`;
   const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
     descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
     respId:f.respId||'',
@@ -10267,13 +10303,15 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
     const o=no&&no.op&&no.op[+t.getAttribute('data-arv-op')];
     if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro='';
+      if(o.set) Object.assign(a.form, o.set);   // a opção pode gravar campos (ex.: frequência da rotina)
       // ENTRAR numa folha reaplica as sugestões DELA (senão, ao voltar e escolher
       // outro departamento/contexto, projeto/departamento antigos ficavam grudados).
       const prox=ARV_NOS[o.next];
       if(prox && prox.result && prox.cria){
         const ps=(_projetosCache||[]);
         let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
-        if(prox.filtro==='avulsa'){ const tad=ps.find(p=>p.key==='TAD')||sug[0]; sug=tad?[tad]:[]; }
+        const fixo=prox.filtro==='avulsa'?'TAD':(prox.soProjeto||'');
+        if(fixo){ const px=ps.find(p=>p.key===fixo)||sug[0]; sug=px?[px]:[]; }
         // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
         a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
         a.form.tipoId=''; a.form.epicoKey='';
