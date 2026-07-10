@@ -881,6 +881,52 @@
   .arv-proj-fixo .arv-troca{padding:2px 9px;font-size:11.5px;margin-left:auto}
   .arv-defs{margin-top:18px;border-top:1px solid var(--linha2);padding-top:10px}
   .arv-defs>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+  /* 📈 Ranking — Engajamento & uso do Jira */
+  .rk-abas{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .rk-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--texto2);margin:2px 0 10px}
+  .rk-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .rkhm{display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding-bottom:4px}
+  .rkhm-row{display:flex;gap:2px;align-items:stretch;min-width:fit-content}
+  .rkhm-nome,.rkgb-nome,.rkst-nome{flex:0 0 150px;font-size:12.5px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--grafite)}
+  .rkhm-nome:hover,.rkgb-nome:hover,.rkst-nome:hover,.rklb-nome:hover{text-decoration:underline}
+  .rkhm-c{flex:1 1 46px;min-width:46px;height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+  .rkhm-c.vazia{box-shadow:inset 0 0 0 1px var(--linha2)}
+  .rkhm-h{background:none!important;box-shadow:none!important;height:auto;font-size:11px;color:var(--muted);justify-content:center}
+  .rkhm-v{font-size:11px;color:var(--grafite)}
+  .rkhm-v.inv{color:#fff}
+  .rkhm-tot{flex:0 0 66px;display:flex;align-items:center;justify-content:flex-end;font-size:12px;font-weight:600;color:var(--texto2)}
+  .rkgb{display:flex;flex-direction:column;gap:10px}
+  .rkgb-row{display:flex;gap:10px;align-items:center}
+  .rkgb-bars{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .rkgb-bar{display:flex;align-items:center;gap:6px}
+  .rkgb-bar i{display:block;height:12px;border-radius:0 4px 4px 0;min-width:2px}
+  .rkgb-bar b{font-size:11.5px;color:var(--texto2);font-weight:600}
+  .rkst{display:flex;flex-direction:column;gap:8px}
+  .rkst-row{display:flex;gap:10px;align-items:center}
+  .rkst-track{flex:1;display:flex;gap:2px;height:14px;min-width:0}
+  .rkst-track i{display:block;height:100%;border-radius:3px;min-width:2px}
+  .rkst-v{flex:0 0 42px;text-align:right;font-size:12px;font-weight:600;color:var(--texto2)}
+  .rklb{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .rklb-row{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--linha2);border-radius:10px;padding:10px 12px;background:var(--cartao)}
+  .rklb-pos{flex:0 0 36px;font-size:18px;font-weight:700;text-align:center;color:var(--texto2);line-height:1.4}
+  .rklb-main{flex:1;min-width:0}
+  .rklb-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .rklb-nome{font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rklb-score{font-weight:800;font-size:16px;color:var(--grafite)}
+  .rklb-bar{height:8px;border-radius:999px;background:rgba(0,112,242,.14);margin:6px 0}
+  .rklb-bar i{display:block;height:100%;background:#0070F2;border-radius:999px}
+  .rklb-chips{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--texto2)}
+  .rklb-chips span{border:1px solid var(--linha2);border-radius:999px;padding:2px 8px;background:var(--cartao2)}
+  /* ⚙️ Central de configurações */
+  .cfgc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px}
+  .cfgc-sec{border-top:1px solid var(--linha2);padding-top:10px;margin-top:12px}
+  .cfgc h2+.cfgc-sec{border-top:none;margin-top:4px;padding-top:0}
+  .cfgc-sec h3{margin:0 0 4px;font-size:13.5px}
+  .cfgc-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+  .cfgc-chip{border:1px solid var(--linha);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--texto2);background:var(--cartao2)}
+  .cfgc-chip b{color:var(--grafite)}
+  .cfgc-tog{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13.5px;cursor:pointer}
+  .cfgc code{font-size:11.5px;background:var(--cartao2);border:1px solid var(--linha2);border-radius:5px;padding:0 4px}
   .arv-def{margin:8px 0 0 4px;font-size:13px}
   /* Qualidade dos tickets (IA) */
   .qa-lista{display:flex;flex-direction:column;gap:10px;margin-top:12px}
@@ -1373,6 +1419,7 @@
       <div class="navg">
         <button class="navg-b" id="navg-cfg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-admin"/></svg>Configurações <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
+          <button data-v="config"><svg class="nav-ic"><use href="#ic-admin"/></svg>⚙️ Central de configurações</button>
           <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Contratos (Admin)</button>
           <button data-acao="metas"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Metas &amp; ausências</button>
           <button data-acao="log"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Histórico de ações</button>
@@ -1503,6 +1550,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     reprog:{} },   // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
+  // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
+  ranking:{ aba:'apontamento' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
@@ -1515,7 +1564,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00' }; }
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00',
+  teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -1905,7 +1955,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -1935,6 +1985,7 @@ function render(){
   if(estado.vista==='alocacao') return renderAlocacao();
   if(estado.vista==='planejamento') return renderPlanejamento();
   if(estado.vista==='admin') return renderAdmin();
+  if(estado.vista==='config') return renderConfig();
   return renderResumo();
 }
 
@@ -3249,11 +3300,199 @@ function cardPorMes(){
     <div class="muted small" style="margin-top:8px">Total no período: <strong>${totalH}</strong>.</div>${dica}`;
 }
 
+// ===================== 📈 Ranking — Engajamento & uso do Jira =====================
+// Paleta categórica VALIDADA para daltonismo (ordem fixa: cada par adjacente passa
+// no teste de separação CVD nos temas claro e escuro — não trocar a ordem).
+const RK_PAL={ verde:'#188918', azul:'#0070F2', laranja:'#E76500', roxo:'#7858FF', vermelho:'#D20A0A' };
+// Segunda-feira (ISO) da semana de uma data — agrupa os worklogs por semana.
+function rkSemanaDe(dia){ const dt=new Date(dia+'T12:00:00Z'); const w=(dt.getUTCDay()+6)%7;
+  dt.setUTCDate(dt.getUTCDate()-w); return dt.toISOString().slice(0,10); }
+
+// Agrega TODOS os indicadores de engajamento por pessoa no período/filtros da tela:
+// horas (+ por semana), tickets com horas, tickets tocados, alterações, transições,
+// comentários, criados, concluídos (resolução no changelog), ações no painel
+// (auditoria) e % da meta (planejado × realizado). Score 0–100 normalizado no time.
+function calcEngajamento(){
+  const f=filtros(); const projs=projetosUnidos(); const nomes=pessoasUnidas();
+  const P={};
+  const at=(a)=>P[a]||(P[a]={ a, nome:(nomes[a]&&nomes[a].nome)||a, seg:0, segFat:0,
+    tkHoras:new Set(), tkTocados:new Set(), alter:0, trans:0, coment:0, criado:0, concl:0, acoes:0, porSemana:{} });
+  const semTot={}, semFat={};
+  (estado.tempo.worklogs||[]).forEach(w=>{
+    if(!passa(w.p,w.t,projs,f)) return; if(f.pessoa && w.a!==f.pessoa) return;
+    const r=at(w.a); r.seg+=w.s; if(w.f) r.segFat+=w.s; if(w.k) r.tkHoras.add(w.k);
+    const dia=(w.d||'').slice(0,10);
+    if(dia){ const s=rkSemanaDe(dia); r.porSemana[s]=(r.porSemana[s]||0)+w.s;
+      semTot[s]=(semTot[s]||0)+w.s; if(w.f) semFat[s]=(semFat[s]||0)+w.s; }
+  });
+  (estado.atividade.eventos||[]).forEach(e=>{
+    if(!passa(e.p,e.t,projs,f)) return; if(f.pessoa && e.a!==f.pessoa) return;
+    const r=at(e.a); r.tkTocados.add(e.k);
+    if(e.e==='alteracao') r.alter++;
+    else if(e.e==='transicao') r.trans++;
+    else if(e.e==='comentario') r.coment++;
+    else if(e.e==='criado') r.criado++;
+    else if(e.e==='concluido') r.concl++;
+  });
+  // Ações feitas NA FERRAMENTA (auditoria compartilhada, últimas 300) dentro do período.
+  const metaP=(estado.tempo&&estado.tempo.meta)||{}; const de=metaP.startDate||'', ate=metaP.endDate||'';
+  const porChave={};
+  Object.values(P).forEach(r=>{ porChave[r.nome.toLowerCase()]=r;
+    const em=(nomes[r.a]&&nomes[r.a].email)||''; if(em) porChave[em.toLowerCase()]=r; });
+  (cfg.auditoria||[]).forEach(ev=>{ const q=String(ev.q||'').slice(0,10);
+    if(!q || (de&&q<de) || (ate&&q>ate)) return;
+    const r=porChave[String(ev.u||'').toLowerCase()]; if(r) r.acoes++; });
+  // % da meta (planejado × realizado) — mesma conta da aba Apontamento.
+  const pctDe={}; try{ calcRanking().linhas.forEach(l=>{ pctDe[l.a]=l.pctv; }); }catch(e){}
+  const semanas=Object.keys(semTot).sort();
+  const rows=Object.values(P).map(r=>({ ...r, tkHoras:r.tkHoras.size, tkTocados:r.tkTocados.size,
+    pctMeta:(pctDe[r.a]!=null?pctDe[r.a]:null) }));
+  const mx=(fn)=>Math.max(1,...rows.map(fn));
+  const mAtu=mx(r=>r.alter+r.trans), mCom=mx(r=>r.coment), mEnt=mx(r=>r.criado+r.concl),
+    mAc=mx(r=>r.acoes), mH=mx(r=>r.seg);
+  rows.forEach(r=>{
+    const metaComp=(r.pctMeta!=null?Math.min(100,r.pctMeta):Math.round(r.seg/mH*100));
+    r.score=Math.round(0.35*metaComp + 0.25*((r.alter+r.trans)/mAtu*100) + 0.15*(r.coment/mCom*100)
+      + 0.15*((r.criado+r.concl)/mEnt*100) + 0.10*(r.acoes/mAc*100));
+  });
+  rows.sort((x,y)=>(y.score-x.score)||(y.seg-x.seg)||x.nome.localeCompare(y.nome,'pt'));
+  return { rows, semanas, semTot, semFat };
+}
+
+function rkAbas(aba){ return `<div class="rk-abas">
+  <button class="btn ${aba==='apontamento'?'primario':''}" data-rk-aba="apontamento">🏆 Apontamento (metas)</button>
+  <button class="btn ${aba==='uso'?'primario':''}" data-rk-aba="uso">📈 Engajamento &amp; uso do Jira</button>
+</div>`; }
+
+// Leaderboard: score de engajamento com barra (trilha e preenchimento no MESMO tom).
+function rkLeaderboard(rows){
+  const top=rows.slice(0,15);
+  if(!top.length) return '<div class="estado">Sem dados para os filtros atuais.</div>';
+  const medal=['🥇','🥈','🥉'];
+  return `<div class="rklb">`+top.map((r,i)=>`
+    <div class="rklb-row">
+      <div class="rklb-pos">${medal[i]||(i+1)}</div>
+      <div class="rklb-main">
+        <div class="rklb-top"><span class="rklb-nome" data-pessoa="${escA(r.a)}" title="${escA(r.nome)}">${esc(r.nome)}</span>
+          <span class="rklb-score" data-tip="Score de engajamento (0–100)" data-tip2="35% meta de horas · 25% atualizações · 15% comentários · 15% criação/conclusão · 10% uso do painel">${r.score}</span></div>
+        <div class="rklb-bar"><i style="width:${Math.min(100,Math.max(2,r.score))}%"></i></div>
+        <div class="rklb-chips">
+          <span data-tip="Horas apontadas no período">⏱ ${fmtH(r.seg)}</span>
+          <span data-tip="% da meta de apontamento cumprida (planejado × realizado)">🎯 ${r.pctMeta==null?'—':r.pctMeta+'% da meta'}</span>
+          <span data-tip="Tickets distintos com horas apontadas">🎟 ${r.tkHoras} c/ horas</span>
+          <span data-tip="Alterações + transições feitas nos tickets">✏️ ${r.alter+r.trans} atualizações</span>
+          <span data-tip="Comentários (colaboração)">💬 ${r.coment}</span>
+          <span data-tip="Tickets criados / concluídos por esta pessoa">🧾 ${r.criado} criados · ${r.concl} concl.</span>
+          <span data-tip="Ações feitas por esta pessoa dentro do painel (auditoria)">🛠 ${r.acoes} no painel</span>
+        </div>
+      </div>
+    </div>`).join('')+`</div>`;
+}
+
+// Mapa de calor pessoa × semana (sequencial: um tom, mais escuro = mais horas).
+function rkHeatmap(rows, semanas){
+  const comH=rows.filter(r=>r.seg>0).slice().sort((x,y)=>y.seg-x.seg);
+  const top=comH.slice(0,12);
+  if(!top.length || !semanas.length) return '<div class="estado">Sem horas no período.</div>';
+  const max=Math.max(1,...top.flatMap(r=>semanas.map(s=>r.porSemana[s]||0)));
+  const head=`<div class="rkhm-row rkhm-head"><div class="rkhm-nome"></div>${semanas.map(s=>`<div class="rkhm-c rkhm-h">${esc(fmtBR(s))}</div>`).join('')}<div class="rkhm-tot rkhm-h">total</div></div>`;
+  const body=top.map(r=>{
+    const cels=semanas.map(s=>{ const v=r.porSemana[s]||0; const al=v?(0.12+0.83*v/max):0;
+      return `<div class="rkhm-c${v?'':' vazia'}" style="${v?`background:rgba(0,112,242,${al.toFixed(2)})`:''}"
+        data-tip="${escA(r.nome+' · semana de '+fmtBR(s))}" data-tip2="${escA(v?fmtH(v):'sem horas')}">${v?`<span class="rkhm-v${al>0.55?' inv':''}">${Math.round(v/3600)}h</span>`:''}</div>`; }).join('');
+    return `<div class="rkhm-row"><div class="rkhm-nome" data-pessoa="${escA(r.a)}" title="${escA(r.nome)}">${esc(r.nome)}</div>${cels}<div class="rkhm-tot">${fmtH(r.seg)}</div></div>`;
+  }).join('');
+  const resto=comH.length-top.length;
+  return `<div class="rkhm">${head}${body}</div>
+    ${resto>0?`<div class="muted small" style="margin-top:6px">+ ${resto} pessoa(s) com horas além do top 12 (use o filtro de Pessoa para detalhar).</div>`:''}`;
+}
+
+// Barras agrupadas: tickets criados × concluídos por pessoa (2 séries + legenda).
+function rkCriadosConcluidos(rows){
+  const top=rows.filter(r=>r.criado+r.concl>0).slice().sort((x,y)=>(y.criado+y.concl)-(x.criado+x.concl)).slice(0,10);
+  if(!top.length) return '<div class="estado">Sem criações/conclusões no período.</div>';
+  const max=Math.max(1,...top.flatMap(r=>[r.criado,r.concl]));
+  const leg=`<div class="rk-leg"><span><i style="background:${RK_PAL.azul}"></i>Criados</span><span><i style="background:${RK_PAL.verde}"></i>Concluídos</span></div>`;
+  return leg+`<div class="rkgb anima">`+top.map(r=>`
+    <div class="rkgb-row">
+      <div class="rkgb-nome" data-pessoa="${escA(r.a)}" title="${escA(r.nome)}">${esc(r.nome)}</div>
+      <div class="rkgb-bars">
+        <div class="rkgb-bar" data-tip="${escA(r.nome)}" data-tip2="${escA(r.criado+' ticket(s) criados')}"><i style="width:${r.criado?Math.max(1.5,r.criado/max*100):0}%;background:${RK_PAL.azul}"></i><b>${r.criado}</b></div>
+        <div class="rkgb-bar" data-tip="${escA(r.nome)}" data-tip2="${escA(r.concl+' ticket(s) concluídos (resolução)')}"><i style="width:${r.concl?Math.max(1.5,r.concl/max*100):0}%;background:${RK_PAL.verde}"></i><b>${r.concl}</b></div>
+      </div>
+    </div>`).join('')+`</div>`;
+}
+
+// Barras empilhadas: atualizações por pessoa (segmentos com respiro de 2px; a ordem
+// dos segmentos segue a ordem validada da paleta — não reordenar).
+function rkAtualizacoes(rows){
+  const segs=[['alter','Alterações',RK_PAL.verde],['trans','Transições',RK_PAL.azul],['coment','Comentários',RK_PAL.laranja],['criado','Criações',RK_PAL.roxo]];
+  const top=rows.map(r=>({ ...r, __tot:r.alter+r.trans+r.coment+r.criado })).filter(r=>r.__tot>0)
+    .sort((x,y)=>y.__tot-x.__tot).slice(0,12);
+  if(!top.length) return '<div class="estado">Sem atividade no Jira no período.</div>';
+  const max=Math.max(1,...top.map(r=>r.__tot));
+  const leg=`<div class="rk-leg">${segs.map(([k,l,c])=>`<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+  return leg+`<div class="rkst anima">`+top.map(r=>`
+    <div class="rkst-row">
+      <div class="rkst-nome" data-pessoa="${escA(r.a)}" title="${escA(r.nome)}">${esc(r.nome)}</div>
+      <div class="rkst-track">${segs.map(([k,l,c])=>{ const v=r[k]; if(!v) return '';
+        return `<i style="width:${(v/max*100).toFixed(2)}%;background:${c}" data-tip="${escA(r.nome+' · '+l)}" data-tip2="${escA(v+' no período')}"></i>`; }).join('')}</div>
+      <b class="rkst-v">${r.__tot}</b>
+    </div>`).join('')+`</div>`;
+}
+
+// Aba "Engajamento & uso do Jira": KPIs + gráficos (foco: quem mais usa a ferramenta).
+function renderRankingUso(){
+  const cont=document.getElementById('conteudo');
+  const eng=calcEngajamento();
+  const rows=eng.rows;
+  if(!rows.length){
+    cont.replaceChildren(el(`<div>${rkAbas('uso')}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    return;
+  }
+  const nomes=pessoasUnidas();
+  const nomeDe=(a)=>((nomes[a]||{}).nome)||a;
+  const tot=(fn)=>rows.reduce((s,r)=>s+fn(r),0);
+  const kpis=`<div class="kpis ts-kpis">
+    <div class="kpi t"><div class="v">${fmtH(tot(r=>r.seg))}</div><div class="l">Horas apontadas</div></div>
+    <div class="kpi t"><div class="v">${tot(r=>r.tkHoras)}</div><div class="l">Tickets com horas</div></div>
+    <div class="kpi t"><div class="v">${tot(r=>r.alter+r.trans)}</div><div class="l">Atualizações em tickets</div></div>
+    <div class="kpi t"><div class="v">${tot(r=>r.criado)}</div><div class="l">Tickets criados</div></div>
+    <div class="kpi ${tot(r=>r.concl)>=tot(r=>r.criado)?'t':'w'}"><div class="v">${tot(r=>r.concl)}</div><div class="l">Tickets concluídos</div></div>
+    <div class="kpi t"><div class="v">${tot(r=>r.acoes)}</div><div class="l">Ações no painel</div></div>
+  </div>`;
+  const serSem=[
+    { nome:'Horas apontadas', cor:RK_PAL.azul, vals:eng.semanas.map(s=>({x:s, v:+((eng.semTot[s]||0)/3600).toFixed(1)})) },
+    { nome:'Horas faturáveis', cor:RK_PAL.verde, tipo:'line', vals:eng.semanas.map(s=>({x:s, v:+((eng.semFat[s]||0)/3600).toFixed(1)})) },
+  ];
+  const objTkHoras={}; rows.filter(r=>r.tkHoras>0).forEach(r=>{ objTkHoras[r.a]=r.tkHoras; });
+  const objAcoes={}; rows.filter(r=>r.acoes>0).forEach(r=>{ objAcoes[r.a]=r.acoes; });
+  const tocadosDe={}; rows.forEach(r=>{ tocadosDe[r.a]=r.tkTocados; });
+  cont.replaceChildren(el(`<div>
+    ${rkAbas('uso')}
+    ${kpis}
+    <div class="card full"><h2>🏅 Quem mais usa o Jira <span>score de engajamento — meta de horas, atualizações, colaboração, entregas e uso do painel</span></h2>
+      ${rkLeaderboard(rows)}</div>
+    <div class="card full"><h2>Horas apontadas por semana <span>equipe · total × faturável</span></h2>
+      ${eng.semanas.length?tsChart(serSem,{ fmt:v=>v+'h', yfmt:v=>Math.round(v)+'h', xlabel:s=>fmtBR(s), readX:s=>'semana de '+fmtBR(s) }):'<div class="estado">Sem horas no período.</div>'}</div>
+    <div class="card full"><h2>Horas por pessoa por semana <span>mapa de calor — mais escuro = mais horas na semana</span></h2>
+      ${rkHeatmap(rows, eng.semanas)}</div>
+    <div class="card"><h2>Tickets criados × concluídos <span>por pessoa (autor da criação/resolução)</span></h2>${rkCriadosConcluidos(rows)}</div>
+    <div class="card"><h2>Atualizações nos tickets <span>por pessoa — alterações, transições, comentários e criações</span></h2>${rkAtualizacoes(rows)}</div>
+    <div class="card"><h2>Tickets com horas apontadas <span>nº de tickets distintos em que a pessoa apontou</span></h2>
+      ${Object.keys(objTkHoras).length?barlist(objTkHoras, v=>String(v), cores.cerceta, 12, nomeDe, nomeDe,
+        { tip2Fn:(a,v)=>`${v} ticket(s) com horas · ${tocadosDe[a]||0} tocado(s) no Jira` }):'<div class="estado">Sem horas no período.</div>'}</div>
+    <div class="card"><h2>Uso da ferramenta <span>ações feitas dentro do painel (auditoria compartilhada, últimas 300)</span></h2>
+      ${Object.keys(objAcoes).length?barlist(objAcoes, v=>String(v), cores.roxo, 12, nomeDe, nomeDe):'<div class="estado">Nenhuma ação registrada no período.</div>'}</div>
+  </div>`));
+}
+
 function renderRanking(){
   const cont=document.getElementById('conteudo');
+  if(((estado.ranking&&estado.ranking.aba)||'apontamento')==='uso') return renderRankingUso();
   const { meta, dias, hoje, linhas } = calcRanking();
   if(!linhas.length){
-    cont.replaceChildren(el(`<div>${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -3294,6 +3533,7 @@ function renderRanking(){
     '<div class="estado" style="padding:14px">Este período ainda não tem dias úteis fechados (a meta só conta dias seg–sex já passados). Mostrando apenas as horas apontadas.</div>';
 
   cont.replaceChildren(el(`<div>
+    ${rkAbas('apontamento')}
     ${cardNaoApontou()}
     <div class="kpis ts-kpis">
       <div class="kpi t"><div class="v">${pctGeral==null?'—':pctGeral+'%'}</div><div class="l">Apontamento geral</div></div>
@@ -8610,9 +8850,171 @@ function abreMetas(){
   `);
 }
 
+// ---------------- ⚙️ Central de configurações ----------------
+// Reúne TODAS as configurações da ferramenta numa tela só: envios ao Teams
+// (ranking + resumo IA), metas/ausências/feriados, pessoas, projetos, custos,
+// travas, identidade, auditoria. Tudo salvo na config compartilhada (salvaCfg).
+function cfgResumoTeams(){ return Object.assign({ ativo:false, freq:'semanal', dia:5, hora:'17:00' }, cfg.teamsResumo||{}); }
+function optsHora(cur){ const ops=[];
+  for(let h=6;h<=20;h++) for(const m of ['00','30']){ const v=String(h).padStart(2,'0')+':'+m;
+    ops.push(`<option value="${v}" ${v===cur?'selected':''}>${v}</option>`); }
+  return ops.join(''); }
+function renderConfig(){
+  const cont=document.getElementById('conteudo');
+  const id=idApontar();
+  const r=cfgResumoTeams();
+  const horaRank=/^\d{2}:\d{2}$/.test(cfg.teamsHora||'')?cfg.teamsHora:'08:00';
+  const nMetas=Object.keys(cfg.metasPessoa||{}).length, nAus=(cfg.ausencias||[]).length,
+    nOc=(cfg.ocultos||[]).length, nFer=Object.keys(cfg.feriadosExtra||{}).length+(cfg.feriadosRemovidos||[]).length,
+    nCat=Object.keys(cfg.projTipos||{}).length, nCusto=Object.keys(cfg.custosPessoa||{}).length,
+    nTravas=Object.keys(cfg.alocTravas||{}).length, nAud=(cfg.auditoria||[]).length,
+    nPlanejadas=(cfg.pessoasPlanejadas||[]).length, nTpl=(cfg.planTemplates||[]).length;
+  const chip=(v,l)=>`<span class="cfgc-chip"><b>${esc(String(v))}</b> ${esc(l)}</span>`;
+  const diasSem=[[1,'segunda-feira'],[2,'terça-feira'],[3,'quarta-feira'],[4,'quinta-feira'],[5,'sexta-feira']];
+
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>⚙️ Central de configurações <span>todas as configurações da ferramenta num só lugar</span></h2>
+      <div class="pl-dica">${cfgShared
+        ?'✓ Configuração <strong>compartilhada com o time</strong> — o que você mudar aqui vale para todos.'
+        :'⚠ Sem servidor de config (Supabase): as mudanças valem <strong>só neste navegador</strong>.'}</div>
+    </div>
+    <div class="cfgc-grid">
+
+      <div class="card cfgc">
+        <h2>📣 Envios automáticos ao Teams</h2>
+        <div class="cfgc-sec">
+          <h3>📊 Ranking diário de apontamento</h3>
+          <div class="muted small">Enviado <strong>1× por dia útil</strong> ao canal, a partir do horário escolhido (o robô confere a cada 30 min).</div>
+          <div class="mt-form" style="margin-top:8px">
+            <div class="campo" style="max-width:140px"><label>Enviar às</label><select id="cf-teams-hora">${optsHora(horaRank)}</select></div>
+            <button class="btn" id="cf-teste-rank" data-tip="Gera o cartão do ranking sem enviar (prévia técnica)">🧪 Testar (sem enviar)</button>
+          </div>
+        </div>
+        <div class="cfgc-sec">
+          <h3>🧠 Resumo das atividades (IA)</h3>
+          <div class="muted small">O mesmo resumo da aba <strong>Análise → Resumo</strong>, gerado por IA no servidor e enviado ao canal —
+            geral do time + 1 parágrafo por pessoa. Requer <code>ANTHROPIC_API_KEY</code> e <code>TEAMS_WEBHOOK_URL</code> na Vercel.</div>
+          <label class="cfgc-tog"><input type="checkbox" id="cf-res-ativo" ${r.ativo?'checked':''}> <strong>Enviar automaticamente</strong></label>
+          <div class="mt-form">
+            <div class="campo"><label>Frequência</label>
+              <select id="cf-res-freq" ${r.ativo?'':'disabled'}>
+                <option value="semanal" ${r.freq!=='diario'?'selected':''}>Semanal (últimos 7 dias)</option>
+                <option value="diario" ${r.freq==='diario'?'selected':''}>Diária (último dia útil)</option>
+              </select></div>
+            <div class="campo" id="cf-res-dia-wrap" ${r.freq==='diario'?'hidden':''}><label>Dia do envio</label>
+              <select id="cf-res-dia" ${r.ativo?'':'disabled'}>${diasSem.map(([v,l])=>`<option value="${v}" ${Number(r.dia||5)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+            <div class="campo" style="max-width:140px"><label>Enviar às</label>
+              <select id="cf-res-hora" ${r.ativo?'':'disabled'}>${optsHora(/^\d{2}:\d{2}$/.test(r.hora||'')?r.hora:'17:00')}</select></div>
+            <button class="btn" id="cf-teste-res" data-tip="Gera o resumo por IA sem enviar — pode levar ~1 min">🧪 Testar (sem enviar)</button>
+          </div>
+        </div>
+        <div class="ap-fb" id="cf-fb" hidden style="margin-top:10px"></div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🎯 Metas, ausências &amp; feriados</h2>
+        <div class="cfgc-chips">${chip(cfg.metaGlobalH+'h','meta global/dia')}${chip(nMetas,'metas individuais')}${chip(nAus,'ausências')}${chip(nFer,'feriados ajustados')}</div>
+        <div class="muted small">Meta de horas por dia útil (global e por pessoa), férias/folgas e o calendário de feriados usados no Timesheet, Ranking e envios ao Teams.</div>
+        <div style="margin-top:10px"><button class="btn primario" id="cf-abrir-metas">Abrir Metas &amp; ausências</button></div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>👥 Pessoas</h2>
+        <div class="cfgc-chips">${chip(nOc,'ocultas (externas)')}${chip(nPlanejadas,'planejadas 🔮')}${chip(nCusto,'com custo/h')}</div>
+        <div class="muted small">Usuários externos ocultos das visões (em Metas &amp; ausências), pessoas ainda não contratadas (planejamento 🔮) e o custo/hora de cada um (manual ou importado do Odoo).</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="cf-abrir-metas-oc">Ocultar/reexibir pessoas</button>
+          <button class="btn" data-cf-aloc="acontratar">Pessoas planejadas 🔮</button>
+          <button class="btn" data-cf-aloc="relatorios">Custos por pessoa (R$/h)</button>
+        </div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🧱 Projetos &amp; categorias</h2>
+        <div class="cfgc-chips">${chip(nCat,'projetos com categoria definida')}</div>
+        <div class="muted small">A categoria de cada projeto (faturável, interno, investimento…) usada na Alocação e nos relatórios — definida <strong>por projeto</strong>, numa tela própria.</div>
+        <div style="margin-top:10px"><button class="btn" data-cf-aloc="projetos">Abrir categorias por projeto</button></div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🔒 Travas de alocação</h2>
+        <div class="cfgc-chips">${chip(nTravas,'alocações travadas')}</div>
+        <div class="muted small">Alocações travadas por pessoa aguardam a <strong>aprovação do Diego</strong> para serem alteradas. A trava é aplicada na própria tela de Alocação.</div>
+        <div style="margin-top:10px"><button class="btn" data-cf-aloc="pessoa">Abrir Alocação</button></div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🔑 Identidade no Jira (apontar/criar)</h2>
+        <div class="muted small">${id
+          ?`Identificado como <strong>${esc(id.nome||id.email)}</strong> <span class="muted">(${esc(id.email||'')})</span> — usado para apontar horas, criar tickets e transições, sempre <strong>no seu usuário</strong>. O token fica salvo só neste navegador.`
+          :'Você ainda não se identificou neste navegador. A identificação (e-mail + token de API do Jira) é usada para apontar horas e criar tickets no seu usuário.'}</div>
+        <div style="margin-top:10px"><button class="btn ${id?'':'primario'}" data-ap-act="${id?'trocar-id':'config-id'}">${id?'Trocar usuário':'Identificar-se'}</button></div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🗒 Auditoria &amp; templates</h2>
+        <div class="cfgc-chips">${chip(nAud,'ações registradas')}${chip(nTpl,'templates de planejamento')}</div>
+        <div class="muted small">Histórico das ações feitas pelo painel (compartilhado, últimas 300) e os templates salvos da Criação de Ticket.</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="cf-abrir-log">Ver histórico de ações</button>
+          <button class="btn" data-goto="planejar">Abrir Criação de Ticket</button>
+        </div>
+      </div>
+
+      <div class="card cfgc">
+        <h2>🤖 IA &amp; integrações (servidor)</h2>
+        <div class="muted small">Configuradas por variáveis de ambiente na <strong>Vercel</strong> (um administrador):<br>
+          · <code>ANTHROPIC_API_KEY</code> — resumo de atividades e Qualidade (IA)<br>
+          · <code>TEAMS_WEBHOOK_URL</code> — envios ao canal do Teams<br>
+          · <code>JIRA_EMAIL/JIRA_API_TOKEN</code> e <code>CLOCKWORK_API_TOKEN</code> — leituras (conta de serviço)<br>
+          · <code>SUPABASE_URL/SUPABASE_ANON_KEY</code> — config compartilhada<br>
+          · <code>ODOO_URL/ODOO_DB/ODOO_LOGIN/ODOO_API_KEY</code> — custos e folgas<br>
+          · <code>QUALIDADE_URL</code> — página de boas práticas (padrão: <a href="https://dexterityitsolutions.notion.site/TI-04-006-Boas-Praticas-de-Cria-o-de-itens-do-Ticket-do-JIRA-2c7c69371e17803a9650c3e391599385" target="_blank" rel="noopener">TI-04-006 ↗</a>)</div>
+      </div>
+
+    </div>
+  </div>`));
+}
+// Prévia dos envios ao Teams (?dry=1 gera o cartão sem enviar).
+async function testaTeams(resumo){
+  const fb=document.getElementById('cf-fb');
+  const mostra=(cls,msg)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb'+(cls?' '+cls:''); fb.textContent=msg; } };
+  mostra('', resumo?'Gerando o resumo por IA (prévia, sem enviar)… pode levar ~1 min.':'Gerando o cartão do ranking (prévia, sem enviar)…');
+  try{
+    const j=await fetch('/api/teams?dry=1'+(resumo?'&tipo=resumo':'')).then(x=>x.json());
+    if(j&&j.dry) mostra('ok',`✓ Cartão gerado com sucesso ${resumo?`(período ${j.de} → ${j.ate})`:`(dia ${j.dia})`} — o envio real acontece no horário agendado.`);
+    else mostra('err','Falha: '+((j&&j.erro)||'resposta inesperada do servidor')+
+      (/utorizad/.test(String((j&&j.erro)||''))?' (CRON_SECRET ativo bloqueia o teste manual)':''));
+  }catch(e){ mostra('err','Erro de rede: '+(e.message||e)); }
+}
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-rk-aba')){ estado.ranking=estado.ranking||{};
+    estado.ranking.aba=t.getAttribute('data-rk-aba'); renderRanking(); }
+  else if(t.id==='cf-abrir-metas'||t.id==='cf-abrir-metas-oc'){ abreMetas(); }
+  else if(t.id==='cf-abrir-log'){ abreLogAcoes(); }
+  else if(t.hasAttribute('data-cf-aloc')){ const v=t.getAttribute('data-cf-aloc');
+    estado.alocacao=estado.alocacao||{}; estado.alocacao.visao=v;
+    try{ if(typeof alocUISave==='function') alocUISave(); }catch(err){}
+    vaiPara('alocacao'); }
+  else if(t.id==='cf-teste-rank'){ testaTeams(false); }
+  else if(t.id==='cf-teste-res'){ testaTeams(true); }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.id||!t.id.startsWith('cf-')) return;
+  if(t.id==='cf-teams-hora'){ if(/^\d{2}:\d{2}$/.test(t.value)){ cfg.teamsHora=t.value; salvaCfg();
+    toast(`📣 Ranking no Teams: envio a partir das ${t.value}.`,'ok'); } }
+  else if(t.id==='cf-res-ativo'){ const r=cfgResumoTeams(); r.ativo=!!t.checked; cfg.teamsResumo=r; salvaCfg();
+    toast(r.ativo?'🧠 Resumo IA no Teams: ATIVADO.':'Resumo IA no Teams: desativado.','ok'); renderConfig(); }
+  else if(t.id==='cf-res-freq'){ const r=cfgResumoTeams(); r.freq=(t.value==='diario'?'diario':'semanal'); cfg.teamsResumo=r; salvaCfg(); renderConfig(); }
+  else if(t.id==='cf-res-dia'){ const r=cfgResumoTeams(); r.dia=Math.min(5,Math.max(1,Number(t.value)||5)); cfg.teamsResumo=r; salvaCfg(); }
+  else if(t.id==='cf-res-hora'){ if(/^\d{2}:\d{2}$/.test(t.value)){ const r=cfgResumoTeams(); r.hora=t.value; cfg.teamsResumo=r; salvaCfg(); } }
+});
+
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
