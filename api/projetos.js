@@ -70,10 +70,54 @@ async function listarEpicos(projeto, res) {
   return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias }, 10));
 }
 
+// GET /api/projetos?consultorias=KEY -> opções do campo CASCATA "AMS | Consultoria >
+// Cliente" do projeto (via createmeta, conta de serviço): a consultoria é o valor-pai
+// e os clientes são os filhos. Usado pela árvore de decisão (AMS por parceria).
+async function listarConsultorias(projeto, res) {
+  if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
+  const ck = `conscli:${projeto}`;
+  const cached = cacheGet(ck);
+  if (cached) return json(res, 200, cached);
+
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const r = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}&expand=projects.issuetypes.fields`, { headers });
+  if (!r.ok) {
+    const t = await r.text();
+    return json(res, r.status === 404 ? 404 : 500, { erro: `Jira ${r.status}: ${t.slice(0, 200)}` });
+  }
+  const j = await r.json();
+  const tipos = (j.projects && j.projects[0] && j.projects[0].issuetypes) || [];
+  let campo = ''; let nome = '';
+  const mapa = new Map();
+  for (const t of tipos) {
+    for (const [fid, f] of Object.entries(t.fields || {})) {
+      const cascata = f.schema && (f.schema.type === 'option-with-child' || /cascadingselect/.test(f.schema.custom || ''));
+      if (!cascata || !/consultoria/i.test(f.name || '')) continue;
+      campo = fid; nome = f.name || '';
+      for (const v of (f.allowedValues || [])) {
+        const atual = mapa.get(String(v.id)) || { id: String(v.id), nome: v.value || '', clientes: new Map() };
+        for (const ch of (v.children || [])) atual.clientes.set(String(ch.id), { id: String(ch.id), nome: ch.value || '' });
+        mapa.set(String(v.id), atual);
+      }
+    }
+  }
+  if (!campo) {
+    return json(res, 200, { projeto, campo: '', nome: '', opcoes: [], erro: 'Campo "AMS | Consultoria > Cliente" não encontrado no projeto.' });
+  }
+  const opcoes = [...mapa.values()]
+    .map((o) => ({ id: o.id, nome: o.nome, clientes: [...o.clientes.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')) }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  return json(res, 200, cacheSetTTL(ck, { projeto, campo, nome, opcoes }, 30));
+}
+
 export default async function handler(req, res) {
   try {
     const epicosDe = String((req.query && req.query.epicos) || '').trim().toUpperCase();
     if (epicosDe) return await listarEpicos(epicosDe, res);
+
+    const consDe = String((req.query && req.query.consultorias) || '').trim().toUpperCase();
+    if (consDe) return await listarConsultorias(consDe, res);
 
     const ck = 'projetos:tipos';
     const cached = cacheGet(ck);
