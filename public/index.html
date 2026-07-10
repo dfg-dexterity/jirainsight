@@ -4778,7 +4778,7 @@ function abreReuniaoGrupo(preKey){
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn primario" id="rg-enviar">Apontar / convidar →</button>
-      <label class="check" style="padding-bottom:0"><input type="checkbox" id="rg-teams" checked> avisar no canal do Teams</label>
+      <label class="check" style="padding-bottom:0" data-tip="Com TEAMS_DM_WEBHOOK_URL configurada na Vercel, cada convidado recebe uma mensagem individual (chat privado); sem ela, o aviso vai ao canal"><input type="checkbox" id="rg-teams" checked> avisar no Teams</label>
     </div>
     <div class="ap-fb" id="rg-fb" hidden></div>
   `);
@@ -4809,7 +4809,10 @@ async function enviaReuniaoGrupo(){
   if(seg==null||seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; return; }
   if(!ids.length){ fb.classList.add('err'); fb.textContent='Selecione pelo menos uma pessoa.'; return; }
   try{ localStorage.setItem(RG_SEL_KEY, JSON.stringify(ids)); }catch(e){}
-  const pessoas=ids.map(a=>({accountId:a, nome:(estado.usuarios[a]&&estado.usuarios[a].nome)||a}));
+  // email = para o aviso INDIVIDUAL no Teams (chat privado); o servidor completa
+  // pelo cadastro do Jira se faltar aqui.
+  const pessoas=ids.map(a=>{ const u=pessoasUnidas()[a]||estado.usuarios[a]||{};
+    return { accountId:a, nome:u.nome||a, email:(u.email||'').toLowerCase() }; });
   const btn=document.getElementById('rg-enviar'); btn.disabled=true; fb.textContent='Enviando…';
   try{
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -4820,9 +4823,15 @@ async function enviaReuniaoGrupo(){
       if(j.proprio) partes.push(j.proprio.ok?'seu apontamento foi registrado':`o seu falhou (${j.proprio.erro})`);
       if(j.diretos) partes.push(`${j.diretos} apontado(s) direto via Clockwork`);
       if(j.pendentes) partes.push(`${j.pendentes} convite(s) aguardando confirmação`);
-      // Aviso no Teams: deixa claro se foi enviado / não está configurado / falhou.
+      // Aviso no Teams: individual (chat privado) quando configurado; senão, canal.
       if(avisarTeams && j.pendentes){
-        if(j.teams==='enviado') partes.push('avisado no Teams');
+        if(j.teamsInfo){ const ti=j.teamsInfo;
+          if(ti.enviados) partes.push(`✉️ ${ti.enviados} aviso(s) individual(is) no Teams`);
+          if(ti.semEmail&&ti.semEmail.length) partes.push(`⚠ sem e-mail no Jira: ${ti.semEmail.join(', ')}`);
+          if(ti.falhas&&ti.falhas.length) partes.push(`⚠ falha em ${ti.falhas.length} aviso(s)`);
+          if(!ti.enviados) partes.push(ti.fallbackCanal==='enviado'?'aviso enviado ao canal (fallback)':'⚠ nenhum aviso saiu');
+        }
+        else if(j.teams==='enviado') partes.push('avisado no canal do Teams');
         else if(j.teams==='nao-configurado') partes.push('⚠ Teams não configurado (defina TEAMS_WEBHOOK_URL)');
         else if(j.teams && /^erro/i.test(j.teams)) partes.push('⚠ falha ao avisar no Teams');
       }
@@ -9114,6 +9123,7 @@ function renderConfig(){
         <div class="muted small">Configuradas por variáveis de ambiente na <strong>Vercel</strong> (um administrador):<br>
           · <code>ANTHROPIC_API_KEY</code> — resumo de atividades e Qualidade (IA)<br>
           · <code>TEAMS_WEBHOOK_URL</code> — envios ao canal do Teams<br>
+          · <code>TEAMS_DM_WEBHOOK_URL</code> — aviso <strong>individual</strong> (chat privado) dos convites de reunião; fluxo do Power Automate que lê <code>email</code>/<code>texto</code> do corpo<br>
           · <code>JIRA_EMAIL/JIRA_API_TOKEN</code> e <code>CLOCKWORK_API_TOKEN</code> — leituras (conta de serviço)<br>
           · <code>SUPABASE_URL/SUPABASE_ANON_KEY</code> — config compartilhada<br>
           · <code>ODOO_URL/ODOO_DB/ODOO_LOGIN/ODOO_API_KEY</code> — custos e folgas<br>

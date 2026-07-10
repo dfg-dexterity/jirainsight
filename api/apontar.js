@@ -24,7 +24,7 @@
 //   POST { confirmarConvite:id, email, token }            -> confirma um convite (cria o worklog)
 //   POST { recusarConvite:id, email, token }              -> recusa um convite
 import { randomUUID } from 'node:crypto';
-import { jiraBase, cacheClear, json } from './_lib/util.js';
+import { jiraBase, cacheClear, json, jiraUsuariosAtivos } from './_lib/util.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -174,6 +174,66 @@ async function avisaTeams(req, { issue, resumo, segundos, inicio, nomes, criadoP
   } catch (e) { return `erro Teams: ${String(e && e.message ? e.message : e).slice(0, 150)}`; }
 }
 
+// Aviso INDIVIDUAL no Teams (chat privado, em vez do canal): um POST por convidado
+// para o fluxo do Power Automate configurado em TEAMS_DM_WEBHOOK_URL, com o E-MAIL
+// da pessoa no corpo — o fluxo envia a mensagem 1:1 via Flow bot ("Postar mensagem
+// em um chat", destinatário = triggerBody()?['email']; a mensagem pode usar 'texto'
+// ou o 'cartao' adaptativo). Quem estiver sem e-mail é completado pelo cadastro do
+// Jira (conta de serviço); se ainda faltar, fica de fora e a resposta informa.
+// Devolve null quando TEAMS_DM_WEBHOOK_URL não está configurada (usa-se o canal).
+async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pendentes, criadoPor }) {
+  const webhook = process.env.TEAMS_DM_WEBHOOK_URL || '';
+  if (!webhook) return null;
+  const h = Math.floor(segundos / 3600), m = Math.round((segundos % 3600) / 60);
+  const tempo = h && m ? `${h}h${String(m).padStart(2, '0')}` : (h ? `${h}h` : `${m}m`);
+  const dia = `${inicio.slice(8, 10)}/${inicio.slice(5, 7)}`;
+  const painel = `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}/?v=apontar`;
+
+  // Completa e-mails que faltarem pelo cadastro de usuários do Jira.
+  if (pendentes.some((p) => !p.email)) {
+    try {
+      const ativos = await jiraUsuariosAtivos();
+      pendentes.forEach((p) => {
+        if (!p.email && ativos[p.accountId] && ativos[p.accountId].email) {
+          p.email = String(ativos[p.accountId].email).toLowerCase();
+        }
+      });
+    } catch (e) { /* segue com os e-mails que já vieram do painel */ }
+  }
+
+  const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  let enviados = 0; const semEmail = []; const falhas = [];
+  for (const p of pendentes) {
+    if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); continue; }
+    const texto = `**${criadoPor}** convidou você a apontar **${tempo}** (${dia}) na reunião **${issue}**${resumo ? ` — ${resumo}` : ''}.\n\n[Abrir o painel e confirmar com 1 clique](${painel})`;
+    const corpo = {
+      email: p.email, nome: p.nome || '', issue,
+      titulo: `👥 Convite de apontamento — ${issue}`,
+      texto,
+      cartao: {
+        type: 'message',
+        attachments: [{
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: {
+            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+            type: 'AdaptiveCard', version: '1.4',
+            body: [
+              { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `👥 Convite de apontamento — ${issue}` },
+              { type: 'TextBlock', wrap: true, text: texto },
+            ],
+          },
+        }],
+      },
+    };
+    try {
+      const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+      if (r.status >= 200 && r.status < 300) enviados += 1;
+      else falhas.push(`${p.nome || p.email}: HTTP ${r.status}`);
+    } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); }
+  }
+  return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5) };
+}
+
 // ---------------- GET: convites pendentes da pessoa ----------------
 async function listarConvites(req, res) {
   const accountId = String((req.query && req.query.accountId) || '').trim();
@@ -216,10 +276,14 @@ async function criarConvites(req, res, b, base, headers, me) {
   }
   if (!RE_DATA.test(inicio)) return json(res, 400, { erro: 'Data inválida.' });
 
-  // Pessoas: dedup por accountId, até MAX_PESSOAS.
+  // Pessoas: dedup por accountId, até MAX_PESSOAS (email = para o aviso individual no Teams).
   const vistos = new Set();
   const pessoas = (Array.isArray(b.pessoas) ? b.pessoas : [])
-    .map((p) => ({ accountId: String((p && p.accountId) || '').trim(), nome: String((p && p.nome) || '').trim() }))
+    .map((p) => ({
+      accountId: String((p && p.accountId) || '').trim(),
+      nome: String((p && p.nome) || '').trim(),
+      email: String((p && p.email) || '').trim().toLowerCase().slice(0, 200),
+    }))
     .filter((p) => p.accountId && p.accountId.length < 200 && !vistos.has(p.accountId) && vistos.add(p.accountId));
   if (!pessoas.length) return json(res, 400, { erro: 'Selecione pelo menos uma pessoa.' });
   if (pessoas.length > MAX_PESSOAS) return json(res, 400, { erro: `Máximo de ${MAX_PESSOAS} pessoas por convite.` });
@@ -240,7 +304,7 @@ async function criarConvites(req, res, b, base, headers, me) {
   let diretos = 0;           // worklogs criados via Clockwork (modo direto)
   let erroDireto = '';       // primeira recusa do Clockwork (diagnóstico)
   const rows = [];
-  const pendentesNomes = [];
+  const pendentes = [];        // {accountId, nome, email} — quem precisa ser avisado
 
   for (const p of pessoas) {
     const row = { ...comum, account_id: p.accountId, nome: p.nome, status: 'pendente', worklog_id: '', erro: '' };
@@ -253,7 +317,7 @@ async function criarConvites(req, res, b, base, headers, me) {
       const d = await clockworkDireto({ issue, segundos, inicio, comentario, accountId: p.accountId });
       if (d && d.ok) { row.status = 'direto'; row.worklog_id = d.worklogId; diretos += 1; }
       else if (d && !d.ok) { row.erro = d.erro.slice(0, 300); if (!erroDireto) erroDireto = d.erro; }
-      if (row.status === 'pendente') pendentesNomes.push(p.nome || p.accountId);
+      if (row.status === 'pendente') pendentes.push({ accountId: p.accountId, nome: p.nome, email: p.email });
     }
     rows.push(row);
   }
@@ -262,12 +326,28 @@ async function criarConvites(req, res, b, base, headers, me) {
   if (proprio && proprio.ok) { cacheClear('tempo:'); cacheClear('venc:'); }
   if (diretos) { cacheClear('tempo:'); cacheClear('venc:'); }
 
+  // Aviso no Teams: com TEAMS_DM_WEBHOOK_URL configurada, cada convidado recebe uma
+  // MENSAGEM INDIVIDUAL (chat privado) — nada vai para o canal compartilhado. Sem
+  // ela, mantém o aviso único no canal (TEAMS_WEBHOOK_URL). Se NINGUÉM puder receber
+  // individualmente (sem e-mail/falhas), o aviso cai para o canal para não se perder.
   let teams = 'nao-tentado';
+  let teamsInfo = null;
   if (b.avisarTeams === false) teams = 'desligado';
-  else if (pendentesNomes.length) {
-    teams = await avisaTeams(req, {
-      issue, resumo, segundos, inicio, nomes: pendentesNomes, criadoPor: me.nome || me.email,
-    });
+  else if (pendentes.length) {
+    const criadoPor = me.nome || me.email;
+    teamsInfo = await avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pendentes, criadoPor });
+    if (teamsInfo) {
+      teams = `individual:${teamsInfo.enviados}/${teamsInfo.total}`;
+      if (!teamsInfo.enviados) {
+        teamsInfo.fallbackCanal = await avisaTeams(req, {
+          issue, resumo, segundos, inicio, nomes: pendentes.map((p) => p.nome || p.accountId), criadoPor,
+        });
+      }
+    } else {
+      teams = await avisaTeams(req, {
+        issue, resumo, segundos, inicio, nomes: pendentes.map((p) => p.nome || p.accountId), criadoPor,
+      });
+    }
   }
 
   return json(res, 200, {
@@ -275,9 +355,10 @@ async function criarConvites(req, res, b, base, headers, me) {
     grupo,
     issue,
     total: pessoas.length,
-    pendentes: pendentesNomes.length,
+    pendentes: pendentes.length,
     diretos,
     teams,
+    ...(teamsInfo ? { teamsInfo } : {}),
     proprio: proprio ? { ok: proprio.ok, erro: proprio.ok ? '' : proprio.erro } : null,
     ...(erroDireto ? { erroDireto } : {}),
   });
