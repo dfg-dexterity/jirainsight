@@ -34,6 +34,30 @@ async function campoDepartamento(base, headers, projeto) {
   return cacheSetTTL(ck, out, 30);
 }
 
+// "AMS | Consultoria > Cliente" (campo CASCATA): resolvido pelo nome via createmeta,
+// como o Departamento. O valor vai como { id: consultoria, child: { id: cliente } }.
+async function campoConsultoriaCliente(base, headers, projeto) {
+  const ck = `criar:conscli:${projeto}`;
+  const c = cacheGet(ck);
+  if (c !== null && c !== undefined) return c;
+  let out = null;
+  try {
+    const r = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}&expand=projects.issuetypes.fields`, { headers });
+    if (r.ok) {
+      const j = await r.json();
+      const tipos = (j.projects && j.projects[0] && j.projects[0].issuetypes) || [];
+      for (const t of tipos) {
+        for (const [fid, f] of Object.entries(t.fields || {})) {
+          const cascata = f.schema && (f.schema.type === 'option-with-child' || /cascadingselect/.test(f.schema.custom || ''));
+          if (cascata && /consultoria/i.test(f.name || '')) { out = { id: fid }; break; }
+        }
+        if (out) break;
+      }
+    }
+  } catch (e) { /* segue sem o campo */ }
+  return cacheSetTTL(ck, out, 30);
+}
+
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const MAX_ITENS = 100;
@@ -73,6 +97,8 @@ function validaItem(it) {
   if (!resumo) return 'Resumo vazio.';
   if (resumo.length > 255) return 'Resumo com mais de 255 caracteres.';
   if (it.paiKey && !RE_ISSUE.test(String(it.paiKey))) return 'Ticket pai inválido.';
+  if (it.consultoriaId && !/^\d{1,12}$/.test(String(it.consultoriaId))) return 'Consultoria inválida.';
+  if (it.clienteId && !/^\d{1,12}$/.test(String(it.clienteId))) return 'Cliente inválido.';
   if (it.descricao && String(it.descricao).length > 30000) return 'Descrição longa demais.';
   // Padrões do lote (opcionais): estimativa Jira (1w 2d 4h 30m), vencimento ISO, labels sem espaço.
   if (it.estimativa && !/^\s*\d+\s*[wdhm](\s+\d+\s*[wdhm])*\s*$/i.test(String(it.estimativa))) {
@@ -172,6 +198,13 @@ export default async function handler(req, res) {
       if (!metaDepto[p]) avisos.push(`Campo "Departamento Dexterity" não encontrado no projeto ${p} — ticket(s) criado(s) sem o campo.`);
     }
 
+    // "AMS | Consultoria > Cliente" (cascata): resolve o custom field por projeto (só quando usado).
+    const metaCons = {};
+    for (const p of [...new Set(itens.filter((it) => it.consultoriaId).map((it) => String(it.projeto || '').toUpperCase()))]) {
+      metaCons[p] = await campoConsultoriaCliente(base, headers, p);
+      if (!metaCons[p]) avisos.push(`Campo "AMS | Consultoria > Cliente" não encontrado no projeto ${p} — ticket(s) criado(s) sem o campo.`);
+    }
+
     const criados = [];
     // O endpoint bulk aceita até 50 por chamada — fatia o lote.
     for (let i = 0; i < itens.length; i += 50) {
@@ -198,6 +231,13 @@ export default async function handler(req, res) {
               fields[m.id] = op ? { id: op.id } : { value: alvo };
             } else if (m.tipo === 'string') fields[m.id] = alvo;
             else fields[m.id] = { value: alvo };
+          }
+        }
+        if (it.consultoriaId) {
+          const m = metaCons[String(it.projeto || '').toUpperCase()];
+          if (m && m.id) {
+            fields[m.id] = { id: String(it.consultoriaId),
+              ...(it.clienteId ? { child: { id: String(it.clienteId) } } : {}) };
           }
         }
         return { fields };

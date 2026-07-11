@@ -4948,10 +4948,10 @@ const ARV_NOS={
     helper:'Atendimentos AMS executados por meio de uma consultoria PARCEIRA têm projeto próprio (DAMS | Consultorias Parceiras). AMS direto com o cliente segue no projeto do cliente.',
     op:[ {label:'Sim, é via consultoria parceira', next:'ams_dams', tone:'teal'},
       {label:'Não, é AMS direto com o cliente', next:'ams', tone:'grafite'} ] },
-  ams_dams:{ result:true, tone:'teal', badge:'AMS — Parceria', title:'Abrir no projeto DAMS | Consultorias Parceiras', cria:true, filtro:'ams', soProjeto:'DAMS',
-    text:'Atendimentos AMS feitos por meio de consultorias parceiras nascem SEMPRE no projeto DAMS | Consultorias Parceiras.',
-    bullets:['O projeto é fixo: DAMS | Consultorias Parceiras (único permitido neste caminho).',
-      'Identifique o cliente e a consultoria parceira no resumo/descrição do ticket.',
+  ams_dams:{ result:true, tone:'teal', badge:'AMS — Parceria', title:'Abrir no projeto DCP | Consultorias Parceiras', cria:true, filtro:'ams', soProjeto:'DCP', camposAms:true,
+    text:'Atendimentos AMS feitos por meio de consultorias parceiras nascem SEMPRE no projeto DCP (DAMS | Consultorias Parceiras).',
+    bullets:['O projeto é fixo: DCP (único permitido neste caminho).',
+      'Informe a CONSULTORIA parceira e o CLIENTE — vão no campo "AMS | Consultoria > Cliente" do ticket (obrigatórios).',
       'Os demais campos funcionam como no AMS direto.'] },
   sap_entregavel:{ q:'A atividade ajuda na entrega de algum entregável do projeto SAP?',
     helper:'Entregável é qualquer item formal que será entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
@@ -5065,7 +5065,7 @@ const ARV_DEFS=[
   ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null,freqAdm:''}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null,freqAdm:'',amsConsId:'',amsCliId:''}, criando:false, feito:null, erro:'' };
   return pl.arv; }
 // Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe),
 // interno genérico ou tarefas avulsas/ADM.
@@ -5181,6 +5181,44 @@ function renderOndeCrio(){
         }
         campoEpico=`<div class="campo"><label>Épico de Gestão <span class="muted">(o ticket nasce dentro dele)</span></label>${selEp}</div>`;
       }
+      // Folha "AMS por parceria": consultoria + cliente vêm do campo CASCATA
+      // "AMS | Consultoria > Cliente" do Jira (opções lidas do createmeta do DCP).
+      let camposAms='';
+      if(no.camposAms){
+        const pl3=estado.planejar;
+        pl3.amsConsPorProj=pl3.amsConsPorProj||{};
+        const cc=f.projeto?pl3.amsConsPorProj[f.projeto]:null;
+        if(f.projeto && !cc && !pl3.carregandoCons){
+          pl3.carregandoCons=true;
+          fetch(`/api/projetos?consultorias=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
+            pl3.carregandoCons=false;
+            pl3.amsConsPorProj[f.projeto]=j&&j.opcoes?j:{opcoes:[],erro:(j&&j.erro)||'resposta inesperada'};
+            if(estado.vista==='ondecrio') renderOndeCrio();
+          }).catch(e3=>{ pl3.carregandoCons=false;
+            pl3.amsConsPorProj[f.projeto]={opcoes:[],erro:String(e3.message||e3)};
+            if(estado.vista==='ondecrio') renderOndeCrio(); });
+        }
+        let selCons, selCli;
+        if(!f.projeto){ selCons='<select disabled><option>escolha o projeto</option></select>'; selCli=selCons; }
+        else if(!cc){ selCons='<select disabled><option>carregando…</option></select>'; selCli=selCons; }
+        else if(!(cc.opcoes||[]).length){
+          selCons=`<select disabled><option>${esc(cc.erro||'sem opções no Jira')}</option></select>`;
+          selCli='<select disabled><option>—</option></select>';
+        } else {
+          const ops=cc.opcoes||[];
+          if(f.amsConsId && !ops.some(o=>o.id===f.amsConsId)) f.amsConsId='';
+          selCons=`<select class="arv-in" data-arv-f="amsConsId"><option value="">— escolha a consultoria —</option>${
+            ops.map(o=>`<option value="${escA(o.id)}" ${f.amsConsId===o.id?'selected':''}>${esc(o.nome)}</option>`).join('')}</select>`;
+          const clientes=((ops.find(o=>o.id===f.amsConsId)||{}).clientes)||[];
+          if(f.amsCliId && !clientes.some(o=>o.id===f.amsCliId)) f.amsCliId='';
+          selCli=f.amsConsId
+            ?`<select class="arv-in" data-arv-f="amsCliId"><option value="">— escolha o cliente —</option>${
+              clientes.map(o=>`<option value="${escA(o.id)}" ${f.amsCliId===o.id?'selected':''}>${esc(o.nome)}</option>`).join('')}</select>`
+            :'<select disabled><option>escolha a consultoria primeiro</option></select>';
+        }
+        camposAms=`<div class="campo"><label>Consultoria parceira <span class="muted">(obrigatório)</span></label>${selCons}</div>
+          <div class="campo"><label>Cliente <span class="muted">(obrigatório)</span></label>${selCli}</div>`;
+      }
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
       // Rotina administrativa: a FREQUÊNCIA respondida na árvore pré-seleciona o tipo
       // (ex.: "Rotina Semanal"); se o projeto não tiver tipo equivalente, cai no padrão.
@@ -5198,6 +5236,7 @@ function renderOndeCrio(){
         <div class="pl-grid">
           ${campoProjeto}
           ${campoEpico}
+          ${camposAms}
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
@@ -5258,10 +5297,22 @@ async function arvCria(){
     a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderOndeCrio(); return; }
   if(no.epico && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.epicoKey||'').trim().toUpperCase())){
     a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; renderOndeCrio(); return; }
+  if(no.camposAms){
+    if(!f.amsConsId){ a.erro='Escolha a CONSULTORIA parceira (campo "AMS | Consultoria > Cliente" — obrigatório).'; renderOndeCrio(); return; }
+    if(!f.amsCliId){ a.erro='Escolha o CLIENTE da consultoria (campo "AMS | Consultoria > Cliente" — obrigatório).'; renderOndeCrio(); return; }
+  }
   if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
   const depto=(no.filtro==='avulsa'?(f.depto||''):(no.depto||'')).trim();
-  const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}${no.tipoPorFreq&&f.freqAdm?` · rotina ${f.freqAdm}`:''}`;
+  // Nomes da consultoria/cliente (folha AMS por parceria) para o rodapé de classificação.
+  let consNome='', cliNome='';
+  if(no.camposAms){
+    const cc=((estado.planejar.amsConsPorProj||{})[f.projeto])||{opcoes:[]};
+    const co=(cc.opcoes||[]).find(o=>o.id===f.amsConsId)||{};
+    consNome=co.nome||''; cliNome=((co.clientes||[]).find(o=>o.id===f.amsCliId)||{}).nome||'';
+  }
+  const rodape=`Classificação (árvore de decisão): ${no.badge}${depto?` · ${depto}`:''}${no.tipoPorFreq&&f.freqAdm?` · rotina ${f.freqAdm}`:''}${consNome?` · ${consNome} > ${cliNome}`:''}`;
   const item={ projeto:f.projeto, tipoId:f.tipoId, resumo:f.resumo.trim(),
+    ...(no.camposAms?{consultoriaId:f.amsConsId, clienteId:f.amsCliId}:{}),
     descricao:((f.descricao||'').trim()?f.descricao.trim()+'\n\n':'')+rodape,
     respId:f.respId||'',
     paiKey: no.subtarefa ? (f.paiKey||'').trim().toUpperCase()
@@ -10314,7 +10365,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
         if(fixo){ const px=ps.find(p=>p.key===fixo)||sug[0]; sug=px?[px]:[]; }
         // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
         a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
-        a.form.tipoId=''; a.form.epicoKey='';
+        a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId='';
         a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
       }
       renderOndeCrio(); } }
@@ -10340,7 +10391,9 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   else if(t.id==='pl-venc'){ pl.venc=t.value; }
   else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
   else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
-    a.form[c]=t.value; if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; renderOndeCrio(); } }
+    a.form[c]=t.value;
+    if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId=''; renderOndeCrio(); }
+    else if(c==='amsConsId'){ a.form.amsCliId=''; renderOndeCrio(); } }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
