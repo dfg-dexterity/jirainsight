@@ -9715,10 +9715,28 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     // O status fica salvo para o time (Supabase); a gravação compartilhada exige login do Jira.
     if(cfgShared && !idApontar()){ abreIdentidade(); return; }
     const cyc=amsCicloVigente(c, amsRefSel());
+    // Chaves dos chamados do ciclo ANTES do re-render (que pode recarregar os dados).
+    const keys=amsChamadosCiclo(c,cyc).map(o=>o.k).filter(k=>/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(k));
     c.faturados=c.faturados||{};
-    if(c.faturados[cyc.start]) delete c.faturados[cyc.start];
-    else { const id=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id&&(id.nome||id.email))||'' }; }
-    salvaCfg(); renderAMS(); return; }
+    const marcar=!c.faturados[cyc.start];
+    if(marcar){ const id0=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id0&&(id0.nome||id0.email))||'' }; }
+    else delete c.faturados[cyc.start];
+    salvaCfg(); renderAMS();
+    // Reflete NO JIRA: labels "faturado" + "ciclo-<início>" em todos os chamados do
+    // ciclo — adicionadas ao marcar, removidas ao desmarcar (com o token de quem marca).
+    const idJ=idApontar();
+    if(!idJ){ toast('Ciclo atualizado no painel — identifique-se (token do Jira) para gravar as labels nos tickets.','err'); return; }
+    if(!keys.length){ toast(`Ciclo ${marcar?'marcado como faturado':'desmarcado'} — nenhum chamado com chave para rotular no Jira.`,'ok'); return; }
+    const labels=['faturado', 'ciclo-'+cyc.start];
+    toast(`${marcar?'Gravando':'Removendo'} a marcação de faturado em ${keys.length} ticket(s) no Jira…`);
+    fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rotular:true, issues:keys, labels, remover:!marcar, email:idJ.email, token:idJ.token})})
+      .then(r=>r.json()).then(j=>{
+        if(j.ok){ toast(`✓ ${j.rotulados} ticket(s) ${marcar?'marcados como FATURADO':'desmarcados'} no Jira (labels ${labels.join(', ')}).`,'ok');
+          logAcao({acao:marcar?'ams-faturado':'ams-desfaturado', t:'', de:c.nome||c.id, para:`${j.rotulados} tickets · ciclo ${cyc.start}`, ok:true}); }
+        else toast(`⚠ Labels no Jira: ${j.rotulados||0} ok, ${((j.falhas||[]).length)||'?'} falha(s)${j.erro?' — '+j.erro:''}. O status do ciclo no painel foi salvo.`,'err');
+      }).catch(e=>toast('⚠ Falha ao gravar as labels no Jira: '+(e.message||e)+'. O status do ciclo no painel foi salvo.','err'));
+    return; }
 });
 // AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
 document.getElementById('conteudo').addEventListener('change', (e)=>{
