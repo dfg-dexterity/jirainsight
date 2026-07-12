@@ -7817,10 +7817,11 @@ function renderAMS(){
     const am=estado.ams;
     if(am.range!==amsKey && !am.carregando){
       am.carregando=true; am.erro='';
-      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{
+      const forcar=!!am.forcar; am.forcar=false;      // "Atualizar agora" ignora o cache do servidor
+      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}${forcar?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
         am.carregando=false;
         if(j.erro){ am.erro=j.erro; }
-        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; }
+        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; am.quando=new Date(); }
         if(estado.vista==='ams') renderAMS();
       }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='ams') renderAMS(); });
     }
@@ -7835,6 +7836,9 @@ function renderAMS(){
       <span class="ams-nav-l">Ciclo <strong>${esc(amsLabelCiclo(cycSel))}</strong> · ${esc(fmtBR(cycSel.start))}–${esc(fmtBR(cycSel.end))}${noVigente?' <span class="ams-nav-cur">vigente</span>':''}</span>
       <button class="btn" data-ams-nav="next" ${noVigente?'disabled':''} aria-label="Próximo ciclo">próximo ▶</button>
       ${noVigente?'':'<button class="btn" data-ams-cur>ir ao ciclo vigente</button>'}
+      <span class="spacer"></span>
+      ${amsProntos&&estado.ams.quando?`<span class="muted small" data-tip="Hora em que os apontamentos deste ciclo foram carregados. Apontou agora no Jira? Clique em Atualizar agora — o Clockwork pode levar alguns minutos para refletir.">🕓 dados de ${esc(estado.ams.quando.toTimeString().slice(0,5))}</span>`:''}
+      <button class="btn" data-ams-atualiza data-tip="Busca agora os apontamentos mais recentes, ignorando o cache do servidor (~20 min)">↻ Atualizar agora</button>
     </div>` : '';
   const amsCard=(c)=>{
     const cyc=amsCicloVigente(c,refSel); const cons=amsConsumoCiclo(c,cyc);
@@ -9700,6 +9704,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     renderAMS(); return; }
   const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
   if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
+  const atz=e.target.closest&&e.target.closest('[data-ams-atualiza]');
+  if(atz){ escondeTip(); estado.ams.dados=null; estado.ams.range=''; estado.ams.forcar=true; renderAMS(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
   const mes=e.target.closest&&e.target.closest('[data-ams-mes]');
