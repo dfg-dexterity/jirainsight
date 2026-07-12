@@ -4037,8 +4037,11 @@ function renderApontar(){
     fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json()).then(j=>{
       ap.recCarr=false;
       const meus=((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId && w.k);
+      // Guarda o RESUMO junto (do mapa do /api/tempo): o ticket recente nem sempre
+      // está na lista de chamados a vencer da tela (ex.: já concluído).
+      const nomes=(j&&j.resumos)||{};
       const por={};
-      meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:''};
+      meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:'',resumo:nomes[w.k]||''};
         r.seg+=Number(w.s)||0; const d=(w.d||'').slice(0,10); if(d>r.ult) r.ult=d; });
       ap.recentes=Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
       if(estado.vista==='apontar') renderApontar();
@@ -4046,10 +4049,11 @@ function renderApontar(){
   }
   const recRow=(r)=>{
     const tk=todos.find(t=>t.k===r.k);
+    const resumoTk=r.resumo||((tk&&tk.resumo)||'')||((typeof resumosUnidos==='function'&&resumosUnidos()[r.k])||'');
     return `<div class="ap-row ap-rec" data-k="${escA(r.k)}">
       <div class="ap-l1">
         <a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener">${esc(r.k)} ↗</a>
-        <span class="ap-resumo">${esc((tk&&tk.resumo)||'')}</span>
+        <span class="ap-resumo">${esc(resumoTk)}</span>
         <span class="spacer"></span>
         <span class="badge codigo-proj" data-tip="${escA(nomeProj(r.p))}">${esc(r.p)}</span>
         <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
