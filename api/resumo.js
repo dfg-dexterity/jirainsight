@@ -606,6 +606,170 @@ async function auditaApontamentos(res, b, apiKey) {
   return json(res, 200, cacheSetTTL(ck, out, 10));
 }
 
+// ---------------------------------------------------------------------------
+// 📍 MEU DIA — timetracking assistido: a ponte (scripts/meudia-activitywatch.mjs)
+// envia os BLOCOS de atividade do Mac (app + título de janela + duração) e a IA
+// sugere, para cada bloco, ONDE apontar (ticket recente) ou ONDE criar o ticket
+// (caminho da árvore). Os blocos ficam na tabela de config compartilhada, numa
+// linha por pessoa (id = meudia_<accountId>), substituídos a cada envio.
+// ---------------------------------------------------------------------------
+const MAX_BLOCOS = 80;
+const RE_DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+async function jiraMyself(email, token) {
+  const base = (process.env.JIRA_BASE_URL || '').replace(/\/+$/, '') || 'https://dexterityit.atlassian.net';
+  const r = await fetch(`${base}/rest/api/3/myself`, {
+    headers: { Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'), Accept: 'application/json' },
+  });
+  if (r.status === 401 || r.status === 403) return { ok: false, erro: 'Credenciais inválidas — confira o e-mail e o token.' };
+  if (!r.ok) return { ok: false, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 200)}` };
+  const me = await r.json();
+  return { ok: true, accountId: me.accountId || '', nome: me.displayName || '', email: me.emailAddress || '' };
+}
+
+function sbMeuDia() {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return null;
+  return { base, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } };
+}
+
+// POST ?acao=meudia-ingest { email, token, dia, blocos:[{inicio,fim,app,titulo,seg}] }
+async function meuDiaIngest(res, b) {
+  const s = sbMeuDia();
+  if (!s) return json(res, 200, { ok: false, erro: 'O Meu dia exige a configuração compartilhada (Supabase).' });
+  const email = String(b.email || '').trim();
+  const token = String(b.token || '').trim();
+  if (!email || !token) return json(res, 400, { ok: false, erro: 'Informe email e token de API do Jira (os mesmos do painel).' });
+  const me = await jiraMyself(email, token);
+  if (!me.ok) return json(res, 200, { ok: false, erro: me.erro });
+
+  const dia = RE_DIA.test(String(b.dia || '')) ? String(b.dia) : '';
+  if (!dia) return json(res, 400, { ok: false, erro: 'Dia inválido (use AAAA-MM-DD).' });
+  const blocos = (Array.isArray(b.blocos) ? b.blocos : []).slice(0, MAX_BLOCOS).map((x) => ({
+    inicio: txt(x && x.inicio, 5),          // HH:MM
+    fim: txt(x && x.fim, 5),
+    app: txt(x && x.app, 60),
+    titulo: txt(x && x.titulo, 140),
+    seg: Math.max(0, Math.min(24 * 3600, Math.round(Number(x && x.seg) || 0))),
+  })).filter((x) => x.seg >= 60 && x.app);
+  if (!blocos.length) return json(res, 400, { ok: false, erro: 'Nenhum bloco válido (mínimo 1 minuto, com o nome do app).' });
+
+  const r = await fetch(`${s.base}/rest/v1/jirainsight_config`, {
+    method: 'POST',
+    headers: { ...s.headers, Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ id: `meudia_${me.accountId}`, data: { dia, blocos, nome: me.nome, quando: new Date().toISOString() } }),
+  });
+  if (!(r.status >= 200 && r.status < 300)) {
+    return json(res, 200, { ok: false, erro: `Supabase ${r.status}: ${(await r.text()).slice(0, 200)}` });
+  }
+  return json(res, 200, { ok: true, accountId: me.accountId, nome: me.nome, dia, blocos: blocos.length });
+}
+
+const SCHEMA_MEUDIA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['resumo', 'sugestoes'],
+  properties: {
+    resumo: { type: 'string' },
+    sugestoes: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['periodo', 'atividade', 'acao', 'tempo', 'justificativa'],
+        properties: {
+          periodo: { type: 'string' },
+          atividade: { type: 'string' },
+          acao: { type: 'string', enum: ['apontar', 'criar', 'ignorar'] },
+          ticket: { type: 'string' },
+          projeto: { type: 'string' },
+          caminhoArvore: { type: 'string' },
+          tempo: { type: 'string' },
+          resumoTicket: { type: 'string' },
+          justificativa: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+const SISTEMA_MEUDIA = [
+  'Você é um assistente de timetracking da Dexterity IT. Recebe os BLOCOS DE ATIVIDADE',
+  'do computador de UMA pessoa num dia (app usado + título da janela + duração) e o',
+  'CONTEXTO do Jira dela: projetos disponíveis (com categorias), os tickets em que ela',
+  'apontou recentemente e as alocações planejadas. Em português do Brasil, sugira o',
+  'que fazer com cada período de trabalho.',
+  '',
+  'Regras:',
+  '- Agrupe blocos consecutivos da MESMA atividade numa sugestão só; ignore períodos',
+  '  claramente pessoais/ociosos (acao "ignorar", sem poluir).',
+  '- "apontar": quando a atividade combina com um TICKET RECENTE do contexto — preencha',
+  '  "ticket" com a chave EXATA do contexto (nunca invente chaves).',
+  '- "criar": quando não há ticket que sirva — preencha "projeto" (chave do catálogo que',
+  '  melhor combina), "caminhoArvore" (ex.: "AMS direto", "AMS por parceria", "SAP —',
+  '  épico de Gestão", "Interno — Melhorias", "Administrativa (rotina)", "Avulsa —',
+  '  departamento X") e "resumoTicket" (título pronto, objetivo claro).',
+  '- "tempo": duração arredondada para 15 min (formatos 30m, 1h, 1h30). "periodo": ex. "09:00–10:30".',
+  '- Reuniões (Teams/Zoom/Meet ou títulos de reunião) normalmente vão em tickets de',
+  '  reunião; trabalho em cliente AMS vai no projeto AMS do cliente.',
+  '- "resumo": 2 a 3 frases do dia (horas cobertas, o que já tem ticket, o que falta).',
+  '- Baseie-se SOMENTE nos dados fornecidos; não invente tickets, projetos ou horários.',
+].join('\n');
+
+// POST ?acao=meudia { accountId, contexto:{projetos,recentes,alocacoes} } → blocos + sugestões da IA.
+async function meuDiaAnalisa(res, b, apiKey) {
+  const s = sbMeuDia();
+  if (!s) return json(res, 200, { ok: false, erro: 'O Meu dia exige a configuração compartilhada (Supabase).' });
+  const accountId = String(b.accountId || '').trim();
+  if (!accountId || !/^[\w:-]{5,128}$/.test(accountId)) return json(res, 400, { ok: false, erro: 'accountId inválido.' });
+
+  const r = await fetch(`${s.base}/rest/v1/jirainsight_config?id=eq.${encodeURIComponent(`meudia_${accountId}`)}&select=data`, { headers: s.headers });
+  const rows = r.ok ? await r.json() : [];
+  const reg = (rows && rows[0] && rows[0].data) || null;
+  if (!reg || !Array.isArray(reg.blocos) || !reg.blocos.length) {
+    return json(res, 200, { ok: true, semDados: true, erro: '', dia: '', blocos: [], resumo: '', sugestoes: [] });
+  }
+
+  const ck = `meudia:${accountId}:${reg.quando || reg.dia}`;
+  const c = cacheGet(ck);
+  if (c && !b.nocache) return json(res, 200, c);
+
+  const ctx = (b.contexto && typeof b.contexto === 'object') ? b.contexto : {};
+  const projetos = (Array.isArray(ctx.projetos) ? ctx.projetos : []).slice(0, 120)
+    .map((p) => ({ key: txt(p.key, 20), nome: txt(p.nome, 80), categoria: txt(p.categoria, 60) })).filter((p) => p.key);
+  const recentes = (Array.isArray(ctx.recentes) ? ctx.recentes : []).slice(0, 30)
+    .map((t) => ({ k: txt(t.k, 20), resumo: txt(t.resumo, 140), projeto: txt(t.projeto || t.p, 20) })).filter((t) => t.k);
+  const alocacoes = (Array.isArray(ctx.alocacoes) ? ctx.alocacoes : []).slice(0, 20)
+    .map((a) => ({ projeto: txt(a.projeto, 20), horasSemana: num(a.horasSemana || a.hSemana) })).filter((a) => a.projeto);
+
+  const payload = {
+    dia: reg.dia,
+    blocos: reg.blocos.slice(0, MAX_BLOCOS),
+    contexto: { projetos, ticketsRecentes: recentes, alocacoesPlanejadas: alocacoes },
+  };
+  const prompt = 'DIA DE TRABALHO PARA CLASSIFICAR (JSON):\n\n' + JSON.stringify(payload);
+  const resultado = await chamaClaude(apiKey, null, { system: SISTEMA_MEUDIA, schema: SCHEMA_MEUDIA, prompt });
+
+  const chavesRec = new Set(recentes.map((t) => t.k));
+  const projOk = new Set(projetos.map((p) => p.key));
+  const out = {
+    ok: true, dia: reg.dia, quando: reg.quando || '', nome: reg.nome || '',
+    blocos: reg.blocos,
+    resumo: txt(resultado.resumo, 1000),
+    sugestoes: (Array.isArray(resultado.sugestoes) ? resultado.sugestoes : []).slice(0, 30).map((x) => ({
+      periodo: txt(x.periodo, 30), atividade: txt(x.atividade, 160),
+      acao: ['apontar', 'criar', 'ignorar'].includes(x.acao) ? x.acao : 'ignorar',
+      ticket: chavesRec.has(String(x.ticket || '')) ? String(x.ticket) : '',
+      projeto: projOk.has(String(x.projeto || '')) ? String(x.projeto) : '',
+      caminhoArvore: txt(x.caminhoArvore, 60), tempo: txt(x.tempo, 12),
+      resumoTicket: txt(x.resumoTicket, 200), justificativa: txt(x.justificativa, 300),
+    })),
+  };
+  // "apontar" sem ticket válido do contexto vira "criar" (a IA citou chave desconhecida).
+  out.sugestoes.forEach((x) => { if (x.acao === 'apontar' && !x.ticket) x.acao = 'criar'; });
+  return json(res, 200, cacheSetTTL(ck, out, 10));
+}
+
 export default async function handler(req, res) {
   try {
     // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
@@ -619,6 +783,9 @@ export default async function handler(req, res) {
     // causa do limite de 12 funções; selecionada por ?acao=folga (ou body.acao).
     const acao = String((req.query && req.query.acao) || b.acao || '').trim();
     if (acao === 'folga') return await criaFolga(res, b);
+
+    // 📍 Meu dia — ingest dos blocos da ponte (não precisa de IA; valida o token do Jira).
+    if (acao === 'meudia-ingest') return await meuDiaIngest(res, b);
 
     const apiKey = process.env.ANTHROPIC_API_KEY || '';
     if (!apiKey) {
@@ -634,6 +801,9 @@ export default async function handler(req, res) {
 
     // 🕵️ Auditoria de apontamentos de UMA pessoa vs. validações TI-04-014 (Notion).
     if (acao === 'auditoria') return await auditaApontamentos(res, b, apiKey);
+
+    // 📍 Meu dia — blocos de atividade do Mac + sugestões da IA de onde apontar/criar.
+    if (acao === 'meudia') return await meuDiaAnalisa(res, b, apiKey);
 
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });

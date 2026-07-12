@@ -932,6 +932,10 @@
   .aud-prob-d{font-size:13px;color:var(--texto2);margin-top:4px}
   .aud-prob-k{font-size:12px;margin-top:5px}
   .aud-acao{display:flex;gap:8px;align-items:center;margin:7px 0;flex-wrap:wrap}
+  /* 📍 Meu dia */
+  .md-setup{margin:8px 0 4px 18px;font-size:13px;color:var(--texto2)}
+  .md-setup li{margin:6px 0}
+  .md-setup code{font-size:11.5px;background:var(--cartao2);border:1px solid var(--linha2);border-radius:5px;padding:2px 6px;word-break:break-all}
   /* ⚙️ Central de configurações */
   .cfgc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:14px}
   .cfgc-sec{border-top:1px solid var(--linha2);padding-top:10px;margin-top:12px}
@@ -1410,6 +1414,7 @@
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Operação <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
+          <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
           <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
@@ -1570,6 +1575,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   ranking:{ aba:'apontamento' },
   // 🕵️ Auditoria de Tickets (apontamentos × validações TI-04-014, por pessoa).
   audit:{ accountId:'', dias:7, dados:null, carregando:false, erro:'' },
+  // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
+  meudia:{ dados:null, carregando:false, erro:'' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
@@ -1973,7 +1980,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -1993,6 +2000,7 @@ function render(){
   if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='apontar') return renderApontar();
+  if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='ondecrio') return renderOndeCrio();
   if(estado.vista==='reclassificar') return renderReclass();
@@ -3265,6 +3273,144 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
     Promise.resolve().then(()=>navigator.clipboard.writeText(tx))
       .then(()=>toast('✓ Texto copiado.','ok'))
       .catch(()=>toast('Não foi possível copiar automaticamente — selecione e copie o texto.','err'));
+  }
+});
+
+// ================== 📍 Meu dia (timetracking assistido por IA) ==================
+// A ponte (scripts/meudia-activitywatch.mjs) envia os blocos de atividade do Mac;
+// aqui a IA sugere, para cada período, ONDE apontar (ticket recente) ou ONDE criar
+// o ticket (caminho da árvore) — com botões de 1 clique.
+async function mdContexto(){
+  const id=idApontar(); const hoje=hojeSP();
+  // Projetos (catálogo) + tickets recentes da pessoa (últimos 14 dias) + alocações dela.
+  await garanteProjetos().catch(()=>{});
+  const projetos=(_projetosCache||[]).map(p=>({key:p.key,nome:p.nome||'',categoria:p.categoria||''}));
+  let recentes=[];
+  try{
+    const j=await fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json());
+    const nomes=(j&&j.resumos)||{};
+    const por={};
+    ((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId&&w.k).forEach(w=>{
+      const r=por[w.k]=por[w.k]||{k:w.k,resumo:nomes[w.k]||'',projeto:w.p||'',seg:0};
+      r.seg+=Number(w.s)||0; });
+    recentes=Object.values(por).sort((a,b)=>b.seg-a.seg).slice(0,25);
+  }catch(e){}
+  const alocacoes=(cfg.alocacoes||[]).filter(a=>a&&a.accountId===id.accountId&&a.projeto)
+    .map(a=>({projeto:a.projeto,horasSemana:Number(a.hSemana)||0})).slice(0,20);
+  return { projetos, recentes, alocacoes };
+}
+async function mdAnalisa(force){
+  const md=estado.meudia;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  if(md.carregando) return;
+  md.carregando=true; md.erro=''; renderMeuDia();
+  try{
+    const contexto=await mdContexto();
+    const j=await fetch('/api/resumo?acao=meudia',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accountId:id.accountId, contexto, nocache:force?1:0})}).then(r=>r.json());
+    md.carregando=false;
+    if(!j.ok){ md.erro=humanizaErro(j.erro||'Falha na análise.'); md.dados=null; }
+    else md.dados=j;
+  }catch(e){ md.carregando=false; md.erro=humanizaErro(e); md.dados=null; }
+  if(estado.vista==='meudia') renderMeuDia();
+}
+// Aponta a sugestão com 1 clique (worklog no dia dos blocos, com a atividade como comentário).
+async function mdAponta(i, btn){
+  const md=estado.meudia; const s=md.dados&&md.dados.sugestoes[i]; if(!s||!s.ticket) return;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const seg=parseTempo(s.tempo||'');
+  if(seg==null||seg<60){ toast('Tempo sugerido inválido — ajuste no Apontar.','err'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Apontando…'; }
+  try{
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({issue:s.ticket, segundos:seg, inicio:md.dados.dia, comentario:s.atividade||'',
+        email:id.email, token:id.token})}).then(r=>r.json());
+    if(j.ok){ s.feito=true; logAcao({acao:'meudia-apontar', t:s.ticket, para:s.tempo, ok:true});
+      toast(`✓ ${s.tempo} apontado em ${s.ticket}.`,'ok'); estado.cache={}; renderMeuDia(); }
+    else { toast(humanizaErro(j.erro||'Falha ao apontar.'),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
+  }catch(e){ toast('Erro de rede: '+(e.message||e),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
+}
+function renderMeuDia(){
+  const cont=document.getElementById('conteudo');
+  const md=estado.meudia; const id=idApontar();
+  const setup=`<details class="arv-defs" ${md.dados&&!md.dados.semDados?'':'open'}>
+      <summary>🔌 Como conectar o seu Mac (uma vez)</summary>
+      <ol class="md-setup">
+        <li>Instale o <a href="https://activitywatch.net" target="_blank" rel="noopener">ActivityWatch ↗</a> (gratuito, open source — registra app e janela em uso, <strong>100% local</strong>).</li>
+        <li>Baixe a ponte: <a href="https://github.com/dfg-dexterity/jirainsight/blob/main/scripts/meudia-activitywatch.mjs" target="_blank" rel="noopener">scripts/meudia-activitywatch.mjs ↗</a></li>
+        <li>No fim do dia, rode no Terminal (usa o MESMO e-mail + token do painel):<br>
+          <code>JIRA_EMAIL=${esc((id&&id.email)||'voce@dexterity.com.br')} JIRA_TOKEN=seu-token node meudia-activitywatch.mjs --enviar</code></li>
+        <li>Volte aqui e clique em <strong>🤖 Analisar meu dia</strong>. <span class="muted">Sem <code>--enviar</code> o script só mostra a prévia; só saem o app e o título da janela de blocos com 5+ min.</span></li>
+      </ol>
+    </details>`;
+  let corpo='';
+  if(!id) corpo=`<div class="estado">Identifique-se para usar o Meu dia (e-mail + token do Jira).<br>
+      <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div>`;
+  else if(md.carregando) corpo='<div class="estado">🤖 Lendo os blocos do seu dia e montando as sugestões… (pode levar ~1 min)</div>';
+  else if(md.erro) corpo=`<div class="erro"><strong>Falha na análise.</strong> ${esc(md.erro)}</div>`;
+  else if(!md.dados) corpo=`<div class="estado">Envie os blocos do seu dia pela ponte (passo a passo acima) e clique em
+      <strong>🤖 Analisar meu dia</strong>.</div>`;
+  else if(md.dados.semDados) corpo=`<div class="estado">Ainda não recebi blocos seus. Rode a ponte no seu Mac (passo a passo acima) e analise de novo.</div>`;
+  else {
+    const d=md.dados;
+    const totalSeg=d.blocos.reduce((s,b)=>s+(b.seg||0),0);
+    const icone={apontar:'⏱',criar:'🌳',ignorar:'—'};
+    const sugs=d.sugestoes.filter(s=>s.acao!=='ignorar');
+    const ignoradas=d.sugestoes.length-sugs.length;
+    const sugHtml=sugs.length?sugs.map((s)=>{
+      const i=d.sugestoes.indexOf(s);
+      const acao = s.feito ? `<span class="pl-res-ok" style="padding:4px 10px">✓ apontado</span>`
+        : s.acao==='apontar'
+          ? `<button class="btn primario" data-md-apontar="${i}">⏱ Apontar ${esc(s.tempo)} em ${esc(s.ticket)}</button>`
+          : `<button class="btn primario" data-md-criar="${i}">🌳 Criar pelo caminho certo</button>`;
+      return `<div class="aud-prob ${s.acao==='apontar'?'':'critico'}" style="border-left-color:${s.acao==='apontar'?'#188918':'#0070F2'}">
+        <div class="aud-prob-t"><span class="badge">${esc(s.periodo)}</span><strong>${icone[s.acao]||''} ${esc(s.atividade)}</strong>
+          <span class="spacer"></span><span class="badge com-horas">${esc(s.tempo)}</span></div>
+        <div class="aud-prob-d">${esc(s.justificativa)}${s.acao==='criar'?` <span class="muted">· caminho: <strong>${esc(s.caminhoArvore||'árvore de decisão')}</strong>${s.projeto?` · projeto ${esc(s.projeto)}`:''}</span>`:''}</div>
+        <div class="aud-acao" style="margin-top:8px">${acao}
+          ${s.ticket?`<span class="muted small"><a href="${jiraBase()}/browse/${encodeURIComponent(s.ticket)}" target="_blank" rel="noopener">${esc(s.ticket)} ↗</a></span>`:''}</div>
+      </div>`;
+    }).join(''):'<div class="estado">A IA não gerou sugestões para este dia.</div>';
+    const timeline=`<div class="ts-wrap" style="max-height:320px;overflow:auto"><table class="rc-tab">
+      <thead><tr><th>Período</th><th>App</th><th>Janela</th><th class="num">Duração</th></tr></thead>
+      <tbody>${d.blocos.map(b=>`<tr><td style="white-space:nowrap">${esc(b.inicio)}–${esc(b.fim)}</td>
+        <td>${esc(b.app)}</td><td class="muted small">${esc(b.titulo)}</td><td class="num">${fmtH(b.seg)}</td></tr>`).join('')}</tbody></table></div>`;
+    corpo=`
+      <div class="ia-geral" style="margin:4px 0 12px"><strong>Balanço da IA — ${esc(fmtBR(d.dia))}:</strong> ${esc(d.resumo||'—')}</div>
+      <div class="kpis ts-kpis">
+        <div class="kpi t"><div class="v">${fmtH(totalSeg)}</div><div class="l">Atividade registrada</div></div>
+        <div class="kpi t"><div class="v">${d.blocos.length}</div><div class="l">Blocos</div></div>
+        <div class="kpi t"><div class="v">${sugs.filter(s=>s.acao==='apontar').length}</div><div class="l">Sugestões de apontamento</div></div>
+        <div class="kpi w"><div class="v">${sugs.filter(s=>s.acao==='criar').length}</div><div class="l">Tickets a criar</div></div>
+      </div>
+      <div class="aud-grid" style="grid-template-columns:1fr">
+        <div class="card aud-card act"><h2>🤖 Sugestões <span>confira antes de apontar — a IA pode errar${ignoradas?` · ${ignoradas} período(s) ignorado(s) (pessoal/ocioso)`:''}</span></h2>${sugHtml}</div>
+        <div class="card"><h2>🕓 Timeline do dia <span>blocos recebidos do seu Mac (app + janela)</span></h2>${timeline}</div>
+      </div>`;
+  }
+  cont.replaceChildren(el(`<div><div class="card full">
+      <h2>📍 Meu dia <span>timetracking assistido — seus blocos de atividade + sugestões da IA de onde apontar e criar tickets</span></h2>
+      <div class="ap-filtros">
+        <div class="campo"><label>&nbsp;</label><button class="btn primario" id="md-analisar" ${md.carregando?'disabled':''}>${md.carregando?'Analisando…':'🤖 Analisar meu dia'}</button></div>
+        ${md.dados&&!md.dados.semDados?'<div class="campo"><label>&nbsp;</label><button class="btn" id="md-refresh" data-tip="Ignora o cache (10 min) e reanalisa">↻ Reanalisar</button></div>':''}
+      </div>
+      ${corpo}
+      ${setup}
+    </div></div>`));
+}
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='md-analisar'){ mdAnalisa(false); }
+  else if(t.id==='md-refresh'){ mdAnalisa(true); }
+  else if(t.hasAttribute('data-md-apontar')){ escondeTip(); mdAponta(+t.getAttribute('data-md-apontar'), t); }
+  else if(t.hasAttribute('data-md-criar')){
+    const s=estado.meudia.dados&&estado.meudia.dados.sugestoes[+t.getAttribute('data-md-criar')]; if(!s) return;
+    escondeTip();
+    // Abre a árvore de decisão com o resumo do ticket já preenchido.
+    estado.planejar.arv=null; const a=arvEstado();
+    a.form.resumo=s.resumoTicket||s.atividade||'';
+    vaiPara('ondecrio');
+    toast(`🌳 Siga o caminho: ${s.caminhoArvore||'responda as perguntas'} — o resumo já está preenchido.`,'ok');
   }
 });
 
@@ -7671,10 +7817,11 @@ function renderAMS(){
     const am=estado.ams;
     if(am.range!==amsKey && !am.carregando){
       am.carregando=true; am.erro='';
-      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{
+      const forcar=!!am.forcar; am.forcar=false;      // "Atualizar agora" ignora o cache do servidor
+      fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}${forcar?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
         am.carregando=false;
         if(j.erro){ am.erro=j.erro; }
-        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; }
+        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; am.quando=new Date(); }
         if(estado.vista==='ams') renderAMS();
       }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='ams') renderAMS(); });
     }
@@ -7689,6 +7836,9 @@ function renderAMS(){
       <span class="ams-nav-l">Ciclo <strong>${esc(amsLabelCiclo(cycSel))}</strong> · ${esc(fmtBR(cycSel.start))}–${esc(fmtBR(cycSel.end))}${noVigente?' <span class="ams-nav-cur">vigente</span>':''}</span>
       <button class="btn" data-ams-nav="next" ${noVigente?'disabled':''} aria-label="Próximo ciclo">próximo ▶</button>
       ${noVigente?'':'<button class="btn" data-ams-cur>ir ao ciclo vigente</button>'}
+      <span class="spacer"></span>
+      ${amsProntos&&estado.ams.quando?`<span class="muted small" data-tip="Hora em que os apontamentos deste ciclo foram carregados. Apontou agora no Jira? Clique em Atualizar agora — o Clockwork pode levar alguns minutos para refletir.">🕓 dados de ${esc(estado.ams.quando.toTimeString().slice(0,5))}</span>`:''}
+      <button class="btn" data-ams-atualiza data-tip="Busca agora os apontamentos mais recentes, ignorando o cache do servidor (~20 min)">↻ Atualizar agora</button>
     </div>` : '';
   const amsCard=(c)=>{
     const cyc=amsCicloVigente(c,refSel); const cons=amsConsumoCiclo(c,cyc);
@@ -9308,7 +9458,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','apontar','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','apontar','meudia','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -9554,6 +9704,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     renderAMS(); return; }
   const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
   if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
+  const atz=e.target.closest&&e.target.closest('[data-ams-atualiza]');
+  if(atz){ escondeTip(); estado.ams.dados=null; estado.ams.range=''; estado.ams.forcar=true; renderAMS(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
   const mes=e.target.closest&&e.target.closest('[data-ams-mes]');
@@ -9569,10 +9721,28 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     // O status fica salvo para o time (Supabase); a gravação compartilhada exige login do Jira.
     if(cfgShared && !idApontar()){ abreIdentidade(); return; }
     const cyc=amsCicloVigente(c, amsRefSel());
+    // Chaves dos chamados do ciclo ANTES do re-render (que pode recarregar os dados).
+    const keys=amsChamadosCiclo(c,cyc).map(o=>o.k).filter(k=>/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(k));
     c.faturados=c.faturados||{};
-    if(c.faturados[cyc.start]) delete c.faturados[cyc.start];
-    else { const id=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id&&(id.nome||id.email))||'' }; }
-    salvaCfg(); renderAMS(); return; }
+    const marcar=!c.faturados[cyc.start];
+    if(marcar){ const id0=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id0&&(id0.nome||id0.email))||'' }; }
+    else delete c.faturados[cyc.start];
+    salvaCfg(); renderAMS();
+    // Reflete NO JIRA: labels "faturado" + "ciclo-<início>" em todos os chamados do
+    // ciclo — adicionadas ao marcar, removidas ao desmarcar (com o token de quem marca).
+    const idJ=idApontar();
+    if(!idJ){ toast('Ciclo atualizado no painel — identifique-se (token do Jira) para gravar as labels nos tickets.','err'); return; }
+    if(!keys.length){ toast(`Ciclo ${marcar?'marcado como faturado':'desmarcado'} — nenhum chamado com chave para rotular no Jira.`,'ok'); return; }
+    const labels=['faturado', 'ciclo-'+cyc.start];
+    toast(`${marcar?'Gravando':'Removendo'} a marcação de faturado em ${keys.length} ticket(s) no Jira…`);
+    fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rotular:true, issues:keys, labels, remover:!marcar, email:idJ.email, token:idJ.token})})
+      .then(r=>r.json()).then(j=>{
+        if(j.ok){ toast(`✓ ${j.rotulados} ticket(s) ${marcar?'marcados como FATURADO':'desmarcados'} no Jira (labels ${labels.join(', ')}).`,'ok');
+          logAcao({acao:marcar?'ams-faturado':'ams-desfaturado', t:'', de:c.nome||c.id, para:`${j.rotulados} tickets · ciclo ${cyc.start}`, ok:true}); }
+        else toast(`⚠ Labels no Jira: ${j.rotulados||0} ok, ${((j.falhas||[]).length)||'?'} falha(s)${j.erro?' — '+j.erro:''}. O status do ciclo no painel foi salvo.`,'err');
+      }).catch(e=>toast('⚠ Falha ao gravar as labels no Jira: '+(e.message||e)+'. O status do ciclo no painel foi salvo.','err'));
+    return; }
 });
 // AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
 document.getElementById('conteudo').addEventListener('change', (e)=>{

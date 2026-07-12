@@ -26,7 +26,8 @@ export default async function handler(req, res) {
       r = rangeFor(janela);
       ck = `tempo:${janela}`;
     }
-    const cached = cacheGet(ck);
+    // ?nocache=1 força a leitura fresca (o resultado novo ainda alimenta o cache).
+    const cached = (req.query && req.query.nocache === '1') ? null : cacheGet(ck);
     if (cached) return json(res, 200, cached);
 
     const enr = await worklogsEnriquecidos(r.startDate, r.endDate);

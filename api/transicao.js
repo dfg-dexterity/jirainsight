@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Informe seu e-mail do Jira e o token de API.' });
     }
-    if (!RE_ISSUE.test(issue)) return json(res, 400, { erro: 'Ticket inválido.' });
+    if (!b.rotular && !RE_ISSUE.test(issue)) return json(res, 400, { erro: 'Ticket inválido.' });
 
     const base = jiraBase();
     const headers = {
@@ -62,6 +62,38 @@ export default async function handler(req, res) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     };
+
+    // ---- Modo rotular (LOTE): adiciona/remove labels em vários tickets de uma vez ----
+    // Usado pelo faturamento do ciclo AMS: marcar o ciclo como faturado grava as labels
+    // (ex.: "faturado" + "ciclo-2026-07-01") nos chamados do ciclo, no próprio Jira.
+    if (b.rotular) {
+      const issues = [...new Set((Array.isArray(b.issues) ? b.issues : [])
+        .map((k) => String(k || '').trim().toUpperCase()).filter((k) => RE_ISSUE.test(k)))].slice(0, 200);
+      const labels = (Array.isArray(b.labels) ? b.labels : [])
+        .map((l) => String(l || '').trim().replace(/\s+/g, '-').slice(0, 60))
+        .filter((l) => /^[\w-]{1,60}$/.test(l)).slice(0, 5);
+      const remover = !!b.remover;
+      if (!issues.length) return json(res, 400, { erro: 'Nenhum ticket válido para rotular.' });
+      if (!labels.length) return json(res, 400, { erro: 'Nenhuma label válida (use letras, números e hífens).' });
+      const oks = []; const falhas = [];
+      for (const k of issues) {
+        try {
+          const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ update: { labels: labels.map((l) => (remover ? { remove: l } : { add: l })) } }),
+          });
+          if (r.ok) oks.push(k);
+          else if (r.status === 401 || r.status === 403) falhas.push({ k, erro: 'sem permissão' });
+          else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
+          else falhas.push({ k, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 120)}` });
+        } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 120) }); }
+      }
+      cacheClear('atividade:');
+      return json(res, 200, {
+        ok: falhas.length === 0, rotulados: oks.length, total: issues.length, labels, remover,
+        ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
+      });
+    }
     // ---- Modo reagendar: muda a data de vencimento (duedate) do ticket ----
     if (b.reagendar) {
       let duedate = null;                               // null limpa a data
