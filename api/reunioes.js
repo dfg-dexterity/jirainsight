@@ -15,6 +15,9 @@ import {
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_REUNI = /reuni/i;
+// Reuniões confirmadas como processo administrativo (label gravada pelo painel via
+// /api/transicao {rotular}) saem da lista de reclassificação/vinculação.
+const LABEL_ADM = 'processo-administrativo';
 
 function authSvc() {
   const e = process.env.JIRA_EMAIL, t = process.env.JIRA_API_TOKEN;
@@ -78,7 +81,7 @@ async function listar(req, res) {
   const nomesTipo = new Set(tiposReuni.map((t) => (t.name || '').toLowerCase()));
 
   const { issues, truncado } = await jiraSearchAll({
-    jql: `project = ${projeto} AND issuetype in (${idsTipo.join(',')}) AND statusCategory != Done ORDER BY status ASC, created DESC`,
+    jql: `project = ${projeto} AND issuetype in (${idsTipo.join(',')}) AND statusCategory != Done AND (labels IS EMPTY OR labels != "${LABEL_ADM}") ORDER BY status ASC, created DESC`,
     fields: ['summary', 'status', 'issuetype'],
     pageSize: 100,
     maxPages: 5,

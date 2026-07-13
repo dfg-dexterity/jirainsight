@@ -1020,6 +1020,10 @@
   .gx-card{cursor:default}
   .gx-card.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.18)}
   .gx-card .kb-k a{color:#0064D9;text-decoration:none;font-weight:700}
+  .gx-dup-g{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--cartao)}
+  .gx-dup-g .ts-wrap{margin-top:4px}
+  .gx-dup-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .gx-dup-h strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .gx-lrow{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--linha);border-radius:10px;padding:9px 12px;margin-bottom:8px;background:var(--cartao)}
   .gx-lrow.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.14)}
   .gx-lrow input[type=checkbox]{margin-top:3px}
@@ -8259,6 +8263,58 @@ function gxExportaCSV(){
   a.download=`gestao-tickets-${hoje}.csv`; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
 }
+// ---- Verificar duplicados: agrupa tickets abertos com o MESMO resumo e o MESMO vencimento ----
+function gxNormResumo(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function gxGruposDuplicados(){
+  const todos=((estado.gestao.dados||{}).tickets)||[];
+  const por={};
+  todos.forEach(t=>{ const n=gxNormResumo(t.resumo); if(!n) return;
+    const ch=n+'|'+(t.venc||''); (por[ch]=por[ch]||[]).push(t); });
+  return Object.values(por).filter(a=>a.length>1)
+    .map(a=>a.slice().sort((x,y)=>x.k.localeCompare(y.k,'pt',{numeric:true})))
+    .sort((x,y)=>y.length-x.length || x[0].resumo.localeCompare(y[0].resumo,'pt'));
+}
+function abreModalDuplicados(){
+  const g=estado.gestao; const hoje=hojeSP();
+  const nTodos=(((g.dados||{}).tickets)||[]).length;
+  const grupos=gxGruposDuplicados();
+  const total=grupos.reduce((s,a)=>s+a.length,0);
+  if(!grupos.length){
+    abreModal(`<h2>🧬 Verificar duplicados</h2>
+      <div class="pl-res-ok">✓ Nenhum duplicado encontrado: não há tickets abertos com o mesmo resumo e o mesmo vencimento (${nTodos} analisados, abertos até ${esc(alxDataBR(g.ate))}).</div>
+      <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
+    return;
+  }
+  const bloco=(a)=>{
+    const keys=a.map(t=>t.k).join(',');
+    const venc=a[0].venc?alxDataBR(a[0].venc):'sem vencimento';
+    const atras=a[0].venc&&a[0].venc<hoje;
+    const rows=a.map(t=>`<tr>
+      <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
+      <td><span class="badge">${esc(t.p)}</span></td>
+      <td><span class="badge">${esc(t.status)}</span></td>
+      <td>${esc(t.resp||'—')}</td>
+      <td class="num" title="Horas apontadas">${t.seg?fmtH(t.seg):'—'}</td>
+      <td class="num" title="Última atividade no Jira">${(t.up||'').slice(0,10)?esc(alxDataBR((t.up||'').slice(0,10))):'—'}</td></tr>`).join('');
+    return `<div class="gx-dup-g">
+      <div class="gx-dup-h"><strong title="${escA(a[0].resumo)}">${esc(a[0].resumo)}</strong>
+        <span class="badge ${atras?'venc-passado':(a[0].venc===hoje?'venc-hoje':'')}">📅 ${esc(venc)}</span>
+        <span class="badge">${a.length} tickets</span>
+        <span class="spacer"></span>
+        <button class="btn" data-gx-dup-sel="${escA(keys)}" title="Marca estes tickets na tela para usar as ações em massa (comentar, excluir…)">Selecionar na tela</button></div>
+      <div class="ts-wrap"><table class="rc-tab"><thead><tr>
+        <th>Ticket</th><th>Projeto</th><th>Status</th><th>Responsável</th><th class="num">Horas</th><th class="num">Últ. ativ.</th>
+      </tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  };
+  abreModal(`
+    <h2>🧬 Tickets duplicados <span class="muted small">mesmo resumo + mesmo vencimento</span></h2>
+    <div class="muted small">${grupos.length} grupo(s) · ${total} ticket(s) envolvidos, entre os ${nTodos} abertos até ${esc(alxDataBR(g.ate))} (inclui os sem vencimento).
+      Use <strong>Selecionar na tela</strong> para marcar um grupo e tratar com as <strong>ações em massa</strong> (comentar, alterar status, excluir…).</div>
+    ${grupos.map(bloco).join('')}
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="gx-dup-selall">Selecionar todos (${total})</button>
+      <button class="btn" id="gx-fechar">Fechar</button></div>`);
+}
 function renderGestao(){
   const cont=document.getElementById('conteudo');
   const g=estado.gestao;
@@ -8401,6 +8457,7 @@ function renderGestao(){
         <div class="campo"><label>Status</label><select id="gx-fstatus"><option value="">todos</option>${statuses.map(x=>`<option ${g.fStatus===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
         <div class="campo"><label>Buscar</label><input type="search" id="gx-busca" placeholder="código, resumo, pessoa…" value="${escA(g.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-refresh">Atualizar</button></div>
+        <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-dup" title="Lista os tickets abertos que têm o mesmo resumo e o mesmo vencimento">🧬 Verificar duplicados</button></div>
       </div>
       ${viewToggle}
       ${presets}
@@ -8618,7 +8675,8 @@ function renderReclass(){
         <div class="campo"><label>Buscar</label><input type="search" id="rc-busca" placeholder="código, resumo, status…" value="${escA(rc.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="rc-refresh">Atualizar lista</button></div>
       </div>
-      <div class="muted small" style="margin:0 0 10px">O <strong>tipo</strong> é mantido (mesmo nome no destino) e o <strong>status</strong> é preservado quando existe no fluxo do destino (senão vai para o status inicial).</div>
+      <div class="muted small" style="margin:0 0 10px">O <strong>tipo</strong> é mantido (mesmo nome no destino) e o <strong>status</strong> é preservado quando existe no fluxo do destino (senão vai para o status inicial).
+        Reunião que é mesmo <strong>processo administrativo</strong>? Selecione e use <strong>✓ Confirmar processo administrativo</strong> — ela recebe a label <code>${esc(RC_LABEL_ADM)}</code> no Jira e deixa de aparecer aqui.</div>
       <div class="ts-wrap"><table class="rc-tab">
         <thead><tr>
           <th class="c"><input type="checkbox" id="rc-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
@@ -8627,6 +8685,9 @@ function renderReclass(){
       <div class="rc-foot">
         <span class="muted" id="rc-count">${nSel} selecionado(s)</span>
         <span class="spacer" style="flex:1"></span>
+        <button class="btn" id="rc-confirma-adm" ${nSel>0&&id&&!rc.movendo?'':'disabled'}
+          title="Confirma que a(s) reunião(ões) selecionada(s) fazem parte de um processo administrativo — recebem a label ${escA(RC_LABEL_ADM)} no Jira e saem desta tela">
+          ✓ Confirmar processo administrativo</button>
         <button class="btn primario" id="rc-mover" ${podeMover?'':'disabled'}>
           Mover ${nSel||''} para ${rc.alvo?esc(rc.alvo):'…'} →</button>
       </div>
@@ -8684,6 +8745,62 @@ function confirmaMover(){
       <button class="btn primario" id="rc-confirmar">Mover ${ids.length} ticket(s)</button>
     </div>
     <div class="ap-fb" id="rc-mfb" hidden></div>`);
+}
+
+// ---- Confirmar reunião como PROCESSO ADMINISTRATIVO: label no Jira + some da lista ----
+const RC_LABEL_ADM='processo-administrativo';
+function confirmaReuniaoAdm(){
+  const rc=estado.reclass; const id=idApontar();
+  if(!id){ abreIdentidade(); return; }
+  const ids=Object.keys(rc.sel).filter(x=>rc.sel[x]);
+  const tks=(rc.dados&&rc.dados.tickets)||[];
+  const sel=ids.map(v=>tks.find(t=>String(t.id)===String(v))).filter(Boolean);
+  if(!sel.length) return;
+  const itens=sel.map(t=>`<li><strong>${esc(t.k)}</strong> — ${esc((t.resumo||'').slice(0,70))}</li>`).join('');
+  abreModal(`
+    <h2>✓ Confirmar processo administrativo</h2>
+    <div class="muted small">Você confirma que ${sel.length===1?'esta reunião faz':'estas '+sel.length+' reuniões fazem'} parte de um <strong>processo administrativo</strong> — não precisa reclassificar.</div>
+    <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:150px;overflow:auto">${itens}</ul>
+    <ul class="ap-passos">
+      <li>O ticket recebe a label <strong>${esc(RC_LABEL_ADM)}</strong> no Jira (fica registrado e auditável).</li>
+      <li>Ele <strong>deixa de aparecer nesta tela</strong> (e na de Vincular Reuniões).</li>
+      <li>Para desfazer, remova a label no próprio Jira — o ticket volta à lista.</li>
+    </ul>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn" id="rc-adm-cancelar">Cancelar</button>
+      <button class="btn primario" id="rc-adm-confirmar">Confirmar ${sel.length} reunião(ões)</button>
+    </div>
+    <div class="ap-fb" id="rc-mfb" hidden></div>`);
+}
+async function executaConfirmaAdm(){
+  const rc=estado.reclass; const id=idApontar(); if(!id) return;
+  const ids=Object.keys(rc.sel).filter(x=>rc.sel[x]);
+  const tks=(rc.dados&&rc.dados.tickets)||[];
+  const keys=ids.map(v=>{ const t=tks.find(x=>String(x.id)===String(v)); return t?t.k:null; }).filter(Boolean);
+  if(!keys.length) return;
+  const fb=document.getElementById('rc-mfb');
+  const bt=document.getElementById('rc-adm-confirmar'); if(bt) bt.disabled=true;
+  if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Gravando a label no Jira…'; }
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rotular:true,issues:keys,labels:[RC_LABEL_ADM],email:id.email,token:id.token})}).then(r=>r.json());
+    if(!j.rotulados){
+      const det=(j.falhas||[]).map(f=>`${f.k}: ${f.erro}`).join(' · ');
+      if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro||det||'Falha ao confirmar.'; }
+      if(bt) bt.disabled=false; return;
+    }
+    const falhas=new Set((j.falhas||[]).map(f=>f.k));
+    const okKeys=keys.filter(k=>!falhas.has(k));
+    rc.dados.tickets=tks.filter(t=>!okKeys.includes(t.k));
+    okKeys.forEach(k=>{ logAcao({acao:'reclassificar', t:k, para:'processo administrativo', ok:true}, false); });
+    rc.sel={}; salvaCfg();
+    fechaModal();
+    toast(`✓ ${okKeys.length} reunião(ões) confirmadas como processo administrativo.`+(falhas.size?` ⚠ ${falhas.size} falharam.`:''), falhas.size?'warn':'ok');
+    renderReclass();
+  }catch(e){
+    if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
+    if(bt) bt.disabled=false;
+  }
 }
 
 async function executaMover(){
@@ -9826,6 +9943,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(t.id==='rc-retry'){ rc.erro=''; rc.dados=null; renderReclass(); }
   else if(t.id==='rc-refresh'){ rc.dados=null; carregaReunioes(true); }
   else if(t.id==='rc-mover'){ confirmaMover(); }
+  else if(t.id==='rc-confirma-adm'){ confirmaReuniaoAdm(); }
   else if(t.id==='rc-verificar'){ verificaMover(); }
   else if(t.id==='rc-voltar'){ rc.resultado=null; rc.taskId=''; rc.dados=null; renderReclass(); }
   else if(t.id==='ia-gerar'){ geraAnaliseIA(); }
@@ -9848,6 +9966,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
     const c=document.getElementById('rc-count'); if(c) c.textContent=n+' selecionado(s)';
     const b=document.getElementById('rc-mover');
     if(b){ b.disabled=!(n>0 && rc.alvo && idApontar()); b.textContent=`Mover ${n||''} para ${rc.alvo||'…'} →`; }
+    const ba=document.getElementById('rc-confirma-adm'); if(ba) ba.disabled=!(n>0 && idApontar());
   }
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
@@ -9897,6 +10016,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     salvaCfg(); toast(desmarca?'Marcação de tratado removida.':`✓ ${ks.length} ticket(s) marcados como tratados.`,'ok');
     renderGestao(); return; }
   if(t.id==='gx-csv-sel'){ gxExportaCSV(); return; }
+  if(t.id==='gx-dup'){ if(g.dados) abreModalDuplicados(); return; }
   if(t.id==='gx-retry'){ g.erro=''; g.dados=null; renderGestao(); }
   else if(t.id==='gx-refresh'){ g.dados=null; carregaGestao(true); }
   else if(t.id==='gx-limpar'){ g.sel={}; renderGestao(); }
@@ -9921,6 +10041,12 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   if(t.id==='gx-com-confirmar'){ gxComentaLote(); }
   else if(t.id==='gx-st-confirmar'){ gxStatusLote(); }
   else if(t.id==='gx-del-confirmar'){ gxExcluiLote(); }
+  else if(t.id==='gx-dup-selall'){ const g=estado.gestao;
+    gxGruposDuplicados().forEach(a=>a.forEach(x=>{ g.sel[x.k]=true; }));
+    fechaModal(); renderGestao(); toast('Duplicados selecionados — use as ações em massa para tratar.','ok'); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-dup-sel')){ const g=estado.gestao;
+    t.getAttribute('data-gx-dup-sel').split(',').forEach(k=>{ if(k) g.sel[k]=true; });
+    fechaModal(); renderGestao(); toast('Grupo selecionado — use as ações em massa para tratar.','ok'); }
   else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
 });
 document.getElementById('modal-body').addEventListener('input',(e)=>{
@@ -10667,6 +10793,8 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='pl-csv-cancel'){ fechaModal(); }
   else if(t.id==='rc-confirmar'){ executaMover(); }
   else if(t.id==='rc-cancelar'){ fechaModal(); }
+  else if(t.id==='rc-adm-confirmar'){ executaConfirmaAdm(); }
+  else if(t.id==='rc-adm-cancelar'){ fechaModal(); }
   else if(t.id==='aj-tour'){ iniciaTour(); }
   else if(t.classList && t.classList.contains('fb-tipo')){
     document.querySelectorAll('.fb-tipo').forEach(c=>c.setAttribute('aria-pressed', c===t?'true':'false')); }
