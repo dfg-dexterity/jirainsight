@@ -89,6 +89,7 @@ export default async function handler(req, res) {
         } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 120) }); }
       }
       cacheClear('atividade:');
+      cacheClear('reunioes:');            // a lista de reclassificação filtra por label
       return json(res, 200, {
         ok: falhas.length === 0, rotulados: oks.length, total: issues.length, labels, remover,
         ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
