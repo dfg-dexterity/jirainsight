@@ -1572,7 +1572,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   alertas:{ dados:null, carregando:false, erro:'', sev:'',
     fResp:'', fProj:'', fPrio:'', fStatus:'', fTipo:'', fMinDias:0, soMeus:false, ord:'crit',
     sel:{},        // {chave:true} tickets marcados para ação em lote
-    reprog:{} },   // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
+    reprog:{},     // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
+    semHoras:null, shCarregando:false },  // concluídos SEM horas apontadas (30d)
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
   // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
@@ -2530,6 +2531,7 @@ function renderVisao(){
 
   // Vencimentos (alertas) sob demanda — mesmo fetch da aba Alertas.
   const a=estado.alertas;
+  garanteSemHoras();
   if(!a.dados && !a.carregando && !a.erro){
     a.carregando=true;
     const ate=somaDias(hojeSP(),7);
@@ -5953,9 +5955,32 @@ function carregaReunioes(forca){
 
 // ====================== CENTRAL DE ALERTAS ======================
 // Motor de alertas acionáveis a partir dos dados que já temos (vencimentos + timesheet).
+// Concluídos SEM horas (30d): carrega uma vez por sessão (Alertas e Visão Geral).
+function garanteSemHoras(){
+  const a=estado.alertas;
+  if(a.semHoras!==null || a.shCarregando) return;
+  a.shCarregando=true;
+  fetch('/api/vencimentos?semHoras=1&dias=30').then(r=>r.json()).then(j=>{
+    a.shCarregando=false;
+    a.semHoras=(j&&!j.erro)?j:{tickets:[],meta:{},erro:(j&&j.erro)||'falhou'};
+    if(estado.vista==='alertas') renderAlertas(); else if(estado.vista==='visao') renderVisao();
+  }).catch(e=>{ a.shCarregando=false; a.semHoras={tickets:[],meta:{},erro:String(e.message||e)}; });
+}
 function calcAlertas(){
   const al=[]; const hoje=hojeSP();
   const d=estado.alertas.dados;
+  // Fechou o ticket sem registrar o trabalho: mina a confiança do apontamento.
+  const sh=estado.alertas.semHoras;
+  if(sh && sh.tickets){
+    sh.tickets.forEach(t=>{
+      al.push({ sev:'alto', cat:'Concluído sem horas',
+        titulo:`${t.k} concluído sem apontamento`,
+        detalhe:`${t.resumo||''} · ${t.p} · ${t.t}${t.resolvido?` · resolvido em ${fmtBR(t.resolvido)}`:''}`,
+        resp:t.resp||'sem responsável',
+        acao:'Cobrar o apontamento retroativo das horas trabalhadas.',
+        link:`${jiraBase()}/browse/${encodeURIComponent(t.k)}` });
+    });
+  }
   if(d && d.tickets){
     d.tickets.forEach(t=>{
       const link=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
@@ -6087,6 +6112,7 @@ function alxOpts(base, val, lab, sel){
 function renderAlertas(){
   const cont=document.getElementById('conteudo');
   const a=estado.alertas;
+  garanteSemHoras();
   if(!a.dados && !a.carregando && !a.erro){
     a.carregando=true;
     const ate=somaDias(hojeSP(),7);   // vencidos + vencendo nos próximos 7 dias + sem data
@@ -6108,6 +6134,8 @@ function renderAlertas(){
   const semResp=base.filter(t=>!t.respId).length;
   const mais7=base.filter(t=>t.dias>7).length;
   const reprogN=Object.keys(a.reprog).length;
+  const shN=(a.semHoras&&a.semHoras.tickets)?a.semHoras.tickets.length:null;
+  const shDias=(a.semHoras&&a.semHoras.meta&&a.semHoras.meta.dias)||30;
   // Atrasados por responsável (top, clicável para filtrar).
   const porResp={}; base.forEach(t=>{ const k=t.respId||'__none__'; (porResp[k]=porResp[k]||{n:0,nome:t.resp||'sem responsável'}).n++; });
   const respTop=Object.entries(porResp).sort((x,y)=>y[1].n-x[1].n).slice(0,6);
@@ -6123,6 +6151,7 @@ function renderAlertas(){
     <div class="kpi ${semResp?'w':'a'}"><div class="v">${semResp}</div><div class="l">👤 Sem responsável</div></div>
     <div class="kpi t"><div class="v">${venceHoje}</div><div class="l">📅 Vencem hoje</div></div>
     <div class="kpi a" ${reprogN?`data-tipk="${escA(Object.keys(a.reprog).join(', '))}"`:''}><div class="v">${reprogN}</div><div class="l">↺ Reprogramados (sessão)</div></div>
+    <div class="kpi ${shN?'w':'a'}" data-tipk="Chamados fechados (categoria Concluído) com 0h apontadas nos últimos ${escA(String(shDias))} dias — fora agrupadores (História/Épico) e cancelados/duplicados. Detalhe nos cards de 'Outros alertas'."><div class="v">${shN==null?'…':shN}</div><div class="l">✅🚫 Concluídos sem horas</div></div>
   </div>`;
 
   const respChips = respTop.length?`<div class="muted small" style="margin:2px 0 10px">Atrasados por responsável: ${respTop.map(([rid,o])=>
@@ -6212,7 +6241,7 @@ function renderAlertas(){
       ${lista.length?`<div class="alx-list">${linhas}</div>`:`<div class="alx-vazio">${base.length?'Nenhum atrasado neste filtro.':'✓ Nenhum ticket atrasado. Tudo em dia!'}</div>`}
     </div>
     <details class="card full" ${outros.length?'':'open'} style="margin-top:14px">
-      <summary style="cursor:pointer;font-weight:700">🔔 Outros alertas da operação <span class="muted small">(${outros.length}) — vencendo hoje, sem responsável, apontamento e metas</span></summary>
+      <summary style="cursor:pointer;font-weight:700">🔔 Outros alertas da operação <span class="muted small">(${outros.length}) — concluídos sem horas, vencendo hoje, sem responsável, apontamento e metas</span></summary>
       <div style="margin-top:10px">${outros.length?`<div class="al-grid">${cardsOutros}</div>`:'<div class="aviso ok">✓ Sem outros alertas no período.</div>'}</div>
     </details>
   </div>`));
@@ -9807,7 +9836,7 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusHdr()
 document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.closest('#seg-vista'))) fechaMenusNav(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
