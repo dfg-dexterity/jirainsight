@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     const filtroVenc = semVenc ? `(duedate <= "${ate}" OR duedate IS EMPTY)` : `duedate <= "${ate}"`;
     const { issues, truncado } = await jiraSearchAll({
       jql: `${filtroVenc} AND statusCategory != Done ORDER BY duedate ASC`,
-      fields: ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority', 'timespent', 'updated', 'timeoriginalestimate'],
+      fields: ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority', 'timespent', 'updated', 'timeoriginalestimate', 'parent'],
       pageSize: 100,
       maxPages: 5,                       // até 500 chamados em aberto
     });
@@ -59,6 +59,8 @@ export default async function handler(req, res) {
         seg: Number(f.timespent || 0),   // segundos já apontados no ticket (total)
         up: f.updated || '',             // última atividade (qualquer alteração no ticket)
         est: Number(f.timeoriginalestimate || 0),  // estimativa original (segundos), se houver
+        pai: (f.parent && f.parent.key) || '',     // épico/pai (para o "Ajustar épicos")
+        sub: !!(f.issuetype && f.issuetype.subtask),
       };
     });
 

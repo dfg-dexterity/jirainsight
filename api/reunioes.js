@@ -271,16 +271,20 @@ async function carregaReuniao(base, headers, key) {
     totalSeg,
   };
 }
-function textoDetalhes(m) {
+// transferir=true muda o vocabulário: origem é um ticket qualquer (Gestão de
+// Tickets → transferir), não uma reunião.
+function textoDetalhes(m, transferir) {
   const linhas = [
-    `Reunião vinculada: ${m.k} — ${m.resumo}`,
+    `${transferir ? 'Ticket transferido' : 'Reunião vinculada'}: ${m.k} — ${m.resumo}`,
     `Data: ${fmtDataBR(m.criado)}${m.relator ? ` · Relator: ${m.relator}` : ''}`,
   ];
   if (m.totalSeg > 0) {
-    linhas.push(`Horas apontadas na reunião: ${fmtH(m.totalSeg)} (${m.horas.map((h) => `${h.nome} ${fmtH(h.seg)}`).join(' · ')})`);
+    linhas.push(`Horas apontadas ${transferir ? 'no ticket original' : 'na reunião'}: ${fmtH(m.totalSeg)} (${m.horas.map((h) => `${h.nome} ${fmtH(h.seg)}`).join(' · ')})`);
   }
   if (m.desc) { linhas.push('', 'Descrição original:', m.desc); }
-  linhas.push('', '— Registrado pelo painel Insights (Vincular Reuniões a Tickets de AMS); a reunião original foi excluída.');
+  linhas.push('', transferir
+    ? '— Registrado pelo painel Insights (Gestão de Tickets — transferir ticket); o ticket original foi excluído.'
+    : '— Registrado pelo painel Insights (Vincular Reuniões a Tickets de AMS); a reunião original foi excluída.');
   return linhas.join('\n');
 }
 
@@ -316,23 +320,25 @@ async function abertos(req, res) {
 async function vincular(req, res, b) {
   const email = String(b.email || '').trim(); const token = String(b.token || '').trim();
   if (!email || !email.includes('@') || !token) return json(res, 400, { erro: 'Identifique-se (e-mail + token de API).' });
+  const transferir = !!b.transferir;          // origem é um ticket qualquer (Gestão), não uma reunião
   const reuniaoKey = String(b.reuniao || '').trim().toUpperCase();
-  if (!RE_ISSUE.test(reuniaoKey)) return json(res, 400, { erro: 'Reunião inválida.' });
+  if (!RE_ISSUE.test(reuniaoKey)) return json(res, 400, { erro: transferir ? 'Ticket de origem inválido.' : 'Reunião inválida.' });
   const modo = b.modo === 'existente' ? 'existente' : 'criar';
   const horasSeg = Math.max(0, Math.round((Number(b.horas) || 0) * 3600));
 
   const base = jiraBase();
   const headers = { Authorization: authUser(email, token), Accept: 'application/json', 'Content-Type': 'application/json' };
 
-  // 1) Lê a reunião com o token da pessoa (garante que ela enxerga/pode operar).
+  // 1) Lê a origem com o token da pessoa (garante que ela enxerga/pode operar).
   const m = await carregaReuniao(base, headers, reuniaoKey);
-  const detalhes = textoDetalhes(m);
+  const detalhes = textoDetalhes(m, transferir);
 
   let destinoKey = '';
   if (modo === 'criar') {
     const projeto = String(b.projeto || '').trim().toUpperCase();
     const tipoId = String(b.tipoId || '').trim();
-    const resumo = String(b.resumo || '').trim().slice(0, 255) || `Apoio funcional — ${m.resumo}`.slice(0, 255);
+    const resumo = String(b.resumo || '').trim().slice(0, 255)
+      || (transferir ? String(m.resumo || reuniaoKey) : `Apoio funcional — ${m.resumo}`).slice(0, 255);
     if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto destino inválido.' });
     if (!/^\d+$/.test(tipoId)) return json(res, 400, { erro: 'Tipo de ticket inválido.' });
     const rc = await fetch(`${base}/rest/api/3/issue`, {
@@ -362,7 +368,7 @@ async function vincular(req, res, b) {
     const started = `${/^\d{4}-\d{2}-\d{2}$/.test(m.criado) ? m.criado : new Date().toISOString().slice(0, 10)}T12:00:00.000-0300`;
     const rw = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(destinoKey)}/worklog`, {
       method: 'POST', headers,
-      body: JSON.stringify({ timeSpentSeconds: horasSeg, started, comment: textoParaAdf(`Reunião ${m.k} — ${m.resumo}`) }),
+      body: JSON.stringify({ timeSpentSeconds: horasSeg, started, comment: textoParaAdf(`${transferir ? 'Transferido de' : 'Reunião'} ${m.k} — ${m.resumo}`) }),
     });
     worklogOk = rw.ok;
   }

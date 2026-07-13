@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Informe seu e-mail do Jira e o token de API.' });
     }
-    if (!b.rotular && !RE_ISSUE.test(issue)) return json(res, 400, { erro: 'Ticket inválido.' });
+    if (!b.rotular && !b.epico && !RE_ISSUE.test(issue)) return json(res, 400, { erro: 'Ticket inválido.' });
 
     const base = jiraBase();
     const headers = {
@@ -92,6 +92,35 @@ export default async function handler(req, res) {
       cacheClear('reunioes:');            // a lista de reclassificação filtra por label
       return json(res, 200, {
         ok: falhas.length === 0, rotulados: oks.length, total: issues.length, labels, remover,
+        ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
+      });
+    }
+    // ---- Modo épico (LOTE): define o épico (fields.parent) de vários tickets ----
+    // Usado pelo "Ajustar épicos" da Gestão: tickets soltos (sem épico) são
+    // vinculados ao épico escolhido, um a um, com o token da própria pessoa.
+    if (b.epico) {
+      const issues = [...new Set((Array.isArray(b.issues) ? b.issues : [])
+        .map((k) => String(k || '').trim().toUpperCase()).filter((k) => RE_ISSUE.test(k)))].slice(0, 100);
+      const paiKey = String(b.paiKey || '').trim().toUpperCase();
+      if (!issues.length) return json(res, 400, { erro: 'Nenhum ticket válido para vincular.' });
+      if (!RE_ISSUE.test(paiKey)) return json(res, 400, { erro: 'Épico inválido.' });
+      const oks = []; const falhas = [];
+      for (const k of issues) {
+        try {
+          const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ fields: { parent: { key: paiKey } } }),
+          });
+          if (r.ok) oks.push(k);
+          else if (r.status === 401 || r.status === 403) falhas.push({ k, erro: 'sem permissão' });
+          else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
+          else falhas.push({ k, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 160)}` });
+        } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 160) }); }
+      }
+      cacheClear('venc:');
+      cacheClear('atividade:');
+      return json(res, 200, {
+        ok: falhas.length === 0, ajustados: oks.length, oks, total: issues.length, paiKey,
         ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
       });
     }

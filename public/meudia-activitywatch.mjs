@@ -7,6 +7,9 @@
 // atividade (app + título + duração) e envia para o painel — a aba "📍 Meu dia"
 // usa a IA para sugerir onde apontar as horas e onde criar os tickets.
 //
+// Baixe direto do painel (o arquivo é servido pelo site):
+//   curl -fsSL -o ~/meudia-activitywatch.mjs https://jirainsight.vercel.app/meudia-activitywatch.mjs
+//
 // Uso (uma vez por dia, ou quando quiser — cada envio substitui o anterior):
 //   JIRA_EMAIL=voce@dexterity.com.br JIRA_TOKEN=seu-token \
 //     node meudia-activitywatch.mjs [AAAA-MM-DD]
