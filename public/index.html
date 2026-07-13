@@ -1020,6 +1020,31 @@
   .gx-card{cursor:default}
   .gx-card.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.18)}
   .gx-card .kb-k a{color:#0064D9;text-decoration:none;font-weight:700}
+  /* 📈 Analytics de governança */
+  .anl-grupo{margin-top:16px}
+  .anl-grupo h3{margin:0 0 8px;font-size:14.5px}
+  .anl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+  .anl-card{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--linha);
+    border-left-width:4px;border-radius:10px;padding:10px 12px;background:var(--cartao);cursor:pointer;font:inherit;color:inherit}
+  .anl-card:hover{border-color:var(--cerceta);box-shadow:0 1px 6px rgba(0,0,0,.08)}
+  .anl-card.alta{border-left-color:#D5393E}
+  .anl-card.media{border-left-color:#E58F00}
+  .anl-card.info{border-left-color:#0070F2}
+  .anl-card.ok{border-left-color:#188918;opacity:.75}
+  .anl-card.manual{border-left-color:#64748B;opacity:.85}
+  .anl-top{display:flex;align-items:center;gap:8px;width:100%}
+  .anl-num{flex:none;width:26px;height:26px;border-radius:999px;background:rgba(0,112,242,.1);color:var(--cerceta);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+  .anl-tit{font-weight:700;font-size:13px;line-height:1.25}
+  .anl-cnt{font-weight:800;font-size:18px;color:var(--grafite)}
+  .anl-card.alta .anl-cnt{color:#D5393E}
+  .anl-card.media .anl-cnt{color:#B45309}
+  .anl-des{font-size:11.5px;color:var(--cinza);line-height:1.35}
+  .anl-foot{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:auto}
+  .anl-badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700}
+  .anl-auto{background:rgba(24,137,24,.12);color:#188918}
+  .anl-heur{background:rgba(229,143,0,.14);color:#B45309}
+  .anl-manual{background:rgba(100,116,139,.15);color:#475569}
   .gx-dup-g{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--cartao)}
   .gx-dup-g .ts-wrap{margin-top:4px}
   .gx-dup-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -1412,6 +1437,7 @@
           <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
           <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
           <button data-v="audit"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🕵️ Auditoria de Tickets</button>
+          <button data-v="analytics"><svg class="nav-ic"><use href="#ic-analise"/></svg>📈 Analytics</button>
         </div>
       </div>
       <div class="navg">
@@ -1572,13 +1598,16 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   alertas:{ dados:null, carregando:false, erro:'', sev:'',
     fResp:'', fProj:'', fPrio:'', fStatus:'', fTipo:'', fMinDias:0, soMeus:false, ord:'crit',
     sel:{},        // {chave:true} tickets marcados para ação em lote
-    reprog:{} },   // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
+    reprog:{},     // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
+    semHoras:null, shCarregando:false },  // concluídos SEM horas apontadas (30d)
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
   // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
   ranking:{ aba:'apontamento' },
   // 🕵️ Auditoria de Tickets (apontamentos × validações TI-04-014, por pessoa).
   audit:{ accountId:'', dias:7, dados:null, carregando:false, erro:'' },
+  // 📈 Analytics de governança (26 visões sobre abertos/concluídos/reabertos)
+  analytics:{ dados:null, carregando:false, erro:'', fProj:'', fResp:'', x:5, dias:30, sel:'', busca:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
@@ -1984,7 +2013,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2003,6 +2032,7 @@ function render(){
   if(estado.vista==='tickets') return renderTickets();
   if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='audit') return renderAudit();
+  if(estado.vista==='analytics') return renderAnalytics();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -2530,6 +2560,7 @@ function renderVisao(){
 
   // Vencimentos (alertas) sob demanda — mesmo fetch da aba Alertas.
   const a=estado.alertas;
+  garanteSemHoras();
   if(!a.dados && !a.carregando && !a.erro){
     a.carregando=true;
     const ate=somaDias(hojeSP(),7);
@@ -5953,9 +5984,32 @@ function carregaReunioes(forca){
 
 // ====================== CENTRAL DE ALERTAS ======================
 // Motor de alertas acionáveis a partir dos dados que já temos (vencimentos + timesheet).
+// Concluídos SEM horas (30d): carrega uma vez por sessão (Alertas e Visão Geral).
+function garanteSemHoras(){
+  const a=estado.alertas;
+  if(a.semHoras!==null || a.shCarregando) return;
+  a.shCarregando=true;
+  fetch('/api/vencimentos?semHoras=1&dias=30').then(r=>r.json()).then(j=>{
+    a.shCarregando=false;
+    a.semHoras=(j&&!j.erro)?j:{tickets:[],meta:{},erro:(j&&j.erro)||'falhou'};
+    if(estado.vista==='alertas') renderAlertas(); else if(estado.vista==='visao') renderVisao();
+  }).catch(e=>{ a.shCarregando=false; a.semHoras={tickets:[],meta:{},erro:String(e.message||e)}; });
+}
 function calcAlertas(){
   const al=[]; const hoje=hojeSP();
   const d=estado.alertas.dados;
+  // Fechou o ticket sem registrar o trabalho: mina a confiança do apontamento.
+  const sh=estado.alertas.semHoras;
+  if(sh && sh.tickets){
+    sh.tickets.forEach(t=>{
+      al.push({ sev:'alto', cat:'Concluído sem horas',
+        titulo:`${t.k} concluído sem apontamento`,
+        detalhe:`${t.resumo||''} · ${t.p} · ${t.t}${t.resolvido?` · resolvido em ${fmtBR(t.resolvido)}`:''}`,
+        resp:t.resp||'sem responsável',
+        acao:'Cobrar o apontamento retroativo das horas trabalhadas.',
+        link:`${jiraBase()}/browse/${encodeURIComponent(t.k)}` });
+    });
+  }
   if(d && d.tickets){
     d.tickets.forEach(t=>{
       const link=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
@@ -6087,6 +6141,7 @@ function alxOpts(base, val, lab, sel){
 function renderAlertas(){
   const cont=document.getElementById('conteudo');
   const a=estado.alertas;
+  garanteSemHoras();
   if(!a.dados && !a.carregando && !a.erro){
     a.carregando=true;
     const ate=somaDias(hojeSP(),7);   // vencidos + vencendo nos próximos 7 dias + sem data
@@ -6108,6 +6163,8 @@ function renderAlertas(){
   const semResp=base.filter(t=>!t.respId).length;
   const mais7=base.filter(t=>t.dias>7).length;
   const reprogN=Object.keys(a.reprog).length;
+  const shN=(a.semHoras&&a.semHoras.tickets)?a.semHoras.tickets.length:null;
+  const shDias=(a.semHoras&&a.semHoras.meta&&a.semHoras.meta.dias)||30;
   // Atrasados por responsável (top, clicável para filtrar).
   const porResp={}; base.forEach(t=>{ const k=t.respId||'__none__'; (porResp[k]=porResp[k]||{n:0,nome:t.resp||'sem responsável'}).n++; });
   const respTop=Object.entries(porResp).sort((x,y)=>y[1].n-x[1].n).slice(0,6);
@@ -6123,6 +6180,7 @@ function renderAlertas(){
     <div class="kpi ${semResp?'w':'a'}"><div class="v">${semResp}</div><div class="l">👤 Sem responsável</div></div>
     <div class="kpi t"><div class="v">${venceHoje}</div><div class="l">📅 Vencem hoje</div></div>
     <div class="kpi a" ${reprogN?`data-tipk="${escA(Object.keys(a.reprog).join(', '))}"`:''}><div class="v">${reprogN}</div><div class="l">↺ Reprogramados (sessão)</div></div>
+    <div class="kpi ${shN?'w':'a'}" data-tipk="Chamados fechados (categoria Concluído) com 0h apontadas nos últimos ${escA(String(shDias))} dias — fora agrupadores (História/Épico) e cancelados/duplicados. Detalhe nos cards de 'Outros alertas'."><div class="v">${shN==null?'…':shN}</div><div class="l">✅🚫 Concluídos sem horas</div></div>
   </div>`;
 
   const respChips = respTop.length?`<div class="muted small" style="margin:2px 0 10px">Atrasados por responsável: ${respTop.map(([rid,o])=>
@@ -6212,7 +6270,7 @@ function renderAlertas(){
       ${lista.length?`<div class="alx-list">${linhas}</div>`:`<div class="alx-vazio">${base.length?'Nenhum atrasado neste filtro.':'✓ Nenhum ticket atrasado. Tudo em dia!'}</div>`}
     </div>
     <details class="card full" ${outros.length?'':'open'} style="margin-top:14px">
-      <summary style="cursor:pointer;font-weight:700">🔔 Outros alertas da operação <span class="muted small">(${outros.length}) — vencendo hoje, sem responsável, apontamento e metas</span></summary>
+      <summary style="cursor:pointer;font-weight:700">🔔 Outros alertas da operação <span class="muted small">(${outros.length}) — concluídos sem horas, vencendo hoje, sem responsável, apontamento e metas</span></summary>
       <div style="margin-top:10px">${outros.length?`<div class="al-grid">${cardsOutros}</div>`:'<div class="aviso ok">✓ Sem outros alertas no período.</div>'}</div>
     </details>
   </div>`));
@@ -8039,6 +8097,272 @@ function renderReceita(){
 }
 // ===============================================================================
 
+// ============================ 📈 ANALYTICS DE GOVERNANÇA ============================
+// 26 visões de saúde/governança calculadas NO FRONT sobre a base bruta do servidor
+// (/api/vencimentos?analytics=1): abertos + concluídos do período + reabertos.
+// modo: auto = regra objetiva · heur = heurística (pode ter falso positivo) ·
+//       manual = não dá para automatizar com os dados atuais (vira guia/atalho).
+const ANL_RE_REU=/reuni/i, ANL_RE_AGRUP=/hist[óo]ria|story|épico|epic/i, ANL_RE_ROTINA=/rotina/i,
+      ANL_RE_DESCARTE=/cancel|duplic|won'?t|descart|rejeit|obsolet/i,
+      ANL_RE_PRIOALTA=/highest|blocker|urgent|cr[íi]tic|\bhigh\b|alta/i,
+      ANL_RE_BLOQ=/bloque|impedi|blocked|hold/i,
+      ANL_RE_AGUARDA=/aguard|waiting|pendente/i,
+      ANL_RE_TITREU=/reuni[ãa]o|meeting|daily|weekly|alinhamento|\bcall\b|cerim[ôo]nia/i,
+      ANL_RE_TITTASK=/\b(bug|erro|corrigir|corre[çc][ãa]o|implementar|desenvolver|configurar|instalar|homologar)\b/i;
+function anlDiasDesde(hoje,iso){ const d=String(iso||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  return Math.max(0,Math.round((new Date(hoje)-new Date(d))/86400000)); }
+function anlCatProj(p){ const pr=(_projetosCache||[]).find(x=>x.key===p); return (pr&&pr.categoria)||''; }
+const ANL_GRUPOS=[['prazo','⏰ Prazos & andamento'],['pessoas','👤 Pessoas & atribuição'],
+  ['horas','⏱ Horas & estimativas'],['reunioes','📅 Reuniões'],['qualidade','🧭 Qualidade & vínculos']];
+const ANL_CHECKS=[
+  {n:1,id:'vencidos',g:'prazo',sev:'alta',modo:'auto',tit:'Chamados vencidos',col:'Atraso',
+   des:'Vencimento no passado e status diferente de concluído.',
+   calc:(c)=>c.A.filter(t=>t.venc&&t.venc<c.hoje)
+     .map(t=>({...t,m:`${anlDiasDesde(c.hoje,t.venc)}d (venceu ${alxDataBR(t.venc)})`}))
+     .sort((x,y)=>x.venc<y.venc?-1:1)},
+  {n:2,id:'semvenc',g:'prazo',sev:'media',modo:'auto',tit:'Sem data de vencimento',col:'Criado',
+   des:'Abertos sem due date (fora agrupadores) — sem prazo não há SLA nem planejamento.',
+   calc:(c)=>c.A.filter(t=>!t.venc&&!ANL_RE_AGRUP.test(t.t)).map(t=>({...t,m:`criado ${alxDataBR(t.criado)}`}))},
+  {n:16,id:'backlog',g:'prazo',sev:'media',modo:'heur',tit:'Backlog que já deveria andar',col:'Indício',
+   des:'Itens ainda "a fazer" com início planejado no passado ou vencimento nos próximos 3 dias.',
+   calc:(c)=>c.A.filter(t=>t.statCat==='new'&&((t.inicio&&t.inicio<c.hoje)||(t.venc&&t.venc<=somaDias(c.hoje,3))))
+     .map(t=>({...t,m:(t.inicio&&t.inicio<c.hoje)?`início planejado ${alxDataBR(t.inicio)}`:`vence ${alxDataBR(t.venc)}`}))},
+  {n:8,id:'parado',g:'prazo',sev:'media',modo:'auto',tit:'Em andamento sem atualização há X dias',col:'Parado há',
+   des:'Em progresso sem nenhuma movimentação no Jira acima do limite X (filtro acima).',
+   calc:(c)=>c.A.filter(t=>t.statCat==='indeterminate'&&(anlDiasDesde(c.hoje,t.up)??999)>=c.x)
+     .map(t=>({...t,m:`${anlDiasDesde(c.hoje,t.up)??'?'}d sem atualização`}))},
+  {n:9,id:'prioparada',g:'prazo',sev:'alta',modo:'auto',tit:'Prioridade alta/crítica sem atividade',col:'Situação',
+   des:'Prioridade alta ou crítica sem movimentação recente (limite X).',
+   calc:(c)=>c.A.filter(t=>ANL_RE_PRIOALTA.test(t.prio||'')&&(anlDiasDesde(c.hoje,t.up)??999)>=c.x)
+     .map(t=>({...t,m:`${t.prio} · ${anlDiasDesde(c.hoje,t.up)}d sem atividade`}))},
+  {n:15,id:'bloqueados',g:'prazo',sev:'media',modo:'heur',tit:'Bloqueados (verificar motivo)',col:'Parado há',
+   des:'Status de bloqueio/impedimento — confira se o motivo está documentado no ticket.',
+   calc:(c)=>c.A.filter(t=>ANL_RE_BLOQ.test(t.status||'')).map(t=>({...t,m:`${anlDiasDesde(c.hoje,t.up)??'?'}d`}))},
+  {n:21,id:'datas',g:'prazo',sev:'media',modo:'auto',tit:'Início/fim incoerentes',col:'Datas',
+   des:'Data de início preenchida DEPOIS do vencimento (fim antes do início).',
+   calc:(c)=>c.temInicio?c.A.filter(t=>t.inicio&&t.venc&&t.venc<t.inicio)
+     .map(t=>({...t,m:`início ${alxDataBR(t.inicio)} > fim ${alxDataBR(t.venc)}`})):null,
+   nota:'Requer o campo "Start date"/"Data de início" na instância do Jira — não foi encontrado.'},
+  {n:26,id:'sla',g:'prazo',sev:'alta',modo:'heur',tit:'Aguardando resposta há X dias (SLA)',col:'Situação',
+   des:'Status de espera (aguardando/pendente/waiting) parado acima do limite X — proxy de SLA estourado.',
+   calc:(c)=>c.A.filter(t=>ANL_RE_AGUARDA.test(t.status||'')&&(anlDiasDesde(c.hoje,t.up)??999)>=c.x)
+     .map(t=>({...t,m:`${t.status} · ${anlDiasDesde(c.hoje,t.up)}d sem resposta`}))},
+  {n:3,id:'semresp',g:'pessoas',sev:'media',modo:'auto',tit:'Sem pessoa atribuída',col:'Aberto há',
+   des:'Abertos sem assignee — itens órfãos, ninguém é dono.',
+   calc:(c)=>c.A.filter(t=>!t.respId).map(t=>({...t,m:`${anlDiasDesde(c.hoje,t.criado)??'?'}d`}))},
+  {n:18,id:'resperrada',g:'pessoas',sev:'info',modo:'manual',tit:'Atribuídos à pessoa errada',
+   des:'Perfil incorreto (técnico × funcional × PMO) exige julgamento humano.',
+   nota:'Use a lista "Sem pessoa atribuída" + os filtros de responsável da Gestão de Tickets para revisar por pessoa.'},
+  {n:4,id:'finsemhoras',g:'horas',sev:'alta',modo:'auto',tit:'Finalizados sem horas apontadas',col:'Resolvido',
+   des:'Concluídos no período sem nenhum worklog (fora agrupadores e cancelados/duplicados).',
+   calc:(c)=>c.C.filter(t=>t.seg===0&&!ANL_RE_AGRUP.test(t.t)&&!ANL_RE_DESCARTE.test(t.resol||''))
+     .map(t=>({...t,status:t.resol,m:`resolvido ${alxDataBR(t.resolvido)}`}))},
+  {n:7,id:'horasreuniao',g:'horas',sev:'info',modo:'manual',tit:'Horas de reuniões por participante',
+   des:'Depende do controle de participantes de cada reunião.',
+   nota:'A 🕵️ Auditoria de Tickets já cruza as reuniões da pessoa com os worklogs de TODOS os participantes — use-a por pessoa.',goto:'audit'},
+  {n:12,id:'estzero',g:'horas',sev:'info',modo:'heur',tit:'Estimativa zerada',col:'Status',
+   des:'Em andamento sem estimativa original (fora reuniões, rotinas e agrupadores).',
+   calc:(c)=>c.A.filter(t=>t.statCat==='indeterminate'&&!t.est&&!ANL_RE_AGRUP.test(t.t)&&!ANL_RE_REU.test(t.t)&&!ANL_RE_ROTINA.test(t.t))
+     .map(t=>({...t,m:t.status}))},
+  {n:13,id:'acimaest',g:'horas',sev:'media',modo:'heur',tit:'Horas acima da estimativa',col:'Horas / estimativa',
+   des:'Worklog já passou de 120% da estimativa — verifique se há justificativa no ticket.',
+   calc:(c)=>c.A.filter(t=>t.est>0&&t.seg>t.est*1.2)
+     .map(t=>({...t,m:`${fmtH(t.seg)} de ${fmtH(t.est)} (${Math.round(t.seg/t.est*100)}%)`}))},
+  {n:22,id:'trabsemwl',g:'horas',sev:'media',modo:'heur',tit:'Movimentado hoje sem worklog hoje',col:'Situação',
+   des:'Em andamento com atividade HOJE no Jira e nenhuma hora apontada hoje no ticket.',
+   calc:(c)=>c.A.filter(t=>t.statCat==='indeterminate'&&String(t.up).slice(0,10)===c.hoje&&!c.wlHoje.has(t.k))
+     .map(t=>({...t,m:'movimentado hoje · 0h apontadas hoje'})),
+   notaExtra:'Compara com os worklogs do período carregado no painel — confira o período atual no topo.'},
+  {n:5,id:'reuvencida',g:'reunioes',sev:'alta',modo:'auto',tit:'Reuniões ocorridas não finalizadas',col:'Quando',
+   des:'Tipo reunião com data no passado (ou sem data, criada há 1+ dia) ainda aberta.',
+   calc:(c)=>c.A.filter(t=>ANL_RE_REU.test(t.t)&&((t.venc&&t.venc<c.hoje)||(!t.venc&&(anlDiasDesde(c.hoje,t.criado)??0)>=1)))
+     .map(t=>({...t,m:t.venc?`ocorreu ${alxDataBR(t.venc)}`:`criada ${alxDataBR(t.criado)}`}))},
+  {n:6,id:'reuprojeto',g:'reunioes',sev:'media',modo:'heur',tit:'Reuniões no projeto de triagem',col:'Projeto',
+   des:'Reuniões abertas paradas no projeto de origem (triagem) — mova na tela 🔀 Reclassificar.',
+   calc:(c)=>c.A.filter(t=>ANL_RE_REU.test(t.t)&&t.p===c.origemReu).map(t=>({...t,m:`${t.p} — reclassificar`}))},
+  {n:23,id:'devserreuniao',g:'reunioes',sev:'info',modo:'heur',tit:'Deveriam ser reunião (são task/bug)',col:'Tipo atual',
+   des:'Título tem cara de reunião (daily, alinhamento, call…) mas o tipo não é reunião.',
+   calc:(c)=>c.A.filter(t=>!ANL_RE_REU.test(t.t)&&!t.sub&&ANL_RE_TITREU.test(t.resumo||'')).map(t=>({...t,m:t.t}))},
+  {n:24,id:'reudevsertask',g:'reunioes',sev:'info',modo:'heur',tit:'Deveriam ser task/bug (são reunião)',col:'Indício',
+   des:'Tipo reunião com título de execução (bug, corrigir, implementar, configurar…).',
+   calc:(c)=>c.A.filter(t=>ANL_RE_REU.test(t.t)&&ANL_RE_TITTASK.test(t.resumo||'')).map(t=>({...t,m:'título sugere tarefa/bug'}))},
+  {n:10,id:'semdesc',g:'qualidade',sev:'media',modo:'heur',tit:'Abertos sem descrição mínima',col:'Descrição',
+   des:'Menos de 40 caracteres de descrição (fora agrupadores) — sem contexto nem critério de aceite.',
+   calc:(c)=>c.A.filter(t=>!ANL_RE_AGRUP.test(t.t)&&t.descLen<40).map(t=>({...t,m:`${t.descLen} caractere(s)`}))},
+  {n:11,id:'classif',g:'qualidade',sev:'info',modo:'manual',tit:'Sem classificação correta',
+   des:'Tipo/componente/cliente/módulo corretos dependem de regra por projeto.',
+   nota:'Cheque as visões 23/24 (tipo reunião × task) e 19 (sem épico); a 🔎 Qualidade (IA) avalia a escrita ticket a ticket.',goto:'qualidade'},
+  {n:14,id:'reabertos',g:'qualidade',sev:'media',modo:'heur',tit:'Retrabalho (reabertos)',col:'Situação',
+   des:'Resolução preenchida em ticket NÃO concluído — voltou depois de resolvido (ou fluxo não limpou a resolução).',
+   calc:(c)=>c.R.map(t=>({...t,t:'',m:`resolução "${t.resol}" em status ${t.status}`}))},
+  {n:17,id:'semevidencia',g:'qualidade',sev:'info',modo:'heur',tit:'Concluídos sem evidência (anexos)',col:'Evidência',
+   des:'Concluídos executáveis (fora rotinas) sem nenhum anexo — comentários exigem checagem manual.',
+   calc:(c)=>c.C.filter(t=>!ANL_RE_AGRUP.test(t.t)&&!ANL_RE_ROTINA.test(t.t)&&!ANL_RE_DESCARTE.test(t.resol||'')&&t.anexos===0)
+     .map(t=>({...t,status:t.resol,m:'0 anexos'}))},
+  {n:19,id:'semepico',g:'qualidade',sev:'media',modo:'auto',tit:'Sem vínculo com épico',col:'Tipo',
+   des:'Abertos soltos (sem pai/épico, fora subtarefas e agrupadores).',
+   calc:(c)=>c.A.filter(t=>!t.sub&&!ANL_RE_AGRUP.test(t.t)&&!t.pai).map(t=>({...t,m:t.t})),
+   notaExtra:'Vincule em lote com 🧩 Ajustar épicos, na Gestão de Tickets.'},
+  {n:20,id:'amsmix',g:'qualidade',sev:'media',modo:'heur',tit:'AMS misturado com projeto',col:'Categoria do projeto',
+   des:'Menção a AMS (título/label/tipo) em projeto cuja categoria NÃO é AMS.',
+   calc:(c)=>c.A.filter(t=>{ const cat=anlCatProj(t.p);
+       return cat&&!/ams/i.test(cat)&&(/\bams\b/i.test(t.resumo||'')||(t.labels||[]).some(l=>/ams/i.test(l))||/\bams\b/i.test(t.t||'')); })
+     .map(t=>({...t,m:anlCatProj(t.p)}))},
+  {n:25,id:'comentarios',g:'qualidade',sev:'info',modo:'manual',tit:'Comentários fora do padrão',
+   des:'Comentário usado como chat / sem objetividade exige leitura.',
+   nota:'A 🔎 Qualidade (IA) avalia os tickets contra a TI-04-006 (incluindo "ticket como chat") — rode-a por projeto.',goto:'qualidade'},
+];
+function carregaAnalytics(forca){
+  const an=estado.analytics;
+  an.carregando=true; an.erro='';
+  fetch(`/api/vencimentos?analytics=1&dias=${an.dias}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ an.carregando=false;
+      if(j.erro) an.erro=j.erro; else an.dados=j;
+      if(estado.vista==='analytics') renderAnalytics();
+    }).catch(e=>{ an.carregando=false; an.erro=String(e.message||e); if(estado.vista==='analytics') renderAnalytics(); });
+}
+// Contexto dos checks: dados filtrados (projeto/responsável) + parâmetros da barra.
+function anlCtx(){
+  const an=estado.analytics; const d=an.dados;
+  const fil=(l)=>l.filter(t=>(!an.fProj||t.p===an.fProj)&&(!an.fResp||t.respId===an.fResp));
+  const wlHoje=new Set(); const hoje=(d.meta&&d.meta.hoje)||hojeSP();
+  (((estado.tempo||{}).worklogs)||[]).forEach(w=>{ if(String(w.d||'').slice(0,10)===hoje) wlHoje.add(w.k); });
+  return { hoje, x:Math.max(1,Number(an.x)||5), temInicio:!!(d.meta&&d.meta.temInicio),
+    origemReu:(estado.reclass&&estado.reclass.origem)||'RDF', wlHoje,
+    A:fil(d.abertos||[]), C:fil(d.concluidos||[]), R:fil((d.reabertos||[]).map(t=>({...t,respId:''}))) };
+}
+function anlResultados(){
+  const ctx=anlCtx();
+  return ANL_CHECKS.map(ch=>{
+    let itens=null;
+    if(ch.calc){ try{ itens=ch.calc(ctx); }catch(e){ itens=null; } }
+    return { ch, itens, n:itens?itens.length:null };
+  });
+}
+function anlExportaCSV(res){
+  const { ch, itens }=res; if(!itens) return;
+  const cel=(v)=>{ v=String(v==null?'':v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const cab=['Ticket','Resumo','Projeto','Tipo','Status','Responsável',ch.col||'Métrica'];
+  const li=itens.map(t=>[t.k,t.resumo,t.p,t.t||'',t.status||'',t.resp||'',t.m||''].map(cel).join(';'));
+  const csv='\ufeff'+cab.join(';')+'\n'+li.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`analytics-${ch.id}-${hojeSP()}.csv`; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+function renderAnalytics(){
+  const cont=document.getElementById('conteudo');
+  const an=estado.analytics;
+  if(!_projetosCache) garanteProjetos().then(()=>{ if(estado.vista==='analytics') renderAnalytics(); }).catch(()=>{});
+  if(!an.dados && !an.carregando && !an.erro) carregaAnalytics(false);
+  if(an.erro){ cont.replaceChildren(el(`<div class="erro"><strong>Falha ao carregar o Analytics.</strong> ${esc(an.erro)}
+    <button class="btn" id="anl-retry" style="margin-left:10px">Tentar de novo</button></div>`)); return; }
+  if(!an.dados){ cont.replaceChildren(el('<div class="estado">📈 Coletando a base (abertos, concluídos e reabertos)…</div>')); return; }
+
+  const d=an.dados; const res=anlResultados();
+  const projetos=[...new Set((d.abertos||[]).concat(d.concluidos||[]).map(t=>t.p))].sort();
+  const resps=[...new Map((d.abertos||[]).concat(d.concluidos||[]).filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()]
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const autoHeur=res.filter(r=>r.n!==null);
+  const problemas=autoHeur.reduce((s,r)=>s+r.n,0);
+  const altas=autoHeur.filter(r=>r.ch.sev==='alta').reduce((s,r)=>s+r.n,0);
+  const ok=autoHeur.filter(r=>r.n===0).length;
+  const manuais=res.filter(r=>r.n===null).length;
+  const quando=d.meta&&d.meta.geradoEm?new Date(d.meta.geradoEm):null;
+  const trunc=d.meta&&d.meta.truncado&&(d.meta.truncado.abertos||d.meta.truncado.concluidos);
+
+  const filtros=`<div class="ap-filtros">
+    <div class="campo"><label>Projeto</label><select id="anl-fproj"><option value="">todos</option>${projetos.map(p=>`<option value="${escA(p)}" ${an.fProj===p?'selected':''}>${esc(p)}</option>`).join('')}</select></div>
+    <div class="campo"><label>Responsável</label><select id="anl-fresp"><option value="">todos</option>${resps.map(([id2,n])=>`<option value="${escA(id2)}" ${an.fResp===id2?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="campo"><label>X (dias sem atividade)</label><input type="number" id="anl-x" min="1" max="60" value="${escA(String(an.x))}" style="width:90px"></div>
+    <div class="campo"><label>Concluídos (período)</label><select id="anl-dias">${[15,30,60,90].map(v=>`<option value="${v}" ${an.dias===v?'selected':''}>últimos ${v} dias</option>`).join('')}</select></div>
+    <div class="campo"><label>&nbsp;</label><button class="btn" id="anl-refresh" data-tip="Recarrega a base ignorando o cache do servidor">↻ Atualizar</button></div>
+    <div class="campo" style="justify-content:end"><label>&nbsp;</label><span class="muted small">🕓 base de ${quando?esc(quando.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})):'—'} · ${(d.abertos||[]).length} abertos · ${(d.concluidos||[]).length} concluídos</span></div>
+  </div>${trunc?'<div class="aviso" style="margin:0 0 10px">⚠ Base truncada (muitos tickets) — os números são um piso, não o total.</div>':''}`;
+
+  const kpis=`<div class="kpis ts-kpis">
+    <div class="kpi ${altas?'w':'a'}"><div class="v">${altas}</div><div class="l">🔴 Apontamentos severidade alta</div></div>
+    <div class="kpi ${problemas?'w':'a'}"><div class="v">${problemas}</div><div class="l">∑ Apontamentos (auto + heurística)</div></div>
+    <div class="kpi a"><div class="v">${ok}/${autoHeur.length}</div><div class="l">✅ Visões sem ocorrência</div></div>
+    <div class="kpi t"><div class="v">${manuais}</div><div class="l">📋 Visões manuais (guia)</div></div>
+  </div>`;
+
+  // ---- Drill-down de uma visão ----
+  const sel=res.find(r=>r.ch.id===an.sel);
+  if(sel && sel.itens===null){
+    // Visão manual (ou automática indisponível): vira um GUIA com atalho.
+    const { ch }=sel;
+    cont.replaceChildren(el(`<div>
+      <div class="card full">
+        <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
+          ${ch.n}. ${esc(ch.tit)} <span>${esc(ch.des)}</span></h2>
+        <div class="ap-vis" style="margin:0 0 10px"><span class="anl-badge anl-manual">checagem manual</span></div>
+        <div class="estado" style="text-align:left">${esc(ch.nota||'Esta visão exige julgamento humano com os dados atuais.')}
+          ${ch.goto?`<div style="margin-top:12px"><button class="btn primario" data-anl-goto="${escA(ch.goto)}">Abrir a tela indicada →</button></div>`:''}</div>
+      </div></div>`));
+    return;
+  }
+  if(sel){
+    const { ch }=sel; let itens=sel.itens||[];
+    if(an.busca){ const q=an.busca.toLowerCase();
+      itens=itens.filter(t=>(t.k+' '+t.resumo+' '+(t.resp||'')+' '+(t.status||'')).toLowerCase().includes(q)); }
+    const rows=itens.slice(0,400).map(t=>`<tr>
+      <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
+      <td class="rc-resumo" title="${escA(t.resumo||'')}">${esc(t.resumo||'—')}</td>
+      <td><span class="badge">${esc(t.p||'—')}</span></td>
+      <td>${t.t?`<span class="badge">${esc(t.t)}</span>`:'—'}</td>
+      <td>${t.status?`<span class="badge">${esc(t.status)}</span>`:'—'}</td>
+      <td>${esc(t.resp||'—')}</td>
+      <td>${esc(t.m||'—')}</td></tr>`).join('');
+    cont.replaceChildren(el(`<div>
+      <div class="card full">
+        <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
+          ${ch.n}. ${esc(ch.tit)} <span>${sel.n} ocorrência(s) · ${esc(ch.des)}</span></h2>
+        <div class="ap-vis" style="margin:0 0 10px">
+          <span class="anl-badge anl-${ch.modo}">${ch.modo==='auto'?'automática':ch.modo==='heur'?'heurística':'manual'}</span>
+          ${ch.notaExtra?`<span class="muted small">${esc(ch.notaExtra)}</span>`:''}
+          <span class="spacer"></span>
+          <input type="search" id="anl-busca" placeholder="filtrar por código, resumo, pessoa…" value="${escA(an.busca)}" style="min-width:240px">
+          <button class="btn" id="anl-csv" ${itens.length?'':'disabled'}>⬇ CSV</button>
+        </div>
+        ${itens.length?`<div class="ts-wrap"><table class="rc-tab"><thead><tr>
+          <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>${esc(ch.col||'Métrica')}</th>
+        </tr></thead><tbody>${rows}</tbody></table></div>
+        ${itens.length>400?`<div class="muted small" style="margin-top:6px">Mostrando 400 de ${itens.length} — use os filtros ou exporte o CSV.</div>`:''}`
+        :'<div class="alx-vazio">✓ Nenhuma ocorrência com os filtros atuais.</div>'}
+      </div></div>`));
+    return;
+  }
+
+  // ---- Grade de cards por grupo ----
+  const cardDe=(r)=>{
+    const { ch, n }=r;
+    const cls=n===null?'manual':(n===0?'ok':ch.sev);
+    const cnt=n===null?'—':n;
+    return `<button class="anl-card ${cls}" data-anl-card="${escA(ch.id)}">
+      <div class="anl-top"><span class="anl-num">${ch.n}</span><span class="anl-tit">${esc(ch.tit)}</span>
+        <span class="spacer"></span><span class="anl-cnt">${cnt}</span></div>
+      <div class="anl-des">${esc(ch.des)}</div>
+      <div class="anl-foot"><span class="anl-badge anl-${ch.modo}">${ch.modo==='auto'?'automática':ch.modo==='heur'?'heurística':'manual'}</span>
+        ${n===null?'<span class="muted small">guia →</span>':(n>0?'<span class="muted small">ver lista →</span>':'<span class="muted small">✓ sem ocorrência</span>')}</div>
+    </button>`;
+  };
+  const grupos=ANL_GRUPOS.map(([gid,gnome])=>{
+    const rs=res.filter(r=>r.ch.g===gid);
+    const tot=rs.filter(r=>r.n!==null).reduce((s,r)=>s+r.n,0);
+    return `<div class="anl-grupo"><h3>${esc(gnome)} <span class="muted small">${tot} apontamento(s)</span></h3>
+      <div class="anl-grid">${rs.map(cardDe).join('')}</div></div>`;
+  }).join('');
+
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>📈 Analytics de Governança <span>26 visões de saúde do Jira — clique num card para o detalhe (lista + CSV)</span></h2>
+      ${filtros}
+      ${kpis}
+      ${grupos}
+    </div></div>`));
+}
 // ============== GESTÃO DE TICKETS (Operação): seleção múltipla + ações em massa ==============
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
@@ -8569,7 +8893,11 @@ function carregaReuVinc(forca){
     }).catch(e=>{ rv.carregando=false; rv.erro=String(e.message||e); if(estado.vista==='reuvinc') renderReuVinc(); });
 }
 let _rv=null;   // estado do assistente (só enquanto o modal está aberto)
-function rvProjetosAMS(){ const ps=_projetosCache||[]; const ams=ps.filter(p=>ehCategoriaAMS(p.categoria)); return ams.length?ams:ps; }
+// SEM restrição de destino: qualquer projeto serve nos dois fluxos. No fluxo de
+// reunião os AMS vêm primeiro (e são o padrão), por ser o caso mais comum.
+function rvProjetosAMS(){ const ps=_projetosCache||[];
+  const ams=ps.filter(p=>ehCategoriaAMS(p.categoria));
+  return [...ams, ...ps.filter(p=>!ehCategoriaAMS(p.categoria))]; }
 function rvTipoPadrao(p){ const ts=((p&&p.tipos)||[]).filter(t=>!t.subtarefa && t.nivel===0);
   const ap=ts.find(t=>/apoio|funcional|suporte/i.test(t.nome))||ts.find(t=>/task|tarefa/i.test(t.nome)); return String((ap||ts[0]||{}).id||''); }
 function abreRvWizard(key, generico){
@@ -8605,7 +8933,7 @@ function renderRvModal(){
   const rv=_rv; if(!rv) return;
   const G=!!rv.generico;                                   // transferência de ticket (Gestão)
   const ORIG=G?'o ticket':'a reunião';
-  const TIT=G?'Transferir ticket para outro':'Vincular reunião a ticket de AMS';
+  const TIT=G?'Transferir ticket para outro':'Vincular reunião a um ticket';
   if(rv.resultado){ const r=rv.resultado; const url=`${jiraBase()}/browse/${encodeURIComponent(r.destino)}`;
     abreModal(`<h2>${G?'Ticket transferido':'Reunião vinculada'}</h2>
       <div class="pl-res-ok">✓ ${r.modo==='criar'?'Ticket criado:':'Comentário registrado em'} <a href="${url}" target="_blank" rel="noopener">${esc(r.destino)} ↗</a></div>
@@ -8625,12 +8953,12 @@ function renderRvModal(){
   const met=`<div class="rv-met"><span class="k">${esc(m.k)}</span> — ${esc(m.resumo)}
     <div class="muted small" style="margin-top:2px">criad${G?'o':'a'} em ${esc(fmtBR(m.criado))}${m.relator?` · por ${esc(m.relator)}`:''} · status ${esc(m.status)}</div>${horasBox}${descBox}</div>`;
   const modoBtns=`<div class="rv-modo">
-    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto de AMS'}</span></button>
+    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto escolhido'}</span></button>
     <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra ${G?'os detalhes':'a reunião'} nos comentários de um ticket aberto</span></button></div>`;
   const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
   const horasCampos=`<div class="campo"><label>Duração (horas)</label><input type="number" id="rv-horas" value="${rv.horas}" min="0" step="0.5"></div>
       <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="rv-worklog" ${rv.worklog?'checked':''}> registrar como <strong>meu apontamento</strong> no destino</label></div>`;
-  const rotProj=G?'Projeto destino':'Projeto AMS';
+  const rotProj=G?'Projeto destino':'Projeto destino (AMS primeiro)';
   let form='';
   if(rv.modo==='criar'){
     const tipos=((pSel&&pSel.tipos)||[]).filter(t=>!t.subtarefa&&t.nivel===0);
@@ -9679,7 +10007,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','apontar','meudia','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -9803,7 +10131,7 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusHdr()
 document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.closest('#seg-vista'))) fechaMenusNav(); });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 
@@ -9812,7 +10140,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -10089,6 +10417,33 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='ax-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
   else if(t.id==='ax-mes-retry'){ estado.acoes.mesErro=''; estado.acoes.mes=null; renderAcoes(); }
+});
+// ---- 📈 Analytics: cards, drill, filtros e CSV ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const card=e.target.closest&&e.target.closest('[data-anl-card]');
+  if(card){ estado.analytics.sel=card.getAttribute('data-anl-card'); estado.analytics.busca=''; renderAnalytics(); return; }
+  const g=e.target.closest&&e.target.closest('[data-anl-goto]');
+  if(g){ vaiPara(g.getAttribute('data-anl-goto')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const an=estado.analytics;
+  if(t.id==='anl-voltar'){ an.sel=''; an.busca=''; renderAnalytics(); }
+  else if(t.id==='anl-retry'){ an.erro=''; an.dados=null; renderAnalytics(); }
+  else if(t.id==='anl-refresh'){ an.dados=null; carregaAnalytics(true); renderAnalytics(); }
+  else if(t.id==='anl-csv'){ const res=anlResultados().find(r=>r.ch.id===an.sel);
+    if(res&&res.itens){ let itens=res.itens;
+      if(an.busca){ const q=an.busca.toLowerCase();
+        itens=itens.filter(x=>(x.k+' '+x.resumo+' '+(x.resp||'')+' '+(x.status||'')).toLowerCase().includes(q)); }
+      anlExportaCSV({ch:res.ch,itens}); } }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const an=estado.analytics; const t=e.target; if(!t||!t.id) return;
+  if(t.id==='anl-fproj'){ an.fProj=t.value; renderAnalytics(); }
+  else if(t.id==='anl-fresp'){ an.fResp=t.value; renderAnalytics(); }
+  else if(t.id==='anl-x'){ an.x=Math.max(1,Math.min(60,Number(t.value)||5)); renderAnalytics(); }
+  else if(t.id==='anl-dias'){ an.dias=Number(t.value)||30; an.dados=null; carregaAnalytics(false); renderAnalytics(); }
+});
+document.getElementById('conteudo').addEventListener('input',(e)=>{
+  if(e.target&&e.target.id==='anl-busca'){ buscaComposta(e,(v)=>{ estado.analytics.busca=v; },renderAnalytics,'anl-busca'); }
 });
 // ---- Gestão de Tickets: filtros, seleção e ações em massa ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
