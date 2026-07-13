@@ -3281,7 +3281,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
 });
 
 // ================== 📍 Meu dia (timetracking assistido por IA) ==================
-// A ponte (scripts/meudia-activitywatch.mjs) envia os blocos de atividade do Mac;
+// A ponte (public/meudia-activitywatch.mjs, baixável do próprio site) envia os blocos de atividade do Mac;
 // aqui a IA sugere, para cada período, ONDE apontar (ticket recente) ou ONDE criar
 // o ticket (caminho da árvore) — com botões de 1 clique.
 async function mdContexto(){
@@ -3334,6 +3334,9 @@ async function mdAponta(i, btn){
     else { toast(humanizaErro(j.erro||'Falha ao apontar.'),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
   }catch(e){ toast('Erro de rede: '+(e.message||e),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
 }
+// A ponte é servida pelo próprio painel (public/meudia-activitywatch.mjs); em
+// ambiente local (file://) as instruções apontam para a URL de produção.
+function mdPainelBase(){ return /^https?:/.test(location.origin)?location.origin:'https://jirainsight.vercel.app'; }
 function renderMeuDia(){
   const cont=document.getElementById('conteudo');
   const md=estado.meudia; const id=idApontar();
@@ -3341,9 +3344,10 @@ function renderMeuDia(){
       <summary>🔌 Como conectar o seu Mac (uma vez)</summary>
       <ol class="md-setup">
         <li>Instale o <a href="https://activitywatch.net" target="_blank" rel="noopener">ActivityWatch ↗</a> (gratuito, open source — registra app e janela em uso, <strong>100% local</strong>).</li>
-        <li>Baixe a ponte: <a href="https://github.com/dfg-dexterity/jirainsight/blob/main/scripts/meudia-activitywatch.mjs" target="_blank" rel="noopener">scripts/meudia-activitywatch.mjs ↗</a></li>
+        <li>Baixe a ponte (uma linha no Terminal — salva na sua pasta pessoal):<br>
+          <code>curl -fsSL -o ~/meudia-activitywatch.mjs ${escA(mdPainelBase())}/meudia-activitywatch.mjs</code></li>
         <li>No fim do dia, rode no Terminal (usa o MESMO e-mail + token do painel):<br>
-          <code>JIRA_EMAIL=${esc((id&&id.email)||'voce@dexterity.com.br')} JIRA_TOKEN=seu-token node meudia-activitywatch.mjs --enviar</code></li>
+          <code>JIRA_EMAIL=${esc((id&&id.email)||'voce@dexterity.com.br')} JIRA_TOKEN=seu-token node ~/meudia-activitywatch.mjs --enviar</code></li>
         <li>Volte aqui e clique em <strong>🤖 Analisar meu dia</strong>. <span class="muted">Sem <code>--enviar</code> o script só mostra a prévia; só saem o app e o título da janela de blocos com 5+ min.</span></li>
       </ol>
     </details>`;
