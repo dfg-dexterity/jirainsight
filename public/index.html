@@ -1587,7 +1587,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
-  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false },
+  gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
+    soKeys:null, origem:'' },   // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
   // Qualidade dos tickets (IA × boas práticas TI-04-006 do Notion)
   qualidade:{ dias:14, projeto:'', dados:null, carregando:false, erro:'' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
@@ -8314,7 +8315,8 @@ function renderAnalytics(){
       <td>${t.t?`<span class="badge">${esc(t.t)}</span>`:'—'}</td>
       <td>${t.status?`<span class="badge">${esc(t.status)}</span>`:'—'}</td>
       <td>${esc(t.resp||'—')}</td>
-      <td>${esc(t.m||'—')}</td></tr>`).join('');
+      <td>${esc(t.m||'—')}</td>
+      <td><span class="gx-acts"><button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button></span></td></tr>`).join('');
     cont.replaceChildren(el(`<div>
       <div class="card full">
         <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
@@ -8324,10 +8326,11 @@ function renderAnalytics(){
           ${ch.notaExtra?`<span class="muted small">${esc(ch.notaExtra)}</span>`:''}
           <span class="spacer"></span>
           <input type="search" id="anl-busca" placeholder="filtrar por código, resumo, pessoa…" value="${escA(an.busca)}" style="min-width:240px">
+          <button class="btn" id="anl-gestao" ${itens.length?'':'disabled'} data-tip="Abre a Gestão de Tickets só com estes itens, já selecionados — todas as ações em massa (atribuir, status, comentar, reprogramar, excluir…) e por linha">🛠 Abrir na Gestão</button>
           <button class="btn" id="anl-csv" ${itens.length?'':'disabled'}>⬇ CSV</button>
         </div>
         ${itens.length?`<div class="ts-wrap"><table class="rc-tab"><thead><tr>
-          <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>${esc(ch.col||'Métrica')}</th>
+          <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>${esc(ch.col||'Métrica')}</th><th>Ações</th>
         </tr></thead><tbody>${rows}</tbody></table></div>
         ${itens.length>400?`<div class="muted small" style="margin-top:6px">Mostrando 400 de ${itens.length} — use os filtros ou exporte o CSV.</div>`:''}`
         :'<div class="alx-vazio">✓ Nenhuma ocorrência com os filtros atuais.</div>'}
@@ -8395,6 +8398,7 @@ const GX_PRESETS=[['atrasados','Atrasados'],['hoje','Vencem hoje'],['sematu','Se
   ['semresp','Sem responsável'],['semvenc','Sem vencimento'],['cliente','Aguardando cliente'],['risco','Risco alto/crítico']];
 function gxLista(){
   const g=estado.gestao; const hoje=hojeSP(); let l=((g.dados&&g.dados.tickets)||[]).slice();
+  if(Array.isArray(g.soKeys)&&g.soKeys.length){ const ks=new Set(g.soKeys); l=l.filter(t=>ks.has(t.k)); }
   if(g.fProj) l=l.filter(t=>t.p===g.fProj);
   if(g.fResp==='__sem__') l=l.filter(t=>!t.respId); else if(g.fResp) l=l.filter(t=>t.respId===g.fResp);
   if(g.fStatus) l=l.filter(t=>t.status===g.fStatus);
@@ -8573,6 +8577,60 @@ async function gxExcluiLote(){
     fb.innerHTML=`${ok?`✓ ${ok} ticket(s) excluído(s) do Jira.`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.classList.remove('perigo'); bt.id='gx-fechar'; }
   const bc=document.getElementById('gx-del-cancelar'); if(bc) bc.hidden=true;
+}
+// ---- Apontar horas em 1 ticket (modal) — usado pela Gestão e pelo drill do Analytics ----
+let _gxApont=null;
+function gxTicketInfo(k){
+  return alxTickets().find(x=>x.k===k)
+    || (((estado.analytics.dados||{}).abertos)||[]).find(x=>x.k===k)
+    || (((estado.analytics.dados||{}).concluidos)||[]).find(x=>x.k===k)
+    || { k };
+}
+function abreModalApontarGx(k){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const t=gxTicketInfo(k);
+  _gxApont={ k };
+  abreModal(`
+    <h2>⏱ Apontar horas · ${esc(k)}</h2>
+    <div class="muted small">${esc((t.resumo||'').slice(0,110))||'—'}${t.p?` · ${esc(t.p)}`:''}${t.status?` · ${esc(t.status)}`:''}</div>
+    <div class="rv-form" style="margin-top:10px">
+      <div class="campo"><label>Tempo <span class="req">*</span></label><input type="text" id="gx-ap-tempo" placeholder="ex.: 1h30, 45m, 2:15" autocomplete="off"></div>
+      <div class="campo"><label>Dia</label><input type="date" id="gx-ap-dia" value="${escA(hojeSP())}"></div>
+      <div class="campo full"><label>Comentário do worklog <span class="muted small">(opcional)</span></label>
+        <input type="text" id="gx-ap-coment" placeholder="o que foi feito…" maxlength="500"></div>
+    </div>
+    <div class="muted small" style="margin-top:6px">O apontamento sai no <strong>seu usuário</strong> (${esc(id.nome||id.email)}), como na aba Apontar.</div>
+    <div class="ap-fb" id="gx-ap-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="gx-ap-confirmar">Apontar</button>
+      <button class="btn" id="gx-ap-cancelar">Cancelar</button></div>`);
+  setTimeout(()=>{ const i=document.getElementById('gx-ap-tempo'); if(i) i.focus(); },50);
+}
+async function gxApontaConfirma(){
+  const ctx=_gxApont; const id=idApontar(); if(!ctx||!id) return;
+  const fb=document.getElementById('gx-ap-fb');
+  const seg=parseTempo((document.getElementById('gx-ap-tempo')||{}).value);
+  const dia=((document.getElementById('gx-ap-dia')||{}).value||'').trim()||hojeSP();
+  const coment=((document.getElementById('gx-ap-coment')||{}).value||'').trim();
+  if(!seg||seg<=0){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Tempo inválido — use 1h30, 45m ou 2:15.'; } return; }
+  const bt=document.getElementById('gx-ap-confirmar'); if(bt) bt.disabled=true;
+  if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Registrando o apontamento…'; }
+  try{
+    const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({issue:ctx.k, segundos:seg, inicio:dia, comentario:coment, email:id.email, token:id.token})}).then(r=>r.json());
+    if(!j.ok){ if(fb){ fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao apontar.'); } if(bt) bt.disabled=false; return; }
+    // Reflete localmente nas telas que mostram horas do ticket.
+    const soma=(t)=>{ if(t&&t.k===ctx.k) t.seg=(Number(t.seg)||0)+seg; };
+    (((estado.gestao.dados||{}).tickets)||[]).forEach(soma);
+    (((estado.alertas.dados||{}).tickets)||[]).forEach(soma);
+    (((estado.analytics.dados||{}).abertos)||[]).forEach(soma);
+    (((estado.analytics.dados||{}).concluidos)||[]).forEach(soma);
+    logAcao({acao:'apontar', t:ctx.k, para:fmtH(seg), ok:true});
+    estado.cache={}; estado.apontar.porData={}; estado.apontar.recentes=null;
+    _gxApont=null; fechaModal();
+    toast(`✓ ${fmtH(seg)} apontadas em ${ctx.k}.`,'ok');
+    if(estado.vista==='gestao') renderGestao(); else if(estado.vista==='analytics') renderAnalytics();
+  }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } if(bt) bt.disabled=false; }
 }
 // Exporta a seleção (ou, sem seleção, a lista filtrada) da Gestão em CSV.
 function gxExportaCSV(){
@@ -8757,6 +8815,7 @@ function renderGestao(){
     <button data-gx-r="${escA(t.k)}|PROX" title="Reprogramar para a próxima segunda">próx. sem</button>
     <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
+    <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
   // ---- Tabela (densa; padrão) ----
   const htmlTabela=()=>{
@@ -8837,6 +8896,16 @@ function renderGestao(){
     }).join('')}</div>
     <div class="muted small" style="margin-top:8px">Clique no cartão para <b>selecionar</b>; o código abre o ticket no Jira.</div>`;
   };
+  // Filtro por chaves vindo do 📈 Analytics: mostra a origem, o que ficou de fora, e permite limpar.
+  let chipAnalytics='';
+  if(Array.isArray(g.soKeys)&&g.soKeys.length){
+    const aqui=new Set(todos.map(t=>t.k));
+    const faltam=g.soKeys.filter(k=>!aqui.has(k)).length;
+    chipAnalytics=`<div class="aviso" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      📈 Mostrando só os tickets da visão <strong>${esc(g.origem||'do Analytics')}</strong> (${g.soKeys.length-faltam} de ${g.soKeys.length} aqui)
+      ${faltam?`<span class="muted small">— ${faltam} não aparecem nesta tela (concluídos ou fora da janela de vencimento)</span>`:''}
+      <span class="spacer"></span><button class="chip" data-gx-solimpar="1">✕ limpar filtro do Analytics</button></div>`;
+  }
   const vis=['lista','tabela','quadro'].includes(g.vis)?g.vis:'tabela';
   const viewToggle=`<div class="ap-vis" style="margin:0 0 6px"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${vis==='lista'}" data-gx-vis="lista">▤ Lista</button>
@@ -8874,6 +8943,7 @@ function renderGestao(){
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-dup" title="Lista os tickets abertos que têm o mesmo resumo e o mesmo vencimento">🧬 Verificar duplicados</button></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-epicos" title="Tickets abertos que não estão vinculados a nenhum épico, agrupados por projeto, para vincular ao épico certo">🧩 Ajustar épicos</button></div>
       </div>
+      ${chipAnalytics}
       ${viewToggle}
       ${presets}
       ${corpo}
@@ -10434,6 +10504,15 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
       if(an.busca){ const q=an.busca.toLowerCase();
         itens=itens.filter(x=>(x.k+' '+x.resumo+' '+(x.resp||'')+' '+(x.status||'')).toLowerCase().includes(q)); }
       anlExportaCSV({ch:res.ch,itens}); } }
+  else if(t.id==='anl-gestao'){ const res=anlResultados().find(r=>r.ch.id===an.sel);
+    if(res&&res.itens&&res.itens.length){ let itens=res.itens;
+      if(an.busca){ const q=an.busca.toLowerCase();
+        itens=itens.filter(x=>(x.k+' '+x.resumo+' '+(x.resp||'')+' '+(x.status||'')).toLowerCase().includes(q)); }
+      const g=estado.gestao;
+      g.soKeys=itens.map(x=>x.k); g.origem=`${res.ch.n}. ${res.ch.tit}`;
+      g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+      g.sel={}; g.soKeys.forEach(k=>{ g.sel[k]=true; });
+      vaiPara('gestao'); } }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   const an=estado.analytics; const t=e.target; if(!t||!t.id) return;
@@ -10468,6 +10547,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     abreModalReprog([k], acao==='DATA'?'HOJE':acao); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
   if(t.id==='gx-tratar'){ const ks=gxSelKeys(); if(!ks.length) return;
     cfg.tratados=cfg.tratados||{}; const quem=(idApontar()||{}).nome||'';
     const desmarca=ks.every(k=>cfg.tratados[k]);
@@ -10509,6 +10590,8 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
     t.getAttribute('data-gx-dup-sel').split(',').forEach(k=>{ if(k) g.sel[k]=true; });
     fechaModal(); renderGestao(); toast('Grupo selecionado — use as ações em massa para tratar.','ok'); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-ep-apl')){ gxAplicaEpico(t.getAttribute('data-gx-ep-apl')); }
+  else if(t.id==='gx-ap-confirmar'){ gxApontaConfirma(); }
+  else if(t.id==='gx-ap-cancelar'){ _gxApont=null; fechaModal(); }
   else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
 });
 document.getElementById('modal-body').addEventListener('input',(e)=>{
