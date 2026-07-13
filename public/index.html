@@ -8569,7 +8569,11 @@ function carregaReuVinc(forca){
     }).catch(e=>{ rv.carregando=false; rv.erro=String(e.message||e); if(estado.vista==='reuvinc') renderReuVinc(); });
 }
 let _rv=null;   // estado do assistente (só enquanto o modal está aberto)
-function rvProjetosAMS(){ const ps=_projetosCache||[]; const ams=ps.filter(p=>ehCategoriaAMS(p.categoria)); return ams.length?ams:ps; }
+// SEM restrição de destino: qualquer projeto serve nos dois fluxos. No fluxo de
+// reunião os AMS vêm primeiro (e são o padrão), por ser o caso mais comum.
+function rvProjetosAMS(){ const ps=_projetosCache||[];
+  const ams=ps.filter(p=>ehCategoriaAMS(p.categoria));
+  return [...ams, ...ps.filter(p=>!ehCategoriaAMS(p.categoria))]; }
 function rvTipoPadrao(p){ const ts=((p&&p.tipos)||[]).filter(t=>!t.subtarefa && t.nivel===0);
   const ap=ts.find(t=>/apoio|funcional|suporte/i.test(t.nome))||ts.find(t=>/task|tarefa/i.test(t.nome)); return String((ap||ts[0]||{}).id||''); }
 function abreRvWizard(key, generico){
@@ -8605,7 +8609,7 @@ function renderRvModal(){
   const rv=_rv; if(!rv) return;
   const G=!!rv.generico;                                   // transferência de ticket (Gestão)
   const ORIG=G?'o ticket':'a reunião';
-  const TIT=G?'Transferir ticket para outro':'Vincular reunião a ticket de AMS';
+  const TIT=G?'Transferir ticket para outro':'Vincular reunião a um ticket';
   if(rv.resultado){ const r=rv.resultado; const url=`${jiraBase()}/browse/${encodeURIComponent(r.destino)}`;
     abreModal(`<h2>${G?'Ticket transferido':'Reunião vinculada'}</h2>
       <div class="pl-res-ok">✓ ${r.modo==='criar'?'Ticket criado:':'Comentário registrado em'} <a href="${url}" target="_blank" rel="noopener">${esc(r.destino)} ↗</a></div>
@@ -8625,12 +8629,12 @@ function renderRvModal(){
   const met=`<div class="rv-met"><span class="k">${esc(m.k)}</span> — ${esc(m.resumo)}
     <div class="muted small" style="margin-top:2px">criad${G?'o':'a'} em ${esc(fmtBR(m.criado))}${m.relator?` · por ${esc(m.relator)}`:''} · status ${esc(m.status)}</div>${horasBox}${descBox}</div>`;
   const modoBtns=`<div class="rv-modo">
-    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto de AMS'}</span></button>
+    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto escolhido'}</span></button>
     <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra ${G?'os detalhes':'a reunião'} nos comentários de um ticket aberto</span></button></div>`;
   const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
   const horasCampos=`<div class="campo"><label>Duração (horas)</label><input type="number" id="rv-horas" value="${rv.horas}" min="0" step="0.5"></div>
       <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="rv-worklog" ${rv.worklog?'checked':''}> registrar como <strong>meu apontamento</strong> no destino</label></div>`;
-  const rotProj=G?'Projeto destino':'Projeto AMS';
+  const rotProj=G?'Projeto destino':'Projeto destino (AMS primeiro)';
   let form='';
   if(rv.modo==='criar'){
     const tipos=((pSel&&pSel.tipos)||[]).filter(t=>!t.subtarefa&&t.nivel===0);
