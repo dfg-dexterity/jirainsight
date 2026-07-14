@@ -2934,6 +2934,47 @@ function abreFolga(a, email, nome, extraTotH, extraSemH){
     </div>`);
   folgaToggle();
 }
+// Ausência a partir da árvore "Onde crio?": pedido no Odoo em nome da própria
+// pessoa (identificação do painel), com o TIPO escolhido (compensação, atestado,
+// férias remuneradas/não remuneradas). Reusa os campos/handlers do modal de folga.
+const AUS_TIPOS={
+  compensacao:{ rot:'Compensação de horas', ic:'🌴', modo:'meio', nota:'Compensa horas extras já trabalhadas — o padrão é meio período ou horas específicas.' },
+  atestado:{ rot:'Atestado médico', ic:'🩺', modo:'dia', nota:'Depois de enviar, anexe o atestado no próprio pedido dentro do Odoo (o RH valida por lá).' },
+  ferias:{ rot:'Férias remuneradas', ic:'🏖', modo:'dia', nota:'Informe o período completo (de/até). O pedido segue para aprovação do gestor no Odoo.' },
+  ferias_nr:{ rot:'Férias não remuneradas', ic:'🏝', modo:'dia', nota:'Licença sem remuneração — informe o período completo; aprovação do gestor no Odoo.' },
+};
+function abreAusencia(tipo){
+  const t=AUS_TIPOS[tipo]; if(!t) return;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const hoje=hojeSP();
+  abreModal(`
+    <h2>${t.ic} ${esc(t.rot)} — ${esc(id.nome||id.email)}</h2>
+    <div class="muted small" style="margin-bottom:12px">O pedido é criado no <strong>Odoo</strong> (Time Off) em seu nome
+      <span class="muted">(${esc(id.email)})</span> e segue o fluxo de aprovação de lá. ${esc(t.nota)}</div>
+    <div class="mt-form">
+      <div class="campo"><label>Data ${t.modo==='dia'?'inicial':''}</label><input type="date" id="folga-data" value="${escA(hoje)}"></div>
+      <div class="campo"><label>Quantidade</label>
+        <select id="folga-modo">
+          <option value="meio" ${t.modo==='meio'?'selected':''}>Meio período</option>
+          <option value="dia" ${t.modo==='dia'?'selected':''}>Dia(s) inteiro(s)</option>
+          <option value="horas">Horas específicas</option>
+        </select></div>
+      <div class="campo" id="folga-wrap-periodo"><label>Período</label>
+        <select id="folga-periodo"><option value="am">Manhã</option><option value="pm">Tarde</option></select></div>
+      <div class="campo" id="folga-wrap-horas" hidden><label>Nº de horas</label>
+        <input type="number" id="folga-horas" min="0.5" max="8" step="0.5" value="2"></div>
+      <div class="campo" id="folga-wrap-ate" hidden><label>Até (opcional)</label>
+        <input type="date" id="folga-ate" value="${escA(hoje)}"></div>
+      <div class="campo" style="flex:1 1 100%"><label>Motivo <span class="muted">(opcional)</span></label>
+        <input type="text" id="folga-motivo" placeholder="${escA(t.rot)}" maxlength="120" style="width:100%;box-sizing:border-box"></div>
+    </div>
+    <div id="folga-fb" class="ap-fb" hidden style="margin-top:10px"></div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn primario" id="folga-enviar" data-folga-email="${escA(id.email)}" data-folga-nome="${escA(id.nome||'')}" data-folga-tipo="${escA(tipo)}">Enviar pedido ao Odoo</button>
+      <button class="btn" id="folga-cancelar">Cancelar</button>
+    </div>`);
+  folgaToggle();
+}
 // Mostra só os campos relevantes ao tipo de quantidade escolhido.
 function folgaToggle(){
   const sel=document.getElementById('folga-modo'); if(!sel) return;
@@ -2953,6 +2994,7 @@ async function enviaFolga(){
   if(!data){ mostra('err','Escolha a data da folga.'); return; }
   const body={ email:btn.getAttribute('data-folga-email')||'', nome:btn.getAttribute('data-folga-nome')||'',
     data, modo, motivo:get('folga-motivo') };
+  const tipoAus=btn.getAttribute('data-folga-tipo'); if(tipoAus) body.tipoAusencia=tipoAus;
   if(modo==='meio') body.periodo=get('folga-periodo')||'am';
   else if(modo==='horas') body.horas=Math.max(0.5, Number(get('folga-horas'))||1);
   else if(modo==='dia'){ const ate=get('folga-ate'); if(ate && ate>data) body.dataFim=ate; }
@@ -5138,7 +5180,30 @@ function renderPlanejar(){
 const ARV_NOS={
   start:{ q:'A atividade pertence claramente a um cliente, contrato ou iniciativa já existente?',
     helper:'Se já existe um projeto, contrato ou frente formal, o ticket deve nascer lá.',
-    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal'}, {label:'Não', next:'adminOuAvulsa', tone:'grafite'} ] },
+    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal'}, {label:'Não', next:'adminOuAvulsa', tone:'grafite'},
+      {label:'Estou em dúvida', next:'duvida_apoio', tone:'orange', desc:'Sem certeza de onde encaixar? Responda mais 2–3 perguntas rápidas.'} ] },
+  duvida_apoio:{ q:'Sua tarefa é de apoio ou acompanhamento com alguma pessoa?',
+    helper:'Se você está apoiando ou acompanhando alguém que atua num cliente, contrato ou iniciativa, o registro segue o mesmo caminho dessa frente.',
+    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal', desc:'Apoio/acompanhamento de alguém numa frente existente — o ticket nasce no contexto dessa frente.'},
+      {label:'Não', next:'duvida_estudo', tone:'grafite'} ] },
+  duvida_estudo:{ q:'Você está estudando ou se capacitando?',
+    helper:'Estudos, treinamentos e certificações têm caminho próprio.',
+    op:[ {label:'Sim', next:'duvida_doc', tone:'purple', desc:'Cursos, certificações, estudo de ferramenta/tecnologia.'},
+      {label:'Não', next:'adminOuAvulsa', tone:'grafite', desc:'Sem frente, sem apoio a alguém e sem estudo — trate como demanda administrativa/avulsa.'} ] },
+  duvida_doc:{ q:'Você está gerando algum manual ou documentação que será reaproveitado por outras pessoas?',
+    helper:'Conteúdo reutilizável (manuais, guias, materiais de treinamento) vira um ativo da Dexterity University.',
+    op:[ {label:'Sim, vou gerar material reaproveitável', next:'duvida_du', tone:'teal', desc:'Manual, guia, documentação ou treinamento que outras pessoas vão usar.'},
+      {label:'Não, é estudo individual', next:'dept_pessoas', tone:'grafite', desc:'Capacitação pessoal sem material reutilizável — tarefa avulsa em Pessoas & Cultura.'} ] },
+  duvida_du:{ result:true, tone:'teal', badge:'Dexterity University', title:'Crie a atividade no projeto Dexterity University', cria:true, filtro:'', soProjeto:'DU',
+    text:'Estudo/capacitação que gera manual, documentação ou material reaproveitável por outras pessoas nasce no projeto Dexterity University.',
+    bullets:['O projeto é fixo: DU (Dexterity University).',
+      'Descreva no ticket qual material será produzido e onde ele ficará disponível.',
+      'O material gerado vira ativo da empresa — vincule o link na descrição/comentários.'] },
+  ausencia:{ result:true, tone:'orange', badge:'Ausência', title:'Registrar ausência — pedido no Odoo', cria:false, ausencia:true,
+    text:'Ausências não viram ticket no Jira: o pedido é registrado no Odoo (Time Off) e segue para aprovação. Escolha o tipo:',
+    bullets:['O pedido é criado em SEU nome (use a identificação do painel).',
+      'Depois de aprovado no Odoo, o painel cria automaticamente o ticket de folga no Jira e registra as horas (sincronização diária).',
+      'Para atestado, anexe o documento no próprio pedido dentro do Odoo.'] },
   tipoProjeto:{ q:'Qual é o contexto principal da atividade?', helper:'Escolha a natureza do vínculo da atividade.',
     op:[ {label:'Projeto AMS', next:'ams_parceria', tone:'teal'}, {label:'Projeto SAP', next:'sap_entregavel', tone:'purple'},
       {label:'Projeto Interno', next:'interno', tone:'moss'}, {label:'Nenhum destes', next:'adminOuAvulsa', tone:'grafite'} ] },
@@ -5167,8 +5232,9 @@ const ARV_NOS={
     helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
     op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
   adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
-    helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa.',
-    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'} ] },
+    helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa. Ausências (folga, atestado, férias) não viram ticket — são registradas no Odoo.',
+    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'},
+      {label:'Quero registrar uma AUSÊNCIA', next:'ausencia', tone:'teal', desc:'Compensação de horas, atestado médico ou férias — o pedido vai para o Odoo, não vira ticket.'} ] },
   adm_freq:{ q:'Isso se repete com que frequência?',
     helper:'A frequência da rotina define o tipo do ticket — ele já vem pré-selecionado na tela de criação.',
     op:[ {label:'Diariamente', next:'adm_primeira', tone:'orange', set:{freqAdm:'diária'}, desc:'Rotina executada todo dia útil (ex.: conferências diárias, monitoramentos).'},
@@ -5454,7 +5520,13 @@ function renderOndeCrio(){
         <div class="ap-fb" id="arv-fb" ${a.erro?'':'hidden'}>${esc(a.erro||'')}</div>`;
       }
     } else {
-      form=`<div style="display:flex;gap:10px;margin-top:14px">
+      const aus=no.ausencia?`<div class="arv-ops" style="margin-top:12px">${[
+          ['compensacao','🌴 Compensação de horas','Folga para compensar horas extras já trabalhadas.'],
+          ['atestado','🩺 Atestado médico','Afastamento por atestado — anexe o documento no pedido dentro do Odoo.'],
+          ['ferias','🏖 Férias remuneradas','Período de férias com remuneração (aprovação do gestor no Odoo).'],
+          ['ferias_nr','🏝 Férias não remuneradas','Licença sem remuneração (aprovação do gestor no Odoo).'],
+        ].map(x=>`<button class="arv-op t-orange" data-arv-aus="${x[0]}"><span class="arv-op-l">${x[1]}</span><span class="arv-op-d">${x[2]}</span></button>`).join('')}</div>`:'';
+      form=`${aus}<div style="display:flex;gap:10px;margin-top:14px">
           <button class="btn" data-arv-voltar="1">← Voltar</button>
           <button class="btn primario" data-arv-reiniciar="1">Reiniciar</button></div>`;
     }
@@ -11293,6 +11365,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     a.erro=''; a.feito=null; renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); renderOndeCrio(); }
   else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
+  else if(t.hasAttribute('data-arv-aus')){ abreAusencia(t.getAttribute('data-arv-aus')); }
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
