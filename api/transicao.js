@@ -154,13 +154,17 @@ export default async function handler(req, res) {
       if (!texto) return json(res, 400, { erro: 'Comentário vazio.' });
       if (texto.length > 30000) return json(res, 400, { erro: 'Comentário longo demais.' });
       const corpo = adf(texto);
-      // Menção opcional: marca a pessoa (@) no início do comentário — o Jira notifica.
-      const menId = String(b.mencionar || '').trim();
-      if (menId && /^[\w:-]{5,128}$/.test(menId) && corpo.content) {
-        corpo.content.unshift({ type: 'paragraph', content: [
-          { type: 'mention', attrs: { id: menId } },
-          { type: 'text', text: ' —' },
-        ] });
+      // Menções opcionais: marca uma OU VÁRIAS pessoas (@) no início do comentário —
+      // o Jira notifica cada uma. Aceita string (compat) ou array de accountIds.
+      const menIds = (Array.isArray(b.mencionar) ? b.mencionar : (b.mencionar ? [b.mencionar] : []))
+        .map((x) => String(x || '').trim()).filter((x) => /^[\w:-]{5,128}$/.test(x)).slice(0, 10);
+      if (menIds.length && corpo.content) {
+        const linha = [];
+        menIds.forEach((id, i) => {
+          linha.push({ type: 'mention', attrs: { id } });
+          linha.push({ type: 'text', text: i < menIds.length - 1 ? ' ' : ' —' });
+        });
+        corpo.content.unshift({ type: 'paragraph', content: linha });
       }
       const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/comment`, {
         method: 'POST', headers, body: JSON.stringify({ body: corpo }),

@@ -1058,6 +1058,10 @@
   .mn-quote{margin:8px 0;padding:8px 10px;border-left:3px solid var(--linha);background:rgba(0,112,242,.04);
     border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.45}
   .mn-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .mn-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:26px;align-items:center}
+  .mn-chip{display:inline-flex;gap:4px;align-items:center;padding:3px 8px;border-radius:999px;
+    background:rgba(0,112,242,.1);color:var(--cerceta);font-size:12px;font-weight:600}
+  .mn-chip button{border:0;background:none;color:inherit;cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
   /* 🔍 Ficha do ticket */
   .gx-det-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;margin:10px 0}
   .gx-det-m span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--cinza)}
@@ -8268,6 +8272,28 @@ function renderMencoes(){
         :`<div class="alx-vazio">${todas.length?'Nada com esses filtros.':'✓ Nenhuma menção no período — caixa limpa!'}</div>`}
     </div></div>`));
 }
+// ---- Seletor de pessoas para marcar (@) em comentários — chips + "adicionar" ----
+// Compartilhado pelo Responder (Menções) e pelo Comentar (Gestão/ficha).
+let _mnPick=null;   // Map accountId -> nome
+function mnPickerHtml(pre){
+  _mnPick=new Map();
+  (pre||[]).forEach(p=>{ if(p&&p.id) _mnPick.set(p.id, p.nome||p.id); });
+  return `<div class="campo" style="margin-top:8px"><label>Marcar pessoas (@) <span class="muted small">— o Jira notifica cada uma</span></label>
+    <div id="mn-picker">${mnPickerInner()}</div></div>`;
+}
+function mnPickerInner(){
+  const todos=pessoasUnidas();
+  const opts=Object.entries(todos)
+    .filter(([id,p])=>!_mnPick.has(id)&&p&&p.nome)
+    .sort((a,b)=>(a[1].nome||'').localeCompare(b[1].nome||'','pt'))
+    .map(([id,p])=>`<option value="${escA(id)}">${esc(p.nome)}</option>`).join('');
+  const chips=[..._mnPick.entries()].map(([id,nome])=>
+    `<span class="mn-chip">@${esc(nome)} <button type="button" data-mn-chip-del="${escA(id)}" title="Remover">×</button></span>`).join('');
+  return `<div class="mn-chips">${chips||'<span class="muted small">ninguém marcado</span>'}</div>
+    <select id="mn-add-pessoa" style="margin-top:6px"><option value="">+ adicionar pessoa…</option>${opts}</select>`;
+}
+function mnPickerRefresh(){ const w=document.getElementById('mn-picker'); if(w) w.innerHTML=mnPickerInner(); }
+function mnPickerIds(){ return _mnPick?[..._mnPick.keys()]:[]; }
 let _mnResp=null;
 function abreResponderMencao(k){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
@@ -8279,7 +8305,7 @@ function abreResponderMencao(k){
       <div class="mn-quote" style="margin-top:6px"><strong>${esc(x.por)}</strong>: <span class="muted">“${esc(x.texto||'')}”</span></div></div>
     <div class="campo" style="margin-top:10px"><label>Sua resposta <span class="req">*</span></label>
       <textarea class="alx-coment" id="mn-texto" placeholder="Escreva a resposta — será publicada como comentário no seu usuário…"></textarea></div>
-    ${x.porId?`<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:8px;cursor:pointer"><input type="checkbox" id="mn-marcar" checked> marcar <strong>@${esc(x.por)}</strong> de volta (o Jira notifica a pessoa)</label>`:''}
+    ${mnPickerHtml(x.porId?[{id:x.porId,nome:x.por}]:[])}
     <div class="ap-fb" id="mn-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="mn-enviar">Publicar resposta</button>
@@ -8291,12 +8317,12 @@ async function enviaRespostaMencao(){
   const texto=((document.getElementById('mn-texto')||{}).value||'').trim();
   const fb=document.getElementById('mn-fb');
   if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva a resposta.'; } return; }
-  const marcar=(document.getElementById('mn-marcar')||{}).checked;
+  const marcados=mnPickerIds();
   const bt=document.getElementById('mn-enviar'); if(bt) bt.disabled=true;
   if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Publicando a resposta…'; }
   try{
     const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({comentar:true,issue:ctx.k,texto,...(marcar&&ctx.porId?{mencionar:ctx.porId}:{}),email:id.email,token:id.token})}).then(r=>r.json());
+      body:JSON.stringify({comentar:true,issue:ctx.k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(r=>r.json());
     if(!j.ok){ if(fb){ fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao responder.'); } if(bt) bt.disabled=false; return; }
     const x=(((estado.mencoes.dados||{}).mencoes)||[]).find(m=>m.k===ctx.k); if(x) x.respondido=true;
     logAcao({acao:'responder-menção', t:ctx.k, para:x?x.por:'', ok:true});
@@ -8648,6 +8674,7 @@ function abreModalComentarLote(keys, tpl){
       <select class="alx-motivo" id="gx-com-tpl">${GX_TPLS.map(x=>`<option value="${x[0]}" ${tpl===x[0]?'selected':''}>${esc(x[1])}</option>`).join('')}</select></div>
     <div class="alx-campo"><label>Comentário <span class="req">*</span> <span class="muted small">(será publicado em todos)</span></label>
       <textarea class="alx-coment" id="gx-com-texto" placeholder="Escreva o comentário…">${esc((tsel&&tsel[2])||'')}</textarea></div>
+    ${mnPickerHtml([])}
     <div class="alx-fb" id="gx-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="gx-com-confirmar">Publicar em ${keys.length} ticket(s)</button>
@@ -8659,12 +8686,13 @@ async function gxComentaLote(){
   const fb=document.getElementById('gx-fb');
   if(!texto){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escreva o comentário.'; } return; }
   const bt=document.getElementById('gx-com-confirmar'); if(bt) bt.disabled=true;
+  const marcados=mnPickerIds();
   let ok=0; const erros=[];
   for(const k of ctx.keys){
     if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent=`Comentando ${k}… (${ok+erros.length+1}/${ctx.keys.length})`; }
     try{
       const r=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(x=>x.json());
+        body:JSON.stringify({comentar:true,issue:k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(x=>x.json());
       if(r.ok){ ok++; delete estado.gestao.sel[k]; logAcao({acao:'comentar', t:k, para:texto.slice(0,60), ok:true}, false); }
       else { erros.push(`${k}: ${r.erro||'falhou'}`); logAcao({acao:'comentar', t:k, ok:false}, false); }
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
@@ -10768,6 +10796,14 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='mn-enviar'){ enviaRespostaMencao(); }
   else if(t.id==='mn-cancelar'){ _mnResp=null; fechaModal(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-mn-chip-del')){
+    if(_mnPick) _mnPick.delete(t.getAttribute('data-mn-chip-del')); mnPickerRefresh(); }
+});
+document.getElementById('modal-body').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||t.id!=='mn-add-pessoa'||!t.value) return;
+  const p=pessoasUnidas()[t.value];
+  if(_mnPick) _mnPick.set(t.value,(p&&p.nome)||t.value);
+  mnPickerRefresh();
 });
 // ---- 📈 Analytics: cards, drill, filtros e CSV ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
