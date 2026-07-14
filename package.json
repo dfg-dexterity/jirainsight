@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Painel de insights de uso do Jira + Clockwork (Dexterity IT)",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "check": "node scripts/check-syntax.mjs"
   },
   "dependencies": {
-    "@vercel/analytics": "^2.0.1"
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0"
   }
 }
