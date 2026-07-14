@@ -1045,6 +1045,19 @@
   .anl-auto{background:rgba(24,137,24,.12);color:#188918}
   .anl-heur{background:rgba(229,143,0,.14);color:#B45309}
   .anl-manual{background:rgba(100,116,139,.15);color:#475569}
+  /* 💬 Menções */
+  .mn-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .mn-card{border:1px solid var(--linha);border-left-width:4px;border-radius:10px;padding:10px 12px;background:var(--cartao)}
+  .mn-card.pend{border-left-color:#E58F00}
+  .mn-card.ok{border-left-color:#188918;opacity:.8}
+  .mn-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mn-res{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+  .mn-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .mn-badge.pend{background:rgba(229,143,0,.15);color:#B45309}
+  .mn-badge.ok{background:rgba(24,137,24,.13);color:#188918}
+  .mn-quote{margin:8px 0;padding:8px 10px;border-left:3px solid var(--linha);background:rgba(0,112,242,.04);
+    border-radius:0 8px 8px 0;font-size:12.5px;line-height:1.45}
+  .mn-acts{display:flex;gap:8px;flex-wrap:wrap}
   /* 🔍 Ficha do ticket */
   .gx-det-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;margin:10px 0}
   .gx-det-m span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--cinza)}
@@ -1453,6 +1466,7 @@
         <div class="navg-menu" role="menu">
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
           <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
+          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
           <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
@@ -1617,6 +1631,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   audit:{ accountId:'', dias:7, dados:null, carregando:false, erro:'' },
   // 📈 Analytics de governança (26 visões sobre abertos/concluídos/reabertos)
   analytics:{ dados:null, carregando:false, erro:'', fProj:'', fResp:'', x:5, dias:30, sel:'', busca:'' },
+  // 💬 Menções: chamados em que EU fui marcado em comentários (responder dali mesmo)
+  mencoes:{ dados:null, carregando:false, erro:'', dias:14, soPend:true, busca:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
@@ -2022,7 +2038,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2042,6 +2058,7 @@ function render(){
   if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='analytics') return renderAnalytics();
+  if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -8178,6 +8195,116 @@ function renderReceita(){
 }
 // ===============================================================================
 
+// ============================ 💬 MENÇÕES (responder marcações) ============================
+// Chamados em que EU fui marcado (@) em comentários — com resposta dali mesmo,
+// mencionando a pessoa de volta (o Jira notifica). Fonte: ?mencoes=1 no /api/vencimentos.
+function carregaMencoes(forca){
+  const mn=estado.mencoes; const id=idApontar();
+  if(!id||!id.accountId) return;
+  mn.carregando=true; mn.erro='';
+  fetch(`/api/vencimentos?mencoes=1&accountId=${encodeURIComponent(id.accountId)}&dias=${mn.dias}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ mn.carregando=false;
+      if(j.erro) mn.erro=j.erro; else mn.dados=j;
+      if(estado.vista==='mencoes') renderMencoes();
+    }).catch(e=>{ mn.carregando=false; mn.erro=String(e.message||e); if(estado.vista==='mencoes') renderMencoes(); });
+}
+function renderMencoes(){
+  const cont=document.getElementById('conteudo');
+  const mn=estado.mencoes; const id=idApontar();
+  if(!id||!id.accountId){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>💬 Menções <span>chamados em que você foi marcado</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para encontrarmos as SUAS menções.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
+    return;
+  }
+  if(!mn.dados && !mn.carregando && !mn.erro) carregaMencoes(false);
+  if(mn.erro){ cont.replaceChildren(el(`<div class="erro"><strong>Falha ao buscar as menções.</strong> ${esc(mn.erro)}
+    <button class="btn" id="mn-retry" style="margin-left:10px">Tentar de novo</button></div>`)); return; }
+  if(!mn.dados){ cont.replaceChildren(el(`<div class="estado">💬 Procurando onde te marcaram (últimos ${mn.dias} dias)…</div>`)); return; }
+
+  const d=mn.dados; const todas=d.mencoes||[];
+  let lista=todas.slice();
+  if(mn.soPend) lista=lista.filter(x=>!x.respondido);
+  if(mn.busca){ const q=mn.busca.toLowerCase();
+    lista=lista.filter(x=>(x.k+' '+x.resumo+' '+x.por+' '+x.texto).toLowerCase().includes(q)); }
+  const pend=todas.filter(x=>!x.respondido).length;
+
+  const kpis=`<div class="kpis ts-kpis">
+    <div class="kpi ${pend?'w':'a'}"><div class="v">${pend}</div><div class="l">⏳ Aguardando sua resposta</div></div>
+    <div class="kpi a"><div class="v">${todas.length-pend}</div><div class="l">✓ Já respondidas</div></div>
+    <div class="kpi t"><div class="v">${todas.length}</div><div class="l">∑ Menções no período</div></div>
+  </div>`;
+  const filtros=`<div class="ap-filtros">
+    <div class="campo"><label>Período</label><select id="mn-dias">${[7,14,30,60].map(v=>`<option value="${v}" ${mn.dias===v?'selected':''}>últimos ${v} dias</option>`).join('')}</select></div>
+    <div class="campo"><label>Buscar</label><input type="search" id="mn-busca" placeholder="código, resumo, pessoa, texto…" value="${escA(mn.busca)}"></div>
+    <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="mn-sopend" ${mn.soPend?'checked':''}> só as que aguardam resposta</label></div>
+    <div class="campo"><label>&nbsp;</label><button class="btn" id="mn-refresh">↻ Atualizar</button></div>
+  </div>`;
+
+  const rows=lista.map(x=>{
+    const link=`${jiraBase()}/browse/${encodeURIComponent(x.k)}`;
+    return `<div class="mn-card ${x.respondido?'ok':'pend'}">
+      <div class="mn-top">
+        <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
+        <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
+        <span class="spacer"></span>
+        <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
+        ${x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>'}
+      </div>
+      <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
+      <div class="mn-acts">
+        <button class="btn primario" data-mn-resp="${escA(x.k)}">💬 Responder</button>
+        <button class="btn" data-gx-det="${escA(x.k)}">🔍 detalhes</button>
+        <button class="btn" data-gx-apont="${escA(x.k)}">⏱ apontar</button>
+      </div>
+    </div>`; }).join('');
+
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>💬 Menções <span>onde <strong>${esc(id.nome||id.email)}</strong> foi marcado em comentários — responda sem abrir o Jira</span></h2>
+      ${kpis}
+      ${filtros}
+      ${lista.length?`<div class="mn-list">${rows}</div>`
+        :`<div class="alx-vazio">${todas.length?'Nada com esses filtros.':'✓ Nenhuma menção no período — caixa limpa!'}</div>`}
+    </div></div>`));
+}
+let _mnResp=null;
+function abreResponderMencao(k){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const x=(((estado.mencoes.dados||{}).mencoes)||[]).find(m=>m.k===k); if(!x) return;
+  _mnResp={ k, porId:x.porId||'' };
+  abreModal(`
+    <h2>💬 Responder · ${esc(k)}</h2>
+    <div class="rv-met"><span class="k">${esc(k)}</span> — ${esc(x.resumo||'')}
+      <div class="mn-quote" style="margin-top:6px"><strong>${esc(x.por)}</strong>: <span class="muted">“${esc(x.texto||'')}”</span></div></div>
+    <div class="campo" style="margin-top:10px"><label>Sua resposta <span class="req">*</span></label>
+      <textarea class="alx-coment" id="mn-texto" placeholder="Escreva a resposta — será publicada como comentário no seu usuário…"></textarea></div>
+    ${x.porId?`<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-top:8px;cursor:pointer"><input type="checkbox" id="mn-marcar" checked> marcar <strong>@${esc(x.por)}</strong> de volta (o Jira notifica a pessoa)</label>`:''}
+    <div class="ap-fb" id="mn-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="mn-enviar">Publicar resposta</button>
+      <button class="btn" id="mn-cancelar">Cancelar</button></div>`);
+  setTimeout(()=>{ const t=document.getElementById('mn-texto'); if(t) t.focus(); },50);
+}
+async function enviaRespostaMencao(){
+  const ctx=_mnResp; const id=idApontar(); if(!ctx||!id) return;
+  const texto=((document.getElementById('mn-texto')||{}).value||'').trim();
+  const fb=document.getElementById('mn-fb');
+  if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva a resposta.'; } return; }
+  const marcar=(document.getElementById('mn-marcar')||{}).checked;
+  const bt=document.getElementById('mn-enviar'); if(bt) bt.disabled=true;
+  if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Publicando a resposta…'; }
+  try{
+    const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({comentar:true,issue:ctx.k,texto,...(marcar&&ctx.porId?{mencionar:ctx.porId}:{}),email:id.email,token:id.token})}).then(r=>r.json());
+    if(!j.ok){ if(fb){ fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao responder.'); } if(bt) bt.disabled=false; return; }
+    const x=(((estado.mencoes.dados||{}).mencoes)||[]).find(m=>m.k===ctx.k); if(x) x.respondido=true;
+    logAcao({acao:'responder-menção', t:ctx.k, para:x?x.por:'', ok:true});
+    _mnResp=null; fechaModal();
+    toast(`✓ Resposta publicada em ${ctx.k}.`,'ok');
+    if(estado.vista==='mencoes') renderMencoes();
+  }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } if(bt) bt.disabled=false; }
+}
 // ============================ 📈 ANALYTICS DE GOVERNANÇA ============================
 // 26 visões de saúde/governança calculadas NO FRONT sobre a base bruta do servidor
 // (/api/vencimentos?analytics=1): abertos + concluídos do período + reabertos.
@@ -10209,7 +10336,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -10342,7 +10469,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -10619,6 +10746,28 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='ax-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
   else if(t.id==='ax-mes-retry'){ estado.acoes.mesErro=''; estado.acoes.mes=null; renderAcoes(); }
+});
+// ---- 💬 Menções: lista, filtros e resposta ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const r=e.target.closest&&e.target.closest('[data-mn-resp]');
+  if(r){ abreResponderMencao(r.getAttribute('data-mn-resp')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const mn=estado.mencoes;
+  if(t.id==='mn-retry'){ mn.erro=''; mn.dados=null; renderMencoes(); }
+  else if(t.id==='mn-refresh'){ mn.dados=null; carregaMencoes(true); renderMencoes(); }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const mn=estado.mencoes; const t=e.target; if(!t||!t.id) return;
+  if(t.id==='mn-dias'){ mn.dias=Number(t.value)||14; mn.dados=null; carregaMencoes(false); renderMencoes(); }
+  else if(t.id==='mn-sopend'){ mn.soPend=t.checked; renderMencoes(); }
+});
+document.getElementById('conteudo').addEventListener('input',(e)=>{
+  if(e.target&&e.target.id==='mn-busca'){ buscaComposta(e,(v)=>{ estado.mencoes.busca=v; },renderMencoes,'mn-busca'); }
+});
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='mn-enviar'){ enviaRespostaMencao(); }
+  else if(t.id==='mn-cancelar'){ _mnResp=null; fechaModal(); }
 });
 // ---- 📈 Analytics: cards, drill, filtros e CSV ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{

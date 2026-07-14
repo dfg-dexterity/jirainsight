@@ -263,9 +263,77 @@ async function detalheTicket(q, res) {
   return json(res, 200, cacheSetTTL(ck, payload, 3));
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/vencimentos?mencoes=1&accountId=XXX[&dias=14] — chamados em que a
+// pessoa foi MARCADA (@) em comentários recentes. Varre o ADF dos comentários
+// dos tickets atualizados no período procurando nós {type:'mention'} com o
+// accountId — determinístico (não depende da busca de texto do Jira).
+// respondido = existe comentário DA PESSOA depois da menção.
+// ---------------------------------------------------------------------------
+function achaMencao(node, accountId) {
+  if (!node || typeof node !== 'object') return false;
+  if (node.type === 'mention' && node.attrs && String(node.attrs.id) === accountId) return true;
+  return (node.content || []).some((f) => achaMencao(f, accountId));
+}
+async function mencoesDe(q, res) {
+  const accountId = String(q.accountId || '').trim();
+  if (!/^[\w:-]{5,128}$/.test(accountId)) return json(res, 400, { erro: 'accountId inválido.' });
+  const dias = Math.min(60, Math.max(3, Number(q.dias) || 14));
+  const ck = `venc:mencoes:${accountId}:${dias}`;
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  const { issues, truncado } = await jiraSearchAll({
+    jql: `updated >= -${dias}d ORDER BY updated DESC`,
+    fields: ['summary', 'status', 'assignee', 'project', 'issuetype', 'comment'],
+    pageSize: 100,
+    maxPages: 3,
+  });
+  const mencoes = [];
+  for (const it of issues) {
+    const f = it.fields || {};
+    const coms = (f.comment && f.comment.comments) || [];
+    // Última menção à pessoa neste ticket (feita por OUTRA pessoa).
+    let m = null;
+    for (const c of coms) {
+      const autorId = (c.author && c.author.accountId) || '';
+      if (autorId === accountId) continue;                     // automenção não conta
+      if (achaMencao(c.body, accountId)) m = c;
+    }
+    if (!m) continue;
+    const respondido = coms.some((c) => ((c.author && c.author.accountId) || '') === accountId
+      && String(c.created || '') > String(m.created || ''));
+    const ass = f.assignee || {};
+    mencoes.push({
+      k: it.key,
+      resumo: f.summary || '',
+      p: (f.project && f.project.key) || String(it.key).split('-')[0],
+      t: (f.issuetype && f.issuetype.name) || '',
+      status: (f.status && f.status.name) || '',
+      statCat: (f.status && f.status.statusCategory && f.status.statusCategory.key) || '',
+      resp: ass.displayName || '', respId: ass.accountId || '',
+      por: (m.author && m.author.displayName) || '—',
+      porId: (m.author && m.author.accountId) || '',
+      quando: String(m.created || '').slice(0, 16).replace('T', ' '),
+      dia: String(m.created || '').slice(0, 10),
+      texto: adfTexto(m.body).replace(/\s+/g, ' ').trim().slice(0, 500),
+      respondido,
+    });
+  }
+  mencoes.sort((a, b) => (a.quando < b.quando ? 1 : -1));
+  const payload = {
+    meta: { dias, hoje: hojeSP(), total: mencoes.length,
+      pendentes: mencoes.filter((x) => !x.respondido).length, truncado },
+    mencoes,
+  };
+  return json(res, 200, cacheSetTTL(ck, payload, 3));
+}
+
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
+    if (q.mencoes === '1') return await mencoesDe(q, res);
     if (q.detalhe) return await detalheTicket(q, res);
     if (q.analytics === '1') return await baseAnalytics(q, res);
     if (q.semHoras === '1') return await concluidosSemHoras(q, res);
