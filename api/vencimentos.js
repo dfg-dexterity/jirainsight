@@ -75,6 +75,20 @@ function adfTexto(node) {
   const filhos = (node.content || []).map(adfTexto).join('');
   return node.type === 'paragraph' || node.type === 'heading' ? `${filhos} ` : filhos;
 }
+// Campo "Start date"/"Data de início" (se existir na instância) — usado pelo
+// Analytics (datas incoerentes) e pelo detalhe do ticket.
+async function descobreCampoInicio() {
+  try {
+    const rf = await fetch(`${jiraBase()}/rest/api/3/field`, {
+      headers: { Authorization: jiraAuthHeader(), Accept: 'application/json' },
+    });
+    if (!rf.ok) return '';
+    const campos = await rf.json();
+    const c = (Array.isArray(campos) ? campos : []).find((x) => /^(start date|data de in[íi]cio)$/i.test(x.name || ''));
+    return (c && c.id) || '';
+  } catch (e) { return ''; }
+}
+
 async function baseAnalytics(q, res) {
   const dias = Math.min(90, Math.max(7, Number(q.dias) || 30));
   const ck = `venc:analytics:${dias}`;
@@ -82,20 +96,7 @@ async function baseAnalytics(q, res) {
     const cached = cacheGet(ck);
     if (cached) return json(res, 200, cached);
   }
-
-  // Campo "Start date"/"Data de início" (se existir na instância) — para o check
-  // de datas incoerentes (fim antes do início).
-  let inicioId = '';
-  try {
-    const rf = await fetch(`${jiraBase()}/rest/api/3/field`, {
-      headers: { Authorization: jiraAuthHeader(), Accept: 'application/json' },
-    });
-    if (rf.ok) {
-      const campos = await rf.json();
-      const c = (Array.isArray(campos) ? campos : []).find((x) => /^(start date|data de in[íi]cio)$/i.test(x.name || ''));
-      inicioId = (c && c.id) || '';
-    }
-  } catch (e) { inicioId = ''; }
+  const inicioId = await descobreCampoInicio();
 
   const fieldsA = ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority',
     'timespent', 'updated', 'created', 'timeoriginalestimate', 'parent', 'labels', 'description'];
@@ -180,9 +181,92 @@ async function baseAnalytics(q, res) {
   return json(res, 200, cacheSetTTL(ck, payload, 5));
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/vencimentos?detalhe=KEY — FICHA COMPLETA de um ticket (conta de
+// serviço, leitura): descrição em texto, comentários recentes, anexos,
+// worklogs (por pessoa + últimos), datas, épico/pai, labels, prioridade.
+// Alimenta o modal "🔍 detalhes" do Analytics/Gestão — a pessoa não precisa
+// abrir o Jira para entender o chamado.
+// ---------------------------------------------------------------------------
+const RE_ISSUE_V = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+async function detalheTicket(q, res) {
+  const k = String(q.detalhe || '').trim().toUpperCase();
+  if (!RE_ISSUE_V.test(k)) return json(res, 400, { erro: 'Ticket inválido.' });
+  const ck = `venc:detalhe:${k}`;
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const inicioId = await descobreCampoInicio();
+  const fields = ['summary', 'description', 'status', 'issuetype', 'priority', 'assignee', 'reporter',
+    'created', 'updated', 'duedate', 'resolutiondate', 'resolution', 'labels', 'parent', 'project',
+    'timespent', 'timeoriginalestimate', 'attachment', 'comment'];
+  if (inicioId) fields.push(inicioId);
+  const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}?fields=${fields.join(',')}`, { headers });
+  if (r.status === 404) return json(res, 404, { erro: `Ticket ${k} não encontrado.` });
+  if (!r.ok) { const t = await r.text(); return json(res, 500, { erro: `Jira ${r.status}: ${t.slice(0, 200)}` }); }
+  const d = await r.json();
+  const f = d.fields || {};
+  const pessoa = (u) => (u && u.displayName) || '';
+  const dia = (iso) => String(iso || '').slice(0, 10);
+
+  const comAll = (f.comment && f.comment.comments) || [];
+  const comentarios = comAll.slice(-6).map((c) => ({
+    por: pessoa(c.author), quando: dia(c.created),
+    texto: adfTexto(c.body).replace(/\s+/g, ' ').trim().slice(0, 600),
+  })).reverse();
+
+  const anexos = (Array.isArray(f.attachment) ? f.attachment : []).slice(0, 20).map((a) => ({
+    nome: a.filename || '', kb: Math.round((Number(a.size) || 0) / 1024), quando: dia(a.created), por: pessoa(a.author),
+  }));
+
+  // Worklogs: totais por pessoa + últimos lançamentos.
+  let porPessoa = []; let ultimos = []; let totalSeg = 0;
+  try {
+    const rw = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}/worklog?maxResults=100`, { headers });
+    if (rw.ok) {
+      const wl = ((await rw.json()).worklogs) || [];
+      const acc = {};
+      wl.forEach((w) => {
+        const nome = pessoa(w.author) || '—'; const s = Number(w.timeSpentSeconds) || 0;
+        acc[nome] = (acc[nome] || 0) + s; totalSeg += s;
+      });
+      porPessoa = Object.entries(acc).map(([nome, seg]) => ({ nome, seg })).sort((a, b) => b.seg - a.seg);
+      ultimos = wl.slice(-5).map((w) => ({
+        por: pessoa(w.author), dia: dia(w.started), seg: Number(w.timeSpentSeconds) || 0,
+        coment: adfTexto(w.comment).replace(/\s+/g, ' ').trim().slice(0, 160),
+      })).reverse();
+    }
+  } catch (e) { /* worklogs indisponíveis: a ficha segue sem eles */ }
+
+  const payload = {
+    k: d.key, resumo: f.summary || '',
+    desc: adfTexto(f.description).trim().slice(0, 5000),
+    t: (f.issuetype && f.issuetype.name) || '', tIcon: (f.issuetype && f.issuetype.iconUrl) || '',
+    status: (f.status && f.status.name) || '',
+    statCat: (f.status && f.status.statusCategory && f.status.statusCategory.key) || '',
+    prio: (f.priority && f.priority.name) || '', prioIcon: (f.priority && f.priority.iconUrl) || '',
+    p: (f.project && f.project.key) || '', pNome: (f.project && f.project.name) || '',
+    pai: (f.parent && f.parent.key) || '', paiResumo: (f.parent && f.parent.fields && f.parent.fields.summary) || '',
+    labels: (f.labels || []).slice(0, 15),
+    resp: pessoa(f.assignee), respId: (f.assignee && f.assignee.accountId) || '', relator: pessoa(f.reporter),
+    criado: dia(f.created), atualizado: dia(f.updated), venc: f.duedate || '',
+    inicio: inicioId ? dia(f[inicioId]) : '', resolvido: dia(f.resolutiondate),
+    resol: (f.resolution && f.resolution.name) || '',
+    seg: Number(f.timespent || 0), est: Number(f.timeoriginalestimate || 0),
+    nComentarios: (f.comment && Number(f.comment.total)) || comAll.length,
+    comentarios, anexos,
+    worklogs: { totalSeg, porPessoa, ultimos },
+  };
+  return json(res, 200, cacheSetTTL(ck, payload, 3));
+}
+
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
+    if (q.detalhe) return await detalheTicket(q, res);
     if (q.analytics === '1') return await baseAnalytics(q, res);
     if (q.semHoras === '1') return await concluidosSemHoras(q, res);
     const ate = RE_DATA.test(q.ate || '') ? q.ate : hojeSP();
