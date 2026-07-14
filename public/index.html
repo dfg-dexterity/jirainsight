@@ -8294,6 +8294,43 @@ function mnPickerInner(){
 }
 function mnPickerRefresh(){ const w=document.getElementById('mn-picker'); if(w) w.innerHTML=mnPickerInner(); }
 function mnPickerIds(){ return _mnPick?[..._mnPick.keys()]:[]; }
+// ---- Anexos para comentários (Responder/Comentar): arquivos + colar print ----
+let _mnFiles=[];
+function mnAnexosHtml(){
+  _mnFiles=[];
+  return `<div class="campo" style="margin-top:8px"><label>Anexos <span class="muted small">(até 3 arquivos de 3 MB — ou cole um print com Ctrl+V)</span></label>
+    <input type="file" id="mn-anexos" multiple accept="image/*,.pdf,.txt,.log,.csv,.xlsx,.docx,.msg,.eml">
+    <div id="mn-anexos-lista" class="mn-chips" style="margin-top:6px"><span class="muted small">nenhum anexo</span></div></div>`;
+}
+function mnAnexosRefresh(){
+  const w=document.getElementById('mn-anexos-lista'); if(!w) return;
+  w.innerHTML=_mnFiles.map((f,i)=>`<span class="mn-chip">📎 ${esc(f.name)} <span class="muted small">${Math.max(1,Math.round(f.size/1024))} KB</span> <button type="button" data-mn-anexo-del="${i}" title="Remover">×</button></span>`).join('')
+    ||'<span class="muted small">nenhum anexo</span>';
+}
+function mnAnexosAdd(files){
+  for(const f of (files||[])){
+    if(_mnFiles.length>=3){ toast('Máximo de 3 anexos por comentário.','warn'); break; }
+    if(f.size>3*1024*1024){ toast(`"${f.name}" passa de 3 MB — anexe direto no Jira.`,'warn'); continue; }
+    _mnFiles.push(f);
+  }
+  mnAnexosRefresh();
+}
+function mnLeBase64(f){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(String(r.result||'')); r.onerror=()=>rej(new Error('falha ao ler o arquivo')); r.readAsDataURL(f); }); }
+// Sobe os anexos escolhidos para o ticket k (token da pessoa). Devolve {oks,falhas}.
+async function mnEnviaAnexos(k, id, fb){
+  const oks=[]; const falhas=[];
+  for(const f of _mnFiles){
+    if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent=`Anexando ${f.name} em ${k}…`; }
+    try{
+      const b64=await mnLeBase64(f);
+      const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({anexar:true,issue:k,nome:f.name,tipo:f.type||'application/octet-stream',base64:b64,email:id.email,token:id.token})}).then(r=>r.json());
+      if(j.ok) oks.push(j.nome||f.name); else falhas.push(`${f.name}: ${j.erro||'falhou'}`);
+    }catch(e){ falhas.push(`${f.name}: ${e.message||e}`); }
+  }
+  return { oks, falhas };
+}
 let _mnResp=null;
 function abreResponderMencao(k){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
@@ -8306,6 +8343,7 @@ function abreResponderMencao(k){
     <div class="campo" style="margin-top:10px"><label>Sua resposta <span class="req">*</span></label>
       <textarea class="alx-coment" id="mn-texto" placeholder="Escreva a resposta — será publicada como comentário no seu usuário…"></textarea></div>
     ${mnPickerHtml(x.porId?[{id:x.porId,nome:x.por}]:[])}
+    ${mnAnexosHtml()}
     <div class="ap-fb" id="mn-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="mn-enviar">Publicar resposta</button>
@@ -8319,10 +8357,21 @@ async function enviaRespostaMencao(){
   if(!texto){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Escreva a resposta.'; } return; }
   const marcados=mnPickerIds();
   const bt=document.getElementById('mn-enviar'); if(bt) bt.disabled=true;
+  // Anexos primeiro: os que subirem são citados no texto do comentário.
+  let textoFinal=texto;
+  if(_mnFiles.length){
+    const ax=await mnEnviaAnexos(ctx.k, id, fb);
+    if(ax.falhas.length&&!ax.oks.length){
+      if(fb){ fb.className='ap-fb err'; fb.innerHTML='Falha nos anexos:<br>'+ax.falhas.map(esc).join('<br>'); }
+      if(bt) bt.disabled=false; return;
+    }
+    if(ax.falhas.length) toast('⚠ Alguns anexos falharam: '+ax.falhas.join(' · '),'warn');
+    if(ax.oks.length) textoFinal=`${texto}\n\n📎 Anexos: ${ax.oks.join(', ')}`;
+  }
   if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Publicando a resposta…'; }
   try{
     const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({comentar:true,issue:ctx.k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(r=>r.json());
+      body:JSON.stringify({comentar:true,issue:ctx.k,texto:textoFinal,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(r=>r.json());
     if(!j.ok){ if(fb){ fb.className='ap-fb err'; fb.textContent=humanizaErro(j.erro||'Falha ao responder.'); } if(bt) bt.disabled=false; return; }
     const x=(((estado.mencoes.dados||{}).mencoes)||[]).find(m=>m.k===ctx.k); if(x) x.respondido=true;
     logAcao({acao:'responder-menção', t:ctx.k, para:x?x.por:'', ok:true});
@@ -8675,6 +8724,7 @@ function abreModalComentarLote(keys, tpl){
     <div class="alx-campo"><label>Comentário <span class="req">*</span> <span class="muted small">(será publicado em todos)</span></label>
       <textarea class="alx-coment" id="gx-com-texto" placeholder="Escreva o comentário…">${esc((tsel&&tsel[2])||'')}</textarea></div>
     ${mnPickerHtml([])}
+    ${mnAnexosHtml()}
     <div class="alx-fb" id="gx-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="gx-com-confirmar">Publicar em ${keys.length} ticket(s)</button>
@@ -8690,9 +8740,15 @@ async function gxComentaLote(){
   let ok=0; const erros=[];
   for(const k of ctx.keys){
     if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent=`Comentando ${k}… (${ok+erros.length+1}/${ctx.keys.length})`; }
+    let textoK=texto;
+    if(_mnFiles.length){
+      const ax=await mnEnviaAnexos(k, id, fb);
+      ax.falhas.forEach(f2=>erros.push(`${k} (anexo) ${f2}`));
+      if(ax.oks.length) textoK=`${texto}\n\n📎 Anexos: ${ax.oks.join(', ')}`;
+    }
     try{
       const r=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({comentar:true,issue:k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(x=>x.json());
+        body:JSON.stringify({comentar:true,issue:k,texto:textoK,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(x=>x.json());
       if(r.ok){ ok++; delete estado.gestao.sel[k]; logAcao({acao:'comentar', t:k, para:texto.slice(0,60), ok:true}, false); }
       else { erros.push(`${k}: ${r.erro||'falhou'}`); logAcao({acao:'comentar', t:k, ok:false}, false); }
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
@@ -10798,12 +10854,23 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.id==='mn-cancelar'){ _mnResp=null; fechaModal(); }
   else if(t.hasAttribute&&t.hasAttribute('data-mn-chip-del')){
     if(_mnPick) _mnPick.delete(t.getAttribute('data-mn-chip-del')); mnPickerRefresh(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-mn-anexo-del')){
+    _mnFiles.splice(Number(t.getAttribute('data-mn-anexo-del')),1); mnAnexosRefresh(); }
 });
 document.getElementById('modal-body').addEventListener('change',(e)=>{
-  const t=e.target; if(!t||t.id!=='mn-add-pessoa'||!t.value) return;
-  const p=pessoasUnidas()[t.value];
-  if(_mnPick) _mnPick.set(t.value,(p&&p.nome)||t.value);
-  mnPickerRefresh();
+  const t=e.target; if(!t) return;
+  if(t.id==='mn-add-pessoa'&&t.value){
+    const p=pessoasUnidas()[t.value];
+    if(_mnPick) _mnPick.set(t.value,(p&&p.nome)||t.value);
+    mnPickerRefresh(); return;
+  }
+  if(t.id==='mn-anexos'){ mnAnexosAdd(t.files); t.value=''; }
+});
+// Colar print (Ctrl+V) dentro dos modais com campo de anexos.
+document.getElementById('modal-body').addEventListener('paste',(e)=>{
+  if(!document.getElementById('mn-anexos')) return;
+  const fs2=(e.clipboardData&&e.clipboardData.files)||[];
+  if(fs2.length){ e.preventDefault(); mnAnexosAdd(fs2); toast('🖼 Print adicionado como anexo.','ok'); }
 });
 // ---- 📈 Analytics: cards, drill, filtros e CSV ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
