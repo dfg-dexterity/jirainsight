@@ -124,6 +124,34 @@ export default async function handler(req, res) {
         ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
       });
     }
+    // ---- Modo anexar: sobe UM arquivo (base64) como anexo do ticket ----
+    // Usado pelo Responder/Comentar do painel para anexar imagens/prints e
+    // documentos. O upload sai no usuário da própria pessoa. Limite: 3 MB
+    // por arquivo (o corpo JSON+base64 precisa caber no limite da Vercel).
+    if (b.anexar) {
+      const nome = String(b.nome || 'anexo').replace(/[\/\\]/g, '_').slice(0, 120) || 'anexo';
+      const tipo = /^[\w.+-]+\/[\w.+-]+$/.test(String(b.tipo || '')) ? String(b.tipo) : 'application/octet-stream';
+      const b64 = String(b.base64 || '').replace(/^data:[^;]*;base64,/, '');
+      if (!b64) return json(res, 400, { erro: 'Arquivo vazio.' });
+      let buf;
+      try { buf = Buffer.from(b64, 'base64'); } catch (e) { return json(res, 400, { erro: 'Base64 inválido.' }); }
+      if (!buf || !buf.length) return json(res, 400, { erro: 'Arquivo vazio.' });
+      if (buf.length > 3 * 1024 * 1024) return json(res, 400, { erro: 'Arquivo grande demais (máx. 3 MB) — anexe pelo Jira.' });
+      const fd = new FormData();
+      fd.append('file', new Blob([buf], { type: tipo }), nome);
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/attachments`, {
+        method: 'POST',
+        headers: { Authorization: authDe(email, token), Accept: 'application/json', 'X-Atlassian-Token': 'no-check' },
+        body: fd,
+      });
+      if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para anexar neste chamado.' });
+      if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
+      if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 200)}` }); }
+      const lista = await r.json().catch(() => []);
+      const a0 = (Array.isArray(lista) && lista[0]) || {};
+      cacheClear('atividade:');
+      return json(res, 200, { ok: true, issue, id: String(a0.id || ''), nome: a0.filename || nome });
+    }
     // ---- Modo reagendar: muda a data de vencimento (duedate) do ticket ----
     if (b.reagendar) {
       let duedate = null;                               // null limpa a data
