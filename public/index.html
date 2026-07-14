@@ -1045,6 +1045,14 @@
   .anl-auto{background:rgba(24,137,24,.12);color:#188918}
   .anl-heur{background:rgba(229,143,0,.14);color:#B45309}
   .anl-manual{background:rgba(100,116,139,.15);color:#475569}
+  /* 🔍 Ficha do ticket */
+  .gx-det-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;margin:10px 0}
+  .gx-det-m span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--cinza)}
+  .gx-det-m strong{font-size:12.5px}
+  .gx-det-txt{white-space:pre-wrap;font-size:12.5px;line-height:1.45;max-height:220px;overflow:auto;
+    border:1px solid var(--linha);border-radius:8px;padding:8px 10px;margin-top:6px;background:var(--cartao)}
+  .gx-det-item{font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--linha)}
+  .gx-det-item:last-child{border-bottom:0}
   .gx-dup-g{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--cartao)}
   .gx-dup-g .ts-wrap{margin-top:4px}
   .gx-dup-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -8316,7 +8324,7 @@ function renderAnalytics(){
       <td>${t.status?`<span class="badge">${esc(t.status)}</span>`:'—'}</td>
       <td>${esc(t.resp||'—')}</td>
       <td>${esc(t.m||'—')}</td>
-      <td><span class="gx-acts"><button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button></span></td></tr>`).join('');
+      <td><span class="gx-acts"><button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button><button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button></span></td></tr>`).join('');
     cont.replaceChildren(el(`<div>
       <div class="card full">
         <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
@@ -8578,6 +8586,57 @@ async function gxExcluiLote(){
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.classList.remove('perigo'); bt.id='gx-fechar'; }
   const bc=document.getElementById('gx-del-cancelar'); if(bc) bc.hidden=true;
 }
+// ---- 🔍 Ficha completa do ticket (modal) — Analytics e Gestão, sem abrir o Jira ----
+let _gxDet=null;
+function abreModalTicket(k){
+  _gxDet={ k };
+  abreModal(`<h2>🔍 ${esc(k)}</h2><div class="estado">Carregando a ficha do ticket…</div>`);
+  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json()).then(j=>{
+    if(!_gxDet||_gxDet.k!==k) return;
+    if(j.erro){ abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">${esc(j.erro)}</div>
+      <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+    renderModalTicket(j);
+  }).catch(e=>{ if(_gxDet&&_gxDet.k===k) abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">Erro de rede: ${esc(String(e.message||e))}</div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); });
+}
+function renderModalTicket(d){
+  const link=`${jiraBase()}/browse/${encodeURIComponent(d.k)}`;
+  const badge=(x,pre)=>x?`<span class="badge">${pre||''}${esc(x)}</span>`:'';
+  const m=(l,v)=>v?`<div class="gx-det-m"><span>${esc(l)}</span><strong>${esc(v)}</strong></div>`:'';
+  const wl=d.worklogs||{porPessoa:[],ultimos:[],totalSeg:0};
+  const pessoas=(wl.porPessoa||[]).map(x=>`<span class="badge">${esc(x.nome)} · ${fmtH(x.seg)}</span>`).join(' ');
+  const lancs=(wl.ultimos||[]).map(w=>`<div class="gx-det-item"><strong>${esc(w.por||'—')}</strong> · ${esc(alxDataBR(w.dia))} · ${fmtH(w.seg)}${w.coment?` — <span class="muted">${esc(w.coment)}</span>`:''}</div>`).join('');
+  const coms=(d.comentarios||[]).map(c=>`<div class="gx-det-item"><strong>${esc(c.por||'—')}</strong> · ${esc(alxDataBR(c.quando))}<br><span class="muted">${esc(c.texto||'')}</span></div>`).join('');
+  const anx=(d.anexos||[]).map(a=>`<div class="gx-det-item">📎 ${esc(a.nome)} <span class="muted small">(${a.kb} KB · ${esc(alxDataBR(a.quando))}${a.por?` · ${esc(a.por)}`:''})</span></div>`).join('');
+  abreModal(`
+    <h2>🔍 Ficha do ticket <span class="muted small">${esc(d.pNome||d.p)}</span></h2>
+    <div class="rv-met"><span class="k"><a href="${link}" target="_blank" rel="noopener">${esc(d.k)} ↗</a></span> — ${esc(d.resumo)}
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        ${badge(d.t)}${badge(d.status)}${badge(d.prio,'⚑ ')}${d.pai?`<span class="badge" title="${escA(d.paiResumo||'')}">🧩 ${esc(d.pai)}</span>`:''}
+        ${(d.labels||[]).map(l=>`<span class="badge">🏷 ${esc(l)}</span>`).join('')}
+      </div></div>
+    <div class="gx-det-grid">
+      ${m('Responsável',d.resp||'sem responsável')}${m('Relator',d.relator)}
+      ${m('Criado',d.criado?alxDataBR(d.criado):'')}${m('Atualizado',d.atualizado?alxDataBR(d.atualizado):'')}
+      ${m('Início',d.inicio?alxDataBR(d.inicio):'')}${m('Vencimento',d.venc?alxDataBR(d.venc):'—')}
+      ${m('Resolvido',d.resolvido?`${alxDataBR(d.resolvido)}${d.resol?` (${d.resol})`:''}`:'')}
+      ${m('Horas / estimativa',`${d.seg?fmtH(d.seg):'0h'}${d.est?` de ${fmtH(d.est)}`:''}`)}
+    </div>
+    <details open><summary>📄 Descrição</summary><div class="gx-det-txt">${esc(d.desc||'(sem descrição)')}</div></details>
+    <details ${(wl.porPessoa||[]).length?'open':''}><summary>⏱ Horas apontadas — ${fmtH(wl.totalSeg||0)}</summary>
+      <div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap">${pessoas||'<span class="muted small">nenhum apontamento</span>'}</div>
+      ${lancs?`<div class="muted small" style="margin:4px 0 2px">Últimos lançamentos:</div>${lancs}`:''}</details>
+    <details ${(d.comentarios||[]).length?'open':''}><summary>💬 Comentários (${d.nComentarios||0})</summary>
+      ${coms||'<div class="muted small" style="margin-top:6px">Nenhum comentário.</div>'}</details>
+    <details><summary>📎 Anexos (${(d.anexos||[]).length})</summary>
+      ${anx||'<div class="muted small" style="margin-top:6px">Nenhum anexo.</div>'}</details>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" data-gx-apont="${escA(d.k)}">⏱ Apontar</button>
+      <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
+      <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
+      <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
+    </div>`);
+}
 // ---- Apontar horas em 1 ticket (modal) — usado pela Gestão e pelo drill do Analytics ----
 let _gxApont=null;
 function gxTicketInfo(k){
@@ -8815,6 +8874,7 @@ function renderGestao(){
     <button data-gx-r="${escA(t.k)}|PROX" title="Reprogramar para a próxima segunda">próx. sem</button>
     <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
+    <button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button>
     <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
   // ---- Tabela (densa; padrão) ----
@@ -10548,6 +10608,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
   if(t.id==='gx-tratar'){ const ks=gxSelKeys(); if(!ks.length) return;
     cfg.tratados=cfg.tratados||{}; const quem=(idApontar()||{}).nome||'';
@@ -10592,6 +10653,8 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.hasAttribute&&t.hasAttribute('data-gx-ep-apl')){ gxAplicaEpico(t.getAttribute('data-gx-ep-apl')); }
   else if(t.id==='gx-ap-confirmar'){ gxApontaConfirma(); }
   else if(t.id==='gx-ap-cancelar'){ _gxApont=null; fechaModal(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-det-com')){ abreModalComentarLote([t.getAttribute('data-gx-det-com')]); }
   else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
 });
 document.getElementById('modal-body').addEventListener('input',(e)=>{
