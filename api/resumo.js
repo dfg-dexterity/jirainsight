@@ -57,14 +57,25 @@ async function odoo(url, service, method, args) {
   return j.result;
 }
 
+// Tipos de ausência aceitos pela árvore "Onde crio?" — cada um resolve o
+// hr.leave.type do Odoo por env (id ou nome) ou por busca de nome padrão.
+const AUS_TIPOS_SRV = {
+  compensacao: { env: 'ODOO_FOLGA_TIPO_ID', busca: null, rot: 'Compensação de horas' },
+  atestado: { env: 'ODOO_TIPO_ATESTADO', busca: (n) => /atestado/i.test(n), rot: 'Atestado médico' },
+  ferias: { env: 'ODOO_TIPO_FERIAS', busca: (n) => /f[ée]rias/i.test(n) && !/n[ãa]o\s+remun|sem\s+remun/i.test(n), rot: 'Férias remuneradas' },
+  ferias_nr: { env: 'ODOO_TIPO_FERIAS_NR', busca: (n) => /f[ée]rias/i.test(n) && /n[ãa]o\s+remun|sem\s+remun/i.test(n), rot: 'Férias não remuneradas' },
+};
+
 async function criaFolga(res, b) {
   const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'),
-    key = env('ODOO_API_KEY'), tipoCfg = env('ODOO_FOLGA_TIPO_ID');
+    key = env('ODOO_API_KEY');
   if (!url || !db || !login || !key) {
     return json(res, 200, { ok: false, configurado: false,
       erro: 'Integração com o Odoo não configurada. Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel.' });
   }
-  if (!tipoCfg) {
+  const tipoAus = AUS_TIPOS_SRV[String(b.tipoAusencia || 'compensacao')] || AUS_TIPOS_SRV.compensacao;
+  const tipoCfg = env(tipoAus.env);
+  if (tipoAus.env === 'ODOO_FOLGA_TIPO_ID' && !tipoCfg) {
     return json(res, 200, { ok: false, configurado: false,
       erro: 'Defina ODOO_FOLGA_TIPO_ID (id ou nome do tipo de ausência) na Vercel.' });
   }
@@ -82,13 +93,24 @@ async function criaFolga(res, b) {
   const exec = (model, method, args, kwargs = {}) =>
     odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kwargs]);
 
-  // 2) Resolve o tipo de ausência: id numérico direto ou busca por nome.
+  // 2) Resolve o tipo de ausência: env com id numérico ou nome; sem env, busca o
+  //    hr.leave.type pelo nome padrão do tipo (atestado/férias…).
   let tipoId = /^\d+$/.test(tipoCfg) ? Number(tipoCfg) : 0;
-  if (!tipoId) {
+  if (!tipoId && tipoCfg) {
     const tipos = await exec('hr.leave.type', 'search_read', [[['name', 'ilike', tipoCfg]]], { fields: ['id'], limit: 1 });
     if (!tipos.length) return json(res, 200, { ok: false, erro: `Tipo de ausência "${tipoCfg}" não encontrado no Odoo.` });
     tipoId = tipos[0].id;
   }
+  if (!tipoId && tipoAus.busca) {
+    const todos = await exec('hr.leave.type', 'search_read', [[]], { fields: ['id', 'name'], limit: 80 });
+    const achado = (todos || []).find((t) => tipoAus.busca(String(t.name || '')));
+    if (!achado) {
+      return json(res, 200, { ok: false,
+        erro: `Não achei o tipo "${tipoAus.rot}" no Odoo — configure ${tipoAus.env} (id ou nome do hr.leave.type) na Vercel.` });
+    }
+    tipoId = achado.id;
+  }
+  if (!tipoId) return json(res, 200, { ok: false, erro: `Tipo de ausência não resolvido (${tipoAus.rot}).` });
 
   // 3) Localiza o funcionário (por e-mail de trabalho; cai para o nome).
   let emps = [];
@@ -101,7 +123,7 @@ async function criaFolga(res, b) {
   const vals = {
     employee_id: empId,
     holiday_status_id: tipoId,
-    name: String(b.motivo || '').trim() || 'Compensação de horas extras (painel Insights)',
+    name: String(b.motivo || '').trim() || `${tipoAus.rot} (painel Insights)`,
     request_date_from: data,
     request_date_to: isoData(b.dataFim) || data,
   };
