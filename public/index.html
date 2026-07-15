@@ -1115,6 +1115,12 @@
   .sim-tag.no{background:rgba(120,120,120,.15);color:#6B7280} .sim-tag.gargalo{background:rgba(210,10,10,.16);color:#B91C1C}
   .sim-arrow{font-variant-numeric:tabular-nums;white-space:nowrap}
   .sim-add{border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--cerceta);font-size:11px;font-weight:600;padding:2px 8px;cursor:pointer}
+  /* Timesheet — faixa "quando os dados foram importados" + forçar atualização */
+  .ts-fonte{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 12px;border-radius:10px;
+    background:var(--card);border:1px solid var(--borda);font-size:.86rem}
+  .ts-fonte .spacer{flex:1}
+  .ts-fonte.velha{border-color:var(--ambar,#d97706);background:color-mix(in srgb, var(--ambar,#d97706) 8%, var(--card))}
+  .ts-fonte-ic{font-size:1rem}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1876,12 +1882,15 @@ function nomeFeriado(dia){
 }
 const ehFeriado = (dia) => !!nomeFeriado(dia);
 
-async function carrega(periodo){
-  if (estado.cache[periodo]) { const c=estado.cache[periodo];
+// `forca=true` ignora o cache do navegador E o do servidor (nocache=1): os dados
+// voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
+async function carrega(periodo, forca){
+  if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
     estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
+  const q = forca ? '&nocache=1' : '';
   const [t,a,u] = await Promise.all([
-    fetch(`/api/tempo?janela=${periodo}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
-    fetch(`/api/atividade?janela=${periodo}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/tempo?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/atividade?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
     fetch(`/api/usuarios`).then(r=>r.json()).catch(()=>({})),
   ]);
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);   // tempo é essencial
@@ -3534,11 +3543,33 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   }
 });
 
+// Idade dos dados: quanto tempo faz desde a importação real (meta.geradoEm do servidor).
+function idadeTxt(iso){ const t=Date.parse(iso||''); if(!Number.isFinite(t)) return '';
+  const s=Math.max(0, Math.round((Date.now()-t)/1000));
+  if(s<60) return 'agora mesmo';
+  const m=Math.round(s/60); if(m<60) return `há ${m} min`;
+  const h=Math.floor(m/60), mm=m%60; if(h<24) return `há ${h}h${mm?String(mm).padStart(2,'0'):''}`;
+  const d=Math.floor(h/24); return `há ${d} dia${d>1?'s':''}`; }
+// Faixa "quando os dados foram importados" + botão de forçar atualização (bypass dos
+// caches do navegador e do servidor). meta.geradoEm é gravado pelo /api/tempo no momento
+// em que ele de fato leu o Clockwork/Jira — respostas de cache preservam o valor original.
+function tsFonteHtml(){
+  const g=(estado.tempo&&estado.tempo.meta&&estado.tempo.meta.geradoEm)||'';
+  const t=Date.parse(g); const ok=Number.isFinite(t);
+  const velho=ok && (Date.now()-t)>30*60*1000;
+  const quando=ok?new Date(t).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+  return `<div class="ts-fonte${velho?' velha':''}" data-tip="Os dados passam por um cache de servidor (~20 min). Este é o horário em que a importação do Clockwork/Jira realmente aconteceu — não o horário em que a tela abriu.">
+    <span class="ts-fonte-ic">${velho?'⚠️':'🕒'}</span>
+    <span>Dados importados do <strong>Clockwork/Jira</strong> em <strong>${esc(quando)}</strong>${ok?` · <strong>${esc(idadeTxt(g))}</strong>`:''}${velho?' — podem estar defasados':''}</span>
+    <span class="spacer"></span>
+    <button class="btn${velho?' primario':''}" id="ts-forcar">⟳ Forçar atualização</button>
+  </div>`;
+}
 function renderTimesheet(){
   const cont=document.getElementById('conteudo');
   const { meta, dias, hoje, linhas } = calcTimesheet();
   if(!linhas.length || !dias.length){
-    cont.replaceChildren(el(`<div>${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div>${tsFonteHtml()}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -3579,6 +3610,7 @@ function renderTimesheet(){
   }).join('');
 
   cont.replaceChildren(el(`<div>
+    ${tsFonteHtml()}
     ${cardNaoApontou()}
     <div class="kpis ts-kpis">
       <div class="kpi t"><div class="v">${fmtH(horasTot)}</div><div class="l">Horas apontadas</div></div>
@@ -10551,12 +10583,12 @@ function estadoParaURL(){
   salvaFiltrosLS(qs);   // persiste a visão atual p/ sobreviver a um reload
 }
 
-async function recarrega(){
+async function recarrega(forca){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
   cont.innerHTML=skeletonPainel();
   try{
-    await carrega(estado.periodo);
+    await carrega(estado.periodo, forca===true);
     document.getElementById('atualizado').textContent =
       'Atualizado em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
     preencheFiltros(); aplicaPendentes(); render(); estadoParaURL();
@@ -10564,6 +10596,7 @@ async function recarrega(){
       document.getElementById('erro-box').innerHTML =
         `<div class="aviso">${esc(estado.avisoAtiv)}</div>`;
     }
+    return true;
   }catch(e){
     cont.innerHTML='';
     const msg=String(e.message||e);
@@ -10576,6 +10609,7 @@ async function recarrega(){
         <div class="muted small" style="margin-top:6px">Possível causa: ${esc(causa)}. Ação recomendada: tente de novo; se persistir, verifique as variáveis na Vercel ou fale com o administrador.</div>
         <button class="btn" id="erro-retry" style="margin-top:8px">↻ Tentar de novo</button></div>`;
     const rb=document.getElementById('erro-retry'); if(rb) rb.addEventListener('click', recarrega);
+    return false;
   }
 }
 
@@ -11563,6 +11597,11 @@ document.addEventListener('keydown', (e)=>{
 document.addEventListener('click', (e)=>{
   const gt=e.target.closest && e.target.closest('[data-goto]');
   if(gt){ escondeTip(); vaiPara(gt.getAttribute('data-goto')); return; }
+  const tf=e.target.closest && e.target.closest('#ts-forcar');
+  if(tf){ escondeTip(); tf.disabled=true; tf.textContent='⟳ importando…';
+    delete estado.cache[estado.periodo];
+    recarrega(true).then(ok=>{ if(ok) toast('✓ Dados importados agora do Clockwork/Jira.','ok'); });
+    return; }
   const dr=e.target.closest && e.target.closest('[data-drill]');
   if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
   const tsc=e.target.closest && e.target.closest('[data-ts-cell]');
