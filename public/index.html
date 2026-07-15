@@ -1052,6 +1052,7 @@
   .mn-card{border:1px solid var(--linha);border-left-width:4px;border-radius:10px;padding:10px 12px;background:var(--cartao)}
   .mn-card.pend{border-left-color:#E58F00}
   .mn-card.ok{border-left-color:#188918;opacity:.8}
+  .mn-card.ign{border-left-color:var(--grafite,#6b7280);opacity:.55}
   .mn-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .mn-res{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
   .mn-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
@@ -1652,7 +1653,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // 📈 Analytics de governança (26 visões sobre abertos/concluídos/reabertos)
   analytics:{ dados:null, carregando:false, erro:'', fProj:'', fResp:'', x:5, dias:30, sel:'', busca:'' },
   // 💬 Menções: chamados em que EU fui marcado em comentários (responder dali mesmo)
-  mencoes:{ dados:null, carregando:false, erro:'', dias:14, soPend:true, busca:'' },
+  mencoes:{ dados:null, carregando:false, erro:'', dias:14, soPend:true, busca:'', verIgn:false },
   inbox:{ mencoes:null, carregando:false, carregou:false, erro:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
@@ -1668,7 +1669,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00',
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -8246,6 +8247,24 @@ function renderReceita(){
 // ============================ 💬 MENÇÕES (responder marcações) ============================
 // Chamados em que EU fui marcado (@) em comentários — com resposta dali mesmo,
 // mencionando a pessoa de volta (o Jira notifica). Fonte: ?mencoes=1 no /api/vencimentos.
+// ---- 🔕 Ignorar menções: some das listas/selos "para mim" ----
+// Por PESSOA, salvo na config compartilhada (vale em qualquer navegador). A chave é
+// ticket + horário do comentário; entradas com mais de 90 dias são limpas sozinhas
+// (a menção já saiu da janela de busca há muito tempo).
+function mnChave(x){ return x.k+'|'+(x.quando||''); }
+function mnIgnoradasSet(){
+  const id=idApontar(); if(!id||!id.accountId) return new Set();
+  return new Set(Object.keys((cfg.mencoesIgnoradas||{})[id.accountId]||{}));
+}
+function mnIgnora(chave, desfaz){
+  const id=idApontar(); if(!id||!id.accountId) return;
+  cfg.mencoesIgnoradas=cfg.mencoesIgnoradas||{};
+  const m=cfg.mencoesIgnoradas[id.accountId]=cfg.mencoesIgnoradas[id.accountId]||{};
+  if(desfaz) delete m[chave]; else m[chave]=hojeSP();
+  const corte=voltaDias(hojeSP(),90);
+  Object.entries(m).forEach(([k,d])=>{ if(String(d)<corte) delete m[k]; });
+  salvaCfg(); pintaBadgeInbox();
+}
 function carregaMencoes(forca){
   const mn=estado.mencoes; const id=idApontar();
   if(!id||!id.accountId) return;
@@ -8271,39 +8290,47 @@ function renderMencoes(){
   if(!mn.dados){ cont.replaceChildren(el(`<div class="estado">💬 Procurando onde te marcaram (últimos ${mn.dias} dias)…</div>`)); return; }
 
   const d=mn.dados; const todas=d.mencoes||[];
+  const ign=mnIgnoradasSet();
+  const nIgn=todas.filter(x=>ign.has(mnChave(x))).length;
   let lista=todas.slice();
+  if(!mn.verIgn) lista=lista.filter(x=>!ign.has(mnChave(x)));
   if(mn.soPend) lista=lista.filter(x=>!x.respondido);
   if(mn.busca){ const q=mn.busca.toLowerCase();
     lista=lista.filter(x=>(x.k+' '+x.resumo+' '+x.por+' '+x.texto).toLowerCase().includes(q)); }
-  const pend=todas.filter(x=>!x.respondido).length;
+  const pend=todas.filter(x=>!x.respondido && !ign.has(mnChave(x))).length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${pend?'w':'a'}"><div class="v">${pend}</div><div class="l">⏳ Aguardando sua resposta</div></div>
-    <div class="kpi a"><div class="v">${todas.length-pend}</div><div class="l">✓ Já respondidas</div></div>
+    <div class="kpi a"><div class="v">${todas.filter(x=>x.respondido&&!ign.has(mnChave(x))).length}</div><div class="l">✓ Já respondidas</div></div>
+    <div class="kpi a"><div class="v">${nIgn}</div><div class="l">🔕 Ignoradas</div></div>
     <div class="kpi t"><div class="v">${todas.length}</div><div class="l">∑ Menções no período</div></div>
   </div>`;
   const filtros=`<div class="ap-filtros">
     <div class="campo"><label>Período</label><select id="mn-dias">${[7,14,30,60].map(v=>`<option value="${v}" ${mn.dias===v?'selected':''}>últimos ${v} dias</option>`).join('')}</select></div>
     <div class="campo"><label>Buscar</label><input type="search" id="mn-busca" placeholder="código, resumo, pessoa, texto…" value="${escA(mn.busca)}"></div>
     <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="mn-sopend" ${mn.soPend?'checked':''}> só as que aguardam resposta</label></div>
+    <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="mn-verign" ${mn.verIgn?'checked':''}> mostrar ignoradas (${nIgn})</label></div>
     <div class="campo"><label>&nbsp;</label><button class="btn" id="mn-refresh">↻ Atualizar</button></div>
   </div>`;
 
   const rows=lista.map(x=>{
     const link=`${jiraBase()}/browse/${encodeURIComponent(x.k)}`;
-    return `<div class="mn-card ${x.respondido?'ok':'pend'}">
+    const ch=mnChave(x); const ehIgn=ign.has(ch);
+    return `<div class="mn-card ${ehIgn?'ign':(x.respondido?'ok':'pend')}">
       <div class="mn-top">
         <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
         <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
         <span class="spacer"></span>
         <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
-        ${x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>'}
+        ${ehIgn?'<span class="mn-badge">🔕 ignorada</span>':(x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>')}
       </div>
       <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
       <div class="mn-acts">
         <button class="btn primario" data-mn-resp="${escA(x.k)}">💬 Responder</button>
         <button class="btn" data-gx-det="${escA(x.k)}">🔍 detalhes</button>
         <button class="btn" data-gx-apont="${escA(x.k)}">⏱ apontar</button>
+        ${ehIgn?`<button class="btn" data-mn-desig="${escA(ch)}">↩ Não ignorar</button>`
+               :`<button class="btn" data-mn-ign="${escA(ch)}" data-tip="Some das SUAS listas e selos (não afeta o Jira nem as outras pessoas). Reverta em 'mostrar ignoradas'.">🔕 Ignorar</button>`}
       </div>
     </div>`; }).join('');
 
@@ -8439,7 +8466,8 @@ function inboxAprovacoes(){
 }
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
-  const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido).length;
+  const ign=mnIgnoradasSet();
+  const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
   return conv+men+inboxAprovacoes().length;
 }
 function pintaBadgeInbox(){
@@ -8474,7 +8502,8 @@ function renderInbox(){
   if(!ib.carregou){ cont.replaceChildren(el(`<div class="estado">📥 Montando sua caixa de entrada…</div>`)); return; }
 
   const cvs=estado.apontar.convites||[];
-  const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido);
+  const ign=mnIgnoradasSet();
+  const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
   const aprs=inboxAprovacoes();
   const total=cvs.length+mens.length+aprs.length;
 
@@ -8523,6 +8552,7 @@ function renderInbox(){
           <button class="btn primario" data-mn-resp="${escA(x.k)}">💬 Responder</button>
           <button class="btn" data-gx-det="${escA(x.k)}">🔍 detalhes</button>
           <button class="btn" data-gx-apont="${escA(x.k)}">⏱ apontar</button>
+          <button class="btn" data-mn-ign="${escA(mnChave(x))}" data-tip="Some das SUAS listas e selos (não afeta o Jira nem as outras pessoas). Reverta no módulo Menções, em 'mostrar ignoradas'.">🔕 Ignorar</button>
         </div>
       </div>`;}).join('')}</div>`
     :'<div class="alx-vazio">✓ Nenhuma menção sem resposta.</div>'}
@@ -11068,6 +11098,14 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 });
 // ---- 💬 Menções: lista, filtros e resposta ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const gi=e.target.closest&&e.target.closest('[data-mn-ign]');
+  if(gi){ mnIgnora(gi.getAttribute('data-mn-ign'));
+    toast('🔕 Menção ignorada — não aparece mais para você. Reverta em "mostrar ignoradas".','ok');
+    if(estado.vista==='inbox') renderInbox(); else renderMencoes(); return; }
+  const gd=e.target.closest&&e.target.closest('[data-mn-desig]');
+  if(gd){ mnIgnora(gd.getAttribute('data-mn-desig'), true);
+    toast('↩ Menção de volta às suas listas.','ok');
+    if(estado.vista==='inbox') renderInbox(); else renderMencoes(); return; }
   const r=e.target.closest&&e.target.closest('[data-mn-resp]');
   if(r){ abreResponderMencao(r.getAttribute('data-mn-resp')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
@@ -11082,6 +11120,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   const mn=estado.mencoes; const t=e.target; if(!t||!t.id) return;
   if(t.id==='mn-dias'){ mn.dias=Number(t.value)||14; mn.dados=null; carregaMencoes(false); renderMencoes(); }
   else if(t.id==='mn-sopend'){ mn.soPend=t.checked; renderMencoes(); }
+  else if(t.id==='mn-verign'){ mn.verIgn=t.checked; renderMencoes(); }
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{
   if(e.target&&e.target.id==='mn-busca'){ buscaComposta(e,(v)=>{ estado.mencoes.busca=v; },renderMencoes,'mn-busca'); }
