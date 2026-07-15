@@ -1052,6 +1052,7 @@
   .mn-card{border:1px solid var(--linha);border-left-width:4px;border-radius:10px;padding:10px 12px;background:var(--cartao)}
   .mn-card.pend{border-left-color:#E58F00}
   .mn-card.ok{border-left-color:#188918;opacity:.8}
+  .mn-card.ign{border-left-color:var(--grafite,#6b7280);opacity:.55}
   .mn-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .mn-res{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
   .mn-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
@@ -1115,6 +1116,12 @@
   .sim-tag.no{background:rgba(120,120,120,.15);color:#6B7280} .sim-tag.gargalo{background:rgba(210,10,10,.16);color:#B91C1C}
   .sim-arrow{font-variant-numeric:tabular-nums;white-space:nowrap}
   .sim-add{border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--cerceta);font-size:11px;font-weight:600;padding:2px 8px;cursor:pointer}
+  /* Timesheet — faixa "quando os dados foram importados" + forçar atualização */
+  .ts-fonte{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 12px;border-radius:10px;
+    background:var(--card);border:1px solid var(--borda);font-size:.86rem}
+  .ts-fonte .spacer{flex:1}
+  .ts-fonte.velha{border-color:var(--ambar,#d97706);background:color-mix(in srgb, var(--ambar,#d97706) 8%, var(--card))}
+  .ts-fonte-ic{font-size:1rem}
   /* Timesheet — célula clicável + drill-down (modal: dia → projeto → chamado) */
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
@@ -1461,6 +1468,7 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
+      <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
       <div class="navg">
         <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
@@ -1645,7 +1653,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // 📈 Analytics de governança (26 visões sobre abertos/concluídos/reabertos)
   analytics:{ dados:null, carregando:false, erro:'', fProj:'', fResp:'', x:5, dias:30, sel:'', busca:'' },
   // 💬 Menções: chamados em que EU fui marcado em comentários (responder dali mesmo)
-  mencoes:{ dados:null, carregando:false, erro:'', dias:14, soPend:true, busca:'' },
+  mencoes:{ dados:null, carregando:false, erro:'', dias:14, soPend:true, busca:'', verIgn:false },
+  inbox:{ mencoes:null, carregando:false, carregou:false, erro:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
@@ -1660,7 +1669,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00',
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -1876,12 +1885,15 @@ function nomeFeriado(dia){
 }
 const ehFeriado = (dia) => !!nomeFeriado(dia);
 
-async function carrega(periodo){
-  if (estado.cache[periodo]) { const c=estado.cache[periodo];
+// `forca=true` ignora o cache do navegador E o do servidor (nocache=1): os dados
+// voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
+async function carrega(periodo, forca){
+  if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
     estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
+  const q = forca ? '&nocache=1' : '';
   const [t,a,u] = await Promise.all([
-    fetch(`/api/tempo?janela=${periodo}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
-    fetch(`/api/atividade?janela=${periodo}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/tempo?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/atividade?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
     fetch(`/api/usuarios`).then(r=>r.json()).catch(()=>({})),
   ]);
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);   // tempo é essencial
@@ -2051,7 +2063,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2072,6 +2084,7 @@ function render(){
   if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='analytics') return renderAnalytics();
   if(estado.vista==='mencoes') return renderMencoes();
+  if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -3534,11 +3547,33 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   }
 });
 
+// Idade dos dados: quanto tempo faz desde a importação real (meta.geradoEm do servidor).
+function idadeTxt(iso){ const t=Date.parse(iso||''); if(!Number.isFinite(t)) return '';
+  const s=Math.max(0, Math.round((Date.now()-t)/1000));
+  if(s<60) return 'agora mesmo';
+  const m=Math.round(s/60); if(m<60) return `há ${m} min`;
+  const h=Math.floor(m/60), mm=m%60; if(h<24) return `há ${h}h${mm?String(mm).padStart(2,'0'):''}`;
+  const d=Math.floor(h/24); return `há ${d} dia${d>1?'s':''}`; }
+// Faixa "quando os dados foram importados" + botão de forçar atualização (bypass dos
+// caches do navegador e do servidor). meta.geradoEm é gravado pelo /api/tempo no momento
+// em que ele de fato leu o Clockwork/Jira — respostas de cache preservam o valor original.
+function tsFonteHtml(){
+  const g=(estado.tempo&&estado.tempo.meta&&estado.tempo.meta.geradoEm)||'';
+  const t=Date.parse(g); const ok=Number.isFinite(t);
+  const velho=ok && (Date.now()-t)>30*60*1000;
+  const quando=ok?new Date(t).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+  return `<div class="ts-fonte${velho?' velha':''}" data-tip="Os dados passam por um cache de servidor (~20 min). Este é o horário em que a importação do Clockwork/Jira realmente aconteceu — não o horário em que a tela abriu.">
+    <span class="ts-fonte-ic">${velho?'⚠️':'🕒'}</span>
+    <span>Dados importados do <strong>Clockwork/Jira</strong> em <strong>${esc(quando)}</strong>${ok?` · <strong>${esc(idadeTxt(g))}</strong>`:''}${velho?' — podem estar defasados':''}</span>
+    <span class="spacer"></span>
+    <button class="btn${velho?' primario':''}" id="ts-forcar">⟳ Forçar atualização</button>
+  </div>`;
+}
 function renderTimesheet(){
   const cont=document.getElementById('conteudo');
   const { meta, dias, hoje, linhas } = calcTimesheet();
   if(!linhas.length || !dias.length){
-    cont.replaceChildren(el(`<div>${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div>${tsFonteHtml()}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -3579,6 +3614,7 @@ function renderTimesheet(){
   }).join('');
 
   cont.replaceChildren(el(`<div>
+    ${tsFonteHtml()}
     ${cardNaoApontou()}
     <div class="kpis ts-kpis">
       <div class="kpi t"><div class="v">${fmtH(horasTot)}</div><div class="l">Horas apontadas</div></div>
@@ -4974,10 +5010,10 @@ async function respondeConvite(btn, recusa){
       fb.classList.add('ok');
       fb.textContent=recusa?'Convite recusado.':`✓ ${fmtH(j.segundos||0)} apontadas em ${j.issue||''} (${fmtBR(j.inicio||'')}).`;
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
-      pintaBadgeConvites(estado.apontar.convites.length);
+      pintaBadgeConvites(estado.apontar.convites.length); pintaBadgeInbox();
       if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos); atualizaPainelHoras(); }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
-      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, recusa?600:1400);
+      setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='inbox') renderInbox(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
       [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e);
@@ -8211,13 +8247,31 @@ function renderReceita(){
 // ============================ 💬 MENÇÕES (responder marcações) ============================
 // Chamados em que EU fui marcado (@) em comentários — com resposta dali mesmo,
 // mencionando a pessoa de volta (o Jira notifica). Fonte: ?mencoes=1 no /api/vencimentos.
+// ---- 🔕 Ignorar menções: some das listas/selos "para mim" ----
+// Por PESSOA, salvo na config compartilhada (vale em qualquer navegador). A chave é
+// ticket + horário do comentário; entradas com mais de 90 dias são limpas sozinhas
+// (a menção já saiu da janela de busca há muito tempo).
+function mnChave(x){ return x.k+'|'+(x.quando||''); }
+function mnIgnoradasSet(){
+  const id=idApontar(); if(!id||!id.accountId) return new Set();
+  return new Set(Object.keys((cfg.mencoesIgnoradas||{})[id.accountId]||{}));
+}
+function mnIgnora(chave, desfaz){
+  const id=idApontar(); if(!id||!id.accountId) return;
+  cfg.mencoesIgnoradas=cfg.mencoesIgnoradas||{};
+  const m=cfg.mencoesIgnoradas[id.accountId]=cfg.mencoesIgnoradas[id.accountId]||{};
+  if(desfaz) delete m[chave]; else m[chave]=hojeSP();
+  const corte=voltaDias(hojeSP(),90);
+  Object.entries(m).forEach(([k,d])=>{ if(String(d)<corte) delete m[k]; });
+  salvaCfg(); pintaBadgeInbox();
+}
 function carregaMencoes(forca){
   const mn=estado.mencoes; const id=idApontar();
   if(!id||!id.accountId) return;
   mn.carregando=true; mn.erro='';
   fetch(`/api/vencimentos?mencoes=1&accountId=${encodeURIComponent(id.accountId)}&dias=${mn.dias}${forca?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ mn.carregando=false;
-      if(j.erro) mn.erro=j.erro; else mn.dados=j;
+      if(j.erro) mn.erro=j.erro; else { mn.dados=j; estado.inbox.mencoes=j; pintaBadgeInbox(); }
       if(estado.vista==='mencoes') renderMencoes();
     }).catch(e=>{ mn.carregando=false; mn.erro=String(e.message||e); if(estado.vista==='mencoes') renderMencoes(); });
 }
@@ -8236,39 +8290,47 @@ function renderMencoes(){
   if(!mn.dados){ cont.replaceChildren(el(`<div class="estado">💬 Procurando onde te marcaram (últimos ${mn.dias} dias)…</div>`)); return; }
 
   const d=mn.dados; const todas=d.mencoes||[];
+  const ign=mnIgnoradasSet();
+  const nIgn=todas.filter(x=>ign.has(mnChave(x))).length;
   let lista=todas.slice();
+  if(!mn.verIgn) lista=lista.filter(x=>!ign.has(mnChave(x)));
   if(mn.soPend) lista=lista.filter(x=>!x.respondido);
   if(mn.busca){ const q=mn.busca.toLowerCase();
     lista=lista.filter(x=>(x.k+' '+x.resumo+' '+x.por+' '+x.texto).toLowerCase().includes(q)); }
-  const pend=todas.filter(x=>!x.respondido).length;
+  const pend=todas.filter(x=>!x.respondido && !ign.has(mnChave(x))).length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${pend?'w':'a'}"><div class="v">${pend}</div><div class="l">⏳ Aguardando sua resposta</div></div>
-    <div class="kpi a"><div class="v">${todas.length-pend}</div><div class="l">✓ Já respondidas</div></div>
+    <div class="kpi a"><div class="v">${todas.filter(x=>x.respondido&&!ign.has(mnChave(x))).length}</div><div class="l">✓ Já respondidas</div></div>
+    <div class="kpi a"><div class="v">${nIgn}</div><div class="l">🔕 Ignoradas</div></div>
     <div class="kpi t"><div class="v">${todas.length}</div><div class="l">∑ Menções no período</div></div>
   </div>`;
   const filtros=`<div class="ap-filtros">
     <div class="campo"><label>Período</label><select id="mn-dias">${[7,14,30,60].map(v=>`<option value="${v}" ${mn.dias===v?'selected':''}>últimos ${v} dias</option>`).join('')}</select></div>
     <div class="campo"><label>Buscar</label><input type="search" id="mn-busca" placeholder="código, resumo, pessoa, texto…" value="${escA(mn.busca)}"></div>
     <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="mn-sopend" ${mn.soPend?'checked':''}> só as que aguardam resposta</label></div>
+    <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="mn-verign" ${mn.verIgn?'checked':''}> mostrar ignoradas (${nIgn})</label></div>
     <div class="campo"><label>&nbsp;</label><button class="btn" id="mn-refresh">↻ Atualizar</button></div>
   </div>`;
 
   const rows=lista.map(x=>{
     const link=`${jiraBase()}/browse/${encodeURIComponent(x.k)}`;
-    return `<div class="mn-card ${x.respondido?'ok':'pend'}">
+    const ch=mnChave(x); const ehIgn=ign.has(ch);
+    return `<div class="mn-card ${ehIgn?'ign':(x.respondido?'ok':'pend')}">
       <div class="mn-top">
         <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
         <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
         <span class="spacer"></span>
         <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
-        ${x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>'}
+        ${ehIgn?'<span class="mn-badge">🔕 ignorada</span>':(x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>')}
       </div>
       <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
       <div class="mn-acts">
         <button class="btn primario" data-mn-resp="${escA(x.k)}">💬 Responder</button>
         <button class="btn" data-gx-det="${escA(x.k)}">🔍 detalhes</button>
         <button class="btn" data-gx-apont="${escA(x.k)}">⏱ apontar</button>
+        ${ehIgn?`<button class="btn" data-mn-desig="${escA(ch)}">↩ Não ignorar</button>`
+               :`<button class="btn" data-mn-ign="${escA(ch)}" data-tip="Some das SUAS listas e selos (não afeta o Jira nem as outras pessoas). Reverta em 'mostrar ignoradas'.">🔕 Ignorar</button>`}
       </div>
     </div>`; }).join('');
 
@@ -8386,8 +8448,141 @@ async function enviaRespostaMencao(){
     logAcao({acao:'responder-menção', t:ctx.k, para:x?x.por:'', ok:true});
     _mnResp=null; fechaModal();
     toast(`✓ Resposta publicada em ${ctx.k}.`,'ok');
+    pintaBadgeInbox();
     if(estado.vista==='mencoes') renderMencoes();
+    else if(estado.vista==='inbox') renderInbox();
   }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } if(bt) bt.disabled=false; }
+}
+// ============================ 📥 INBOX — pendências da pessoa ============================
+// Caixa de entrada unificada de quem está identificado: convites de apontamento coletivo
+// (reunião em grupo), menções aguardando resposta e — para o aprovador — alocações
+// esperando aprovação. Reusa as MESMAS ações dos módulos de origem (mesmos data-attrs,
+// mesmos handlers): confirmar/recusar convite, responder menção, ficha, apontar.
+function inboxAprovacoes(){
+  if(!souAprovador()) return [];
+  const pess=pessoasUnidas();
+  return Object.entries(cfg.alocTravas||{}).filter(([,t])=>t&&t.status==='pendente')
+    .map(([a,t])=>({ a, nome:(pess[a]&&pess[a].nome)||a, por:t.por||'', quando:String(t.quando||'').slice(0,10) }));
+}
+function inboxPend(){
+  const conv=(estado.apontar.convites||[]).length;
+  const ign=mnIgnoradasSet();
+  const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
+  return conv+men+inboxAprovacoes().length;
+}
+function pintaBadgeInbox(){
+  const elx=document.querySelector('#seg-vista [data-v="inbox"]'); if(!elx) return;
+  const n=inboxPend(); let b=elx.querySelector('.tab-badge');
+  if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; elx.appendChild(b); }
+    b.textContent=n; b.title=n+' pendência(s) aguardando você'; }
+  else if(b) b.remove();
+}
+function carregaInbox(forca){
+  const ib=estado.inbox; const id=idApontar(); if(!id||!id.accountId) return;
+  ib.carregando=true; ib.erro='';
+  const pC=fetch(`/api/apontar?convites=1&accountId=${encodeURIComponent(id.accountId)}`)
+    .then(r=>r.json()).then(j=>{ estado.apontar.convites=(j&&j.convites)||[]; pintaBadgeConvites(estado.apontar.convites.length); })
+    .catch(()=>{});
+  const pM=fetch(`/api/vencimentos?mencoes=1&accountId=${encodeURIComponent(id.accountId)}&dias=${estado.mencoes.dias||14}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ if(j&&!j.erro){ ib.mencoes=j; estado.mencoes.dados=j; } else if(j&&j.erro) ib.erro=j.erro; })
+    .catch(e=>{ ib.erro=String(e.message||e); });
+  Promise.all([pC,pM]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
+    if(estado.vista==='inbox') renderInbox(); });
+}
+function renderInbox(){
+  const cont=document.getElementById('conteudo');
+  const ib=estado.inbox; const id=idApontar();
+  if(!id||!id.accountId){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📥 Inbox <span>suas pendências em um só lugar</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para montarmos a SUA caixa de entrada.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
+    return;
+  }
+  if(!ib.carregou && !ib.carregando){ carregaInbox(false); }
+  if(!ib.carregou){ cont.replaceChildren(el(`<div class="estado">📥 Montando sua caixa de entrada…</div>`)); return; }
+
+  const cvs=estado.apontar.convites||[];
+  const ign=mnIgnoradasSet();
+  const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
+  const aprs=inboxAprovacoes();
+  const total=cvs.length+mens.length+aprs.length;
+
+  const kpis=`<div class="kpis ts-kpis">
+    <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
+    <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
+    <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
+    ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
+  </div>`;
+
+  // 🤝 Convites — mesmo markup/ações do banner da aba Apontar (confirma com 1 clique).
+  const secConv=`<div class="card full cv-card">
+    <h2>🤝 Convites de apontamento coletivo <span>reuniões em grupo — confirme e o worklog sai no SEU usuário</span></h2>
+    ${cvs.length?`<div class="cv-lista">${cvs.map(c=>`
+      <div class="cv-row" data-cv-id="${escA(c.id)}">
+        <a href="${jiraBase()}/browse/${encodeURIComponent(c.issue)}" target="_blank" rel="noopener"><strong>${esc(c.issue)}</strong> ↗</a>
+        <span class="ap-resumo">${esc(c.resumo||'')}</span>
+        <span class="badge com-horas">${fmtH(c.segundos)}</span>
+        <span class="badge">${fmtBR(c.inicio)}</span>
+        ${c.comentario?`<span class="badge" data-tip="${escA(c.comentario)}">💬</span>`:''}
+        <span class="badge" data-tip="Quem convidou">por ${esc(c.criadoPor||'?')}</span>
+        <span class="spacer"></span>
+        <button class="btn primario" data-cv-conf="${escA(c.id)}">✓ Apontar ${fmtH(c.segundos)}</button>
+        <button class="btn" data-cv-rec="${escA(c.id)}" data-tip="Não participei / não vou apontar">✕</button>
+        <div class="ap-fb" hidden></div>
+      </div>`).join('')}</div>
+      ${cvs.length>1?`<div style="margin-top:10px"><button class="btn primario" id="cv-todos">✓ Confirmar todos (${cvs.length})</button></div>`:''}`
+    :'<div class="alx-vazio">✓ Nenhum convite aguardando.</div>'}
+  </div>`;
+
+  // 💬 Menções sem resposta — mesmas ações do módulo Menções.
+  const secMen=`<div class="card full">
+    <h2>💬 Menções aguardando resposta <span>últimos ${estado.mencoes.dias||14} dias · <span class="lnk" data-goto="mencoes">ver todas no módulo Menções →</span></span></h2>
+    ${mens.length?`<div class="mn-list">${mens.map(x=>{
+      const link=`${jiraBase()}/browse/${encodeURIComponent(x.k)}`;
+      return `<div class="mn-card pend">
+        <div class="mn-top">
+          <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
+          <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
+          <span class="spacer"></span>
+          <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
+          <span class="mn-badge pend">⏳ aguardando sua resposta</span>
+        </div>
+        <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
+        <div class="mn-acts">
+          <button class="btn primario" data-mn-resp="${escA(x.k)}">💬 Responder</button>
+          <button class="btn" data-gx-det="${escA(x.k)}">🔍 detalhes</button>
+          <button class="btn" data-gx-apont="${escA(x.k)}">⏱ apontar</button>
+          <button class="btn" data-mn-ign="${escA(mnChave(x))}" data-tip="Some das SUAS listas e selos (não afeta o Jira nem as outras pessoas). Reverta no módulo Menções, em 'mostrar ignoradas'.">🔕 Ignorar</button>
+        </div>
+      </div>`;}).join('')}</div>`
+    :'<div class="alx-vazio">✓ Nenhuma menção sem resposta.</div>'}
+  </div>`;
+
+  // 🔒 Aprovações de alocação — só aparece para o aprovador e quando há pendências.
+  const secApr=(souAprovador()&&aprs.length)?`<div class="card full">
+    <h2>🔒 Alocações aguardando sua aprovação <span>travadas até você aprovar ou recusar</span></h2>
+    <div class="cv-lista">${aprs.map(p=>`
+      <div class="cv-row">
+        <strong>${esc(p.nome)}</strong>
+        <span class="badge" data-tip="Quem travou">por ${esc(p.por||'?')}</span>
+        ${p.quando?`<span class="badge">${esc(alxDataBR(p.quando))}</span>`:''}
+        <span class="spacer"></span>
+        <button class="btn primario" data-goto="alocacao">Abrir Alocação →</button>
+      </div>`).join('')}</div>
+  </div>`:'';
+
+  cont.replaceChildren(el(`<div>
+    <div class="ap-id">📥 Inbox de <strong>${esc(id.nome||id.email)}</strong>
+      <span class="muted small">convites, menções e aprovações que dependem de você</span>
+      <span class="spacer"></span>
+      <button class="btn" id="ib-forcar" data-tip="Rebusca convites e menções agora (ignora o cache do servidor)">⟳ Atualizar</button></div>
+    ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
+    ${kpis}
+    ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
+    ${secConv}
+    ${secMen}
+    ${secApr}
+  </div>`));
 }
 // ============================ 📈 ANALYTICS DE GOVERNANÇA ============================
 // 26 visões de saúde/governança calculadas NO FRONT sobre a base bruta do servidor
@@ -10488,7 +10683,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -10551,12 +10746,12 @@ function estadoParaURL(){
   salvaFiltrosLS(qs);   // persiste a visão atual p/ sobreviver a um reload
 }
 
-async function recarrega(){
+async function recarrega(forca){
   const cont=document.getElementById('conteudo');
   document.getElementById('erro-box').innerHTML='';
   cont.innerHTML=skeletonPainel();
   try{
-    await carrega(estado.periodo);
+    await carrega(estado.periodo, forca===true);
     document.getElementById('atualizado').textContent =
       'Atualizado em '+new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
     preencheFiltros(); aplicaPendentes(); render(); estadoParaURL();
@@ -10564,6 +10759,7 @@ async function recarrega(){
       document.getElementById('erro-box').innerHTML =
         `<div class="aviso">${esc(estado.avisoAtiv)}</div>`;
     }
+    return true;
   }catch(e){
     cont.innerHTML='';
     const msg=String(e.message||e);
@@ -10576,6 +10772,7 @@ async function recarrega(){
         <div class="muted small" style="margin-top:6px">Possível causa: ${esc(causa)}. Ação recomendada: tente de novo; se persistir, verifique as variáveis na Vercel ou fale com o administrador.</div>
         <button class="btn" id="erro-retry" style="margin-top:8px">↻ Tentar de novo</button></div>`;
     const rb=document.getElementById('erro-retry'); if(rb) rb.addEventListener('click', recarrega);
+    return false;
   }
 }
 
@@ -10621,7 +10818,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -10901,17 +11098,29 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 });
 // ---- 💬 Menções: lista, filtros e resposta ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const gi=e.target.closest&&e.target.closest('[data-mn-ign]');
+  if(gi){ mnIgnora(gi.getAttribute('data-mn-ign'));
+    toast('🔕 Menção ignorada — não aparece mais para você. Reverta em "mostrar ignoradas".','ok');
+    if(estado.vista==='inbox') renderInbox(); else renderMencoes(); return; }
+  const gd=e.target.closest&&e.target.closest('[data-mn-desig]');
+  if(gd){ mnIgnora(gd.getAttribute('data-mn-desig'), true);
+    toast('↩ Menção de volta às suas listas.','ok');
+    if(estado.vista==='inbox') renderInbox(); else renderMencoes(); return; }
   const r=e.target.closest&&e.target.closest('[data-mn-resp]');
   if(r){ abreResponderMencao(r.getAttribute('data-mn-resp')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   const mn=estado.mencoes;
   if(t.id==='mn-retry'){ mn.erro=''; mn.dados=null; renderMencoes(); }
   else if(t.id==='mn-refresh'){ mn.dados=null; carregaMencoes(true); renderMencoes(); }
+  // ---- 📥 Inbox ----
+  else if(t.id==='ib-forcar'){ t.disabled=true; t.textContent='⟳ atualizando…'; carregaInbox(true); }
+  else if(t.id==='ib-retry'){ estado.inbox.erro=''; estado.inbox.carregou=false; renderInbox(); }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   const mn=estado.mencoes; const t=e.target; if(!t||!t.id) return;
   if(t.id==='mn-dias'){ mn.dias=Number(t.value)||14; mn.dados=null; carregaMencoes(false); renderMencoes(); }
   else if(t.id==='mn-sopend'){ mn.soPend=t.checked; renderMencoes(); }
+  else if(t.id==='mn-verign'){ mn.verIgn=t.checked; renderMencoes(); }
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{
   if(e.target&&e.target.id==='mn-busca'){ buscaComposta(e,(v)=>{ estado.mencoes.busca=v; },renderMencoes,'mn-busca'); }
@@ -11563,6 +11772,11 @@ document.addEventListener('keydown', (e)=>{
 document.addEventListener('click', (e)=>{
   const gt=e.target.closest && e.target.closest('[data-goto]');
   if(gt){ escondeTip(); vaiPara(gt.getAttribute('data-goto')); return; }
+  const tf=e.target.closest && e.target.closest('#ts-forcar');
+  if(tf){ escondeTip(); tf.disabled=true; tf.textContent='⟳ importando…';
+    delete estado.cache[estado.periodo];
+    recarrega(true).then(ok=>{ if(ok) toast('✓ Dados importados agora do Clockwork/Jira.','ok'); });
+    return; }
   const dr=e.target.closest && e.target.closest('[data-drill]');
   if(dr){ escondeTip(); drill(dr.getAttribute('data-drill'), dr.getAttribute('data-key')); return; }
   const tsc=e.target.closest && e.target.closest('[data-ts-cell]');
@@ -11822,7 +12036,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
 leURL();
 sincronizaControlesURL();
 (async ()=>{ await carregaCfgRemota(); recarrega(); })();
-if(idApontar()) buscaConvites();   // mostra o selo de convites pendentes já no carregamento
+if(idApontar()) carregaInbox();   // selos já no carregamento: convites (Apontar/Operação) + pendências (📥 Inbox)
 
 // ---- Versão do deploy no rodapé (commit/PR do GitHub, via Vercel) ----
 // Fica vazio quando indisponível (ex.: rodando o HTML local, sem as functions).

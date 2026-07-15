@@ -49,7 +49,8 @@ export default async function handler(req, res) {
     if (req.query && req.query.fluxo) return await fluxoAtividade(req, res);
     const janela = normalizaJanela((req.query && req.query.janela) || '7d');
     const ck = `atividade:${janela}`;
-    const cached = cacheGet(ck);
+    // ?nocache=1 força a leitura fresca (o resultado novo ainda alimenta o cache).
+    const cached = (req.query && req.query.nocache === '1') ? null : cacheGet(ck);
     if (cached) return json(res, 200, cached);
 
     const r = rangeFor(janela);
