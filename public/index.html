@@ -1072,6 +1072,12 @@
     border:1px solid var(--linha);border-radius:8px;padding:8px 10px;margin-top:6px;background:var(--cartao)}
   .gx-det-item{font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--linha)}
   .gx-det-item:last-child{border-bottom:0}
+  /* Agrupamento da Gestão */
+  .gx-grp{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:8px;
+    background:rgba(0,112,242,.06);border-left:4px solid var(--cerceta)}
+  .gx-grp-rot{font-weight:800;font-size:13px}
+  .gx-grp-row td{padding:10px 6px 4px!important;border-bottom:0!important}
+  .gx-grp-l{margin:14px 0 8px}
   .gx-dup-g{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--cartao)}
   .gx-dup-g .ts-wrap{margin-top:4px}
   .gx-dup-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -1616,7 +1622,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
-    soKeys:null, origem:'' },   // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
+    soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
+    agrupar:'' },               // '', resp, proj, tipo, status, prio, epico, venc, risco
   // Qualidade dos tickets (IA × boas práticas TI-04-006 do Notion)
   qualidade:{ dias:14, projeto:'', dados:null, carregando:false, erro:'' },
   reclass:{ origem:'RDF', dados:null, carregando:false, erro:'', sel:{}, alvo:'', busca:'',
@@ -8702,6 +8709,51 @@ function gxLista(){
   return l;
 }
 function gxSelKeys(){ const g=estado.gestao; return Object.keys(g.sel).filter(k=>g.sel[k]); }
+// ---- Agrupamento da Gestão: pessoa, projeto, tipo, status, prioridade, épico, vencimento, risco ----
+const GX_AGRUPAR=[['','sem agrupamento'],['resp','responsável'],['proj','projeto'],['tipo','tipo'],
+  ['status','status'],['prio','prioridade'],['epico','épico'],['venc','vencimento'],['risco','risco']];
+function gxGrupoDe(t, hoje){
+  const g=estado.gestao;
+  switch(g.agrupar){
+    case 'resp': return { k:t.respId||'__sem__', rot:t.resp||'👤 sem responsável' };
+    case 'proj': return { k:t.p||'—', rot:alxProjNome(t.p) };
+    case 'tipo': return { k:t.t||'—', rot:t.t||'—' };
+    case 'status': return { k:t.status||'—', rot:t.status||'—' };
+    case 'prio': return { k:t.prio||'__sem__', rot:t.prio||'sem prioridade' };
+    case 'epico': return { k:t.pai||'__sem__', rot:t.pai?`🧩 ${t.pai}`:'sem épico' };
+    case 'venc':{
+      if(!t.venc) return { k:'5-sem', rot:'sem vencimento' };
+      if(t.venc<hoje) return { k:'1-atras', rot:'⚠ vencidos' };
+      if(t.venc===hoje) return { k:'2-hoje', rot:'📅 vencem hoje' };
+      if(t.venc<=somaDias(hoje,7)) return { k:'3-semana', rot:'próximos 7 dias' };
+      return { k:'4-depois', rot:'depois de 7 dias' };
+    }
+    case 'risco':{ const r=gxRisco(t,hoje); return { k:String(9-Math.floor(r.s/25))+'-'+r.rot, rot:`risco ${r.rot}` }; }
+    default: return null;
+  }
+}
+// Agrupa a lista filtrada: [{k, rot, itens, seg, atrasados}] — grupos maiores primeiro
+// (vencimento/risco ordenam pela chave, que embute a criticidade).
+function gxAgrupa(lista, hoje){
+  const g=estado.gestao; if(!g.agrupar) return null;
+  const m=new Map();
+  lista.forEach(t=>{ const gr=gxGrupoDe(t,hoje);
+    const at=m.get(gr.k)||{ k:gr.k, rot:gr.rot, itens:[], seg:0, atrasados:0 };
+    at.itens.push(t); at.seg+=Number(t.seg)||0; if(t.venc&&t.venc<hoje) at.atrasados++;
+    m.set(gr.k,at); });
+  const arr=[...m.values()];
+  if(g.agrupar==='venc'||g.agrupar==='risco') arr.sort((a,b)=>a.k.localeCompare(b.k));
+  else arr.sort((a,b)=>b.itens.length-a.itens.length||a.rot.localeCompare(b.rot,'pt'));
+  return arr;
+}
+function gxGrupoCab(gr){
+  return `<span class="gx-grp-rot">${esc(gr.rot)}</span>
+    <span class="badge">${gr.itens.length} ticket(s)</span>
+    ${gr.seg?`<span class="badge">⏱ ${fmtH(gr.seg)}</span>`:''}
+    ${gr.atrasados?`<span class="badge venc-passado">⚠ ${gr.atrasados} atrasado(s)</span>`:''}
+    <span class="spacer"></span>
+    <button class="chip" data-gx-grp-sel="${escA(gr.itens.map(t=>t.k).join(','))}">selecionar grupo</button>`;
+}
 // Comentar em massa: publica o mesmo comentário em todos os selecionados (token da pessoa).
 const GX_TPLS=[
   ['','— escrever do zero —',''],
@@ -9164,7 +9216,7 @@ function renderGestao(){
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
   // ---- Tabela (densa; padrão) ----
   const htmlTabela=()=>{
-    const rows=lista.map(t=>{ const atras=gxAtrasoDias(t,hoje);
+    const linha=(t)=>{ const atras=gxAtrasoDias(t,hoje);
       return `<tr class="${g.sel[t.k]?'gx-on':''}">
         <td class="c">${chk(t)}</td>
         <td>${linkK(t)}${tratado(t)}</td>
@@ -9178,7 +9230,11 @@ function renderGestao(){
         <td class="num" title="Horas apontadas">${t.seg?fmtH(t.seg):'—'}</td>
         <td class="num" title="Estimativa original">${t.est?fmtH(t.est):'—'}</td>
         <td>${riscoBadge(t)}</td>
-        <td>${acts(t)}</td></tr>`; }).join('');
+        <td>${acts(t)}</td></tr>`; };
+    const grupos=gxAgrupa(lista,hoje);
+    const rows=grupos
+      ? grupos.map(gr=>`<tr class="gx-grp-row"><td colspan="13"><div class="gx-grp">${gxGrupoCab(gr)}</div></td></tr>${gr.itens.map(linha).join('')}`).join('')
+      : lista.map(linha).join('');
     return `<div class="ts-wrap"><table class="rc-tab gx-tab"><thead><tr>
         <th class="c"><input type="checkbox" id="gx-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
         <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Status</th><th>Responsável</th><th>Vencimento</th><th class="num">Atraso</th><th class="num">Últ. atividade</th><th class="num">Horas</th><th class="num">Estim.</th><th>Risco</th><th>Ações rápidas</th></tr></thead>
@@ -9196,8 +9252,7 @@ function renderGestao(){
   };
   const htmlLista=()=>{
     if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
-    return `<div class="muted small" style="margin:0 0 8px"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-all" ${todosVis?'checked':''}> selecionar todos (${lista.length})</label></div>`+
-      lista.map(t=>{ const atras=gxAtrasoDias(t,hoje);
+    const cardDe=(t)=>{ const atras=gxAtrasoDias(t,hoje);
       const ehReuniao=RE_ROTINA.test(t.t||'')||/reuni/i.test(t.resumo||'');
       return `<div class="gx-lrow ${g.sel[t.k]?'sel':''}">
         ${chk(t)}
@@ -9219,15 +9274,24 @@ function renderGestao(){
             ${idAp&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket (cria/comenta e EXCLUI a reunião)">🔗 vincular a ticket</button>`:''}
           </div>
           <div class="ap-l2" style="margin-top:6px">${acts(t)}</div>
-        </div></div>`; }).join('');
+        </div></div>`; };
+    const grupos=gxAgrupa(lista,hoje);
+    const corpo2=grupos
+      ? grupos.map(gr=>`<div class="gx-grp gx-grp-l">${gxGrupoCab(gr)}</div>${gr.itens.map(cardDe).join('')}`).join('')
+      : lista.map(cardDe).join('');
+    return `<div class="muted small" style="margin:0 0 8px"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-all" ${todosVis?'checked':''}> selecionar todos (${lista.length})</label></div>`+corpo2;
   };
-  // ---- Quadro (kanban por status) ----
+  // ---- Quadro (kanban por status — ou pelo campo do "Agrupar por") ----
   const htmlQuadro=()=>{
     if(!lista.length) return '<div class="estado">Nada encontrado com esses filtros.</div>';
-    const porSt={}; lista.forEach(t=>{ const st=t.status||'—'; (porSt[st]=porSt[st]||[]).push(t); });
-    const cols=Object.keys(porSt).sort((x,y)=>porSt[y].length-porSt[x].length || x.localeCompare(y,'pt'));
-    return `<div class="kanban">${cols.map(st=>{
-      const arr=porSt[st].slice();
+    const porCol=new Map();
+    lista.forEach(t=>{ const gr=g.agrupar?gxGrupoDe(t,hoje):{k:t.status||'—',rot:t.status||'—'};
+      const at=porCol.get(gr.k)||{rot:gr.rot,arr:[]}; at.arr.push(t); porCol.set(gr.k,at); });
+    const cols=[...porCol.keys()];
+    if(g.agrupar==='venc'||g.agrupar==='risco') cols.sort();
+    else cols.sort((x,y)=>porCol.get(y).arr.length-porCol.get(x).arr.length || porCol.get(x).rot.localeCompare(porCol.get(y).rot,'pt'));
+    return `<div class="kanban">${cols.map(ck=>{
+      const col=porCol.get(ck); const st=col.rot; const arr=col.arr.slice();
       return `<div class="kb-col"><div class="kb-head">${esc(st)} <span>${arr.length}</span></div>
         <div class="kb-cards">${arr.map(t=>{ const atras=gxAtrasoDias(t,hoje);
           return `<div class="kb-card gx-card ${g.sel[t.k]?'sel':''}" data-gx-card="${escA(t.k)}">
@@ -9257,6 +9321,8 @@ function renderGestao(){
     <button class="chip" aria-pressed="${vis==='tabela'}" data-gx-vis="tabela">▦ Tabela</button>
     <button class="chip" aria-pressed="${vis==='quadro'}" data-gx-vis="quadro">🗂 Quadro</button>
     <span class="spacer"></span>
+    <span class="muted small">Agrupar:</span>
+    <select id="gx-agrupar" class="aloc-fsel">${GX_AGRUPAR.map(([v,l])=>`<option value="${v}" ${g.agrupar===v?'selected':''}>${esc(l)}</option>`).join('')}</select>
     <span class="muted small">Ordenar:</span>
     <select id="gx-ord" class="aloc-fsel"><option value="risco" ${g.ord==='risco'?'selected':''}>risco</option><option value="venc" ${g.ord==='venc'?'selected':''}>vencimento</option><option value="atual" ${g.ord==='atual'?'selected':''}>última atividade</option></select>
     <label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-semtrat" ${g.semTrat?'checked':''}> esconder tratados</label></div>`;
@@ -10936,6 +11002,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-grp-sel')){
+    t.getAttribute('data-gx-grp-sel').split(',').forEach(k=>{ if(k) g.sel[k]=true; });
+    renderGestao(); toast('Grupo selecionado — use as ações em massa.','ok'); return; }
   if(t.id==='gx-tratar'){ const ks=gxSelKeys(); if(!ks.length) return;
     cfg.tratados=cfg.tratados||{}; const quem=(idApontar()||{}).nome||'';
     const desmarca=ks.every(k=>cfg.tratados[k]);
@@ -10957,6 +11026,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   else if(t.id==='gx-fresp'){ g.fResp=t.value; renderGestao(); }
   else if(t.id==='gx-fstatus'){ g.fStatus=t.value; renderGestao(); }
   else if(t.id==='gx-ord'){ g.ord=t.value; renderGestao(); }
+  else if(t.id==='gx-agrupar'){ g.agrupar=t.value; renderGestao(); }
   else if(t.id==='gx-semtrat'){ g.semTrat=t.checked; renderGestao(); }
   else if(t.id==='gx-all'){ const l=gxLista(); l.forEach(x=>{ if(t.checked) g.sel[x.k]=true; else delete g.sel[x.k]; }); renderGestao(); }
   else if(t.classList&&t.classList.contains('gx-chk')){ const k=t.getAttribute('data-k');
