@@ -173,6 +173,22 @@
     font-size:12px;color:var(--texto2);font-weight:400;margin-top:1px}
   .spacer{flex:1}
 
+  /* Botão do menu sanduíche (só aparece no celular/tablet estreito) */
+  .nav-toggle{display:none;align-items:center;gap:9px;margin-left:auto;
+    border:1px solid var(--linha);background:var(--cartao);color:var(--grafite);
+    font-family:var(--corpo);font-size:14px;font-weight:700;padding:9px 13px;border-radius:10px;cursor:pointer}
+  .nav-toggle:hover{border-color:var(--cerceta);color:var(--cerceta)}
+  .nt-bars{position:relative;width:18px;height:2px;background:currentColor;border-radius:2px;flex:0 0 auto}
+  .nt-bars::before,.nt-bars::after{content:"";position:absolute;left:0;width:18px;height:2px;background:currentColor;border-radius:2px}
+  .nt-bars::before{top:-6px}.nt-bars::after{top:6px}
+  .nt-bars,.nt-bars::before,.nt-bars::after{transition:transform .18s ease,top .18s ease,background .18s ease}
+  .nav-toggle[aria-expanded="true"] .nt-bars{background:transparent}
+  .nav-toggle[aria-expanded="true"] .nt-bars::before{top:0;transform:rotate(45deg)}
+  .nav-toggle[aria-expanded="true"] .nt-bars::after{top:0;transform:rotate(-45deg)}
+  .nt-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;
+    padding:0 5px;border-radius:999px;background:#D20A0A;color:#fff;font-size:11px;font-weight:700}
+  .nt-badge[hidden]{display:none}
+
   /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
   .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
   .seg button{border:0;background:transparent;color:var(--texto2);font-family:var(--corpo);
@@ -1406,9 +1422,6 @@
     .brand img{width:34px;height:34px}
     .spacer{display:none}
     header{gap:8px}
-    .seg{width:100%;overflow:visible;flex-wrap:wrap;gap:2px}
-    .navtab,.navg-b{white-space:nowrap;padding:8px 10px}
-    .navg-menu{min-width:62vw}
     .hdr-sel{flex:1 1 100%}
     .hdr-acoes{flex:1 1 100%;justify-content:flex-start}
     .atualizado{order:9}
@@ -1429,6 +1442,33 @@
     .scroll-x table{min-width:560px}
     .ts-wrap > table:not(.ts){min-width:720px}
     .scroll-x .cols{min-width:520px}
+  }
+
+  /* ---- Navegação em celular/tablet estreito: menu sanduíche (drawer + acordeão) ---- */
+  @media (max-width:760px){
+    .nav-toggle{display:inline-flex}
+    /* A barra de abas vira um painel que abre/fecha pelo botão Menu */
+    #seg-vista{display:none;width:100%;flex-direction:column;gap:0;margin-top:6px;
+      background:var(--cartao);border:1px solid var(--linha);border-radius:12px;padding:6px;
+      box-shadow:0 16px 40px rgba(34,54,79,.16)}
+    #seg-vista.nav-aberto{display:flex}
+    /* Itens de topo e cabeçalhos de grupo: linhas de largura total */
+    #seg-vista > .navtab,.navg{width:100%}
+    .navg{position:static;display:flex;flex-direction:column}
+    #seg-vista > .navtab,.navg-b{width:100%;box-sizing:border-box;justify-content:flex-start;
+      padding:13px 12px;margin:0;border-radius:8px;border-bottom:0;font-size:15px;white-space:normal}
+    .navg-b .nav-car{margin-left:auto;transition:transform .18s ease}
+    .navg.open > .navg-b .nav-car{transform:rotate(180deg)}
+    /* Submenu no fluxo (acordeão), recuado sob o grupo */
+    .navg-menu{position:static;display:none;min-width:0;width:100%;margin:0;padding:2px 0 6px;
+      border:0;border-radius:0;background:transparent;box-shadow:none}
+    .navg.open > .navg-menu{display:flex;flex-direction:column}
+    .navg-menu button{padding:12px 12px 12px 38px;font-size:14px;border-radius:8px;white-space:normal}
+    /* Realce do item ativo: barra à esquerda em vez do sublinhado */
+    .seg button[aria-pressed="true"]{border-bottom-color:transparent;background:var(--hoverbg);
+      box-shadow:inset 3px 0 0 var(--cerceta)}
+    .navg.ativo > .navg-b[aria-pressed="true"]{background:var(--hoverbg)}
+    .nt-label{font-size:14px}
   }
 </style>
 <script>
@@ -1465,6 +1505,11 @@
       </div>
     </div>
     <div class="spacer"></div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="seg-vista" aria-label="Abrir menu de navegação">
+      <span class="nt-bars" aria-hidden="true"></span>
+      <span class="nt-label">Menu</span>
+      <span class="nt-badge" id="nt-badge" hidden></span>
+    </button>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
@@ -8476,6 +8521,9 @@ function pintaBadgeInbox(){
   if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; elx.appendChild(b); }
     b.textContent=n; b.title=n+' pendência(s) aguardando você'; }
   else if(b) b.remove();
+  // Espelha a contagem no selo do botão Menu (mobile), para não ficar escondida no drawer.
+  const nb=document.getElementById('nt-badge');
+  if(nb){ if(n>0){ nb.textContent=n; nb.title=n+' pendência(s) aguardando você'; nb.hidden=false; } else { nb.hidden=true; } }
 }
 function carregaInbox(forca){
   const ib=estado.inbox; const id=idApontar(); if(!id||!id.accountId) return;
@@ -10786,14 +10834,23 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
     ev.stopPropagation(); return; }
   // Item de ação (abre modal, não troca de aba).
   const ac=ev.target.closest('[data-acao]');
-  if(ac){ fechaMenusNav(); const a=ac.getAttribute('data-acao');
+  if(ac){ fechaMenusNav(); fechaDrawer(); const a=ac.getAttribute('data-acao');
     if(a==='metas') abreMetas(); else if(a==='log') abreLogAcoes();
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
-  estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); render(); estadoParaURL();
+  estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 });
+// Menu sanduíche (celular/tablet estreito): abre/fecha o painel de navegação.
+function fechaDrawer(){ const s=document.getElementById('seg-vista'); if(s) s.classList.remove('nav-aberto');
+  const t=document.getElementById('nav-toggle'); if(t) t.setAttribute('aria-expanded','false'); }
+(function(){ const t=document.getElementById('nav-toggle'); if(!t) return;
+  t.addEventListener('click', (e)=>{ e.stopPropagation();
+    const s=document.getElementById('seg-vista'); if(!s) return;
+    const abrir=!s.classList.contains('nav-aberto');
+    s.classList.toggle('nav-aberto', abrir); t.setAttribute('aria-expanded', abrir?'true':'false');
+    if(!abrir) fechaMenusNav(); }); })();
 // Dropdowns da barra de ações (Exportar ▾ / ⋯ Mais) — mesmo padrão do menu.
 function fechaMenusHdr(){ document.querySelectorAll('.hdrmenu.open').forEach(x=>{ x.classList.remove('open');
   const b=x.querySelector('.hdrmenu-b'); if(b) b.setAttribute('aria-expanded','false'); }); }
@@ -10805,9 +10862,11 @@ document.addEventListener('click', (e)=>{
   if(!(e.target.closest && e.target.closest('.hdrmenu'))) fechaMenusHdr();
 });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusHdr(); });
-// Clique fora fecha os menus de navegação abertos.
-document.addEventListener('click', (e)=>{ if(!(e.target.closest && e.target.closest('#seg-vista'))) fechaMenusNav(); });
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusNav(); });
+// Clique fora fecha os menus de navegação abertos (e o drawer mobile).
+document.addEventListener('click', (e)=>{
+  const dentro=e.target.closest && (e.target.closest('#seg-vista')||e.target.closest('#nav-toggle'));
+  if(!dentro){ fechaMenusNav(); fechaDrawer(); } });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fechaMenusNav(); fechaDrawer(); } });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
 document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo'].forEach(id=>
