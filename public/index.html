@@ -189,6 +189,17 @@
     padding:0 5px;border-radius:999px;background:#D20A0A;color:#fff;font-size:11px;font-weight:700}
   .nt-badge[hidden]{display:none}
 
+  /* 📁 Visão por Projetos */
+  .proj-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+  .proj-tabs .chip{cursor:pointer}
+  .chip.on{background:var(--cerceta);color:#fff;border-color:var(--cerceta)}
+  tr.proj-linha{cursor:pointer}
+  tr.proj-linha:hover td{background:var(--hoverbg)}
+  .proj-saude{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+  .proj-saude .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  th[data-proj-sort]{cursor:pointer;user-select:none;white-space:nowrap}
+  th[data-proj-sort].sorted{color:var(--cerceta)}
+
   /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
   .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
   .seg button{border:0;background:transparent;color:var(--texto2);font-family:var(--corpo);
@@ -1514,6 +1525,7 @@
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
       <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
+      <button class="navtab" data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
       <div class="navg">
         <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
@@ -1673,6 +1685,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
+  // 📁 Visão por Projetos: consolidado (todos) + ficha por projeto (direto do Jira).
+  projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
@@ -2108,7 +2122,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2117,6 +2131,236 @@ function aplicaChrome(){
   mostra('#grp-exportar', !!c.exp);
   mostra('#btn-novidades', !!(c.per||c.exp));   // novidades só nas telas de análise
 }
+// ===========================================================================
+// 📁 Visão por Projetos — consolidado (todos os projetos) + ficha detalhada por
+// projeto, direto do Jira (/api/projetos?visao=1). Espelha o relatório por
+// projeto: Visão Geral, Status/Tipo/Prioridade, Épicos & Esforço, Categorias,
+// Evolução Mensal e Inconsistências. Horas = campos do Jira (÷3600). Reusa os
+// primitivos (KPIs vg-*, barlist, sparkline, tooltips).
+// ===========================================================================
+const fmtHd = (h) => (h == null ? '—' : (Math.round(Number(h) * 10) / 10).toLocaleString('pt-BR') + 'h');
+const nBR = (n) => (Number(n) || 0).toLocaleString('pt-BR');
+const corSaude = (s) => (s >= 70 ? 'good' : (s >= 40 ? 'warn' : 'bad'));
+const CORSAUDE = { good: '#2f9e44', warn: '#e8a33d', bad: '#d20a0a' };
+const projJira = (k) => `${jiraBase()}/browse/${encodeURIComponent(k)}`;
+
+function carregaProjConsolidado(forca) {
+  const p = estado.projetos; p.carregando = true; p.erro = '';
+  fetch(`/api/projetos?visao=1${forca ? '&nocache=1' : ''}`).then((r) => r.json()).then((j) => {
+    p.carregando = false;
+    if (j && j.erro) p.erro = j.erro; else p.consolidado = j;
+    if (estado.vista === 'projetos' && !p.sel) renderProjetos();
+  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); if (estado.vista === 'projetos' && !p.sel) renderProjetos(); });
+}
+function carregaProjFicha(key, forca) {
+  const p = estado.projetos; p.carregando = true; p.erro = '';
+  fetch(`/api/projetos?visao=1&projeto=${encodeURIComponent(key)}${forca ? '&nocache=1' : ''}`).then((r) => r.json()).then((j) => {
+    p.carregando = false;
+    if (j && j.erro) p.erro = j.erro; else p.fichas[key] = j;
+    if (estado.vista === 'projetos' && p.sel === key) renderProjetos();
+  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); if (estado.vista === 'projetos' && p.sel === key) renderProjetos(); });
+}
+
+function projSelectorHTML() {
+  const p = estado.projetos; const cons = p.consolidado;
+  const opts = ['<option value="">Todos os projetos (consolidado)</option>']
+    .concat(((cons && cons.projetos) || []).map((x) => `<option value="${escA(x.key)}"${p.sel === x.key ? ' selected' : ''}>${esc(x.key)} — ${esc(x.nome)}</option>`)).join('');
+  return `<label class="hdr-sel" style="min-width:min(320px,80vw)"><span>Projeto</span><select data-proj-sel>${opts}</select></label>`;
+}
+function projToolbar() {
+  const p = estado.projetos;
+  return `<div class="ts-fonte" style="align-items:flex-end;gap:14px;flex-wrap:wrap">
+    ${p.sel ? '<button class="btn" data-proj-back title="Voltar ao consolidado">‹ Todos</button>' : ''}
+    ${projSelectorHTML()}
+    <span class="spacer"></span>
+    <button class="btn" data-proj-refresh title="Rebuscar do Jira ignorando o cache">⟳ Atualizar</button></div>`;
+}
+
+function renderProjetos() {
+  const cont = document.getElementById('conteudo'); const p = estado.projetos;
+  if (!p.consolidado && !p.erro) {
+    if (!p.carregando) carregaProjConsolidado(false);
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📁 Projetos <span>visão consolidada + ficha por projeto (direto do Jira)</span></h2>${skeletonPainel()}</div></div>`));
+    return;
+  }
+  if (p.erro && !p.consolidado) {
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📁 Projetos</h2><div class="estado">Não consegui carregar: ${esc(p.erro)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
+    return;
+  }
+  if (!p.sel) return renderProjConsolidado(cont);
+  return renderProjFicha(cont, p.sel);
+}
+
+function renderProjConsolidado(cont) {
+  const p = estado.projetos; const c = p.consolidado; const t = c.totais || {};
+  const kpi = (l, v, sev) => `<div class="vg-k ${sev || ''}"><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
+  const kpis = [
+    kpi('Projetos', nBR((c.projetos || []).length)),
+    kpi('Itens (total)', nBR(t.total)),
+    kpi('% concluído', nBR(t.pctConcluido) + '%'),
+    kpi('Backlog', nBR(t.backlog)),
+    kpi('Em andamento', nBR(t.emAndamento)),
+    kpi('Vencidos', nBR(t.vencidos), t.vencidos ? 'warn' : ''),
+    kpi('Estimado', fmtHd(t.estH)),
+    kpi('Gasto', fmtHd(t.gastoH)),
+  ].join('');
+
+  const ord = p.ord || 'total'; const dir = p.dir == null ? -1 : p.dir; const asc = dir === 1;
+  const linhas = (c.projetos || []).slice().sort((a, b) => {
+    if (ord === 'key' || ord === 'nome') return (asc ? 1 : -1) * String(a[ord] || '').localeCompare(String(b[ord] || ''), 'pt');
+    return (asc ? 1 : -1) * ((Number(a[ord]) || 0) - (Number(b[ord]) || 0));
+  });
+  const cols = [['key', 'Projeto'], ['total', 'Total'], ['pctConcluido', '% Concl.'], ['backlog', 'Backlog'],
+    ['emAndamento', 'Andam.'], ['vencidos', 'Vencidos'], ['estH', 'Est.'], ['gastoH', 'Gasto'], ['saude', 'Saúde']];
+  const seta = (col) => (ord === col ? (asc ? ' ▲' : ' ▼') : '');
+  const th = cols.map(([k, l]) => `<th data-proj-sort="${k}" class="${ord === k ? 'sorted' : ''}${k === 'key' ? '' : ' num'}">${esc(l)}${seta(k)}</th>`).join('');
+  const rows = linhas.map((x) => {
+    if (x.erro) return `<tr class="proj-linha" data-proj-open="${escA(x.key)}"><td><strong>${esc(x.key)}</strong> <span class="muted small">${esc(x.nome)}</span></td><td colspan="8" class="muted small">${esc(x.erro)}</td></tr>`;
+    const sev = corSaude(x.saude || 0);
+    return `<tr class="proj-linha" data-proj-open="${escA(x.key)}" data-tip="${escA(x.nome)}" data-tipk="clique para abrir a ficha do projeto">
+      <td><strong>${esc(x.key)}</strong> <span class="muted small">${esc(x.nome)}</span></td>
+      <td class="num">${nBR(x.total)}</td>
+      <td class="num">${nBR(x.pctConcluido)}%</td>
+      <td class="num">${nBR(x.backlog)}</td>
+      <td class="num">${nBR(x.emAndamento)}</td>
+      <td class="num">${x.vencidos ? `<strong style="color:${CORSAUDE.bad}">${nBR(x.vencidos)}</strong>` : '0'}</td>
+      <td class="num">${fmtHd(x.estH)}</td>
+      <td class="num">${fmtHd(x.gastoH)}</td>
+      <td class="num"><span class="proj-saude"><span class="dot" style="background:${CORSAUDE[sev]}"></span>${nBR(x.saude)}</span></td></tr>`;
+  }).join('');
+
+  const objBacklog = {}; const objVenc = {};
+  (c.projetos || []).forEach((x) => { if (x.backlog) objBacklog[x.key] = x.backlog; if (x.vencidos) objVenc[x.key] = x.vencidos; });
+  const trunc = c.truncado ? '<div class="estado" style="margin-top:8px">⚠ Alguns projetos têm muitos itens e foram truncados na leitura; abra a ficha do projeto para números exatos.</div>' : '';
+
+  cont.replaceChildren(el(`<div>
+    ${projToolbar()}
+    <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR((c.projetos || []).length)} projetos · clique num projeto para abrir a ficha</span></h2>
+      <div class="vg-hero">${kpis}</div>
+      <div class="scroll-x" style="margin-top:14px"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>
+      ${trunc}
+    </div>
+    <div class="vg-grid">
+      <div class="vg-card"><h3>Backlog por projeto</h3>${barlist(objBacklog, nBR, cores.amarelo, 12, (k) => k, (k) => k, { drill: (k) => ({ type: 'projeto', key: k }) })}</div>
+      <div class="vg-card"><h3>Vencidos por projeto</h3>${barlist(objVenc, nBR, CORSAUDE.bad, 12, (k) => k, (k) => k, { drill: (k) => ({ type: 'projeto', key: k }) })}</div>
+    </div>
+  </div>`));
+}
+
+function projTabela(titulo, arr, cols) {
+  const head = cols.map((c) => `<th class="${c.num ? 'num' : ''}">${esc(c.rot)}</th>`).join('');
+  const body = (arr || []).map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? 'num' : ''}">${c.fn(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="muted">Sem dados.</td></tr>`;
+  return `<div class="vg-card"><h3>${esc(titulo)}</h3><div class="scroll-x"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+
+function renderProjFicha(cont, key) {
+  const p = estado.projetos; const d = p.fichas[key];
+  if (!d) {
+    if (!p.carregando) carregaProjFicha(key, false);
+    cont.replaceChildren(el(`<div>${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2>${skeletonPainel()}</div></div>`));
+    return;
+  }
+  const r = d.resumo || {}; const aba = p.aba || 'geral';
+  const kpi = (l, v, sev) => `<div class="vg-k ${sev || ''}"><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
+  const kpis = [
+    kpi('Total', nBR(r.total)), kpi('Concluídos', nBR(r.concluidos), 'good'),
+    kpi('% concluído', nBR(r.pctConcluido) + '%'), kpi('Em andamento', nBR(r.emAndamento)),
+    kpi('Backlog', nBR(r.backlog)), kpi('Cancelados', nBR(r.cancelados)),
+    kpi('Vencidos', nBR(r.vencidos), r.vencidos ? 'bad' : ''),
+    kpi('Estimado', fmtHd(r.estH)), kpi('Gasto', fmtHd(r.gastoH)),
+    kpi('Saúde', nBR(r.saude), corSaude(r.saude || 0)),
+  ].join('');
+  const abas = [['geral', 'Visão Geral'], ['epicos', 'Épicos & Esforço'], ['categorias', 'Categorias'], ['evolucao', 'Evolução'], ['inconsist', `Inconsistências${r.incTotal ? ` (${nBR(r.incTotal)})` : ''}`]];
+  const tabbar = `<div class="proj-tabs">${abas.map(([k, l]) => `<button class="chip${aba === k ? ' on' : ''}" data-proj-aba="${k}" aria-pressed="${aba === k}">${esc(l)}</button>`).join('')}</div>`;
+
+  let sec = '';
+  const objFrom = (arr) => Object.fromEntries((arr || []).map((x) => [x.nome, x.n]));
+  if (aba === 'geral') {
+    sec = `<div class="vg-grid">
+      <div class="vg-card"><h3>Itens por Status</h3>${barlist(objFrom(d.status), nBR, cores.cerceta, 14)}</div>
+      <div class="vg-card"><h3>Itens por Tipo</h3>${barlist(objFrom(d.tipos), nBR, cores.musgo, 14)}</div>
+      <div class="vg-card"><h3>Itens por Prioridade</h3>${barlist(objFrom(d.prioridades), nBR, cores.amarelo, 10)}</div></div>`;
+  } else if (aba === 'epicos') {
+    const ep = projTabela('Épicos', d.epicos, [
+      { rot: 'Épico', fn: (e) => `<a href="${projJira(e.k)}" target="_blank" rel="noopener">${esc(e.k)} ↗</a>` },
+      { rot: 'Resumo', fn: (e) => esc((e.resumo || '').slice(0, 80)) },
+      { rot: 'Status', fn: (e) => esc(e.status || '') },
+      { rot: 'Concl./Filhos', num: 1, fn: (e) => `${nBR(e.nConcluidos)}/${nBR(e.nFilhos)}` },
+      { rot: '%', num: 1, fn: (e) => nBR(e.pct) + '%' },
+      { rot: 'Est.', num: 1, fn: (e) => fmtHd(e.estH) },
+      { rot: 'Gasto', num: 1, fn: (e) => fmtHd(e.gastoH) },
+    ]);
+    const colsEsf = [
+      { rot: 'Itens', num: 1, fn: (x) => nBR(x.itens) },
+      { rot: 'Concl.', num: 1, fn: (x) => nBR(x.concluidos) },
+      { rot: 'Estimado', num: 1, fn: (x) => fmtHd(x.estH) },
+      { rot: 'Gasto', num: 1, fn: (x) => fmtHd(x.gastoH) },
+      { rot: 'Gasto/Est.', num: 1, fn: (x) => x.ratio == null ? '—' : nBR(x.ratio) + '%' },
+    ];
+    const resp = projTabela('Esforço por responsável', d.esforcoResp, [{ rot: 'Responsável', fn: (x) => esc(x.nome) }, ...colsEsf]);
+    const tipo = projTabela('Esforço por tipo', d.esforcoTipo, [{ rot: 'Tipo', fn: (x) => esc(x.nome) }, ...colsEsf]);
+    sec = ep + `<div class="vg-grid">${resp}${tipo}</div>`;
+  } else if (aba === 'categorias') {
+    sec = `<div class="vg-card"><h3>Itens por categoria (rótulo)</h3>${barlist(objFrom(d.categorias), nBR, cores.cerceta, 25)}</div>`;
+  } else if (aba === 'evolucao') {
+    const ev = d.evolucao || [];
+    const spark = (campo, cor) => sparkline(ev.map((m) => m[campo]), 300, 52, cor);
+    const rows = ev.map((m) => `<tr><td>${esc(m.mes)}</td><td class="num">${nBR(m.criados)}</td><td class="num">${nBR(m.concluidos)}</td><td class="num">${nBR(m.criadosAcum)}</td><td class="num">${nBR(m.concluidosAcum)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sem itens.</td></tr>';
+    sec = `<div class="vg-grid">
+      <div class="vg-card"><h3>Criados por mês</h3>${spark('criados', cores.cerceta)}</div>
+      <div class="vg-card"><h3>Concluídos por mês</h3>${spark('concluidos', cores.musgo)}</div></div>
+      <div class="vg-card"><h3>Evolução mensal</h3><div class="scroll-x"><table><thead><tr><th>Mês</th><th class="num">Criados</th><th class="num">Concluídos</th><th class="num">Criados acum.</th><th class="num">Concluídos acum.</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  } else if (aba === 'inconsist') {
+    const ordem = ['resolvido', 'feitoSemTempo', 'gastoSemEst', 'estouro', 'backlogComGasto', 'semCategoria', 'naoEpicSemEst'];
+    p.incAberta = p.incAberta || {};
+    const cards = ordem.map((kk) => {
+      const c = (d.inconsistencias || {})[kk]; if (!c) return '';
+      const aberta = !!p.incAberta[kk];
+      const chaves = (c.chaves || []).map((k) => `<a href="${projJira(k)}" target="_blank" rel="noopener">${esc(k)}</a>`).join(', ');
+      const sev = c.qtd ? (c.pct >= 15 ? 'bad' : 'warn') : 'good';
+      return `<div class="vg-card">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <div class="v" style="font-size:24px;color:${c.qtd ? CORSAUDE[sev === 'bad' ? 'bad' : 'warn'] : CORSAUDE.good}">${nBR(c.qtd)}</div>
+          <div><strong>${esc(c.rot)}</strong> <span class="muted small">${nBR(c.pct)}% da base</span><br><span class="muted small">💡 ${esc(c.acao)}</span></div>
+        </div>
+        ${c.qtd ? `<button class="btn" data-proj-inc="${kk}" style="margin-top:8px">${aberta ? 'Ocultar' : 'Ver'} chaves (${c.qtd > 300 ? '300+' : nBR(c.qtd)})</button>${aberta ? `<div class="small" style="margin-top:8px;line-height:2">${chaves}${c.qtd > 300 ? ' …' : ''}</div>` : ''}` : ''}</div>`;
+    }).join('');
+    sec = `<div class="estado" style="margin-bottom:10px">Contagens sobre a base do projeto — ajustes sugeridos direto no Jira.</div><div class="vg-grid">${cards}</div>`;
+  }
+
+  const trunc = d.truncado ? '<div class="estado" style="margin-top:8px">⚠ Projeto com muitos itens: a leitura foi truncada; alguns números podem estar subestimados.</div>' : '';
+  cont.replaceChildren(el(`<div>
+    ${projToolbar()}
+    <div class="card full"><h2>📁 ${esc(key)} <span>${esc((d && d.projeto) || '')} · ficha do projeto</span></h2>
+      <div class="vg-hero">${kpis}</div>${trunc}
+      ${tabbar}${sec}
+    </div></div>`));
+}
+
+// Interações do módulo Projetos (delegadas em #conteudo — anexadas uma vez).
+function projetosClick(e) {
+  const t = e.target; const cl = (s) => t.closest && t.closest(s);
+  const open = cl('[data-proj-open]');
+  if (open) { const p = estado.projetos; p.sel = open.getAttribute('data-proj-open'); p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const aba = cl('[data-proj-aba]');
+  if (aba) { estado.projetos.aba = aba.getAttribute('data-proj-aba'); renderProjetos(); return; }
+  const back = cl('[data-proj-back]');
+  if (back) { estado.projetos.sel = ''; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const sort = cl('[data-proj-sort]');
+  if (sort) { const col = sort.getAttribute('data-proj-sort'); const p = estado.projetos; if (p.ord === col) p.dir = (p.dir === 1 ? -1 : 1); else { p.ord = col; p.dir = (col === 'key' ? 1 : -1); } renderProjetos(); return; }
+  const inc = cl('[data-proj-inc]');
+  if (inc) { const k = inc.getAttribute('data-proj-inc'); const p = estado.projetos; p.incAberta = p.incAberta || {}; p.incAberta[k] = !p.incAberta[k]; renderProjetos(); return; }
+  const refr = cl('[data-proj-refresh]');
+  if (refr) { const p = estado.projetos; if (p.sel) { delete p.fichas[p.sel]; carregaProjFicha(p.sel, true); } else { p.consolidado = null; carregaProjConsolidado(true); } renderProjetos(); return; }
+}
+function projetosChange(e) {
+  const sel = e.target.closest && e.target.closest('[data-proj-sel]');
+  if (!sel) return;
+  const p = estado.projetos; p.sel = sel.value; p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.getElementById('conteudo').addEventListener('click', projetosClick);
+document.getElementById('conteudo').addEventListener('change', projetosChange);
+
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -2130,6 +2374,7 @@ function render(){
   if(estado.vista==='analytics') return renderAnalytics();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
+  if(estado.vista==='projetos') return renderProjetos();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -10731,7 +10976,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -10877,7 +11122,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
