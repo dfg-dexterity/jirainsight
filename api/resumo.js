@@ -792,11 +792,74 @@ async function meuDiaAnalisa(res, b, apiKey) {
   return json(res, 200, cacheSetTTL(ck, out, 10));
 }
 
+// Diagnóstico (SOMENTE LEITURA) da integração com o Odoo. GET /api/resumo?acao=odoo-diag
+// Mostra, passo a passo, o que a CONTA DE SERVIÇO enxerga: variáveis presentes,
+// versão do servidor, autenticação (uid) e se o modelo hr.leave.type resolve na base
+// autenticada (com a lista de tipos + ids). Não escreve nada e NUNCA devolve a API key.
+async function diagOdoo(res) {
+  const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
+  const mascaraLogin = (s) => { if (!s) return ''; const i = s.indexOf('@'); return i > 0 ? s.slice(0, 2) + '***' + s.slice(i) : s.slice(0, 2) + '***'; };
+  const out = {
+    ok: false,
+    envs: {
+      ODOO_URL: url || '(vazio)',
+      ODOO_DB: db || '(vazio)',
+      ODOO_LOGIN: login ? mascaraLogin(login) : '(vazio)',
+      ODOO_API_KEY: key ? 'definida' : '(vazia)',
+      ODOO_FOLGA_TIPO_ID: env('ODOO_FOLGA_TIPO_ID') || '(vazio)',
+    },
+    passos: [],
+  };
+  const passo = (nome, okp, info) => out.passos.push({ passo: nome, ok: okp, info: info == null ? '' : info });
+
+  if (!url || !db || !login || !key) {
+    out.dica = 'Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel e faça um Redeploy.';
+    return json(res, 200, out);
+  }
+
+  // 1) Versão do servidor (não exige login) — confirma que a URL responde.
+  try { const v = await odoo(url, 'common', 'version', []); passo('versao', true, (v && (v.server_version || v.server_serie)) || v); }
+  catch (e) { passo('versao', false, String(e.message || e)); }
+
+  // 2) Autenticação da conta de serviço → uid.
+  let uid = 0;
+  try { uid = await odoo(url, 'common', 'authenticate', [db, login, key, {}]); passo('autenticar', !!uid, uid ? ('uid ' + uid) : 'db/login/api key recusados'); }
+  catch (e) { passo('autenticar', false, String(e.message || e)); }
+  if (!uid) {
+    out.dica = 'Autenticação falhou. Na Odoo Online o ODOO_DB é o subdomínio (ex.: dexterityit). Confira também ODOO_LOGIN e ODOO_API_KEY (e refaça o Redeploy).';
+    return json(res, 200, out);
+  }
+  const exec = (model, method, args, kwargs = {}) => odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kwargs]);
+
+  // 3) O modelo hr.leave.type resolve NESSA base? (é o ponto que estava falhando)
+  try {
+    const tipos = await exec('hr.leave.type', 'search_read', [[]], { fields: ['id', 'name'], limit: 50 });
+    out.tiposAusencia = (tipos || []).map((t) => ({ id: t.id, nome: t.name }));
+    passo('hr.leave.type', true, (tipos ? tipos.length : 0) + ' tipo(s) de ausência');
+    out.ok = true;
+    out.dica = out.tiposAusencia.length
+      ? 'Tudo certo no Odoo. Copie um dos "id" acima para ODOO_FOLGA_TIPO_ID (ou use o nome exato) na Vercel e faça Redeploy.'
+      : 'Time Off instalado, mas sem tipos cadastrados. Crie um em Time Off → Configuração → Tipos de Ausência.';
+  } catch (e) {
+    const msg = String(e.message || e);
+    passo('hr.leave.type', false, msg);
+    out.dica = /doesn't exist|does not exist|não existe|invalid model/i.test(msg)
+      ? 'A base autenticada NÃO tem o modelo hr.leave.type: ou o app Time Off não está instalado nessa base, ou o ODOO_DB aponta para uma base diferente da que você abre no navegador.'
+      : /access|allowed|permiss/i.test(msg)
+        ? 'A conta de serviço (ODOO_LOGIN) não tem permissão de Time Off. Dê o grupo Time Off (Utilizador/Officer) a ela em Definições → Utilizadores.'
+        : 'Falha ao ler hr.leave.type — veja a mensagem crua em "info".';
+  }
+  return json(res, 200, out);
+}
+
 export default async function handler(req, res) {
   try {
     // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
     // (cron do GitHub Actions, protegido por CRON_SECRET) — tratada antes do guard de POST.
     if (String((req.query && req.query.acao) || '').trim() === 'folga-sync') return await sincronizaFolgas(req, res);
+
+    // Diagnóstico (somente leitura) da integração com o Odoo. GET, sem corpo.
+    if (String((req.query && req.query.acao) || '').trim() === 'odoo-diag') return await diagOdoo(res);
 
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
     const b = await lerBody(req);
