@@ -31,3 +31,19 @@ funcionalidade desta ferramenta for **adicionada ou alterada** a pedido do usuá
 Usar a ferramenta MCP do Notion: `mcp__Notion__notion-fetch` para ler a página atual e
 `mcp__Notion__notion-update-page` para editar. Carregar os schemas via `ToolSearch`
 quando necessário.
+
+## ⏱ Apontamento no Jira — TAD-829 (acordo de 2026-07-19)
+
+A cada **entrega/commit** desta ferramenta:
+
+1. **Criar uma SUB-TAREFA no ticket `TAD-829`** ("Aplicativo Jira Insight", projeto
+   `TAD` — ITPR | Tarefas Avulsas, tipo "Subtarefa" id 10010) **detalhando o que foi
+   feito**, atribuída ao usuário (Diego, accountId
+   `712020:3a98a142-a5ce-443c-b3f2-32cd080d2583`).
+2. **SEMPRE perguntar ao usuário quantas horas apontar** (nunca presumir) e registrar
+   o worklog nessa sub-tarefa via MCP do Atlassian (`addWorklogToJiraIssue`) ou, se o
+   conector pedir aprovação indisponível, via Zapier
+   (`jira_software_cloud_add_work_log_to_issue`).
+
+> As escritas no Jira podem exigir aprovação do conector no claude.ai; se falhar com
+> "requires approval", avisar o usuário para aprovar e repetir — não pular a etapa.
