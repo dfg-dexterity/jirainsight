@@ -47,3 +47,16 @@ A cada **entrega/commit** desta ferramenta:
 
 > As escritas no Jira podem exigir aprovação do conector no claude.ai; se falhar com
 > "requires approval", avisar o usuário para aprovar e repetir — não pular a etapa.
+
+## ✨ Novidades do app — MANTER ATUALIZADO (acordo de 2026-07-19)
+
+A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
+(`public/index.html`):
+
+1. Acrescentar a(s) entrada(s) no topo do array `const NOVIDADES` (formato
+   `['AAAA-MM-DD','texto com <b>destaques</b>']`, tom voltado ao usuário).
+2. Subir a `const NOV_VER` (ex.: `'2026-07-19.1'`) — é o que reacende o pontinho
+   vermelho em "⋯ Mais → ✨ Novidades" e o destaque do card da tela inicial.
+
+O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
+automaticamente a partir do array.

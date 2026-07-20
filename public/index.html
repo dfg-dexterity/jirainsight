@@ -2889,12 +2889,23 @@ function renderAcoes(){
   const fJira = ax.erro?'⚠ Jira com falha':(tks?'✓ Jira':'⏳ Carregando dados do Jira…');
   const fClock = estado.tempo?'✓ Clockwork':'⏳ Carregando dados do Clockwork…';
   const fMes = !temContratos?'' : ax.mesErro?'⚠ horas do mês com falha' : ax.mes?'✓ horas do mês':'⏳ calculando faturamento…';
+  // Card de Novidades na tela inicial: as últimas melhorias, com destaque quando
+  // ainda não foram vistas (mesma marca NOV_VER do modal ✨ Novidades).
+  let novVisto=''; try{ novVisto=localStorage.getItem('jirainsight_nov_visto')||''; }catch(e){}
+  const novNovas = novVisto!==NOV_VER;
+  const novItens = NOVIDADES.slice(0,6).map(([d,txt])=>`<div class="nov-item">
+    <span class="nov-data">${esc(d)}</span><span class="nov-txt">${txt}</span></div>`).join('');
+  const cardNov = `<div class="card full" style="margin-top:14px">
+    <h2>✨ Novidades ${novNovas?'<span class="nov-dot" style="margin-left:2px"></span>':''}<span>últimas melhorias do painel</span></h2>
+    <div class="nov-lista" style="margin-top:6px">${novItens}</div>
+    <div style="margin-top:12px"><button class="btn" data-nov-todas>Ver todas as novidades (${NOVIDADES.length})</button></div>
+  </div>`;
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>⚡ Ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora — clique em "Ver casos" para agir</span></h2>
       <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><span class="muted small">variação ▲▼ = vs. o último dia de uso</span></div>
       <div class="ax-grid">${CARDS.map(cardHtml).join('')}</div>
-    </div></div>`));
+    </div>${cardNov}</div>`));
 }
 function renderVisao(){
   const cont=document.getElementById('conteudo');
@@ -10501,7 +10512,30 @@ function vaiPara(v){
 }
 
 // ---- Novidades (o que há de novo no app) ----
+// ⚠ Acordo (2026-07-19): manter SEMPRE atualizado — a cada entrega, acrescentar a
+// entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
+// (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-19','📁 <b>Visão por Projetos</b> — nova aba de nível superior: <b>consolidado</b> de todos os projetos (tabela ordenável com % concluído, backlog, vencidos, esforço e <b>saúde 0–100</b>) e <b>ficha por projeto</b> com Status/Tipo/Prioridade, Épicos &amp; Esforço (estimado × gasto), Categorias, Evolução mensal e <b>Inconsistências</b> (7 checagens com as chaves para ajuste no Jira) — tudo direto do Jira.'],
+  ['2026-07-19','✨ <b>Novidades na tela inicial</b> — as últimas melhorias aparecem num card em ⚡ Ações de hoje (além do ⋯ Mais), e a lista voltou a ser atualizada a cada entrega.'],
+  ['2026-07-19','🩺 <b>Diagnóstico do Odoo</b> — rota somente-leitura (<code>/api/resumo?acao=odoo-diag</code>) mostra onde a integração de folgas quebra (variáveis, autenticação, tipos de ausência com ids).'],
+  ['2026-07-16','📱 <b>Menu novo no celular</b> — a navegação virou um menu sanduíche (☰): painel de largura total, grupos em acordeão, item ativo destacado e o selo de pendências do Inbox no botão. Desktop igual.'],
+  ['2026-07-15','📥 <b>Inbox</b> — nova aba com tudo que depende de você: convites de apontamento coletivo (confirmar com 1 clique), menções aguardando resposta e alocações para aprovar, com selo de pendências no menu.'],
+  ['2026-07-15','🔕 <b>Ignorar menção</b> — cada menção tem "Ignorar" (some das SUAS listas e selos, sem afetar o Jira), com "mostrar ignoradas" para reverter. E o Timesheet mostra <b>quando os dados foram importados</b> + botão ⟳ Forçar atualização.'],
+  ['2026-07-14','💬 <b>Menções</b> — novo módulo (Operação): onde você foi marcado em comentários, com responder direto (marcando <b>várias pessoas</b> com @), 📎 <b>anexos</b> (até 3, com Ctrl+V de print) e ficha do ticket.'],
+  ['2026-07-14','🔍 <b>Ficha completa do ticket</b> na Gestão e no Analytics (descrição, comentários, anexos, worklogs) e 🗂 <b>Agrupar por</b> na Gestão (responsável, projeto, tipo, status, prioridade, épico, vencimento ou risco).'],
+  ['2026-07-14','🌳 <b>Árvore</b> — caminho "Estou em dúvida", registrar <b>ausência no Odoo</b> (atestado/férias) e Dexterity University.'],
+  ['2026-07-13','📈 <b>Analytics de Governança</b> — 26 visões de saúde do Jira em 5 grupos, com drill "Abrir na Gestão" e apontar horas.'],
+  ['2026-07-13','📍 <b>Meu dia (beta)</b> — timetracking assistido: os blocos de atividade do computador (ActivityWatch) viram sugestões de apontamento por IA.'],
+  ['2026-07-13','🛠 <b>Gestão</b> — 🧬 verificar duplicados, 🔗 transferir ticket e 🧩 ajustar épicos; 🚨 Alertas ganhou <b>"Concluído sem horas"</b>; AMS grava as labels de faturamento nos tickets do ciclo.'],
+  ['2026-07-10','🕵️ <b>Auditoria de Tickets</b> — auditoria por IA dos apontamentos de uma pessoa vs. validações TI-04-014; convite de reunião agora avisa cada pessoa no <b>chat privado do Teams</b>.'],
+  ['2026-07-09','🌳 <b>"Onde crio o ticket?"</b> — a árvore de decisão da governança virou tela própria; ⚙️ <b>Central de configurações</b>; resumo IA enviado ao <b>Teams</b>; 📈 Ranking com <b>Engajamento &amp; uso</b>.'],
+  ['2026-07-08','🔎 <b>Qualidade dos Tickets (IA)</b> — audita os tickets criados vs. boas práticas TI-04-006 (nota 0–100), com 📣 avisar a pessoa e indicadores semanais.'],
+  ['2026-07-05','🧑‍💼 <b>Alocação (resource planning)</b> — board por pessoa estilo Monday, Gantt com arrastar/duplicar, skills por pessoa, aba "A contratar", relatórios com custo (Odoo) e trava com aprovação.'],
+  ['2026-07-04','⚡ <b>Ações de hoje</b> — nova tela inicial de comando (6 cards de atenção com "Ver casos"); Gestão com <b>score de risco</b> por ticket; config compartilhada versionada (fim do "último que salva vence").'],
+  ['2026-07-03','🛠 <b>Gestão de Tickets</b> e 🔗 <b>Vincular Reuniões</b> no menu Operação; navegação repensada (controles do topo só onde fazem sentido) e 📰 fluxo de atividade na Visão Geral.'],
+  ['2026-06-30','📅 <b>Planejamento macro</b> (planejado × realizado por função, fases = épicos) e novo grupo <b>Planejamento</b> no menu.'],
+  ['2026-06-26','⏰ Alertas — 👤 <b>atribuir responsável</b> direto do alerta; spinners anti-duplo-clique e skeletons de carregamento em todo o painel.'],
   ['2026-06-25','⏰ <b>Alertas viraram central de ação</b>: cada <b>ticket atrasado</b> agora tem botões para reprogramar o vencimento para <b>hoje</b>, <b>amanhã</b> ou <b>semana que vem</b>. Abre um modal com o <b>resumo do ticket</b> e um <b>motivo padrão</b> (categoria obrigatória — repriorização, dependência do cliente, bloqueio técnico…) que monta um <b>comentário editável</b>. Ao confirmar, o app <b>muda a data no Jira e publica o comentário</b> com o <b>seu</b> usuário (token), e o alerta sai da lista. Tem ainda <b>ação em lote</b> (vários tickets de uma vez), <b>filtros</b> (responsável/projeto/prioridade/status/tipo/dias/só meus), <b>ordenação por criticidade</b>, <b>copiar resumo</b> e indicadores no topo (atrasados, +7 dias, sem responsável, vencem hoje, reprogramados na sessão).'],
   ['2026-06-23','🐙 <b>Ajuda — feedback agora abre issue no GitHub</b>: em <b>Ajuda → Falar com a gente</b>, Dúvida/Sugestão/Bug deixou de criar ticket no Jira e passa a abrir um <b>issue no GitHub</b> do projeto (com rótulo do tipo e o autor do report no corpo). Requer configurar <code>GITHUB_TOKEN</code> na Vercel.'],
   ['2026-06-23','📊 <b>AMS — Nº do Chamado Cliente e relatórios por Causa raiz/Produto/Processo</b>: a aba AMS agora mostra o <b>🔖 Número do Chamado Cliente</b> junto de cada chamado (lista do ciclo, drill por mês e por tipo) e ganhou um card de <b>Relatórios do ciclo</b> com a distribuição dos chamados por <b>Causa raiz</b>, <b>Produto</b> e <b>Processo</b> (horas · % do ciclo · nº de chamados, Pareto com acumulado; clique num item para ver os chamados). Os dados vêm dos campos do Jira.'],
@@ -10538,7 +10572,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-06-25.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-19.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -10553,6 +10587,13 @@ function marcaNovidade(){
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden = (visto===NOV_VER);
   const md=document.getElementById('mais-dot'); if(md) md.hidden = (visto===NOV_VER);
 }
+// "Ver todas as novidades" do card da tela inicial: abre o modal (marca como visto)
+// e re-renderiza a inicial para o destaque do card apagar.
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(!(e.target.closest&&e.target.closest('[data-nov-todas]'))) return;
+  abreNovidades();
+  if(estado.vista==='acoes') renderAcoes();
+});
 
 // ---- Exportar CSV (da visão atual) ----
 function baixaCSV(nome, linhas){
