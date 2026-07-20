@@ -199,6 +199,12 @@
   .proj-saude .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
   th[data-proj-sort]{cursor:pointer;user-select:none;white-space:nowrap}
   th[data-proj-sort].sorted{color:var(--cerceta)}
+  .vg-k[data-proj-kpi],.vg-k[data-pdrill-cons]{cursor:pointer;transition:transform .1s ease}
+  .vg-k[data-proj-kpi]:hover,.vg-k[data-pdrill-cons]:hover{outline:2px solid var(--cerceta);outline-offset:-2px;transform:translateY(-1px)}
+  tr[data-pdrill-epico],tr[data-pdrill-mes]{cursor:pointer}
+  .barrow[data-pdrill-dim],.barrow[data-pdrill-catpessoa],.barrow[data-proj-open]{cursor:pointer}
+  .barrow[data-pdrill-aging],.barrow[data-pdrill-venc],.barrow[data-pdrill-resp]{cursor:pointer}
+  .tm-cell[data-ptm]{cursor:pointer}
 
   /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
   .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
@@ -2176,6 +2182,91 @@ function projToolbar() {
     <button class="btn" data-proj-refresh title="Rebuscar do Jira ignorando o cache">⟳ Atualizar</button></div>`;
 }
 
+// ---- Drill-down local: tudo clicável filtra a lista compacta d.itens (sem nova chamada) ----
+const RE_CANCEL_F = /cancel/i;
+function projHoje() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); }
+// Tabela de itens para os modais de drill (chave→Jira, resumo, status, resp, venc, gasto).
+function projTabelaItens(itens, cap) {
+  cap = cap || 300;
+  const rows = itens.slice(0, cap).map((i) => `<tr>
+    <td><a href="${projJira(i.k)}" target="_blank" rel="noopener">${esc(i.k)}</a>${i.ep ? ' <span class="muted small">épico</span>' : ''}</td>
+    <td>${esc(i.s || '')}</td><td>${esc(i.st || '')}</td><td>${esc(i.r || '—')}</td>
+    <td class="num">${i.v ? esc(i.v) : '—'}</td><td class="num">${i.gH ? fmtHd(i.gH) : '—'}</td></tr>`).join('');
+  return `<div class="scroll-x"><table><thead><tr><th>Chave</th><th>Resumo</th><th>Status</th><th>Responsável</th><th class="num">Venc.</th><th class="num">Gasto</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" class="muted">Nenhum item.</td></tr>'}</tbody></table></div>
+    ${itens.length > cap ? `<div class="muted small" style="margin-top:6px">Mostrando ${cap} de ${itens.length}.</div>` : ''}`;
+}
+function projDrillItens(titulo, sub, itens) {
+  abreModal(`<h2>${titulo} <span class="muted small" style="font-weight:400">${esc(sub || '')}</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">${itens.length} item(ns)</div>${projTabelaItens(itens)}`);
+}
+// Barras clicáveis próprias do módulo (mesmo visual do barlist, atributos de drill próprios).
+function projBars(pares, cor, attr, fmt) {
+  fmt = fmt || nBR;
+  if (!pares.length) return '<div class="estado">Sem dados.</div>';
+  const max = Math.max(1, ...pares.map((p) => p[1]));
+  return `<div class="barlist anima">` + pares.map(([rot, v, key]) => `
+    <div class="barrow" ${attr}="${escA(key == null ? rot : key)}" data-tip="${escA(rot)}" data-tip2="${escA(fmt(v))}" data-tipk="clique para ver os itens">
+      <div class="nome">${esc(rot)}</div>
+      <div class="track"><div class="fill" style="width:${Math.max(2, v / max * 100)}%;background:${cor}"></div></div>
+      <div class="val">${fmt(v)}</div></div>`).join('') + `</div>`;
+}
+// Filtros da ficha (usam a lista compacta d.itens).
+function projFiltraKpi(itens, kpi) {
+  const hoje = projHoje();
+  if (kpi === 'total') return itens;
+  if (kpi === 'concluidos') return itens.filter((i) => i.sc === 'done' && !RE_CANCEL_F.test(i.st));
+  if (kpi === 'cancelados') return itens.filter((i) => RE_CANCEL_F.test(i.st));
+  if (kpi === 'andamento') return itens.filter((i) => i.sc === 'indeterminate');
+  if (kpi === 'backlog') return itens.filter((i) => i.sc === 'new' && !RE_CANCEL_F.test(i.st));
+  if (kpi === 'vencidos') return itens.filter((i) => i.v && i.v < hoje && i.sc !== 'done');
+  return itens;
+}
+// Idade (dias) entre duas datas YYYY-MM-DD no fuso de SP.
+function projDias(de, ate) { return Math.round((Date.parse(ate + 'T12:00:00-03:00') - Date.parse(de + 'T12:00:00-03:00')) / 86400000); }
+function projAberto(i) { return i.sc !== 'done' && !RE_CANCEL_F.test(i.st); }
+// Buckets de idade do backlog (itens abertos, pela data de criação).
+const PROJ_AGING = [['a7', 'até 7 dias'], ['a30', '8–30 dias'], ['a90', '31–90 dias'], ['a90p', 'mais de 90 dias']];
+function projAgingKey(i, hoje) {
+  if (!projAberto(i) || !i.c) return '';
+  const dias = projDias(i.c, hoje);
+  return dias <= 7 ? 'a7' : dias <= 30 ? 'a30' : dias <= 90 ? 'a90' : 'a90p';
+}
+// Buckets de vencimento (itens abertos).
+const PROJ_VENC = [['vencido', '🔴 Vencidos'], ['hoje', 'Vencem hoje'], ['sem7', 'Próximos 7 dias'], ['sem14', '8–14 dias'], ['depois', 'Mais adiante'], ['semv', 'Sem vencimento']];
+function projVencKey(i, hoje) {
+  if (!projAberto(i)) return '';
+  if (!i.v) return 'semv';
+  if (i.v < hoje) return 'vencido';
+  if (i.v === hoje) return 'hoje';
+  const dias = projDias(hoje, i.v);
+  return dias <= 7 ? 'sem7' : dias <= 14 ? 'sem14' : 'depois';
+}
+// Treemap com os atributos de drill DESTE módulo (evita o mecanismo global de drill).
+function projTreemap(items, opts) {
+  return treemap(items, opts).replace(/data-drill="/g, 'data-ptm="').replace(/data-key="/g, 'data-ptm-key="');
+}
+// Foco de cada categoria de projeto (reflete a operação da casa):
+// ITPR (internos) → atividade por dia/pessoa · IMI → planejado × realizado ·
+// AMS/DAMS → horas · demais (DEF/PEA/PEF/IPA…) → entrega (épicos + vencidos).
+function focoCategoria(nome) {
+  if (/ITPR|Interno.*Tarefas|Rotina/i.test(nome)) return 'atividade';
+  if (/IMI|Melhoria/i.test(nome)) return 'planejado';
+  if (/AMS|DAMS/i.test(nome)) return 'horas';
+  return 'entrega';
+}
+// Série "concluídos por dia" dos últimos 30 dias a partir do conc30 da categoria.
+function projSerie30(conc30) {
+  const porDia = {}; (conc30 || []).forEach((x) => { porDia[x.d] = (porDia[x.d] || 0) + 1; });
+  const pts = []; const t = new Date();
+  for (let i = 29; i >= 0; i -= 1) {
+    const dt = new Date(t); dt.setUTCDate(dt.getUTCDate() - i);
+    const d = dt.toISOString().slice(0, 10);
+    pts.push({ x: d.slice(5), v: porDia[d] || 0 });
+  }
+  return pts;
+}
+
 function renderProjetos() {
   const cont = document.getElementById('conteudo'); const p = estado.projetos;
   if (!p.consolidado && !p.erro) {
@@ -2193,16 +2284,18 @@ function renderProjetos() {
 
 function renderProjConsolidado(cont) {
   const p = estado.projetos; const c = p.consolidado; const t = c.totais || {};
-  const kpi = (l, v, sev) => `<div class="vg-k ${sev || ''}"><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
+  // KPIs clicáveis: abrem a composição por projeto (drill).
+  const kpi = (l, v, sev, drill) => `<div class="vg-k ${sev || ''}"${drill ? ` data-pdrill-cons="${drill}" data-tipk="clique para ver por projeto"` : ''}><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
   const kpis = [
     kpi('Projetos', nBR((c.projetos || []).length)),
-    kpi('Itens (total)', nBR(t.total)),
-    kpi('% concluído', nBR(t.pctConcluido) + '%'),
-    kpi('Backlog', nBR(t.backlog)),
-    kpi('Em andamento', nBR(t.emAndamento)),
-    kpi('Vencidos', nBR(t.vencidos), t.vencidos ? 'warn' : ''),
-    kpi('Estimado', fmtHd(t.estH)),
-    kpi('Gasto', fmtHd(t.gastoH)),
+    kpi('Itens (total)', nBR(t.total), '', 'total'),
+    kpi('% concluído', nBR(t.pctConcluido) + '%', '', 'concluidos'),
+    kpi('Backlog', nBR(t.backlog), '', 'backlog'),
+    kpi('Em andamento', nBR(t.emAndamento), '', 'emAndamento'),
+    kpi('Vencidos', nBR(t.vencidos), t.vencidos ? 'warn' : '', 'vencidos'),
+    kpi('Épicos abertos', `${nBR(t.nEpicosAbertos)}/${nBR(t.nEpicos)}`, '', 'epicos'),
+    kpi('Estimado', fmtHd(t.estH), '', 'estH'),
+    kpi('Gasto', fmtHd(t.gastoH), '', 'gastoH'),
   ].join('');
 
   const ord = p.ord || 'total'; const dir = p.dir == null ? -1 : p.dir; const asc = dir === 1;
@@ -2229,21 +2322,60 @@ function renderProjConsolidado(cont) {
       <td class="num"><span class="proj-saude"><span class="dot" style="background:${CORSAUDE[sev]}"></span>${nBR(x.saude)}</span></td></tr>`;
   }).join('');
 
-  const objBacklog = {}; const objVenc = {};
-  (c.projetos || []).forEach((x) => { if (x.backlog) objBacklog[x.key] = x.backlog; if (x.vencidos) objVenc[x.key] = x.vencidos; });
   const trunc = c.truncado ? '<div class="estado" style="margin-top:8px">⚠ Alguns projetos têm muitos itens e foram truncados na leitura; abra a ficha do projeto para números exatos.</div>' : '';
+
+  // ---- Seção "Por categoria" — cada categoria com o gráfico do seu foco ----
+  const cats = Object.entries(c.categorias || {}).sort((a, b) => (b[1].total || 0) - (a[1].total || 0));
+  const catCards = cats.map(([nome, cat]) => {
+    const foco = focoCategoria(nome);
+    const chips = (cat.projetos || []).map((k) => `<button class="chip" data-proj-open="${escA(k)}">${esc(k)}</button>`).join(' ');
+    const mini = `<div class="muted small" style="margin:4px 0 8px">${nBR(cat.total)} itens · ${nBR(cat.pctConcluido)}% concluído · ${nBR(cat.vencidos)} vencidos · ${nBR(cat.nEpicosAbertos)}/${nBR(cat.nEpicos)} épicos abertos · ${fmtHd(cat.gastoH)} de ${fmtHd(cat.estH)}</div>`;
+    let corpo = '';
+    if (foco === 'atividade') {
+      // Internos (ITPR): o que anda por DIA e por PESSOA (últimos 30 dias).
+      const porPessoa = {}; (cat.conc30 || []).forEach((x) => { porPessoa[x.p] = (porPessoa[x.p] || 0) + 1; });
+      const pares = Object.entries(porPessoa).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([n, v]) => [n, v, `${nome}|${n}`]);
+      corpo = `<div class="sec">Concluídos por dia (últimos 30 dias)</div>${areaChart(projSerie30(cat.conc30), { cor: cores.cerceta, fmt: nBR })}
+        <div class="sec" style="margin-top:12px">Concluídos por pessoa (30d)</div>${projBars(pares, cores.musgo, 'data-pdrill-catpessoa')}`;
+    } else if (foco === 'planejado') {
+      // Melhorias internas (IMI): planejado × realizado por projeto.
+      const linhas = (cat.projetos || []).map((k) => (c.projetos || []).find((x) => x.key === k)).filter(Boolean);
+      const rws = linhas.map((x) => `<tr class="proj-linha" data-proj-open="${escA(x.key)}"><td><strong>${esc(x.key)}</strong></td>
+        <td class="num">${nBR(x.total)}</td><td class="num">${nBR(x.pctConcluido)}%</td>
+        <td class="num">${fmtHd(x.estH)}</td><td class="num">${fmtHd(x.gastoH)}</td>
+        <td class="num">${x.estH ? nBR(Math.round(x.gastoH / x.estH * 1000) / 10) + '%' : '—'}</td>
+        <td class="num">${nBR(x.nEpicosAbertos)}</td></tr>`).join('');
+      corpo = `<div class="sec">Planejado × realizado por projeto</div><div class="scroll-x"><table>
+        <thead><tr><th>Projeto</th><th class="num">Itens</th><th class="num">% Concl.</th><th class="num">Estimado</th><th class="num">Gasto</th><th class="num">Gasto/Est.</th><th class="num">Épicos abertos</th></tr></thead>
+        <tbody>${rws}</tbody></table></div>`;
+    } else if (foco === 'horas') {
+      const pares = (cat.projetos || []).map((k) => { const x = (c.projetos || []).find((y) => y.key === k); return x && x.gastoH ? [k, x.gastoH, k] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]);
+      corpo = `<div class="sec">Horas gastas por projeto</div>${projBars(pares, cores.roxo, 'data-proj-open', fmtHd)}`;
+    } else {
+      const parEp = (cat.projetos || []).map((k) => { const x = (c.projetos || []).find((y) => y.key === k); return x && x.nEpicosAbertos ? [k, x.nEpicosAbertos, k] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]);
+      const parVc = (cat.projetos || []).map((k) => { const x = (c.projetos || []).find((y) => y.key === k); return x && x.vencidos ? [k, x.vencidos, k] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]);
+      corpo = `<div class="sec">Épicos abertos por projeto</div>${projBars(parEp, cores.cerceta, 'data-proj-open')}
+        <div class="sec" style="margin-top:12px">Vencidos por projeto</div>${projBars(parVc, CORSAUDE.bad, 'data-proj-open')}`;
+    }
+    const rotFoco = { atividade: 'foco: atividade por dia/pessoa', planejado: 'foco: planejado × realizado', horas: 'foco: horas', entrega: 'foco: entrega (épicos & prazos)' }[foco];
+    return `<div class="vg-card"><h3>${esc(nome)} <span class="muted small" style="font-weight:400">· ${rotFoco}</span></h3>${mini}<div style="margin-bottom:8px">${chips}</div>${corpo}</div>`;
+  }).join('');
+
+  // 🗺 Treemap do portfólio: área = nº de itens, cor = saúde; clique → ficha.
+  const tmPort = projTreemap((c.projetos || []).filter((x) => !x.erro && x.total > 0).map((x) => ({
+    nome: `${x.key} — ${x.nome}`, valor: x.total, cor: CORSAUDE[corSaude(x.saude || 0)], drill: { type: 'proj', key: x.key },
+  })), { fmt: (v) => nBR(v) + ' itens', h: 330 });
+  const legSaude = `<div class="pp-legend" style="margin-top:6px"><span><i style="background:${CORSAUDE.good}"></i>saúde ≥ 70</span><span><i style="background:${CORSAUDE.warn}"></i>40–69</span><span><i style="background:${CORSAUDE.bad}"></i>&lt; 40</span></div>`;
 
   cont.replaceChildren(el(`<div>
     ${projToolbar()}
-    <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR((c.projetos || []).length)} projetos · clique num projeto para abrir a ficha</span></h2>
+    <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR((c.projetos || []).length)} projetos · clique nos cards, categorias e linhas para detalhar</span></h2>
       <div class="vg-hero">${kpis}</div>
       <div class="scroll-x" style="margin-top:14px"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>
       ${trunc}
     </div>
-    <div class="vg-grid">
-      <div class="vg-card"><h3>Backlog por projeto</h3>${barlist(objBacklog, nBR, cores.amarelo, 12, (k) => k, (k) => k, { drill: (k) => ({ type: 'projeto', key: k }) })}</div>
-      <div class="vg-card"><h3>Vencidos por projeto</h3>${barlist(objVenc, nBR, CORSAUDE.bad, 12, (k) => k, (k) => k, { drill: (k) => ({ type: 'projeto', key: k }) })}</div>
-    </div>
+    <div class="vg-card" style="margin-bottom:14px"><h3>🗺 Mapa do portfólio <span class="muted small" style="font-weight:400">· área = nº de itens · cor = saúde · clique para abrir a ficha</span></h3>${tmPort}${legSaude}</div>
+    <div class="vg-grid">${catCards}</div>
   </div>`));
 }
 
@@ -2261,12 +2393,14 @@ function renderProjFicha(cont, key) {
     return;
   }
   const r = d.resumo || {}; const aba = p.aba || 'geral';
-  const kpi = (l, v, sev) => `<div class="vg-k ${sev || ''}"><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
+  // KPIs clicáveis: cada card abre a lista dos itens que o compõem.
+  const kpi = (l, v, sev, drill) => `<div class="vg-k ${sev || ''}"${drill ? ` data-proj-kpi="${drill}" data-tipk="clique para ver os itens"` : ''}><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
   const kpis = [
-    kpi('Total', nBR(r.total)), kpi('Concluídos', nBR(r.concluidos), 'good'),
-    kpi('% concluído', nBR(r.pctConcluido) + '%'), kpi('Em andamento', nBR(r.emAndamento)),
-    kpi('Backlog', nBR(r.backlog)), kpi('Cancelados', nBR(r.cancelados)),
-    kpi('Vencidos', nBR(r.vencidos), r.vencidos ? 'bad' : ''),
+    kpi('Total', nBR(r.total), '', 'total'), kpi('Concluídos', nBR(r.concluidos), 'good', 'concluidos'),
+    kpi('% concluído', nBR(r.pctConcluido) + '%', '', 'concluidos'), kpi('Em andamento', nBR(r.emAndamento), '', 'andamento'),
+    kpi('Backlog', nBR(r.backlog), '', 'backlog'), kpi('Cancelados', nBR(r.cancelados), '', 'cancelados'),
+    kpi('Vencidos', nBR(r.vencidos), r.vencidos ? 'bad' : '', 'vencidos'),
+    kpi('Épicos abertos', `${nBR(r.nEpicosAbertos)}/${nBR(r.nEpicos)}`, '', 'epicos'),
     kpi('Estimado', fmtHd(r.estH)), kpi('Gasto', fmtHd(r.gastoH)),
     kpi('Saúde', nBR(r.saude), corSaude(r.saude || 0)),
   ].join('');
@@ -2274,22 +2408,40 @@ function renderProjFicha(cont, key) {
   const tabbar = `<div class="proj-tabs">${abas.map(([k, l]) => `<button class="chip${aba === k ? ' on' : ''}" data-proj-aba="${k}" aria-pressed="${aba === k}">${esc(l)}</button>`).join('')}</div>`;
 
   let sec = '';
-  const objFrom = (arr) => Object.fromEntries((arr || []).map((x) => [x.nome, x.n]));
+  const dim = (arr, cor, tipo, limite) => projBars((arr || []).slice(0, limite || 14).map((x) => [x.nome, x.n, `${tipo}|${x.nome}`]), cor, 'data-pdrill-dim');
   if (aba === 'geral') {
+    const hoje = projHoje(); const its = d.itens || [];
+    // ⏳ Idade do backlog: há quanto tempo os itens ABERTOS foram criados.
+    const agingCnt = {}; its.forEach((i) => { const b = projAgingKey(i, hoje); if (b) agingCnt[b] = (agingCnt[b] || 0) + 1; });
+    const agingBars = projBars(PROJ_AGING.filter(([b]) => agingCnt[b]).map(([b, rot]) => [rot, agingCnt[b], b]), cores.amarelo, 'data-pdrill-aging');
+    // 📅 Radar de vencimentos dos abertos.
+    const vencCnt = {}; its.forEach((i) => { const b = projVencKey(i, hoje); if (b) vencCnt[b] = (vencCnt[b] || 0) + 1; });
+    const vencBars = projBars(PROJ_VENC.filter(([b]) => vencCnt[b]).map(([b, rot]) => [rot, vencCnt[b], b]), cores.roxo, 'data-pdrill-venc');
+    // 👤 Carga aberta por responsável.
+    const cargaCnt = {}; its.forEach((i) => { if (projAberto(i)) { const n = i.r || 'Não atribuído'; cargaCnt[n] = (cargaCnt[n] || 0) + 1; } });
+    const cargaBars = projBars(Object.entries(cargaCnt).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([n, v]) => [n, v, n]), cores.cerceta, 'data-pdrill-resp');
+    // Progresso: % concluído e % do estimado já consumido.
+    const pctEsf = r.estH ? Math.min(100, Math.round(r.gastoH / r.estH * 100)) : 0;
+    const donuts = `<div style="display:flex;gap:14px;justify-content:space-around;align-items:center;flex-wrap:wrap">
+      ${donut(r.pctConcluido, 'concluído', cores.musgo)}${donut(pctEsf, 'do estimado', cores.cerceta)}</div>
+      <div class="muted small" style="text-align:center;margin-top:6px">${fmtHd(r.gastoH)} gastos de ${fmtHd(r.estH)} estimados</div>`;
     sec = `<div class="vg-grid">
-      <div class="vg-card"><h3>Itens por Status</h3>${barlist(objFrom(d.status), nBR, cores.cerceta, 14)}</div>
-      <div class="vg-card"><h3>Itens por Tipo</h3>${barlist(objFrom(d.tipos), nBR, cores.musgo, 14)}</div>
-      <div class="vg-card"><h3>Itens por Prioridade</h3>${barlist(objFrom(d.prioridades), nBR, cores.amarelo, 10)}</div></div>`;
+      <div class="vg-card"><h3>Itens por Status</h3>${dim(d.status, cores.cerceta, 'st')}</div>
+      <div class="vg-card"><h3>Itens por Tipo</h3>${dim(d.tipos, cores.musgo, 't')}</div>
+      <div class="vg-card"><h3>Itens por Prioridade</h3>${dim(d.prioridades, cores.amarelo, 'pr', 10)}</div>
+      <div class="vg-card"><h3>Progresso</h3>${donuts}</div>
+      <div class="vg-card"><h3>⏳ Idade do backlog <span class="muted small" style="font-weight:400">· abertos, desde a criação</span></h3>${agingBars}</div>
+      <div class="vg-card"><h3>📅 Vencimentos <span class="muted small" style="font-weight:400">· itens abertos</span></h3>${vencBars}</div>
+      <div class="vg-card"><h3>👤 Carga aberta por responsável</h3>${cargaBars}</div></div>`;
   } else if (aba === 'epicos') {
-    const ep = projTabela('Épicos', d.epicos, [
-      { rot: 'Épico', fn: (e) => `<a href="${projJira(e.k)}" target="_blank" rel="noopener">${esc(e.k)} ↗</a>` },
-      { rot: 'Resumo', fn: (e) => esc((e.resumo || '').slice(0, 80)) },
-      { rot: 'Status', fn: (e) => esc(e.status || '') },
-      { rot: 'Concl./Filhos', num: 1, fn: (e) => `${nBR(e.nConcluidos)}/${nBR(e.nFilhos)}` },
-      { rot: '%', num: 1, fn: (e) => nBR(e.pct) + '%' },
-      { rot: 'Est.', num: 1, fn: (e) => fmtHd(e.estH) },
-      { rot: 'Gasto', num: 1, fn: (e) => fmtHd(e.gastoH) },
-    ]);
+    const epRows = (d.epicos || []).map((e) => `<tr class="proj-linha" data-pdrill-epico="${escA(e.k)}" data-tipk="clique para ver o que compõe o épico">
+      <td><a href="${projJira(e.k)}" target="_blank" rel="noopener">${esc(e.k)} ↗</a></td>
+      <td>${esc((e.resumo || '').slice(0, 80))}</td><td>${esc(e.status || '')}</td>
+      <td class="num">${nBR(e.nConcluidos)}/${nBR(e.nFilhos)}</td><td class="num">${nBR(e.pct)}%</td>
+      <td class="num">${fmtHd(e.estH)}</td><td class="num">${fmtHd(e.gastoH)}</td></tr>`).join('');
+    const ep = `<div class="vg-card"><h3>Épicos <span class="muted small" style="font-weight:400">· clique numa linha para ver a composição</span></h3>
+      <div class="scroll-x"><table><thead><tr><th>Épico</th><th>Resumo</th><th>Status</th><th class="num">Concl./Filhos</th><th class="num">%</th><th class="num">Est.</th><th class="num">Gasto</th></tr></thead>
+      <tbody>${epRows || '<tr><td colspan="7" class="muted">Sem épicos.</td></tr>'}</tbody></table></div></div>`;
     const colsEsf = [
       { rot: 'Itens', num: 1, fn: (x) => nBR(x.itens) },
       { rot: 'Concl.', num: 1, fn: (x) => nBR(x.concluidos) },
@@ -2299,17 +2451,27 @@ function renderProjFicha(cont, key) {
     ];
     const resp = projTabela('Esforço por responsável', d.esforcoResp, [{ rot: 'Responsável', fn: (x) => esc(x.nome) }, ...colsEsf]);
     const tipo = projTabela('Esforço por tipo', d.esforcoTipo, [{ rot: 'Tipo', fn: (x) => esc(x.nome) }, ...colsEsf]);
-    sec = ep + `<div class="vg-grid">${resp}${tipo}</div>`;
+    // 🗺 Treemap dos épicos: área = nº de itens; clique na célula → composição.
+    const tmEp = (d.epicos || []).length ? `<div class="vg-card"><h3>🗺 Mapa dos épicos <span class="muted small" style="font-weight:400">· área = nº de itens · clique para ver a composição</span></h3>
+      ${projTreemap((d.epicos || []).map((e2, i2) => ({ nome: `${e2.k} — ${e2.resumo || ''}`, valor: Math.max(1, e2.nFilhos), cor: PALETA[i2 % PALETA.length], drill: { type: 'epico', key: e2.k } })), { fmt: (v) => nBR(v) + ' itens', h: 300 })}</div>` : '';
+    sec = tmEp + ep + `<div class="vg-grid">${resp}${tipo}</div>`;
   } else if (aba === 'categorias') {
-    sec = `<div class="vg-card"><h3>Itens por categoria (rótulo)</h3>${barlist(objFrom(d.categorias), nBR, cores.cerceta, 25)}</div>`;
+    sec = `<div class="vg-card"><h3>Itens por categoria (rótulo) <span class="muted small" style="font-weight:400">· clique para ver os itens</span></h3>${dim(d.categorias, cores.cerceta, 'l', 25)}</div>`;
   } else if (aba === 'evolucao') {
     const ev = d.evolucao || [];
-    const spark = (campo, cor) => sparkline(ev.map((m) => m[campo]), 300, 52, cor);
-    const rows = ev.map((m) => `<tr><td>${esc(m.mes)}</td><td class="num">${nBR(m.criados)}</td><td class="num">${nBR(m.concluidos)}</td><td class="num">${nBR(m.criadosAcum)}</td><td class="num">${nBR(m.concluidosAcum)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sem itens.</td></tr>';
-    sec = `<div class="vg-grid">
-      <div class="vg-card"><h3>Criados por mês</h3>${spark('criados', cores.cerceta)}</div>
-      <div class="vg-card"><h3>Concluídos por mês</h3>${spark('concluidos', cores.musgo)}</div></div>
-      <div class="vg-card"><h3>Evolução mensal</h3><div class="scroll-x"><table><thead><tr><th>Mês</th><th class="num">Criados</th><th class="num">Concluídos</th><th class="num">Criados acum.</th><th class="num">Concluídos acum.</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    // Criados × Concluídos com crosshair + leitura (tsChart), e o trabalho em aberto
+    // acumulado (criados acum. − concluídos acum.) — mostra escopo crescendo vs. entrega.
+    const fluxo = tsChart([
+      { nome: 'Criados', cor: cores.cerceta, vals: ev.map((m) => ({ x: m.mes, v: m.criados })) },
+      { nome: 'Concluídos', cor: cores.musgo, vals: ev.map((m) => ({ x: m.mes, v: m.concluidos })) },
+    ], { fmt: nBR, xlabel: (x) => String(x).slice(2), readX: (x) => x });
+    const aberto = tsChart([
+      { nome: 'Em aberto', cor: cores.amarelo, vals: ev.map((m) => ({ x: m.mes, v: Math.max(0, m.criadosAcum - m.concluidosAcum) })) },
+    ], { fmt: nBR, xlabel: (x) => String(x).slice(2), readX: (x) => x });
+    const rows = ev.map((m) => `<tr class="proj-linha" data-pdrill-mes="${escA(m.mes)}" data-tipk="clique para ver os itens do mês"><td>${esc(m.mes)}</td><td class="num">${nBR(m.criados)}</td><td class="num">${nBR(m.concluidos)}</td><td class="num">${nBR(m.criadosAcum)}</td><td class="num">${nBR(m.concluidosAcum)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sem itens.</td></tr>';
+    sec = `<div class="vg-card"><h3>Criados × Concluídos por mês <span class="muted small" style="font-weight:400">· passe o mouse para ler os valores</span></h3>${fluxo}</div>
+      <div class="vg-card"><h3>Trabalho em aberto (acumulado) <span class="muted small" style="font-weight:400">· criados − concluídos</span></h3>${aberto}</div>
+      <div class="vg-card"><h3>Evolução mensal <span class="muted small" style="font-weight:400">· clique num mês para ver os itens</span></h3><div class="scroll-x"><table><thead><tr><th>Mês</th><th class="num">Criados</th><th class="num">Concluídos</th><th class="num">Criados acum.</th><th class="num">Concluídos acum.</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   } else if (aba === 'inconsist') {
     const ordem = ['resolvido', 'feitoSemTempo', 'gastoSemEst', 'estouro', 'backlogComGasto', 'semCategoria', 'naoEpicSemEst'];
     p.incAberta = p.incAberta || {};
@@ -2360,6 +2522,132 @@ function projetosChange(e) {
 }
 document.getElementById('conteudo').addEventListener('click', projetosClick);
 document.getElementById('conteudo').addEventListener('change', projetosChange);
+
+// Drill-down do módulo Projetos (nível documento: funciona na tela E dentro dos modais).
+document.addEventListener('click', (e) => {
+  const cl = (s) => e.target.closest && e.target.closest(s);
+  const p = estado.projetos; if (!p) return;
+  const c = p.consolidado; const d = p.sel ? p.fichas[p.sel] : null;
+
+  // Dentro de um modal, clicar num projeto fecha o modal e abre a ficha.
+  const open = cl('#modal [data-proj-open]');
+  if (open) { fechaModal(); p.sel = open.getAttribute('data-proj-open'); p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+
+  // Consolidado: KPI → composição por projeto.
+  const kc = cl('[data-pdrill-cons]');
+  if (kc && c) {
+    const m = kc.getAttribute('data-pdrill-cons');
+    const rot = { total: 'Itens', concluidos: 'Concluídos', backlog: 'Backlog', emAndamento: 'Em andamento', vencidos: 'Vencidos', epicos: 'Épicos abertos', estH: 'Estimado', gastoH: 'Gasto' }[m] || m;
+    const val = (x) => m === 'epicos' ? (x.nEpicosAbertos || 0) : (Number(x[m]) || 0);
+    const fmt = (m === 'estH' || m === 'gastoH') ? fmtHd : nBR;
+    const rows = (c.projetos || []).filter((x) => !x.erro && val(x) > 0).sort((a, b) => val(b) - val(a))
+      .map((x) => `<tr class="proj-linha" data-proj-open="${escA(x.key)}"><td><strong>${esc(x.key)}</strong> <span class="muted small">${esc(x.nome)}</span></td><td class="num">${m === 'epicos' ? `${nBR(x.nEpicosAbertos)}/${nBR(x.nEpicos)}` : fmt(val(x))}</td></tr>`).join('');
+    abreModal(`<h2>${esc(rot)} — por projeto</h2><div class="muted small" style="margin:2px 0 10px">clique num projeto para abrir a ficha</div>
+      <div class="scroll-x"><table><thead><tr><th>Projeto</th><th class="num">${esc(rot)}</th></tr></thead><tbody>${rows || '<tr><td colspan="2" class="muted">Nada.</td></tr>'}</tbody></table></div>`);
+    return;
+  }
+
+  // Categoria (foco atividade): pessoa → itens concluídos (30d) da categoria.
+  const cp = cl('[data-pdrill-catpessoa]');
+  if (cp && c) {
+    // O nome da categoria pode conter '|' (ex.: "ITPR | Interno…") — separa pelo ÚLTIMO.
+    const vcp = cp.getAttribute('data-pdrill-catpessoa');
+    const icp = vcp.lastIndexOf('|');
+    const catNome = vcp.slice(0, icp), pessoa = vcp.slice(icp + 1);
+    const lista = (((c.categorias || {})[catNome] || {}).conc30 || []).filter((x) => x.p === pessoa);
+    const rows = lista.map((x) => `<tr><td><a href="${projJira(x.k)}" target="_blank" rel="noopener">${esc(x.k)}</a></td><td>${esc(x.proj)}</td><td>${esc(x.t)}</td><td class="num">${esc(x.d)}</td></tr>`).join('');
+    abreModal(`<h2>✓ ${esc(pessoa)} <span class="muted small" style="font-weight:400">· concluídos nos últimos 30 dias — ${esc(catNome)}</span></h2>
+      <div class="muted small" style="margin:2px 0 10px">${lista.length} item(ns)</div>
+      <div class="scroll-x"><table><thead><tr><th>Chave</th><th>Projeto</th><th>Tipo</th><th class="num">Dia</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">Nada.</td></tr>'}</tbody></table></div>`);
+    return;
+  }
+
+  // Treemaps do módulo: portfólio (→ ficha) e épicos (→ composição).
+  const tm = cl('[data-ptm]');
+  if (tm) {
+    const tipoTm = tm.getAttribute('data-ptm'), kTm = tm.getAttribute('data-ptm-key');
+    if (tipoTm === 'proj') { p.sel = kTm; p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (tipoTm === 'epico' && d) {
+      const filhosTm = (d.itens || []).filter((i) => i.e === kTm);
+      const epTm = (d.epicos || []).find((x) => x.k === kTm);
+      projDrillItens(`🧩 ${esc(kTm)}`, (epTm && epTm.resumo) ? epTm.resumo.slice(0, 70) : 'composição do épico', filhosTm);
+      return;
+    }
+  }
+
+  if (!d) return;   // os drills abaixo são da ficha
+
+  // Ficha: idade do backlog / vencimentos / carga por responsável → itens.
+  const ag = cl('[data-pdrill-aging]');
+  if (ag) {
+    const b = ag.getAttribute('data-pdrill-aging'); const hoje = projHoje();
+    const rot = (PROJ_AGING.find(([k2]) => k2 === b) || [])[1] || b;
+    projDrillItens(`⏳ ${esc(rot)} — ${esc(p.sel)}`, 'itens abertos por idade de criação', (d.itens || []).filter((i) => projAgingKey(i, hoje) === b));
+    return;
+  }
+  const vc = cl('[data-pdrill-venc]');
+  if (vc) {
+    const b = vc.getAttribute('data-pdrill-venc'); const hoje = projHoje();
+    const rot = (PROJ_VENC.find(([k2]) => k2 === b) || [])[1] || b;
+    projDrillItens(`📅 ${esc(rot)} — ${esc(p.sel)}`, 'itens abertos por vencimento', (d.itens || []).filter((i) => projVencKey(i, hoje) === b));
+    return;
+  }
+  const rp = cl('[data-pdrill-resp]');
+  if (rp) {
+    const nome = rp.getAttribute('data-pdrill-resp');
+    projDrillItens(`👤 ${esc(nome)} — ${esc(p.sel)}`, 'itens abertos da pessoa', (d.itens || []).filter((i) => projAberto(i) && (i.r || 'Não atribuído') === nome));
+    return;
+  }
+
+  // Ficha: KPI → itens que o compõem (épicos têm modal próprio, com drill nos filhos).
+  const kf = cl('[data-proj-kpi]');
+  if (kf) {
+    const kpi = kf.getAttribute('data-proj-kpi');
+    if (kpi === 'epicos') {
+      const rows = (d.epicos || []).map((ep) => `<tr class="proj-linha" data-pdrill-epico="${escA(ep.k)}"><td><a href="${projJira(ep.k)}" target="_blank" rel="noopener">${esc(ep.k)}</a></td><td>${esc((ep.resumo || '').slice(0, 60))}</td><td>${esc(ep.status)}</td><td class="num">${nBR(ep.nConcluidos)}/${nBR(ep.nFilhos)}</td><td class="num">${nBR(ep.pct)}%</td></tr>`).join('');
+      abreModal(`<h2>Épicos de ${esc(p.sel)}</h2><div class="muted small" style="margin:2px 0 10px">clique num épico para ver o que o compõe</div>
+        <div class="scroll-x"><table><thead><tr><th>Épico</th><th>Resumo</th><th>Status</th><th class="num">Concl./Filhos</th><th class="num">%</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Sem épicos.</td></tr>'}</tbody></table></div>`);
+    } else {
+      const rot = { total: 'Todos os itens', concluidos: 'Concluídos', cancelados: 'Cancelados', andamento: 'Em andamento', backlog: 'Backlog', vencidos: 'Vencidos' }[kpi] || kpi;
+      projDrillItens(`${esc(rot)} — ${esc(p.sel)}`, '', projFiltraKpi(d.itens || [], kpi));
+    }
+    return;
+  }
+  // Ficha: barra de dimensão (status/tipo/prioridade/rótulo) → itens.
+  const dd = cl('[data-pdrill-dim]');
+  if (dd) {
+    // O valor pode conter '|' — o tipo é sempre o 1º segmento.
+    const vdd = dd.getAttribute('data-pdrill-dim');
+    const idd = vdd.indexOf('|');
+    const tipo = vdd.slice(0, idd), val = vdd.slice(idd + 1);
+    const its = (d.itens || []).filter((i) => tipo === 'st' ? i.st === val
+      : tipo === 't' ? i.t === val
+      : tipo === 'pr' ? i.pr === val
+      : (val === 'Sem categoria' ? !i.l : (i.l || '').split(',').includes(val)));
+    projDrillItens(`${esc(val)} — ${esc(p.sel)}`, { st: 'por status', t: 'por tipo', pr: 'por prioridade', l: 'por rótulo' }[tipo] || '', its);
+    return;
+  }
+  // Ficha: épico → composição (filhos em 2 níveis).
+  const de = cl('[data-pdrill-epico]');
+  if (de) {
+    const k = de.getAttribute('data-pdrill-epico');
+    const filhos = (d.itens || []).filter((i) => i.e === k);
+    const ep = (d.epicos || []).find((x) => x.k === k);
+    projDrillItens(`🧩 ${esc(k)}`, (ep && ep.resumo) ? ep.resumo.slice(0, 70) : 'composição do épico', filhos);
+    return;
+  }
+  // Ficha: mês da evolução → criados e concluídos no mês.
+  const dm = cl('[data-pdrill-mes]');
+  if (dm) {
+    const mes = dm.getAttribute('data-pdrill-mes');
+    const criados = (d.itens || []).filter((i) => (i.c || '').startsWith(mes));
+    const concl = (d.itens || []).filter((i) => (i.rd || '').startsWith(mes));
+    abreModal(`<h2>${esc(mes)} — ${esc(p.sel)}</h2>
+      <div class="sec">Criados no mês (${criados.length})</div>${projTabelaItens(criados, 150)}
+      <div class="sec" style="margin-top:14px">Concluídos no mês (${concl.length})</div>${projTabelaItens(concl, 150)}`);
+    return;
+  }
+});
 
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
@@ -10516,6 +10804,8 @@ function vaiPara(v){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-20','📁 <b>Projetos — gráficos novos e mais interativos</b>: 🗺 <b>treemap do portfólio</b> (área = itens, cor = saúde, clique → ficha) e <b>dos épicos</b> (célula → composição); na ficha, <b>⏳ idade do backlog</b>, <b>📅 radar de vencimentos</b> e <b>👤 carga aberta por responsável</b> (tudo clicável), donuts de progresso e a Evolução virou gráfico <b>Criados × Concluídos</b> com crosshair + <b>trabalho em aberto acumulado</b>.'],
+  ['2026-07-19','📁 <b>Projetos v2 — categorias e drill-down total</b>: projetos <b>"ARQ"</b> (arquivados por convenção) sumiram do painel; o consolidado ganhou visões <b>por categoria</b> (ITPR → atividade por dia/pessoa · IMI → planejado × realizado · AMS/DAMS → horas · demais → entrega) e agora <b>tudo é clicável</b> — KPIs (inclusive épicos), barras de status/tipo/prioridade/rótulo, épicos, meses e pessoas abrem a lista do que os compõe.'],
   ['2026-07-19','📁 <b>Visão por Projetos</b> — nova aba de nível superior: <b>consolidado</b> de todos os projetos (tabela ordenável com % concluído, backlog, vencidos, esforço e <b>saúde 0–100</b>) e <b>ficha por projeto</b> com Status/Tipo/Prioridade, Épicos &amp; Esforço (estimado × gasto), Categorias, Evolução mensal e <b>Inconsistências</b> (7 checagens com as chaves para ajuste no Jira) — tudo direto do Jira.'],
   ['2026-07-19','✨ <b>Novidades na tela inicial</b> — as últimas melhorias aparecem num card em ⚡ Ações de hoje (além do ⋯ Mais), e a lista voltou a ser atualizada a cada entrega.'],
   ['2026-07-19','🩺 <b>Diagnóstico do Odoo</b> — rota somente-leitura (<code>/api/resumo?acao=odoo-diag</code>) mostra onde a integração de folgas quebra (variáveis, autenticação, tipos de ausência com ids).'],
@@ -10572,7 +10862,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-19.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-20.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
