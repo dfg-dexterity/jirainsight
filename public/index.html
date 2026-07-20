@@ -205,6 +205,14 @@
   .barrow[data-pdrill-dim],.barrow[data-pdrill-catpessoa],.barrow[data-proj-open]{cursor:pointer}
   .barrow[data-pdrill-aging],.barrow[data-pdrill-venc],.barrow[data-pdrill-resp]{cursor:pointer}
   .tm-cell[data-ptm]{cursor:pointer}
+  /* Planejado × Realizado por épico (barras pareadas) */
+  .pe-list{display:flex;flex-direction:column;gap:10px}
+  .pe-row{display:grid;grid-template-columns:220px 1fr 84px;gap:10px;align-items:center;cursor:pointer;border-radius:8px;padding:2px 4px}
+  .pe-row:hover{background:var(--hoverbg)}
+  .pe-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+  .pe-bars{display:flex;flex-direction:column;gap:3px}
+  .pe-vals{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  @media (max-width:600px){ .pe-row{grid-template-columns:110px 1fr 70px} }
 
   /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
   .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
@@ -2246,6 +2254,29 @@ function projVencKey(i, hoje) {
 function projTreemap(items, opts) {
   return treemap(items, opts).replace(/data-drill="/g, 'data-ptm="').replace(/data-key="/g, 'data-ptm-key="');
 }
+// Escopo fechado (PEF/DEF): ganha visão financeira e planejado × realizado por épico.
+// (Usa o fmtBRL já existente no painel — módulo Receita.)
+function projEscopoFechado(d) { return /(^|[^A-Za-z])(PEF|DEF)([^A-Za-z]|$)/.test(`${d.categoria || ''} ${d.nome || ''}`); }
+// Barras pareadas (planejado × realizado) por épico — linha clicável → composição.
+function projParesEpicos(epicos) {
+  const list = (epicos || []).filter((e) => (e.estH || 0) > 0 || (e.gastoH || 0) > 0);
+  if (!list.length) return '<div class="estado">Sem estimativas nem horas nos épicos.</div>';
+  const max = Math.max(1, ...list.map((e) => Math.max(e.estH || 0, e.gastoH || 0)));
+  const rows = list.map((e) => {
+    const estouro = (e.estH || 0) > 0 && (e.gastoH || 0) > (e.estH || 0);
+    const corR = estouro ? CORSAUDE.bad : cores.musgo;
+    return `<div class="pe-row" data-pdrill-epico="${escA(e.k)}" data-tip="${escA(`${e.k} — ${e.resumo || ''}`)}" data-tip2="${escA(`planejado ${fmtHd(e.estH)} · realizado ${fmtHd(e.gastoH)}`)}" data-tipk="clique para ver a composição">
+      <div class="pe-nome"><strong>${esc(e.k)}</strong> <span class="muted small">${esc((e.resumo || '').slice(0, 42))}</span></div>
+      <div class="pe-bars">
+        <div class="track"><div class="fill" style="width:${Math.max(2, (e.estH || 0) / max * 100)}%;background:${cores.cerceta}"></div></div>
+        <div class="track"><div class="fill" style="width:${Math.max(2, (e.gastoH || 0) / max * 100)}%;background:${corR}"></div></div>
+      </div>
+      <div class="pe-vals"><span style="color:${cores.cerceta}">${fmtHd(e.estH)}</span><span style="color:${corR}">${fmtHd(e.gastoH)}</span></div>
+    </div>`;
+  }).join('');
+  return `<div class="pe-list anima">${rows}</div>
+    <div class="pp-legend" style="margin-top:8px"><span><i style="background:${cores.cerceta}"></i>Planejado</span><span><i style="background:${cores.musgo}"></i>Realizado</span><span><i style="background:${CORSAUDE.bad}"></i>Acima do planejado</span></div>`;
+}
 // Foco de cada categoria de projeto (reflete a operação da casa):
 // ITPR (internos) → atividade por dia/pessoa · IMI → planejado × realizado ·
 // AMS/DAMS → horas · demais (DEF/PEA/PEF/IPA…) → entrega (épicos + vencidos).
@@ -2451,10 +2482,30 @@ function renderProjFicha(cont, key) {
     ];
     const resp = projTabela('Esforço por responsável', d.esforcoResp, [{ rot: 'Responsável', fn: (x) => esc(x.nome) }, ...colsEsf]);
     const tipo = projTabela('Esforço por tipo', d.esforcoTipo, [{ rot: 'Tipo', fn: (x) => esc(x.nome) }, ...colsEsf]);
+    // ---- Escopo fechado (PEF/DEF): 💰 valor realizado + 📐 planejado × realizado por épico ----
+    let fechado = '';
+    if (projEscopoFechado(d)) {
+      const custoDe = (id) => (typeof alocCustoH === 'function' ? alocCustoH(id || '') : Math.max(0, Number((cfg.custosPessoa || {})[id]) || 0));
+      const linhasVal = (d.esforcoResp || []).filter((x) => x.gastoH > 0)
+        .map((x) => { const ch = x.id ? custoDe(x.id) : 0; return { ...x, custoH: ch, valor: Math.round(x.gastoH * ch * 100) / 100 }; })
+        .sort((a, b) => b.valor - a.valor || b.gastoH - a.gastoH);
+      const totalVal = linhasVal.reduce((s, x) => s + x.valor, 0);
+      const semCusto = linhasVal.filter((x) => !x.custoH);
+      const valRows = linhasVal.map((x) => `<tr><td>${esc(x.nome)}</td><td class="num">${fmtHd(x.gastoH)}</td>
+        <td class="num">${x.custoH ? fmtBRL(x.custoH) : '<span class="muted" data-tip="Sem custo/h cadastrado — fora do total">—</span>'}</td>
+        <td class="num">${x.custoH ? `<strong>${fmtBRL(x.valor)}</strong>` : '<span class="muted">—</span>'}</td></tr>`).join('');
+      const valorCard = `<div class="vg-card"><h3>💰 Valor realizado <span class="muted small" style="font-weight:400">· horas do Jira × custo/h por pessoa</span></h3>
+        <div class="vg-k good" style="max-width:260px;margin-bottom:10px"><div class="v">${fmtBRL(totalVal)}</div><div class="l">realizado (${fmtHd(r.gastoH)} apontadas)</div></div>
+        <div class="scroll-x"><table><thead><tr><th>Responsável</th><th class="num">Horas</th><th class="num">Custo/h</th><th class="num">Valor</th></tr></thead>
+        <tbody>${valRows || '<tr><td colspan="4" class="muted">Sem horas apontadas.</td></tr>'}</tbody></table></div>
+        ${semCusto.length ? `<div class="estado" style="margin-top:8px">⚠ ${semCusto.length} pessoa(s) sem custo/h cadastrado (fora do total): ${esc(semCusto.map((x) => x.nome).slice(0, 4).join(', '))}${semCusto.length > 4 ? '…' : ''} — cadastre na 🧑‍💼 Alocação ou importe do Odoo.</div>` : ''}</div>`;
+      const paresCard = `<div class="vg-card"><h3>📐 Planejado × Realizado por épico <span class="muted small" style="font-weight:400">· clique num épico para ver a composição</span></h3>${projParesEpicos(d.epicos)}</div>`;
+      fechado = `<div class="vg-grid">${valorCard}${paresCard}</div>`;
+    }
     // 🗺 Treemap dos épicos: área = nº de itens; clique na célula → composição.
     const tmEp = (d.epicos || []).length ? `<div class="vg-card"><h3>🗺 Mapa dos épicos <span class="muted small" style="font-weight:400">· área = nº de itens · clique para ver a composição</span></h3>
       ${projTreemap((d.epicos || []).map((e2, i2) => ({ nome: `${e2.k} — ${e2.resumo || ''}`, valor: Math.max(1, e2.nFilhos), cor: PALETA[i2 % PALETA.length], drill: { type: 'epico', key: e2.k } })), { fmt: (v) => nBR(v) + ' itens', h: 300 })}</div>` : '';
-    sec = tmEp + ep + `<div class="vg-grid">${resp}${tipo}</div>`;
+    sec = fechado + tmEp + ep + `<div class="vg-grid">${resp}${tipo}</div>`;
   } else if (aba === 'categorias') {
     sec = `<div class="vg-card"><h3>Itens por categoria (rótulo) <span class="muted small" style="font-weight:400">· clique para ver os itens</span></h3>${dim(d.categorias, cores.cerceta, 'l', 25)}</div>`;
   } else if (aba === 'evolucao') {
@@ -2493,7 +2544,7 @@ function renderProjFicha(cont, key) {
   const trunc = d.truncado ? '<div class="estado" style="margin-top:8px">⚠ Projeto com muitos itens: a leitura foi truncada; alguns números podem estar subestimados.</div>' : '';
   cont.replaceChildren(el(`<div>
     ${projToolbar()}
-    <div class="card full"><h2>📁 ${esc(key)} <span>${esc((d && d.projeto) || '')} · ficha do projeto</span></h2>
+    <div class="card full"><h2>📁 ${esc(key)} <span>${esc(d.nome || d.projeto || '')}${d.categoria ? ` · ${esc(d.categoria)}` : ''}${projEscopoFechado(d) ? ' 🔒' : ''} · ficha do projeto</span></h2>
       <div class="vg-hero">${kpis}</div>${trunc}
       ${tabbar}${sec}
     </div></div>`));
@@ -10804,6 +10855,7 @@ function vaiPara(v){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-20','🔒 <b>Projetos de escopo fechado (PEF/DEF)</b> — a ficha ganhou <b>💰 Valor realizado</b> (horas do Jira × <b>custo/h por pessoa</b>, com total em R$ e aviso de quem está sem custo cadastrado) e <b>📐 Planejado × Realizado por épico</b> (barras pareadas; estouro em vermelho; clique → composição do épico). O custo/h vem da Alocação (manual ou importado do Odoo).'],
   ['2026-07-20','📁 <b>Projetos — gráficos novos e mais interativos</b>: 🗺 <b>treemap do portfólio</b> (área = itens, cor = saúde, clique → ficha) e <b>dos épicos</b> (célula → composição); na ficha, <b>⏳ idade do backlog</b>, <b>📅 radar de vencimentos</b> e <b>👤 carga aberta por responsável</b> (tudo clicável), donuts de progresso e a Evolução virou gráfico <b>Criados × Concluídos</b> com crosshair + <b>trabalho em aberto acumulado</b>.'],
   ['2026-07-19','📁 <b>Projetos v2 — categorias e drill-down total</b>: projetos <b>"ARQ"</b> (arquivados por convenção) sumiram do painel; o consolidado ganhou visões <b>por categoria</b> (ITPR → atividade por dia/pessoa · IMI → planejado × realizado · AMS/DAMS → horas · demais → entrega) e agora <b>tudo é clicável</b> — KPIs (inclusive épicos), barras de status/tipo/prioridade/rótulo, épicos, meses e pessoas abrem a lista do que os compõe.'],
   ['2026-07-19','📁 <b>Visão por Projetos</b> — nova aba de nível superior: <b>consolidado</b> de todos os projetos (tabela ordenável com % concluído, backlog, vencidos, esforço e <b>saúde 0–100</b>) e <b>ficha por projeto</b> com Status/Tipo/Prioridade, Épicos &amp; Esforço (estimado × gasto), Categorias, Evolução mensal e <b>Inconsistências</b> (7 checagens com as chaves para ajuste no Jira) — tudo direto do Jira.'],
@@ -10862,7 +10914,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-20.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-20.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
