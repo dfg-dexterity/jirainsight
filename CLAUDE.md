@@ -31,3 +31,32 @@ funcionalidade desta ferramenta for **adicionada ou alterada** a pedido do usuá
 Usar a ferramenta MCP do Notion: `mcp__Notion__notion-fetch` para ler a página atual e
 `mcp__Notion__notion-update-page` para editar. Carregar os schemas via `ToolSearch`
 quando necessário.
+
+## ⏱ Apontamento no Jira — TAD-829 (acordo de 2026-07-19)
+
+A cada **entrega/commit** desta ferramenta:
+
+1. **Criar uma SUB-TAREFA no ticket `TAD-829`** ("Aplicativo Jira Insight", projeto
+   `TAD` — ITPR | Tarefas Avulsas, tipo "Subtarefa" id 10010) **detalhando o que foi
+   feito**, atribuída ao usuário (Diego, accountId
+   `712020:3a98a142-a5ce-443c-b3f2-32cd080d2583`).
+2. **SEMPRE perguntar ao usuário quantas horas apontar** (nunca presumir) e registrar
+   o worklog nessa sub-tarefa via MCP do Atlassian (`addWorklogToJiraIssue`) ou, se o
+   conector pedir aprovação indisponível, via Zapier
+   (`jira_software_cloud_add_work_log_to_issue`).
+
+> As escritas no Jira podem exigir aprovação do conector no claude.ai; se falhar com
+> "requires approval", avisar o usuário para aprovar e repetir — não pular a etapa.
+
+## ✨ Novidades do app — MANTER ATUALIZADO (acordo de 2026-07-19)
+
+A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
+(`public/index.html`):
+
+1. Acrescentar a(s) entrada(s) no topo do array `const NOVIDADES` (formato
+   `['AAAA-MM-DD','texto com <b>destaques</b>']`, tom voltado ao usuário).
+2. Subir a `const NOV_VER` (ex.: `'2026-07-19.1'`) — é o que reacende o pontinho
+   vermelho em "⋯ Mais → ✨ Novidades" e o destaque do card da tela inicial.
+
+O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
+automaticamente a partir do array.
