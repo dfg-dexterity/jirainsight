@@ -224,6 +224,7 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     const tipo = (f.issuetype && f.issuetype.name) || '—';
     const prio = (f.priority && f.priority.name) || 'Sem prioridade';
     const resp = (f.assignee && f.assignee.displayName) || 'Não atribuído';
+    const respId = (f.assignee && f.assignee.accountId) || '';
     const est = Number(f.timeoriginalestimate) || 0;
     const gasto = Number(f.timespent) || 0;
     const cancel = RE_CANCEL.test(stName);
@@ -242,7 +243,8 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     else backlog += 1;
     if (f.duedate && f.duedate < hoje && !done) vencidos += 1;
 
-    const r = porResp[resp] || (porResp[resp] = { itens: 0, concluidos: 0, estSeg: 0, gastoSeg: 0 });
+    // Chaveia por accountId (quando houver) para permitir cruzar com custo/h no front.
+    const r = porResp[respId || resp] || (porResp[respId || resp] = { nome: resp, id: respId, itens: 0, concluidos: 0, estSeg: 0, gastoSeg: 0 });
     r.itens += 1; if (feito) r.concluidos += 1; r.estSeg += est; r.gastoSeg += gasto;
     const te = porTipoEsf[tipo] || (porTipoEsf[tipo] = { itens: 0, concluidos: 0, estSeg: 0, gastoSeg: 0 });
     te.itens += 1; if (feito) te.concluidos += 1; te.estSeg += est; te.gastoSeg += gasto;
@@ -313,7 +315,7 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
   const ord = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1])
     .map(([k, v]) => ({ nome: k, n: v, pct: Math.round((v / (total || 1)) * 1000) / 10 }));
   const esf = (obj) => Object.entries(obj)
-    .map(([nome, r]) => ({ nome, itens: r.itens, concluidos: r.concluidos, estH: h1(r.estSeg), gastoH: h1(r.gastoSeg), ratio: r.estSeg ? Math.round((r.gastoSeg / r.estSeg) * 1000) / 10 : null }))
+    .map(([k, r]) => ({ nome: r.nome || k, id: r.id || '', itens: r.itens, concluidos: r.concluidos, estH: h1(r.estSeg), gastoH: h1(r.gastoSeg), ratio: r.estSeg ? Math.round((r.gastoSeg / r.estSeg) * 1000) / 10 : null }))
     .sort((a, b) => b.estH - a.estH || b.gastoH - a.gastoH);
   const meses = [...new Set([...Object.keys(criadosMes), ...Object.keys(concluidosMes)])].sort();
   let accC = 0, accD = 0;
@@ -387,7 +389,8 @@ async function visaoPorProjetos(req, res) {
     if (!nocache) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
     const { issues, truncado } = await fetchIssuesProjeto(projeto, 60);
     const det = agregaProjeto(issues, { detalhe: true });
-    return json(res, 200, cacheSetTTL(ck, { projeto, geradoEm: new Date().toISOString(), truncado, ...det }, 10));
+    const meta = (await carregaCatalogoProjetos()).find((p) => p.key === projeto) || {};
+    return json(res, 200, cacheSetTTL(ck, { projeto, nome: meta.nome || '', categoria: meta.categoria || '', geradoEm: new Date().toISOString(), truncado, ...det }, 10));
   }
 
   // Consolidado: um resumo por projeto (sem os "ARQ"), em paralelo com
