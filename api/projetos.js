@@ -154,6 +154,13 @@ async function carregaCatalogoProjetos() {
   return projetos;
 }
 
+// O plano atual do Jira não permite arquivar projetos; a convenção da casa é
+// prefixar com "ARQ" (nome ou categoria). Esses projetos somem do painel inteiro.
+const RE_ARQUIVADO = /(^|[^A-Za-z])ARQ([^A-Za-z]|$)/;
+function semArquivados(projetos) {
+  return projetos.filter((p) => !RE_ARQUIVADO.test(p.nome || '') && !RE_ARQUIVADO.test(p.categoria || '') && p.key !== 'ARQ');
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/projetos?visao=1[&projeto=KEY][&nocache=1] — "Visão por Projetos".
 // Consolidado (todos os projetos) + ficha detalhada de um projeto, direto do Jira.
@@ -247,8 +254,8 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     if (feito && f.resolutiondate) { const mr = mesDe(f.resolutiondate); if (mr) concluidosMes[mr] = (concluidosMes[mr] || 0) + 1; }
 
     if (ehEpicoTipo(f.issuetype)) {
-      const e = epicos[it.key] || (epicos[it.key] = { resumo: '', status: '', estSeg: 0, gastoSeg: 0, nFilhos: 0, nConcluidos: 0 });
-      e.resumo = f.summary || ''; e.status = stName;
+      const e = epicos[it.key] || (epicos[it.key] = { resumo: '', status: '', aberto: true, estSeg: 0, gastoSeg: 0, nFilhos: 0, nConcluidos: 0 });
+      e.resumo = f.summary || ''; e.status = stName; e.aberto = !done;
     }
 
     if (feito && !f.resolutiondate) inc.resolvido.push(it.key);
@@ -278,9 +285,29 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     total, concluidos, cancelados, emAndamento, backlog, vencidos,
     pctConcluido: Math.round((concluidos / naoCancel) * 1000) / 10,
     estH: h1(estSeg), gastoH: h1(gastoSeg),
+    nEpicos: Object.keys(epicos).length,
+    nEpicosAbertos: Object.values(epicos).filter((e) => e.aberto).length,
     incTotal: Object.values(inc).reduce((s, a) => s + a.length, 0),
   };
   resumo.saude = saudeProjeto(resumo);
+
+  // Concluídos dos últimos 30 dias (chave, dia, pessoa, tipo) — alimenta as visões
+  // de atividade por categoria no consolidado. Compacto e limitado.
+  const d30 = new Date(); d30.setUTCDate(d30.getUTCDate() - 30);
+  const corte = d30.toISOString().slice(0, 10);
+  const conc30 = [];
+  issues.forEach((it) => {
+    const f = it.fields || {};
+    if (!f.resolutiondate) return;
+    const dia = String(f.resolutiondate).slice(0, 10);
+    if (dia < corte) return;
+    const st = (f.status && f.status.name) || '';
+    if (RE_CANCEL.test(st)) return;
+    conc30.push({ k: it.key, d: dia, p: (f.assignee && f.assignee.displayName) || 'Não atribuído', t: (f.issuetype && f.issuetype.name) || '' });
+  });
+  conc30.sort((a, b) => b.d.localeCompare(a.d));
+  resumo.conc30 = conc30.slice(0, 300);
+
   if (!detalhe) return resumo;
 
   const ord = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1])
@@ -305,10 +332,34 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     semCategoria: lst(inc.semCategoria, 'Sem categoria (rótulo)', 'Aplicar rótulo de categoria'),
     naoEpicSemEst: lst(inc.naoEpicSemEst, 'Não-Epic sem estimativa', 'Estimar Histórias/Subtarefas/Tarefas'),
   };
+  // Lista compacta de itens para o drill-down no front (cap 1200): clicar em
+  // qualquer card/barra/linha filtra esta lista localmente, sem nova chamada.
+  const itens = issues.slice(0, 1200).map((it) => {
+    const f = it.fields || {};
+    return {
+      k: it.key,
+      s: String(f.summary || '').slice(0, 90),
+      st: (f.status && f.status.name) || '',
+      sc: (f.status && f.status.statusCategory && f.status.statusCategory.key) || '',
+      t: (f.issuetype && f.issuetype.name) || '',
+      pr: (f.priority && f.priority.name) || 'Sem prioridade',
+      r: (f.assignee && f.assignee.displayName) || '',
+      v: f.duedate || '',
+      c: String(f.created || '').slice(0, 10),
+      rd: f.resolutiondate ? String(f.resolutiondate).slice(0, 10) : '',
+      eH: h1(Number(f.timeoriginalestimate) || 0),
+      gH: h1(Number(f.timespent) || 0),
+      l: (Array.isArray(f.labels) ? f.labels : []).join(','),
+      e: ehEpicoTipo(f.issuetype) ? '' : epicoDe(it),
+      ep: ehEpicoTipo(f.issuetype) ? 1 : 0,
+    };
+  });
+
   return {
     resumo, status: ord(porStatus), tipos: ord(porTipo), prioridades: ord(porPrioridade),
     categorias: ord(porLabel), esforcoResp: esf(porResp), esforcoTipo: esf(porTipoEsf),
     epicos: epicosArr, evolucao, inconsistencias,
+    itens, itensTruncado: issues.length > 1200,
   };
 }
 
@@ -339,10 +390,11 @@ async function visaoPorProjetos(req, res) {
     return json(res, 200, cacheSetTTL(ck, { projeto, geradoEm: new Date().toISOString(), truncado, ...det }, 10));
   }
 
-  // Consolidado: um resumo por projeto (todos), em paralelo com concorrência limitada.
+  // Consolidado: um resumo por projeto (sem os "ARQ"), em paralelo com
+  // concorrência limitada, + agregação por CATEGORIA de projeto.
   const ck = 'visao:consolidado';
   if (!nocache) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
-  const catalogo = await carregaCatalogoProjetos();
+  const catalogo = semArquivados(await carregaCatalogoProjetos());
   let algumTrunc = false;
   const projetos = await emLotes(catalogo, 5, async (p) => {
     try {
@@ -359,9 +411,34 @@ async function visaoPorProjetos(req, res) {
     backlog: s.backlog + (l.backlog || 0), emAndamento: s.emAndamento + (l.emAndamento || 0),
     vencidos: s.vencidos + (l.vencidos || 0), estH: Math.round((s.estH + (l.estH || 0)) * 10) / 10,
     gastoH: Math.round((s.gastoH + (l.gastoH || 0)) * 10) / 10,
-  }), { total: 0, concluidos: 0, backlog: 0, emAndamento: 0, vencidos: 0, estH: 0, gastoH: 0 });
+    nEpicos: s.nEpicos + (l.nEpicos || 0), nEpicosAbertos: s.nEpicosAbertos + (l.nEpicosAbertos || 0),
+  }), { total: 0, concluidos: 0, backlog: 0, emAndamento: 0, vencidos: 0, estH: 0, gastoH: 0, nEpicos: 0, nEpicosAbertos: 0 });
   totais.pctConcluido = totais.total ? Math.round((totais.concluidos / totais.total) * 1000) / 10 : 0;
-  return json(res, 200, cacheSetTTL(ck, { geradoEm: new Date().toISOString(), truncado: algumTrunc, projetos, totais }, 15));
+
+  // Agregação por categoria de projeto (ITPR, IMI, DEF, DAMS, …): totais + atividade
+  // dos últimos 30 dias (concluídos por dia e por pessoa) para as visões por foco.
+  const categorias = {};
+  projetos.forEach((p) => {
+    if (p.erro) return;
+    const c = categorias[p.categoria] || (categorias[p.categoria] = {
+      projetos: [], total: 0, concluidos: 0, backlog: 0, emAndamento: 0, vencidos: 0,
+      estH: 0, gastoH: 0, nEpicos: 0, nEpicosAbertos: 0, conc30: [],
+    });
+    c.projetos.push(p.key);
+    c.total += p.total; c.concluidos += p.concluidos; c.backlog += p.backlog;
+    c.emAndamento += p.emAndamento; c.vencidos += p.vencidos;
+    c.estH = Math.round((c.estH + p.estH) * 10) / 10; c.gastoH = Math.round((c.gastoH + p.gastoH) * 10) / 10;
+    c.nEpicos += p.nEpicos || 0; c.nEpicosAbertos += p.nEpicosAbertos || 0;
+    (p.conc30 || []).forEach((x) => c.conc30.push({ ...x, proj: p.key }));
+    delete p.conc30;   // a linha do projeto fica leve; a lista vive na categoria
+  });
+  Object.values(categorias).forEach((c) => {
+    c.conc30.sort((a, b) => b.d.localeCompare(a.d));
+    c.conc30 = c.conc30.slice(0, 400);
+    c.pctConcluido = c.total ? Math.round((c.concluidos / c.total) * 1000) / 10 : 0;
+  });
+
+  return json(res, 200, cacheSetTTL(ck, { geradoEm: new Date().toISOString(), truncado: algumTrunc, projetos, totais, categorias }, 15));
 }
 
 export default async function handler(req, res) {
@@ -374,7 +451,7 @@ export default async function handler(req, res) {
     const consDe = String((req.query && req.query.consultorias) || '').trim().toUpperCase();
     if (consDe) return await listarConsultorias(consDe, res);
 
-    const projetos = await carregaCatalogoProjetos();
+    const projetos = semArquivados(await carregaCatalogoProjetos());
     return json(res, 200, { projetos });
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });
