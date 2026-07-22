@@ -2724,7 +2724,9 @@ function agMarcaTicket(id,key){ const m=agTickets(); m[id]=key; try{ localStorag
 function carregaAgenda(forca){
   const ag=estado.agenda; const id=idApontar(); if(!id) return;
   ag.carregando=true; ag.erro='';
-  fetch(`/api/reunioes?agenda=1&email=${encodeURIComponent(id.email)}${forca?'&nocache=1':''}`)
+  // POST autenticado: a agenda é pessoal — o servidor confere que o token é seu.
+  fetch('/api/reunioes',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ agenda:1, email:id.email, token:id.token, nocache:forca?1:0 }) })
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       if(estado.vista==='agenda') renderAgenda(); })

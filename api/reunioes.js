@@ -56,12 +56,17 @@ async function projetosComTipos(base, headers) {
 }
 
 // ------------------------- 📅 Agenda (Outlook / Graph) -------------------------
-// GET /api/reunioes?agenda=1&email=pessoa@…[&nocache=1]
+// POST /api/reunioes { agenda:1, email, token[, nocache] }
 // Lê a agenda da PESSOA no Microsoft Graph com credenciais de APLICATIVO
 // (client credentials): envs MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET —
 // app do Entra ID com permissão de aplicativo Calendars.Read + consentimento
 // do admin. Eventos cujo ORGANIZADOR está em AGENDA_OCULTAR (padrão
 // diego@dexterityit.com.br) não aparecem.
+//
+// SEGURANÇA: como as credenciais do Graph enxergam o tenant inteiro, a rota SÓ
+// entrega a agenda do PRÓPRIO chamador — exige o token de API do Jira da pessoa
+// (mesmo mecanismo das escritas) e confere no /myself do Jira que o e-mail
+// pedido é o dono do token. Validação cacheada 10 min por par e-mail+token.
 function agendaDiaSP(offsetDias) {
   const d = new Date(Date.now() + offsetDias * 86400000);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
@@ -85,15 +90,37 @@ async function graphToken() {
   }
   return cacheSetTTL('graph:token', j.access_token, 45);
 }
-async function agenda(req, res) {
-  const email = String((req.query && req.query.email) || '').trim().toLowerCase();
+// Confere que o par e-mail+token pertence mesmo à pessoa (via /myself do Jira).
+// O token nunca entra em cache — só um hash dele compõe a chave de validação.
+async function agendaDonoValido(email, token) {
+  const { createHash } = await import('node:crypto');
+  const ck = `agenda:dono:${email}:${createHash('sha256').update(token).digest('hex').slice(0, 24)}`;
+  if (cacheGet(ck)) return { ok: true };
+  const r = await fetch(`${jiraBase()}/rest/api/3/myself`, {
+    headers: { Authorization: authUser(email, token), Accept: 'application/json' },
+  });
+  if (!r.ok) return { ok: false, status: 401, erro: 'Identificação inválida — confira o e-mail e o token de API do Jira (aba Apontar → identifique-se).' };
+  const me = await r.json().catch(() => ({}));
+  const emailJira = String(me.emailAddress || '').trim().toLowerCase();
+  if (!emailJira || emailJira !== email) {
+    return { ok: false, status: 403, erro: 'O e-mail pedido não corresponde ao dono do token — a agenda é pessoal.' };
+  }
+  cacheSetTTL(ck, true, 10);
+  return { ok: true };
+}
+async function agenda(req, res, b) {
+  const email = String((b && b.email) || '').trim().toLowerCase();
+  const token = String((b && b.token) || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { erro: 'E-mail inválido.' });
+  if (!token) return json(res, 401, { erro: 'Identifique-se (e-mail + token de API do Jira) para ver a SUA agenda.' });
   if (!process.env.MS_TENANT_ID || !process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
     return json(res, 200, { configurado: false,
       erro: 'Integração com o Outlook não configurada. Defina MS_TENANT_ID, MS_CLIENT_ID e MS_CLIENT_SECRET na Vercel (app do Entra ID com permissão de aplicativo Calendars.Read + consentimento do admin).' });
   }
+  const dono = await agendaDonoValido(email, token);
+  if (!dono.ok) return json(res, dono.status, { erro: dono.erro });
   const ck = `agenda:${email}`;
-  if (!(req.query && req.query.nocache === '1')) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
+  if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
 
   const tok = await graphToken();
   const de = agendaDiaSP(-1); const ate = agendaDiaSP(14);
@@ -463,12 +490,14 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'POST') {
       const b = await lerBody(req);
+      if (b.agenda) return await agenda(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.
       req.body = b;
       return await mover(req, res);
     }
-    if (req.query && req.query.agenda) return await agenda(req, res);
+    // A agenda é pessoal: só via POST autenticado (e-mail + token da pessoa).
+    if (req.query && req.query.agenda) return json(res, 405, { erro: 'Use POST com email e token para ver a sua agenda.' });
     if (req.query && req.query.detalhe) return await detalhe(req, res);
     if (req.query && req.query.abertos) return await abertos(req, res);
     return await listar(req, res);
