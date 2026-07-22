@@ -55,6 +55,81 @@ async function projetosComTipos(base, headers) {
   return out;
 }
 
+// ------------------------- 📅 Agenda (Outlook / Graph) -------------------------
+// GET /api/reunioes?agenda=1&email=pessoa@…[&nocache=1]
+// Lê a agenda da PESSOA no Microsoft Graph com credenciais de APLICATIVO
+// (client credentials): envs MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET —
+// app do Entra ID com permissão de aplicativo Calendars.Read + consentimento
+// do admin. Eventos cujo ORGANIZADOR está em AGENDA_OCULTAR (padrão
+// diego@dexterityit.com.br) não aparecem.
+function agendaDiaSP(offsetDias) {
+  const d = new Date(Date.now() + offsetDias * 86400000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
+}
+async function graphToken() {
+  const c = cacheGet('graph:token');
+  if (c) return c;
+  const r = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: process.env.MS_CLIENT_ID,
+      client_secret: process.env.MS_CLIENT_SECRET,
+      scope: 'https://graph.microsoft.com/.default',
+    }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) {
+    throw new Error(`Autenticação no Microsoft Graph falhou (${r.status}): ${String(j.error_description || j.error || '').slice(0, 200)}`);
+  }
+  return cacheSetTTL('graph:token', j.access_token, 45);
+}
+async function agenda(req, res) {
+  const email = String((req.query && req.query.email) || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { erro: 'E-mail inválido.' });
+  if (!process.env.MS_TENANT_ID || !process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
+    return json(res, 200, { configurado: false,
+      erro: 'Integração com o Outlook não configurada. Defina MS_TENANT_ID, MS_CLIENT_ID e MS_CLIENT_SECRET na Vercel (app do Entra ID com permissão de aplicativo Calendars.Read + consentimento do admin).' });
+  }
+  const ck = `agenda:${email}`;
+  if (!(req.query && req.query.nocache === '1')) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
+
+  const tok = await graphToken();
+  const de = agendaDiaSP(-1); const ate = agendaDiaSP(14);
+  const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
+    + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
+    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink';
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}`, Prefer: 'outlook.timezone="America/Sao_Paulo"', Accept: 'application/json' } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = String((j.error && j.error.message) || `Graph ${r.status}`);
+    return json(res, 200, { configurado: true, erro: `Falha ao ler a agenda de ${email}: ${msg.slice(0, 250)}` });
+  }
+  const ocultar = String(process.env.AGENDA_OCULTAR || 'diego@dexterityit.com.br')
+    .toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+  const brutos = (j.value || []).filter((e) => !e.isCancelled);
+  const orgDe = (e) => String((e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.address) || '').toLowerCase();
+  const visiveis = brutos.filter((e) => !ocultar.includes(orgDe(e)));
+  const eventos = visiveis.map((e) => ({
+    id: e.id,
+    titulo: e.subject || '(sem título)',
+    inicio: String((e.start && e.start.dateTime) || '').slice(0, 16),
+    fim: String((e.end && e.end.dateTime) || '').slice(0, 16),
+    diaTodo: !!e.isAllDay,
+    organizador: { nome: (e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.name) || '', email: orgDe(e) },
+    participantes: (e.attendees || []).filter((a) => a.type !== 'resource').length,
+    local: (e.location && e.location.displayName) || '',
+    link: (e.onlineMeeting && e.onlineMeeting.joinUrl) || e.webLink || '',
+    meu: orgDe(e) === email,
+  }));
+  return json(res, 200, cacheSetTTL(ck, {
+    configurado: true, email, de, ate, eventos,
+    nOcultos: brutos.length - visiveis.length, ocultarDe: ocultar,
+    geradoEm: new Date().toISOString(),
+  }, 5));
+}
+
 // --------------------------------- GET: listar ---------------------------------
 async function listar(req, res) {
   const projeto = String((req.query && req.query.projeto) || 'RDF').trim().toUpperCase();
@@ -393,6 +468,7 @@ export default async function handler(req, res) {
       req.body = b;
       return await mover(req, res);
     }
+    if (req.query && req.query.agenda) return await agenda(req, res);
     if (req.query && req.query.detalhe) return await detalhe(req, res);
     if (req.query && req.query.abertos) return await abertos(req, res);
     return await listar(req, res);

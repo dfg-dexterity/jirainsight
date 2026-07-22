@@ -205,6 +205,14 @@
   .barrow[data-pdrill-dim],.barrow[data-pdrill-catpessoa],.barrow[data-proj-open]{cursor:pointer}
   .barrow[data-pdrill-aging],.barrow[data-pdrill-venc],.barrow[data-pdrill-resp]{cursor:pointer}
   .tm-cell[data-ptm]{cursor:pointer}
+  /* 📅 Agenda (Outlook) */
+  .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
+  .ag-ev:last-child{border-bottom:0}
+  .ag-hora{font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
+  .ag-passado{opacity:.62}
+  .ag-acao .btn{white-space:nowrap}
+  @media (max-width:600px){ .ag-ev{grid-template-columns:1fr;gap:4px} .ag-acao{justify-self:start} }
+
   /* Planejado × Realizado por épico (barras pareadas) */
   .pe-list{display:flex;flex-direction:column;gap:10px}
   .pe-row{display:grid;grid-template-columns:220px 1fr 84px;gap:10px;align-items:center;cursor:pointer;border-radius:8px;padding:2px 4px}
@@ -1558,6 +1566,7 @@
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
           <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
           <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
+          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
           <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
@@ -1701,6 +1710,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   // 📁 Visão por Projetos: consolidado (todos) + ficha por projeto (direto do Jira).
   projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
+  // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
+  agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
@@ -2136,7 +2147,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2700,6 +2711,123 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ===========================================================================
+// 📅 Agenda (Outlook) → ticket de reunião. Lê os eventos da pessoa identificada
+// via /api/reunioes?agenda=1 (Microsoft Graph, conta de aplicativo). Convites
+// cujo organizador está na lista oculta (padrão diego@dexterityit.com.br) não
+// aparecem. Cada evento pode virar um ticket de Reunião no RDF com 1 clique
+// (criado com o TOKEN da pessoa via /api/criar; label agenda-outlook).
+// ===========================================================================
+const AG_TK_KEY='jirainsight_agenda_tickets';
+function agTickets(){ try{ return JSON.parse(localStorage.getItem(AG_TK_KEY))||{}; }catch(e){ return {}; } }
+function agMarcaTicket(id,key){ const m=agTickets(); m[id]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){} }
+function carregaAgenda(forca){
+  const ag=estado.agenda; const id=idApontar(); if(!id) return;
+  ag.carregando=true; ag.erro='';
+  fetch(`/api/reunioes?agenda=1&email=${encodeURIComponent(id.email)}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
+      if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
+      if(estado.vista==='agenda') renderAgenda(); })
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); });
+}
+// Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
+async function agRdfTipoReuniao(){
+  const ag=estado.agenda; if(ag.rdfTipo) return ag.rdfTipo;
+  const j=await fetch('/api/projetos').then(r=>r.json());
+  const rdf=((j&&j.projetos)||[]).find(p=>p.key==='RDF');
+  const t=rdf&&(rdf.tipos||[]).find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''));
+  if(!t) throw new Error('Projeto RDF sem tipo de issue "Reunião" — não dá para criar o ticket.');
+  ag.rdfTipo=t.id; return t.id;
+}
+function agRotuloDia(d){
+  const hoje=projHoje();
+  if(d===hoje) return 'Hoje';
+  const dt=new Date(`${d}T12:00:00-03:00`);
+  const sem=['dom','seg','ter','qua','qui','sex','sáb'][dt.getUTCDay()];
+  const [y,m,dd]=d.split('-');
+  return `${dd}/${m} (${sem})`;
+}
+function renderAgenda(){
+  const cont=document.getElementById('conteudo'); const ag=estado.agenda; const id=idApontar();
+  if(!id){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para carregarmos a SUA agenda.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
+    return;
+  }
+  if(!ag.dados && !ag.erro){
+    if(!ag.carregando) carregaAgenda(false);
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>${skeletonPainel()}</div></div>`));
+    return;
+  }
+  const d=ag.dados||{};
+  if(ag.erro || d.configurado===false){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda</h2>
+      <div class="estado">${esc(ag.erro||d.erro||'Não consegui carregar a agenda.')}
+        <div style="margin-top:10px"><button class="btn" data-ag-refresh>Tentar de novo</button></div></div></div></div>`));
+    return;
+  }
+  const evs=d.eventos||[]; const tks=agTickets(); const hoje=projHoje();
+  const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
+  const dias=Object.keys(porDia).sort();
+  const blocos=dias.map(dia=>{
+    const rows=porDia[dia].map(ev=>{
+      const hora=ev.diaTodo?'dia todo':`${(ev.inicio||'').slice(11,16)}–${(ev.fim||'').slice(11,16)}`;
+      const badge=ev.meu?'<span class="badge com-horas" data-tip="Você é o organizador">você organizou</span>'
+        :'<span class="badge" data-tip="Você foi convidado(a)">convidado</span>';
+      const tk=tks[ev.id];
+      const acao=tk
+        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk)}" target="_blank" rel="noopener">✓ ${esc(tk)} ↗</a>`
+        :`<button class="btn primario" data-ag-criar="${escA(ev.id)}" data-tip="Cria um ticket de Reunião no RDF (no seu usuário) com vencimento no dia do evento">📝 Criar ticket de reunião</button>`;
+      return `<div class="ag-ev${dia<hoje?' ag-passado':''}">
+        <div class="ag-hora">${esc(hora)}</div>
+        <div class="ag-info"><strong>${esc(ev.titulo)}</strong> ${badge}<br>
+          <span class="muted small">${esc(ev.organizador.nome||ev.organizador.email)} · 👥 ${ev.participantes}${ev.local?` · ${esc(ev.local.slice(0,40))}`:''}${ev.link?` · <a href="${escA(ev.link)}" target="_blank" rel="noopener">entrar ↗</a>`:''}</span></div>
+        <div class="ag-acao">${acao}</div></div>`;
+    }).join('');
+    return `<div class="vg-card" style="margin-bottom:12px"><h3>${esc(agRotuloDia(dia))} <span class="muted small" style="font-weight:400">· ${porDia[dia].length} evento(s)</span></h3>${rows}</div>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
+      <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
+        <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos${d.nOcultos?` (${d.nOcultos} oculto(s))`:''}</span>
+        <span class="spacer"></span><button class="btn" data-ag-refresh title="Rebuscar a agenda ignorando o cache">⟳ Atualizar</button></div>
+      ${evs.length?'':'<div class="estado" style="margin-top:10px">Nenhum evento no período.</div>'}
+    </div>
+    ${blocos}
+  </div>`));
+}
+// Interações da Agenda (delegadas em #conteudo).
+document.getElementById('conteudo').addEventListener('click', async (e)=>{
+  const rf=e.target.closest&&e.target.closest('[data-ag-refresh]');
+  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; carregaAgenda(true); renderAgenda(); return; }
+  const bt=e.target.closest&&e.target.closest('[data-ag-criar]');
+  if(!bt) return;
+  const id=idApontar(); if(!id) return;
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===bt.getAttribute('data-ag-criar'));
+  if(!ev) return;
+  ocupado(bt,true);
+  try{
+    const tipoId=await agRdfTipoReuniao();
+    const dia=(ev.inicio||'').slice(0,10);
+    const desc=[
+      `Evento do Outlook — ${dia} ${ev.diaTodo?'(dia todo)':`${(ev.inicio||'').slice(11,16)}–${(ev.fim||'').slice(11,16)}`}`,
+      `Organizador: ${ev.organizador.nome||ev.organizador.email}`,
+      `Participantes: ${ev.participantes}`,
+      ev.local?`Local: ${ev.local}`:'', ev.link?`Link: ${ev.link}`:'',
+    ].filter(Boolean).join('\n');
+    const r=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ email:id.email, token:id.token,
+        itens:[{ projeto:'RDF', tipoId, resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:desc, venc:dia, labels:['agenda-outlook'] }] }) });
+    const j=await r.json();
+    const criado=j&&j.criados&&j.criados[0];
+    if(!criado||!criado.key) throw new Error((j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'Falha ao criar o ticket.');
+    agMarcaTicket(ev.id, criado.key);
+    toast(`✓ Ticket ${criado.key} criado para "${ev.titulo}"`,'ok');
+    renderAgenda();
+  }catch(err){ toast(humanizaErro(err),'err'); ocupado(bt,false); }
+});
+
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -2714,6 +2842,7 @@ function render(){
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
+  if(estado.vista==='agenda') return renderAgenda();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -10855,6 +10984,7 @@ function vaiPara(v){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-22','📅 <b>Agenda (Outlook) → ticket de reunião</b> — nova tela (Operação): seus eventos do Outlook (que você criou ou foi convidado), agrupados por dia, com organizador, participantes e link do Teams; <b>1 clique cria o ticket de Reunião no RDF</b> (no seu usuário, vencimento no dia do evento). Convites de diego@dexterityit.com.br ficam ocultos. Requer configurar MS_TENANT_ID/MS_CLIENT_ID/MS_CLIENT_SECRET na Vercel.'],
   ['2026-07-20','🔒 <b>Projetos de escopo fechado (PEF/DEF)</b> — a ficha ganhou <b>💰 Valor realizado</b> (horas do Jira × <b>custo/h por pessoa</b>, com total em R$ e aviso de quem está sem custo cadastrado) e <b>📐 Planejado × Realizado por épico</b> (barras pareadas; estouro em vermelho; clique → composição do épico). O custo/h vem da Alocação (manual ou importado do Odoo).'],
   ['2026-07-20','📁 <b>Projetos — gráficos novos e mais interativos</b>: 🗺 <b>treemap do portfólio</b> (área = itens, cor = saúde, clique → ficha) e <b>dos épicos</b> (célula → composição); na ficha, <b>⏳ idade do backlog</b>, <b>📅 radar de vencimentos</b> e <b>👤 carga aberta por responsável</b> (tudo clicável), donuts de progresso e a Evolução virou gráfico <b>Criados × Concluídos</b> com crosshair + <b>trabalho em aberto acumulado</b>.'],
   ['2026-07-19','📁 <b>Projetos v2 — categorias e drill-down total</b>: projetos <b>"ARQ"</b> (arquivados por convenção) sumiram do painel; o consolidado ganhou visões <b>por categoria</b> (ITPR → atividade por dia/pessoa · IMI → planejado × realizado · AMS/DAMS → horas · demais → entrega) e agora <b>tudo é clicável</b> — KPIs (inclusive épicos), barras de status/tipo/prioridade/rótulo, épicos, meses e pessoas abrem a lista do que os compõe.'],
@@ -10914,7 +11044,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-20.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-22.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -11359,7 +11489,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -11505,7 +11635,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
