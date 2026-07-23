@@ -205,6 +205,19 @@
   .barrow[data-pdrill-dim],.barrow[data-pdrill-catpessoa],.barrow[data-proj-open]{cursor:pointer}
   .barrow[data-pdrill-aging],.barrow[data-pdrill-venc],.barrow[data-pdrill-resp]{cursor:pointer}
   .tm-cell[data-ptm]{cursor:pointer}
+  /* 📆 Alocação › Semanas */
+  tr.al-sem-atual>td{background:var(--hoverbg)}
+  tr[data-al-semtoggle]{cursor:pointer}
+  .al-sem-drill>td{background:var(--hoverbg);padding:8px 12px}
+
+  /* 📅 Agenda (Outlook) */
+  .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
+  .ag-ev:last-child{border-bottom:0}
+  .ag-hora{font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
+  .ag-passado{opacity:.62}
+  .ag-acao .btn{white-space:nowrap}
+  @media (max-width:600px){ .ag-ev{grid-template-columns:1fr;gap:4px} .ag-acao{justify-self:start} }
+
   /* Planejado × Realizado por épico (barras pareadas) */
   .pe-list{display:flex;flex-direction:column;gap:10px}
   .pe-row{display:grid;grid-template-columns:220px 1fr 84px;gap:10px;align-items:center;cursor:pointer;border-radius:8px;padding:2px 4px}
@@ -1558,6 +1571,7 @@
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
           <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
           <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
+          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
           <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
@@ -1701,6 +1715,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   // 📁 Visão por Projetos: consolidado (todos) + ficha por projeto (direto do Jira).
   projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
+  // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
+  agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
@@ -1735,14 +1751,14 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
   ams:{ dados:null, pessoas:{}, projetos:{}, resumos:{}, range:'', carregando:false, erro:'', ref:'', sel:'' },
   planejamento:{ draft:null, aba:'editor', carregandoEpicos:false, _carregandoProjs:false, real:{ range:'', wl:null, carregando:false, erro:'' } },
-  alocacao:{ rows:null, _cp:false, pessNovas:[], gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' } },
+  alocacao:{ rows:null, _cp:false, pessNovas:[], gran:'semana', visao:'pessoa', fSkill:'', fProj:'', gz:22, sim:[], find:{ ini:'', fim:'', h:20, skill:'', rot:'Novo projeto' }, real:{ range:'', wl:null, carregando:false, erro:'' }, semAberta:{} },
   // Resumo de atividades por IA (aba Resumo). Cache por período+filtros (chave).
   analiseIA:{ carregando:false, erro:'', geral:'', pessoas:null, chave:'', configurado:true },
   fluxo:{ dados:null, carregando:false, erro:'' } };
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -2136,7 +2152,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2700,6 +2716,125 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ===========================================================================
+// 📅 Agenda (Outlook) → ticket de reunião. Lê os eventos da pessoa identificada
+// via /api/reunioes?agenda=1 (Microsoft Graph, conta de aplicativo). Convites
+// cujo organizador está na lista oculta (padrão diego@dexterityit.com.br) não
+// aparecem. Cada evento pode virar um ticket de Reunião no RDF com 1 clique
+// (criado com o TOKEN da pessoa via /api/criar; label agenda-outlook).
+// ===========================================================================
+const AG_TK_KEY='jirainsight_agenda_tickets';
+function agTickets(){ try{ return JSON.parse(localStorage.getItem(AG_TK_KEY))||{}; }catch(e){ return {}; } }
+function agMarcaTicket(id,key){ const m=agTickets(); m[id]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){} }
+function carregaAgenda(forca){
+  const ag=estado.agenda; const id=idApontar(); if(!id) return;
+  ag.carregando=true; ag.erro='';
+  // POST autenticado: a agenda é pessoal — o servidor confere que o token é seu.
+  fetch('/api/reunioes',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ agenda:1, email:id.email, token:id.token, nocache:forca?1:0 }) })
+    .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
+      if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
+      if(estado.vista==='agenda') renderAgenda(); })
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); });
+}
+// Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
+async function agRdfTipoReuniao(){
+  const ag=estado.agenda; if(ag.rdfTipo) return ag.rdfTipo;
+  const j=await fetch('/api/projetos').then(r=>r.json());
+  const rdf=((j&&j.projetos)||[]).find(p=>p.key==='RDF');
+  const t=rdf&&(rdf.tipos||[]).find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''));
+  if(!t) throw new Error('Projeto RDF sem tipo de issue "Reunião" — não dá para criar o ticket.');
+  ag.rdfTipo=t.id; return t.id;
+}
+function agRotuloDia(d){
+  const hoje=projHoje();
+  if(d===hoje) return 'Hoje';
+  const dt=new Date(`${d}T12:00:00-03:00`);
+  const sem=['dom','seg','ter','qua','qui','sex','sáb'][dt.getUTCDay()];
+  const [y,m,dd]=d.split('-');
+  return `${dd}/${m} (${sem})`;
+}
+function renderAgenda(){
+  const cont=document.getElementById('conteudo'); const ag=estado.agenda; const id=idApontar();
+  if(!id){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para carregarmos a SUA agenda.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
+    return;
+  }
+  if(!ag.dados && !ag.erro){
+    if(!ag.carregando) carregaAgenda(false);
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>${skeletonPainel()}</div></div>`));
+    return;
+  }
+  const d=ag.dados||{};
+  if(ag.erro || d.configurado===false){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda</h2>
+      <div class="estado">${esc(ag.erro||d.erro||'Não consegui carregar a agenda.')}
+        <div style="margin-top:10px"><button class="btn" data-ag-refresh>Tentar de novo</button></div></div></div></div>`));
+    return;
+  }
+  const evs=d.eventos||[]; const tks=agTickets(); const hoje=projHoje();
+  const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
+  const dias=Object.keys(porDia).sort();
+  const blocos=dias.map(dia=>{
+    const rows=porDia[dia].map(ev=>{
+      const hora=ev.diaTodo?'dia todo':`${(ev.inicio||'').slice(11,16)}–${(ev.fim||'').slice(11,16)}`;
+      const badge=ev.meu?'<span class="badge com-horas" data-tip="Você é o organizador">você organizou</span>'
+        :'<span class="badge" data-tip="Você foi convidado(a)">convidado</span>';
+      const tk=tks[ev.id];
+      const acao=tk
+        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk)}" target="_blank" rel="noopener">✓ ${esc(tk)} ↗</a>`
+        :`<button class="btn primario" data-ag-criar="${escA(ev.id)}" data-tip="Cria um ticket de Reunião no RDF (no seu usuário) com vencimento no dia do evento">📝 Criar ticket de reunião</button>`;
+      return `<div class="ag-ev${dia<hoje?' ag-passado':''}">
+        <div class="ag-hora">${esc(hora)}</div>
+        <div class="ag-info"><strong>${esc(ev.titulo)}</strong> ${badge}<br>
+          <span class="muted small">${esc(ev.organizador.nome||ev.organizador.email)} · 👥 ${ev.participantes}${ev.local?` · ${esc(ev.local.slice(0,40))}`:''}${ev.link?` · <a href="${escA(ev.link)}" target="_blank" rel="noopener">entrar ↗</a>`:''}</span></div>
+        <div class="ag-acao">${acao}</div></div>`;
+    }).join('');
+    return `<div class="vg-card" style="margin-bottom:12px"><h3>${esc(agRotuloDia(dia))} <span class="muted small" style="font-weight:400">· ${porDia[dia].length} evento(s)</span></h3>${rows}</div>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
+      <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
+        <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos${d.nOcultos?` (${d.nOcultos} oculto(s))`:''}</span>
+        <span class="spacer"></span><button class="btn" data-ag-refresh title="Rebuscar a agenda ignorando o cache">⟳ Atualizar</button></div>
+      ${evs.length?'':'<div class="estado" style="margin-top:10px">Nenhum evento no período.</div>'}
+    </div>
+    ${blocos}
+  </div>`));
+}
+// Interações da Agenda (delegadas em #conteudo).
+document.getElementById('conteudo').addEventListener('click', async (e)=>{
+  const rf=e.target.closest&&e.target.closest('[data-ag-refresh]');
+  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; carregaAgenda(true); renderAgenda(); return; }
+  const bt=e.target.closest&&e.target.closest('[data-ag-criar]');
+  if(!bt) return;
+  const id=idApontar(); if(!id) return;
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===bt.getAttribute('data-ag-criar'));
+  if(!ev) return;
+  ocupado(bt,true);
+  try{
+    const tipoId=await agRdfTipoReuniao();
+    const dia=(ev.inicio||'').slice(0,10);
+    const desc=[
+      `Evento do Outlook — ${dia} ${ev.diaTodo?'(dia todo)':`${(ev.inicio||'').slice(11,16)}–${(ev.fim||'').slice(11,16)}`}`,
+      `Organizador: ${ev.organizador.nome||ev.organizador.email}`,
+      `Participantes: ${ev.participantes}`,
+      ev.local?`Local: ${ev.local}`:'', ev.link?`Link: ${ev.link}`:'',
+    ].filter(Boolean).join('\n');
+    const r=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ email:id.email, token:id.token,
+        itens:[{ projeto:'RDF', tipoId, resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:desc, venc:dia, labels:['agenda-outlook'] }] }) });
+    const j=await r.json();
+    const criado=j&&j.criados&&j.criados[0];
+    if(!criado||!criado.key) throw new Error((j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'Falha ao criar o ticket.');
+    agMarcaTicket(ev.id, criado.key);
+    toast(`✓ Ticket ${criado.key} criado para "${ev.titulo}"`,'ok');
+    renderAgenda();
+  }catch(err){ toast(humanizaErro(err),'err'); ocupado(bt,false); }
+});
+
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -2714,6 +2849,7 @@ function render(){
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
+  if(estado.vista==='agenda') return renderAgenda();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -7896,6 +8032,89 @@ function alocCarregaReal(rows, forca){
     if(estado.vista==='alocacao') renderAlocacao();
   }).catch(e=>{ r.carregando=false; r.erro=humanizaErro(e); r.wl=null; if(estado.vista==='alocacao') renderAlocacao(); });
 }
+// ---- 📆 Semanas: planejado TRAVADO por semana × realizado (nº da semana do ano) ----
+// Semana ISO 8601 (segunda a domingo; a quinta-feira define o ano) — ex.: S31/2026.
+function isoSemana(w){
+  const dt=new Date(w+'T12:00:00-03:00');
+  const qui=new Date(dt); qui.setUTCDate(dt.getUTCDate()+3-((dt.getUTCDay()+6)%7));
+  const ano=qui.getUTCFullYear();
+  const jan4=new Date(Date.UTC(ano,0,4,12));
+  const seg1=new Date(jan4); seg1.setUTCDate(jan4.getUTCDate()-((jan4.getUTCDay()+6)%7));
+  return { ano, num: Math.floor((qui-seg1)/(7*86400000))+1 };
+}
+function semTravaKey(w){ const s=isoSemana(w); return `${s.ano}-W${String(s.num).padStart(2,'0')}`; }
+function alocSemTravaDe(w){ return (cfg.alocSemTravas||{})[semTravaKey(w)]||null; }
+// Horas planejadas "ao vivo" por pessoa numa semana (direto das alocações atuais).
+function alocSemHorasVivas(rows, w){
+  const horas={};
+  [...new Set(rows.map(a=>a.accountId).filter(Boolean))].forEach(a=>{
+    const h=alocAlocadoSemana(rows,a,w); if(h>0) horas[a]=h; });
+  return horas;
+}
+// Planejado por pessoa numa semana: TRAVADA → snapshot congelado; aberta → das alocações.
+function alocSemPlanejado(rows, w){
+  const tv=alocSemTravaDe(w);
+  if(tv&&tv.horas) return { travada:tv, horas:Object.assign({},tv.horas) };
+  return { travada:null, horas:alocSemHorasVivas(rows,w) };
+}
+// Realizado (h) por pessoa numa semana, a partir dos worklogs já carregados (Clockwork).
+function alocSemRealizado(w){
+  const wl=(estado.alocacao.real&&estado.alocacao.real.wl)||null; if(!wl) return null;
+  const wf=somaDias(w,6); const horas={};
+  wl.forEach(x=>{ const d=(x.d||'').slice(0,10); if(d>=w&&d<=wf&&x.a) horas[x.a]=(horas[x.a]||0)+(Number(x.s)||0)/3600; });
+  return horas;
+}
+function alocViewSemanas(rows, pess){
+  const nm=(a)=>(pess[a]&&pess[a].nome)||a;
+  const semanas=alocSemanas(rows);
+  const wHoje=semChave(hojeSP());
+  const r=estado.alocacao.real;
+  if(!r.wl && !r.carregando && !r.erro && rows.length) alocCarregaReal(rows,false);
+  const alocIds=new Set(rows.map(a=>a.accountId).filter(Boolean));
+  const aberta=estado.alocacao.semAberta||{};
+  const corDl=(dl)=> dl==null?'inherit':(dl<0?'#b45309':dl>0?'#166534':'inherit');
+  const linhas=semanas.map(w=>{
+    const {ano,num}=isoSemana(w);
+    const plano=alocSemPlanejado(rows,w);
+    const planH=Object.values(plano.horas).reduce((s,h)=>s+h,0);
+    const realPor=alocSemRealizado(w);
+    let realH=null;
+    if(realPor){ realH=0; Object.entries(realPor).forEach(([a,h])=>{ if(alocIds.has(a)) realH+=h; }); }
+    const delta=realH==null?null:realH-planH;
+    const pctR=(realH==null||!planH)?null:Math.round(realH/planH*100);
+    const tv=plano.travada;
+    const badge=tv
+      ?`<span class="badge com-horas" data-tip="Planejado congelado — edições nas alocações não mudam esta semana">🔒 travada ${esc(fmtBR((tv.quando||'').slice(0,10)))}${tv.porNome?` por ${esc(String(tv.porNome).split('@')[0])}`:''}</span>`
+      :'<span class="badge" data-tip="O planejado ainda segue as alocações atuais">aberta</span>';
+    const acao=tv
+      ?`<button class="btn" data-al-semdestravar="${escA(w)}" data-tip="Remove a trava — o planejado volta a seguir as alocações">🔓 Destravar</button>`
+      :`<button class="btn ${w<=wHoje?'primario':''}" data-al-semtravar="${escA(w)}" data-tip="Congela o planejado desta semana como está agora">🔒 Travar</button>`;
+    let drill='';
+    if(aberta[w]){
+      const ids=[...new Set([...Object.keys(plano.horas), ...Object.keys(realPor||{}).filter(a=>alocIds.has(a))])];
+      const rws=ids.map(a=>{ const p=plano.horas[a]||0; const re=realPor?(realPor[a]||0):null;
+        return { a, p, re, dl: re==null?null:re-p };
+      }).sort((x,y)=>(y.p-x.p)||((y.re||0)-(x.re||0)));
+      drill=`<tr class="al-sem-drill"><td colspan="7"><div class="scroll-x"><table><thead><tr><th>Pessoa</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Δ</th></tr></thead><tbody>${
+        rws.map(x=>`<tr><td>${esc(nm(x.a))}</td><td class="num">${alocH(x.p)}</td><td class="num">${x.re==null?'…':alocH(x.re)}</td><td class="num" style="color:${corDl(x.dl)}">${x.dl==null?'—':(x.dl>0?'+':'')+alocH(x.dl)}</td></tr>`).join('')
+        ||'<tr><td colspan="4" class="muted">Nada nesta semana.</td></tr>'}</tbody></table></div></td></tr>`;
+    }
+    return `<tr class="proj-linha ${w===wHoje?'al-sem-atual':''}" data-al-semtoggle="${escA(w)}" data-tipk="clique para abrir por pessoa">
+      <td><strong>S${num}</strong><span class="muted small">/${ano}</span></td>
+      <td>${esc(fmtBR(w).slice(0,5))}–${esc(fmtBR(somaDias(w,6)).slice(0,5))}${w===wHoje?' <span class="badge com-horas">atual</span>':''}</td>
+      <td class="num"><strong>${alocH(planH)}</strong></td>
+      <td class="num">${realH==null?(r.carregando?'…':'—'):alocH(realH)}</td>
+      <td class="num" style="color:${corDl(delta)}">${delta==null?'—':(delta>0?'+':'')+alocH(delta)}</td>
+      <td class="num">${pctR==null?'—':pctR+'%'}</td>
+      <td style="white-space:nowrap">${badge} ${acao}</td></tr>${drill}`;
+  }).join('');
+  const nota=r.erro
+    ?`<div class="estado">Falha ao carregar o realizado: ${esc(r.erro)} <button class="btn" data-al-real="1">Tentar de novo</button></div>`
+    :'';
+  return `<div class="muted small" style="margin:6px 0 10px">Cada linha é uma <strong>semana do ano</strong> (ISO, seg–dom). <strong>🔒 Travar</strong> congela o planejado da semana como está — edições posteriores nas alocações <strong>não mudam</strong> semanas travadas. Realizado = horas do Clockwork das pessoas alocadas. Filtros de skill/projeto não se aplicam aqui. <button class="btn" data-al-real="1" style="margin-left:6px">↻ Atualizar realizado</button> <button class="btn" data-al-semcsv="1">⬇ CSV</button></div>
+    ${nota}
+    <div class="scroll-x"><table><thead><tr><th>Semana</th><th>Período</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Δ</th><th class="num">Real/Plan</th><th>Trava</th></tr></thead><tbody>${linhas||'<tr><td colspan="7" class="muted">Sem alocações cadastradas.</td></tr>'}</tbody></table></div>`;
+}
 function alocViewProjeto(rows, pess){
   const semanas=alocSemanas(rows); const r=estado.alocacao.real; const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const porProj={}; rows.forEach(a=>{ if(a.projeto){ (porProj[a.projeto]=porProj[a.projeto]||[]).push(a); } });
@@ -8429,7 +8648,7 @@ function renderAlocacao(){
       <div class="muted small" style="margin-top:10px">O <strong>%</strong> é sobre a jornada da pessoa em <strong>Metas</strong> (${cfg.metaGlobalH}h/dia = ${cfg.metaGlobalH*5}h/sem, ajustável por pessoa)${idApontar()?'':' · identifique-se na aba Apontar para compartilhar a config'}. Na <strong>Linha do tempo</strong> dá para arrastar/redimensionar os períodos.</div>`;
   const granBtn=(v,l)=>`<button class="btn ${gran===v?'primario':''}" data-al-gran="${v}">${l}</button>`;
   const visao=estado.alocacao.visao||'pessoa';
-  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',acontratar:'Cadastre vagas (pessoas ainda não contratadas) para planejar com elas 🔮',relatorios:'Horas e custo planejados por pessoa/projeto/tipo/função, mês a mês, com CSV',simulacao:'Cenários "e se…" e busca de disponibilidade'};
+  const V_DESC={pessoa:'Utilização de cada pessoa por semana/mês',gantt:'Linha do tempo: arraste para mover, puxe as bordas para redimensionar (salva sozinho)',projeto:'Equipe e planejado × apontado por projeto',semanas:'Planejado × realizado por semana do ano (ISO), com trava semanal do planejado',empresa:'Capacidade da empresa e faturável × não faturável',skill:'Capacidade × demanda por competência (Gap) + cadastro de skills',projetos:'Defina o TIPO (faturável, AMS, interno…) de cada projeto — vale para todas as alocações',acontratar:'Cadastre vagas (pessoas ainda não contratadas) para planejar com elas 🔮',relatorios:'Horas e custo planejados por pessoa/projeto/tipo/função, mês a mês, com CSV',simulacao:'Cenários "e se…" e busca de disponibilidade'};
   const vBtn=(v,l)=>`<button class="btn ${visao===v?'primario':''}" data-al-visao="${v}" title="${escA(V_DESC[v]||'')}">${l}</button>`;
   const fSkill=estado.alocacao.fSkill||'', fProj=estado.alocacao.fProj||'';
   const projetosAloc=[...new Set(rows.map(a=>a.projeto).filter(Boolean))].sort();
@@ -8441,9 +8660,9 @@ function renderAlocacao(){
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🧑‍💼 Alocação <span>resource planning · capacidade e utilização</span></h2>
-      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('acontratar','A contratar 🔮')} ${vBtn('relatorios','📊 Relatórios')} ${vBtn('simulacao','Simulação')}</div>
-      <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos'||visao==='acontratar')?'':filtros}</div>
-      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='acontratar'?alocViewACont(rows):visao==='relatorios'?alocViewRelatorios(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
+      <div style="margin:4px 0 8px">${vBtn('pessoa','Por Pessoa')} ${vBtn('gantt','Linha do tempo')} ${vBtn('projeto','Por Projeto')} ${vBtn('semanas','📆 Semanas')} ${vBtn('empresa','Empresa')} ${vBtn('skill','Por Skill')} ${vBtn('projetos','Projetos')} ${vBtn('acontratar','A contratar 🔮')} ${vBtn('relatorios','📊 Relatórios')} ${vBtn('simulacao','Simulação')}</div>
+      <div class="aloc-filtros" style="margin:0 0 12px">${(visao==='simulacao'||visao==='projetos'||visao==='acontratar'||visao==='semanas')?'':filtros}</div>
+      ${visao==='gantt'?alocViewGantt(rv,pess):visao==='projeto'?alocViewProjeto(rv,pess):visao==='semanas'?alocViewSemanas(rows,pess):visao==='empresa'?alocViewEmpresa(rv,pess):visao==='skill'?alocViewSkill(rv,pess):visao==='projetos'?alocViewProjetos(rows):visao==='acontratar'?alocViewACont(rows):visao==='relatorios'?alocViewRelatorios(rv,pess):visao==='simulacao'?alocViewSimulacao(rv,pess):viewPessoa}
     </div>
     <div class="card full" style="margin-top:14px">${edCard}</div></div>`));
   // Restaura a rolagem do Gantt (ou posiciona em "hoje"/1ª barra na primeira vez).
@@ -10855,6 +11074,8 @@ function vaiPara(v){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-23','📆 <b>Alocação — visão Semanas com trava do planejado</b>: cada linha é uma <b>semana do ano</b> (ISO) com <b>planejado × realizado</b>, Δ e %. O botão <b>🔒 Travar</b> congela o planejado da semana como está — edições posteriores nas alocações <b>não mudam</b> semanas travadas (dá para destravar). Clique na linha para abrir <b>por pessoa</b> e exporte tudo em <b>CSV</b>.'],
+  ['2026-07-22','📅 <b>Agenda (Outlook) → ticket de reunião</b> — nova tela (Operação): seus eventos do Outlook (que você criou ou foi convidado), agrupados por dia, com organizador, participantes e link do Teams; <b>1 clique cria o ticket de Reunião no RDF</b> (no seu usuário, vencimento no dia do evento). Convites de diego@dexterityit.com.br ficam ocultos. Requer configurar MS_TENANT_ID/MS_CLIENT_ID/MS_CLIENT_SECRET na Vercel.'],
   ['2026-07-20','🔒 <b>Projetos de escopo fechado (PEF/DEF)</b> — a ficha ganhou <b>💰 Valor realizado</b> (horas do Jira × <b>custo/h por pessoa</b>, com total em R$ e aviso de quem está sem custo cadastrado) e <b>📐 Planejado × Realizado por épico</b> (barras pareadas; estouro em vermelho; clique → composição do épico). O custo/h vem da Alocação (manual ou importado do Odoo).'],
   ['2026-07-20','📁 <b>Projetos — gráficos novos e mais interativos</b>: 🗺 <b>treemap do portfólio</b> (área = itens, cor = saúde, clique → ficha) e <b>dos épicos</b> (célula → composição); na ficha, <b>⏳ idade do backlog</b>, <b>📅 radar de vencimentos</b> e <b>👤 carga aberta por responsável</b> (tudo clicável), donuts de progresso e a Evolução virou gráfico <b>Criados × Concluídos</b> com crosshair + <b>trabalho em aberto acumulado</b>.'],
   ['2026-07-19','📁 <b>Projetos v2 — categorias e drill-down total</b>: projetos <b>"ARQ"</b> (arquivados por convenção) sumiram do painel; o consolidado ganhou visões <b>por categoria</b> (ITPR → atividade por dia/pessoa · IMI → planejado × realizado · AMS/DAMS → horas · demais → entrega) e agora <b>tudo é clicável</b> — KPIs (inclusive épicos), barras de status/tipo/prioridade/rótulo, épicos, meses e pessoas abrem a lista do que os compõe.'],
@@ -10914,7 +11135,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-20.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-23.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -11359,7 +11580,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -11505,7 +11726,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -12073,7 +12294,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-al-semtravar],[data-al-semdestravar],[data-al-semtoggle],[data-al-semcsv],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-al-travar')){ const a=t.getAttribute('data-al-travar'); const id=idApontar()||{};
     cfg.alocTravas=cfg.alocTravas||{};
     cfg.alocTravas[a]={ status:'pendente', por:id.nome||id.email||'—', quando:new Date().toISOString() };
@@ -12186,6 +12407,33 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     simRows().push(simNova({ accountId:t.getAttribute('data-sim-fromfind'), projeto:(f.rot||'Novo projeto'), inicio:f.ini||'', fim:f.fim||'', hSemana:Math.max(0,Number(f.h)||0) }));
     toast('✓ Adicionado ao cenário.','ok'); renderAlocacao(); return; }
   if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
+  // 📆 Semanas: travar (snapshot do planejado), destravar, abrir por pessoa e CSV.
+  if(t.hasAttribute('data-al-semtravar')){ const w=t.getAttribute('data-al-semtravar');
+    const rows=alocRows(); const id=idApontar();
+    const horas=alocSemHorasVivas(rows,w);
+    cfg.alocSemTravas=cfg.alocSemTravas||{};
+    cfg.alocSemTravas[semTravaKey(w)]={ quando:new Date().toISOString(), por:(id&&id.accountId)||'', porNome:(id&&id.email)||'', horas };
+    salvaCfg(); const s=isoSemana(w);
+    toast(`🔒 Semana S${s.num}/${s.ano} travada — planejado congelado.`,'ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semdestravar')){ const w=t.getAttribute('data-al-semdestravar');
+    const s=isoSemana(w);
+    if(!window.confirm(`Destravar a semana S${s.num}/${s.ano}? O planejado volta a seguir as alocações atuais.`)) return;
+    if(cfg.alocSemTravas) delete cfg.alocSemTravas[semTravaKey(w)];
+    salvaCfg(); toast('🔓 Semana destravada.','warn'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semtoggle')){ const w=t.getAttribute('data-al-semtoggle');
+    estado.alocacao.semAberta=estado.alocacao.semAberta||{};
+    estado.alocacao.semAberta[w]=!estado.alocacao.semAberta[w]; renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semcsv')){ const rows=alocRows();
+    const linhas=[['Semana','Inicio','Fim','PlanejadoH','RealizadoH','Delta','Travada']];
+    const ids=new Set(rows.map(a=>a.accountId).filter(Boolean));
+    alocSemanas(rows).forEach(w=>{ const s=isoSemana(w);
+      const pl=alocSemPlanejado(rows,w); const planH=Object.values(pl.horas).reduce((x,h)=>x+h,0);
+      const rp=alocSemRealizado(w); let re=null;
+      if(rp){ re=0; Object.entries(rp).forEach(([a,h])=>{ if(ids.has(a)) re+=h; }); }
+      const f1=(v)=>String(Math.round(v*10)/10).replace('.',',');
+      linhas.push([`S${s.num}/${s.ano}`, w, somaDias(w,6), f1(planH), re==null?'':f1(re), re==null?'':f1(re-planH), pl.travada?'sim':'nao']);
+    });
+    baixaCSV('planejado-semanas', linhas); return; }
   if(t.hasAttribute('data-al-gran')){ estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-visao')){ estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-real')){ alocCarregaReal(alocRows(), true); }
