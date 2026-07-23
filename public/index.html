@@ -8044,14 +8044,18 @@ function isoSemana(w){
 }
 function semTravaKey(w){ const s=isoSemana(w); return `${s.ano}-W${String(s.num).padStart(2,'0')}`; }
 function alocSemTravaDe(w){ return (cfg.alocSemTravas||{})[semTravaKey(w)]||null; }
+// Horas planejadas "ao vivo" por pessoa numa semana (direto das alocações atuais).
+function alocSemHorasVivas(rows, w){
+  const horas={};
+  [...new Set(rows.map(a=>a.accountId).filter(Boolean))].forEach(a=>{
+    const h=alocAlocadoSemana(rows,a,w); if(h>0) horas[a]=h; });
+  return horas;
+}
 // Planejado por pessoa numa semana: TRAVADA → snapshot congelado; aberta → das alocações.
 function alocSemPlanejado(rows, w){
   const tv=alocSemTravaDe(w);
   if(tv&&tv.horas) return { travada:tv, horas:Object.assign({},tv.horas) };
-  const horas={};
-  [...new Set(rows.map(a=>a.accountId).filter(Boolean))].forEach(a=>{
-    const h=alocAlocadoSemana(rows,a,w); if(h>0) horas[a]=h; });
-  return { travada:null, horas };
+  return { travada:null, horas:alocSemHorasVivas(rows,w) };
 }
 // Realizado (h) por pessoa numa semana, a partir dos worklogs já carregados (Clockwork).
 function alocSemRealizado(w){
@@ -12406,8 +12410,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   // 📆 Semanas: travar (snapshot do planejado), destravar, abrir por pessoa e CSV.
   if(t.hasAttribute('data-al-semtravar')){ const w=t.getAttribute('data-al-semtravar');
     const rows=alocRows(); const id=idApontar();
-    const horas={}; [...new Set(rows.map(a=>a.accountId).filter(Boolean))].forEach(a=>{
-      const h=alocAlocadoSemana(rows,a,w); if(h>0) horas[a]=h; });
+    const horas=alocSemHorasVivas(rows,w);
     cfg.alocSemTravas=cfg.alocSemTravas||{};
     cfg.alocSemTravas[semTravaKey(w)]={ quando:new Date().toISOString(), por:(id&&id.accountId)||'', porNome:(id&&id.email)||'', horas };
     salvaCfg(); const s=isoSemana(w);

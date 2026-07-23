@@ -127,15 +127,22 @@ async function agenda(req, res, b) {
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
     + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
     + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink';
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}`, Prefer: 'outlook.timezone="America/Sao_Paulo"', Accept: 'application/json' } });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = String((j.error && j.error.message) || `Graph ${r.status}`);
-    return json(res, 200, { configurado: true, erro: `Falha ao ler a agenda de ${email}: ${msg.slice(0, 250)}` });
+  // Segue @odata.nextLink para agendas com mais de 100 eventos no período (teto de 10 páginas).
+  const valores = [];
+  let prox = url;
+  for (let pag = 0; prox && pag < 10; pag++) {
+    const r = await fetch(prox, { headers: { Authorization: `Bearer ${tok}`, Prefer: 'outlook.timezone="America/Sao_Paulo"', Accept: 'application/json' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = String((j.error && j.error.message) || `Graph ${r.status}`);
+      return json(res, 200, { configurado: true, erro: `Falha ao ler a agenda de ${email}: ${msg.slice(0, 250)}` });
+    }
+    valores.push(...(j.value || []));
+    prox = j['@odata.nextLink'] || '';
   }
   const ocultar = String(process.env.AGENDA_OCULTAR || 'diego@dexterityit.com.br')
     .toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
-  const brutos = (j.value || []).filter((e) => !e.isCancelled);
+  const brutos = valores.filter((e) => !e.isCancelled);
   const orgDe = (e) => String((e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.address) || '').toLowerCase();
   const visiveis = brutos.filter((e) => !ocultar.includes(orgDe(e)));
   const eventos = visiveis.map((e) => ({
