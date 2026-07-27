@@ -210,6 +210,43 @@
   tr[data-al-semtoggle]{cursor:pointer}
   .al-sem-drill>td{background:var(--hoverbg);padding:8px 12px}
 
+  /* 📋 Minha Semana */
+  .ms-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
+  .ms-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:10px}
+  @media (max-width:960px){ .ms-grid{grid-template-columns:1fr} }
+  .ms-bar{margin:0 0 8px}
+  .ms-bar-l{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+  .ms-bar .fill{background:var(--cerceta,#0E7C7B)}
+  .ms-track-mini .fill{background:#4C9F70}
+  .ms-fill-over{background:#d33f49 !important}
+  .ms-item{border:1px solid var(--linha);border-radius:10px;padding:8px 10px;margin:0 0 8px;background:var(--cardbg)}
+  .ms-item-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .ms-item-res{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+  .ms-item-ctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .ms-item-ctl input[type=number]{width:70px;padding:4px 6px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
+  .ms-x{border:0;background:transparent;cursor:pointer;color:var(--muted);font-size:14px;padding:2px 6px;border-radius:6px}
+  .ms-x:hover{background:var(--hoverbg);color:#d33f49}
+  .ms-track-mini{height:5px;margin-top:6px}
+  .ms-tk{display:flex;align-items:flex-start;gap:8px;padding:7px 6px;border-bottom:1px solid var(--linha)}
+  .ms-tk:last-child{border-bottom:0}
+  .ms-tk-c{min-width:0;flex:1}
+  .ms-add{min-width:26px;height:26px;border-radius:8px;border:1px solid var(--linha);background:var(--cardbg);cursor:pointer;font-weight:700;color:var(--acc,#2563eb);display:inline-flex;align-items:center;justify-content:center}
+  .ms-add:hover{background:var(--hoverbg)}
+  .ms-add-ok{color:#166534;border-color:transparent;cursor:default;display:inline-flex;min-width:26px;height:26px;align-items:center;justify-content:center}
+  .ms-filtros{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+  .ms-filtros input[type=search]{flex:1;min-width:160px;padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
+  .ms-b-atra{background:#fde8e8;color:#b42318}
+  .ms-b-sem{background:#fef3c7;color:#92400e}
+  :root[data-theme="dark"] .ms-b-atra{background:#4a1d1d;color:#fca5a5}
+  :root[data-theme="dark"] .ms-b-sem{background:#4a3a12;color:#fcd34d}
+  /* 🔍 Paleta de navegação (Ctrl+K) */
+  .pal-q{width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;font-size:15px;background:var(--inputbg,transparent);color:inherit;margin:8px 0 10px}
+  .pal-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px}
+  .pal-row:hover,.pal-row.pal-on{background:var(--hoverbg)}
+  .pal-g{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+  .pal-fav{border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--muted);padding:2px 6px;border-radius:6px}
+  .pal-fav:hover{background:var(--hoverbg)}
+  .pal-fav.on{color:#eab308}
   /* 📅 Agenda (Outlook) */
   .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
   .ag-ev:last-child{border-bottom:0}
@@ -1551,11 +1588,31 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
-      <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
-      <button class="navtab" data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
+      <span id="nav-favs" style="display:contents"></span>
+      <div class="navg">
+        <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Minha Semana</button>
+          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
+          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
+          <button data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
+          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
+          <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
+        </div>
+      </div>
+      <div class="navg">
+        <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>🧑‍💼 Alocação</button>
+          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
+          <button data-v="ondecrio"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🌳 Onde crio o ticket?</button>
+        </div>
+      </div>
       <div class="navg">
         <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
+          <button data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
           <button data-v="resumo"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Resumo</button>
           <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
           <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
@@ -1566,32 +1623,14 @@
         </div>
       </div>
       <div class="navg">
-        <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Operação <span class="nav-car">▾</span></button>
+        <button class="navg-b" id="navg-ge-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Gestão <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>Apontar</button>
-          <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
-          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
-          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
-          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Gestão de Tickets</button>
-          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Alertas</button>
-          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>Reclassificar</button>
-          <button data-v="reuvinc"><svg class="nav-ic"><use href="#ic-ams"/></svg>Vincular Reuniões</button>
-        </div>
-      </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
-          <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Alocação</button>
-          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
-          <button data-v="ondecrio"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🌳 Onde crio o ticket?</button>
-        </div>
-      </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-ams-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS &amp; Receita <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
+          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Gestão de Tickets</button>
+          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas</button>
+          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🔀 Reclassificar</button>
+          <button data-v="reuvinc"><svg class="nav-ic"><use href="#ic-ams"/></svg>🔗 Vincular Reuniões</button>
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
-          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>Receita</button>
+          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
         </div>
       </div>
       <div class="navg">
@@ -1603,6 +1642,7 @@
           <button data-acao="log"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Histórico de ações</button>
         </div>
       </div>
+      <button class="navtab" id="btn-paleta" type="button" title="Buscar tela — Ctrl+K" aria-label="Buscar tela (Ctrl+K)">🔍</button>
     </div>
     <label class="hdr-sel" id="hdr-periodo"><span>Período</span>
       <select id="f-periodo">
@@ -1717,6 +1757,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
   // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
   agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null },
+  // 📋 Minha Semana: a pessoa monta o plano da semana sobre os próprios tickets do Jira.
+  minhasemana:{ w:'', tickets:null, projNomes:{}, carregandoT:false, erroT:'', ateT:'', real:{}, carregandoR:{}, busca:'', fil:'todos', proj:'' },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
@@ -1758,7 +1800,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -2152,7 +2194,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -2754,6 +2796,234 @@ function agRotuloDia(d){
   const [y,m,dd]=d.split('-');
   return `${dd}/${m} (${sem})`;
 }
+// ---- 📋 Minha Semana: a pessoa monta o plano da semana sobre os próprios tickets ----
+// O processo: Diego aloca (Alocação) e valida a semana (trava na visão 📆 Semanas);
+// AQUI cada pessoa distribui as horas alocadas entre os SEUS tickets do Jira, e o
+// desvio plano × realizado aparece aqui (para a pessoa) e na visão Semanas (gestão).
+function msSem(){ const ms=estado.minhasemana; if(!ms.w) ms.w=semChave(hojeSP()); return ms.w; }
+function msKey(acc,w){ return `${acc}|${semTravaKey(w)}`; }
+function msPlanoDe(acc,w){ return (cfg.planosSemana||{})[msKey(acc,w)]||null; }
+function msItens(acc,w){ const p=msPlanoDe(acc,w); return p&&Array.isArray(p.itens)?p.itens:[]; }
+function msSalva(acc,w,itens){
+  cfg.planosSemana=cfg.planosSemana||{};
+  const id=idApontar()||{};
+  if(itens.length) cfg.planosSemana[msKey(acc,w)]={ seg:w, itens, atualizadoEm:new Date().toISOString(), nome:id.nome||id.email||'' };
+  else delete cfg.planosSemana[msKey(acc,w)];
+  // Higiene: planos com mais de ~26 semanas saem (a config compartilhada tem limite de tamanho).
+  const corte=voltaDias(semChave(hojeSP()),26*7);
+  Object.entries(cfg.planosSemana).forEach(([k,p])=>{ if(p&&p.seg&&p.seg<corte) delete cfg.planosSemana[k]; });
+  salvaCfg();
+}
+function msCarregaTickets(forca){
+  const ms=estado.minhasemana; const ate=somaDias(msSem(),34);
+  if(!forca && ms.tickets && ms.ateT===ate) return;
+  if(ms.carregandoT) return;
+  ms.carregandoT=true; ms.erroT=''; ms.ateT=ate;
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{
+      ms.carregandoT=false;
+      if(j.erro){ ms.erroT=humanizaErro(j.erro); ms.tickets=null; }
+      else { ms.tickets=j.tickets||[]; ms.projNomes=j.projetos||{}; }
+      if(estado.vista==='minhasemana') renderMinhaSemana();
+    }).catch(e=>{ ms.carregandoT=false; ms.erroT=humanizaErro(e); if(estado.vista==='minhasemana') renderMinhaSemana(); });
+}
+function msCarregaReal(forca){
+  const ms=estado.minhasemana; const w=msSem();
+  if(!forca && ms.real[w]) return; if(ms.carregandoR[w]) return;
+  ms.carregandoR[w]=true;
+  fetch(`/api/tempo?desde=${encodeURIComponent(w)}&ate=${encodeURIComponent(somaDias(w,6))}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{
+      ms.carregandoR[w]=false; ms.real[w]=j.erro?{erro:humanizaErro(j.erro)}:{wl:j.worklogs||[]};
+      if(estado.vista==='minhasemana') renderMinhaSemana();
+    }).catch(e=>{ ms.carregandoR[w]=false; ms.real[w]={erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
+}
+function msRealPorTicket(acc,w){
+  const r=(estado.minhasemana.real||{})[w]; if(!r||!r.wl) return null;
+  const por={}; r.wl.forEach(x=>{ if(x.a===acc&&x.k) por[x.k]=(por[x.k]||0)+(Number(x.s)||0)/3600; });
+  return por;
+}
+// Sugestão de horas ao adicionar: estimativa restante do ticket (se houver), senão 2h.
+function msHoraSugerida(t){
+  const rest=((Number(t&&t.est)||0)-(Number(t&&t.seg)||0))/3600;
+  if(rest>0.4) return Math.min(8, Math.round(rest*2)/2);
+  return 2;
+}
+function msVencBadge(t,w){
+  if(!t.venc) return '<span class="badge" data-tip="Sem data de vencimento">sem venc.</span>';
+  const rot=fmtBR(t.venc);
+  if(t.venc<hojeSP()) return `<span class="badge ms-b-atra" data-tip="Vencido — priorize">⚠ ${esc(rot)}</span>`;
+  if(t.venc<=somaDias(w,6)) return `<span class="badge ms-b-sem" data-tip="Vence dentro desta semana">📅 ${esc(rot)}</span>`;
+  return `<span class="badge" data-tip="Vence depois desta semana">${esc(rot)}</span>`;
+}
+// Lista de tickets (painel direito) — extraída para a busca re-renderizar SÓ a lista.
+function msListaTicketsHTML(){
+  const ms=estado.minhasemana; const id=idApontar(); if(!id) return '';
+  const acc=id.accountId; const w=msSem(); const wf=somaDias(w,6);
+  if(ms.carregandoT&&!ms.tickets) return '<div class="estado">Carregando seus tickets…</div>';
+  if(ms.erroT) return `<div class="estado">${esc(ms.erroT)} <button class="btn" data-ms-refresh="1">Tentar de novo</button></div>`;
+  let lista=(ms.tickets||[]).filter(t=>t.respId===acc);
+  const total=lista.length;
+  if(ms.fil==='semana') lista=lista.filter(t=>t.venc&&t.venc<=wf);
+  else if(ms.fil==='atrasados') lista=lista.filter(t=>t.venc&&t.venc<hojeSP());
+  if(ms.proj) lista=lista.filter(t=>t.p===ms.proj);
+  const q=(ms.busca||'').trim().toLowerCase();
+  if(q) lista=lista.filter(t=>((t.k||'')+' '+(t.resumo||'')).toLowerCase().includes(q));
+  lista.sort((a,b)=>((a.venc||'9999')<(b.venc||'9999')?-1:(a.venc||'9999')>(b.venc||'9999')?1:0));
+  const noPlano=new Set(msItens(acc,w).map(i=>i.k));
+  const corte=lista.slice(0,80);
+  const rws=corte.map(t=>{
+    const rest=Math.max(0,((Number(t.est)||0)-(Number(t.seg)||0)));
+    return `<div class="ms-tk">
+      ${noPlano.has(t.k)
+        ?'<span class="ms-add ms-add-ok" data-tip="Já está no seu plano desta semana">✓</span>'
+        :`<button class="ms-add" data-ms-add="${escA(t.k)}" data-tip="Adicionar ao plano com ${escA(String(msHoraSugerida(t)).replace('.',','))}h (sugestão pela estimativa restante)">+</button>`}
+      <div class="ms-tk-c">
+        <div><a href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a> ${t.prioIcon?`<span data-tip="Prioridade: ${escA(t.prio||'')}">${esc(t.prioIcon)}</span>`:''} ${esc(t.resumo||'')}</div>
+        <div class="muted small">${msVencBadge(t,w)} · ${esc(t.p||'')}${t.pai?` · <span data-tip="Épico/pai">${esc(t.pai)}</span>`:''}${t.est?` · est. ${fmtH(t.est)}`:''}${t.seg?` · gasto ${fmtH(t.seg)}`:''}${rest>0?` · <b data-tip="Estimativa restante (estimado − gasto)">resta ${fmtH(rest)}</b>`:''}</div>
+      </div></div>`;
+  }).join('');
+  return (rws||'<div class="muted small" style="padding:8px">Nenhum ticket seu com esses filtros.</div>')
+    + (lista.length>80?`<div class="muted small" style="padding:6px 8px">Mostrando 80 de ${lista.length} — refine a busca.</div>`:'')
+    + (total===0?'<div class="muted small" style="padding:6px 8px">Nenhum ticket aberto atribuído a você foi encontrado.</div>':'');
+}
+function renderMinhaSemana(){
+  const cont=document.getElementById('conteudo'); const ms=estado.minhasemana; const id=idApontar();
+  if(!id||!id.accountId){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>📋 Minha Semana <span>seu plano da semana sobre os seus tickets</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para montarmos a SUA semana.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
+    return;
+  }
+  const acc=id.accountId; const w=msSem(); const wf=somaDias(w,6);
+  const s=isoSemana(w); const wHoje=semChave(hojeSP());
+  msCarregaTickets(false); msCarregaReal(false);
+  const rows=alocRows();
+  const plano=alocSemPlanejado(rows,w);
+  const alocado=plano.horas[acc]||0;
+  const validada=!!plano.travada;
+  const orc={}; rows.forEach(a=>{ if(a.accountId===acc&&/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.inicio<=wf&&a.fim>=w&&a.projeto) orc[a.projeto]=(orc[a.projeto]||0)+(Number(a.hSemana)||0); });
+  const cap=alocCapacSemana(acc,w);
+  const itens=msItens(acc,w);
+  const planH=itens.reduce((x,i)=>x+(Number(i.h)||0),0);
+  const realPor=msRealPorTicket(acc,w);
+  const realH=realPor?Object.values(realPor).reduce((x,h)=>x+h,0):null;
+  const tkIdx={}; (ms.tickets||[]).forEach(t=>{ tkIdx[t.k]=t; });
+  // Barras por projeto: planejado × alocado
+  const porProj={}; itens.forEach(i=>{ const p=i.p||(i.k||'').split('-')[0]; porProj[p]=(porProj[p]||0)+(Number(i.h)||0); });
+  const projs=[...new Set([...Object.keys(orc),...Object.keys(porProj)])].sort();
+  const barras=projs.map(p=>{
+    const o=orc[p]||0, h=porProj[p]||0; const pc=o?Math.min(100,Math.round(h/o*100)):(h?100:0); const estourou=o&&h>o+0.01;
+    return `<div class="ms-bar"><div class="ms-bar-l"><strong>${esc(p)}</strong> <span class="muted small">${fmtHd(h)}${o?` de ${fmtHd(o)} alocadas`:' — sem alocação neste projeto'}</span>${estourou?' <span class="badge ms-b-atra" data-tip="Você planejou mais do que o alocado — combine com o gestor">estourou</span>':''}</div>
+      <div class="track"><div class="fill${estourou?' ms-fill-over':''}" style="width:${pc}%"></div></div></div>`;
+  }).join('');
+  // Itens do plano
+  const chips=(k,h)=>[1,2,4,8].map(v=>`<button class="chip${h===v?' primario-chip':''}" data-ms-chip="${escA(k)}|${v}" data-tip="Trocar para ${v}h">${v}h</button>`).join('');
+  const linhasPlano=itens.map(i=>{
+    const t=tkIdx[i.k]; const re=realPor?(realPor[i.k]||0):null; const dl=re==null?null:re-(Number(i.h)||0);
+    const pcr=re==null?0:Math.min(100,Math.round(re/Math.max(0.01,Number(i.h)||0)*100));
+    return `<div class="ms-item">
+      <div class="ms-item-top">
+        <a href="${projJira(i.k)}" target="_blank" rel="noopener"><strong>${esc(i.k)}</strong></a>
+        <span class="ms-item-res">${esc((t&&t.resumo)||'')}</span>
+        <span class="spacer"></span>
+        ${t?msVencBadge(t,w):'<span class="badge" data-tip="Ticket não está mais na lista de abertos (pode ter sido concluído)">fora da lista</span>'}
+        <button class="ms-x" data-ms-del="${escA(i.k)}" data-tip="Tirar do plano">✕</button>
+      </div>
+      <div class="ms-item-ctl">
+        <input type="number" step="0.5" min="0.25" value="${escA(String(Number(i.h)||0))}" data-ms-h="${escA(i.k)}" data-tip="Horas planejadas neste ticket nesta semana"> h
+        ${chips(i.k,Number(i.h)||0)}
+        <span class="spacer"></span>
+        ${re==null?'<span class="muted small">apontado: …</span>':`<span class="small" data-tip="Apontado nesta semana neste ticket">${fmtHd(re)} apontadas</span> <span class="small" style="color:${dl>0.01?'#b45309':dl<-0.01?'var(--muted)':'#166534'}">${dl>0?'+':''}${fmtHd(dl)}</span>`}
+      </div>
+      ${re!=null?`<div class="track ms-track-mini"><div class="fill${re>(Number(i.h)||0)?' ms-fill-over':''}" style="width:${pcr}%"></div></div>`:''}
+    </div>`;
+  }).join('');
+  const prevItens=msItens(acc,voltaDias(w,7));
+  const fora=(realPor?Object.entries(realPor).filter(([k])=>!itens.some(i=>i.k===k)&&k):[]).sort((a,b)=>b[1]-a[1]);
+  const foraHtml=fora.length?`<div class="muted small" style="font-weight:600;margin:12px 0 4px">⚠ Apontado fora do plano</div>
+    ${fora.map(([k,h])=>`<div class="ms-tk"><button class="ms-add" data-ms-add="${escA(k)}" data-tip="Trazer para o plano">+</button><div class="ms-tk-c"><a href="${projJira(k)}" target="_blank" rel="noopener">${esc(k)}</a> <span class="muted small">${esc((tkIdx[k]&&tkIdx[k].resumo)||'')}</span> · <b>${fmtHd(h)}</b> apontadas nesta semana</div></div>`).join('')}`:'';
+  const projOpts=[...new Set((ms.tickets||[]).filter(t=>t.respId===acc).map(t=>t.p).filter(Boolean))].sort();
+  const kpis=`<div class="ams-kpis">
+    <div class="ams-k" data-tip="Sua jornada na semana, descontando feriados e ausências"><div class="v">${fmtHd(cap)}</div><div class="l">Capacidade</div></div>
+    <div class="ams-k" data-tip="${validada?'Alocação validada (semana travada pelo gestor)':'Alocação atual (semana ainda aberta)'}"><div class="v">${fmtHd(alocado)}</div><div class="l">Alocado ${validada?'🔒':''}</div></div>
+    <div class="ams-k" data-tip="Soma das horas que VOCÊ distribuiu nos tickets"><div class="v">${fmtHd(planH)}</div><div class="l">Planejado</div></div>
+    <div class="ams-k" data-tip="Horas apontadas nesta semana (Clockwork)"><div class="v">${realH==null?'…':fmtHd(realH)}</div><div class="l">Apontado</div></div></div>`;
+  const alerta = alocado&&planH>alocado+0.01 ? `<div class="aviso">Você planejou <b>${fmtHd(planH)}</b>, acima das <b>${fmtHd(alocado)}</b> alocadas — vale alinhar com o gestor.</div>`
+    : (alocado&&planH<alocado-0.01&&itens.length ? `<div class="muted small" style="margin:6px 0">Faltam <b>${fmtHd(alocado-planH)}</b> para cobrir sua alocação da semana.</div>` : '');
+  cont.replaceChildren(el(`<div><div class="card full">
+    <h2>📋 Minha Semana <span>distribua suas horas alocadas nos seus tickets — salva sozinho</span></h2>
+    <div class="ms-head">
+      <button class="btn" data-ms-nav="prev" data-tip="Semana anterior">‹</button>
+      <strong>S${s.num}/${s.ano}</strong> <span class="muted">· ${esc(fmtBR(w))}–${esc(fmtBR(wf))}</span>
+      ${w===wHoje?'<span class="badge com-horas">atual</span>':''}
+      ${validada?'<span class="badge com-horas" data-tip="O gestor validou (travou) o planejado desta semana">🔒 validada</span>':'<span class="badge" data-tip="Semana ainda aberta — a alocação pode mudar">aberta</span>'}
+      <button class="btn" data-ms-nav="next" data-tip="Próxima semana">›</button>
+      ${w!==wHoje?'<button class="btn" data-ms-nav="hoje">→ hoje</button>':''}
+      <span class="spacer"></span>
+      <button class="btn" data-ms-refresh="1" data-tip="Recarregar tickets e horas apontadas">↻ Atualizar</button>
+    </div>
+    ${kpis}${alerta}
+    <div class="ms-grid">
+      <div>
+        <div class="muted small" style="font-weight:600;margin:2px 0 6px">🎯 Seu plano da semana ${itens.length?`<span class="muted" style="font-weight:400">· ${itens.length} ticket(s) · ${fmtHd(planH)}</span>`:''}</div>
+        ${barras||'<div class="muted small" style="margin:4px 0 8px">Sem alocação registrada para você nesta semana — dá para planejar mesmo assim.</div>'}
+        ${linhasPlano||`<div class="estado">Nenhum ticket no plano ainda — use o <b>+</b> na lista ao lado.${prevItens.length?` <div style="margin-top:8px"><button class="btn primario" data-ms-copiar="1">⧉ Copiar plano da semana passada (${prevItens.length} itens)</button></div>`:''}</div>`}
+        ${itens.length&&prevItens.length&&!itens.length?'':''}
+        ${foraHtml}
+        <div class="muted small" style="margin-top:10px">O plano fica na configuração compartilhada — seu gestor acompanha o desvio na Alocação → 📆 Semanas. Para lançar horas, use <button class="btn" data-ms-abrir-apontar="1">⏱ Apontar</button>.</div>
+      </div>
+      <div>
+        <div class="muted small" style="font-weight:600;margin:2px 0 6px">📁 Seus tickets abertos</div>
+        <div class="ms-filtros">
+          <input type="search" placeholder="buscar por chave ou resumo…" data-ms-busca="1" value="${escA(ms.busca||'')}">
+          <button class="chip${ms.fil==='todos'?' primario-chip':''}" data-ms-fil="todos">todos</button>
+          <button class="chip${ms.fil==='semana'?' primario-chip':''}" data-ms-fil="semana" data-tip="Vencem até domingo">desta semana</button>
+          <button class="chip${ms.fil==='atrasados'?' primario-chip':''}" data-ms-fil="atrasados">atrasados</button>
+          <select data-ms-proj="1"><option value="">projeto: todos</option>${projOpts.map(p=>`<option ${ms.proj===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
+        </div>
+        <div id="ms-tk-list">${msListaTicketsHTML()}</div>
+      </div>
+    </div>
+  </div></div>`));
+}
+// Interações da 📋 Minha Semana (delegadas em #conteudo)
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('[data-ms-add],[data-ms-del],[data-ms-nav],[data-ms-fil],[data-ms-copiar],[data-ms-refresh],[data-ms-chip],[data-ms-abrir-apontar]');
+  if(!t) return;
+  if(t.hasAttribute('data-ms-abrir-apontar')){ vaiPara('apontar'); return; }
+  const id=idApontar(); if(!id||!id.accountId) return;
+  const acc=id.accountId; const ms=estado.minhasemana; const w=msSem();
+  if(t.hasAttribute('data-ms-add')){ const k=t.getAttribute('data-ms-add');
+    const tk=(ms.tickets||[]).find(x=>x.k===k);
+    const itens=msItens(acc,w).slice();
+    if(!itens.some(i=>i.k===k)){ itens.push({ k, h:msHoraSugerida(tk), p:(tk&&tk.p)||k.split('-')[0] }); msSalva(acc,w,itens); toast(`✓ ${k} entrou no seu plano.`,'ok'); }
+    renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-del')){ msSalva(acc,w,msItens(acc,w).filter(i=>i.k!==t.getAttribute('data-ms-del'))); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-chip')){ const [k,h]=t.getAttribute('data-ms-chip').split('|');
+    msSalva(acc,w,msItens(acc,w).map(i=>i.k===k?Object.assign({},i,{h:Number(h)}):i)); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-nav')){ const d=t.getAttribute('data-ms-nav');
+    ms.w=d==='hoje'?semChave(hojeSP()):(d==='prev'?voltaDias(w,7):somaDias(w,7)); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-fil')){ ms.fil=t.getAttribute('data-ms-fil'); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-copiar')){ const prev=msItens(acc,voltaDias(w,7));
+    if(prev.length){ msSalva(acc,w,prev.map(i=>Object.assign({},i))); toast('⧉ Plano copiado da semana passada — ajuste as horas se precisar.','ok'); }
+    renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-ms-refresh')){ msCarregaTickets(true); msCarregaReal(true); renderMinhaSemana(); return; }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.matches) return;
+  if(t.matches('[data-ms-h]')){ const id=idApontar(); if(!id) return;
+    const h=Math.max(0.25,Math.round((parseFloat(String(t.value).replace(',','.'))||0)*4)/4);
+    const k=t.getAttribute('data-ms-h'); const atual=msItens(id.accountId,msSem()).find(i=>i.k===k);
+    if(atual&&Number(atual.h)===h) return;   // change nativo no blur repetiria o render
+    msSalva(id.accountId,msSem(),msItens(id.accountId,msSem()).map(i=>i.k===k?Object.assign({},i,{h}):i));
+    renderMinhaSemana(); return; }
+  if(t.matches('[data-ms-proj]')){ estado.minhasemana.proj=t.value; renderMinhaSemana(); }
+});
+document.getElementById('conteudo').addEventListener('input',(e)=>{
+  const t=e.target; if(!(t&&t.matches&&t.matches('[data-ms-busca]'))) return;
+  estado.minhasemana.busca=t.value;
+  const listEl=document.getElementById('ms-tk-list'); if(listEl) listEl.innerHTML=msListaTicketsHTML();
+});
 function renderAgenda(){
   const cont=document.getElementById('conteudo'); const ag=estado.agenda; const id=idApontar();
   if(!id){
@@ -2850,6 +3120,7 @@ function render(){
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
   if(estado.vista==='agenda') return renderAgenda();
+  if(estado.vista==='minhasemana') return renderMinhaSemana();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -5749,9 +6020,9 @@ async function executaReclass(btn){
 // Pinta um selo com o nº de convites pendentes no botão da aba ⏱ Apontar (visível
 // de qualquer aba, para quem está identificado).
 function pintaBadgeConvites(n){
-  // Pinta o selo no item ⏱ Apontar (dentro do menu) E no cabeçalho do grupo Operação,
-  // para ficar visível mesmo com o dropdown fechado.
-  [document.querySelector('#seg-vista [data-v="apontar"]'), document.getElementById('navg-op-b')].forEach(el=>{
+  // Pinta o selo só no item ⏱ Apontar — o cabeçalho do grupo 👤 Meu trabalho é do
+  // selo do Inbox (pintaBadgeInbox), que já soma convites + menções + aprovações.
+  [document.querySelector('#seg-vista [data-v="apontar"]')].forEach(el=>{
     if(!el) return; let b=el.querySelector('.tab-badge');
     if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; el.appendChild(b); }
       b.textContent=n; b.title=n+' convite(s) de reunião aguardando você'; }
@@ -8057,6 +8328,16 @@ function alocSemPlanejado(rows, w){
   if(tv&&tv.horas) return { travada:tv, horas:Object.assign({},tv.horas) };
   return { travada:null, horas:alocSemHorasVivas(rows,w) };
 }
+// Plano da equipe numa semana: horas que cada pessoa distribuiu nos tickets (📋 Minha Semana).
+function alocSemPlanoEquipe(w){
+  const suf='|'+semTravaKey(w); const por={};
+  Object.entries(cfg.planosSemana||{}).forEach(([k,p])=>{
+    if(!k.endsWith(suf)||!p) return;
+    const acc=k.slice(0,k.length-suf.length);
+    por[acc]=(p.itens||[]).reduce((s,i)=>s+(Number(i.h)||0),0);
+  });
+  return por;
+}
 // Realizado (h) por pessoa numa semana, a partir dos worklogs já carregados (Clockwork).
 function alocSemRealizado(w){
   const wl=(estado.alocacao.real&&estado.alocacao.real.wl)||null; if(!wl) return null;
@@ -8082,6 +8363,10 @@ function alocViewSemanas(rows, pess){
     if(realPor){ realH=0; Object.entries(realPor).forEach(([a,h])=>{ if(alocIds.has(a)) realH+=h; }); }
     const delta=realH==null?null:realH-planH;
     const pctR=(realH==null||!planH)?null:Math.round(realH/planH*100);
+    // Plano da equipe (📋 Minha Semana): horas distribuídas nos tickets pelas pessoas alocadas.
+    const plEq=alocSemPlanoEquipe(w);
+    let plEqH=0, nPlan=0; const nAloc=Object.keys(plano.horas).length;
+    Object.keys(plano.horas).forEach(a=>{ const h=plEq[a]||0; if(h>0){ plEqH+=h; nPlan++; } });
     const tv=plano.travada;
     const badge=tv
       ?`<span class="badge com-horas" data-tip="Planejado congelado — edições nas alocações não mudam esta semana">🔒 travada ${esc(fmtBR((tv.quando||'').slice(0,10)))}${tv.porNome?` por ${esc(String(tv.porNome).split('@')[0])}`:''}</span>`
@@ -8091,18 +8376,20 @@ function alocViewSemanas(rows, pess){
       :`<button class="btn ${w<=wHoje?'primario':''}" data-al-semtravar="${escA(w)}" data-tip="Congela o planejado desta semana como está agora">🔒 Travar</button>`;
     let drill='';
     if(aberta[w]){
-      const ids=[...new Set([...Object.keys(plano.horas), ...Object.keys(realPor||{}).filter(a=>alocIds.has(a))])];
-      const rws=ids.map(a=>{ const p=plano.horas[a]||0; const re=realPor?(realPor[a]||0):null;
-        return { a, p, re, dl: re==null?null:re-p };
+      const ids=[...new Set([...Object.keys(plano.horas), ...Object.keys(plEq).filter(a=>alocIds.has(a)), ...Object.keys(realPor||{}).filter(a=>alocIds.has(a))])];
+      const rws=ids.map(a=>{ const p=plano.horas[a]||0; const pl=plEq[a]||0; const re=realPor?(realPor[a]||0):null;
+        // Δ contra o PLANO da pessoa quando ela planejou; senão contra o alocado.
+        return { a, p, pl, re, dl: re==null?null:re-(pl>0?pl:p) };
       }).sort((x,y)=>(y.p-x.p)||((y.re||0)-(x.re||0)));
-      drill=`<tr class="al-sem-drill"><td colspan="7"><div class="scroll-x"><table><thead><tr><th>Pessoa</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Δ</th></tr></thead><tbody>${
-        rws.map(x=>`<tr><td>${esc(nm(x.a))}</td><td class="num">${alocH(x.p)}</td><td class="num">${x.re==null?'…':alocH(x.re)}</td><td class="num" style="color:${corDl(x.dl)}">${x.dl==null?'—':(x.dl>0?'+':'')+alocH(x.dl)}</td></tr>`).join('')
-        ||'<tr><td colspan="4" class="muted">Nada nesta semana.</td></tr>'}</tbody></table></div></td></tr>`;
+      drill=`<tr class="al-sem-drill"><td colspan="8"><div class="scroll-x"><table><thead><tr><th>Pessoa</th><th class="num">Alocado</th><th class="num" data-tip="Horas que a pessoa distribuiu nos tickets (📋 Minha Semana)">Plano</th><th class="num">Realizado</th><th class="num" data-tip="Realizado − plano (ou − alocado, se não planejou)">Δ</th><th></th></tr></thead><tbody>${
+        rws.map(x=>`<tr><td>${esc(nm(x.a))}</td><td class="num">${alocH(x.p)}</td><td class="num">${x.pl>0?alocH(x.pl):(x.p>0?'<span class="badge ms-b-sem" data-tip="Ainda não montou o plano em 📋 Minha Semana">sem plano</span>':'—')}</td><td class="num">${x.re==null?'…':alocH(x.re)}</td><td class="num" style="color:${corDl(x.dl)}">${x.dl==null?'—':(x.dl>0?'+':'')+alocH(x.dl)}</td><td>${(x.pl>0||(x.re||0)>0)?`<button class="btn" data-al-semtk="${escA(x.a)}|${escA(w)}" data-tip="Plano × apontado por TICKET desta pessoa nesta semana">🔎 tickets</button>`:''}</td></tr>`).join('')
+        ||'<tr><td colspan="6" class="muted">Nada nesta semana.</td></tr>'}</tbody></table></div></td></tr>`;
     }
     return `<tr class="proj-linha ${w===wHoje?'al-sem-atual':''}" data-al-semtoggle="${escA(w)}" data-tipk="clique para abrir por pessoa">
       <td><strong>S${num}</strong><span class="muted small">/${ano}</span></td>
       <td>${esc(fmtBR(w).slice(0,5))}–${esc(fmtBR(somaDias(w,6)).slice(0,5))}${w===wHoje?' <span class="badge com-horas">atual</span>':''}</td>
       <td class="num"><strong>${alocH(planH)}</strong></td>
+      <td class="num" data-tip="${nPlan}/${nAloc} pessoa(s) alocada(s) montaram o plano em 📋 Minha Semana">${plEqH>0?alocH(plEqH):'—'}${nAloc?` <span class="muted small">${nPlan}/${nAloc}</span>`:''}</td>
       <td class="num">${realH==null?(r.carregando?'…':'—'):alocH(realH)}</td>
       <td class="num" style="color:${corDl(delta)}">${delta==null?'—':(delta>0?'+':'')+alocH(delta)}</td>
       <td class="num">${pctR==null?'—':pctR+'%'}</td>
@@ -8111,9 +8398,9 @@ function alocViewSemanas(rows, pess){
   const nota=r.erro
     ?`<div class="estado">Falha ao carregar o realizado: ${esc(r.erro)} <button class="btn" data-al-real="1">Tentar de novo</button></div>`
     :'';
-  return `<div class="muted small" style="margin:6px 0 10px">Cada linha é uma <strong>semana do ano</strong> (ISO, seg–dom). <strong>🔒 Travar</strong> congela o planejado da semana como está — edições posteriores nas alocações <strong>não mudam</strong> semanas travadas. Realizado = horas do Clockwork das pessoas alocadas. Filtros de skill/projeto não se aplicam aqui. <button class="btn" data-al-real="1" style="margin-left:6px">↻ Atualizar realizado</button> <button class="btn" data-al-semcsv="1">⬇ CSV</button></div>
+  return `<div class="muted small" style="margin:6px 0 10px">Cada linha é uma <strong>semana do ano</strong> (ISO, seg–dom). <strong>Alocado</strong> = horas da Alocação (🔒 Travar congela como está — é a validação semanal). <strong>Plano</strong> = horas que cada pessoa distribuiu nos próprios tickets em <strong>📋 Minha Semana</strong>. <strong>Realizado</strong> = Clockwork das pessoas alocadas. Abra a semana para ver por pessoa e 🔎 por ticket. <button class="btn" data-al-real="1" style="margin-left:6px">↻ Atualizar realizado</button> <button class="btn" data-al-semcsv="1">⬇ CSV</button></div>
     ${nota}
-    <div class="scroll-x"><table><thead><tr><th>Semana</th><th>Período</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Δ</th><th class="num">Real/Plan</th><th>Trava</th></tr></thead><tbody>${linhas||'<tr><td colspan="7" class="muted">Sem alocações cadastradas.</td></tr>'}</tbody></table></div>`;
+    <div class="scroll-x"><table><thead><tr><th>Semana</th><th>Período</th><th class="num">Alocado</th><th class="num" data-tip="Soma dos planos individuais (📋 Minha Semana) das pessoas alocadas">Plano</th><th class="num">Realizado</th><th class="num" data-tip="Realizado − alocado">Δ</th><th class="num">Real/Plan</th><th>Trava</th></tr></thead><tbody>${linhas||'<tr><td colspan="8" class="muted">Sem alocações cadastradas.</td></tr>'}</tbody></table></div>`;
 }
 function alocViewProjeto(rows, pess){
   const semanas=alocSemanas(rows); const r=estado.alocacao.real; const nm=(a)=>(pess[a]&&pess[a].nome)||a;
@@ -9330,11 +9617,14 @@ function inboxPend(){
   return conv+men+inboxAprovacoes().length;
 }
 function pintaBadgeInbox(){
-  const elx=document.querySelector('#seg-vista [data-v="inbox"]'); if(!elx) return;
-  const n=inboxPend(); let b=elx.querySelector('.tab-badge');
-  if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; elx.appendChild(b); }
-    b.textContent=n; b.title=n+' pendência(s) aguardando você'; }
-  else if(b) b.remove();
+  const n=inboxPend();
+  // Selo no item 📥 Inbox E no cabeçalho do grupo 👤 Meu trabalho (dropdown fechado).
+  [document.querySelector('#seg-vista [data-v="inbox"]'), document.getElementById('navg-op-b')].forEach(elx=>{
+    if(!elx) return; let b=elx.querySelector('.tab-badge');
+    if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; elx.appendChild(b); }
+      b.textContent=n; b.title=n+' pendência(s) aguardando você'; }
+    else if(b) b.remove();
+  });
   // Espelha a contagem no selo do botão Menu (mobile), para não ficar escondida no drawer.
   const nb=document.getElementById('nt-badge');
   if(nb){ if(n>0){ nb.textContent=n; nb.title=n+' pendência(s) aguardando você'; nb.hidden=false; } else { nb.hidden=true; } }
@@ -10988,10 +11278,10 @@ async function enviaFeedback(){
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade, tickets, status) com o Clockwork (horas) para análise, operação do dia a dia e planejamento do time. Clicar no logo volta ao início.'},
   {sel:'#seg-vista [data-v="visao"]',titulo:'📊 Visão Geral',texto:'A tela executiva inicial: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
-  {sel:'#navg-an-b',titulo:'Análise',texto:'Resumo (KPIs, horas, faturável e resumo por IA), Timesheet (pessoa × dia com lacuna vs. meta), Ranking (cumprimento de apontamento) e Tickets (issues do período, agrupáveis).'},
-  {sel:'#navg-op-b',titulo:'Operação',texto:'O dia a dia: ⏱ Apontar (horas, status, vencimento, comentário, responsável — em Lista/Tabela/Quadro); 🛠 Gestão de Tickets (seleção múltipla + ações em massa: atribuir, status, comentar, reprogramar e excluir); 🚨 Alertas (atrasados com reprogramação justificada); 🔀 Reclassificar (mover reuniões de projeto); 🔗 Vincular Reuniões (transforma reunião em ticket de apoio funcional de AMS, ou comenta num ticket aberto, e exclui a reunião).'},
-  {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa com % por projeto, utilização semanal, linha do tempo com arrastar-e-soltar, visões por projeto/empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote, inclusive dentro de épicos).'},
-  {sel:'#navg-ams-b',titulo:'AMS & Receita',texto:'AMS (um contrato por vez, por ciclo: banco de horas, faturamento e chamados, com PDF) e 💰 Receita (bolsa de horas e projetos: consumo × contratado e receita estimada).'},
+  {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Minha Semana (monte o plano da semana sobre os seus tickets), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
+  {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa, visão 📆 Semanas com trava do planejado, linha do tempo, empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote).'},
+  {sel:'#navg-an-b',titulo:'Análise',texto:'📁 Projetos (BI por projeto), Resumo (KPIs e resumo por IA), Timesheet (pessoa × dia), Ranking, Tickets, Qualidade (IA), 🕵️ Auditoria e 📈 Analytics (26 visões de governança).'},
+  {sel:'#navg-ge-b',titulo:'Gestão',texto:'🛠 Gestão de Tickets (ações em massa), 🚨 Alertas (atrasados com reprogramação justificada), 🔀 Reclassificar, 🔗 Vincular Reuniões, AMS (apuração por ciclo, com PDF) e 💰 Receita (bolsa de horas e projetos).'},
   {sel:'#navg-cfg-b',titulo:'Configurações',texto:'⚙️ Contratos (Admin — base do AMS/Receita e do risco de faturamento), 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar) e 🗒 Histórico de ações (auditoria do que o time fez pelo painel).'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
@@ -11069,11 +11359,97 @@ function vaiPara(v){
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
+// ---- 🔍 Paleta de navegação (Ctrl+K) + ⭐ favoritos na barra ----
+// Catálogo de telas: [slug, rótulo, grupo, palavras-chave p/ busca]. Ações extras
+// (sem vista própria) entram com slug 'acao:<nome>'.
+const NAVCAT=[
+  ['visao','Visão Geral','Início','inicio home executiva kpis'],
+  ['acoes','⚡ Ações de hoje','Início','hoje pendencias novidades inicio'],
+  ['minhasemana','📋 Minha Semana','Meu trabalho','plano semanal planejar semana meus tickets horas distribuir'],
+  ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
+  ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
+  ['inbox','📥 Inbox','Meu trabalho','convites mencoes pendencias caixa entrada aprovacoes'],
+  ['mencoes','💬 Menções','Meu trabalho','comentarios marcado responder citacoes'],
+  ['meudia','📍 Meu dia','Meu trabalho','timetracking dia atividade sugestoes ia'],
+  ['alocacao','🧑‍💼 Alocação','Planejamento','capacidade recurso utilizacao semanas travar gantt skill simulacao resource'],
+  ['planejamento','📅 Planejamento macro','Planejamento','funcao fases epicos planejado realizado'],
+  ['planejar','📝 Criação de Ticket','Planejamento','criar tickets lote'],
+  ['ondecrio','🌳 Onde crio o ticket?','Planejamento','arvore decisao projeto duvida'],
+  ['projetos','📁 Projetos','Análise','bi ficha portfolio epicos saude consolidado'],
+  ['resumo','Resumo','Análise','kpis horas faturavel ia'],
+  ['timesheet','Timesheet','Análise','horas planilha clockwork pessoa dia lacuna'],
+  ['ranking','Ranking','Análise','engajamento cumprimento apontamento'],
+  ['tickets','Tickets','Análise','issues lista periodo'],
+  ['qualidade','Qualidade (IA)','Análise','auditoria ia tickets qualidade'],
+  ['audit','🕵️ Auditoria de Tickets','Análise','validacoes ti-04-014 conformidade'],
+  ['analytics','📈 Analytics','Análise','governanca 26 visoes graficos desvios'],
+  ['gestao','🛠 Gestão de Tickets','Gestão','massa atribuir status transferir epico duplicados excluir'],
+  ['alertas','🚨 Alertas','Gestão','central atrasados vencidos reprogramar'],
+  ['reclassificar','🔀 Reclassificar','Gestão','mover reunioes projeto'],
+  ['reuvinc','🔗 Vincular Reuniões','Gestão','teams tickets ams apoio reuniao'],
+  ['ams','AMS','Gestão','ciclo faturado banco horas chamados'],
+  ['receita','💰 Receita','Gestão','bolsa horas projetos consumo contratado'],
+  ['config','⚙️ Central de configurações','Configurações','config ajustes'],
+  ['admin','Contratos (Admin)','Configurações','valores contratos admin'],
+  ['acao:metas','🎯 Metas & ausências','Configurações','meta horas feriados ferias ocultar'],
+  ['acao:log','🗒 Histórico de ações','Configurações','auditoria log acoes'],
+];
+const NAV_FAV_KEY='jirainsight_nav_favs';
+function navFavs(){ try{ const a=JSON.parse(localStorage.getItem(NAV_FAV_KEY)||'[]'); return Array.isArray(a)?a.filter(v=>VISTAS.includes(v)):[]; }catch(e){ return []; } }
+function navFavToggle(v){ let f=navFavs(); f=f.includes(v)?f.filter(x=>x!==v):f.concat(v).slice(0,6);
+  try{ localStorage.setItem(NAV_FAV_KEY, JSON.stringify(f)); }catch(e){}
+  renderNavFavs(); }
+function renderNavFavs(){
+  const box=document.getElementById('nav-favs'); if(!box) return;
+  box.innerHTML=navFavs().map(v=>{ const c=NAVCAT.find(x=>x[0]===v);
+    return c?`<button class="navtab" data-v="${escA(v)}" data-tip="⭐ favorito — gerencie na busca (Ctrl+K)">${esc(c[1])}</button>`:''; }).join('');
+  marcaVista(estado.vista);
+}
+function normPal(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function abrePaleta(){
+  const favs=navFavs();
+  abreModal(`<h2>🔍 Ir para…</h2>
+    <div class="muted small">Digite para filtrar · Enter abre a primeira · ⭐ fixa a tela na barra (até 6)</div>
+    <input class="pal-q" id="pal-q" type="text" placeholder="ex.: minha semana, apontar, desvio, reunião…" autocomplete="off">
+    <div id="pal-list"></div>`);
+  const lista=document.getElementById('pal-list'); const q=document.getElementById('pal-q');
+  const pinta=()=>{
+    const t=normPal(q.value);
+    const hits=NAVCAT.filter(c=>!t||normPal(c[0]+' '+c[1]+' '+c[2]+' '+c[3]).includes(t));
+    lista.innerHTML=hits.map((c,i)=>`<div style="display:flex;align-items:center">
+      <button class="pal-row${i===0?' pal-on':''}" data-pal-v="${escA(c[0])}">${esc(c[1])}<span class="pal-g">${esc(c[2])}</span></button>
+      ${c[0].startsWith('acao:')?'':`<button class="pal-fav${favs.includes(c[0])?' on':''}" data-pal-fav="${escA(c[0])}" data-tip="${favs.includes(c[0])?'Tirar da barra':'Fixar na barra'}">${favs.includes(c[0])?'★':'☆'}</button>`}
+    </div>`).join('')||'<div class="muted small" style="padding:8px">Nada encontrado.</div>';
+  };
+  pinta();
+  q.addEventListener('input',pinta);
+  q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const b=lista.querySelector('[data-pal-v]'); if(b) b.click(); } });
+  setTimeout(()=>q.focus(),50);
+}
+function navPaletaVai(slug){
+  fechaModal();
+  if(slug.startsWith('acao:')){ const b=document.querySelector(`#seg-vista [data-acao="${slug.slice(5)}"]`); if(b) b.click(); return; }
+  vaiPara(slug);
+}
+document.addEventListener('click',(e)=>{
+  const bp=e.target.closest&&e.target.closest('#btn-paleta'); if(bp){ abrePaleta(); return; }
+  const pv=e.target.closest&&e.target.closest('[data-pal-v]'); if(pv){ navPaletaVai(pv.getAttribute('data-pal-v')); return; }
+  const pf=e.target.closest&&e.target.closest('[data-pal-fav]');
+  if(pf){ navFavToggle(pf.getAttribute('data-pal-fav')); const q=document.getElementById('pal-q'); abrePaleta(); if(q){ const nq=document.getElementById('pal-q'); nq.value=q.value; nq.dispatchEvent(new Event('input')); } }
+});
+document.addEventListener('keydown',(e)=>{
+  if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); abrePaleta(); }
+});
+setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é declarada mais abaixo
+
 // ---- Novidades (o que há de novo no app) ----
 // ⚠ Acordo (2026-07-19): manter SEMPRE atualizado — a cada entrega, acrescentar a
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-27','📋 <b>Minha Semana — planeje a sua semana em 2 cliques</b>: nova tela (👤 Meu trabalho) onde você distribui as <b>horas alocadas</b> da semana entre os <b>seus tickets do Jira</b> — a lista mostra vencimento, prioridade, estimativa restante e horas gastas; o <b>+</b> adiciona com sugestão de horas, chips 1h/2h/4h/8h ajustam, barras mostram planejado × alocado por projeto e tudo <b>salva sozinho</b>. Durante a semana você acompanha <b>plano × apontado</b> por ticket (com "apontado fora do plano"). Dá para <b>⧉ copiar a semana passada</b>.'],
+  ['2026-07-27','🎯 <b>Desvio plano × realizado na Alocação → 📆 Semanas</b>: a tabela ganhou a coluna <b>Plano</b> (soma do que cada pessoa distribuiu na Minha Semana, com contagem de quem já planejou); o detalhe por pessoa mostra <b>Alocado × Plano × Realizado</b> com selo <b>"sem plano"</b> e o botão <b>🔎 tickets</b> abre o desvio <b>por ticket</b> (incluindo o que foi apontado fora do plano). CSV atualizado.'],
+  ['2026-07-27','🧭 <b>Navegação nova</b>: menu reorganizado por perfil — <b>👤 Meu trabalho</b> primeiro (Minha Semana, Apontar, Agenda, Inbox, Menções, Meu dia), depois Planejamento, Análise e Gestão; <b>🔍 busca rápida de telas</b> com <b>Ctrl+K</b> (aceita sinônimos, ex.: "worklog" acha o Apontar) e <b>⭐ favoritos</b> — fixe suas telas na barra pelo ícone da busca.'],
   ['2026-07-23','📆 <b>Alocação — visão Semanas com trava do planejado</b>: cada linha é uma <b>semana do ano</b> (ISO) com <b>planejado × realizado</b>, Δ e %. O botão <b>🔒 Travar</b> congela o planejado da semana como está — edições posteriores nas alocações <b>não mudam</b> semanas travadas (dá para destravar). Clique na linha para abrir <b>por pessoa</b> e exporte tudo em <b>CSV</b>.'],
   ['2026-07-22','📅 <b>Agenda (Outlook) → ticket de reunião</b> — nova tela (Operação): seus eventos do Outlook (que você criou ou foi convidado), agrupados por dia, com organizador, participantes e link do Teams; <b>1 clique cria o ticket de Reunião no RDF</b> (no seu usuário, vencimento no dia do evento). Convites de diego@dexterityit.com.br ficam ocultos. Requer configurar MS_TENANT_ID/MS_CLIENT_ID/MS_CLIENT_SECRET na Vercel.'],
   ['2026-07-20','🔒 <b>Projetos de escopo fechado (PEF/DEF)</b> — a ficha ganhou <b>💰 Valor realizado</b> (horas do Jira × <b>custo/h por pessoa</b>, com total em R$ e aviso de quem está sem custo cadastrado) e <b>📐 Planejado × Realizado por épico</b> (barras pareadas; estouro em vermelho; clique → composição do épico). O custo/h vem da Alocação (manual ou importado do Odoo).'],
@@ -11135,7 +11511,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-23.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-27.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -11580,7 +11956,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -11726,7 +12102,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook'};
+    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook',minhasemana:'Minha Semana — plano semanal'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
@@ -12294,7 +12670,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 // ---- Alocação macro: editor de alocações pessoa × projeto ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-al-semtravar],[data-al-semdestravar],[data-al-semtoggle],[data-al-semcsv],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-al-semtravar],[data-al-semdestravar],[data-al-semtoggle],[data-al-semcsv],[data-al-semtk],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
   if(t.hasAttribute('data-al-travar')){ const a=t.getAttribute('data-al-travar'); const id=idApontar()||{};
     cfg.alocTravas=cfg.alocTravas||{};
     cfg.alocTravas[a]={ status:'pendente', por:id.nome||id.email||'—', quando:new Date().toISOString() };
@@ -12424,16 +12800,35 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     estado.alocacao.semAberta=estado.alocacao.semAberta||{};
     estado.alocacao.semAberta[w]=!estado.alocacao.semAberta[w]; renderAlocacao(); return; }
   if(t.hasAttribute('data-al-semcsv')){ const rows=alocRows();
-    const linhas=[['Semana','Inicio','Fim','PlanejadoH','RealizadoH','Delta','Travada']];
+    const linhas=[['Semana','Inicio','Fim','AlocadoH','PlanoEquipeH','RealizadoH','Delta','Travada']];
     const ids=new Set(rows.map(a=>a.accountId).filter(Boolean));
     alocSemanas(rows).forEach(w=>{ const s=isoSemana(w);
       const pl=alocSemPlanejado(rows,w); const planH=Object.values(pl.horas).reduce((x,h)=>x+h,0);
+      const pe=alocSemPlanoEquipe(w); let peH=0; Object.keys(pl.horas).forEach(a=>{ peH+=pe[a]||0; });
       const rp=alocSemRealizado(w); let re=null;
       if(rp){ re=0; Object.entries(rp).forEach(([a,h])=>{ if(ids.has(a)) re+=h; }); }
       const f1=(v)=>String(Math.round(v*10)/10).replace('.',',');
-      linhas.push([`S${s.num}/${s.ano}`, w, somaDias(w,6), f1(planH), re==null?'':f1(re), re==null?'':f1(re-planH), pl.travada?'sim':'nao']);
+      linhas.push([`S${s.num}/${s.ano}`, w, somaDias(w,6), f1(planH), f1(peH), re==null?'':f1(re), re==null?'':f1(re-planH), pl.travada?'sim':'nao']);
     });
     baixaCSV('planejado-semanas', linhas); return; }
+  // 🔎 Plano × apontado por TICKET de uma pessoa numa semana (desvio no detalhe)
+  if(t.hasAttribute('data-al-semtk')){ const at=t.getAttribute('data-al-semtk');
+    const i=at.lastIndexOf('|'); const acc=at.slice(0,i); const w=at.slice(i+1); const wf=somaDias(w,6);
+    const s=isoSemana(w);
+    const pn=msPlanoDe(acc,w); const itens=(pn&&pn.itens)||[];
+    const wl=(estado.alocacao.real&&estado.alocacao.real.wl)||[];
+    const realTk={}; wl.forEach(x=>{ const d=(x.d||'').slice(0,10); if(x.a===acc&&x.k&&d>=w&&d<=wf) realTk[x.k]=(realTk[x.k]||0)+(Number(x.s)||0)/3600; });
+    const noPlano=new Set(itens.map(x=>x.k));
+    const fora=Object.entries(realTk).filter(([k])=>!noPlano.has(k)).sort((a,b)=>b[1]-a[1]);
+    const f=(h)=>alocH(h||0);
+    const linhasTk=itens.map(x=>{ const re=realTk[x.k]||0; const dl=re-(Number(x.h)||0);
+      return `<tr><td><a href="${projJira(x.k)}" target="_blank" rel="noopener">${esc(x.k)}</a></td><td class="num">${f(Number(x.h)||0)}</td><td class="num">${f(re)}</td><td class="num" style="color:${dl>0.01?'#b45309':dl<-0.01?'#166534':'inherit'}">${dl>0?'+':''}${f(dl)}</td></tr>`; }).join('');
+    const linhasFora=fora.map(([k,h])=>`<tr><td><a href="${projJira(k)}" target="_blank" rel="noopener">${esc(k)}</a> <span class="badge ms-b-sem" data-tip="Apontou aqui, mas o ticket não estava no plano">fora do plano</span></td><td class="num">—</td><td class="num">${f(h)}</td><td class="num" style="color:#b45309">+${f(h)}</td></tr>`).join('');
+    abreModal(`<h2>🔎 ${esc((pn&&pn.nome)||acc)} — S${s.num}/${s.ano}</h2>
+      <div class="muted small">Plano (📋 Minha Semana) × apontado por ticket · ${esc(fmtBR(w))}–${esc(fmtBR(wf))}${pn&&pn.atualizadoEm?` · plano atualizado em ${esc(fmtBR((pn.atualizadoEm||'').slice(0,10)))}`:''}</div>
+      <div class="scroll-x" style="margin-top:8px"><table><thead><tr><th>Ticket</th><th class="num">Plano</th><th class="num">Apontado</th><th class="num">Δ</th></tr></thead>
+      <tbody>${linhasTk||''}${linhasFora||''}${(!linhasTk&&!linhasFora)?'<tr><td colspan="4" class="muted">Sem plano e sem apontamentos nesta semana.</td></tr>':''}</tbody></table></div>`);
+    return; }
   if(t.hasAttribute('data-al-gran')){ estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-visao')){ estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
   else if(t.hasAttribute('data-al-real')){ alocCarregaReal(alocRows(), true); }
