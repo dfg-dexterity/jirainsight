@@ -48,6 +48,23 @@ A cada **entrega/commit** desta ferramenta:
 > As escritas no Jira podem exigir aprovação do conector no claude.ai; se falhar com
 > "requires approval", avisar o usuário para aprovar e repetir — não pular a etapa.
 
+## 📣 Aviso no Teams — canal "Avisos Gerais" (acordo de 2026-07-28)
+
+A cada **melhoria publicada** (merge na main), **publicar um aviso no canal do Teams
+"Avisos Gerais"** marcando todos:
+
+- Canal: `Avisos Gerais` — channelId `19:a5797f7659e142e5b348c5e2755f272e@thread.tacv2`,
+  groupId `16c14e6a-955a-49df-a36e-7b35a0e29098` (tenant `0ef8b5b1-703e-4c1e-aa6e-90f31baa9eca`).
+- Mecanismo: `POST https://jirainsight.vercel.app/api/teams` com corpo
+  `{"aviso":{"titulo":"…","linhas":["melhoria 1","melhoria 2"],"link":"https://jirainsight.vercel.app"}}`
+  (se `CRON_SECRET` estiver definida na Vercel, enviar `Authorization: Bearer <segredo>`).
+  O endpoint monta um Adaptive Card e **menciona todos os usuários ativos do Jira**
+  (webhook não expõe membros do canal; a equipe ativa do Jira é o mesmo público).
+- Requisito de configuração (uma vez): criar um **fluxo/webhook de entrada** no canal
+  Avisos Gerais (⋯ do canal → Fluxos de trabalho → "Publicar em um canal quando uma
+  solicitação de webhook for recebida") e definir `TEAMS_AVISOS_WEBHOOK_URL` na Vercel.
+- `?dry=1` visualiza o cartão sem enviar.
+
 ## ✨ Novidades do app — MANTER ATUALIZADO (acordo de 2026-07-19)
 
 A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
