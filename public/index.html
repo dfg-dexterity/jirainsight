@@ -235,6 +235,7 @@
   .ms-add-ok{color:#166534;border-color:transparent;cursor:default;display:inline-flex;min-width:26px;height:26px;align-items:center;justify-content:center}
   .ms-filtros{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px}
   .ms-filtros input[type=search]{flex:1;min-width:160px;padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
+  .reu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
   .ms-proc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 10px;padding:8px 10px;border:1px dashed var(--linha);border-radius:10px;font-size:12.5px}
   .ms-pstep{color:var(--muted);white-space:nowrap}
   .ms-pstep.ms-pon{color:inherit;font-weight:700;background:var(--hoverbg);padding:2px 8px;border-radius:8px}
@@ -1645,8 +1646,7 @@
         <div class="navg-menu" role="menu">
           <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Gestão de Tickets</button>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas</button>
-          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🔀 Reclassificar</button>
-          <button data-v="reuvinc"><svg class="nav-ic"><use href="#ic-ams"/></svg>🔗 Vincular Reuniões</button>
+          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões (gestão)</button>
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
         </div>
@@ -11031,6 +11031,20 @@ function rvExecuta(){
       estado.apontar.porData={}; estado.apontar.recentes=null; estado.cache={};
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
 }
+// ---- 🗂 Reuniões: tela unificada (gestão e reclassificação) ----
+// Duas abas sobre as mesmas reuniões abertas: 🔀 Reclassificar (mover de projeto)
+// e 🔗 Vincular a tickets (virar apoio AMS/comentário e excluir a reunião).
+// Os deep-links ?v=reclassificar e ?v=reuvinc continuam funcionando (cada um abre a sua aba).
+function reuTabsHTML(atual){
+  return `<div class="reu-tabs">
+    <button class="chip${atual==='reclassificar'?' primario-chip':''}" data-reu-tab="reclassificar" data-tip="Mover reuniões para outro projeto, mantendo tipo e status">🔀 Reclassificar</button>
+    <button class="chip${atual==='reuvinc'?' primario-chip':''}" data-reu-tab="reuvinc" data-tip="Transformar a reunião em ticket de apoio AMS (ou comentar num ticket aberto) e excluir a reunião">🔗 Vincular a tickets</button>
+  </div>`;
+}
+document.addEventListener('click',(e)=>{
+  const b=e.target.closest&&e.target.closest('[data-reu-tab]');
+  if(b) vaiPara(b.getAttribute('data-reu-tab'));
+});
 function renderReuVinc(){
   const cont=document.getElementById('conteudo');
   const rv=estado.reuvinc;
@@ -11055,7 +11069,8 @@ function renderReuVinc(){
   cont.replaceChildren(el(`<div>
     ${faixaId}
     <div class="card full">
-      <h2>🔗 Vincular Reuniões a Tickets de AMS <span>${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)}</span></h2>
+      <h2>🗂 Reuniões <span>gestão e reclassificação · ${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)}</span></h2>
+      ${reuTabsHTML('reuvinc')}
       <div class="muted small" style="margin:0 0 10px">Escolha a reunião e o assistente faz o resto: <strong>cria um ticket de apoio funcional</strong> (ou <strong>comenta num ticket aberto</strong>) com os detalhes da reunião e, no fim, <strong>exclui a reunião</strong>.</div>
       <div class="ap-filtros">
         <div class="campo"><label>Projeto das reuniões</label><input type="text" id="rv-origem" value="${escA(rv.origem)}" maxlength="12" style="width:110px"></div>
@@ -11099,7 +11114,8 @@ function renderReclass(){
 
   if(!d.tickets.length){
     cont.replaceChildren(el(`<div>${faixaId}
-      <div class="card full"><h2>Reclassificar reuniões <span>projeto ${esc(d.projeto)}</span></h2>
+      <div class="card full"><h2>🗂 Reuniões <span>gestão e reclassificação · projeto ${esc(d.projeto)}</span></h2>
+        ${reuTabsHTML('reclassificar')}
         <div class="estado">${esc(d.aviso||`Nenhuma reunião aberta em ${d.projeto}.`)}</div></div></div>`));
     return;
   }
@@ -11121,7 +11137,8 @@ function renderReclass(){
   cont.replaceChildren(el(`<div>
     ${faixaId}
     <div class="card full">
-      <h2>Reclassificar reuniões <span>${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)} · move para outro projeto mantendo tipo e status</span></h2>
+      <h2>🗂 Reuniões <span>gestão e reclassificação · ${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)} · mover mantém tipo e status</span></h2>
+      ${reuTabsHTML('reclassificar')}
       <div class="ap-filtros">
         <div class="campo"><label>Projeto destino</label><select id="rc-alvo" ${alvos.length?'':'disabled'}>${optAlvo}</select></div>
         <div class="campo"><label>Buscar</label><input type="search" id="rc-busca" placeholder="código, resumo, status…" value="${escA(rc.busca)}"></div>
@@ -11473,7 +11490,7 @@ const TOUR=[
   {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Minha Semana (monte o plano da semana sobre os seus tickets), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
   {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa, visão 📆 Semanas com trava do planejado, linha do tempo, empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote).'},
   {sel:'#navg-an-b',titulo:'Análise',texto:'📁 Projetos (BI por projeto), Resumo (KPIs e resumo por IA), Timesheet (pessoa × dia), Ranking, Tickets, Qualidade (IA), 🕵️ Auditoria e 📈 Analytics (26 visões de governança).'},
-  {sel:'#navg-ge-b',titulo:'Gestão',texto:'🛠 Gestão de Tickets (ações em massa), 🚨 Alertas (atrasados com reprogramação justificada), 🔀 Reclassificar, 🔗 Vincular Reuniões, AMS (apuração por ciclo, com PDF) e 💰 Receita (bolsa de horas e projetos).'},
+  {sel:'#navg-ge-b',titulo:'Gestão',texto:'🛠 Gestão de Tickets (ações em massa), 🚨 Alertas (atrasados com reprogramação justificada), 🗂 Reuniões (gestão e reclassificação: mover de projeto ou vincular a tickets de AMS numa tela só), AMS (apuração por ciclo, com PDF) e 💰 Receita (bolsa de horas e projetos).'},
   {sel:'#navg-cfg-b',titulo:'Configurações',texto:'⚙️ Contratos (Admin — base do AMS/Receita e do risco de faturamento), 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar) e 🗒 Histórico de ações (auditoria do que o time fez pelo painel).'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
@@ -11577,8 +11594,8 @@ const NAVCAT=[
   ['analytics','📈 Analytics','Análise','governanca 26 visoes graficos desvios'],
   ['gestao','🛠 Gestão de Tickets','Gestão','massa atribuir status transferir epico duplicados excluir'],
   ['alertas','🚨 Alertas','Gestão','central atrasados vencidos reprogramar'],
-  ['reclassificar','🔀 Reclassificar','Gestão','mover reunioes projeto'],
-  ['reuvinc','🔗 Vincular Reuniões','Gestão','teams tickets ams apoio reuniao'],
+  ['reclassificar','🗂 Reuniões — Reclassificar','Gestão','mover reunioes projeto gestao reuniao'],
+  ['reuvinc','🗂 Reuniões — Vincular a tickets','Gestão','teams tickets ams apoio reuniao vincular gestao'],
   ['ams','AMS','Gestão','ciclo faturado banco horas chamados'],
   ['receita','💰 Receita','Gestão','bolsa horas projetos consumo contratado'],
   ['config','⚙️ Central de configurações','Configurações','config ajustes'],
@@ -11639,6 +11656,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-28','🗂 <b>Reuniões — gestão e reclassificação numa tela só</b>: as antigas telas "Reclassificar" e "Vincular Reuniões" viraram <b>uma única tela com abas</b> (menu Gestão → 🗂 Reuniões): <b>🔀 Reclassificar</b> (mover reuniões de projeto) e <b>🔗 Vincular a tickets</b> (virar apoio AMS ou comentário e excluir a reunião) — mesma lista, sem trocar de menu. Os links antigos continuam funcionando.'],
+  ['2026-07-28','📣 <b>Avisos de melhorias no Teams</b>: a cada atualização publicada, um cartão com as novidades sai no canal <b>Avisos Gerais</b> marcando o time.'],
   ['2026-07-27','📤 <b>Minha Semana agora tem APROVAÇÃO</b> — o processo ficou explícito na tela: 1️⃣ Alocação (macro, por período) → 2️⃣ validação da semana → 3️⃣ <b>seu plano</b> → 4️⃣ <b>aprovação do gestor</b>. Monte o plano e clique <b>📤 Enviar para aprovação</b>; o gestor aprova/recusa (com motivo) na Alocação → 📆 Semanas, e o status (✏️/📤/✅/❌) aparece grande na tela. Plano enviado/aprovado fica travado (dá para reabrir).'],
   ['2026-07-27','📋 <b>Minha Semana por PROJETO + rotinas + criar ticket</b>: o plano virou <b>cartões por projeto</b> com "＋ atribuir item" (seus tickets do projeto) e <b>"🆕 criar item"</b> (cria o ticket no Jira já dentro do plano); itens <b>🔁 rotina diária</b> valem <b>h/dia</b> e sensibilizam igualmente todos os dias úteis; ticket <b>sem data</b> que entra no plano <b>assume a sexta-feira</b> da semana (gravado no Jira); a lista de tickets mostra o <b>resumo em destaque</b> e ganhou filtros <b>⚠ vencidos</b> e <b>⏱ com horas</b>.'],
   ['2026-07-27','📋 <b>Minha Semana — planeje a sua semana em 2 cliques</b>: nova tela (👤 Meu trabalho) onde você distribui as <b>horas alocadas</b> da semana entre os <b>seus tickets do Jira</b> — a lista mostra vencimento, prioridade, estimativa restante e horas gastas; o <b>+</b> adiciona com sugestão de horas, chips 1h/2h/4h/8h ajustam, barras mostram planejado × alocado por projeto e tudo <b>salva sozinho</b>. Durante a semana você acompanha <b>plano × apontado</b> por ticket (com "apontado fora do plano"). Dá para <b>⧉ copiar a semana passada</b>.'],
@@ -11705,7 +11724,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-27.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-28.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -12296,7 +12315,7 @@ document.getElementById('btn-csv').addEventListener('click', exportaCSV);
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reclassificar',reuvinc:'Vincular Reuniões a Tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook',minhasemana:'Minha Semana — plano semanal'};
+    reclassificar:'Reuniões — gestão e reclassificação',reuvinc:'Reuniões — vincular a tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook',minhasemana:'Minha Semana — plano semanal'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;

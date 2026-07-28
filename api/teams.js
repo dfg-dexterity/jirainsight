@@ -322,6 +322,25 @@ async function montaResumoIA(cfg, extras, removidos, hoje, freq) {
   return { cartao: cartaoAdaptive(blocos), de, ate, stats: { pessoas: pessoas.length, horas: +(horasTot / 3600).toFixed(1) } };
 }
 
+// ---- 📣 Aviso de melhorias no canal "Avisos Gerais" (acordo de 2026-07-28) ----
+// Adaptive Card com as melhorias entregues + MENÇÃO a todos os usuários ativos do
+// Jira (webhook/fluxo de canal não expõe a lista de membros; a equipe ativa do Jira
+// é o mesmo público). Menções via msteams.entities funcionam em cartões postados
+// por webhook/Workflows quando o id é o e-mail (UPN) da pessoa.
+function cartaoAviso(titulo, linhas, link, mencoes) {
+  const body = [
+    { type: 'TextBlock', size: 'Large', weight: 'Bolder', wrap: true, text: `📣 ${titulo}` },
+    ...linhas.map((t) => ({ type: 'TextBlock', wrap: true, text: `• ${t}` })),
+    ...(link ? [{ type: 'TextBlock', wrap: true, text: `[Abrir o painel](${link})` }] : []),
+    ...(mencoes.length ? [{ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'Medium', size: 'Small',
+      text: mencoes.map((m) => `<at>${m.nome}</at>`).join(' ') }] : []),
+  ];
+  return { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: {
+    $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard', version: '1.4', body,
+    msteams: { width: 'Full', entities: mencoes.map((m) => ({ type: 'mention', text: `<at>${m.nome}</at>`, mentioned: { id: m.id, name: m.nome } })) },
+  } }] };
+}
+
 async function enviaCartao(webhook, cartao) {
   const r = await fetch(webhook, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartao),
@@ -340,6 +359,29 @@ export default async function handler(req, res) {
     const webhook = process.env.TEAMS_WEBHOOK_URL || '';
     const q = req.query || {};
     const dry = q.dry === '1';
+
+    // ---- 📣 Aviso de melhorias (POST {aviso:{titulo,linhas[,link]}} ou GET ?tipo=aviso&dry=1) ----
+    // Publica no canal "Avisos Gerais" (env TEAMS_AVISOS_WEBHOOK_URL; cai no webhook
+    // padrão se ausente) marcando todos os usuários ativos do Jira.
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    if (b.aviso || q.tipo === 'aviso') {
+      const av = b.aviso || {};
+      const titulo = String(av.titulo || 'Novidades no Insights de Uso').slice(0, 150);
+      const linhas = Array.isArray(av.linhas) ? av.linhas.map((x) => String(x).slice(0, 400)).slice(0, 12) : [];
+      if (!linhas.length && !dry) return json(res, 400, { erro: 'Envie aviso.linhas (lista com as melhorias).' });
+      const wAv = process.env.TEAMS_AVISOS_WEBHOOK_URL || webhook;
+      if (!wAv && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_AVISOS_WEBHOOK_URL não configurada — crie um fluxo/webhook de entrada no canal Avisos Gerais e defina a env na Vercel.' });
+      let mencoes = [];
+      try {
+        const us = await jiraUsuariosAtivos();
+        mencoes = Object.values(us || {}).filter((u) => u.email).slice(0, 40).map((u) => ({ id: u.email, nome: u.nome || u.email }));
+      } catch (e) { /* sem menções é melhor que não avisar */ }
+      const cartao = cartaoAviso(titulo, linhas, String(av.link || 'https://jirainsight.vercel.app'), mencoes);
+      if (dry) return json(res, 200, { enviado: false, dry: true, mencionados: mencoes.length, cartao });
+      const env = await enviaCartao(wAv, cartao);
+      return json(res, 200, { enviado: env.ok, status: env.status, mencionados: mencoes.length, ...(env.ok ? {} : { erro: env.erro }) });
+    }
+
     if (!webhook && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
 
     const cfg = await configCompartilhada();
