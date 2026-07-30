@@ -236,6 +236,8 @@
   .ms-filtros{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px}
   .ms-filtros input[type=search]{flex:1;min-width:160px;padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
   .reu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
+  .rv-transf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px}
+  .rv-transf input{padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
   .ms-proc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 10px;padding:8px 10px;border:1px dashed var(--linha);border-radius:10px;font-size:12.5px}
   .ms-pstep{color:var(--muted);white-space:nowrap}
   .ms-pstep.ms-pon{color:inherit;font-weight:700;background:var(--hoverbg);padding:2px 8px;border-radius:8px}
@@ -1761,7 +1763,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:false },
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:false, recDet:{}, recDetB:{} },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
   // (histórias vão direto no épico; sub-tarefas vão dentro da história escolhida).
@@ -5579,36 +5581,8 @@ function renderApontar(){
       if(estado.vista==='apontar') renderApontar();
     }).catch(()=>{ ap.recCarr=false; ap.recentes=[]; });
   }
-  const recRow=(r)=>{
-    const tk=todos.find(t=>t.k===r.k);
-    const resumoTk=r.resumo||((tk&&tk.resumo)||'')||((typeof resumosUnidos==='function'&&resumosUnidos()[r.k])||'');
-    return `<div class="ap-row ap-rec" data-k="${escA(r.k)}">
-      <div class="ap-l1">
-        <a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener">${esc(r.k)} ↗</a>
-        <span class="ap-resumo">${esc(resumoTk)}</span>
-        <span class="spacer"></span>
-        <span class="badge codigo-proj" data-tip="${escA(nomeProj(r.p))}">${esc(r.p)}</span>
-        <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
-        <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>
-      </div>
-      <div class="ap-log">
-        <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
-        <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
-        <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
-        <input type="text" class="ap-coment" placeholder="comentário (opcional)" aria-label="Comentário">
-        <button class="btn primario" data-ap-key="${escA(r.k)}">Apontar</button>
-        <div class="ap-fb" hidden></div>
-      </div>
-    </div>`;
-  };
-  const recs=ap.recentes||[];
-  const blocoRecentes = (id && id.accountId && (recs.length||ap.recCarr)) ? `
-    <div class="card full">
-      <h2><button class="ap-rec-tgl" id="ap-rec-toggle" aria-expanded="${!ap.recFechado}">${ap.recFechado?'▸':'▾'}</button>
-        🕑 Meus tickets recentes <span>onde você apontou nos últimos 14 dias — reaponte com 1 clique</span></h2>
-      ${ap.recFechado?'' : (ap.recCarr?'<div class="muted small">Carregando seus apontamentos recentes…</div>'
-        : `<div class="ap-lista">${recs.map(recRow).join('')}</div>`)}
-    </div>` : '';
+  // (recRow/blocoRecentes agora vivem DEPOIS da linhaTicket — os recentes reusam a
+  //  linha completa do apontamento rápido; ver "🕑 Meus tickets recentes" abaixo.)
 
   // ---- Barra de filtros ----
   const chipsData=[['Hoje',hoje],['Amanhã',somaDias(hoje,1)],['+7 dias',somaDias(hoje,7)]];
@@ -5666,7 +5640,7 @@ function renderApontar(){
   const respBtn=(t)=> t.resp
     ? `<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
     : `<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`;
-  const linhaTicket=(t)=>{
+  const linhaTicket=(t,extras)=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
@@ -5685,7 +5659,7 @@ function renderApontar(){
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
         <span class="spacer"></span>
-        ${pilulaHoras(t.seg)}
+        ${pilulaHoras(t.seg)}${extras||''}
       </div>
       <div class="ap-l2">
         <span class="badge tipo-badge" data-tip="Tipo: ${escA(t.t)}">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t)}</span>
@@ -5701,6 +5675,35 @@ function renderApontar(){
       ${logCtrl}
     </div>`;
   };
+  // ---- 🕑 Meus tickets recentes: MESMAS funcionalidades do apontamento rápido ----
+  // Reusa a linhaTicket (status, reagendar, responsável, comentar, mover, vincular,
+  // chips e apontar). Ticket fora da lista de abertos (ex.: concluído ou vencendo
+  // longe) busca a ficha completa via ?detalhe= e entra com tudo também.
+  const recRow=(r)=>{
+    const selo=`<span class="badge codigo-proj" data-tip="${escA(nomeProj(r.p))}">${esc(r.p)}</span>
+      <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
+      <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>`;
+    const tk=todos.find(t=>t.k===r.k) || ap.recDet[r.k];
+    if(tk) return linhaTicket(tk, selo);
+    if(!ap.recDetB[r.k]){ ap.recDetB[r.k]=true;
+      fetch(`/api/vencimentos?detalhe=${encodeURIComponent(r.k)}`).then(x=>x.json()).then(j=>{
+        ap.recDet[r.k]=(j&&j.k)?j:{ k:r.k, resumo:r.resumo||'', p:r.p||'', t:'', tIcon:'', status:'', venc:'', resp:'', respId:'', prio:'', prioIcon:'', seg:r.seg||0, est:0 };
+        if(estado.vista==='apontar') renderApontar();
+      }).catch(()=>{ ap.recDetB[r.k]=false; });
+    }
+    return `<div class="ap-row ap-rec" data-k="${escA(r.k)}"><div class="ap-l1">
+      <a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener">${esc(r.k)} ↗</a>
+      <span class="ap-resumo">${esc(r.resumo||'')}</span><span class="spacer"></span>${selo}
+      <span class="muted small">carregando a ficha…</span></div></div>`;
+  };
+  const recs=ap.recentes||[];
+  const blocoRecentes = (id && id.accountId && (recs.length||ap.recCarr)) ? `
+    <div class="card full">
+      <h2><button class="ap-rec-tgl" id="ap-rec-toggle" aria-expanded="${!ap.recFechado}">${ap.recFechado?'▸':'▾'}</button>
+        🕑 Meus tickets recentes <span>onde você apontou nos últimos 14 dias — com as mesmas ações do apontamento rápido</span></h2>
+      ${ap.recFechado?'' : (ap.recCarr?'<div class="muted small">Carregando seus apontamentos recentes…</div>'
+        : `<div class="ap-lista">${recs.map(recRow).join('')}</div>`)}
+    </div>` : '';
   // ---- Tabela (visão densa para leitura) ----
   const htmlTabela=()=>{
     const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
@@ -11077,6 +11080,11 @@ function renderReuVinc(){
         <div class="campo"><label>Buscar</label><input type="search" id="rv-busca" placeholder="código, resumo…" value="${escA(rv.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="rv-refresh">Atualizar lista</button></div>
       </div>
+      <div class="rv-transf">
+        <span class="muted small"><b>🔁 Transferir OUTRO ticket</b> (qualquer tipo, não só reunião): informe o número — o assistente copia os detalhes para um ticket novo ou existente, <b>vincula o esforço (horas)</b> ao destino e <b>exclui o original</b>.</span>
+        <input type="text" id="rv-transf-key" placeholder="ex.: TAD-123" maxlength="20" style="width:130px;text-transform:uppercase">
+        <button class="btn primario" data-rv-transf="1">Transferir →</button>
+      </div>
       ${d.tickets.length?`<div class="ts-wrap"><table class="rc-tab"><thead><tr><th>Reunião</th><th>Resumo</th><th>Status</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="4" class="muted small">Nada com esse filtro.</td></tr>'}</tbody></table></div>`
         :`<div class="estado">${esc(d.aviso||`Nenhuma reunião aberta em ${d.projeto}.`)}</div>`}
     </div></div>`));
@@ -11656,6 +11664,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-30','🕑 <b>Meus tickets recentes com TODAS as ações do apontamento rápido</b>: na tela ⏱ Apontar, os recentes agora têm status (mover), reagendar vencimento, transferir responsável, 💬 comentar, 🔀 mover de projeto, 🔗 vincular e o apontamento completo (chips + comentário) — mesmo para tickets <b>já concluídos</b> (a ficha é buscada na hora). Os selos "você: Xh" e "último apontamento" continuam.'],
+  ['2026-07-30','🔁 <b>Transferir QUALQUER ticket pelo número</b>: na tela 🗂 Reuniões → aba Vincular, informe a chave (ex.: TAD-123) e o assistente copia os detalhes para um ticket novo ou existente, <b>vincula o esforço (horas)</b> ao destino e <b>exclui o original</b> — não é mais só para reuniões.'],
   ['2026-07-28','🗂 <b>Reuniões — gestão e reclassificação numa tela só</b>: as antigas telas "Reclassificar" e "Vincular Reuniões" viraram <b>uma única tela com abas</b> (menu Gestão → 🗂 Reuniões): <b>🔀 Reclassificar</b> (mover reuniões de projeto) e <b>🔗 Vincular a tickets</b> (virar apoio AMS ou comentário e excluir a reunião) — mesma lista, sem trocar de menu. Os links antigos continuam funcionando.'],
   ['2026-07-28','📣 <b>Avisos de melhorias no Teams</b>: a cada atualização publicada, um cartão com as novidades sai no canal <b>Avisos Gerais</b> marcando o time.'],
   ['2026-07-27','📤 <b>Minha Semana agora tem APROVAÇÃO</b> — o processo ficou explícito na tela: 1️⃣ Alocação (macro, por período) → 2️⃣ validação da semana → 3️⃣ <b>seu plano</b> → 4️⃣ <b>aprovação do gestor</b>. Monte o plano e clique <b>📤 Enviar para aprovação</b>; o gestor aprova/recusa (com motivo) na Alocação → 📆 Semanas, e o status (✏️/📤/✅/❌) aparece grande na tela. Plano enviado/aprovado fica travado (dá para reabrir).'],
@@ -11724,7 +11734,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-28.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-30.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -12776,6 +12786,14 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   const rv=estado.reuvinc;
   if(t.id==='rv-retry'){ rv.erro=''; rv.dados=null; renderReuVinc(); }
   else if(t.id==='rv-refresh'){ rv.dados=null; carregaReuVinc(true); }
+  // 🔁 Transferir OUTRO ticket (qualquer tipo) pelo número: mesmo assistente da
+  // Gestão (copia detalhes, vincula o esforço ao destino e EXCLUI o original).
+  else if(t.hasAttribute('data-rv-transf')){
+    const inp=document.getElementById('rv-transf-key');
+    const k=String((inp&&inp.value)||'').trim().toUpperCase();
+    if(!/^[A-Z][A-Z0-9]*-\d+$/.test(k)){ toast('Informe a chave do ticket (ex.: TAD-123).','warn'); if(inp) inp.focus(); return; }
+    if(!idApontar()){ abreIdentidade(); return; }
+    abreRvWizard(k, true); return; }
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   const t=e.target; if(!t) return;
