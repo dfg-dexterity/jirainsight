@@ -1144,6 +1144,13 @@
   .hx-atalho:hover{box-shadow:0 0 2px rgba(34,54,73,.10),0 6px 18px rgba(34,54,73,.13);transform:translateY(-2px)}
   .hx-atalho b{font-size:13.5px}
   .ax-fontes{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin:2px 0 12px;flex-wrap:wrap}
+  /* Agenda — 🎫 controle de tickets das reuniões */
+  .ag-ct-head,.ag-ct-row{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1.2fr) minmax(160px,1.4fr) minmax(120px,auto);gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--linha)}
+  .ag-ct-head{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom-width:2px}
+  .ag-ct-row:last-child{border-bottom:0}
+  .ag-ct-ok{color:#107E3E;font-weight:600} .ag-ct-pend{color:#C77700;font-weight:600}
+  :root[data-theme="dark"] .ag-ct-ok{color:#4C9F70} :root[data-theme="dark"] .ag-ct-pend{color:#F0C674}
+  @media (max-width:720px){ .ag-ct-head{display:none} .ag-ct-row{grid-template-columns:1fr;gap:2px} .ag-ct-row>div{text-align:left!important} }
   /* Gestão de Tickets — seleção múltipla + ações em massa */
   .gx-bar{position:sticky;bottom:10px;z-index:8;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
     border:1px solid var(--cerceta);border-radius:12px;background:var(--cartao);box-shadow:0 6px 18px rgba(0,0,0,.15);padding:9px 14px;margin-top:12px}
@@ -2890,14 +2897,18 @@ function agAtualizaModal(){
   let pessoasHtml='<span class="muted small">Carregando pessoas…</span>';
   if(usu){
     const porEmail={}; Object.entries(usu).forEach(([acc,u])=>{ if(u.email) porEmail[String(u.email).toLowerCase()]={acc,nome:u.nome}; });
+    // Só pessoas INTERNAS (com conta ativa no Jira) entram na lista de convites —
+    // participantes externos (cliente/fora da Dexterity) não apontam horas aqui.
+    let externos=0;
     const linhas=(ev.pessoas||[]).map(p=>{
       const j=porEmail[p.email];
       if(p.email===meuEmail) return `<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(p.nome||p.email)} <span class="muted small">(você — o convite aponta as suas horas automaticamente)</span></label>`;
-      if(!j) return `<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(p.nome||p.email)} <span class="muted small">(fora do Jira)</span></label>`;
+      if(!j){ externos++; return ''; }
       const chk=primeira?true:marcados.has(j.acc);
       return `<label class="check"><input type="checkbox" data-agm-p="${escA(j.acc)}" data-agm-nome="${escA(j.nome)}" ${chk?'checked':''}> ${esc(j.nome)}</label>`;
-    }).join('');
-    pessoasHtml=linhas||'<span class="muted small">O evento não tem convidados além de você.</span>';
+    }).filter(Boolean).join('');
+    pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno além de você.</span>')
+      +(externos?`<div class="muted small" style="margin-top:6px">👤 ${externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
     m.prechecked=true;
   }
   const hFmt=fmtH(agDuracaoSeg(ev));
@@ -3415,10 +3426,35 @@ function renderAgenda(){
   const meuDom=String(((idApontar()||{}).email||'')).split('@')[1]||'';
   const orgExt=(ev)=>{ const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase();
     return !!oe && !!meuDom && !oe.endsWith('@'+meuDom); };
-  // 📣 Pendências: todo evento não particular precisa de ticket — os SEUS (você organizou)
-  // e os de organizador EXTERNO (qualquer um da empresa que está no invite pode criar).
+  // 🎫 Controle de tickets: todo evento não particular precisa de ticket. O painel
+  // mostra, POR REUNIÃO, quem deve criar (organizador; organizador externo → qualquer
+  // interno), se já foi criado (e por quem) e a ação de cada linha.
   const pend=agPendentes()||[];
-  const caixaPend=pend.length?`<div class="aviso" style="margin-bottom:12px">📣 <strong>Novo evento sem ticket:</strong> <b>${pend.length}</b> reunião(ões) sem ticket criado — as que <b>você organizou</b> e as de <b>organizador externo</b> (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.${pend.slice(0,5).map(ev=>`<div style="margin-top:6px">• ${esc(ev.titulo)} <span class="muted small">(${esc((ev.inicio||'').slice(0,10))}${orgExt(ev)?' · organizador externo':''})</span> <button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button></div>`).join('')}</div>`:'';
+  const naoPriv=evs.filter(ev=>!ev.privado);
+  const ctrlLinhas=naoPriv.map(ev=>{
+    const tk=agTicketDe(ev.id); const ext=orgExt(ev);
+    const orgNome=(ev.organizador&&(ev.organizador.nome||ev.organizador.email)||'').split(' ')[0];
+    const quem=ev.meu?'Você (organizou)':ext?'Organizador externo — qualquer interno cria':`${orgNome} (organizou)`;
+    const situ=tk
+      ?`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`
+      :`<span class="ag-ct-pend">⚠ pendente</span>`;
+    const acao=tk
+      ?(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')
+      :((ev.meu||ext)?`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>`
+        :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span>`);
+    return `<div class="ag-ct-row">
+      <div><strong>${esc(ev.titulo)}</strong> <span class="muted small">· ${esc((ev.inicio||'').slice(0,10))}</span></div>
+      <div class="muted small" data-tip="Quem deve criar o ticket desta reunião">${esc(quem)}</div>
+      <div>${situ}</div>
+      <div style="text-align:right">${acao}</div></div>`;
+  }).join('');
+  const caixaPend=naoPriv.length?`<div class="card full" style="margin-bottom:12px">
+    <h2>🎫 Controle de tickets <span>quem cria o ticket de cada reunião e o que ainda falta — 🔒 particulares ficam de fora</span></h2>
+    ${pend.length?`<div class="aviso" style="margin:6px 0 8px">📣 <strong>Novo evento sem ticket:</strong> <b>${pend.length}</b> reunião(ões) dependem de <b>você</b> criar o ticket — as que <b>você organizou</b> e as de <b>organizador externo</b> (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.</div>`
+      :'<div class="muted small" style="margin:4px 0 8px">✅ Nenhuma pendência sua — o que falta está com quem organizou.</div>'}
+    <div class="ag-ct-head"><span>Reunião</span><span>Quem cria</span><span>Situação</span><span></span></div>
+    ${ctrlLinhas}
+  </div>`:'';
   const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
   const dias=Object.keys(porDia).sort();
   const blocos=dias.map(dia=>{
@@ -3446,7 +3482,7 @@ function renderAgenda(){
   cont.replaceChildren(el(`<div>
     <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
       <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
-        <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos${d.nOcultos?` (${d.nOcultos} oculto(s))`:''}</span>
+        <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos (menos na agenda de quem organizou)${d.nOcultos?` · ${d.nOcultos} oculto(s)`:''}</span>
         <span class="spacer"></span><button class="btn" data-ag-refresh title="Rebuscar a agenda ignorando o cache">⟳ Atualizar</button></div>
       ${evs.length?'':'<div class="estado" style="margin-top:10px">Nenhum evento no período.</div>'}
     </div>
@@ -4119,6 +4155,11 @@ function renderAcoes(){
   ];
   const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas — busca completa no 🔍 (Ctrl+K)</span></h2>
     <div class="hx-atalhos">${ATALHOS.map(([v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span></div>`).join('')}</div></div>`;
+  // 🌳 A árvore de decisão TAMBÉM na home — mesmo estado da vista 'ondecrio'.
+  const cardArv=`<div class="card full" style="margin-top:14px">
+    <h2>🌳 Onde crio meu ticket? <span>responda e crie no lugar certo — sem sair daqui</span></h2>
+    <div id="arv-home">${arvHTML()}</div>
+  </div>`;
   cont.replaceChildren(el(`<div>
     ${heroHtml}
     <div class="card full" style="margin-top:14px">
@@ -4126,6 +4167,7 @@ function renderAcoes(){
       <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><button class="btn" data-hx-goto="visao">📊 Painel executivo completo →</button></div>
       <div class="ax-grid">${CARDS.map(cardHtml).join('')}</div>
     </div>
+    ${cardArv}
     ${atalhosHtml}
     ${cardNov}</div>`));
 }
@@ -6807,7 +6849,22 @@ const ARV_NOS={
   ams_parceria:{ q:'O AMS é por parceria?',
     helper:'Atendimentos AMS executados por meio de uma consultoria PARCEIRA têm projeto próprio (DAMS | Consultorias Parceiras). AMS direto com o cliente segue no projeto do cliente.',
     op:[ {label:'Sim, é via consultoria parceira', next:'ams_dams', tone:'teal'},
-      {label:'Não, é AMS direto com o cliente', next:'ams', tone:'grafite'} ] },
+      {label:'Não, é AMS direto com o cliente', next:'ams_natureza', tone:'grafite'} ] },
+  ams_natureza:{ q:'É uma reunião de alinhamento ou uma atividade administrativa?',
+    helper:'Reuniões de alinhamento e atividades administrativas do AMS não consomem o pacote do contrato — o ticket nasce no projeto AMS do cliente, mas com o TIPO "não faturável". Atendimentos normais do contrato seguem faturáveis.',
+    op:[ {label:'Não — é atendimento do contrato', next:'ams', tone:'teal', desc:'Incidente, atendimento recorrente, pequena melhoria ou suporte — consome o pacote (faturável).'},
+      {label:'Reunião de alinhamento', next:'ams_reuniao', tone:'orange', desc:'Alinhamento com o cliente ou interno sobre o contrato — vira REUNIÃO NÃO FATURÁVEL.'},
+      {label:'Atividade administrativa', next:'ams_admin', tone:'orange', desc:'Gestão do contrato, relatórios, organização interna — vira TAREFA NÃO FATURÁVEL.'} ] },
+  ams_reuniao:{ result:true, tone:'orange', badge:'AMS — Reunião não faturável', title:'Abrir no projeto AMS do cliente como REUNIÃO NÃO FATURÁVEL', cria:true, filtro:'ams', tipoNaoFat:'reuniao',
+    text:'Reuniões de alinhamento do AMS são registradas no projeto AMS do cliente com o tipo "Reunião não faturável" — ficam fora da apuração do pacote (a apuração usa o TIPO do chamado como fonte de verdade).',
+    bullets:['O tipo do ticket já vem selecionado como o de REUNIÃO NÃO FATURÁVEL do projeto (ajuste se o projeto usar outro nome).',
+      'Só as horas de tipos faturáveis consomem o pacote/excedente do contrato.',
+      'Descreva no resumo o assunto do alinhamento e quem participou.'] },
+  ams_admin:{ result:true, tone:'orange', badge:'AMS — Tarefa não faturável', title:'Abrir no projeto AMS do cliente como TAREFA NÃO FATURÁVEL', cria:true, filtro:'ams', tipoNaoFat:'tarefa',
+    text:'Atividades administrativas do AMS (gestão do contrato, relatórios, organização interna) são registradas no projeto AMS do cliente com o tipo "Tarefa não faturável" — fora da apuração do pacote.',
+    bullets:['O tipo do ticket já vem selecionado como o de TAREFA NÃO FATURÁVEL do projeto (ajuste se o projeto usar outro nome).',
+      'Só as horas de tipos faturáveis consomem o pacote/excedente do contrato.',
+      'Se a atividade não é de um contrato AMS específico, volte e use "Nenhum destes" → tarefa administrativa (TAD).'] },
   ams_dams:{ result:true, tone:'teal', badge:'AMS — Parceria', title:'Abrir no projeto DCP | Consultorias Parceiras', cria:true, filtro:'ams', soProjeto:'DCP', camposAms:true,
     text:'Atendimentos AMS feitos por meio de consultorias parceiras nascem SEMPRE no projeto DCP (DAMS | Consultorias Parceiras).',
     bullets:['O projeto é fixo: DCP (único permitido neste caminho).',
@@ -6941,12 +6998,17 @@ function arvProjetosSugeridos(filtro, catRe){
   return [];
 }
 
-function renderOndeCrio(){
-  const cont=document.getElementById('conteudo');
+// A árvore vive na vista 'ondecrio' E embutida na home (#arv-home) — arvHTML monta
+// o miolo (MESMO estado nos dois lugares) e arvRender re-renderiza onde ela estiver.
+function arvRender(){
+  if(estado.vista==='ondecrio') return renderOndeCrio();
+  const c=document.getElementById('arv-home'); if(c) c.innerHTML=arvHTML();
+}
+function arvHTML(){
   const a=arvEstado(); const id=idApontar();
   // Catálogo de projetos (para as sugestões e o formulário do último passo).
   if(!_projetosCache){
-    garanteProjetos().then(()=>{ if(estado.vista==='ondecrio') renderOndeCrio(); }).catch(()=>{});
+    garanteProjetos().then(()=>{ arvRender(); }).catch(()=>{});
   }
   const no=ARV_NOS[a.no]||ARV_NOS.start;
   // Breadcrumbs clicáveis: cada passo volta para a PERGUNTA daquele ponto.
@@ -7022,10 +7084,10 @@ function renderOndeCrio(){
           fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
             pl2.carregandoEpicos=false;
             pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
-            if(estado.vista==='ondecrio') renderOndeCrio();
+            arvRender();
           }).catch(e2=>{ pl2.carregandoEpicos=false;
             pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
-            if(estado.vista==='ondecrio') renderOndeCrio(); });
+            arvRender(); });
         }
         let selEp;
         if(!f.projeto) selEp='<select disabled><option>escolha o projeto</option></select>';
@@ -7054,10 +7116,10 @@ function renderOndeCrio(){
           fetch(`/api/projetos?consultorias=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
             pl3.carregandoCons=false;
             pl3.amsConsPorProj[f.projeto]=j&&j.opcoes?j:{opcoes:[],erro:(j&&j.erro)||'resposta inesperada'};
-            if(estado.vista==='ondecrio') renderOndeCrio();
+            arvRender();
           }).catch(e3=>{ pl3.carregandoCons=false;
             pl3.amsConsPorProj[f.projeto]={opcoes:[],erro:String(e3.message||e3)};
-            if(estado.vista==='ondecrio') renderOndeCrio(); });
+            arvRender(); });
         }
         let selCons, selCli;
         if(!f.projeto){ selCons='<select disabled><option>escolha o projeto</option></select>'; selCli=selCons; }
@@ -7088,6 +7150,20 @@ function renderOndeCrio(){
         const tf=REF?tipos.find(t2=>REF.test(t2.nome||'')):null;
         if(tf) f.tipoId=tf.id;
       }
+      // Folha AMS não faturável: pré-seleciona o TIPO "não faturável" do projeto
+      // (reunião ou tarefa) pelo nome — a apuração usa o tipo como fonte de verdade.
+      let avisoNF='';
+      if(no.tipoNaoFat){
+        const RE_NF=/n[aã]o.{0,4}fatur/i;
+        const cand=tipos.filter(t2=>RE_NF.test(t2.nome||''));
+        if(!f.tipoId){
+          const re=no.tipoNaoFat==='reuniao'?/reuni/i:/taref|ativid|admin/i;
+          const tf=cand.find(t2=>re.test(t2.nome||''))||cand[0];
+          if(tf) f.tipoId=tf.id;
+        }
+        if(tipos.length && !cand.length)
+          avisoNF=`<div class="muted small" style="color:#B45309;margin-top:4px">⚠ Este projeto não tem um tipo "não faturável" — escolha o mais próximo ou cadastre o tipo no Jira.</div>`;
+      }
       if(!tipos.some(t=>t.id===f.tipoId)) f.tipoId=(tipos[0]&&tipos[0].id)||'';
       const optTipos=tipos.length?tipos.map(t=>`<option value="${escA(t.id)}" ${f.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">—</option>';
       const pessoas=Object.entries(pessoasUnidas()).map(([ac,o])=>[ac,(o&&o.nome)||ac]).sort((x,y)=>x[1].localeCompare(y[1],'pt'));
@@ -7101,7 +7177,7 @@ function renderOndeCrio(){
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
           ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
-          <div class="campo"><label>Tipo${no.tipoPorFreq&&f.freqAdm?` <span class="muted">(rotina ${esc(f.freqAdm)})</span>`:''}</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select></div>
+          <div class="campo"><label>Tipo${no.tipoPorFreq&&f.freqAdm?` <span class="muted">(rotina ${esc(f.freqAdm)})</span>`:''}${no.tipoNaoFat?' <span class="muted">(não faturável)</span>':''}</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select>${avisoNF}</div>
           <div class="campo"><label>Responsável</label><select class="arv-in" data-arv-f="respId">${optResp}</select></div>
           <div class="campo"><label>Vencimento <span class="muted">(opcional)</span></label><input type="date" class="arv-in" data-arv-f="venc" value="${escA(f.venc||'')}"></div>
         </div>
@@ -7143,12 +7219,16 @@ function renderOndeCrio(){
         ${a.hist.length?'<button class="btn" data-arv-reiniciar="1">Reiniciar</button>':''}
       </div>`;
   }
+  return `${corpo}
+      ${defs}`;
+}
+function renderOndeCrio(){
+  const cont=document.getElementById('conteudo');
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>🌳 Onde crio o ticket? <span>árvore de decisão — governança de tickets (TI-04-006)</span></h2>
       <div class="pl-dica">Responda as perguntas para descobrir <strong>onde o ticket deve nascer</strong> — no fim, crie o ticket ali mesmo, já no projeto certo e <strong>atribuído a você</strong>.</div>
-      ${corpo}
-      ${defs}
+      ${arvHTML()}
     </div>
   </div>`));
 }
@@ -7157,18 +7237,18 @@ async function arvCria(){
   const a=arvEstado(); const no=ARV_NOS[a.no]||{}; const f=a.form;
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   a.erro='';
-  if(!f.projeto){ a.erro='Escolha o projeto.'; renderOndeCrio(); return; }
-  if(no.filtro==='avulsa' && !(f.depto||'').trim()){ a.erro='Escolha o Departamento Dexterity (obrigatório nas tarefas avulsas).'; renderOndeCrio(); return; }
-  if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; renderOndeCrio(); return; }
+  if(!f.projeto){ a.erro='Escolha o projeto.'; arvRender(); return; }
+  if(no.filtro==='avulsa' && !(f.depto||'').trim()){ a.erro='Escolha o Departamento Dexterity (obrigatório nas tarefas avulsas).'; arvRender(); return; }
+  if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; arvRender(); return; }
   if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
-    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; renderOndeCrio(); return; }
+    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; arvRender(); return; }
   if(no.epico && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.epicoKey||'').trim().toUpperCase())){
-    a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; renderOndeCrio(); return; }
+    a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; arvRender(); return; }
   if(no.camposAms){
-    if(!f.amsConsId){ a.erro='Escolha a CONSULTORIA parceira (campo "AMS | Consultoria > Cliente" — obrigatório).'; renderOndeCrio(); return; }
-    if(!f.amsCliId){ a.erro='Escolha o CLIENTE da consultoria (campo "AMS | Consultoria > Cliente" — obrigatório).'; renderOndeCrio(); return; }
+    if(!f.amsConsId){ a.erro='Escolha a CONSULTORIA parceira (campo "AMS | Consultoria > Cliente" — obrigatório).'; arvRender(); return; }
+    if(!f.amsCliId){ a.erro='Escolha o CLIENTE da consultoria (campo "AMS | Consultoria > Cliente" — obrigatório).'; arvRender(); return; }
   }
-  if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; renderOndeCrio(); return; }
+  if(!(f.resumo||'').trim()){ a.erro='Escreva o resumo do ticket (objetivo claro — P1).'; arvRender(); return; }
   const depto=(no.filtro==='avulsa'?(f.depto||''):(no.depto||'')).trim();
   // Nomes da consultoria/cliente (folha AMS por parceria) para o rodapé de classificação.
   let consNome='', cliNome='';
@@ -7185,7 +7265,7 @@ async function arvCria(){
     paiKey: no.subtarefa ? (f.paiKey||'').trim().toUpperCase()
           : (no.epico ? (f.epicoKey||'').trim().toUpperCase() : ''),
     estimativa:'', labels:[], venc:f.venc||'', departamento:depto };
-  a.criando=true; renderOndeCrio();
+  a.criando=true; arvRender();
   try{
     const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({itens:[item],email:id.email,token:id.token})}).then(r=>r.json());
@@ -7197,7 +7277,7 @@ async function arvCria(){
       estado.cache={};
     } else a.erro=(j&&(j.erro||(j.erros&&j.erros[0]&&j.erros[0].erro)))||'Falha ao criar o ticket.';
   }catch(e){ a.criando=false; a.erro='Erro de rede: '+(e.message||e); }
-  renderOndeCrio();
+  arvRender();
 }
 
 function renderPlanejarForm(){
@@ -11963,6 +12043,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-30','🌳 <b>Árvore de decisão na página inicial + caminho AMS não faturável</b>: a árvore "Onde crio o ticket?" agora aparece direto no <b>Início</b> (mesmo passo a passo, sem trocar de tela) e, no <b>AMS direto com o cliente</b>, uma nova pergunta separa <b>reunião de alinhamento</b> e <b>atividade administrativa</b> — o ticket já nasce com o tipo <b>não faturável</b> certo, fora da apuração do pacote do contrato.'],
+  ['2026-07-30','📅 <b>Agenda: convites só com o time interno + 🎫 controle de tickets</b>: a lista de convites para apontar mostra apenas pessoas da <b>Dexterity</b> (participantes externos ficam de fora) e o novo painel <b>🎫 Controle de tickets</b> mostra, reunião por reunião, <b>quem deve criar</b> o ticket, se <b>já foi criado</b> (e por quem) ou o que segue <b>pendente</b>.'],
   ['2026-07-30','💠 <b>Cards no estilo SAP Fiori</b>: os cards da página inicial ganharam o visual dos apps Fiori — tiles claros com sombra suave, <b>número grande</b> colorido pela situação, <b>faixa inferior semântica</b> (verde ok · laranja atenção · vermelho crítico), ícone em marca-d\'água e ações como <b>links azuis</b>. Tudo no claro e no escuro.'],
   ['2026-07-30','🏠 <b>Nova página inicial — o seu dia num relance, tudo clicável</b>: a home agora abre em <b>Início</b> com cards ACIONÁVEIS: ⏱ <b>suas horas de hoje × meta</b> (com quanto falta), ⚠ <b>seus tickets vencidos</b> (1 clique abre o Apontar já filtrado), 📋 status do <b>seu plano da semana</b>, 📅 <b>reuniões sem ticket</b> e 📥 pendências do Inbox. Abaixo, as <b>ações do time</b> (a antiga tela) com atalho para o <b>📊 painel executivo completo</b> (Visão Geral) e uma grade <b>🚀 Ir para</b> com as telas mais usadas explicadas. Links antigos continuam funcionando.'],
   ['2026-07-30','📅 <b>Agenda v2 — projeto à escolha, vincular e convidar</b>: o ticket da reunião agora abre um assistente onde você <b>escolhe o projeto</b> (tipo Reunião ou o padrão do projeto) ou <b>vincula a um ticket existente</b> (os detalhes entram como comentário); dá para <b>👥 convidar os participantes</b> — casados por e-mail com o Jira — e cada um confirma o apontamento com 1 clique. <b>Todo evento não particular precisa de ticket</b>: quem organiza vê a caixa <b>📣 "novo evento sem ticket"</b>, e o vínculo evento→ticket agora é <b>compartilhado</b> (o convidado vê "criado por fulano"). Eventos 🔒 particulares ficam de fora da regra. E quando o <b>organizador é de fora da Dexterity</b> (reunião com cliente), <b>qualquer participante da empresa</b> pode criar o ticket — a pendência aparece para todos os convidados internos.'],
@@ -12037,7 +12119,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-30.5';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-30.6';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -13768,17 +13850,17 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
         a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId='';
         a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
       }
-      renderOndeCrio(); } }
+      arvRender(); } }
   else if(t.hasAttribute('data-arv-proj')){ const a=arvEstado();
-    a.form.projeto=t.getAttribute('data-arv-proj')||''; a.form.tipoId=''; a.erro=''; renderOndeCrio(); }
+    a.form.projeto=t.getAttribute('data-arv-proj')||''; a.form.tipoId=''; a.erro=''; arvRender(); }
   else if(t.hasAttribute('data-arv-trocaproj')){ const a=arvEstado();
-    a.form.projeto=''; a.form.tipoId=''; a.erro=''; renderOndeCrio(); }
+    a.form.projeto=''; a.form.tipoId=''; a.erro=''; arvRender(); }
   else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
-    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; renderOndeCrio(); }
+    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; arvRender(); }
   else if(t.hasAttribute('data-arv-bc')){ const a=arvEstado(); const i=+t.getAttribute('data-arv-bc');
     if(i<0){ a.no='start'; a.hist=[]; } else if(a.hist[i]){ a.no=a.hist[i].id; a.hist=a.hist.slice(0,i); }
-    a.erro=''; a.feito=null; renderOndeCrio(); }
-  else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); renderOndeCrio(); }
+    a.erro=''; a.feito=null; arvRender(); }
+  else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); arvRender(); }
   else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
   else if(t.hasAttribute('data-arv-aus')){ abreAusencia(t.getAttribute('data-arv-aus')); }
 });
@@ -13793,8 +13875,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
   else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
     a.form[c]=t.value;
-    if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId=''; renderOndeCrio(); }
-    else if(c==='amsConsId'){ a.form.amsCliId=''; renderOndeCrio(); } }
+    if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId=''; arvRender(); }
+    else if(c==='amsConsId'){ a.form.amsCliId=''; arvRender(); } }
   else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
   else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
   else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
