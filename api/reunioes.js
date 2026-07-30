@@ -126,7 +126,7 @@ async function agenda(req, res, b) {
   const de = agendaDiaSP(-1); const ate = agendaDiaSP(14);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
     + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
-    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink';
+    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity';
   // Segue @odata.nextLink para agendas com mais de 100 eventos no período (teto de 10 páginas).
   const valores = [];
   let prox = url;
@@ -153,6 +153,12 @@ async function agenda(req, res, b) {
     diaTodo: !!e.isAllDay,
     organizador: { nome: (e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.name) || '', email: orgDe(e) },
     participantes: (e.attendees || []).filter((a) => a.type !== 'resource').length,
+    // Quem foi convidado (para casar com os usuários do Jira e convidar a apontar).
+    pessoas: (e.attendees || []).filter((a) => a.type !== 'resource').slice(0, 20).map((a) => ({
+      nome: (a.emailAddress && a.emailAddress.name) || '',
+      email: String((a.emailAddress && a.emailAddress.address) || '').toLowerCase(),
+    })),
+    privado: e.sensitivity === 'private' || e.sensitivity === 'confidential',
     local: (e.location && e.location.displayName) || '',
     link: (e.onlineMeeting && e.onlineMeeting.joinUrl) || e.webLink || '',
     meu: orgDe(e) === email,

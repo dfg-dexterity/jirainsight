@@ -77,3 +77,7 @@ A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
 
 O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
 automaticamente a partir do array.
+
+Também manter o **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) em dia a cada
+entrega: mover itens entre fazendo/planejado/avaliação e acrescentar os novos
+pedidos do usuário (as entregas recentes vêm sozinhas do array NOVIDADES).
