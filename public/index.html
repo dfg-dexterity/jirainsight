@@ -3374,9 +3374,14 @@ function renderAgenda(){
     return;
   }
   const evs=d.eventos||[]; const hoje=projHoje();
-  // 📣 Pendências do ORGANIZADOR: todo evento não particular que VOCÊ organizou precisa de ticket.
-  const pend=evs.filter(ev=>ev.meu&&!ev.privado&&!agTicketDe(ev.id));
-  const caixaPend=pend.length?`<div class="aviso" style="margin-bottom:12px">📣 <strong>Novo evento sem ticket:</strong> você organizou <b>${pend.length}</b> reunião(ões) sem ticket criado — o time só consegue apontar depois que você criar e convidar.${pend.slice(0,5).map(ev=>`<div style="margin-top:6px">• ${esc(ev.titulo)} <span class="muted small">(${esc((ev.inicio||'').slice(0,10))})</span> <button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button></div>`).join('')}</div>`:'';
+  // Organizador EXTERNO (fora do domínio da empresa): qualquer participante interno cria.
+  const meuDom=String(((idApontar()||{}).email||'')).split('@')[1]||'';
+  const orgExt=(ev)=>{ const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase();
+    return !!oe && !!meuDom && !oe.endsWith('@'+meuDom); };
+  // 📣 Pendências: todo evento não particular precisa de ticket — os SEUS (você organizou)
+  // e os de organizador EXTERNO (qualquer um da empresa que está no invite pode criar).
+  const pend=evs.filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&(ev.meu||orgExt(ev)));
+  const caixaPend=pend.length?`<div class="aviso" style="margin-bottom:12px">📣 <strong>Novo evento sem ticket:</strong> <b>${pend.length}</b> reunião(ões) sem ticket criado — as que <b>você organizou</b> e as de <b>organizador externo</b> (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.${pend.slice(0,5).map(ev=>`<div style="margin-top:6px">• ${esc(ev.titulo)} <span class="muted small">(${esc((ev.inicio||'').slice(0,10))}${orgExt(ev)?' · organizador externo':''})</span> <button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button></div>`).join('')}</div>`:'';
   const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
   const dias=Object.keys(porDia).sort();
   const blocos=dias.map(dia=>{
@@ -3388,10 +3393,11 @@ function renderAgenda(){
       const priv=!!ev.privado;
       const selo=priv?'<span class="badge" data-tip="Evento particular — não precisa de ticket">🔒 particular</span>'
         :(tk?'':(ev.meu?'<span class="badge ms-b-atra" data-tip="Você organizou — crie o ticket para o time apontar">⚠ sem ticket</span>'
+          :orgExt(ev)?'<span class="badge ms-b-atra" data-tip="Organizador de fora da Dexterity — QUALQUER participante da empresa pode criar o ticket">⚠ sem ticket — organizador externo: quem participa cria</span>'
           :`<span class="badge ms-b-sem" data-tip="Quem organizou cria o ticket e envia os convites de apontamento">sem ticket — cabe a ${escA((ev.organizador.nome||ev.organizador.email||'').split(' ')[0])}</span>`));
       const acao=tk
         ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">✓ ${esc(tk.t)} ↗</a>${tk.por?`<div class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</div>`:''}${ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="Convidar (mais) participantes para apontar as horas desta reunião">👥 convidar</button>`:''}`
-        :`<button class="btn ${priv||!ev.meu?'':'primario'}" data-ag-criar="${escA(ev.id)}" data-tip="Escolha o projeto (ou vincule a um ticket existente) e convide os participantes para apontar">📝 Criar/vincular ticket</button>`;
+        :`<button class="btn ${priv||!(ev.meu||orgExt(ev))?'':'primario'}" data-ag-criar="${escA(ev.id)}" data-tip="Escolha o projeto (ou vincule a um ticket existente) e convide os participantes para apontar">📝 Criar/vincular ticket</button>`;
       return `<div class="ag-ev${dia<hoje?' ag-passado':''}">
         <div class="ag-hora">${esc(hora)}</div>
         <div class="ag-info"><strong>${esc(ev.titulo)}</strong> ${badge} ${selo}<br>
@@ -11839,7 +11845,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
-  ['2026-07-30','📅 <b>Agenda v2 — projeto à escolha, vincular e convidar</b>: o ticket da reunião agora abre um assistente onde você <b>escolhe o projeto</b> (tipo Reunião ou o padrão do projeto) ou <b>vincula a um ticket existente</b> (os detalhes entram como comentário); dá para <b>👥 convidar os participantes</b> — casados por e-mail com o Jira — e cada um confirma o apontamento com 1 clique. <b>Todo evento não particular precisa de ticket</b>: quem organiza vê a caixa <b>📣 "novo evento sem ticket"</b>, e o vínculo evento→ticket agora é <b>compartilhado</b> (o convidado vê "criado por fulano"). Eventos 🔒 particulares ficam de fora da regra.'],
+  ['2026-07-30','📅 <b>Agenda v2 — projeto à escolha, vincular e convidar</b>: o ticket da reunião agora abre um assistente onde você <b>escolhe o projeto</b> (tipo Reunião ou o padrão do projeto) ou <b>vincula a um ticket existente</b> (os detalhes entram como comentário); dá para <b>👥 convidar os participantes</b> — casados por e-mail com o Jira — e cada um confirma o apontamento com 1 clique. <b>Todo evento não particular precisa de ticket</b>: quem organiza vê a caixa <b>📣 "novo evento sem ticket"</b>, e o vínculo evento→ticket agora é <b>compartilhado</b> (o convidado vê "criado por fulano"). Eventos 🔒 particulares ficam de fora da regra. E quando o <b>organizador é de fora da Dexterity</b> (reunião com cliente), <b>qualquer participante da empresa</b> pode criar o ticket — a pendência aparece para todos os convidados internos.'],
   ['2026-07-30','🗺️ <b>Roadmap de funcionalidades</b> — nova página (Análise → 🗺️ Roadmap): o que está <b>em desenvolvimento</b>, <b>planejado</b> e <b>em avaliação</b>, mais as entregas recentes. Sugestões entram por ❓ Ajuda & feedback.'],
   ['2026-07-30','🕑 <b>Meus tickets recentes com TODAS as ações do apontamento rápido</b>: na tela ⏱ Apontar, os recentes agora têm status (mover), reagendar vencimento, transferir responsável, 💬 comentar, 🔀 mover de projeto, 🔗 vincular e o apontamento completo (chips + comentário) — mesmo para tickets <b>já concluídos</b> (a ficha é buscada na hora). Os selos "você: Xh" e "último apontamento" continuam.'],
   ['2026-07-30','🔁 <b>Transferir QUALQUER ticket pelo número</b>: na tela 🗂 Reuniões → aba Vincular, informe a chave (ex.: TAD-123) e o assistente copia os detalhes para um ticket novo ou existente, <b>vincula o esforço (horas)</b> ao destino e <b>exclui o original</b> — não é mais só para reuniões.'],
@@ -11911,7 +11917,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-30.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-30.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
