@@ -235,6 +235,10 @@
   .ms-add-ok{color:#166534;border-color:transparent;cursor:default;display:inline-flex;min-width:26px;height:26px;align-items:center;justify-content:center}
   .ms-filtros{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px}
   .ms-filtros input[type=search]{flex:1;min-width:160px;padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
+  .hx-atalhos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:8px}
+  .hx-atalho{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;background:var(--cardbg)}
+  .hx-atalho:hover{background:var(--hoverbg)}
+  .ax-card .track{height:8px}
   .reu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
   .rv-transf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px}
   .rv-transf input{padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
@@ -1607,8 +1611,8 @@
       <span class="nt-badge" id="nt-badge" hidden></span>
     </button>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
-      <button class="navtab" data-v="visao" aria-pressed="true"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
-      <button class="navtab" data-v="acoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>Ações de hoje</button>
+      <button class="navtab" data-v="acoes" aria-pressed="true"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🏠 Início</button>
+      <button class="navtab" data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
       <span id="nav-favs" style="display:contents"></span>
       <div class="navg">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
@@ -2940,8 +2944,8 @@ function carregaAgenda(forca){
     body:JSON.stringify({ agenda:1, email:id.email, token:id.token, nocache:forca?1:0 }) })
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
-      if(estado.vista==='agenda') renderAgenda(); })
-    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); });
+      if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes(); })
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
 async function agRdfTipoReuniao(){
@@ -2951,6 +2955,14 @@ async function agRdfTipoReuniao(){
   const t=rdf&&(rdf.tipos||[]).find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''));
   if(!t) throw new Error('Projeto RDF sem tipo de issue "Reunião" — não dá para criar o ticket.');
   ag.rdfTipo=t.id; return t.id;
+}
+// Eventos que PRECISAM de ticket e dependem de você: os seus e os de organizador
+// externo (qualquer participante interno cria). Null enquanto a agenda não carregou.
+function agPendentes(){
+  const d=estado.agenda&&estado.agenda.dados; if(!d||!Array.isArray(d.eventos)) return null;
+  const id=idApontar(); const meuDom=String((id&&id.email)||'').split('@')[1]||'';
+  const ext=(ev)=>{ const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase(); return !!oe&&!!meuDom&&!oe.endsWith('@'+meuDom); };
+  return d.eventos.filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&(ev.meu||ext(ev)));
 }
 function agRotuloDia(d){
   const hoje=projHoje();
@@ -3380,7 +3392,7 @@ function renderAgenda(){
     return !!oe && !!meuDom && !oe.endsWith('@'+meuDom); };
   // 📣 Pendências: todo evento não particular precisa de ticket — os SEUS (você organizou)
   // e os de organizador EXTERNO (qualquer um da empresa que está no invite pode criar).
-  const pend=evs.filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&(ev.meu||orgExt(ev)));
+  const pend=agPendentes()||[];
   const caixaPend=pend.length?`<div class="aviso" style="margin-bottom:12px">📣 <strong>Novo evento sem ticket:</strong> <b>${pend.length}</b> reunião(ões) sem ticket criado — as que <b>você organizou</b> e as de <b>organizador externo</b> (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.${pend.slice(0,5).map(ev=>`<div style="margin-top:6px">• ${esc(ev.titulo)} <span class="muted small">(${esc((ev.inicio||'').slice(0,10))}${orgExt(ev)?' · organizador externo':''})</span> <button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button></div>`).join('')}</div>`:'';
   const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
   const dias=Object.keys(porDia).sort();
@@ -4011,13 +4023,94 @@ function renderAcoes(){
     <div class="nov-lista" style="margin-top:6px">${novItens}</div>
     <div style="margin-top:12px"><button class="btn" data-nov-todas>Ver todas as novidades (${NOVIDADES.length})</button></div>
   </div>`;
+  // ---- 👋 SEU dia num relance (hero pessoal acionável) ----
+  const id=idApontar();
+  let heroHtml='';
+  const pcard=(cls,ic,t,corpo,goto,btn)=>`<div class="ax-card ${cls}"><div class="ax-top"><span>${ic}</span> ${esc(t)}</div>${corpo}<div class="ax-foot"><button class="btn ${(cls==='crit'||cls==='aten')?'primario':''}" data-hx-goto="${escA(goto)}">${esc(btn)}</button></div></div>`;
+  if(id&&id.accountId){
+    const acc=id.accountId;
+    const hSP=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date()));
+    const sauda=hSP<12?'Bom dia':hSP<18?'Boa tarde':'Boa noite';
+    const dataExt=new Intl.DateTimeFormat('pt-BR',{dateStyle:'full',timeZone:'America/Sao_Paulo'}).format(new Date());
+    // ⏱ suas horas de hoje × meta
+    const metaSeg=metaSegDe(acc)||8*3600;
+    const meuSeg=estado.tempo?(minhasHorasPorDia()[hoje]||0):null;
+    let cHoras;
+    if(meuSeg==null) cHoras=pcard('load','⏱','Suas horas de hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>','apontar','Apontar horas →');
+    else{ const falta=Math.max(0,metaSeg-meuSeg); const pc=Math.min(100,Math.round(meuSeg/metaSeg*100));
+      const cls=meuSeg>=metaSeg?'ok':(pc>=50?'aten':'crit');
+      cHoras=`<div class="ax-card ${cls}"><div class="ax-top"><span>⏱</span> Suas horas de hoje</div>
+        <div class="ax-num">${fmtH(meuSeg)} <span class="muted" style="font-size:14px;font-weight:400">de ${fmtH(metaSeg)}</span></div>
+        <div class="track" style="margin:4px 0 2px"><div class="fill" style="width:${pc}%;background:${meuSeg>=metaSeg?'#188918':'#E76500'}"></div></div>
+        <div class="ax-det">${falta?`faltam <b>${fmtH(falta)}</b> para a sua meta`:'meta do dia batida ✅'}</div>
+        <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora →':'Ver apontamentos →'}</button></div></div>`; }
+    // ⚠ meus tickets vencidos
+    const meusVenc=tks?tks.filter(t=>t.respId===acc&&t.venc&&t.venc<hoje).length:null;
+    const cVenc=meusVenc==null
+      ?pcard('load','⚠','Meus tickets vencidos','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','apontar-vencidos','Ver os meus →')
+      :pcard(meusVenc===0?'ok':(meusVenc>3?'crit':'aten'),'⚠','Meus tickets vencidos',
+        `<div class="ax-num">${meusVenc}</div><div class="ax-det">${meusVenc?'clique para resolver — abre o Apontar já filtrado':'nada vencido no seu nome 🎉'}</div>`,
+        'apontar-vencidos', meusVenc?'Resolver agora →':'Ver meus tickets →');
+    // 📋 seu plano da semana
+    const wAtual=semChave(hoje); const pn=msPlanoDe(acc,wAtual); const stP=msStatus(pn);
+    const itensP=msItens(acc,wAtual); const planH=msTotalItens(itensP,wAtual);
+    const stTxt={rascunho:itensP.length?'rascunho — envie para aprovação':'você ainda não planejou esta semana',
+      enviado:'enviado — aguardando aprovação', aprovado:'aprovado ✅', recusado:'recusado — ajuste e reenvie'}[stP];
+    const cPlano=pcard(stP==='aprovado'?'ok':stP==='recusado'?'crit':itensP.length&&stP!=='rascunho'?'ok':'aten','📋','Seu plano da semana',
+      `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt)}</div>`,'minhasemana', itensP.length?'Abrir Minha Semana →':'Planejar agora →');
+    // 📅 reuniões sem ticket
+    if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
+    const agp=agPendentes();
+    const agIndisp=estado.agenda.erro||(estado.agenda.dados&&estado.agenda.dados.configurado===false);
+    const cAg=agIndisp
+      ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">—</div><div class="ax-det">Agenda do Outlook indisponível</div>','agenda','Abrir Agenda →')
+      :agp==null
+        ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">…</div><div class="ax-det">Consultando o Outlook…</div>','agenda','Abrir Agenda →')
+        :pcard(agp.length===0?'ok':'aten','📅','Reuniões sem ticket',
+          `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'suas ou de organizador externo — crie para o time apontar':'agenda em dia ✅'}</div>`,
+          'agenda', agp.length?'Criar tickets →':'Abrir Agenda →');
+    // 📥 inbox
+    const nIb=(typeof inboxPend==='function')?inboxPend():0;
+    const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
+      `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
+    heroHtml=`<div class="card full">
+      <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
+      <div class="ax-grid" style="margin-top:8px">${cHoras}${cVenc}${cPlano}${cAg}${cIb}</div>
+    </div>`;
+  } else {
+    heroHtml=`<div class="card full"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance (horas, vencidos, plano da semana…)</span></h2>
+      <div style="margin-top:8px"><button class="btn primario" data-ap-act="config-id">Identificar-se (e-mail + token do Jira)</button></div></div>`;
+  }
+  // ---- 🚀 atalhos descritivos ----
+  const ATALHOS=[
+    ['minhasemana','📋 Minha Semana','planeje a semana nos seus tickets e envie para aprovação'],
+    ['apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
+    ['agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
+    ['projetos','📁 Projetos','BI por projeto direto do Jira, com drill-down'],
+    ['alocacao','🧑‍💼 Alocação (macro)','capacidade por período + validação e desvio semanal'],
+    ['analytics','📈 Analytics','26 visões de governança para investigar'],
+    ['gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],
+    ['roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
+  ];
+  const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas — busca completa no 🔍 (Ctrl+K)</span></h2>
+    <div class="hx-atalhos">${ATALHOS.map(([v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span></div>`).join('')}</div></div>`;
   cont.replaceChildren(el(`<div>
-    <div class="card full">
-      <h2>⚡ Ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora — clique em "Ver casos" para agir</span></h2>
-      <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><span class="muted small">variação ▲▼ = vs. o último dia de uso</span></div>
+    ${heroHtml}
+    <div class="card full" style="margin-top:14px">
+      <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
+      <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><button class="btn" data-hx-goto="visao">📊 Painel executivo completo →</button></div>
       <div class="ax-grid">${CARDS.map(cardHtml).join('')}</div>
-    </div>${cardNov}</div>`));
+    </div>
+    ${atalhosHtml}
+    ${cardNov}</div>`));
 }
+// Cliques da home (hero pessoal + atalhos)
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('[data-hx-goto]'); if(!t) return;
+  const g=t.getAttribute('data-hx-goto');
+  if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  vaiPara(g);
+});
 function renderVisao(){
   const cont=document.getElementById('conteudo');
   if(!estado.tempo || !estado.atividade){ cont.replaceChildren(el(skeletonPainel())); return; }
@@ -11674,7 +11767,7 @@ async function enviaFeedback(){
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade, tickets, status) com o Clockwork (horas) para análise, operação do dia a dia e planejamento do time. Clicar no logo volta ao início.'},
-  {sel:'#seg-vista [data-v="visao"]',titulo:'📊 Visão Geral',texto:'A tela executiva inicial: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
+  {sel:'#seg-vista [data-v="acoes"]',titulo:'🏠 Início',texto:'A página principal: SEU dia num relance (horas de hoje, vencidos, plano da semana, reuniões sem ticket, Inbox) + as ações do time — tudo clicável. A 📊 Visão Geral segue ao lado para a análise executiva completa.'},
   {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Minha Semana (monte o plano da semana sobre os seus tickets), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
   {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa, visão 📆 Semanas com trava do planejado, linha do tempo, empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote).'},
   {sel:'#navg-an-b',titulo:'Análise',texto:'📁 Projetos (BI por projeto), Resumo (KPIs e resumo por IA), Timesheet (pessoa × dia), Ranking, Tickets, Qualidade (IA), 🕵️ Auditoria e 📈 Analytics (26 visões de governança).'},
@@ -11761,7 +11854,7 @@ function vaiPara(v){
 // (sem vista própria) entram com slug 'acao:<nome>'.
 const NAVCAT=[
   ['visao','Visão Geral','Início','inicio home executiva kpis'],
-  ['acoes','⚡ Ações de hoje','Início','hoje pendencias novidades inicio'],
+  ['acoes','🏠 Início — Ações de hoje','Início','hoje pendencias novidades inicio home principal minhas horas vencidos'],
   ['minhasemana','📋 Minha Semana','Meu trabalho','plano semanal planejar semana meus tickets horas distribuir enviar aprovacao rotina'],
   ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
   ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
@@ -11845,6 +11938,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-30','🏠 <b>Nova página inicial — o seu dia num relance, tudo clicável</b>: a home agora abre em <b>Início</b> com cards ACIONÁVEIS: ⏱ <b>suas horas de hoje × meta</b> (com quanto falta), ⚠ <b>seus tickets vencidos</b> (1 clique abre o Apontar já filtrado), 📋 status do <b>seu plano da semana</b>, 📅 <b>reuniões sem ticket</b> e 📥 pendências do Inbox. Abaixo, as <b>ações do time</b> (a antiga tela) com atalho para o <b>📊 painel executivo completo</b> (Visão Geral) e uma grade <b>🚀 Ir para</b> com as telas mais usadas explicadas. Links antigos continuam funcionando.'],
   ['2026-07-30','📅 <b>Agenda v2 — projeto à escolha, vincular e convidar</b>: o ticket da reunião agora abre um assistente onde você <b>escolhe o projeto</b> (tipo Reunião ou o padrão do projeto) ou <b>vincula a um ticket existente</b> (os detalhes entram como comentário); dá para <b>👥 convidar os participantes</b> — casados por e-mail com o Jira — e cada um confirma o apontamento com 1 clique. <b>Todo evento não particular precisa de ticket</b>: quem organiza vê a caixa <b>📣 "novo evento sem ticket"</b>, e o vínculo evento→ticket agora é <b>compartilhado</b> (o convidado vê "criado por fulano"). Eventos 🔒 particulares ficam de fora da regra. E quando o <b>organizador é de fora da Dexterity</b> (reunião com cliente), <b>qualquer participante da empresa</b> pode criar o ticket — a pendência aparece para todos os convidados internos.'],
   ['2026-07-30','🗺️ <b>Roadmap de funcionalidades</b> — nova página (Análise → 🗺️ Roadmap): o que está <b>em desenvolvimento</b>, <b>planejado</b> e <b>em avaliação</b>, mais as entregas recentes. Sugestões entram por ❓ Ajuda & feedback.'],
   ['2026-07-30','🕑 <b>Meus tickets recentes com TODAS as ações do apontamento rápido</b>: na tela ⏱ Apontar, os recentes agora têm status (mover), reagendar vencimento, transferir responsável, 💬 comentar, 🔀 mover de projeto, 🔗 vincular e o apontamento completo (chips + comentário) — mesmo para tickets <b>já concluídos</b> (a ficha é buscada na hora). Os selos "você: Xh" e "último apontamento" continuam.'],
@@ -11917,7 +12011,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-30.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-30.4';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -12378,7 +12472,7 @@ function leURL(){
   if(!busca || busca==='?'){ const sav=leFiltrosLS(); if(sav) busca='?'+sav; }
   const p=new URLSearchParams(busca);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
-  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'visao';
+  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'acoes';
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
   const ap=estado.apontar;
   ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';
@@ -12406,7 +12500,7 @@ function aplicaPendentes(){
 function estadoParaURL(){
   const f=filtros(); const p=new URLSearchParams();
   if(estado.periodo!=='7d') p.set('p',estado.periodo);
-  if(estado.vista!=='resumo') p.set('v',estado.vista);
+  if(estado.vista!=='acoes') p.set('v', estado.vista);
   if(estado.vista==='tickets' && estado.tkGroup) p.set('g',estado.tkGroup);
   if(estado.vista==='apontar'){ const ap=estado.apontar;
     if(ap.ate && ap.ate!==hojeSP()) p.set('ate',ap.ate);
@@ -12686,8 +12780,8 @@ document.getElementById('btn-tema').addEventListener('click', ()=>{
   if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e){}
 });
 // Logo no canto superior esquerdo volta para o início (Resumo).
-document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('visao'));
-document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('visao'); } });
+document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('acoes'));
+document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('acoes'); } });
 // Botão "voltar ao topo": aparece após rolar a página.
 (function(){ const b=document.getElementById('to-top'); if(!b) return;
   const upd=()=>{ b.hidden=(window.scrollY||document.documentElement.scrollTop)<400; };
