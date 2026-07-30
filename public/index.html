@@ -1110,6 +1110,8 @@
   /* Cards da home no estilo SAP Fiori: tile claro com sombra suave, número grande
      e FINO colorido pela semântica, ícone-marca d'água no canto e link discreto. */
   .ax-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  /* hero pessoal: 5 tiles numa linha só em telas largas (auto-fit encolhe sem órfão) */
+  .ax-grid.ax-hero{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
   .ax-card{position:relative;overflow:hidden;border:1px solid var(--linha);border-radius:14px;background:var(--cartao);
     padding:16px 18px 14px;display:flex;flex-direction:column;gap:6px;min-height:148px;
     box-shadow:0 0 2px rgba(34,54,73,.06),0 2px 10px rgba(34,54,73,.08);
@@ -1121,14 +1123,14 @@
   .ax-top{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;letter-spacing:.1px}
   .ax-top .spacer{flex:1}
   /* ícone vira marca d'água Fiori no canto inferior direito */
-  .ax-top>span:first-child{position:absolute;right:14px;bottom:12px;font-size:34px;opacity:.16;filter:saturate(.8);pointer-events:none}
+  .ax-top>span:first-child{position:absolute;right:16px;bottom:14px;font-size:34px;opacity:.14;filter:grayscale(1);pointer-events:none}
   .ax-num{font-size:38px;font-weight:300;line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.5px;margin-top:2px}
   .ax-card.ok .ax-num{color:#107E3E} .ax-card.aten .ax-num{color:#E9730C}
   .ax-card.crit .ax-num{color:#BB0000} .ax-card.load .ax-num{color:var(--muted)}
   .ax-num .muted{font-weight:400}
-  .ax-var{font-size:11px;color:var(--muted);white-space:nowrap}
+  .ax-var{font-size:11px;color:var(--muted);white-space:nowrap;opacity:.85}
   .ax-var.up{color:#BB0000;font-weight:700} .ax-var.down{color:#107E3E;font-weight:700}
-  .ax-det{font-size:12.5px;color:var(--muted);min-height:16px;max-width:calc(100% - 44px)}
+  .ax-det{font-size:12.5px;color:var(--muted);min-height:16px;max-width:calc(100% - 56px)}
   .ax-foot{margin-top:auto}
   .ax-card .ax-foot .btn{border:0;background:transparent;color:#0A6ED1;font-weight:600;padding:6px 0}
   .ax-card .ax-foot .btn:hover{text-decoration:underline;background:transparent}
@@ -1136,6 +1138,7 @@
   :root[data-theme="dark"] .ax-card{box-shadow:0 0 2px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.45)}
   :root[data-theme="dark"] .ax-card .ax-foot .btn{color:#7cb7ff}
   :root[data-theme="dark"] .ax-card.ok .ax-num{color:#4C9F70} :root[data-theme="dark"] .ax-card.crit .ax-num{color:#f87171}
+  :root[data-theme="dark"] .ax-top>span:first-child{opacity:.26}
   /* atalhos 🚀 no mesmo tom de tile */
   .hx-atalho{box-shadow:0 0 2px rgba(34,54,73,.06),0 2px 8px rgba(34,54,73,.07);transition:box-shadow .15s ease, transform .15s ease}
   .hx-atalho:hover{box-shadow:0 0 2px rgba(34,54,73,.10),0 6px 18px rgba(34,54,73,.13);transform:translateY(-2px)}
@@ -4097,7 +4100,7 @@ function renderAcoes(){
       `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid" style="margin-top:8px">${cHoras}${cVenc}${cPlano}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cPlano}${cAg}${cIb}</div>
     </div>`;
   } else {
     heroHtml=`<div class="card full"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance (horas, vencidos, plano da semana…)</span></h2>
