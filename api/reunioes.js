@@ -144,7 +144,10 @@ async function agenda(req, res, b) {
     .toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
   const brutos = valores.filter((e) => !e.isCancelled);
   const orgDe = (e) => String((e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.address) || '').toLowerCase();
-  const visiveis = brutos.filter((e) => !ocultar.includes(orgDe(e)));
+  // AGENDA_OCULTAR corta o RUÍDO dos convites em massa na agenda dos OUTROS — mas
+  // nunca na agenda do próprio organizador (senão as reuniões periódicas dele,
+  // ex. a reunião diária, sumiriam da própria tela).
+  const visiveis = brutos.filter((e) => orgDe(e) === email || !ocultar.includes(orgDe(e)));
   const eventos = visiveis.map((e) => ({
     id: e.id,
     titulo: e.subject || '(sem título)',
