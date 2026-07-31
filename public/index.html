@@ -1857,7 +1857,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -2838,6 +2838,11 @@ function agMarcaTicket(evId,key){
   const ks=Object.keys(cfg.agendaTickets);
   if(ks.length>120){ ks.sort((x,y)=>String(cfg.agendaTickets[x].quando||'').localeCompare(String(cfg.agendaTickets[y].quando||'')))
     .slice(0,ks.length-120).forEach(k=>delete cfg.agendaTickets[k]); }
+  // O vínculo RESOLVE a pendência: some o aviso "reunião sem ticket" do Inbox de todos.
+  Object.entries(cfg.inboxAvisos||{}).forEach(([acc,lst])=>{
+    const f=(lst||[]).filter(a=>a.evId!==evId);
+    if(f.length!==(lst||[]).length){ if(f.length) cfg.inboxAvisos[acc]=f; else delete cfg.inboxAvisos[acc]; }
+  });
   salvaCfg();
   const m=agTickets(); m[evId]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){}
 }
@@ -2999,6 +3004,30 @@ function agPendentes(){
   const id=idApontar(); const meuDom=String((id&&id.email)||'').split('@')[1]||'';
   const ext=(ev)=>{ const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase(); return !!oe&&!!meuDom&&!oe.endsWith('@'+meuDom); };
   return d.eventos.filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&(ev.meu||ext(ev)));
+}
+// 📨 Cobra o ORGANIZADOR pelo Inbox: grava um aviso "reunião sem ticket" na config
+// compartilhada (cfg.inboxAvisos[conta do organizador]) — some sozinho quando o
+// ticket é criado/vinculado (limpeza no agMarcaTicket).
+async function agAvisaInbox(evId){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
+  if(!estado.agenda.usuarios){
+    try{ const j=await fetch('/api/usuarios').then(r=>r.json()); estado.agenda.usuarios=(j&&j.pessoas)||{}; }
+    catch(e){ estado.agenda.usuarios={}; }
+  }
+  const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase();
+  const ent=Object.entries(estado.agenda.usuarios||{}).find(([,u])=>String(u.email||'').toLowerCase()===oe);
+  if(!ent){ toast(`Não achei a conta do Jira de ${oe||'quem organizou'} — sem Inbox para avisar.`,'err'); return; }
+  const [acc,u]=ent;
+  cfg.inboxAvisos=cfg.inboxAvisos||{};
+  const lst=cfg.inboxAvisos[acc]=cfg.inboxAvisos[acc]||[];
+  if(lst.some(a=>a.evId===evId)){ toast(`Já existe um aviso deste evento no Inbox de ${u.nome||oe}.`,'ok'); renderAgenda(); return; }
+  lst.push({ evId, titulo:ev.titulo, dia:(ev.inicio||'').slice(0,10), de:id.nome||id.email||'', quando:new Date().toISOString() });
+  if(lst.length>30) lst.splice(0,lst.length-30);
+  salvaCfg();
+  logAcao({acao:'agenda-avisar-inbox', t:ev.titulo, para:u.nome||oe, ok:true});
+  toast(`📨 Aviso enviado para o Inbox de ${u.nome||oe}.`,'ok');
+  renderAgenda();
 }
 function agRotuloDia(d){
   const hoje=projHoje();
@@ -3431,17 +3460,37 @@ function renderAgenda(){
   // interno), se já foi criado (e por quem) e a ação de cada linha.
   const pend=agPendentes()||[];
   const naoPriv=evs.filter(ev=>!ev.privado);
+  // 🔎 Confere no Jira se as pendentes JÁ têm ticket criado fora do app (pelo resumo,
+  // conta de serviço) — se achar, a linha oferece "usar este ticket" (1 clique vincula).
+  ag.achados=ag.achados||{};
+  const pendSem=naoPriv.filter(ev=>!agTicketDe(ev.id));
+  if(pendSem.length && !ag.conferiu && !ag.conferindo){
+    ag.conferindo=true;
+    fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({conferir:1,titulos:pendSem.map(ev=>ev.titulo)})})
+      .then(r=>r.json()).then(j=>{ ag.conferindo=false; ag.conferiu=true;
+        const a=(j&&j.achados)||{};
+        pendSem.forEach(ev=>{ if(a[ev.titulo]&&a[ev.titulo].k) ag.achados[ev.id]=a[ev.titulo]; });
+        if(estado.vista==='agenda') renderAgenda(); })
+      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(estado.vista==='agenda') renderAgenda(); });
+  }
   const ctrlLinhas=naoPriv.map(ev=>{
     const tk=agTicketDe(ev.id); const ext=orgExt(ev);
     const orgNome=(ev.organizador&&(ev.organizador.nome||ev.organizador.email)||'').split(' ')[0];
     const quem=ev.meu?'Você (organizou)':ext?'Organizador externo — qualquer interno cria':`${orgNome} (organizou)`;
+    const ach=!tk&&ag.achados[ev.id];
+    const jaAvisado=!tk&&Object.values(cfg.inboxAvisos||{}).some(l=>(l||[]).some(a2=>a2.evId===ev.id));
     const situ=tk
       ?`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`
-      :`<span class="ag-ct-pend">⚠ pendente</span>`;
+      :ach?`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>`
+      :`<span class="ag-ct-pend">⚠ pendente</span>${ag.conferindo?' <span class="muted small">· 🔎 conferindo no Jira…</span>':''}`;
     const acao=tk
       ?(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')
+      :ach?`<button class="btn primario" data-ag-usar="${escA(ev.id)}|${escA(ach.k)}" data-tip="Registra este ticket como o da reunião (vínculo compartilhado com o time)">✓ usar este ticket</button>`
       :((ev.meu||ext)?`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>`
-        :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span>`);
+        :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span> ${jaAvisado
+          ?'<span class="badge" data-tip="O aviso já está no Inbox da pessoa">📨 avisado</span>'
+          :`<button class="btn" data-ag-avisar="${escA(ev.id)}" data-tip="Envia um aviso para o 📥 Inbox de ${escA(orgNome||'quem organizou')}: esta reunião está sem ticket">📨 avisar no Inbox</button>`}`);
     return `<div class="ag-ct-row">
       <div><strong>${esc(ev.titulo)}</strong> <span class="muted small">· ${esc((ev.inicio||'').slice(0,10))}</span></div>
       <div class="muted small" data-tip="Quem deve criar o ticket desta reunião">${esc(quem)}</div>
@@ -3493,7 +3542,14 @@ function renderAgenda(){
 // Interações da Agenda (delegadas em #conteudo).
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const rf=e.target.closest&&e.target.closest('[data-ag-refresh]');
-  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; carregaAgenda(true); renderAgenda(); return; }
+  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; ag.conferiu=false; ag.achados={}; carregaAgenda(true); renderAgenda(); return; }
+  const av=e.target.closest&&e.target.closest('[data-ag-avisar]');
+  if(av){ if(!idApontar()){ abreIdentidade(); return; } agAvisaInbox(av.getAttribute('data-ag-avisar')); return; }
+  const us=e.target.closest&&e.target.closest('[data-ag-usar]');
+  if(us){ const v=us.getAttribute('data-ag-usar'); const i=v.lastIndexOf('|');
+    const evId=v.slice(0,i), key=v.slice(i+1);
+    agMarcaTicket(evId,key); toast(`✓ ${key} registrado como o ticket da reunião.`,'ok');
+    pintaBadgeInbox(); renderAgenda(); return; }
   const cv=e.target.closest&&e.target.closest('[data-ag-convidar]');
   if(cv){ if(!idApontar()){ abreIdentidade(); return; }
     const tk=agTicketDe(cv.getAttribute('data-ag-convidar'));
@@ -10183,11 +10239,16 @@ function inboxAprovacoes(){
   return Object.entries(cfg.alocTravas||{}).filter(([,t])=>t&&t.status==='pendente')
     .map(([a,t])=>({ a, nome:(pess[a]&&pess[a].nome)||a, por:t.por||'', quando:String(t.quando||'').slice(0,10) }));
 }
+// Avisos de "reunião sem ticket" endereçados a MIM (gravados pela Agenda do time).
+function inboxAvisosAgenda(){
+  const id=idApontar();
+  return (id&&id.accountId&&(cfg.inboxAvisos||{})[id.accountId])||[];
+}
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
   const ign=mnIgnoradasSet();
   const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
-  return conv+men+inboxAprovacoes().length;
+  return conv+men+inboxAprovacoes().length+inboxAvisosAgenda().length;
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
@@ -10230,14 +10291,31 @@ function renderInbox(){
   const ign=mnIgnoradasSet();
   const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
   const aprs=inboxAprovacoes();
-  const total=cvs.length+mens.length+aprs.length;
+  const avs=inboxAvisosAgenda();
+  const total=cvs.length+mens.length+aprs.length+avs.length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
     <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
     <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
+    ${avs.length?`<div class="kpi w"><div class="v">${avs.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
     ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
   </div>`;
+
+  // 📅 Reuniões sem ticket — avisos que o time enviou para VOCÊ pela Agenda
+  // (você organizou e o ticket ainda não existe). Somem sozinhos ao criar/vincular.
+  const secAg=avs.length?`<div class="card full">
+    <h2>📅 Reuniões sem ticket <span>o time avisou: você organizou e o ticket ainda não existe</span></h2>
+    <div class="cv-lista">${avs.map(a=>`
+      <div class="cv-row">
+        <strong>${esc(a.titulo)}</strong>
+        ${a.dia?`<span class="badge">${esc(alxDataBR(a.dia))}</span>`:''}
+        <span class="badge" data-tip="Quem avisou pelo painel da Agenda">📨 aviso de ${esc(String(a.de||'?').split(' ')[0])}</span>
+        <span class="spacer"></span>
+        <button class="btn primario" data-goto="agenda">📅 Abrir a Agenda para criar →</button>
+        <button class="btn" data-ib-avdel="${escA(a.evId)}" data-tip="Dispensa este aviso do SEU Inbox (não muda a Agenda nem o Jira)">✕</button>
+      </div>`).join('')}</div>
+  </div>`:'';
 
   // 🤝 Convites — mesmo markup/ações do banner da aba Apontar (confirma com 1 clique).
   const secConv=`<div class="card full cv-card">
@@ -10304,11 +10382,22 @@ function renderInbox(){
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
+    ${secAg}
     ${secConv}
     ${secMen}
     ${secApr}
   </div>`));
 }
+// Dispensar aviso de reunião sem ticket (só some do MEU Inbox).
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const d=e.target.closest&&e.target.closest('[data-ib-avdel]'); if(!d) return;
+  const id=idApontar(); if(!id||!id.accountId) return;
+  const evId=d.getAttribute('data-ib-avdel');
+  const lst=((cfg.inboxAvisos||{})[id.accountId])||[];
+  const f=lst.filter(a=>a.evId!==evId);
+  if(f.length) cfg.inboxAvisos[id.accountId]=f; else if(cfg.inboxAvisos) delete cfg.inboxAvisos[id.accountId];
+  salvaCfg(); pintaBadgeInbox(); if(estado.vista==='inbox') renderInbox();
+});
 // ============================ 📈 ANALYTICS DE GOVERNANÇA ============================
 // 26 visões de saúde/governança calculadas NO FRONT sobre a base bruta do servidor
 // (/api/vencimentos?analytics=1): abertos + concluídos do período + reabertos.
@@ -12043,6 +12132,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-30','🎫 <b>Agenda: conferência no Jira + cobrança pelo Inbox</b>: o painel Controle de tickets agora <b>confere no Jira</b> se a reunião pendente já tem ticket criado <b>fora do app</b> (achou? 1 clique em "✓ usar este ticket" registra o vínculo) e, quando o ticket é de um colega, dá para <b>📨 avisar no Inbox</b> da pessoa — o aviso aparece na caixa <b>📥 Inbox</b> dela (com selo no menu) e <b>some sozinho</b> quando o ticket é criado ou vinculado.'],
   ['2026-07-30','🌳 <b>Árvore de decisão na página inicial + caminho AMS não faturável</b>: a árvore "Onde crio o ticket?" agora aparece direto no <b>Início</b> (mesmo passo a passo, sem trocar de tela) e, no <b>AMS direto com o cliente</b>, uma nova pergunta separa <b>reunião de alinhamento</b> e <b>atividade administrativa</b> — o ticket já nasce com o tipo <b>não faturável</b> certo, fora da apuração do pacote do contrato.'],
   ['2026-07-30','📅 <b>Agenda: convites só com o time interno + 🎫 controle de tickets</b>: a lista de convites para apontar mostra apenas pessoas da <b>Dexterity</b> (participantes externos ficam de fora) e o novo painel <b>🎫 Controle de tickets</b> mostra, reunião por reunião, <b>quem deve criar</b> o ticket, se <b>já foi criado</b> (e por quem) ou o que segue <b>pendente</b>.'],
   ['2026-07-30','💠 <b>Cards no estilo SAP Fiori</b>: os cards da página inicial ganharam o visual dos apps Fiori — tiles claros com sombra suave, <b>número grande</b> colorido pela situação, <b>faixa inferior semântica</b> (verde ok · laranja atenção · vermelho crítico), ícone em marca-d\'água e ações como <b>links azuis</b>. Tudo no claro e no escuro.'],
@@ -12119,7 +12209,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-30.6';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-30.7';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
