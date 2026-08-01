@@ -173,6 +173,37 @@ async function agenda(req, res, b) {
   }, 5));
 }
 
+// Confere no Jira (conta de serviço) se JÁ EXISTE ticket para reuniões pendentes da
+// Agenda — cobre tickets criados FORA do app: busca por frase no resumo, últimos 90
+// dias. Resposta: { achados: { [título recebido]: { k, resumo, status } } }.
+async function conferirTickets(req, res, b) {
+  const brutos = Array.isArray(b.titulos) ? b.titulos.map((t) => String(t || '')).filter(Boolean).slice(0, 8) : [];
+  const pares = [];
+  const vistos = new Set();
+  brutos.forEach((orig) => {
+    const q = orig.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (q.length >= 4 && !vistos.has(q.toLowerCase())) { vistos.add(q.toLowerCase()); pares.push({ orig, q }); }
+  });
+  if (!pares.length) return json(res, 200, { achados: {} });
+  const ck = `agenda:conferir:${pares.map((p) => p.q).join('|')}`;
+  if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
+  const jql = '(' + pares.map((p) => `summary ~ "\\"${p.q}\\""`).join(' OR ') + ') AND created >= -90d ORDER BY created DESC';
+  const { issues } = await jiraSearchAll({ jql, fields: ['summary', 'issuetype', 'status'], pageSize: 50, maxPages: 1 });
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  const achados = {};
+  pares.forEach(({ orig, q }) => {
+    const nq = norm(q);
+    const hit = issues.find((it) => norm((it.fields || {}).summary).includes(nq));
+    if (hit) {
+      achados[orig] = {
+        k: hit.key, resumo: (hit.fields || {}).summary || '',
+        status: ((hit.fields || {}).status && hit.fields.status.name) || '',
+      };
+    }
+  });
+  return json(res, 200, cacheSetTTL(ck, { achados }, 5));
+}
+
 // --------------------------------- GET: listar ---------------------------------
 async function listar(req, res) {
   const projeto = String((req.query && req.query.projeto) || 'RDF').trim().toUpperCase();
@@ -507,6 +538,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const b = await lerBody(req);
       if (b.agenda) return await agenda(req, res, b);
+      if (b.conferir) return await conferirTickets(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.
       req.body = b;

@@ -1485,7 +1485,7 @@
   .tour-pop h3{margin:0 0 6px;font-size:15px;color:var(--grafite)}
   .tour-pop p{margin:0 0 12px;font-size:13px;color:#475E74;line-height:1.5}
   .tour-nav{display:flex;align-items:center;gap:8px}
-  .tour-step{font-size:12px;color:var(--muted);flex:1}
+  .tour-step{font-size:12px;color:var(--muted);flex:1;white-space:nowrap}
 
   /* ---- Ajuda & feedback ---- */
   .help-sec{border:1px solid var(--linha);border-radius:8px;margin-top:10px;overflow:hidden}
@@ -1857,7 +1857,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -2838,6 +2838,11 @@ function agMarcaTicket(evId,key){
   const ks=Object.keys(cfg.agendaTickets);
   if(ks.length>120){ ks.sort((x,y)=>String(cfg.agendaTickets[x].quando||'').localeCompare(String(cfg.agendaTickets[y].quando||'')))
     .slice(0,ks.length-120).forEach(k=>delete cfg.agendaTickets[k]); }
+  // O vínculo RESOLVE a pendência: some o aviso "reunião sem ticket" do Inbox de todos.
+  Object.entries(cfg.inboxAvisos||{}).forEach(([acc,lst])=>{
+    const f=(lst||[]).filter(a=>a.evId!==evId);
+    if(f.length!==(lst||[]).length){ if(f.length) cfg.inboxAvisos[acc]=f; else delete cfg.inboxAvisos[acc]; }
+  });
   salvaCfg();
   const m=agTickets(); m[evId]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){}
 }
@@ -2999,6 +3004,30 @@ function agPendentes(){
   const id=idApontar(); const meuDom=String((id&&id.email)||'').split('@')[1]||'';
   const ext=(ev)=>{ const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase(); return !!oe&&!!meuDom&&!oe.endsWith('@'+meuDom); };
   return d.eventos.filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&(ev.meu||ext(ev)));
+}
+// 📨 Cobra o ORGANIZADOR pelo Inbox: grava um aviso "reunião sem ticket" na config
+// compartilhada (cfg.inboxAvisos[conta do organizador]) — some sozinho quando o
+// ticket é criado/vinculado (limpeza no agMarcaTicket).
+async function agAvisaInbox(evId){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
+  if(!estado.agenda.usuarios){
+    try{ const j=await fetch('/api/usuarios').then(r=>r.json()); estado.agenda.usuarios=(j&&j.pessoas)||{}; }
+    catch(e){ estado.agenda.usuarios={}; }
+  }
+  const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase();
+  const ent=Object.entries(estado.agenda.usuarios||{}).find(([,u])=>String(u.email||'').toLowerCase()===oe);
+  if(!ent){ toast(`Não achei a conta do Jira de ${oe||'quem organizou'} — sem Inbox para avisar.`,'err'); return; }
+  const [acc,u]=ent;
+  cfg.inboxAvisos=cfg.inboxAvisos||{};
+  const lst=cfg.inboxAvisos[acc]=cfg.inboxAvisos[acc]||[];
+  if(lst.some(a=>a.evId===evId)){ toast(`Já existe um aviso deste evento no Inbox de ${u.nome||oe}.`,'ok'); renderAgenda(); return; }
+  lst.push({ evId, titulo:ev.titulo, dia:(ev.inicio||'').slice(0,10), de:id.nome||id.email||'', quando:new Date().toISOString() });
+  if(lst.length>30) lst.splice(0,lst.length-30);
+  salvaCfg();
+  logAcao({acao:'agenda-avisar-inbox', t:ev.titulo, para:u.nome||oe, ok:true});
+  toast(`📨 Aviso enviado para o Inbox de ${u.nome||oe}.`,'ok');
+  renderAgenda();
 }
 function agRotuloDia(d){
   const hoje=projHoje();
@@ -3431,17 +3460,37 @@ function renderAgenda(){
   // interno), se já foi criado (e por quem) e a ação de cada linha.
   const pend=agPendentes()||[];
   const naoPriv=evs.filter(ev=>!ev.privado);
+  // 🔎 Confere no Jira se as pendentes JÁ têm ticket criado fora do app (pelo resumo,
+  // conta de serviço) — se achar, a linha oferece "usar este ticket" (1 clique vincula).
+  ag.achados=ag.achados||{};
+  const pendSem=naoPriv.filter(ev=>!agTicketDe(ev.id));
+  if(pendSem.length && !ag.conferiu && !ag.conferindo){
+    ag.conferindo=true;
+    fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({conferir:1,titulos:pendSem.map(ev=>ev.titulo)})})
+      .then(r=>r.json()).then(j=>{ ag.conferindo=false; ag.conferiu=true;
+        const a=(j&&j.achados)||{};
+        pendSem.forEach(ev=>{ if(a[ev.titulo]&&a[ev.titulo].k) ag.achados[ev.id]=a[ev.titulo]; });
+        if(estado.vista==='agenda') renderAgenda(); })
+      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(estado.vista==='agenda') renderAgenda(); });
+  }
   const ctrlLinhas=naoPriv.map(ev=>{
     const tk=agTicketDe(ev.id); const ext=orgExt(ev);
     const orgNome=(ev.organizador&&(ev.organizador.nome||ev.organizador.email)||'').split(' ')[0];
     const quem=ev.meu?'Você (organizou)':ext?'Organizador externo — qualquer interno cria':`${orgNome} (organizou)`;
+    const ach=!tk&&ag.achados[ev.id];
+    const jaAvisado=!tk&&Object.values(cfg.inboxAvisos||{}).some(l=>(l||[]).some(a2=>a2.evId===ev.id));
     const situ=tk
       ?`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`
-      :`<span class="ag-ct-pend">⚠ pendente</span>`;
+      :ach?`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>`
+      :`<span class="ag-ct-pend">⚠ pendente</span>${ag.conferindo?' <span class="muted small">· 🔎 conferindo no Jira…</span>':''}`;
     const acao=tk
       ?(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')
+      :ach?`<button class="btn primario" data-ag-usar="${escA(ev.id)}|${escA(ach.k)}" data-tip="Registra este ticket como o da reunião (vínculo compartilhado com o time)">✓ usar este ticket</button>`
       :((ev.meu||ext)?`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>`
-        :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span>`);
+        :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span> ${jaAvisado
+          ?'<span class="badge" data-tip="O aviso já está no Inbox da pessoa">📨 avisado</span>'
+          :`<button class="btn" data-ag-avisar="${escA(ev.id)}" data-tip="Envia um aviso para o 📥 Inbox de ${escA(orgNome||'quem organizou')}: esta reunião está sem ticket">📨 avisar no Inbox</button>`}`);
     return `<div class="ag-ct-row">
       <div><strong>${esc(ev.titulo)}</strong> <span class="muted small">· ${esc((ev.inicio||'').slice(0,10))}</span></div>
       <div class="muted small" data-tip="Quem deve criar o ticket desta reunião">${esc(quem)}</div>
@@ -3493,7 +3542,14 @@ function renderAgenda(){
 // Interações da Agenda (delegadas em #conteudo).
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const rf=e.target.closest&&e.target.closest('[data-ag-refresh]');
-  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; carregaAgenda(true); renderAgenda(); return; }
+  if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; ag.conferiu=false; ag.achados={}; carregaAgenda(true); renderAgenda(); return; }
+  const av=e.target.closest&&e.target.closest('[data-ag-avisar]');
+  if(av){ if(!idApontar()){ abreIdentidade(); return; } agAvisaInbox(av.getAttribute('data-ag-avisar')); return; }
+  const us=e.target.closest&&e.target.closest('[data-ag-usar]');
+  if(us){ const v=us.getAttribute('data-ag-usar'); const i=v.lastIndexOf('|');
+    const evId=v.slice(0,i), key=v.slice(i+1);
+    agMarcaTicket(evId,key); toast(`✓ ${key} registrado como o ticket da reunião.`,'ok');
+    pintaBadgeInbox(); renderAgenda(); return; }
   const cv=e.target.closest&&e.target.closest('[data-ag-convidar]');
   if(cv){ if(!idApontar()){ abreIdentidade(); return; }
     const tk=agTicketDe(cv.getAttribute('data-ag-convidar'));
@@ -10183,11 +10239,16 @@ function inboxAprovacoes(){
   return Object.entries(cfg.alocTravas||{}).filter(([,t])=>t&&t.status==='pendente')
     .map(([a,t])=>({ a, nome:(pess[a]&&pess[a].nome)||a, por:t.por||'', quando:String(t.quando||'').slice(0,10) }));
 }
+// Avisos de "reunião sem ticket" endereçados a MIM (gravados pela Agenda do time).
+function inboxAvisosAgenda(){
+  const id=idApontar();
+  return (id&&id.accountId&&(cfg.inboxAvisos||{})[id.accountId])||[];
+}
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
   const ign=mnIgnoradasSet();
   const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
-  return conv+men+inboxAprovacoes().length;
+  return conv+men+inboxAprovacoes().length+inboxAvisosAgenda().length;
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
@@ -10230,14 +10291,31 @@ function renderInbox(){
   const ign=mnIgnoradasSet();
   const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
   const aprs=inboxAprovacoes();
-  const total=cvs.length+mens.length+aprs.length;
+  const avs=inboxAvisosAgenda();
+  const total=cvs.length+mens.length+aprs.length+avs.length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
     <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
     <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
+    ${avs.length?`<div class="kpi w"><div class="v">${avs.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
     ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
   </div>`;
+
+  // 📅 Reuniões sem ticket — avisos que o time enviou para VOCÊ pela Agenda
+  // (você organizou e o ticket ainda não existe). Somem sozinhos ao criar/vincular.
+  const secAg=avs.length?`<div class="card full">
+    <h2>📅 Reuniões sem ticket <span>o time avisou: você organizou e o ticket ainda não existe</span></h2>
+    <div class="cv-lista">${avs.map(a=>`
+      <div class="cv-row">
+        <strong>${esc(a.titulo)}</strong>
+        ${a.dia?`<span class="badge">${esc(alxDataBR(a.dia))}</span>`:''}
+        <span class="badge" data-tip="Quem avisou pelo painel da Agenda">📨 aviso de ${esc(String(a.de||'?').split(' ')[0])}</span>
+        <span class="spacer"></span>
+        <button class="btn primario" data-goto="agenda">📅 Abrir a Agenda para criar →</button>
+        <button class="btn" data-ib-avdel="${escA(a.evId)}" data-tip="Dispensa este aviso do SEU Inbox (não muda a Agenda nem o Jira)">✕</button>
+      </div>`).join('')}</div>
+  </div>`:'';
 
   // 🤝 Convites — mesmo markup/ações do banner da aba Apontar (confirma com 1 clique).
   const secConv=`<div class="card full cv-card">
@@ -10304,11 +10382,22 @@ function renderInbox(){
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
+    ${secAg}
     ${secConv}
     ${secMen}
     ${secApr}
   </div>`));
 }
+// Dispensar aviso de reunião sem ticket (só some do MEU Inbox).
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const d=e.target.closest&&e.target.closest('[data-ib-avdel]'); if(!d) return;
+  const id=idApontar(); if(!id||!id.accountId) return;
+  const evId=d.getAttribute('data-ib-avdel');
+  const lst=((cfg.inboxAvisos||{})[id.accountId])||[];
+  const f=lst.filter(a=>a.evId!==evId);
+  if(f.length) cfg.inboxAvisos[id.accountId]=f; else if(cfg.inboxAvisos) delete cfg.inboxAvisos[id.accountId];
+  salvaCfg(); pintaBadgeInbox(); if(estado.vista==='inbox') renderInbox();
+});
 // ============================ 📈 ANALYTICS DE GOVERNANÇA ============================
 // 26 visões de saúde/governança calculadas NO FRONT sobre a base bruta do servidor
 // (/api/vencimentos?analytics=1): abertos + concluídos do período + reabertos.
@@ -11699,31 +11788,51 @@ function abreAjuda(){
   abreModal(`
     <h2>Ajuda &amp; Feedback</h2>
     <div class="muted small">Como o aplicativo funciona — um tour guiado na tela, o passo a passo de cada tela e os canais para dúvidas, sugestões e bugs.</div>
-    <div style="margin-top:12px"><button class="btn primario" id="aj-tour">▶ Iniciar tour guiado na tela</button></div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primario" id="aj-tour">▶ Tour rápido (navegação)</button>
+      <button class="btn" id="aj-tour-telas" data-tip="Passa por TODAS as telas do aplicativo, uma a uma, explicando o que cada uma faz">🗺 Tour completo — todas as telas</button>
+    </div>
 
     <details class="help-sec" open><summary>Visão geral</summary><div class="help-body">
       O painel cruza o <b>Jira</b> (atividade, tickets, status) com o <b>Clockwork</b> (horas apontadas) para
       acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
-    <details class="help-sec"><summary>As telas (por grupo do menu)</summary><div class="help-body"><ul>
-      <li><b>📊 Visão Geral</b> — tela executiva (inicial): apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
-      <li><b>Análise › Resumo</b> — KPIs, horas por pessoa/projeto, faturável, uso do Jira, top projetos e um <b>resumo das atividades por IA</b>.</li>
-      <li><b>Análise › Timesheet</b> — matriz pessoa × dia com as horas faltantes (o que falta para a meta). O <b>⬇ Exportar</b> abre opções: matriz, <b>detalhado</b> (dia · pessoa · projeto · ticket), por <b>pessoa</b>, <b>projeto</b>, <b>ticket</b>, <b>tipo</b> ou projeto × pessoa — sempre no recorte dos filtros.</li>
-      <li><b>Análise › Ranking</b> — cumprimento de apontamento por pessoa, apontamentos por mês e heatmap.</li>
-      <li><b>Análise › Tickets</b> — issues do período (horas + atividade); dá para agrupar.</li>
-      <li><b>Análise › 🔎 Qualidade (IA)</b> — a IA lê as <b>boas práticas TI-04-006 direto do Notion</b> e audita os tickets criados no período: nota 0–100, violações por princípio e um <b>menu de ações</b> por ticket (comentar feedback, definir vencimento, atribuir…).</li>
-      <li><b>Operação › ⏱ Apontar</b> — chamados em <b>Lista/Tabela/Quadro</b>: aponte horas, mova o status, reagende, comente, transfira o responsável, mova de projeto, aponte reuniões para várias pessoas e <b>🔗 vincule reuniões a tickets</b> (o mesmo assistente da tela Vincular Reuniões, direto na linha).</li>
-      <li><b>Operação › 🛠 Gestão de Tickets</b> — <b>seleção múltipla + ações em massa</b>: atribuir, alterar status, comentar, reprogramar e <b>excluir</b> (com confirmação forte). Na visão <b>Lista</b>, cada linha tem as <b>mesmas ações do Apontar</b> (mover status, reagendar, transferir responsável, comentar, mover de projeto, vincular reunião) — só sem o apontamento de horas.</li>
-      <li><b>Operação › 🚨 Alertas</b> — central de ação dos atrasados: reprograme com <b>motivo padrão</b> (grava data + comentário no Jira), em lote, com filtros e criticidade.</li>
-      <li><b>Operação › 🔀 Reclassificar</b> — mova tickets de reunião do RDF para outro projeto (tipo e status preservados).</li>
-      <li><b>Operação › 🔗 Vincular Reuniões</b> — transforma uma reunião em registro num ticket de <b>AMS</b>: cria um ticket de <b>apoio funcional</b> (ou comenta num ticket aberto), com worklog opcional, e <b>exclui a reunião</b>.</li>
-      <li><b>Planejamento › 🧑‍💼 Alocação</b> — resource planning: <b>board por pessoa</b> (projetos + <b>função</b> + % da capacidade, salva sozinho; <b>bloqueia sobreposição</b> da mesma pessoa/projeto/função), <b>🔒 travar por pessoa com aprovação do Diego</b>, utilização semanal, <b>linha do tempo com arrastar-e-soltar</b>, visões por projeto/empresa/skill, <b>tipo por projeto</b> (aba Projetos), <b>vagas "a contratar" 🔮</b>, <b>📊 Relatórios</b> (horas, custo e <b>eficiência planejado × realizado</b> por semana, com CSV e custo do Odoo) e <b>simulação "e se…"</b>.</li>
-      <li><b>Planejamento › 📅 Planejamento macro</b> — plano de esforço por função (fases = épicos do Jira) e <b>planejado × realizado</b>.</li>
-      <li><b>Planejamento › 📝 Criação de Ticket</b> — crie tickets em lote (ou colando do Excel), inclusive dentro de épicos, com <b>padrões do lote</b> (estimativa, labels, vencimento) e <b>templates do time</b>. Não sabe onde abrir? Use <b>Planejamento › 🌳 Onde crio o ticket?</b> — a árvore de decisão guia pelas perguntas da governança (TI-04-006) e <b>cria o ticket no projeto certo</b> no último passo, já <b>atribuído a você</b>.</li>
-      <li><b>AMS &amp; Receita › AMS</b> — <b>um contrato por vez</b>, sempre <b>por ciclo</b>: banco de horas, faturamento, faturável × não faturável, chamados do ciclo e <b>PDF da apuração</b>.</li>
-      <li><b>AMS &amp; Receita › 💰 Receita</b> — bolsa de horas e projetos (consumo × contratado, projeção e receita estimada) por período.</li>
-      <li><b>Configurações › ⚙️ Contratos (Admin)</b> — cadastro de clientes/contratos: tipo, horas, valor-hora e projetos do Jira. Base para AMS e Receita.</li>
+    <details class="help-sec"><summary>TODAS as telas (por grupo do menu — clique para abrir)</summary><div class="help-body"><ul>
+      <li><span class="lnk" data-aj-goto="acoes"><b>🏠 Início — Ações de hoje</b></span> — a página principal: SEU dia num relance (horas × meta, vencidos, plano da semana, reuniões sem ticket, Inbox), ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀.</li>
+      <li><span class="lnk" data-aj-goto="visao"><b>📊 Visão Geral</b></span> — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
+      <li><b>👤 Meu trabalho:</b></li>
+      <li>· <span class="lnk" data-aj-goto="minhasemana"><b>📋 Minha Semana</b></span> — distribua as horas da semana nos SEUS tickets (por projeto, com 🔁 rotinas), veja plano × realizado e envie para o gestor aprovar.</li>
+      <li>· <span class="lnk" data-aj-goto="apontar"><b>⏱ Apontar</b></span> — horas, status, vencimento, comentários, transferências, reuniões em grupo e os 🕑 recentes com reaponte de 1 clique.</li>
+      <li>· <span class="lnk" data-aj-goto="agenda"><b>📅 Agenda</b></span> — eventos do Outlook viram ticket de reunião (projeto à escolha ou vínculo), com convites de apontamento ao time interno e o painel 🎫 Controle de tickets (quem cria, criado ou pendente — conferido no Jira — e 📨 aviso pelo Inbox).</li>
+      <li>· <span class="lnk" data-aj-goto="inbox"><b>📥 Inbox</b></span> — convites, menções, reuniões sem ticket e aprovações que dependem de você (o selo vermelho soma tudo).</li>
+      <li>· <span class="lnk" data-aj-goto="mencoes"><b>💬 Menções</b></span> — responda onde foi @marcado, com anexos e @marcações, sem ir ao Jira.</li>
+      <li>· <span class="lnk" data-aj-goto="meudia"><b>📍 Meu dia</b></span> — timetracking assistido (beta): sugestões de apontamento por IA a partir do uso do computador.</li>
+      <li><b>Planejamento:</b></li>
+      <li>· <span class="lnk" data-aj-goto="alocacao"><b>🧑‍💼 Alocação (macro)</b></span> — board por pessoa (função + % capacidade), Gantt, 📆 Semanas (trava semanal + aprovação dos planos), skills, vagas 🔮, relatórios com custo e simulação.</li>
+      <li>· <span class="lnk" data-aj-goto="planejamento"><b>📅 Planejamento macro</b></span> — esforço por função (fases = épicos) com planejado × realizado e valor.</li>
+      <li>· <span class="lnk" data-aj-goto="planejar"><b>📝 Criação de Ticket</b></span> — tickets em lote (ou colando do Excel), dentro de épicos, com padrões e templates.</li>
+      <li>· <span class="lnk" data-aj-goto="ondecrio"><b>🌳 Onde crio o ticket?</b></span> — a árvore de decisão da governança cria o ticket no projeto certo (também na página inicial).</li>
+      <li><b>Análise:</b></li>
+      <li>· <span class="lnk" data-aj-goto="projetos"><b>📁 Projetos</b></span> — BI por projeto direto do Jira, com drill-down total.</li>
+      <li>· <span class="lnk" data-aj-goto="resumo"><b>Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.</li>
+      <li>· <span class="lnk" data-aj-goto="timesheet"><b>Timesheet</b></span> — pessoa × dia com lacunas até a meta; ⬇ exporta em vários recortes.</li>
+      <li>· <span class="lnk" data-aj-goto="ranking"><b>Ranking</b></span> — cumprimento de apontamento e engajamento por pessoa.</li>
+      <li>· <span class="lnk" data-aj-goto="tickets"><b>Tickets</b></span> — issues do período (horas + atividade), agrupáveis.</li>
+      <li>· <span class="lnk" data-aj-goto="qualidade"><b>🔎 Qualidade (IA)</b></span> — auditoria dos tickets criados vs. boas práticas TI-04-006 (nota + ações).</li>
+      <li>· <span class="lnk" data-aj-goto="audit"><b>🕵️ Auditoria de Tickets</b></span> — validações TI-04-014 por pessoa, com drill-down.</li>
+      <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.</li>
+      <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.</li>
+      <li><b>Gestão:</b></li>
+      <li>· <span class="lnk" data-aj-goto="gestao"><b>🛠 Gestão de Tickets</b></span> — seleção múltipla + ações em massa (atribuir, status, comentar, reprogramar, mover, épicos, duplicados, excluir).</li>
+      <li>· <span class="lnk" data-aj-goto="alertas"><b>🚨 Alertas</b></span> — atrasados/críticos com reprogramação justificada em lote.</li>
+      <li>· <b>🗂 Reuniões</b> — tela unificada: <span class="lnk" data-aj-goto="reclassificar"><b>Reclassificar</b></span> (mover reuniões do RDF para o projeto certo) e <span class="lnk" data-aj-goto="reuvinc"><b>Vincular a tickets</b></span> (registro em AMS ou 🔁 transferir QUALQUER ticket pelo número).</li>
+      <li>· <span class="lnk" data-aj-goto="ams"><b>AMS</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.</li>
+      <li>· <span class="lnk" data-aj-goto="receita"><b>💰 Receita</b></span> — bolsa de horas e projetos (consumo × contratado + projeção).</li>
+      <li><b>Configurações:</b></li>
+      <li>· <span class="lnk" data-aj-goto="config"><b>⚙️ Central de configurações</b></span> — todos os ajustes num lugar só.</li>
+      <li>· <span class="lnk" data-aj-goto="admin"><b>Contratos (Admin)</b></span> — cadastro de clientes/contratos (base do AMS/Receita).</li>
+      <li>· <b>🎯 Metas & ausências</b> e <b>🗒 Histórico de ações</b> — no menu Configurações (metas, feriados, ausências e a auditoria do que o time fez pelo painel).</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -11818,6 +11927,62 @@ function abreAjuda(){
       Sexta-feira Santa e Corpus Christi) e <b>usuários externos a ocultar</b> (somem de todas as visões).
       Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
+    <details class="help-sec"><summary>Minha Semana (plano semanal + aprovação)</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 📋 Minha Semana</b>: o gestor fecha o MACRO na Alocação (h/semana por período);
+      você distribui as horas da SUA semana nos seus tickets, <b>por projeto</b> — atribua um ticket existente ou
+      <b>crie na hora</b>; ticket sem data assume a <b>sexta-feira</b> da semana; itens 🔁 <b>rotina diária</b> valem
+      h/dia em todos os dias úteis. Ao terminar, <b>📤 envie para aprovação</b> — o gestor aprova/recusa (com motivo)
+      na visão 📆 Semanas da Alocação, e o desvio plano × realizado aparece para os dois.
+    </div></details>
+    <details class="help-sec"><summary>Agenda (Outlook → ticket) e o controle de tickets</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 📅 Agenda</b>: seus eventos do Outlook, agrupados por dia. <b>Todo evento não
+      particular precisa de ticket</b>: quem organiza cria (organizador <b>externo</b> → qualquer participante interno);
+      🔒 particulares ficam de fora. O assistente cria o ticket no <b>projeto à escolha</b> (ou <b>vincula a um
+      existente</b>) e envia <b>convites de apontamento</b> aos participantes <b>internos</b> — cada um confirma com 1
+      clique e o worklog sai no usuário da pessoa. O painel <b>🎫 Controle de tickets</b> mostra, por reunião,
+      <b>quem cria · situação · ação</b>: confere no <b>Jira</b> se já existe ticket criado fora do app
+      ("🟡 achei no Jira" → <b>✓ usar este ticket</b>) e deixa <b>📨 avisar no Inbox</b> do organizador — o aviso
+      some sozinho quando o ticket é criado/vinculado.
+    </div></details>
+    <details class="help-sec"><summary>Inbox (suas pendências)</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 📥 Inbox</b>: tudo que depende de você — <b>🤝 convites</b> de apontamento coletivo
+      (confirme com 1 clique), <b>💬 menções</b> sem resposta, <b>📅 reuniões sem ticket</b> (avisos do time pela
+      Agenda) e, para o aprovador, <b>🔒 alocações/planos</b> aguardando decisão. O selo vermelho no menu soma tudo
+      e atualiza na hora.
+    </div></details>
+    <details class="help-sec"><summary>Menções (responder onde fui marcado)</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 💬 Menções</b>: os comentários do Jira onde você foi <b>@marcado</b> nos últimos dias.
+      Responda direto do painel (com <b>@marcações</b> de várias pessoas e <b>anexos/print colado</b>), abra a ficha
+      completa do ticket, aponte horas ou <b>🔕 ignore</b> (some só para você; reversível).
+    </div></details>
+    <details class="help-sec"><summary>Projetos (BI por projeto)</summary><div class="help-body">
+      Em <b>Análise › 📁 Projetos</b>: escolha o projeto e veja a ficha completa direto do Jira — épicos e saúde,
+      equipe e horas, prazos, tipos e drill-down até o ticket (com as ações de detalhe/apontar). Visões por
+      categoria e consolidado do portfólio.
+    </div></details>
+    <details class="help-sec"><summary>Analytics & Auditoria (governança)</summary><div class="help-body">
+      Em <b>Análise › 📈 Analytics</b>: 26 visões de governança (prazos, pessoas, horas & estimativas, reuniões,
+      qualidade & vínculos) — cada achado tem drill-down e abre <b>filtrado na 🛠 Gestão</b> para agir em massa.
+      Em <b>Análise › 🕵️ Auditoria</b>: as validações objetivas <b>TI-04-014 por pessoa</b> (datas, estimativa,
+      descrição, épico…), para acompanhar a conformidade de quem cria tickets.
+    </div></details>
+    <details class="help-sec"><summary>Meu dia (timetracking assistido — beta)</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 📍 Meu dia</b>: com a ponte do ActivityWatch instalada no computador, o painel mostra
+      em que apps/janelas o seu dia foi e a <b>IA sugere apontamentos</b> (ticket + duração) — revise, ajuste e
+      confirme; nada é gravado sem a sua confirmação.
+    </div></details>
+    <details class="help-sec"><summary>AMS, Receita e Contratos (Admin)</summary><div class="help-body">
+      <b>Gestão › AMS</b>: apuração <b>por ciclo</b> do contrato selecionado — banco de horas, excedente,
+      faturável × não faturável (pelo <b>tipo</b> do chamado), chamados do ciclo, labels de ciclo faturado e
+      <b>PDF da apuração</b>. <b>Gestão › 💰 Receita</b>: bolsa de horas e projetos (consumo × contratado, projeção).
+      <b>Configurações › Contratos (Admin)</b>: o cadastro de clientes/contratos que alimenta tudo isso
+      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira).
+    </div></details>
+    <details class="help-sec"><summary>Central de configurações</summary><div class="help-body">
+      Em <b>Configurações › ⚙️ Central de configurações</b>: os ajustes num lugar só — 🎯 metas & ausências,
+      contratos, <b>resumo agendado no Teams</b> (horário), integrações e preferências do painel. O
+      <b>🗒 Histórico de ações</b> guarda quem fez o quê pelo painel (últimas ações, com ticket e resultado).
+    </div></details>
 
     <div class="mt-sec">
       <h3>Falar com a gente</h3>
@@ -11886,35 +12051,85 @@ const TOUR=[
   {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo) e ❓ Ajuda & feedback — este tour, o passo a passo de cada tela e os canais de dúvida/sugestão/bug.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
-let _tourI=0;
+// 🗺 Tour COMPLETO: navega por TODAS as telas do aplicativo (uma por passo), com o
+// destaque no cartão principal e a descrição do que a tela faz. `vai` troca a vista
+// antes do passo; a cobertura de TODAS as VISTAS é garantida por teste automatizado.
+const TOUR_TELAS=[
+  {vai:'acoes',titulo:'🏠 Início — Ações de hoje',texto:'A página principal: SEU dia num relance (horas de hoje × meta, seus vencidos, plano da semana, reuniões sem ticket, Inbox), as ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀 Ir para. Tudo clicável.'},
+  {vai:'visao',titulo:'📊 Visão Geral (painel executivo)',texto:'A leitura executiva num lugar só: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
+  {vai:'minhasemana',titulo:'📋 Minha Semana',texto:'A SUA semana: distribua as horas nos seus tickets por projeto (com 🔁 rotinas diárias), acompanhe plano × realizado e ENVIE o plano para o gestor aprovar. Tickets sem data assumem a sexta-feira da semana.'},
+  {vai:'apontar',titulo:'⏱ Apontar',texto:'O dia a dia: aponte horas (chips 30m/1h/2h ou digitando), mova status, reagende vencimento, comente, transfira responsável e aponte reuniões para várias pessoas. Os 🕑 recentes reapontam com 1 clique.'},
+  {vai:'agenda',titulo:'📅 Agenda (Outlook → ticket)',texto:'Seus eventos do Outlook viram tickets de reunião: crie no projeto certo ou vincule a um ticket existente e convide os participantes internos para apontar. O painel 🎫 Controle de tickets mostra quem deve criar, o que já foi criado (confere no Jira!) e deixa 📨 avisar o organizador pelo Inbox.'},
+  {vai:'inbox',titulo:'📥 Inbox',texto:'Tudo que depende de VOCÊ num lugar só: convites de apontamento coletivo, menções sem resposta, reuniões sem ticket (avisos do time) e — para o aprovador — alocações e planos aguardando decisão. O selo vermelho no menu soma as pendências.'},
+  {vai:'mencoes',titulo:'💬 Menções',texto:'Onde você foi @marcado em comentários do Jira: responda (com @marcações e anexos), abra a ficha, aponte horas ou 🔕 ignore — sem sair do painel.'},
+  {vai:'meudia',titulo:'📍 Meu dia (beta)',texto:'Timetracking assistido: o registro de apps/janelas do seu computador vira sugestões de apontamento por IA — revise e confirme.'},
+  {vai:'alocacao',titulo:'🧑‍💼 Alocação (macro)',texto:'Resource planning do gestor: board por pessoa (projeto + função + % capacidade), linha do tempo, visão 📆 Semanas (planejado travado × realizado, com aprovação dos planos), skills, vagas 🔮, relatórios e simulação "e se…".'},
+  {vai:'planejamento',titulo:'📅 Planejamento macro',texto:'Plano de esforço por função (Implementação usa fases = épicos do Jira) com Planejado × Realizado, aderência e saldo — inclusive valor (h × custo/h).'},
+  {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias.'},
+  {vai:'ondecrio',titulo:'🌳 Onde crio o ticket?',texto:'A árvore de decisão da governança (TI-04-006): responda as perguntas e crie o ticket no projeto certo — AMS (com reunião/atividade NÃO FATURÁVEL), SAP, interno, administrativa, ausências e Dexterity University. Ela também vive na página inicial.'},
+  {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket.'},
+  {vai:'resumo',titulo:'Resumo',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
+  {vai:'timesheet',titulo:'Timesheet',texto:'Matriz pessoa × dia com as lacunas até a meta; exporta em vários recortes (detalhado, por pessoa, projeto, ticket, tipo).'},
+  {vai:'ranking',titulo:'Ranking',texto:'Cumprimento de apontamento por pessoa (% da meta), engajamento e heatmap por mês.'},
+  {vai:'tickets',titulo:'Tickets',texto:'Os tickets do período com horas + atividade, agrupáveis por projeto, tipo, categoria ou pessoa.'},
+  {vai:'qualidade',titulo:'🔎 Qualidade (IA)',texto:'A IA lê as boas práticas TI-04-006 no Notion e audita os tickets criados no período: nota, violações e menu de ações por ticket.'},
+  {vai:'audit',titulo:'🕵️ Auditoria de Tickets',texto:'Validações objetivas TI-04-014 por pessoa: conformidade dos tickets (datas, estimativas, descrição, épico…) com drill-down.'},
+  {vai:'analytics',titulo:'📈 Analytics',texto:'26 visões de governança para investigar: prazos, pessoas, horas, reuniões e qualidade — cada achado abre na Gestão para agir.'},
+  {vai:'roadmap',titulo:'🗺️ Roadmap',texto:'O rumo da ferramenta: o que está em desenvolvimento, planejado e em avaliação — e as entregas recentes. Sugestões entram por ❓ Ajuda & feedback.'},
+  {vai:'gestao',titulo:'🛠 Gestão de Tickets',texto:'Ações em massa: selecione vários tickets e atribua, mude status, comente, reprograme (com motivo), mova de projeto, ajuste épicos, verifique duplicados ou exclua.'},
+  {vai:'alertas',titulo:'🚨 Alertas',texto:'A central dos atrasados e críticos: reprograme com motivo padrão (data + comentário no Jira), em lote, com criticidade.'},
+  {vai:'reclassificar',titulo:'🗂 Reuniões — aba Reclassificar',texto:'Gestão e reclassificação de reuniões: mova tickets de reunião do RDF para o projeto certo (tipo e status preservados) ou confirme como processo administrativo.'},
+  {vai:'reuvinc',titulo:'🗂 Reuniões — aba Vincular',texto:'Transforme reuniões em registro num ticket de AMS (criar novo ou comentar num aberto, com worklog) — e 🔁 transfira QUALQUER ticket pelo número (vincula o esforço e exclui o original).'},
+  {vai:'ams',titulo:'AMS (apuração por ciclo)',texto:'Um contrato por vez, por ciclo: banco de horas, faturamento, faturável × não faturável (pelo TIPO do chamado), chamados do ciclo e PDF da apuração.'},
+  {vai:'receita',titulo:'💰 Receita',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
+  {vai:'config',titulo:'⚙️ Central de configurações',texto:'Todos os ajustes num lugar só: metas & ausências, contratos, resumo agendado no Teams, integrações e preferências.'},
+  {vai:'admin',titulo:'⚙️ Contratos (Admin)',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento.'},
+  {vai:'acoes',sel:'#grp-mais',titulo:'É isso! 🎉',texto:'Você passou por TODAS as telas. Dúvida em alguma? Em ⋯ Mais → ❓ Ajuda tem o passo a passo escrito de cada uma — e o canal de dúvidas/sugestões/bugs. Bom uso!'},
+];
+let _tourI=0, _tourLista=TOUR, _tourHome=false;
 function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e.remove());
   window.removeEventListener('resize',_tourReposi); window.removeEventListener('scroll',_tourReposi,true); }
 function _tourReposi(){ if(document.querySelector('.tour-pop')) posicionaTour(); }
 function iniciaTour(){
-  fechaModal(); estado.vista='resumo';
-  marcaVista('resumo');
-  render(); estadoParaURL();
+  fechaModal(); _tourLista=TOUR; _tourHome=false;
+  // A tela de partida não pode impedir o tour (mesmo guard do mostraTour).
+  try{ estado.vista='resumo'; marcaVista('resumo'); render(); estadoParaURL(); }catch(e){}
   _tourI=0; setTimeout(mostraTour,160);
+}
+// Tour completo: todas as telas, uma por passo (termina de volta no Início).
+function iniciaTourTelas(){
+  fechaModal(); _tourLista=TOUR_TELAS; _tourHome=true;
+  _tourI=0; setTimeout(mostraTour,160);
+}
+function _tourAlvo(passo){
+  // Passos de tela destacam o cartão principal; `sel` explícito tem prioridade.
+  if(passo.sel){ const a=document.querySelector(passo.sel); if(a) return a; }
+  if(passo.vai){ return document.querySelector('#conteudo .card')||document.getElementById('conteudo'); }
+  return null;
 }
 function mostraTour(){
   fimTour();
-  if(_tourI>=TOUR.length) return;
-  const passo=TOUR[_tourI]; const alvo=document.querySelector(passo.sel);
+  const L=_tourLista;
+  if(_tourI>=L.length){ if(_tourHome){ _tourHome=false; vaiPara('acoes'); } return; }
+  const passo=L[_tourI];
+  // Uma tela com dados indisponíveis não pode matar o tour — navega e segue.
+  if(passo.vai && estado.vista!==passo.vai){ try{ vaiPara(passo.vai); }catch(e){} return void setTimeout(mostraTour,320); }
+  const alvo=_tourAlvo(passo);
   if(!alvo || (passo.se && !passo.se())){ _tourI++; return mostraTour(); }
   alvo.scrollIntoView({block:'center',behavior:'smooth'});
   const hl=document.createElement('div'); hl.className='tour-hl'; document.body.appendChild(hl);
   const pop=document.createElement('div'); pop.className='tour-pop';
   pop.innerHTML=`<h3>${esc(passo.titulo)}</h3><p>${esc(passo.texto)}</p>
-    <div class="tour-nav"><span class="tour-step">${_tourI+1} de ${TOUR.length}</span>
+    <div class="tour-nav"><span class="tour-step">${_tourI+1} de ${L.length}</span>
       ${_tourI>0?'<button class="btn" id="tour-prev">Anterior</button>':''}
       <button class="btn" id="tour-fim">Fechar</button>
-      <button class="btn primario" id="tour-next">${_tourI===TOUR.length-1?'Concluir':'Próximo →'}</button></div>`;
+      <button class="btn primario" id="tour-next">${_tourI===L.length-1?'Concluir':'Próximo →'}</button></div>`;
   document.body.appendChild(pop);
   setTimeout(posicionaTour,200);
   window.addEventListener('resize',_tourReposi); window.addEventListener('scroll',_tourReposi,true);
 }
 function posicionaTour(){
-  const passo=TOUR[_tourI]; const alvo=document.querySelector(passo.sel);
+  const passo=_tourLista[_tourI]; const alvo=passo&&_tourAlvo(passo);
   const hl=document.querySelector('.tour-hl'); const pop=document.querySelector('.tour-pop');
   if(!alvo||!hl||!pop) return;
   const r=alvo.getBoundingClientRect(); const pad=6;
@@ -12043,6 +12258,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-07-31','🗺 <b>Tour completo — a Ajuda agora cobre o aplicativo INTEIRO</b>: em ⋯ Mais → ❓ Ajuda, além do tour rápido de navegação, o novo <b>🗺 Tour completo</b> passa por <b>todas as telas</b>, uma a uma, explicando o que cada uma faz; a lista <b>"TODAS as telas"</b> virou um índice clicável (clique e a tela abre) e ganharam passo a passo escrito: Minha Semana, Agenda, Inbox, Menções, Projetos, Analytics & Auditoria, Meu dia, AMS/Receita/Admin e a Central de configurações.'],
+  ['2026-07-30','🎫 <b>Agenda: conferência no Jira + cobrança pelo Inbox</b>: o painel Controle de tickets agora <b>confere no Jira</b> se a reunião pendente já tem ticket criado <b>fora do app</b> (achou? 1 clique em "✓ usar este ticket" registra o vínculo) e, quando o ticket é de um colega, dá para <b>📨 avisar no Inbox</b> da pessoa — o aviso aparece na caixa <b>📥 Inbox</b> dela (com selo no menu) e <b>some sozinho</b> quando o ticket é criado ou vinculado.'],
   ['2026-07-30','🌳 <b>Árvore de decisão na página inicial + caminho AMS não faturável</b>: a árvore "Onde crio o ticket?" agora aparece direto no <b>Início</b> (mesmo passo a passo, sem trocar de tela) e, no <b>AMS direto com o cliente</b>, uma nova pergunta separa <b>reunião de alinhamento</b> e <b>atividade administrativa</b> — o ticket já nasce com o tipo <b>não faturável</b> certo, fora da apuração do pacote do contrato.'],
   ['2026-07-30','📅 <b>Agenda: convites só com o time interno + 🎫 controle de tickets</b>: a lista de convites para apontar mostra apenas pessoas da <b>Dexterity</b> (participantes externos ficam de fora) e o novo painel <b>🎫 Controle de tickets</b> mostra, reunião por reunião, <b>quem deve criar</b> o ticket, se <b>já foi criado</b> (e por quem) ou o que segue <b>pendente</b>.'],
   ['2026-07-30','💠 <b>Cards no estilo SAP Fiori</b>: os cards da página inicial ganharam o visual dos apps Fiori — tiles claros com sombra suave, <b>número grande</b> colorido pela situação, <b>faixa inferior semântica</b> (verde ok · laranja atenção · vermelho crítico), ícone em marca-d\'água e ações como <b>links azuis</b>. Tudo no claro e no escuro.'],
@@ -12119,7 +12336,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-07-30.6';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-07-31.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -12899,9 +13116,11 @@ marcaNovidade();
 // Navegação do tour guiado (botões ficam soltos no body).
 document.addEventListener('click', (e)=>{
   const t=e.target.closest && e.target.closest('button'); if(!t) return;
-  if(t.id==='tour-next'){ _tourI+=1; if(_tourI>=TOUR.length) fimTour(); else mostraTour(); }
+  if(t.id==='tour-next'){ _tourI+=1;
+    if(_tourI>=_tourLista.length){ fimTour(); if(_tourHome){ _tourHome=false; vaiPara('acoes'); } }
+    else mostraTour(); }
   else if(t.id==='tour-prev'){ _tourI=Math.max(0,_tourI-1); mostraTour(); }
-  else if(t.id==='tour-fim'){ fimTour(); }
+  else if(t.id==='tour-fim'){ fimTour(); _tourHome=false; }
 });
 
 // ---- Qualidade dos Tickets (IA): analisar + menu de ações por ticket ----
@@ -13932,6 +14151,11 @@ document.getElementById('conteudo').addEventListener('keydown', (e)=>{
 });
 
 // Ações dentro do painel de Metas (delegação no corpo do modal).
+// Links "abrir tela" da lista TODAS as telas (❓ Ajuda) — fecham o modal e navegam.
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const g=e.target.closest&&e.target.closest('[data-aj-goto]'); if(!g) return;
+  fechaModal(); vaiPara(g.getAttribute('data-aj-goto'));
+});
 document.getElementById('modal-body').addEventListener('click', (e)=>{
   const t=e.target; if(t.tagName!=='BUTTON') return;
   const num=(id)=>Math.max(0, Number(document.getElementById(id).value)||0);
@@ -13979,6 +14203,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='rc-adm-confirmar'){ executaConfirmaAdm(); }
   else if(t.id==='rc-adm-cancelar'){ fechaModal(); }
   else if(t.id==='aj-tour'){ iniciaTour(); }
+  else if(t.id==='aj-tour-telas'){ iniciaTourTelas(); }
   else if(t.classList && t.classList.contains('fb-tipo')){
     document.querySelectorAll('.fb-tipo').forEach(c=>c.setAttribute('aria-pressed', c===t?'true':'false')); }
   else if(t.id==='fb-enviar'){ enviaFeedback(); }
