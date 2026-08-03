@@ -1151,8 +1151,11 @@
   .hxd-row:last-of-type{border-bottom:0}
   .hxd-hora{font-variant-numeric:tabular-nums;color:var(--muted);min-width:46px;flex:none}
   .hxd-tit{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hxd-mini{width:64px;height:6px;background:var(--linha);border-radius:4px;overflow:hidden;flex:none}
-  .hxd-mini i{display:block;height:100%;background:#0A6ED1}
+  .hxg-donut{flex:none} .hxg-bullet,.hxg-cols{display:block;max-width:100%}
+  .hxg-dtxt{font-size:12.5px;font-weight:700;fill:var(--grafite)}
+  .hxg-ctxt{font-size:9px;fill:var(--muted)} .hxg-ctxt.hoje{fill:#0A6ED1;font-weight:700}
+  .hxg-vtxt{font-size:9.5px;font-weight:700;fill:#0A6ED1}
+  :root[data-theme="dark"] .hxg-ctxt.hoje,:root[data-theme="dark"] .hxg-vtxt{fill:#7cb7ff}
   /* Agenda — 🎫 controle de tickets das reuniões */
   .ag-ct-head,.ag-ct-row{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1.2fr) minmax(160px,1.4fr) minmax(120px,auto);gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--linha)}
   .ag-ct-head{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom-width:2px}
@@ -4149,6 +4152,43 @@ function renderAcoes(){
     <div class="nov-lista" style="margin-top:6px">${novItens}</div>
     <div style="margin-top:12px"><button class="btn" data-nov-todas>Ver todas as novidades (${NOVIDADES.length})</button></div>
   </div>`;
+  // ---- micro-gráficos modernos da home (SVG puro, sem libs, cores do tema) ----
+  // Gauge radial de progresso vs meta (status verde/laranja SEMPRE acompanha texto).
+  const hxDonut=(pct,cor)=>{ const r=24,c=2*Math.PI*r,p=Math.max(0,Math.min(100,pct));
+    return `<svg class="hxg-donut" width="58" height="58" viewBox="0 0 58 58" role="img" aria-label="${p}% da meta do dia">
+      <circle cx="29" cy="29" r="${r}" fill="none" style="stroke:var(--linha)" stroke-width="6"/>
+      ${p?`<circle cx="29" cy="29" r="${r}" fill="none" stroke="${cor}" stroke-width="6" stroke-linecap="round"
+        stroke-dasharray="${(p/100*c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 29 29)"/>`:''}
+      <text x="29" y="33" text-anchor="middle" class="hxg-dtxt">${p}%</text>
+    </svg>`; };
+  // Bullet chart: barra do realizado + traço-alvo do planejado (escala = maior dos dois).
+  const hxBullet=(realSeg,planSeg,w)=>{ const max=Math.max(realSeg,planSeg,1);
+    const wR=realSeg/max*w, xP=planSeg?planSeg/max*w:null;
+    const cor=planSeg&&realSeg>=planSeg?'#188918':'#0A6ED1';
+    return `<svg class="hxg-bullet" width="${w}" height="12" viewBox="0 0 ${w} 12" role="img" aria-label="realizado ${fmtH(realSeg)} de ${planSeg?fmtH(planSeg):'—'} planejadas">
+      <rect x="0" y="3" width="${w}" height="6" rx="3" style="fill:var(--linha)"/>
+      ${realSeg?`<rect x="0" y="3" width="${Math.max(3,wR).toFixed(1)}" height="6" rx="3" fill="${cor}"/>`:''}
+      ${xP!=null?`<rect x="${Math.min(w-2.4,Math.max(0,xP-1.2)).toFixed(1)}" y="0" width="2.4" height="12" rx="1.2" style="fill:var(--grafite)"/>`:''}
+    </svg>`; };
+  // Colunas do ritmo diário (seg→dom): hoje em azul com rótulo direto; demais em
+  // cinza-ardósia de de-ênfase; tracejado = meta/dia. Tooltip em cada coluna.
+  const hxColunas=(dias,metaSeg2)=>{ const W=216,H=58,n=dias.length,slot=W/n,bw=Math.min(20,slot-8);
+    const max=Math.max(metaSeg2,...dias.map(x=>x.seg),1);
+    const y=(s)=>(H-12)-(s/max*(H-24));
+    const ym=y(metaSeg2);
+    const cols=dias.map((x,i)=>{ const cx=i*slot+slot/2;
+      const top=y(x.seg), h=(H-12)-top;
+      return `<g data-tip="${escA(x.rot)}" data-tip2="${escA(fmtH(x.seg)+(x.hoje?' (hoje)':''))}">
+        <rect x="${(cx-slot/2+1).toFixed(1)}" y="0" width="${(slot-2).toFixed(1)}" height="${H}" fill="transparent"/>
+        ${x.seg?`<rect x="${(cx-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(3,h).toFixed(1)}" rx="3" fill="${x.hoje?'#0A6ED1':'#7E8E9E'}"/>`
+          :`<rect x="${(cx-bw/2).toFixed(1)}" y="${H-14}" width="${bw}" height="2" rx="1" style="fill:var(--linha)"/>`}
+        ${x.hoje&&x.seg?`<text x="${cx.toFixed(1)}" y="${Math.max(9,top-3).toFixed(1)}" text-anchor="middle" class="hxg-vtxt">${fmtH(x.seg)}</text>`:''}
+        <text x="${cx.toFixed(1)}" y="${H-2}" text-anchor="middle" class="hxg-ctxt${x.hoje?' hoje':''}">${x.ini}</text>
+      </g>`; }).join('');
+    return `<svg class="hxg-cols" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <line x1="0" x2="${W}" y1="${ym.toFixed(1)}" y2="${ym.toFixed(1)}" style="stroke:var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>
+      ${cols}
+    </svg>`; };
   // ---- 👋 SEU dia num relance (hero pessoal acionável) ----
   const id=idApontar();
   let heroHtml='';
@@ -4166,9 +4206,13 @@ function renderAcoes(){
     else{ const falta=Math.max(0,metaSeg-meuSeg); const pc=Math.min(100,Math.round(meuSeg/metaSeg*100));
       const cls=meuSeg>=metaSeg?'ok':(pc>=50?'aten':'crit');
       cHoras=`<div class="ax-card ${cls}"><div class="ax-top"><span>⏱</span> Suas horas de hoje</div>
-        <div class="ax-num">${fmtH(meuSeg)} <span class="muted" style="font-size:14px;font-weight:400">de ${fmtH(metaSeg)}</span></div>
-        <div class="track" style="margin:4px 0 2px"><div class="fill" style="width:${pc}%;background:${meuSeg>=metaSeg?'#188918':'#E76500'}"></div></div>
-        <div class="ax-det">${falta?`faltam <b>${fmtH(falta)}</b> para a sua meta`:'meta do dia batida ✅'}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div class="ax-num">${fmtH(meuSeg)} <span class="muted" style="font-size:14px;font-weight:400">de ${fmtH(metaSeg)}</span></div>
+            <div class="ax-det">${falta?`faltam <b>${fmtH(falta)}</b> para a sua meta`:'meta do dia batida ✅'}</div>
+          </div>
+          ${hxDonut(pc, meuSeg>=metaSeg?'#188918':'#E76500')}
+        </div>
         <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora →':'Ver apontamentos →'}</button></div></div>`; }
     // ⚠ meus tickets vencidos
     const meusVenc=tks?tks.filter(t=>t.respId===acc&&t.venc&&t.venc<hoje).length:null;
@@ -4244,14 +4288,17 @@ function renderAcoes(){
       .map(p=>({p, plan:Math.round(planPorP[p]||0), real:realPorP[p]||0}))
       .sort((x,y)=>(y.plan+y.real)-(x.plan+x.real)).slice(0,4);
     const pctSem=planSeg?Math.min(100,Math.round(realSemSeg/planSeg*100)):0;
+    const DIAS_INI=['S','T','Q','Q','S','S','D'];
+    const diasSem=wDias.map((d,i)=>({seg:hpd[d]||0, hoje:d===hoje, ini:DIAS_INI[i], rot:alxDataBR(d)}));
     const blocoPlano=`<div class="hxd-col"><h3>📊 Sua semana: plano × realizado</h3>
       ${(itensP.length||realSemSeg)?`
         <div class="small"><b>${fmtH(realSemSeg)}</b> realizadas de <b>${fmtHd(planH)}</b> planejadas${planSeg?` <span class="muted">(${pctSem}%)</span>`:''}</div>
-        <div class="track" style="margin:5px 0 8px"><div class="fill" style="width:${pctSem}%;background:${pctSem>=90?'#188918':'#E76500'}"></div></div>
-        ${projsCmp.map(x=>{ const pc2=x.plan?Math.min(100,Math.round(x.real/x.plan*100)):(x.real?100:0);
-          return `<div class="hxd-row"><span class="hxd-tit">${esc(x.p)}</span>
+        <div style="margin:4px 0 6px">${hxBullet(realSemSeg,planSeg,216)}</div>
+        ${hxColunas(diasSem,metaSeg)}
+        <div class="muted small" style="margin:0 0 6px">seu ritmo dia a dia · tracejado = meta/dia</div>
+        ${projsCmp.map(x=>`<div class="hxd-row"><span class="hxd-tit">${esc(x.p)}</span>
             <span class="muted small" style="white-space:nowrap">${fmtH(x.real)} / ${x.plan?fmtH(x.plan):'—'}</span>
-            <div class="hxd-mini" data-tip="Realizado ÷ planejado no projeto"><i style="width:${pc2}%"></i></div></div>`; }).join('')}
+            ${hxBullet(x.real,x.plan,86)}</div>`).join('')}
         <div class="muted small" style="margin-top:6px">plano: ${esc(stTxt)}</div>`
         :'<div class="muted small">Sem plano nem horas nesta semana ainda — comece planejando a semana.</div>'}
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Minha Semana →</button></div></div>`;
@@ -12325,7 +12372,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
-  ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto).'],
+  ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto) — com gráficos modernos: <b>gauge radial</b> da meta do dia, <b>colunas do ritmo dia a dia</b> (com a linha da meta) e <b>bullet charts</b> realizado × alvo.'],
   ['2026-07-31','🗺 <b>Tour completo — a Ajuda agora cobre o aplicativo INTEIRO</b>: em ⋯ Mais → ❓ Ajuda, além do tour rápido de navegação, o novo <b>🗺 Tour completo</b> passa por <b>todas as telas</b>, uma a uma, explicando o que cada uma faz; a lista <b>"TODAS as telas"</b> virou um índice clicável (clique e a tela abre) e ganharam passo a passo escrito: Minha Semana, Agenda, Inbox, Menções, Projetos, Analytics & Auditoria, Meu dia, AMS/Receita/Admin e a Central de configurações.'],
   ['2026-07-30','🎫 <b>Agenda: conferência no Jira + cobrança pelo Inbox</b>: o painel Controle de tickets agora <b>confere no Jira</b> se a reunião pendente já tem ticket criado <b>fora do app</b> (achou? 1 clique em "✓ usar este ticket" registra o vínculo) e, quando o ticket é de um colega, dá para <b>📨 avisar no Inbox</b> da pessoa — o aviso aparece na caixa <b>📥 Inbox</b> dela (com selo no menu) e <b>some sozinho</b> quando o ticket é criado ou vinculado.'],
   ['2026-07-30','🌳 <b>Árvore de decisão na página inicial + caminho AMS não faturável</b>: a árvore "Onde crio o ticket?" agora aparece direto no <b>Início</b> (mesmo passo a passo, sem trocar de tela) e, no <b>AMS direto com o cliente</b>, uma nova pergunta separa <b>reunião de alinhamento</b> e <b>atividade administrativa</b> — o ticket já nasce com o tipo <b>não faturável</b> certo, fora da apuração do pacote do contrato.'],
@@ -12404,7 +12451,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-01.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-01.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
