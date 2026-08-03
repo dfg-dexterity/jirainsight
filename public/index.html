@@ -1151,6 +1151,11 @@
   .hxd-row:last-of-type{border-bottom:0}
   .hxd-hora{font-variant-numeric:tabular-nums;color:var(--muted);min-width:46px;flex:none}
   .hxd-tit{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 🌳 folha "SAP já planejado": épicos (nível 1) com histórias (nível 2) */
+  .arv-pl-ep{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin:8px 0;background:var(--cartao)}
+  .arv-pl-ep>summary{cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+  .arv-pl-t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arv-pl-h{display:flex;align-items:center;gap:8px;padding:5px 0 5px 16px;border-top:1px dashed var(--linha);font-size:12.5px;min-width:0;margin-top:5px}
   .hxg-donut{flex:none} .hxg-bullet,.hxg-cols{display:block;max-width:100%}
   .hxg-dtxt{font-size:12.5px;font-weight:700;fill:var(--grafite)}
   .hxg-ctxt{font-size:9px;fill:var(--muted)} .hxg-ctxt.hoje{fill:#0A6ED1;font-weight:700}
@@ -7054,7 +7059,12 @@ const ARV_NOS={
       'Se o projeto não tiver épico de Gestão, fale com o gerente do projeto.'] },
   sap_planejado:{ q:'Esse entregável não foi planejado?',
     helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
-    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
+    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_planejados', tone:'grafite'} ] },
+  sap_planejados:{ result:true, tone:'purple', badge:'Projeto SAP — planejado', title:'Aponte no ticket que JÁ FOI planejado', cria:false, planejados:true, escolheProjeto:true, filtro:'cat', catRe:/delivery/i, catNome:'Delivery',
+    text:'O entregável já estava planejado — não crie ticket paralelo. Escolha o projeto SAP (categoria Delivery, em aberto) e localize o ÉPICO (nível 1) e a HISTÓRIA (nível 2) planejados para apontar no lugar certo.',
+    bullets:['Aponte as horas direto na história planejada (ou nas sub-tarefas dela) — não abra tarefa administrativa ou avulsa.',
+      'Não achou o épico/história do seu trabalho? Fale com o gerente do projeto ANTES de criar qualquer coisa.',
+      'Precisa detalhar? Combine com o GP a criação de sub-tarefas dentro da história planejada.'] },
   adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
     helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa. Ausências (folga, atestado, férias) não viram ticket — são registradas no Odoo.',
     op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'},
@@ -7195,6 +7205,67 @@ function arvHTML(){
     const url=`${jiraBase()}/browse/${encodeURIComponent(a.feito.key)}`;
     corpo=`<div class="pl-res-ok">✓ Ticket criado: <a href="${url}" target="_blank" rel="noopener">${esc(a.feito.key)} ↗</a> — ${esc(a.feito.resumo)}</div>
       <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primario" data-arv-reiniciar="1">🌳 Classificar outra atividade</button></div>`;
+  } else if(no.result && no.planejados){
+    // 🧭 SAP já planejado: NÃO cria ticket — escolha o projeto (categoria Delivery,
+    // em aberto) e veja os ÉPICOS (nível 1) com as HISTÓRIAS (nível 2) planejadas,
+    // com link ao Jira, para apontar no ticket certo.
+    const f=a.form;
+    const sug=arvProjetosSugeridos('cat', no.catRe);
+    let corpoP;
+    if(!_projetosCache){ corpoP='<div class="muted" style="margin-top:8px">Carregando projetos…</div>'; }
+    else if(!f.projeto){
+      corpoP=sug.length?`<div class="sec" style="margin:12px 0 6px">Escolha o projeto <span class="muted">— categoria ${esc(no.catNome||'')}, em aberto</span></div>
+        <div class="arv-projs">${sug.map(p=>`<button class="arv-pcard t-${escA(no.tone)}" data-arv-proj="${escA(p.key)}">
+            <span class="arv-pcard-t">${esc(p.nome||p.key)} <span class="arv-pcard-k">${esc(p.key)}</span></span>
+            <span class="arv-pcard-d">${esc(p.descricao||'Sem descrição do objetivo cadastrada no Jira.')}</span>
+          </button>`).join('')}</div>`
+        :`<div class="ap-fb err" style="margin-top:8px">Nenhum projeto encontrado na categoria “${esc(no.catNome||'')}”. Confira a categoria dos projetos no Jira.</div>`;
+    } else {
+      const pl2=estado.planejar;
+      const ep=pl2.epicosPorProj[f.projeto];
+      if(!ep && !pl2.carregandoEpicos){
+        pl2.carregandoEpicos=true;
+        fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
+          pl2.carregandoEpicos=false;
+          pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
+          arvRender();
+        }).catch(e2=>{ pl2.carregandoEpicos=false;
+          pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
+          arvRender(); });
+      }
+      const proj=(_projetosCache||[]).find(p=>p.key===f.projeto);
+      const cab=`<div class="campo" style="margin-top:10px"><label>Projeto</label>
+        <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
+          <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos da categoria">trocar</button></div>
+        ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`;
+      if(!ep) corpoP=cab+'<div class="muted small" style="margin-top:8px">Carregando os épicos e histórias planejados…</div>';
+      else if(ep.erro) corpoP=cab+`<div class="ap-fb err" style="margin-top:8px">${esc(ep.erro)}</div>`;
+      else {
+        const hs=ep.historias||[]; const eps=ep.epicos||[];
+        const soltas=hs.filter(h=>!h.epico||!eps.some(e2=>e2.k===h.epico));
+        const linkK=(x)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(x.k)}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>`;
+        const hRow=(h)=>`<div class="arv-pl-h">${linkK(h)} <span class="hxd-tit" title="${escA(h.resumo)}">${esc(h.resumo)}</span> <span class="badge">${esc(h.status)}</span></div>`;
+        const blocosEp=eps.map(e2=>{ const minhas=hs.filter(h=>h.epico===e2.k);
+          return `<details class="arv-pl-ep" open>
+            <summary>${linkK(e2)} <span class="arv-pl-t" title="${escA(e2.resumo)}">${esc(e2.resumo)}</span>
+              <span class="badge">${esc(e2.status)}</span><span class="muted small">${minhas.length} história(s)</span></summary>
+            ${minhas.length?minhas.map(hRow).join(''):'<div class="muted small" style="padding:4px 0 4px 10px">Sem histórias abertas neste épico.</div>'}
+          </details>`; }).join('');
+        corpoP=cab+`<div class="sec" style="margin:12px 0 6px">Épicos e histórias planejados <span class="muted">— em aberto · nível 1 e 2</span></div>
+          ${(eps.length||soltas.length)
+            ?blocosEp+(soltas.length?`<details class="arv-pl-ep" open><summary><span class="arv-pl-t">Histórias sem épico</span><span class="muted small">${soltas.length}</span></summary>${soltas.map(hRow).join('')}</details>`:'')
+            :'<div class="muted small">Nenhum épico ou história em aberto neste projeto — fale com o gerente do projeto.</div>'}`;
+      }
+    }
+    corpo=`${trilha}
+      <span class="arv-badge t-${escA(no.tone)}">${esc(no.badge)}</span>
+      <h3 class="arv-titulo">${esc(no.title)}</h3>
+      <div class="muted" style="margin:4px 0 8px">${esc(no.text)}</div>
+      <ul class="qa-probs">${no.bullets.map(b2=>`<li>${esc(b2)}</li>`).join('')}</ul>
+      ${corpoP}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" data-arv-voltar="1">← Voltar</button>
+        <button class="btn" data-arv-reiniciar="1">Reiniciar</button></div>`;
   } else if(no.result){
     const podeCriar=!!no.cria;
     let form='';
@@ -12372,6 +12443,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-03','🌳 <b>Árvore: entregável SAP já planejado agora mostra ONDE apontar</b>: no caminho Projeto SAP → ajuda em um entregável → <b>já estava planejado</b>, em vez de só "fale com o gerente", a árvore lista os <b>projetos Delivery em aberto</b> para você escolher e mostra os <b>épicos (nível 1)</b> com as <b>histórias (nível 2)</b> planejadas — com link direto ao Jira para apontar no ticket certo (continua sem criar ticket paralelo).'],
   ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto) — com gráficos modernos: <b>gauge radial</b> da meta do dia, <b>colunas do ritmo dia a dia</b> (com a linha da meta) e <b>bullet charts</b> realizado × alvo.'],
   ['2026-07-31','🗺 <b>Tour completo — a Ajuda agora cobre o aplicativo INTEIRO</b>: em ⋯ Mais → ❓ Ajuda, além do tour rápido de navegação, o novo <b>🗺 Tour completo</b> passa por <b>todas as telas</b>, uma a uma, explicando o que cada uma faz; a lista <b>"TODAS as telas"</b> virou um índice clicável (clique e a tela abre) e ganharam passo a passo escrito: Minha Semana, Agenda, Inbox, Menções, Projetos, Analytics & Auditoria, Meu dia, AMS/Receita/Admin e a Central de configurações.'],
   ['2026-07-30','🎫 <b>Agenda: conferência no Jira + cobrança pelo Inbox</b>: o painel Controle de tickets agora <b>confere no Jira</b> se a reunião pendente já tem ticket criado <b>fora do app</b> (achou? 1 clique em "✓ usar este ticket" registra o vínculo) e, quando o ticket é de um colega, dá para <b>📨 avisar no Inbox</b> da pessoa — o aviso aparece na caixa <b>📥 Inbox</b> dela (com selo no menu) e <b>some sozinho</b> quando o ticket é criado ou vinculado.'],
@@ -12451,7 +12523,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-01.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-03.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -14174,7 +14246,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       // ENTRAR numa folha reaplica as sugestões DELA (senão, ao voltar e escolher
       // outro departamento/contexto, projeto/departamento antigos ficavam grudados).
       const prox=ARV_NOS[o.next];
-      if(prox && prox.result && prox.cria){
+      if(prox && prox.result && (prox.cria||prox.planejados)){
         const ps=(_projetosCache||[]);
         let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
         const fixo=prox.filtro==='avulsa'?'TAD':(prox.soProjeto||'');
