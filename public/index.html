@@ -8339,6 +8339,7 @@ function abreModalReprog(keys, acao){
     <div class="alx-campo">
       <label>Comentário que será publicado no Jira <span class="muted small">(editável)</span></label>
       <textarea class="alx-coment" id="alx-coment" placeholder="Escolha um motivo acima para gerar o comentário…"></textarea>
+      <div class="muted small" style="margin-top:4px">🔒 Em projetos AMS (categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>) este comentário entra como <b>nota interna</b> — o cliente não vê no portal.</div>
       ${keys.length>1?'<div class="muted small" style="margin-top:5px">A data anterior de cada ticket é preenchida automaticamente no comentário.</div>':''}
     </div>
     <div class="alx-fb" id="alx-modal-fb" hidden></div>
@@ -8401,7 +8402,7 @@ async function confirmaReprog(){
       let comentOk=true, comentErro='';
       if(texto.trim()){
         const r2=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
+          body:JSON.stringify({comentar:true,reprogramacao:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
         comentOk=!!r2.ok; comentErro=r2.erro||'';
       }
       okN++;
@@ -12443,6 +12444,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-03','🔒 <b>Reprogramação em AMS agora é nota interna</b>: nos projetos das categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>, o comentário da reprogramação (Alertas/Gestão) entra no Jira como <b>observação/nota interna</b> do Service Management — o cliente <b>não vê</b> no portal. Nas demais categorias segue como comentário normal.'],
   ['2026-08-03','🌳 <b>Árvore: entregável SAP já planejado agora mostra ONDE apontar</b>: no caminho Projeto SAP → ajuda em um entregável → <b>já estava planejado</b>, em vez de só "fale com o gerente", a árvore lista os <b>projetos Delivery em aberto</b> para você escolher e mostra os <b>épicos (nível 1)</b> com as <b>histórias (nível 2)</b> planejadas — com link direto ao Jira para apontar no ticket certo (continua sem criar ticket paralelo).'],
   ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto) — com gráficos modernos: <b>gauge radial</b> da meta do dia, <b>colunas do ritmo dia a dia</b> (com a linha da meta) e <b>bullet charts</b> realizado × alvo.'],
   ['2026-07-31','🗺 <b>Tour completo — a Ajuda agora cobre o aplicativo INTEIRO</b>: em ⋯ Mais → ❓ Ajuda, além do tour rápido de navegação, o novo <b>🗺 Tour completo</b> passa por <b>todas as telas</b>, uma a uma, explicando o que cada uma faz; a lista <b>"TODAS as telas"</b> virou um índice clicável (clique e a tela abre) e ganharam passo a passo escrito: Minha Semana, Agenda, Inbox, Menções, Projetos, Analytics & Auditoria, Meu dia, AMS/Receita/Admin e a Central de configurações.'],
@@ -12523,7 +12525,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-03.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-03.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
