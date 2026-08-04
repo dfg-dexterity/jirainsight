@@ -4248,6 +4248,54 @@ function renderAcoes(){
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
       `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
+    // 🗓 meus tickets SEM DATA (sem prazo não há planejamento)
+    const meusSemData=tks?tks.filter(t=>t.respId===acc&&!t.venc).length:null;
+    const cSemData=meusSemData==null
+      ?pcard('load','🗓','Tickets sem data','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','apontar-semdata','Ver os meus →')
+      :pcard(meusSemData===0?'ok':(meusSemData>5?'crit':'aten'),'🗓','Tickets sem data',
+        `<div class="ax-num">${meusSemData}</div><div class="ax-det">${meusSemData?'sem prazo não há planejamento — clique e defina os vencimentos':'todos os seus tickets têm prazo 🎉'}</div>`,
+        'apontar-semdata', meusSemData?'Definir datas →':'Ver meus tickets →');
+    // ⏰ meus tickets que VENCEM HOJE
+    const meusHoje=tks?tks.filter(t=>t.respId===acc&&t.venc===hoje).length:null;
+    const cVHoje=meusHoje==null
+      ?pcard('load','⏰','Vencem hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','apontar-vencehoje','Ver →')
+      :pcard(meusHoje===0?'ok':'aten','⏰','Vencem hoje',
+        `<div class="ax-num">${meusHoje}</div><div class="ax-det">${meusHoje?'priorize estes no seu dia':'nada vencendo hoje 🎉'}</div>`,
+        'apontar-vencehoje', meusHoje?'Atacar agora →':'Abrir Apontar →');
+    // 🧑‍💼 PROJETOS em que estou ALOCADO nesta semana (alocação macro)
+    const wFimAloc=somaDias(wAtual,6);
+    const minhasAloc={};
+    (cfg.alocacoes||[]).forEach(x=>{ if(x.accountId!==acc) return;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(x.fim)) return;
+      if(x.inicio<=wFimAloc&&x.fim>=wAtual) minhasAloc[x.projeto||'—']=(minhasAloc[x.projeto||'—']||0)+(Number(x.hSemana)||0); });
+    const alocPs=Object.entries(minhasAloc).sort((x,y)=>y[1]-x[1]);
+    const alocTotH=alocPs.reduce((s,[,h])=>s+h,0);
+    const cAloc=pcard(alocPs.length?'ok':'aten','🧑‍💼','Projetos da semana',
+      `<div class="ax-num">${alocPs.length}</div>
+       <div class="ax-det" title="${escA(alocPs.map(([p,h])=>`${p} (${fmtHd(h)}/sem)`).join(' · '))}">${alocPs.length
+         ?`${esc(alocPs.slice(0,3).map(([p])=>p).join(' · '))}${alocPs.length>3?' …':''} — ${fmtHd(alocTotH)}/sem alocadas`
+         :'sem alocação macro nesta semana — combine com o gestor'}</div>`,
+      'minhasemana', alocPs.length?'Planejar a semana →':'Abrir Minha Semana →');
+    // 🏅 MEU RANKING de apontamento na semana (% da meta até hoje, entre o time)
+    const rankDias=[]; for(let i=0;i<7;i++){ const d2=somaDias(wAtual,i); if(d2>hoje) break; rankDias.push(d2); }
+    const porPessoaSem={};
+    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w2=>{ const d2=(w2.d||'').slice(0,10);
+      if(d2<wAtual||d2>hoje) return; porPessoaSem[w2.a]=(porPessoaSem[w2.a]||0)+(Number(w2.s)||0); });
+    const ocultosSet=new Set(cfg.ocultos||[]);
+    const rankLista=Object.keys(pessoasUnidas()).filter(a2=>!ocultosSet.has(a2)).map(a2=>{
+        let metaAte=0; rankDias.forEach(d2=>{ if(ehUtil(d2)&&!ehFeriado(d2)&&!ehAusencia(a2,d2)) metaAte+=metaSegDe(a2); });
+        return { a:a2, pct: metaAte?((porPessoaSem[a2]||0)/metaAte):null };
+      }).filter(x=>x.pct!=null).sort((x,y)=>y.pct-x.pct);
+    const minhaPos=rankLista.findIndex(x=>x.a===acc);
+    const meuPct=minhaPos>=0?Math.round(rankLista[minhaPos].pct*100):null;
+    const cRank=!estado.tempo
+      ?pcard('load','🏅','Seu ranking da semana','<div class="ax-num muted">…</div><div class="ax-det">Calculando com o Clockwork…</div>','ranking','Abrir Ranking →')
+      :meuPct==null
+        ?pcard('ok','🏅','Seu ranking da semana','<div class="ax-num muted">—</div><div class="ax-det">ainda sem dados do time nesta semana</div>','ranking','Abrir Ranking →')
+        :pcard(meuPct>=90?'ok':(meuPct>=50?'aten':'crit'),'🏅','Seu ranking da semana',
+          `<div class="ax-num">#${minhaPos+1} <span class="muted" style="font-size:14px;font-weight:400">de ${rankLista.length}</span></div>
+           <div class="ax-det">${meuPct}% da meta da semana até hoje</div>`,
+          'ranking','Abrir Ranking →');
     // ---- 🗓 Ponto de partida do dia: agenda de HOJE · meus tickets · plano × realizado ----
     // 📅 eventos de hoje (Outlook, já carregado para o card de pendências)
     const evsHoje=((estado.agenda.dados&&estado.agenda.dados.eventos)||[]).filter(ev=>(ev.inicio||'').slice(0,10)===hoje)
@@ -4309,7 +4357,7 @@ function renderAcoes(){
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Minha Semana →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cPlano}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cRank}${cAg}${cIb}</div>
       <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
     </div>`;
   } else {
@@ -4351,6 +4399,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const g=t.getAttribute('data-hx-goto');
   if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   if(g==='apontar-meus'){ estado.apontar.fil='todos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  if(g==='apontar-semdata'){ estado.apontar.fil='semvenc'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  if(g==='apontar-vencehoje'){ estado.apontar.fil='vencehoje'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   vaiPara(g);
 });
 function renderVisao(){
@@ -12444,6 +12494,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-04','🏠 <b>Mais 4 cards acionáveis no Início</b>: <b>🗓 Tickets sem data</b> (1 clique abre o Apontar filtrado para definir os vencimentos), <b>⏰ Vencem hoje</b> (priorize o dia), <b>🧑‍💼 Projetos da semana</b> (em quais projetos VOCÊ está alocado nesta semana, com as horas/semana do plano macro) e <b>🏅 Seu ranking da semana</b> (sua posição no time pela % da meta apontada até hoje, com atalho ao Ranking).'],
   ['2026-08-03','🔒 <b>Reprogramação em AMS agora é nota interna</b>: nos projetos das categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>, o comentário da reprogramação (Alertas/Gestão) entra no Jira como <b>observação/nota interna</b> do Service Management — o cliente <b>não vê</b> no portal. Nas demais categorias segue como comentário normal.'],
   ['2026-08-03','🌳 <b>Árvore: entregável SAP já planejado agora mostra ONDE apontar</b>: no caminho Projeto SAP → ajuda em um entregável → <b>já estava planejado</b>, em vez de só "fale com o gerente", a árvore lista os <b>projetos Delivery em aberto</b> para você escolher e mostra os <b>épicos (nível 1)</b> com as <b>histórias (nível 2)</b> planejadas — com link direto ao Jira para apontar no ticket certo (continua sem criar ticket paralelo).'],
   ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto) — com gráficos modernos: <b>gauge radial</b> da meta do dia, <b>colunas do ritmo dia a dia</b> (com a linha da meta) e <b>bullet charts</b> realizado × alvo.'],
@@ -12525,7 +12576,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-03.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-04.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
