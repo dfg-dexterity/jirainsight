@@ -164,6 +164,57 @@ async function criaFeedbackGitHub(res, b) {
   return json(res, 200, { ok: true, numero: data.number, url: data.html_url });
 }
 
+// ---- Edição EM MASSA (grade pós-criação estilo planilha): data limite e/ou
+// responsável de vários tickets de uma vez, com o token da própria pessoa.
+// Corpo: { editar:1, itens:[{key, venc?, respId?}], email, token }
+//   - 'venc' presente e vazio  -> LIMPA a data limite; 'AAAA-MM-DD' -> define.
+//   - 'respId' presente e vazio -> REMOVE o responsável; accountId -> define.
+// Resposta: { ok, resultados:[{key, ok, erro?}] }
+const RE_ACC = /^[\w:.-]{1,128}$/;
+async function editaLote(res, b, base, headers) {
+  const itens = Array.isArray(b.itens) ? b.itens : [];
+  if (!itens.length) return json(res, 400, { erro: 'Nenhum ticket para alterar.' });
+  if (itens.length > MAX_ITENS) return json(res, 400, { erro: `Máximo de ${MAX_ITENS} tickets por vez.` });
+  for (const it of itens) {
+    if (!it || !RE_ISSUE.test(String(it.key || ''))) return json(res, 400, { erro: `Ticket inválido: ${String((it && it.key) || '?').slice(0, 30)}` });
+    if ('venc' in it && it.venc !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.venc))) {
+      return json(res, 400, { erro: `Data limite inválida em ${it.key} (use AAAA-MM-DD).` });
+    }
+    if ('respId' in it && it.respId !== '' && !RE_ACC.test(String(it.respId))) {
+      return json(res, 400, { erro: `Responsável inválido em ${it.key}.` });
+    }
+    if (!('venc' in it) && !('respId' in it)) return json(res, 400, { erro: `Nada para alterar em ${it.key}.` });
+  }
+  const resultados = [];
+  // Lotes de 5 em paralelo — gentil com o rate limit do Jira.
+  for (let i = 0; i < itens.length; i += 5) {
+    await Promise.all(itens.slice(i, i + 5).map(async (it) => {
+      const key = String(it.key).toUpperCase();
+      const fields = {};
+      if ('venc' in it) fields.duedate = it.venc ? String(it.venc) : null;
+      if ('respId' in it) fields.assignee = it.respId ? { id: String(it.respId) } : null;
+      try {
+        const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(key)}`, {
+          method: 'PUT', headers, body: JSON.stringify({ fields }),
+        });
+        if (r.status === 204 || r.ok) { resultados.push({ key, ok: true }); return; }
+        let msg = '';
+        try { const j = await r.json(); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join(' '); } catch (e) { /* sem corpo */ }
+        if (r.status === 401 || r.status === 403) msg = msg || 'Sem permissão — token inválido/expirado ou sem acesso ao projeto.';
+        resultados.push({ key, ok: false, erro: (msg || `Jira ${r.status}`).slice(0, 300) });
+      } catch (e) {
+        resultados.push({ key, ok: false, erro: String(e && e.message ? e.message : e).slice(0, 300) });
+      }
+    }));
+  }
+  // Datas/responsáveis mudaram: derruba caches de leitura desta instância.
+  cacheClear('atividade:');
+  cacheClear('venc:');
+  const ordem = new Map(itens.map((it, i) => [String(it.key).toUpperCase(), i]));
+  resultados.sort((a, b2) => (ordem.get(a.key) || 0) - (ordem.get(b2.key) || 0));
+  return json(res, 200, { ok: resultados.every((r) => r.ok), resultados });
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
@@ -173,6 +224,13 @@ export default async function handler(req, res) {
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Identifique-se (e-mail + token de API) para criar tickets.' });
+    }
+    if (b.editar) {
+      return await editaLote(res, b, jiraBase(), {
+        Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      });
     }
     const itens = Array.isArray(b.itens) ? b.itens : [];
     if (!itens.length) return json(res, 400, { erro: 'Nenhum ticket para criar.' });

@@ -8,9 +8,15 @@
 //   { issue, transitionId, email, token }            -> executa a transição de status
 //   { reagendar:true, issue, duedate, email, token }  -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' p/ remover)
 //   { comentar:true, issue, texto, email, token }     -> adiciona um comentário ao chamado
+//     + reprogramacao:true -> comentário de REPROGRAMAÇÃO: em projetos das categorias
+//       "Dexterity - AMS" / "Parceria - AMS" entra como NOTA INTERNA do JSM
+//       (propriedade sd.public.comment — invisível no portal do cliente)
 //   { atribuir:true, issue, accountId, email, token } -> transfere o responsável (accountId vazio/null = sem responsável)
 //   { excluir:true, issue, email, token }             -> EXCLUI o ticket (irreversível; permissão "Excluir itens")
-import { jiraBase, cacheClear, json } from './_lib/util.js';
+import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json } from './_lib/util.js';
+
+// Categorias de projeto cujo comentário de REPROGRAMAÇÃO vira nota interna do JSM.
+const RE_CAT_NOTA_INTERNA = /(dexterity|parceria)\s*[-–—]\s*ams/i;
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -194,14 +200,32 @@ export default async function handler(req, res) {
         });
         corpo.content.unshift({ type: 'paragraph', content: linha });
       }
+      // Reprogramação em projeto AMS (Dexterity - AMS / Parceria - AMS): o comentário
+      // entra como NOTA INTERNA do JSM. A categoria do projeto é resolvida (e cacheada)
+      // pela chave do ticket; em projetos que não são JSM a propriedade é inócua.
+      let interno = false;
+      if (b.reprogramacao) {
+        const projKey = issue.split('-')[0];
+        const ckCat = `catproj:${projKey}`;
+        let cat = cacheGet(ckCat);
+        if (cat == null) {
+          const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projKey)}`, { headers });
+          const jp = rp.ok ? await rp.json().catch(() => ({})) : {};
+          cat = (jp.projectCategory && jp.projectCategory.name) || '';
+          cacheSetTTL(ckCat, cat, 600);
+        }
+        interno = RE_CAT_NOTA_INTERNA.test(cat);
+      }
+      const payload = { body: corpo };
+      if (interno) payload.properties = [{ key: 'sd.public.comment', value: { internal: true } }];
       const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/comment`, {
-        method: 'POST', headers, body: JSON.stringify({ body: corpo }),
+        method: 'POST', headers, body: JSON.stringify(payload),
       });
       if (r.status === 401 || r.status === 403) return json(res, 200, { ok: false, erro: 'Sem permissão para comentar neste chamado.' });
       if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
       if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
       cacheClear('atividade:');
-      return json(res, 200, { ok: true, issue });
+      return json(res, 200, { ok: true, issue, ...(interno ? { interno: true } : {}) });
     }
 
     // ---- Modo excluir: apaga o ticket (IRREVERSÍVEL; exige a permissão "Excluir itens") ----

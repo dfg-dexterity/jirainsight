@@ -1151,6 +1151,11 @@
   .hxd-row:last-of-type{border-bottom:0}
   .hxd-hora{font-variant-numeric:tabular-nums;color:var(--muted);min-width:46px;flex:none}
   .hxd-tit{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 🌳 folha "SAP já planejado": épicos (nível 1) com histórias (nível 2) */
+  .arv-pl-ep{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin:8px 0;background:var(--cartao)}
+  .arv-pl-ep>summary{cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+  .arv-pl-t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arv-pl-h{display:flex;align-items:center;gap:8px;padding:5px 0 5px 16px;border-top:1px dashed var(--linha);font-size:12.5px;min-width:0;margin-top:5px}
   .hxg-donut{flex:none} .hxg-bullet,.hxg-cols{display:block;max-width:100%}
   .hxg-dtxt{font-size:12.5px;font-weight:700;fill:var(--grafite)}
   .hxg-ctxt{font-size:9px;fill:var(--muted)} .hxg-ctxt.hoje{fill:#0A6ED1;font-weight:700}
@@ -1475,8 +1480,25 @@
   .pl-res-item{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dashed var(--linha);font-size:13px}
   .pl-res-item a{font-weight:700;white-space:nowrap}
   .pl-res-ok{font-family:var(--titulo);font-size:24px;font-weight:700;color:#047857;margin:6px 0 12px}
+  /* 🌳 Colar estrutura: badges de nível + recuo da árvore na revisão */
+  .pl-nv{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .pl-nv.n1{background:#EDE9FE;color:#5B21B6} .pl-nv.n2{background:#D1FAE5;color:#065F46}
+  .pl-nv.n3{background:#DBEAFE;color:#1D4ED8} .pl-nv.n0{background:#FEE2E2;color:#B91C1C}
+  [data-theme="dark"] .pl-nv.n1{background:#3B2A63;color:#D6C6FF} [data-theme="dark"] .pl-nv.n2{background:#123B2E;color:#8FE3C0}
+  [data-theme="dark"] .pl-nv.n3{background:#173154;color:#9CC7FF} [data-theme="dark"] .pl-nv.n0{background:#4A1B1B;color:#FCA5A5}
+  .pl-estr-slots{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0 4px}
+  .pl-estr-slots .campo{min-width:180px}
+  /* Grade pós-criação (edição em massa estilo planilha) */
+  .pl-g-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--hoverbg);
+    border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin:10px 0;font-size:13px}
+  .pl-g-bar select,.pl-g-bar input[type="date"]{font-family:var(--corpo);font-size:12.5px;padding:6px 8px;
+    border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite);max-width:200px}
+  .pl-g-bar .btn{padding:5px 10px;font-size:12px}
+  table.pl-rev td.pl-g-st{white-space:nowrap;font-size:12px}
+  tr.pl-g-mud td{background:rgba(233,115,12,.06)}
   @media (max-width:600px){ .pl-grid{flex-direction:column;align-items:stretch}
-    .pl-grid select{max-width:none} table.pl-rev{font-size:12px} }
+    .pl-grid select{max-width:none} table.pl-rev{font-size:12px}
+    .pl-g-bar{flex-direction:column;align-items:stretch} .pl-g-bar select,.pl-g-bar input[type="date"]{max-width:none} }
 
   /* ---- Reclassificar (mover reuniões) ---- */
   .rc-tab{width:100%;border-collapse:collapse;font-size:13px}
@@ -1819,7 +1841,10 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   planejar:{ modo:'lote', projeto:'', tipoId:'', respId:'', epicoKey:'', historiaKey:'', texto:'',
     est:'', labels:'', venc:'', tpl:'',
     itens:null, resultados:null, criando:false, projetos:null, projetosErro:'',
-    carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false },
+    carregandoProjetos:false, epicosPorProj:{}, carregandoEpicos:false,
+    // Modo 🌳 estrutura: colagem hierárquica (Épico → História → Task) + grade
+    // pós-criação (edição em massa de responsável/data limite, estilo planilha).
+    textoEstr:'', estru:null, tiposSlot:{}, grade:null, gSalvando:false },
   // Tela "Reclassificar": mover tickets de reunião do RDF para outro projeto.
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   // 📁 Visão por Projetos: consolidado (todos) + ficha por projeto (direto do Jira).
@@ -4243,6 +4268,54 @@ function renderAcoes(){
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
       `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
+    // 🗓 meus tickets SEM DATA (sem prazo não há planejamento)
+    const meusSemData=tks?tks.filter(t=>t.respId===acc&&!t.venc).length:null;
+    const cSemData=meusSemData==null
+      ?pcard('load','🗓','Tickets sem data','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','apontar-semdata','Ver os meus →')
+      :pcard(meusSemData===0?'ok':(meusSemData>5?'crit':'aten'),'🗓','Tickets sem data',
+        `<div class="ax-num">${meusSemData}</div><div class="ax-det">${meusSemData?'sem prazo não há planejamento — clique e defina os vencimentos':'todos os seus tickets têm prazo 🎉'}</div>`,
+        'apontar-semdata', meusSemData?'Definir datas →':'Ver meus tickets →');
+    // ⏰ meus tickets que VENCEM HOJE
+    const meusHoje=tks?tks.filter(t=>t.respId===acc&&t.venc===hoje).length:null;
+    const cVHoje=meusHoje==null
+      ?pcard('load','⏰','Vencem hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','apontar-vencehoje','Ver →')
+      :pcard(meusHoje===0?'ok':'aten','⏰','Vencem hoje',
+        `<div class="ax-num">${meusHoje}</div><div class="ax-det">${meusHoje?'priorize estes no seu dia':'nada vencendo hoje 🎉'}</div>`,
+        'apontar-vencehoje', meusHoje?'Atacar agora →':'Abrir Apontar →');
+    // 🧑‍💼 PROJETOS em que estou ALOCADO nesta semana (alocação macro)
+    const wFimAloc=somaDias(wAtual,6);
+    const minhasAloc={};
+    (cfg.alocacoes||[]).forEach(x=>{ if(x.accountId!==acc) return;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(x.fim)) return;
+      if(x.inicio<=wFimAloc&&x.fim>=wAtual) minhasAloc[x.projeto||'—']=(minhasAloc[x.projeto||'—']||0)+(Number(x.hSemana)||0); });
+    const alocPs=Object.entries(minhasAloc).sort((x,y)=>y[1]-x[1]);
+    const alocTotH=alocPs.reduce((s,[,h])=>s+h,0);
+    const cAloc=pcard(alocPs.length?'ok':'aten','🧑‍💼','Projetos da semana',
+      `<div class="ax-num">${alocPs.length}</div>
+       <div class="ax-det" title="${escA(alocPs.map(([p,h])=>`${p} (${fmtHd(h)}/sem)`).join(' · '))}">${alocPs.length
+         ?`${esc(alocPs.slice(0,3).map(([p])=>p).join(' · '))}${alocPs.length>3?' …':''} — ${fmtHd(alocTotH)}/sem alocadas`
+         :'sem alocação macro nesta semana — combine com o gestor'}</div>`,
+      'minhasemana', alocPs.length?'Planejar a semana →':'Abrir Minha Semana →');
+    // 🏅 MEU RANKING de apontamento na semana (% da meta até hoje, entre o time)
+    const rankDias=[]; for(let i=0;i<7;i++){ const d2=somaDias(wAtual,i); if(d2>hoje) break; rankDias.push(d2); }
+    const porPessoaSem={};
+    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w2=>{ const d2=(w2.d||'').slice(0,10);
+      if(d2<wAtual||d2>hoje) return; porPessoaSem[w2.a]=(porPessoaSem[w2.a]||0)+(Number(w2.s)||0); });
+    const ocultosSet=new Set(cfg.ocultos||[]);
+    const rankLista=Object.keys(pessoasUnidas()).filter(a2=>!ocultosSet.has(a2)).map(a2=>{
+        let metaAte=0; rankDias.forEach(d2=>{ if(ehUtil(d2)&&!ehFeriado(d2)&&!ehAusencia(a2,d2)) metaAte+=metaSegDe(a2); });
+        return { a:a2, pct: metaAte?((porPessoaSem[a2]||0)/metaAte):null };
+      }).filter(x=>x.pct!=null).sort((x,y)=>y.pct-x.pct);
+    const minhaPos=rankLista.findIndex(x=>x.a===acc);
+    const meuPct=minhaPos>=0?Math.round(rankLista[minhaPos].pct*100):null;
+    const cRank=!estado.tempo
+      ?pcard('load','🏅','Seu ranking da semana','<div class="ax-num muted">…</div><div class="ax-det">Calculando com o Clockwork…</div>','ranking','Abrir Ranking →')
+      :meuPct==null
+        ?pcard('ok','🏅','Seu ranking da semana','<div class="ax-num muted">—</div><div class="ax-det">ainda sem dados do time nesta semana</div>','ranking','Abrir Ranking →')
+        :pcard(meuPct>=90?'ok':(meuPct>=50?'aten':'crit'),'🏅','Seu ranking da semana',
+          `<div class="ax-num">#${minhaPos+1} <span class="muted" style="font-size:14px;font-weight:400">de ${rankLista.length}</span></div>
+           <div class="ax-det">${meuPct}% da meta da semana até hoje</div>`,
+          'ranking','Abrir Ranking →');
     // ---- 🗓 Ponto de partida do dia: agenda de HOJE · meus tickets · plano × realizado ----
     // 📅 eventos de hoje (Outlook, já carregado para o card de pendências)
     const evsHoje=((estado.agenda.dados&&estado.agenda.dados.eventos)||[]).filter(ev=>(ev.inicio||'').slice(0,10)===hoje)
@@ -4304,7 +4377,7 @@ function renderAcoes(){
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Minha Semana →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cPlano}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cRank}${cAg}${cIb}</div>
       <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
     </div>`;
   } else {
@@ -4346,6 +4419,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const g=t.getAttribute('data-hx-goto');
   if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   if(g==='apontar-meus'){ estado.apontar.fil='todos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  if(g==='apontar-semdata'){ estado.apontar.fil='semvenc'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  if(g==='apontar-vencehoje'){ estado.apontar.fil='vencehoje'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   vaiPara(g);
 });
 function renderVisao(){
@@ -6953,6 +7028,85 @@ function montaItens(){
   });
 }
 
+// ================= 🌳 Colar estrutura (Épico → História → Task) =================
+// Cada linha começa com o NÍVEL (Epic/Épico · História/Story · Task/Tarefa/Subtarefa)
+// separado do título por TAB (colagem do Excel), ";" ou espaços. A hierarquia vem da
+// ordem: histórias entram no último épico acima; tasks na última história acima
+// (ou direto no épico, se vierem antes de qualquer história).
+const PL_NIVEIS=[
+  {n:1, re:/^(?:epics?|[ée]picos?)$/i, rot:'Épico'},
+  {n:2, re:/^(?:hist[óo]rias?|stor(?:y|ies)|hist)$/i, rot:'História'},
+  {n:3, re:/^(?:tasks?|tarefas?|sub-?tarefas?|sub-?tasks?|atividades?|subs?)$/i, rot:'Task'},
+];
+function parseEstrutura(text){
+  const itens=[];
+  let ultEpico=-1, ultHist=-1;
+  String(text||'').split('\n').forEach(l0=>{
+    const l=l0.replace(/\u00a0/g,' ').trim(); if(!l) return;
+    // 1ª coluna = nível; separador: TAB/";" (Excel), 2+ espaços ou o 1º espaço.
+    let m=l.match(/^([^\t;]+?)[\t;]\s*(.+)$/) || l.match(/^(\S+)\s{2,}(.+)$/) || l.match(/^(\S+)\s+(.+)$/);
+    const chave=(m?m[1]:l).trim();
+    const nv=PL_NIVEIS.find(x=>x.re.test(chave));
+    if(!nv){
+      itens.push({nivel:0,titulo:l.slice(0,255),descricao:'',pai:-1,slot:'',
+        erro:'Nível não reconhecido — comece a linha com Épico, História ou Task.'});
+      return;
+    }
+    // Título pode trazer uma 3ª coluna (TAB) = descrição.
+    let titulo=(m?m[2]:'').trim(), descricao='';
+    const tb=titulo.indexOf('\t');
+    if(tb>=0){ descricao=titulo.slice(tb+1).replace(/\t/g,' · ').trim(); titulo=titulo.slice(0,tb).trim(); }
+    const i=itens.length;
+    const it={nivel:nv.n,titulo,descricao,pai:-1,slot:'',erro:''};
+    if(nv.n===1){ it.slot='epico'; ultEpico=i; ultHist=-1; }
+    else if(nv.n===2){ it.slot='historia'; it.pai=ultEpico; ultHist=i; }
+    else {
+      if(ultHist>=0){ it.slot='subtarefa'; it.pai=ultHist; }
+      else if(ultEpico>=0){ it.slot='tarefa'; it.pai=ultEpico; }
+      else it.erro='Task sem épico ou história acima dela.';
+    }
+    if(!it.erro && !it.titulo) it.erro='Título vazio.';
+    if(!it.erro && it.titulo.length>255) it.erro=`Título com ${it.titulo.length} caracteres (máx. 255).`;
+    itens.push(it);
+  });
+  return itens;
+}
+// Tipos do projeto por "slot" da estrutura: épico (nível 1), história e tarefa
+// (nível 0) e subtarefa (nível -1). Devolve as opções e a seleção efetiva
+// (escolha do usuário quando ainda válida; senão, o default resolvido pelo nome).
+function slotsEstrutura(){
+  const pl=estado.planejar;
+  const proj=(pl.projetos||[]).find(p=>p.key===pl.projeto);
+  const tipos=(proj&&proj.tipos)||[];
+  const nv0=tipos.filter(t=>!t.subtarefa&&t.nivel===0);
+  const sub=tipos.filter(t=>t.subtarefa);
+  const opts={ epico:tipos.filter(t=>t.nivel===1), historia:nv0, tarefa:nv0, subtarefa:sub };
+  const semNF=nv0.filter(t=>!/fatur/i.test(t.nome));
+  const def={
+    epico:((opts.epico[0]||{}).id)||'',
+    historia:(((nv0.find(t=>/hist[óo]ria|story/i.test(t.nome))||semNF[0]||nv0[0])||{}).id)||'',
+    tarefa:(((semNF.find(t=>/^(tarefa|task)$/i.test(t.nome))||semNF.find(t=>/tarefa|task/i.test(t.nome))||semNF[0]||nv0[0])||{}).id)||'',
+    subtarefa:(((sub.find(t=>/sub/i.test(t.nome))||sub[0])||{}).id)||'',
+  };
+  const sel={};
+  for(const s of ['epico','historia','tarefa','subtarefa']){
+    sel[s]=opts[s].some(t=>t.id===pl.tiposSlot[s])?pl.tiposSlot[s]:def[s];
+  }
+  return {opts, sel};
+}
+const PL_SLOT_ROT={epico:'Épicos',historia:'Histórias',tarefa:'Tasks direto no épico',subtarefa:'Tasks (sub-tarefas da história)'};
+// Remove um item da estrutura junto com TODOS os descendentes, remapeando os pais.
+function estruRemove(i){
+  const pl=estado.planejar; const its=pl.estru||[];
+  const kill=new Set([i]); let mudou=true;
+  while(mudou){ mudou=false;
+    its.forEach((it,j)=>{ if(!kill.has(j)&&it.pai>=0&&kill.has(it.pai)){ kill.add(j); mudou=true; } }); }
+  const mapa=new Map(); const novo=[];
+  its.forEach((it,j)=>{ if(kill.has(j)) return; mapa.set(j,novo.length); novo.push(it); });
+  novo.forEach(it=>{ it.pai=it.pai>=0?(mapa.has(it.pai)?mapa.get(it.pai):-1):-1; });
+  pl.estru=novo.length?novo:null;
+}
+
 function renderPlanejar(){
   const cont=document.getElementById('conteudo');
   const pl=estado.planejar;
@@ -6978,6 +7132,7 @@ function renderPlanejar(){
   }
 
   if(pl.resultados) return renderPlanejarResultado();
+  if(pl.estru) return renderPlanejarEstru();
   if(pl.itens) return renderPlanejarRevisao();
   renderPlanejarForm();
 }
@@ -7054,7 +7209,12 @@ const ARV_NOS={
       'Se o projeto não tiver épico de Gestão, fale com o gerente do projeto.'] },
   sap_planejado:{ q:'Esse entregável não foi planejado?',
     helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
-    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_fale_gp', tone:'grafite'} ] },
+    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_planejados', tone:'grafite'} ] },
+  sap_planejados:{ result:true, tone:'purple', badge:'Projeto SAP — planejado', title:'Aponte no ticket que JÁ FOI planejado', cria:false, planejados:true, escolheProjeto:true, filtro:'cat', catRe:/delivery/i, catNome:'Delivery',
+    text:'O entregável já estava planejado — não crie ticket paralelo. Escolha o projeto SAP (categoria Delivery, em aberto) e localize o ÉPICO (nível 1) e a HISTÓRIA (nível 2) planejados para apontar no lugar certo.',
+    bullets:['Aponte as horas direto na história planejada (ou nas sub-tarefas dela) — não abra tarefa administrativa ou avulsa.',
+      'Não achou o épico/história do seu trabalho? Fale com o gerente do projeto ANTES de criar qualquer coisa.',
+      'Precisa detalhar? Combine com o GP a criação de sub-tarefas dentro da história planejada.'] },
   adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
     helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa. Ausências (folga, atestado, férias) não viram ticket — são registradas no Odoo.',
     op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'},
@@ -7195,6 +7355,67 @@ function arvHTML(){
     const url=`${jiraBase()}/browse/${encodeURIComponent(a.feito.key)}`;
     corpo=`<div class="pl-res-ok">✓ Ticket criado: <a href="${url}" target="_blank" rel="noopener">${esc(a.feito.key)} ↗</a> — ${esc(a.feito.resumo)}</div>
       <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primario" data-arv-reiniciar="1">🌳 Classificar outra atividade</button></div>`;
+  } else if(no.result && no.planejados){
+    // 🧭 SAP já planejado: NÃO cria ticket — escolha o projeto (categoria Delivery,
+    // em aberto) e veja os ÉPICOS (nível 1) com as HISTÓRIAS (nível 2) planejadas,
+    // com link ao Jira, para apontar no ticket certo.
+    const f=a.form;
+    const sug=arvProjetosSugeridos('cat', no.catRe);
+    let corpoP;
+    if(!_projetosCache){ corpoP='<div class="muted" style="margin-top:8px">Carregando projetos…</div>'; }
+    else if(!f.projeto){
+      corpoP=sug.length?`<div class="sec" style="margin:12px 0 6px">Escolha o projeto <span class="muted">— categoria ${esc(no.catNome||'')}, em aberto</span></div>
+        <div class="arv-projs">${sug.map(p=>`<button class="arv-pcard t-${escA(no.tone)}" data-arv-proj="${escA(p.key)}">
+            <span class="arv-pcard-t">${esc(p.nome||p.key)} <span class="arv-pcard-k">${esc(p.key)}</span></span>
+            <span class="arv-pcard-d">${esc(p.descricao||'Sem descrição do objetivo cadastrada no Jira.')}</span>
+          </button>`).join('')}</div>`
+        :`<div class="ap-fb err" style="margin-top:8px">Nenhum projeto encontrado na categoria “${esc(no.catNome||'')}”. Confira a categoria dos projetos no Jira.</div>`;
+    } else {
+      const pl2=estado.planejar;
+      const ep=pl2.epicosPorProj[f.projeto];
+      if(!ep && !pl2.carregandoEpicos){
+        pl2.carregandoEpicos=true;
+        fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
+          pl2.carregandoEpicos=false;
+          pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
+          arvRender();
+        }).catch(e2=>{ pl2.carregandoEpicos=false;
+          pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
+          arvRender(); });
+      }
+      const proj=(_projetosCache||[]).find(p=>p.key===f.projeto);
+      const cab=`<div class="campo" style="margin-top:10px"><label>Projeto</label>
+        <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
+          <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos da categoria">trocar</button></div>
+        ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`;
+      if(!ep) corpoP=cab+'<div class="muted small" style="margin-top:8px">Carregando os épicos e histórias planejados…</div>';
+      else if(ep.erro) corpoP=cab+`<div class="ap-fb err" style="margin-top:8px">${esc(ep.erro)}</div>`;
+      else {
+        const hs=ep.historias||[]; const eps=ep.epicos||[];
+        const soltas=hs.filter(h=>!h.epico||!eps.some(e2=>e2.k===h.epico));
+        const linkK=(x)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(x.k)}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>`;
+        const hRow=(h)=>`<div class="arv-pl-h">${linkK(h)} <span class="hxd-tit" title="${escA(h.resumo)}">${esc(h.resumo)}</span> <span class="badge">${esc(h.status)}</span></div>`;
+        const blocosEp=eps.map(e2=>{ const minhas=hs.filter(h=>h.epico===e2.k);
+          return `<details class="arv-pl-ep" open>
+            <summary>${linkK(e2)} <span class="arv-pl-t" title="${escA(e2.resumo)}">${esc(e2.resumo)}</span>
+              <span class="badge">${esc(e2.status)}</span><span class="muted small">${minhas.length} história(s)</span></summary>
+            ${minhas.length?minhas.map(hRow).join(''):'<div class="muted small" style="padding:4px 0 4px 10px">Sem histórias abertas neste épico.</div>'}
+          </details>`; }).join('');
+        corpoP=cab+`<div class="sec" style="margin:12px 0 6px">Épicos e histórias planejados <span class="muted">— em aberto · nível 1 e 2</span></div>
+          ${(eps.length||soltas.length)
+            ?blocosEp+(soltas.length?`<details class="arv-pl-ep" open><summary><span class="arv-pl-t">Histórias sem épico</span><span class="muted small">${soltas.length}</span></summary>${soltas.map(hRow).join('')}</details>`:'')
+            :'<div class="muted small">Nenhum épico ou história em aberto neste projeto — fale com o gerente do projeto.</div>'}`;
+      }
+    }
+    corpo=`${trilha}
+      <span class="arv-badge t-${escA(no.tone)}">${esc(no.badge)}</span>
+      <h3 class="arv-titulo">${esc(no.title)}</h3>
+      <div class="muted" style="margin:4px 0 8px">${esc(no.text)}</div>
+      <ul class="qa-probs">${no.bullets.map(b2=>`<li>${esc(b2)}</li>`).join('')}</ul>
+      ${corpoP}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" data-arv-voltar="1">← Voltar</button>
+        <button class="btn" data-arv-reiniciar="1">Reiniciar</button></div>`;
   } else if(no.result){
     const podeCriar=!!no.cria;
     let form='';
@@ -7454,6 +7675,7 @@ function renderPlanejarForm(){
   const cont=document.getElementById('conteudo');
   const pl=estado.planejar;
   const id=idApontar();
+  if(pl.modo==='estrutura') return renderPlanejarEstruForm();
 
   // Épicos/histórias do projeto (modo épico) carregam sob demanda.
   if(pl.modo==='epico' && pl.projeto && !pl.epicosPorProj[pl.projeto] && !pl.carregandoEpicos){
@@ -7532,6 +7754,7 @@ function renderPlanejarForm(){
       <div class="ap-chips" style="margin-bottom:12px">
         <button class="chip" aria-pressed="${pl.modo==='lote'}" data-pl-modo="lote">Criação em lote</button>
         <button class="chip" aria-pressed="${pl.modo==='epico'}" data-pl-modo="epico">Planejamento de épico</button>
+        <button class="chip" aria-pressed="false" data-pl-modo="estrutura" data-tip="Cole Épico → História → Task e os tickets nascem já na hierarquia certa">📐 Colar estrutura</button>
         <button class="chip" aria-pressed="false" data-goto="ondecrio" data-tip="Não sabe onde abrir o ticket? A árvore de decisão guia e cria o ticket no lugar certo">🌳 Onde crio o ticket?</button>
       </div>
       <div class="pl-dica">${modoDica}</div>
@@ -7571,6 +7794,190 @@ Criar massa de testes ; usar dados do projeto anterior">${esc(pl.texto)}</textar
       <div class="ap-fb" id="pl-fb" hidden></div>
     </div>
   </div>`));
+}
+
+// ---- 📐 Colar estrutura: formulário (projeto + colagem hierárquica) ----
+function renderPlanejarEstruForm(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+  const id=idApontar();
+  const faixaId = id
+    ? `<div class="ap-id">📝 Criando como <strong>${esc(id.nome||id.email)}</strong>
+         <span class="muted small">(os tickets terão você como relator)</span>
+         <span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
+    : `<div class="ap-id sem">Para criar tickets, identifique-se uma única vez (e-mail + token de API do Jira).
+         <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+  const optProjetos='<option value="">— escolha —</option>'+pl.projetos.map(p=>
+    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+  const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
+    `<option value="${escA(a)}" ${pl.respId===a?'selected':''}>${esc(n)}</option>`).join('');
+  const nLinhas=pl.textoEstr.split('\n').map(l=>l.trim()).filter(Boolean).length;
+  const exemplo=['Epic\t3.1 Aplicação Financeira Mercado Monetário',
+    'História\t3.1 Gestão de Transações (Criação, Modificação e estorno)',
+    'Task\t3.1 Configurar Processo','Task\t3.1 Teste Funcional',
+    'História\t3.1 Rotinas diárias (Contabilização, Atualização da Taxa de Juros)',
+    'Task\t3.1 Configurar Processo'].join('\n');
+  cont.replaceChildren(el(`<div>
+    ${faixaId}
+    <div class="card full">
+      <h2>Planejamento Jira <span>colar estrutura — Épico → História → Task</span></h2>
+      <div class="ap-chips" style="margin-bottom:12px">
+        <button class="chip" aria-pressed="false" data-pl-modo="lote">Criação em lote</button>
+        <button class="chip" aria-pressed="false" data-pl-modo="epico">Planejamento de épico</button>
+        <button class="chip" aria-pressed="true" data-pl-modo="estrutura">📐 Colar estrutura</button>
+        <button class="chip" aria-pressed="false" data-goto="ondecrio" data-tip="Não sabe onde abrir o ticket? A árvore de decisão guia e cria o ticket no lugar certo">🌳 Onde crio o ticket?</button>
+      </div>
+      <div class="pl-dica">Cole a estrutura direto do Excel: cada linha começa com o <strong>nível</strong>
+        (<span class="pl-nv n1">Épico</span> <span class="pl-nv n2">História</span> <span class="pl-nv n3">Task</span>)
+        seguido do <strong>título</strong>. As histórias entram no último épico acima; as tasks viram
+        <strong>sub-tarefas da última história</strong> acima delas — a hierarquia nasce pronta no Jira.</div>
+      <div class="pl-grid">
+        <div class="campo"><label>Projeto</label><select id="pl-projeto">${optProjetos}</select></div>
+        <div class="campo"><label>Responsável (padrão)</label><select id="pl-resp">${optResp}</select></div>
+        <div class="campo"><label>⏱ Estimativa (todos)</label>
+          <input id="pl-est" placeholder="ex.: 4h · 2d · 1w 2d" value="${escA(pl.est||'')}"></div>
+        <div class="campo"><label>📅 Vencimento (todos)</label>
+          <input type="date" id="pl-venc" value="${escA(pl.venc||'')}"></div>
+      </div>
+      <div class="pl-dica" style="margin-top:8px">💡 Depois de criar, uma <strong>grade estilo planilha</strong> deixa
+        mudar <strong>em massa</strong> a data limite e o responsável dos tickets criados.</div>
+      <div class="campo"><label>Estrutura — um item por linha <span class="muted">(nível + TAB/";" + título; colar do Excel funciona direto)</span></label>
+        <textarea class="pl-texto" id="pl-texto-estr" placeholder="${escA(exemplo)}">${esc(pl.textoEstr)}</textarea></div>
+      <div class="pl-dica"><span id="pl-estr-cont">${nLinhas}</span> linha(s) na estrutura · máximo 100 tickets por lote.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primario" id="pl-estr-validar">Validar estrutura →</button>
+      </div>
+      <div class="ap-fb" id="pl-fb" hidden></div>
+    </div>
+  </div>`));
+}
+
+// ---- 📐 Colar estrutura: revisão hierárquica + tipos por nível ----
+function renderPlanejarEstru(){
+  const cont=document.getElementById('conteudo');
+  const pl=estado.planejar;
+  const id=idApontar();
+  const its=pl.estru||[];
+  const {opts,sel}=slotsEstrutura();
+  const usados=[...new Set(its.filter(it=>it.slot).map(it=>it.slot))];
+  // Slot usado sem NENHUM tipo disponível no projeto trava a criação.
+  const slotSemTipo=usados.filter(s=>!(opts[s]||[]).length);
+  let nErros=0;
+  const rotNv=(it)=>{ const r={1:'Épico',2:'História',3:it.slot==='tarefa'?'Task no épico':'Task'}[it.nivel]||'?';
+    return `<span class="pl-nv n${it.nivel||0}">${r}</span>`; };
+  const linhas=its.map((it,i)=>{
+    const semTipo=it.slot&&!(opts[it.slot]||[]).length;
+    const erro=it.erro||(semTipo?`O projeto não tem tipo para “${PL_SLOT_ROT[it.slot]}”.`:'');
+    if(erro) nErros++;
+    const tipoNome=erro?'':esc(((opts[it.slot]||[]).find(t=>t.id===sel[it.slot])||{}).nome||'');
+    return `<tr class="${erro?'pl-row-err':''}">
+      <td class="muted">${i+1}</td>
+      <td style="white-space:nowrap;padding-left:${8+(it.nivel>0?(it.nivel-1)*22:0)}px">${it.nivel>1?'<span class="muted">└</span> ':''}${rotNv(it)}</td>
+      <td style="min-width:240px"><input class="pl-estr-tit${erro?' pl-resumo':''}" data-pl-i="${i}" value="${escA(it.titulo)}"></td>
+      <td class="muted small">${tipoNome}</td>
+      <td>${erro?`<span class="pl-st err" data-tip="${escA(erro)}">✕</span>`:'<span class="pl-st ok">✓</span>'}</td>
+      <td><button class="btn" data-pl-estr-del="${i}" data-tip="Remove o item e tudo que está dentro dele">remover</button></td>
+    </tr>`;
+  }).join('');
+  const nEp=its.filter(it=>it.nivel===1).length, nHi=its.filter(it=>it.nivel===2).length,
+        nTk=its.filter(it=>it.nivel===3).length;
+  const pj=(pl.projetos||[]).find(p=>p.key===pl.projeto);
+  const slots=usados.map(s=>{
+    const os=(opts[s]||[]).map(t=>`<option value="${escA(t.id)}" ${sel[s]===t.id?'selected':''}>${esc(t.nome)}</option>`).join('');
+    return `<div class="campo"><label>Tipo — ${esc(PL_SLOT_ROT[s])}</label>
+      <select data-pl-slot="${escA(s)}" ${os?'':'disabled'}>${os||'<option>— nenhum no projeto —</option>'}</select></div>`;
+  }).join('');
+  const pads=[];
+  if((pl.est||'').trim()) pads.push('⏱ '+esc(pl.est.trim()));
+  if(pl.venc) pads.push('📅 vence '+fmtBR(pl.venc));
+  const prontos=its.length-nErros;
+  const podeCriar=prontos>0 && nErros===0 && !slotSemTipo.length && !pl.criando;
+  cont.replaceChildren(el(`<div>
+    <div class="card full">
+      <h2>Revisão da estrutura <span>${nEp} épico(s) · ${nHi} história(s) · ${nTk} task(s)</span></h2>
+      <div class="pl-destino">Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>
+        · a hierarquia é criada em <strong>ondas</strong>: épicos → histórias → tasks, já vinculados.
+        ${pads.length?`<br>Padrões aplicados a <strong>todos</strong>: ${pads.join(' · ')}`:''}</div>
+      ${nErros?'<div class="aviso">Corrija (ou remova) os itens marcados com ✕ para liberar a criação.</div>':''}
+      <div class="pl-estr-slots">${slots}</div>
+      <div class="ts-wrap"><table class="pl-rev">
+        <thead><tr><th>#</th><th>Nível</th><th>Título</th><th>Tipo</th><th></th><th></th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn" id="pl-estr-voltar">← Voltar e editar</button>
+        <button class="btn primario" id="pl-estr-criar" ${podeCriar?'':'disabled'}>
+          ${pl.criando?esc(pl.criandoMsg||'Criando…'):`Criar ${prontos} ticket(s) na hierarquia`}</button>
+        ${id?'':'<button class="btn" data-ap-act="config-id">Identificar-se para criar</button>'}
+      </div>
+      <div class="ap-fb" id="pl-fb" hidden></div>
+    </div>
+  </div>`));
+}
+
+// Criação hierárquica em ondas: épicos primeiro, depois histórias (paiKey = épico
+// criado) e por fim as tasks (paiKey = história criada). Filhos de um item que
+// falhou não são criados — viram erro explicado no resultado.
+async function criaEstrutura(){
+  const pl=estado.planejar;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  if(pl.criando) return;
+  const its=pl.estru||[];
+  const {opts,sel}=slotsEstrutura();
+  // Segurança: nada de criar com itens inválidos ou slot sem tipo no projeto.
+  if(!its.length || its.some(it=>it.erro||!it.slot||!(opts[it.slot]||[]).length)) return;
+  // Profundidade real de cada item (épico=0; história=1; task=2 — ou menos, se sem pai).
+  const prof=(i)=>{ let n=0,p=its[i].pai; while(p>=0){ n++; p=its[p].pai; } return n; };
+  const maxProf=its.length?Math.max(...its.map((_,i)=>prof(i))):0;
+  pl.criando=true; pl.criandoMsg='Criando…'; renderPlanejar();
+  const chaves=new Array(its.length).fill('');
+  const criadosIdx=new Array(its.length).fill(null), erros=[];
+  // Grade na ORDEM da árvore colada (cada task sob a sua história), não das ondas.
+  const criadosOrdenados=()=>criadosIdx.filter(Boolean);
+  try{
+    for(let d=0;d<=maxProf;d++){
+      const onda=its.map((it,i)=>({it,i})).filter(x=>prof(x.i)===d);
+      if(!onda.length) continue;
+      pl.criandoMsg=`Criando… onda ${d+1}/${maxProf+1}`;
+      const btn=document.getElementById('pl-estr-criar'); if(btn) btn.textContent=pl.criandoMsg;
+      // Pai falhou → filho nem tenta.
+      const vivas=onda.filter(x=>{ if(x.it.pai>=0 && !chaves[x.it.pai]){
+        erros.push({resumo:x.it.titulo, erro:'Item-pai não foi criado.'}); return false; } return true; });
+      if(!vivas.length) continue;
+      const itensReq=vivas.map(x=>({ projeto:pl.projeto, tipoId:sel[x.it.slot], resumo:x.it.titulo,
+        descricao:x.it.descricao||'', respId:pl.respId||'', paiKey:x.it.pai>=0?chaves[x.it.pai]:'',
+        estimativa:(pl.est||'').trim(), labels:plLabels(), venc:pl.venc||'' }));
+      const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({itens:itensReq,email:id.email,token:id.token})}).then(r=>r.json());
+      if(j.erro) throw new Error(j.erro);
+      (j.criados||[]).forEach(c=>{ const x=vivas[c.indice]; if(!x) return;
+        chaves[x.i]=c.key;
+        criadosIdx[x.i]={key:c.key, resumo:x.it.titulo, nivel:x.it.nivel, respId:pl.respId||'', venc:pl.venc||''}; });
+      (j.erros||[]).forEach(e2=>{ const x=vivas[e2.indice];
+        erros.push({resumo:(x&&x.it.titulo)||('item '+(e2.indice+1)), erro:e2.erro}); });
+    }
+    const criados=criadosOrdenados();
+    pl.criando=false; pl.criandoMsg='';
+    pl.resultados={criados, erros, ok:!erros.length};
+    pl.grade=montaGrade(criados);
+    pl.estru=null;
+    estado.cache={};            // os painéis verão os tickets novos
+    renderPlanejar();
+  }catch(e){
+    pl.criando=false; pl.criandoMsg='';
+    // O que já foi criado até aqui não se perde: vira resultado parcial com o erro.
+    const criados=criadosOrdenados();
+    if(criados.length){
+      erros.push({resumo:'(interrompido)', erro:String(e.message||e)});
+      pl.resultados={criados, erros, ok:false}; pl.grade=montaGrade(criados); pl.estru=null;
+      estado.cache={};
+      renderPlanejar(); return;
+    }
+    renderPlanejar();
+    const fb=document.getElementById('pl-fb');
+    if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=String(e.message||e); }
+  }
 }
 
 function renderPlanejarRevisao(){
@@ -7643,26 +8050,106 @@ function renderPlanejarRevisao(){
   </div>`));
 }
 
+// Grade pós-criação: uma linha editável por ticket criado (responsável + data
+// limite), com os valores enviados na criação como ponto de partida.
+function montaGrade(criados){
+  return (criados||[]).map(c=>({ key:c.key, resumo:c.resumo, nivel:c.nivel||0,
+    respId:c.respId||'', venc:c.venc||'', respId0:c.respId||'', venc0:c.venc||'',
+    sel:false, st:'', erro:'' }));
+}
+function gradeMudanca(g){ return g.respId!==g.respId0 || g.venc!==g.venc0; }
+
 function renderPlanejarResultado(){
   const cont=document.getElementById('conteudo');
   const pl=estado.planejar;
   const r=pl.resultados;
-  const links=(r.criados||[]).map(c=>`<div class="pl-res-item">
-    <a href="${jiraBase()}/browse/${encodeURIComponent(c.key)}" target="_blank" rel="noopener">${esc(c.key)} ↗</a>
-    <span>${esc(c.resumo)}</span></div>`).join('');
+  const g=pl.grade||[];
+  const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
+    .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const optResp=(v)=>'<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
+    `<option value="${escA(a)}" ${v===a?'selected':''}>${esc(n)}</option>`).join('');
+  const nSel=g.filter(x=>x.sel).length;
+  const nMud=g.filter(gradeMudanca).length;
+  const linhas=g.map((x,i)=>{
+    const st=x.st==='ok'?'<span class="pl-st ok">✓ salvo</span>'
+      : x.st==='err'?`<span class="pl-st err" data-tip="${escA(x.erro)}">✕ ${esc((x.erro||'').slice(0,40))}</span>`
+      : gradeMudanca(x)?'<span class="pl-st warn">alterado</span>':'<span class="muted">—</span>';
+    return `<tr class="${gradeMudanca(x)?'pl-g-mud':''}">
+      <td><input type="checkbox" class="pl-g-sel" data-pl-i="${i}" ${x.sel?'checked':''}></td>
+      <td style="white-space:nowrap"><a href="${jiraBase()}/browse/${encodeURIComponent(x.key)}" target="_blank" rel="noopener">${esc(x.key)} ↗</a></td>
+      <td style="min-width:220px;padding-left:${8+(x.nivel>1?(x.nivel-1)*18:0)}px">${x.nivel>1?'<span class="muted">└</span> ':''}${esc(x.resumo)}</td>
+      <td style="min-width:170px"><select class="pl-g-resp" data-pl-i="${i}">${optResp(x.respId)}</select></td>
+      <td><input type="date" class="pl-g-venc" data-pl-i="${i}" value="${escA(x.venc)}"></td>
+      <td class="pl-g-st">${st}</td>
+    </tr>`;
+  }).join('');
   const erros=(r.erros||[]).map(e=>`<div class="pl-res-item"><span class="pl-st err">✕</span>
-    <span>${esc(e.resumo||('item '+(e.indice+1)))} — <span class="muted">${esc(e.erro)}</span></span></div>`).join('');
+    <span>${esc(e.resumo||('item '+((e.indice||0)+1)))} — <span class="muted">${esc(e.erro)}</span></span></div>`).join('');
+  const grade=g.length?`
+      <div class="pl-dica" style="margin-top:14px">🧮 <strong>Edição em massa</strong> — ajuste a
+        <strong>data limite</strong> e o <strong>responsável</strong> direto na grade (como numa planilha),
+        ou marque várias linhas e aplique de uma vez. Nada muda no Jira até você salvar.</div>
+      <div class="pl-g-bar">
+        <span><strong>${nSel}</strong> marcado(s)</span>
+        <select id="pl-g-bresp"><option value="">— responsável… —</option>${pessoas.map(([a,n])=>
+          `<option value="${escA(a)}" ${pl.gbResp===a?'selected':''}>${esc(n)}</option>`).join('')}
+          <option value="__rem" ${pl.gbResp==='__rem'?'selected':''}>(remover responsável)</option></select>
+        <button class="btn" id="pl-g-apl-resp" ${nSel?'':'disabled'}>aplicar aos marcados</button>
+        <span class="muted">·</span>
+        <input type="date" id="pl-g-bvenc" value="${escA(pl.gbVenc||'')}">
+        <button class="btn" id="pl-g-apl-venc" ${nSel?'':'disabled'}>aplicar data aos marcados</button>
+        <span class="spacer"></span>
+        <button class="btn primario" id="pl-g-salvar" ${nMud&&!pl.gSalvando?'':'disabled'}>
+          ${pl.gSalvando?'Salvando…':`💾 Salvar ${nMud} alteração(ões) no Jira`}</button>
+      </div>
+      <div class="ts-wrap"><table class="pl-rev">
+        <thead><tr><th><input type="checkbox" id="pl-g-all" ${g.length&&nSel===g.length?'checked':''} data-tip="Marcar/desmarcar todos"></th>
+          <th>Ticket</th><th>Resumo</th><th>Responsável</th><th>📅 Data limite</th><th></th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>`
+    :'<div class="muted small">Nenhum ticket criado.</div>';
   cont.replaceChildren(el(`<div>
     <div class="card full">
       <h2>Resultado da criação</h2>
       <div class="pl-res-ok">✓ ${(r.criados||[]).length} ticket(s) criado(s)</div>
-      ${links||'<div class="muted small">Nenhum ticket criado.</div>'}
+      ${grade}
       ${erros?`<div class="sec" style="margin-top:16px">Falhas (${r.erros.length})</div>${erros}`:''}
       <div style="display:flex;gap:10px;margin-top:16px">
         <button class="btn primario" id="pl-novo">Criar mais tickets</button>
       </div>
+      <div class="ap-fb" id="pl-fb" hidden></div>
     </div>
   </div>`));
+}
+
+// Salva na API só o que mudou em cada linha (data limite e/ou responsável).
+async function salvaGrade(){
+  const pl=estado.planejar;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  if(pl.gSalvando) return;
+  const mudadas=(pl.grade||[]).filter(gradeMudanca);
+  if(!mudadas.length) return;
+  pl.gSalvando=true; renderPlanejar();
+  try{
+    const itens=mudadas.map(x=>{ const it={key:x.key};
+      if(x.respId!==x.respId0) it.respId=x.respId;
+      if(x.venc!==x.venc0) it.venc=x.venc;
+      return it; });
+    const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({editar:1,itens,email:id.email,token:id.token})}).then(r=>r.json());
+    pl.gSalvando=false;
+    if(j.erro){ renderPlanejar(); const fb=document.getElementById('pl-fb');
+      if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=j.erro; } return; }
+    const por=new Map((j.resultados||[]).map(r2=>[r2.key,r2]));
+    mudadas.forEach(x=>{ const r2=por.get(x.key)||por.get(x.key.toUpperCase());
+      if(r2&&r2.ok){ x.respId0=x.respId; x.venc0=x.venc; x.st='ok'; x.erro=''; }
+      else { x.st='err'; x.erro=(r2&&r2.erro)||'Falha ao salvar.'; } });
+    estado.cache={};            // vencimentos/atribuições mudaram
+    renderPlanejar();
+  }catch(e){
+    pl.gSalvando=false; renderPlanejar();
+    const fb=document.getElementById('pl-fb');
+    if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); }
+  }
 }
 
 // Envia o lote validado para o servidor.
@@ -7683,6 +8170,9 @@ async function criaLote(){
       renderPlanejar(); return; }
     // Junta o resumo aos erros (para exibir o que falhou).
     (j.erros||[]).forEach(e=>{ const it=pl.itens[e.indice]; if(it) e.resumo=it.resumo; });
+    // Grade de edição em massa: cada criado nasce com o responsável/vencimento enviados.
+    pl.grade=montaGrade((j.criados||[]).map(c=>{ const it=pl.itens[c.indice]||{};
+      return {...c, respId:it.respId||'', venc:pl.venc||''}; }));
     pl.resultados=j; pl.itens=null;
     estado.cache={};            // os painéis verão os tickets novos
     renderPlanejar();
@@ -8268,6 +8758,7 @@ function abreModalReprog(keys, acao){
     <div class="alx-campo">
       <label>Comentário que será publicado no Jira <span class="muted small">(editável)</span></label>
       <textarea class="alx-coment" id="alx-coment" placeholder="Escolha um motivo acima para gerar o comentário…"></textarea>
+      <div class="muted small" style="margin-top:4px">🔒 Em projetos AMS (categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>) este comentário entra como <b>nota interna</b> — o cliente não vê no portal.</div>
       ${keys.length>1?'<div class="muted small" style="margin-top:5px">A data anterior de cada ticket é preenchida automaticamente no comentário.</div>':''}
     </div>
     <div class="alx-fb" id="alx-modal-fb" hidden></div>
@@ -8330,7 +8821,7 @@ async function confirmaReprog(){
       let comentOk=true, comentErro='';
       if(texto.trim()){
         const r2=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
+          body:JSON.stringify({comentar:true,reprogramacao:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
         comentOk=!!r2.ok; comentErro=r2.erro||'';
       }
       okN++;
@@ -11925,7 +12416,7 @@ function abreAjuda(){
       <li><b>Planejamento:</b></li>
       <li>· <span class="lnk" data-aj-goto="alocacao"><b>🧑‍💼 Alocação (macro)</b></span> — board por pessoa (função + % capacidade), Gantt, 📆 Semanas (trava semanal + aprovação dos planos), skills, vagas 🔮, relatórios com custo e simulação.</li>
       <li>· <span class="lnk" data-aj-goto="planejamento"><b>📅 Planejamento macro</b></span> — esforço por função (fases = épicos) com planejado × realizado e valor.</li>
-      <li>· <span class="lnk" data-aj-goto="planejar"><b>📝 Criação de Ticket</b></span> — tickets em lote (ou colando do Excel), dentro de épicos, com padrões e templates.</li>
+      <li>· <span class="lnk" data-aj-goto="planejar"><b>📝 Criação de Ticket</b></span> — tickets em lote (ou colando do Excel), dentro de épicos, com padrões e templates; 📐 colar estrutura Épico → História → Task e edição em massa de data/responsável.</li>
       <li>· <span class="lnk" data-aj-goto="ondecrio"><b>🌳 Onde crio o ticket?</b></span> — a árvore de decisão da governança cria o ticket no projeto certo (também na página inicial).</li>
       <li><b>Análise:</b></li>
       <li>· <span class="lnk" data-aj-goto="projetos"><b>📁 Projetos</b></span> — BI por projeto direto do Jira, com drill-down total.</li>
@@ -11992,7 +12483,14 @@ function abreAjuda(){
       <b>Planejamento de épico (dois níveis):</b> escolha o <b>épico</b> — a tela mostra as <b>histórias já abertas
       nele</b>. Deixando em <b>“criar direto no épico”</b>, os itens viram <b>histórias/tarefas do épico</b>; escolhendo
       uma história (no seletor ou no botão <i>planejar sub-tarefas aqui</i>), os itens viram <b>sub-tarefas</b> dela.
-      Assim dá para planejar primeiro as histórias do épico e depois detalhar cada uma.
+      Assim dá para planejar primeiro as histórias do épico e depois detalhar cada uma.<br>
+      <b>📐 Colar estrutura (três níveis de uma vez):</b> cole do Excel linhas no formato <b>nível + título</b>
+      (Épico / História / Task) e o app monta a árvore: histórias entram no <b>último épico acima</b>, tasks viram
+      <b>sub-tarefas da última história</b> (ou tarefas do épico, se vierem antes de qualquer história). Na revisão
+      dá para ajustar o <b>tipo de ticket por nível</b> e os títulos; a criação sai em <b>ondas</b>, já vinculada.<br>
+      <b>🧮 Edição em massa (pós-criação):</b> o resultado vira uma <b>grade estilo planilha</b> — mude a
+      <b>data limite</b> e o <b>responsável</b> linha a linha, ou marque várias e <b>aplique aos marcados</b>;
+      nada muda no Jira até clicar em <b>💾 Salvar</b>.
     </div></details>
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
@@ -12179,7 +12677,7 @@ const TOUR_TELAS=[
   {vai:'meudia',titulo:'📍 Meu dia (beta)',texto:'Timetracking assistido: o registro de apps/janelas do seu computador vira sugestões de apontamento por IA — revise e confirme.'},
   {vai:'alocacao',titulo:'🧑‍💼 Alocação (macro)',texto:'Resource planning do gestor: board por pessoa (projeto + função + % capacidade), linha do tempo, visão 📆 Semanas (planejado travado × realizado, com aprovação dos planos), skills, vagas 🔮, relatórios e simulação "e se…".'},
   {vai:'planejamento',titulo:'📅 Planejamento macro',texto:'Plano de esforço por função (Implementação usa fases = épicos do Jira) com Planejado × Realizado, aderência e saldo — inclusive valor (h × custo/h).'},
-  {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias.'},
+  {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias. No modo 📐 Colar estrutura, cole Épico → História → Task e a hierarquia nasce pronta; depois, edite data limite e responsável EM MASSA na grade.'},
   {vai:'ondecrio',titulo:'🌳 Onde crio o ticket?',texto:'A árvore de decisão da governança (TI-04-006): responda as perguntas e crie o ticket no projeto certo — AMS (com reunião/atividade NÃO FATURÁVEL), SAP, interno, administrativa, ausências e Dexterity University. Ela também vive na página inicial.'},
   {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket.'},
   {vai:'resumo',titulo:'Resumo',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
@@ -12372,6 +12870,10 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
+  ['2026-08-04','🏠 <b>Mais 4 cards acionáveis no Início</b>: <b>🗓 Tickets sem data</b> (1 clique abre o Apontar filtrado para definir os vencimentos), <b>⏰ Vencem hoje</b> (priorize o dia), <b>🧑‍💼 Projetos da semana</b> (em quais projetos VOCÊ está alocado nesta semana, com as horas/semana do plano macro) e <b>🏅 Seu ranking da semana</b> (sua posição no time pela % da meta apontada até hoje, com atalho ao Ranking).'],
+  ['2026-08-03','🔒 <b>Reprogramação em AMS agora é nota interna</b>: nos projetos das categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>, o comentário da reprogramação (Alertas/Gestão) entra no Jira como <b>observação/nota interna</b> do Service Management — o cliente <b>não vê</b> no portal. Nas demais categorias segue como comentário normal.'],
+  ['2026-08-03','🌳 <b>Árvore: entregável SAP já planejado agora mostra ONDE apontar</b>: no caminho Projeto SAP → ajuda em um entregável → <b>já estava planejado</b>, em vez de só "fale com o gerente", a árvore lista os <b>projetos Delivery em aberto</b> para você escolher e mostra os <b>épicos (nível 1)</b> com as <b>histórias (nível 2)</b> planejadas — com link direto ao Jira para apontar no ticket certo (continua sem criar ticket paralelo).'],
   ['2026-08-01','🗓 <b>Início vira o ponto de partida do seu dia</b>: abaixo dos cards, três novas colunas — <b>📅 Hoje na agenda</b> (seus eventos do Outlook de hoje, com o selo do ticket e o link para entrar), <b>🎯 Meus tickets</b> (os abertos atribuídos a você, do mais urgente ao mais folgado, com 1 clique para o Apontar já filtrado) e <b>📊 Sua semana: plano × realizado</b> (quanto você já apontou contra o que planejou na Minha Semana, por projeto) — com gráficos modernos: <b>gauge radial</b> da meta do dia, <b>colunas do ritmo dia a dia</b> (com a linha da meta) e <b>bullet charts</b> realizado × alvo.'],
   ['2026-07-31','🗺 <b>Tour completo — a Ajuda agora cobre o aplicativo INTEIRO</b>: em ⋯ Mais → ❓ Ajuda, além do tour rápido de navegação, o novo <b>🗺 Tour completo</b> passa por <b>todas as telas</b>, uma a uma, explicando o que cada uma faz; a lista <b>"TODAS as telas"</b> virou um índice clicável (clique e a tela abre) e ganharam passo a passo escrito: Minha Semana, Agenda, Inbox, Menções, Projetos, Analytics & Auditoria, Meu dia, AMS/Receita/Admin e a Central de configurações.'],
   ['2026-07-30','🎫 <b>Agenda: conferência no Jira + cobrança pelo Inbox</b>: o painel Controle de tickets agora <b>confere no Jira</b> se a reunião pendente já tem ticket criado <b>fora do app</b> (achou? 1 clique em "✓ usar este ticket" registra o vínculo) e, quando o ticket é de um colega, dá para <b>📨 avisar no Inbox</b> da pessoa — o aviso aparece na caixa <b>📥 Inbox</b> dela (com selo no menu) e <b>some sozinho</b> quando o ticket é criado ou vinculado.'],
@@ -12451,7 +12953,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-01.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-05.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -14164,7 +14666,33 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='pl-criar'){ criaLote(); }
   else if(t.hasAttribute('data-pl-del')){ pl.itens.splice(Number(t.getAttribute('data-pl-del')),1);
     if(!pl.itens.length) pl.itens=null; renderPlanejar(); }
-  else if(t.id==='pl-novo'){ pl.resultados=null; pl.texto=''; renderPlanejar(); }
+  else if(t.id==='pl-novo'){ pl.resultados=null; pl.grade=null; pl.texto=''; pl.textoEstr=''; renderPlanejar(); }
+  // ---- 📐 Colar estrutura ----
+  else if(t.id==='pl-estr-validar'){
+    const fb=document.getElementById('pl-fb');
+    const mostra=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
+    if(!pl.projeto) return mostra('Escolha o projeto.');
+    const its=parseEstrutura(pl.textoEstr);
+    if(!its.length) return mostra('Cole a estrutura (uma linha por item: nível + título).');
+    if(its.length>100) return mostra(`São ${its.length} itens — o máximo é 100 por lote.`);
+    pl.estru=its; renderPlanejar();
+  }
+  else if(t.id==='pl-estr-voltar'){ pl.estru=null; renderPlanejar(); }
+  else if(t.id==='pl-estr-criar'){ criaEstrutura(); }
+  else if(t.hasAttribute('data-pl-estr-del')){ estruRemove(Number(t.getAttribute('data-pl-estr-del'))); renderPlanejar(); }
+  // ---- Grade pós-criação (edição em massa) ----
+  else if(t.id==='pl-g-apl-resp'){
+    const v=(document.getElementById('pl-g-bresp')||{}).value||'';
+    if(!v) return;
+    (pl.grade||[]).forEach(x=>{ if(x.sel){ x.respId=(v==='__rem'?'':v); x.st=''; } });
+    renderPlanejar();
+  }
+  else if(t.id==='pl-g-apl-venc'){
+    const v=(document.getElementById('pl-g-bvenc')||{}).value||'';
+    (pl.grade||[]).forEach(x=>{ if(x.sel){ x.venc=v; x.st=''; } });
+    renderPlanejar();
+  }
+  else if(t.id==='pl-g-salvar'){ salvaGrade(); }
   else if(t.id==='pl-tpl-salvar'){ abreSalvarTemplatePl(); }
   else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
   else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
@@ -14174,7 +14702,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       // ENTRAR numa folha reaplica as sugestões DELA (senão, ao voltar e escolher
       // outro departamento/contexto, projeto/departamento antigos ficavam grudados).
       const prox=ARV_NOS[o.next];
-      if(prox && prox.result && prox.cria){
+      if(prox && prox.result && (prox.cria||prox.planejados)){
         const ps=(_projetosCache||[]);
         let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
         const fixo=prox.filtro==='avulsa'?'TAD':(prox.soProjeto||'');
@@ -14221,12 +14749,32 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
     if(pl.itens&&pl.itens[i]) pl.itens[i].tipoId=t.value; }
   else if(t.classList&&t.classList.contains('pl-resp-row')){ const i=+t.getAttribute('data-pl-i');
     if(pl.itens&&pl.itens[i]) pl.itens[i].respId=t.value; }
+  // ---- 📐 Colar estrutura + grade de edição em massa ----
+  else if(t.hasAttribute&&t.hasAttribute('data-pl-slot')){ pl.tiposSlot[t.getAttribute('data-pl-slot')]=t.value; renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-estr-tit')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.estru&&pl.estru[i]){ const it=pl.estru[i]; it.titulo=t.value.trim();
+      if(it.nivel>0){ it.erro=!it.titulo?'Título vazio.':(it.titulo.length>255?`Título com ${it.titulo.length} caracteres (máx. 255).`:''); }
+      renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-g-sel')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].sel=t.checked; renderPlanejar(); } }
+  else if(t.id==='pl-g-all'){ const v=t.checked; (pl.grade||[]).forEach(x=>{ x.sel=v; }); renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-g-resp')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].respId=t.value; pl.grade[i].st=''; renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-g-venc')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].venc=t.value; pl.grade[i].st=''; renderPlanejar(); } }
+  else if(t.id==='pl-g-bresp'){ pl.gbResp=t.value; }
+  else if(t.id==='pl-g-bvenc'){ pl.gbVenc=t.value; }
 });
 // O texto do lote não re-renderiza a cada tecla — só guarda e atualiza o contador.
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   if(e.target && e.target.id==='pl-texto'){
     estado.planejar.texto=e.target.value;
     const c=document.getElementById('pl-contador');
+    if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
+  }
+  if(e.target && e.target.id==='pl-texto-estr'){
+    estado.planejar.textoEstr=e.target.value;
+    const c=document.getElementById('pl-estr-cont');
     if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
   }
 });
