@@ -640,6 +640,10 @@
   .ap-trans{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--cartao2);
     border:1px dashed var(--linha);border-radius:8px;padding:8px 10px;font-size:12px}
   .ap-trans-rot{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  /* 💬 comentar: seletor de @menções dentro do painel (linha própria) */
+  .ap-com-menc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-basis:100%;margin-top:2px}
+  .ap-com-menc .ap-com-add{font-family:var(--corpo);font-size:12px;padding:5px 8px;border:1px solid var(--linha);
+    border-radius:7px;background:var(--cartao);color:var(--grafite);max-width:200px}
   .chip.st-done{border-color:#A7F3D0;color:#047857;font-weight:600}
   .chip.st-indeterminate{border-color:#FDE68A;color:#B45309}
   .ap-filtros select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);
@@ -6664,6 +6668,8 @@ async function executaTransferir(btn){
 }
 
 // ---------------- Comentar no chamado ----------------
+// O painel tem um seletor de @menções próprio (isolado por painel — várias linhas
+// podem estar abertas ao mesmo tempo): chips por pessoa + atalho "marcar o time".
 function toggleComentar(btn){
   const row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-coment');
@@ -6673,8 +6679,30 @@ function toggleComentar(btn){
   area.innerHTML=`<span class="ap-trans-rot">Comentar em ${esc(k)}:</span>
     <textarea class="ap-coment-txt" rows="2" placeholder="Escreva um comentário para o chamado…" aria-label="Comentário"></textarea>
     <button class="chip primario-chip" data-ap-coment-do="${escA(k)}">Enviar comentário</button>
+    <div class="ap-com-menc"><span class="muted small">Marcar (@) — o Jira notifica cada pessoa:</span>
+      <span class="mn-chips ap-com-chips"></span>
+      <select class="ap-com-add" aria-label="Marcar pessoa"></select>
+      <button type="button" class="chip ap-com-todos" data-tip="Marca todas as pessoas ativas do time de uma vez">👥 marcar o time</button></div>
     <div class="ap-fb" hidden></div>`;
   row.querySelector('.ap-l2').after(area);
+  const menc=new Map(); area._menc=menc;
+  const chips=area.querySelector('.ap-com-chips'), sel=area.querySelector('.ap-com-add');
+  const pessoas=()=>Object.entries(pessoasUnidas()).filter(([,p])=>p&&p.nome)
+    .sort((x,y)=>(x[1].nome||'').localeCompare(y[1].nome||'','pt'));
+  const desenha=()=>{
+    chips.innerHTML=[...menc.entries()].map(([a,n])=>
+      `<span class="mn-chip">@${esc(n)} <button type="button" data-ap-com-del="${escA(a)}" title="Remover">×</button></span>`).join('')
+      ||'<span class="muted small">ninguém marcado</span>';
+    sel.innerHTML='<option value="">+ marcar pessoa…</option>'+pessoas().filter(([a])=>!menc.has(a))
+      .map(([a,p])=>`<option value="${escA(a)}">${esc(p.nome)}</option>`).join('');
+  };
+  sel.addEventListener('change',()=>{ const a=sel.value; if(!a) return;
+    const p=pessoasUnidas()[a]; menc.set(a,(p&&p.nome)||a); desenha(); });
+  chips.addEventListener('click',(e)=>{ const b=e.target.closest('[data-ap-com-del]'); if(!b) return;
+    menc.delete(b.getAttribute('data-ap-com-del')); desenha(); });
+  area.querySelector('.ap-com-todos').addEventListener('click',()=>{
+    pessoas().forEach(([a,p])=>{ menc.set(a,p.nome); }); desenha(); });
+  desenha();
   const ta=area.querySelector('.ap-coment-txt'); if(ta) ta.focus();
 }
 async function executaComentar(btn){
@@ -6684,12 +6712,14 @@ async function executaComentar(btn){
   const ta=area.querySelector('.ap-coment-txt'); const texto=((ta&&ta.value)||'').trim();
   const fb=area.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
   if(!texto){ fb.classList.add('err'); fb.textContent='Escreva algo antes de enviar.'; if(ta) ta.focus(); return; }
+  const marcados=area._menc?[...area._menc.keys()].slice(0,30):[];
   [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
   fb.textContent='Enviando…';
   try{
     const j=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}).then(r=>r.json());
-    if(j.ok){ fb.classList.add('ok'); fb.textContent=`✓ Comentário enviado em ${k}.`;
+      body:JSON.stringify({comentar:true,issue:k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(r=>r.json());
+    if(j.ok){ fb.classList.add('ok');
+      fb.textContent=`✓ Comentário enviado em ${k}${marcados.length?` marcando ${marcados.length} pessoa(s)`:''}.`;
       if(ta) ta.value=''; estado.cache={};
       setTimeout(()=>{ const a=area; if(a) a.remove(); }, 2500);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao comentar.';
@@ -12457,7 +12487,8 @@ function abreAjuda(){
     </div></details>
     <details class="help-sec"><summary>Comentar e transferir o responsável</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b> os chamados ficam <b>agrupados por projeto</b> — clique no <b>cabeçalho do projeto</b>
-      para <b>expandir/recolher</b> o grupo (ou use “Expandir/Recolher todos”). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira;
+      para <b>expandir/recolher</b> o grupo (ou use “Expandir/Recolher todos”). Em cada chamado: <b>💬 comentar</b> abre um campo para escrever e enviar um comentário no Jira —
+      com o seletor <b>Marcar (@)</b> para citar colegas um a um ou <b>👥 marcar o time</b> inteiro de uma vez (o Jira notifica cada pessoa marcada);
       <b>👤 responsável ▾</b> abre o seletor para <b>transferir</b> o chamado para outra pessoa (ou <b>para mim</b> /
       <b>remover responsável</b>); <b>🔀 mover</b> <b>reclassifica</b> o chamado para <b>outro projeto</b> (mostra só os
       destinos que têm um tipo com o mesmo nome — ex.: Tarefa/Bug). Tudo é gravado no Jira com o seu usuário e respeita as permissões.
@@ -12870,6 +12901,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
   ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
   ['2026-08-04','🏠 <b>Mais 4 cards acionáveis no Início</b>: <b>🗓 Tickets sem data</b> (1 clique abre o Apontar filtrado para definir os vencimentos), <b>⏰ Vencem hoje</b> (priorize o dia), <b>🧑‍💼 Projetos da semana</b> (em quais projetos VOCÊ está alocado nesta semana, com as horas/semana do plano macro) e <b>🏅 Seu ranking da semana</b> (sua posição no time pela % da meta apontada até hoje, com atalho ao Ranking).'],
   ['2026-08-03','🔒 <b>Reprogramação em AMS agora é nota interna</b>: nos projetos das categorias <b>Dexterity - AMS</b> e <b>Parceria - AMS</b>, o comentário da reprogramação (Alertas/Gestão) entra no Jira como <b>observação/nota interna</b> do Service Management — o cliente <b>não vê</b> no portal. Nas demais categorias segue como comentário normal.'],
@@ -12953,7 +12985,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-05.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-05.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

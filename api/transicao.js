@@ -190,8 +190,9 @@ export default async function handler(req, res) {
       const corpo = adf(texto);
       // Menções opcionais: marca uma OU VÁRIAS pessoas (@) no início do comentário —
       // o Jira notifica cada uma. Aceita string (compat) ou array de accountIds.
+      // Cap 30: comporta "marcar o time" inteiro do painel Apontar.
       const menIds = (Array.isArray(b.mencionar) ? b.mencionar : (b.mencionar ? [b.mencionar] : []))
-        .map((x) => String(x || '').trim()).filter((x) => /^[\w:-]{5,128}$/.test(x)).slice(0, 10);
+        .map((x) => String(x || '').trim()).filter((x) => /^[\w:-]{5,128}$/.test(x)).slice(0, 30);
       if (menIds.length && corpo.content) {
         const linha = [];
         menIds.forEach((id, i) => {
