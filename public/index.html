@@ -1100,6 +1100,20 @@
     padding:1px 8px;white-space:nowrap;animation:rkPulse 1.8s ease-in-out infinite}
   [data-theme="dark"] .rk-rota{color:#F0C674;border-color:#5C4514}
   @keyframes rkPulse{0%,100%{opacity:1}50%{opacity:.55}}
+  /* 🌠 chuva de estrelinhas na entrada da tela + pódio subindo */
+  .rk-chuva{position:fixed;inset:0;pointer-events:none;z-index:300;overflow:hidden}
+  .rk-chuva i{position:absolute;top:-40px;font-style:normal;opacity:0;
+    animation-name:rkChuva;animation-timing-function:linear;animation-fill-mode:forwards;
+    filter:drop-shadow(0 1px 2px rgba(11,11,11,.18))}
+  @keyframes rkChuva{
+    0%{transform:translateY(0) rotate(0deg);opacity:0}
+    8%{opacity:1}
+    82%{opacity:1}
+    100%{transform:translateY(108vh) rotate(260deg);opacity:0}}
+  .rk-pod{animation:rkSobe .5s ease-out both}
+  .rk-pod.p2{animation-delay:.05s} .rk-pod.p1{animation-delay:.16s} .rk-pod.p3{animation-delay:.27s}
+  @keyframes rkSobe{from{opacity:0;transform:translateY(18px) scale(.95)}}
+  @media (prefers-reduced-motion: reduce){ .rk-chuva{display:none} .rk-pod{animation:none} }
   .rk-mural{display:flex;gap:8px;flex-wrap:wrap}
   .rk-mchip{display:inline-flex;gap:8px;align-items:center;border:1px solid #F0C674;border-radius:999px;
     padding:6px 12px;background:#FFF9E8;font-size:13px}
@@ -5934,6 +5948,28 @@ function rkCalcDe(tempo){
   return { de, ate:fim, hoje, linhas, nSemFech:fechadas.length };
 }
 const rkStars=(n)=> n<=0?'' : (n<=8 ? '⭐'.repeat(n) : `⭐×${n}`);
+// 🌠 Animação de boas-vindas ao ENTRAR no Ranking: uma chuva de estrelinhas cai
+// sobre a página (uma vez por visita à tela; sair e voltar anima de novo).
+// Respeita prefers-reduced-motion e se remove sozinha ao terminar.
+function rkAnimaEntrada(){
+  const rk=estado.ranking;
+  if(rk._entrou) return;
+  rk._entrou=true;
+  try{ if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(e){}
+  const glifos=['⭐','⭐','⭐','⭐','✨','⭐','🌟','⭐','✨','⭐'];
+  const n=22;
+  const itens=[...Array(n)].map((_,i)=>{
+    const g=glifos[i%glifos.length];
+    const esq=(i*47+13)%100;                          // espalha sem Math.random (determinístico)
+    const dur=(1.4+((i*31)%80)/100).toFixed(2);
+    const atraso=(((i*53)%90)/100).toFixed(2);
+    const tam=14+((i*29)%14);
+    return `<i style="left:${esq}%;font-size:${tam}px;animation-duration:${dur}s;animation-delay:${atraso}s">${g}</i>`;
+  }).join('');
+  const ov=el(`<div class="rk-chuva" aria-hidden="true">${itens}</div>`);
+  document.body.appendChild(ov);
+  setTimeout(()=>{ try{ ov.remove(); }catch(e){} }, 3000);
+}
 // Pódio dos 3 melhores do período (2º · 1º · 3º), com coroa no campeão.
 function rkPodio(linhas){
   const top=linhas.filter(l=>l.tot>0).slice(0,3);
@@ -6047,6 +6083,7 @@ function renderRankingFaixa(fx){
     </div>
     ${fx==='ano'?`<div class="card full"><h2>Apontamentos por mês <span>horas do time em cada mês do ano</span></h2>${cardPorMesDe(dados.worklogs)}</div>`:''}
   </div>`));
+  rkAnimaEntrada();
 }
 
 function renderRanking(){
@@ -6121,6 +6158,7 @@ function renderRanking(){
     <div class="card full"><h2>Apontamentos por mês <span>horas lançadas em cada mês</span></h2>${cardPorMes()}</div>
     <div class="card full"><h2>Lacunas por dia da semana <span>onde mais falta apontar</span></h2>${cardHeatSemana()}</div>
   </div>`));
+  rkAnimaEntrada();
 }
 
 // Agrega os tickets (issues) do período: horas (Clockwork) + atividade (Jira).
@@ -13264,6 +13302,7 @@ function marcaVista(v){
 function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').forEach(x=>{ x.classList.remove('open');
   const hb=x.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-expanded','false'); }); }
 function vaiPara(v){
+  if(v!=='ranking' && estado.ranking) estado.ranking._entrou=false;   // 🌠 anima de novo na próxima entrada
   estado.vista=v;
   marcaVista(v); fechaMenusNav();
   render(); estadoParaURL();
@@ -13359,7 +13398,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
-  ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência.'],
+  ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência. E, ao <b>entrar na tela</b>, uma 🌠 <b>chuva de estrelinhas</b> dá as boas-vindas (o pódio sobe em sequência; tudo respeita a preferência de reduzir movimento).'],
   ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓. A página também foi <b>reorganizada</b>: o timesheet abre a tela, e os <b>🕑 tickets recentes</b> foram para o fim, <b>recolhidos</b> (o título mostra a contagem; 1 clique expande).'],
   ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
   ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
