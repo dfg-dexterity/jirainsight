@@ -1074,6 +1074,43 @@
   .arv-defs>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
   /* 📈 Ranking — Engajamento & uso do Jira */
   .rk-abas{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  /* 🏆 Faixas de tempo + pódio + mural de estrelinhas */
+  .rk-faixas{margin:-4px 0 14px;align-items:center}
+  .rk-podio{display:flex;gap:14px;align-items:flex-end;justify-content:center;flex-wrap:wrap;padding:8px 0 4px}
+  .rk-pod{position:relative;border:1px solid var(--linha);border-radius:14px;background:var(--cartao);
+    padding:16px 18px 12px;text-align:center;min-width:180px;max-width:240px;box-shadow:0 2px 10px rgba(11,11,11,.05)}
+  .rk-pod.p1{border-color:#F0C674;background:linear-gradient(180deg,#FFF9E8,var(--cartao) 70%);padding-top:22px;transform:scale(1.06)}
+  .rk-pod.p2{background:linear-gradient(180deg,#F4F6F8,var(--cartao) 70%)}
+  .rk-pod.p3{background:linear-gradient(180deg,#FBF1E7,var(--cartao) 70%)}
+  [data-theme="dark"] .rk-pod.p1{background:linear-gradient(180deg,#332B10,var(--cartao) 70%);border-color:#5C4514}
+  [data-theme="dark"] .rk-pod.p2{background:linear-gradient(180deg,#232A32,var(--cartao) 70%)}
+  [data-theme="dark"] .rk-pod.p3{background:linear-gradient(180deg,#33261A,var(--cartao) 70%)}
+  .rk-crown{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:22px;
+    animation:rkFloat 2.4s ease-in-out infinite}
+  @keyframes rkFloat{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-4px)}}
+  .rk-pod-medal{font-size:26px;line-height:1}
+  .rk-pod-nome{font-weight:700;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rk-pod-pct{font-family:var(--titulo);font-size:30px;font-weight:800;color:var(--grafite);line-height:1.15}
+  .rk-pod-sub{font-size:12px;color:var(--muted)}
+  .rk-pod-stars{margin-top:6px;font-size:14px;letter-spacing:1px;min-height:20px}
+  .rk-100{font-size:16px}
+  .rk-fire{font-size:12px;font-weight:700;color:#B45309;white-space:nowrap}
+  [data-theme="dark"] .rk-fire{color:#F0C674}
+  .rk-rota{font-size:11px;font-weight:700;color:#B45309;border:1px dashed #E9A23B;border-radius:999px;
+    padding:1px 8px;white-space:nowrap;animation:rkPulse 1.8s ease-in-out infinite}
+  [data-theme="dark"] .rk-rota{color:#F0C674;border-color:#5C4514}
+  @keyframes rkPulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .rk-mural{display:flex;gap:8px;flex-wrap:wrap}
+  .rk-mchip{display:inline-flex;gap:8px;align-items:center;border:1px solid #F0C674;border-radius:999px;
+    padding:6px 12px;background:#FFF9E8;font-size:13px}
+  .rk-mchip.rota{border-style:dashed;background:var(--cartao)}
+  [data-theme="dark"] .rk-mchip{background:#332B10;border-color:#5C4514}
+  [data-theme="dark"] .rk-mchip.rota{background:var(--cartao)}
+  .rk-mnome{font-weight:600}
+  .rk-mstars{letter-spacing:1px}
+  .rk-rowstars{margin-left:6px;font-size:12px;letter-spacing:1px;white-space:nowrap}
+  @media (max-width:700px){ .rk-podio{gap:8px} .rk-pod{min-width:130px;padding:12px 10px 10px}
+    .rk-pod.p1{transform:none} .rk-pod-pct{font-size:24px} }
   .rk-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--texto2);margin:2px 0 10px}
   .rk-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
   .rkhm{display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding-bottom:4px}
@@ -1943,7 +1980,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Administração (cadastro de contratos/clientes/valor-hora).
   admin:{ editId:null },
   // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
-  ranking:{ aba:'apontamento' },
+  ranking:{ aba:'apontamento', faixa:'semana', tempoPer:{}, carregandoPer:'' },
   // 🕵️ Auditoria de Tickets (apontamentos × validações TI-04-014, por pessoa).
   audit:{ accountId:'', dias:7, dados:null, carregando:false, erro:'' },
   // 📈 Analytics de governança (26 visões sobre abertos/concluídos/reabertos)
@@ -5827,12 +5864,200 @@ function renderRankingUso(){
   </div>`));
 }
 
+// ============ 🏆 Ranking no tempo: Esta semana · Este mês · Este ano ============
+// A brincadeira das ⭐ estrelinhas: fechou a SEMANA batendo a meta → ganha uma
+// estrelinha. O período escolhido soma as estrelinhas das semanas fechadas dele;
+// 🔥 é a sequência de semanas seguidas na meta. Dados via /api/tempo (janelas
+// prontas com cache no servidor); a visão "Período da tela" mantém o comportamento
+// clássico com os filtros do topo.
+const RK_FAIXAS={ semana:{jan:'estaSemana',rot:'📅 Esta semana'}, mes:{jan:'esteMes',rot:'🗓 Este mês'},
+  ano:{jan:'esteAno',rot:'📆 Este ano'}, tela:{rot:'⚙️ Período da tela'} };
+function rkFaixaChips(atual){
+  return `<div class="ap-chips rk-faixas">${Object.entries(RK_FAIXAS).map(([k,v])=>
+    `<button class="chip" aria-pressed="${atual===k}" data-rk-faixa="${escA(k)}">${v.rot}</button>`).join('')}
+    <span class="muted small">as faixas de tempo usam o time inteiro (sem os filtros do topo)</span></div>`;
+}
+function rkGaranteFaixa(fx){
+  const rk=estado.ranking;
+  rk.tempoPer=rk.tempoPer||{};
+  if(rk.tempoPer[fx]) return true;
+  if(rk.carregandoPer!==fx){
+    rk.carregandoPer=fx;
+    fetch(`/api/tempo?janela=${RK_FAIXAS[fx].jan}`).then(r=>r.json()).then(j=>{
+      rk.carregandoPer='';
+      rk.tempoPer[fx]=j&&j.worklogs?j:{erro:(j&&j.erro)||'Resposta inesperada.'};
+      if(estado.vista==='ranking') renderRanking();
+    }).catch(e=>{ rk.carregandoPer='';
+      rk.tempoPer[fx]={erro:String(e.message||e)};
+      if(estado.vista==='ranking') renderRanking(); });
+  }
+  return false;
+}
+// Ranking + estrelinhas a partir de um payload do /api/tempo (qualquer intervalo).
+function rkCalcDe(tempo){
+  const meta=tempo.meta||{}; const de=meta.startDate||'', ateBr=meta.endDate||'';
+  const hoje=hojeSP();
+  const fim = (ateBr && ateBr<hoje) ? ateBr : hoje;
+  const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
+  const porA={};
+  Object.entries(tempo.pessoas||{}).forEach(([a,p])=>{
+    if(ocultos.has(a) || RE_EXCLUIR.test((p&&p.nome)||'')) return;
+    porA[a]={a, nome:(p&&p.nome)||a, tot:0, porSem:{}};
+  });
+  (tempo.worklogs||[]).forEach(w=>{ const r=porA[w.a]; if(!r) return;
+    const d=(w.d||'').slice(0,10); if(!d||d<de||d>ateBr) return;
+    r.tot+=Number(w.s)||0; const s=rkSemanaDe(d); r.porSem[s]=(r.porSem[s]||0)+(Number(w.s)||0); });
+  const dias=[]; for(let d=de; d && d<=fim && dias.length<420; d=mtsSoma(d,1)) dias.push(d);
+  const semanas=[...new Set(dias.map(rkSemanaDe))].sort();
+  const semAtual=rkSemanaDe(hoje);
+  // Semana FECHADA: o último dia dela dentro do período já passou.
+  const fechadas=semanas.filter(s=>{ const f7=mtsSoma(s,6); const fimS=f7<fim?f7:fim; return fimS<hoje; });
+  const linhas=Object.values(porA).map(r=>{
+    let esperado=0; const metaSem={}; let metaCorr=0;
+    dias.forEach(d=>{
+      if(!ehUtil(d)||ehFeriado(d)||ehAusencia(r.a,d)) return;
+      const m=metaSegDe(r.a); const s=rkSemanaDe(d);
+      metaSem[s]=(metaSem[s]||0)+m;
+      if(d!==hoje){ esperado+=m; if(s===semAtual) metaCorr+=m; }
+    });
+    let estrelas=0, seq=0;
+    fechadas.forEach(s=>{
+      if(!(metaSem[s]>0)) return;                       // semana sem meta (férias/feriados) não conta nem quebra
+      if((r.porSem[s]||0)>=metaSem[s]){ estrelas++; seq++; } else seq=0;
+    });
+    // ⭐ em rota: na semana corrente a pessoa está na meta dos dias já fechados.
+    const emRota = semanas.includes(semAtual) && metaCorr>0 && (r.porSem[semAtual]||0)>=metaCorr;
+    const pct = esperado?Math.round(r.tot/esperado*100):null;
+    const status = pct==null?'na': pct>=90?'ok': pct>=60?'warn':'bad';
+    return { ...r, esperado, pct, status, estrelas, streak:seq, emRota, metaCem:pct!=null&&pct>=100 };
+  }).sort((x,y)=>((y.pct==null?-1:y.pct)-(x.pct==null?-1:x.pct)) || (y.tot-x.tot) || x.nome.localeCompare(y.nome,'pt'));
+  return { de, ate:fim, hoje, linhas, nSemFech:fechadas.length };
+}
+const rkStars=(n)=> n<=0?'' : (n<=8 ? '⭐'.repeat(n) : `⭐×${n}`);
+// Pódio dos 3 melhores do período (2º · 1º · 3º), com coroa no campeão.
+function rkPodio(linhas){
+  const top=linhas.filter(l=>l.tot>0).slice(0,3);
+  if(!top.length) return '<div class="estado">Ainda sem horas neste período.</div>';
+  const ordem=[top[1],top[0],top[2]].filter(Boolean);
+  const medal=['🥇','🥈','🥉'];
+  return `<div class="rk-podio">${ordem.map(l=>{ const i=top.indexOf(l);
+    return `<div class="rk-pod p${i+1}">
+      ${i===0?'<div class="rk-crown" aria-hidden="true">👑</div>':''}
+      <div class="rk-pod-medal">${medal[i]}</div>
+      <div class="rk-pod-nome" title="${escA(l.nome)}">${esc(l.nome)}</div>
+      <div class="rk-pod-pct">${l.pct==null?fmtH(l.tot):l.pct+'%'}${l.metaCem?' <span class="rk-100">💯</span>':''}</div>
+      <div class="rk-pod-sub">${fmtH(l.tot)}${l.esperado?` de ${fmtH(l.esperado)}`:' apontadas'}</div>
+      <div class="rk-pod-stars">${rkStars(l.estrelas)||(l.emRota?'<span class="rk-rota">⭐ em rota</span>':'&nbsp;')}${l.streak>=2?` <span class="rk-fire" data-tip="${l.streak} semanas seguidas batendo a meta">🔥${l.streak}</span>`:''}</div>
+    </div>`; }).join('')}</div>`;
+}
+// 🌟 Mural de estrelinhas: quem está colecionando (e quem está garantindo a da semana).
+function rkMural(linhas, nSemFech){
+  const com=linhas.filter(l=>l.estrelas>0 || l.emRota)
+    .sort((x,y)=>(y.estrelas-x.estrelas)||(y.streak-x.streak)||((y.pct==null?-1:y.pct)-(x.pct==null?-1:x.pct)));
+  if(!com.length) return `<div class="estado">Ninguém coletou estrelinha neste período ainda — feche a semana batendo a meta para ganhar a sua ⭐.</div>`;
+  return `<div class="rk-mural">${com.map(l=>`
+    <div class="rk-mchip${l.emRota&&!l.estrelas?' rota':''}">
+      <span class="rk-mnome">${esc(l.nome)}</span>
+      <span class="rk-mstars">${rkStars(l.estrelas)||'—'}</span>
+      ${nSemFech?`<span class="muted small">${l.estrelas}/${nSemFech} semana(s)</span>`:''}
+      ${l.streak>=2?`<span class="rk-fire" data-tip="${l.streak} semanas seguidas na meta">🔥${l.streak}</span>`:''}
+      ${l.emRota?'<span class="rk-rota" data-tip="Está na meta dos dias já fechados desta semana — fechando assim, a estrelinha vem">⭐ em rota</span>':''}
+    </div>`).join('')}</div>`;
+}
+// Variante do "por mês" que aceita worklogs de qualquer fonte (faixa Este ano).
+function cardPorMesDe(worklogs){
+  const porMes={};
+  (worklogs||[]).forEach(w=>{ const ym=(w.d||'').slice(0,7); if(ym) porMes[ym]=(porMes[ym]||0)+(Number(w.s)||0); });
+  const meses=Object.keys(porMes).sort();
+  if(!meses.length) return '<div class="estado">Sem horas no período.</div>';
+  const max=Math.max(1,...meses.map(m=>porMes[m]));
+  const rot=(ym)=>{ const [y,mm]=ym.split('-'); return `${MESES_PT[(+mm)-1]}/${y.slice(2)}`; };
+  return `<div class="scroll-x"><div class="cols anima">${meses.map(m=>`
+    <div class="col" data-tip="${escA(rot(m))}" data-tip2="${escA(fmtH(porMes[m]))}">
+      <div class="bwrap"><div class="b" style="height:${(porMes[m]/max*100)}%;background:${cores.roxo}"></div></div><div class="cl">${rot(m)}</div></div>`).join('')}</div></div>`;
+}
+// Visão por FAIXA DE TEMPO (semana/mês/ano): pódio + mural + lista com estrelas.
+function renderRankingFaixa(fx){
+  const cont=document.getElementById('conteudo');
+  const rk=estado.ranking;
+  if(!rkGaranteFaixa(fx)){
+    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips(fx)}
+      <div class="estado">Carregando os apontamentos de ${esc(RK_FAIXAS[fx].rot.replace(/^\S+\s/,'').toLowerCase())}…</div></div>`));
+    return;
+  }
+  const dados=rk.tempoPer[fx];
+  if(dados.erro){
+    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips(fx)}
+      <div class="erro"><strong>Falha ao carregar o período.</strong> ${esc(dados.erro)}
+        <button class="btn" data-rk-refaixa="${escA(fx)}" style="margin-left:8px">Tentar de novo</button></div></div>`));
+    return;
+  }
+  const R=rkCalcDe(dados);
+  const comMeta=R.linhas.filter(l=>l.esperado>0);
+  const naMeta=comMeta.filter(l=>l.metaCem).length;
+  const totEst=R.linhas.reduce((s,l)=>s+l.estrelas,0);
+  const melhor=R.linhas.slice().sort((x,y)=>y.streak-x.streak)[0];
+  const espTot=R.linhas.reduce((s,l)=>s+l.esperado,0);
+  const totTot=R.linhas.reduce((s,l)=>s+l.tot,0);
+  const pctGeral=espTot?Math.round(totTot/espTot*100):null;
+  const medal=['🥇','🥈','🥉'];
+  const rows=R.linhas.map((l,i)=>{
+    const w=l.pct==null?0:Math.min(100,l.pct);
+    const cheer=l.metaCem, sad=(l.tot||0)===0;
+    const fx2=cheer?'<span class="rk-fx rk-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>'
+      :(sad?'<span class="rk-fx rk-rain" aria-hidden="true"><i></i><i></i><i></i><i></i></span>':'');
+    return `<div class="rk-row${cheer?' rk-cheer':(sad?' rk-sad':'')}">
+      ${fx2}
+      <div class="rk-pos">${medal[i]||i+1}</div>
+      <div class="rk-main">
+        <div class="rk-top"><span class="rk-nome" data-pessoa="${esc(l.a)}" title="${esc(l.nome)}">${esc(l.nome)}</span>
+          ${l.metaCem?'<span class="rk-badge ok">💯 Meta atingida</span>':`<span class="rk-badge ${l.status}">${{ok:'Em dia',warn:'Atrasado',bad:'Crítico',na:'—'}[l.status]}</span>`}
+          ${sad?'<span class="rk-sadface" aria-hidden="true" title="não apontou no período">😔</span>':''}
+          <span class="rk-rowstars">${rkStars(l.estrelas)}${l.streak>=2?` <span class="rk-fire">🔥${l.streak}</span>`:''}${!l.estrelas&&l.emRota?'<span class="rk-rota">⭐ em rota</span>':''}</span></div>
+        <div class="rk-bar"><div class="rk-fill ${l.status}" style="width:${w}%"></div></div>
+      </div>
+      <div class="rk-meta"><div class="rk-pct">${l.pct==null?'—':l.pct+'%'}</div>
+        <div class="rk-sub">${fmtH(l.tot)}${l.esperado?` / ${fmtH(l.esperado)}`:' apontadas'}</div></div>
+    </div>`;
+  }).join('');
+  cont.replaceChildren(el(`<div>
+    ${rkAbas('apontamento')}
+    ${rkFaixaChips(fx)}
+    <div class="kpis ts-kpis">
+      <div class="kpi t"><div class="v">${pctGeral==null?'—':pctGeral+'%'}</div><div class="l">Apontamento do time</div></div>
+      <div class="kpi t"><div class="v">${naMeta}</div><div class="l">💯 Na meta (100%+)</div></div>
+      <div class="kpi t"><div class="v">${totEst} ⭐</div><div class="l">Estrelinhas no período</div></div>
+      <div class="kpi ${melhor&&melhor.streak>=2?'t':'a'}"><div class="v">${melhor&&melhor.streak>=2?('🔥'+melhor.streak):'—'}</div>
+        <div class="l">${melhor&&melhor.streak>=2?('Maior sequência · '+esc(melhor.nome.split(' ')[0])):'Maior sequência'}</div></div>
+    </div>
+    <div class="card full">
+      <h2>🏆 Quem está fazendo a diferença <span>${esc(fmtBR(R.de))} → ${esc(fmtBR(R.ate))} · % da meta até ontem</span></h2>
+      ${rkPodio(R.linhas)}
+    </div>
+    <div class="card full">
+      <h2>🌟 Mural de estrelinhas <span>fechou a semana batendo a meta → ganha uma ⭐ · 🔥 = semanas seguidas</span></h2>
+      ${rkMural(R.linhas, R.nSemFech)}
+      <div class="muted small" style="margin-top:8px">A brincadeira: quem faz um bom trabalho merece uma estrelinha —
+        cada <strong>semana fechada com a meta batida</strong> vale <strong>uma ⭐</strong>
+        (semanas sem meta, como férias, não contam nem quebram a sequência). ${R.nSemFech?`Este período tem <strong>${R.nSemFech} semana(s) fechada(s)</strong>.`:'A semana atual conta quando fechar.'}</div>
+    </div>
+    <div class="card full">
+      <h2>Ranking · ${esc(RK_FAIXAS[fx].rot.replace(/^\S+\s/,''))} <span>meta ${cfg.metaGlobalH}h/dia (individual em Metas) · descontando feriados e ausências</span></h2>
+      <div class="rk-list">${rows||'<div class="estado">Sem pessoas ativas no período.</div>'}</div>
+    </div>
+    ${fx==='ano'?`<div class="card full"><h2>Apontamentos por mês <span>horas do time em cada mês do ano</span></h2>${cardPorMesDe(dados.worklogs)}</div>`:''}
+  </div>`));
+}
+
 function renderRanking(){
   const cont=document.getElementById('conteudo');
   if(((estado.ranking&&estado.ranking.aba)||'apontamento')==='uso') return renderRankingUso();
+  const rk=estado.ranking=estado.ranking||{};
+  rk.faixa=rk.faixa||'semana';
+  if(rk.faixa!=='tela') return renderRankingFaixa(rk.faixa);
   const { meta, dias, hoje, linhas } = calcRanking();
   if(!linhas.length){
-    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips('tela')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -5874,6 +6099,7 @@ function renderRanking(){
 
   cont.replaceChildren(el(`<div>
     ${rkAbas('apontamento')}
+    ${rkFaixaChips('tela')}
     ${cardNaoApontou()}
     <div class="kpis ts-kpis">
       <div class="kpi t"><div class="v">${pctGeral==null?'—':pctGeral+'%'}</div><div class="l">Apontamento geral</div></div>
@@ -12679,7 +12905,7 @@ function abreAjuda(){
       <li>· <span class="lnk" data-aj-goto="projetos"><b>📁 Projetos</b></span> — BI por projeto direto do Jira, com drill-down total.</li>
       <li>· <span class="lnk" data-aj-goto="resumo"><b>Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.</li>
       <li>· <span class="lnk" data-aj-goto="timesheet"><b>Timesheet</b></span> — pessoa × dia com lacunas até a meta; ⬇ exporta em vários recortes.</li>
-      <li>· <span class="lnk" data-aj-goto="ranking"><b>Ranking</b></span> — cumprimento de apontamento e engajamento por pessoa.</li>
+      <li>· <span class="lnk" data-aj-goto="ranking"><b>Ranking</b></span> — cumprimento de apontamento por semana/mês/ano, com 🏆 pódio, ⭐ estrelinhas de meta batida e 🔥 sequências; + engajamento por pessoa.</li>
       <li>· <span class="lnk" data-aj-goto="tickets"><b>Tickets</b></span> — issues do período (horas + atividade), agrupáveis.</li>
       <li>· <span class="lnk" data-aj-goto="qualidade"><b>🔎 Qualidade (IA)</b></span> — auditoria dos tickets criados vs. boas práticas TI-04-006 (nota + ações).</li>
       <li>· <span class="lnk" data-aj-goto="audit"><b>🕵️ Auditoria de Tickets</b></span> — validações TI-04-014 por pessoa, com drill-down.</li>
@@ -12945,7 +13171,7 @@ const TOUR_TELAS=[
   {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket.'},
   {vai:'resumo',titulo:'Resumo',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
   {vai:'timesheet',titulo:'Timesheet',texto:'Matriz pessoa × dia com as lacunas até a meta; exporta em vários recortes (detalhado, por pessoa, projeto, ticket, tipo).'},
-  {vai:'ranking',titulo:'Ranking',texto:'Cumprimento de apontamento por pessoa (% da meta), engajamento e heatmap por mês.'},
+  {vai:'ranking',titulo:'Ranking',texto:'Cumprimento de apontamento por pessoa NO TEMPO: 📅 esta semana, 🗓 este mês e 📆 este ano — com 🏆 pódio dos destaques, ⭐ estrelinhas (fechou a semana na meta = ganhou uma) e 🔥 sequências. A aba Engajamento segue com o uso do Jira.'},
   {vai:'tickets',titulo:'Tickets',texto:'Os tickets do período com horas + atividade, agrupáveis por projeto, tipo, categoria ou pessoa.'},
   {vai:'qualidade',titulo:'🔎 Qualidade (IA)',texto:'A IA lê as boas práticas TI-04-006 no Notion e audita os tickets criados no período: nota, violações e menu de ações por ticket.'},
   {vai:'audit',titulo:'🕵️ Auditoria de Tickets',texto:'Validações objetivas TI-04-014 por pessoa: conformidade dos tickets (datas, estimativas, descrição, épico…) com drill-down.'},
@@ -13133,6 +13359,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência.'],
   ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓. A página também foi <b>reorganizada</b>: o timesheet abre a tela, e os <b>🕑 tickets recentes</b> foram para o fim, <b>recolhidos</b> (o título mostra a contagem; 1 clique expande).'],
   ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
   ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
@@ -13218,7 +13445,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-06.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-07.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -13641,6 +13868,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-rk-aba')){ estado.ranking=estado.ranking||{};
     estado.ranking.aba=t.getAttribute('data-rk-aba'); renderRanking(); }
+  else if(t.hasAttribute('data-rk-faixa')){ estado.ranking.faixa=t.getAttribute('data-rk-faixa'); escondeTip(); renderRanking(); }
+  else if(t.hasAttribute('data-rk-refaixa')){ const fx=t.getAttribute('data-rk-refaixa');
+    delete estado.ranking.tempoPer[fx]; renderRanking(); }
   else if(t.id==='cf-abrir-metas'||t.id==='cf-abrir-metas-oc'){ abreMetas(); }
   else if(t.id==='cf-abrir-log'){ abreLogAcoes(); }
   else if(t.hasAttribute('data-cf-aloc')){ const v=t.getAttribute('data-cf-aloc');
