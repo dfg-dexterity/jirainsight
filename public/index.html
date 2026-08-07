@@ -665,6 +665,73 @@
   .mh-data{font-size:11px;color:var(--muted);text-transform:capitalize}
   .mh-h{font-size:16px;font-weight:700;color:var(--grafite);margin-top:2px}
   .mh-dia.over .mh-h{color:#B45309}
+  /* ---- ⏱ Meu timesheet: paleta categórica validada (dataviz) + grade + calendário ---- */
+  #mh-card{--mts-s1:#2a78d6;--mts-s2:#eb6834;--mts-s3:#1baf7a;--mts-s4:#eda100;--mts-s5:#e87ba4;
+    --mts-s6:#008300;--mts-s7:#4a3aa7;--mts-s8:#e34948;--mts-s0:#7E8E9E}
+  [data-theme="dark"] #mh-card{--mts-s1:#3987e5;--mts-s2:#d95926;--mts-s3:#199e70;--mts-s4:#c98500;
+    --mts-s5:#d55181;--mts-s6:#008300;--mts-s7:#9085e9;--mts-s8:#e66767}
+  .mts-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .mts-nav{display:flex;gap:6px;align-items:center}
+  .mts-nav .btn{padding:4px 10px;font-size:12px}
+  .mts-alvo{display:flex;gap:8px;align-items:center;font-size:13px}
+  .mts-prog{width:130px;height:8px;border-radius:999px;background:var(--hoverbg);border:1px solid var(--linha);overflow:hidden;display:inline-block}
+  .mts-prog i{display:block;height:100%;background:var(--mts-s1);border-radius:999px}
+  .mts-leg{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
+  .mts-lchip{display:inline-flex;gap:6px;align-items:center;font-size:12px;border:1px solid var(--linha);
+    border-radius:999px;padding:3px 10px;background:var(--cartao)}
+  .mts-dot{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+  .mts-dot.c0{background:var(--mts-s0)} .mts-dot.c1{background:var(--mts-s1)} .mts-dot.c2{background:var(--mts-s2)}
+  .mts-dot.c3{background:var(--mts-s3)} .mts-dot.c4{background:var(--mts-s4)} .mts-dot.c5{background:var(--mts-s5)}
+  .mts-dot.c6{background:var(--mts-s6)} .mts-dot.c7{background:var(--mts-s7)} .mts-dot.c8{background:var(--mts-s8)}
+  table.mts-tab{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  .mts-tab th,.mts-tab td{padding:7px 8px;border-bottom:1px solid var(--linha);text-align:right;white-space:nowrap}
+  .mts-tab th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:2px solid var(--linha)}
+  .mts-tab .mts-c1{text-align:left;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+  .mts-tab .mts-sig{border-right:2px solid var(--linha);font-weight:600}
+  .mts-tab th.fds,.mts-tab td.fds{background:var(--hoverbg)}
+  .mts-tab th.hj{color:var(--azul,#0A6ED1)}
+  .mts-tab th.fer{color:#B45309}
+  .mts-z{color:var(--linha)}
+  .mts-v.f{font-weight:600}
+  .mts-v.over{color:#B45309;font-weight:700}
+  [data-theme="dark"] .mts-v.over{color:#F0C674}
+  tr.mts-proj td{background:var(--cartao2)}
+  tr.mts-tk .mts-c1{padding-left:22px}
+  .mts-rec{color:var(--muted)}
+  .mts-res{color:var(--muted);font-size:12px;margin-left:6px;max-width:230px;display:inline-block;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+  .mts-tgl{border:0;background:none;cursor:pointer;color:var(--muted);font-size:12px;padding:0 4px}
+  .mts-calwrap{display:flex;gap:0;overflow-x:auto}
+  .mts-gutter{position:relative;flex:0 0 34px;margin-top:34px}
+  .mts-hora{position:absolute;right:6px;font-size:10px;color:var(--muted);transform:translateY(-6px)}
+  .mts-cal{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:0;flex:1;min-width:840px}
+  .mts-col{border-left:1px solid var(--linha)}
+  .mts-col.fds{background:var(--hoverbg)}
+  .mts-col-h{height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:11px;color:var(--muted);text-transform:capitalize;border-bottom:2px solid var(--linha)}
+  .mts-col.hj .mts-col-h{color:var(--azul,#0A6ED1);font-weight:700}
+  .mts-col-t{font-size:12px;font-weight:700;color:var(--grafite)}
+  .mts-col-t.over{color:#B45309}
+  [data-theme="dark"] .mts-col-t.over{color:#F0C674}
+  .mts-col-c{position:relative;background-image:linear-gradient(to bottom, var(--linha) 1px, transparent 1px);
+    background-size:100% 44px}
+  .mts-blk{position:absolute;box-sizing:border-box;border-radius:6px;padding:2px 6px;overflow:hidden;
+    font-size:11px;line-height:1.25;border-left:3px solid var(--mts-s0);
+    background:color-mix(in srgb, var(--mts-s0) 14%, var(--cartao));outline:2px solid var(--cartao)}
+  .mts-blk.c1{border-left-color:var(--mts-s1);background:color-mix(in srgb, var(--mts-s1) 14%, var(--cartao))}
+  .mts-blk.c2{border-left-color:var(--mts-s2);background:color-mix(in srgb, var(--mts-s2) 14%, var(--cartao))}
+  .mts-blk.c3{border-left-color:var(--mts-s3);background:color-mix(in srgb, var(--mts-s3) 14%, var(--cartao))}
+  .mts-blk.c4{border-left-color:var(--mts-s4);background:color-mix(in srgb, var(--mts-s4) 14%, var(--cartao))}
+  .mts-blk.c5{border-left-color:var(--mts-s5);background:color-mix(in srgb, var(--mts-s5) 14%, var(--cartao))}
+  .mts-blk.c6{border-left-color:var(--mts-s6);background:color-mix(in srgb, var(--mts-s6) 14%, var(--cartao))}
+  .mts-blk.c7{border-left-color:var(--mts-s7);background:color-mix(in srgb, var(--mts-s7) 14%, var(--cartao))}
+  .mts-blk.c8{border-left-color:var(--mts-s8);background:color-mix(in srgb, var(--mts-s8) 14%, var(--cartao))}
+  .mts-blk.sh{border-style:dashed;border-left-style:solid}
+  .mts-blk-k{font-weight:700;margin-right:4px}
+  .mts-blk-r{color:var(--muted)}
+  .mts-blk-h{position:absolute;right:4px;top:2px;font-weight:600;color:var(--grafite);
+    background:inherit;border-radius:4px;padding:0 3px}
+  @media (max-width:700px){ .mts-head{gap:8px} .mts-alvo{order:3;flex-basis:100%} .mts-res{max-width:120px} }
   /* Seletor de visualização (lista/tabela/quadro) */
   .ap-vis{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px}
   /* Tabela densa */
@@ -2137,6 +2204,7 @@ async function carrega(periodo, forca){
   removeUsuariosTecnicos(t, a);
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
   estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
+  estado.apontar.extraLogs=[];
   estado.cache[periodo]={tempo:t,atividade:a,usuarios,avisoAtiv:aviso};
 }
 
@@ -6050,27 +6118,184 @@ function minhasHorasPorDia(){
   return out;
 }
 // Registra (otimista) o que acabei de apontar, para o painel refletir na hora.
-function registraExtraDia(dia, seg){
+// Guarda também o TICKET (k) para a grade/calendário do Meu timesheet.
+function registraExtraDia(dia, seg, k){
   if(!dia||!seg) return;
   const ap=estado.apontar; ap.extraPorDia=ap.extraPorDia||{};
   ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
+  ap.extraLogs=ap.extraLogs||[];
+  ap.extraLogs.push({d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'—'});
 }
 const _diaSemana=(d)=>{ try{ return new Date(d+'T12:00:00-03:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.',''); }catch(e){ return ''; } };
+
+// ================= ⏱ Meu timesheet (estilo ferramenta de timetracking) =================
+// Duas visões sobre os MEUS worklogs (Clockwork + o que apontei nesta sessão):
+// 🧮 Grade  — matriz Projeto → Ticket × dias da semana, com Σ e totais por dia;
+// 🗓 Semana — calendário com blocos posicionados pela HORA de início do worklog.
+// Soma dias aceitando NEGATIVOS (somaDias global só anda para frente).
+function mtsSoma(s,n){ const [y,m,d]=s.split('-').map(Number);
+  const x=new Date(Date.UTC(y,m-1,d,12)); x.setUTCDate(x.getUTCDate()+n); return x.toISOString().slice(0,10); }
+function mtsSegunda(d){ const wd=diaSemana(d); return mtsSoma(d, wd===0?-6:1-wd); }
+function mtsEstado(){ const ap=estado.apontar;
+  if(!ap.mtsSem) ap.mtsSem=mtsSegunda(hojeSP());
+  if(!ap.mtsModo) ap.mtsModo='grade';
+  if(!ap.mtsFech) ap.mtsFech={};
+  return ap; }
+// Worklogs meus da semana [seg0..seg0+6]: {d, s, k, p, dt(ISO c/ hora), extra}
+function mtsLogsSemana(seg0){
+  const id=idApontar(); const fim=mtsSoma(seg0,6); const logs=[];
+  if(id&&id.accountId){
+    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
+      if(w.a!==id.accountId) return;
+      const d=(w.d||'').slice(0,10); if(!d||d<seg0||d>fim) return;
+      logs.push({d, s:Number(w.s)||0, k:w.k||'', p:w.p||(w.k?String(w.k).split('-')[0]:'—'), dt:w.d||''});
+    });
+  }
+  ((estado.apontar.extraLogs)||[]).forEach(x=>{
+    if(x.d<seg0||x.d>fim) return;
+    logs.push({d:x.d, s:x.s, k:x.k||'', p:x.p||'—', dt:'', extra:true});
+  });
+  return logs;
+}
+// Minuto do dia (fuso SP) do início do worklog; null quando não há hora útil.
+function mtsMinSP(dt){
+  if(!dt||dt.length<=10) return null;
+  try{ const x=new Date(dt); if(isNaN(x)) return null;
+    const p=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour12:false,hour:'2-digit',minute:'2-digit'}).format(x);
+    const [h,m]=p.split(':').map(Number); const v=h*60+m;
+    return v===0?null:v;                       // 00:00 exato = ferramenta sem hora
+  }catch(e){ return null; }
+}
+const MTS_CORES=8;   // slots categóricos validados (dataviz); além disso vira cinza
 function htmlPainelHoras(){
   const id=idApontar(); if(!id||!id.accountId) return '';
+  const ap=mtsEstado();
   const metaSeg=metaSegDe(id.accountId)||8*3600;
-  const porDia=minhasHorasPorDia();
-  const dias=Object.keys(porDia).filter(d=>porDia[d]>0).sort((a,b)=>b.localeCompare(a)).slice(0,12);
-  const over=dias.filter(d=>porDia[d]>metaSeg);
+  const seg0=ap.mtsSem, dias=[...Array(7)].map((_,i)=>mtsSoma(seg0,i));
+  const hoje=hojeSP();
+  const logs=mtsLogsSemana(seg0);
+  const resumos=(estado.tempo&&estado.tempo.resumos)||{};
+  const projNomes=(estado.tempo&&estado.tempo.projetos)||{};
+
+  // Agregações: por projeto → ticket → dia (e totais).
+  const porProj=new Map();
+  const porDia={}; let totalSem=0;
+  logs.forEach(l=>{
+    porDia[l.d]=(porDia[l.d]||0)+l.s; totalSem+=l.s;
+    const pj=porProj.get(l.p)||{tot:0, dias:{}, tks:new Map()};
+    pj.tot+=l.s; pj.dias[l.d]=(pj.dias[l.d]||0)+l.s;
+    const tk=pj.tks.get(l.k||'—')||{tot:0, dias:{}, extra:false};
+    tk.tot+=l.s; tk.dias[l.d]=(tk.dias[l.d]||0)+l.s; if(l.extra) tk.extra=true;
+    pj.tks.set(l.k||'—', tk);
+    porProj.set(l.p, pj);
+  });
+  const projs=[...porProj.entries()].sort((a,b)=>b[1].tot-a[1].tot);
+  const corDe=new Map(projs.map(([p],i)=>[p, i<MTS_CORES?i+1:0]));   // 0 = cinza "outros"
+
+  // Alvo da semana: meta × dias úteis (sem feriado/ausência), até hoje e total.
+  const uteis=dias.filter(d=>ehUtil(d)&&!ehFeriado(d)&&!ehAusencia(id.accountId,d));
+  const alvoSem=uteis.length*metaSeg;
+  const over=dias.filter(d=>(porDia[d]||0)>metaSeg);
+  const pct=alvoSem?Math.min(100,Math.round(totalSem/alvoSem*100)):0;
+  const rot=(d)=>`${_diaSemana(d)} ${fmtBR(d).slice(0,5)}`;
+  const clsDia=(d)=>`${!ehUtil(d)?' fds':''}${ehFeriado(d)&&ehUtil(d)?' fer':''}${d===hoje?' hj':''}`;
+  const cel=(seg,forte)=> seg?`<td class="mts-v${forte?' f':''}">${fmtH(seg)}</td>`:'<td class="mts-z">·</td>';
+
+  // Legenda de projetos (cor segue o projeto nas duas visões).
+  const legenda=projs.length?`<div class="mts-leg">${projs.map(([p,pj])=>{
+    const nome=(projNomes[p]&&projNomes[p].nome)?` — ${projNomes[p].nome}`:'';
+    return `<span class="mts-lchip"><i class="mts-dot c${corDe.get(p)}"></i>${esc(p)}<span class="muted">${esc(nome)}</span> · ${fmtH(pj.tot)}</span>`;
+  }).join('')}</div>`:'';
+
+  // ---- 🧮 Grade: Projeto → Ticket × dia ----
+  let grade='';
+  if(ap.mtsModo==='grade'){
+    const linhas=projs.map(([p,pj])=>{
+      const fech=!!ap.mtsFech[p];
+      const nome=(projNomes[p]&&projNomes[p].nome)||'';
+      const rowsT=fech?'':[...pj.tks.entries()].sort((a,b)=>b[1].tot-a[1].tot).map(([k,tk])=>{
+        const res=resumos[k]||'';
+        const rotK=k==='—'?'<span class="muted">sem ticket</span>'
+          :`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)}</a>`;
+        return `<tr class="mts-tk"><td class="mts-c1"><span class="mts-rec">└</span> ${rotK}
+            <span class="mts-res" title="${escA(res)}">${esc(res)}</span>${tk.extra?' <span class="badge" data-tip="Inclui horas apontadas agora nesta sessão (o Clockwork sincroniza em seguida)">🕓</span>':''}</td>
+          <td class="mts-sig">${fmtH(tk.tot)}</td>
+          ${dias.map(d=>cel(tk.dias[d])).join('')}</tr>`;
+      }).join('');
+      return `<tr class="mts-proj"><td class="mts-c1">
+          <button class="mts-tgl" data-mts-proj="${escA(p)}" data-tip="${fech?'Mostrar':'Ocultar'} os tickets do projeto">${fech?'▸':'▾'}</button>
+          <i class="mts-dot c${corDe.get(p)}"></i><strong>${esc(p)}</strong><span class="mts-res">${esc(nome)}</span></td>
+        <td class="mts-sig"><strong>${fmtH(pj.tot)}</strong></td>
+        ${dias.map(d=>cel(pj.dias[d],true)).join('')}</tr>${rowsT}`;
+    }).join('');
+    grade=`<div class="ts-wrap"><table class="mts-tab">
+      <thead><tr><th class="mts-c1">Projeto / Ticket</th><th class="mts-sig">Σ</th>
+        ${dias.map(d=>`<th class="mts-d${clsDia(d)}">${esc(rot(d))}${ehFeriado(d)&&ehUtil(d)?'<br><span class="muted small">feriado</span>':''}</th>`).join('')}</tr></thead>
+      <tbody>${linhas||`<tr><td colspan="9" class="muted small" style="padding:14px 10px">Sem apontamentos nesta semana. O painel usa o <strong>período selecionado</strong> no topo — se a semana está fora dele, troque o período.</td></tr>`}</tbody>
+      <tfoot><tr><td class="mts-c1"><strong>Total</strong></td><td class="mts-sig"><strong>${fmtH(totalSem)}</strong></td>
+        ${dias.map(d=>{ const s=porDia[d]||0; const ov=s>metaSeg;
+          return `<td class="mts-v f${ov?' over':''}${clsDia(d)}">${s?fmtH(s):'·'}${ov?' ⚠':''}</td>`; }).join('')}</tr></tfoot>
+    </table></div>`;
+  }
+
+  // ---- 🗓 Semana: blocos pela hora de início (fallback: empilha a partir das 08:00) ----
+  let cal='';
+  if(ap.mtsModo==='cal'){
+    const comHora=logs.filter(l=>mtsMinSP(l.dt)!=null);
+    let h0=8, h1=19;
+    comHora.forEach(l=>{ const m=mtsMinSP(l.dt); h0=Math.min(h0,Math.floor(m/60)); h1=Math.max(h1,Math.ceil((m+l.s/60)/60)); });
+    h1=Math.min(23,Math.max(h1,h0+6)); const escala=44/60;   // 44px por hora
+    const altura=(h1-h0)*44;
+    const colunas=dias.map(d=>{
+      const doDia=logs.filter(l=>l.d===d).map(l=>({...l, m:mtsMinSP(l.dt)}));
+      // Sem hora (Jira/apontado agora): entra na fila sequencial a partir das 08:00.
+      let cursor=8*60;
+      doDia.sort((a,b)=>(a.m??9e9)-(b.m??9e9));
+      doDia.forEach(l=>{ if(l.m==null){ l.m=cursor; l.semHora=true; } cursor=Math.max(cursor,l.m+Math.max(l.s/60,20)); });
+      // Faixas para sobreposição: desloca lateralmente quem começa antes do anterior acabar.
+      const fimFaixa=[];
+      const blocos=doDia.map(l=>{
+        let faixa=fimFaixa.findIndex(f=>f<=l.m); if(faixa<0){ faixa=Math.min(fimFaixa.length,2); }
+        fimFaixa[faixa]=l.m+Math.max(l.s/60,20);
+        const top=Math.max(0,(l.m-h0*60)*escala), alt=Math.max(19,(l.s/60)*escala);
+        const res=resumos[l.k]||'';
+        const hIni=`${String(Math.floor(l.m/60)).padStart(2,'0')}:${String(l.m%60).padStart(2,'0')}`;
+        const tip=`${l.k||'sem ticket'} — ${res||'(sem resumo)'} · ${l.semHora?'sem hora no worklog':hIni} · ${fmtH(l.s)} · ${l.p}`;
+        return `<div class="mts-blk c${corDe.get(l.p)}${l.semHora?' sh':''}" style="top:${top}px;height:${alt}px;left:${faixa*12}%;width:${100-faixa*12}%"
+            data-tip="${escA(tip)}"><span class="mts-blk-k">${esc(l.k||l.p)}</span><span class="mts-blk-r">${esc(res)}</span><span class="mts-blk-h">${fmtH(l.s)}</span></div>`;
+      }).join('');
+      const tot=porDia[d]||0, ov=tot>metaSeg;
+      return `<div class="mts-col${clsDia(d)}">
+        <div class="mts-col-h">${esc(rot(d))}<span class="mts-col-t${ov?' over':''}">${tot?fmtH(tot):'—'}${ov?' ⚠':''}</span></div>
+        <div class="mts-col-c" style="height:${altura}px">${blocos}</div></div>`;
+    }).join('');
+    const horas=[...Array(h1-h0)].map((_,i)=>`<div class="mts-hora" style="top:${i*44}px">${String(h0+i).padStart(2,'0')}h</div>`).join('');
+    cal=`<div class="mts-calwrap"><div class="mts-gutter" style="height:${altura+34}px">${horas}</div><div class="mts-cal">${colunas}</div></div>
+      ${comHora.length?'':'<div class="muted small" style="margin-top:6px">ℹ Estes worklogs não trazem hora de início — os blocos foram empilhados a partir das 08:00 na ordem do dia.</div>'}`;
+  }
+
   return `<div class="card full mh-card" id="mh-card">
-    <h2>⏱ Minhas horas por dia <span>período selecionado · meta ${fmtH(metaSeg)}/dia</span></h2>
+    <h2>⏱ Meu timesheet <span>meta ${fmtH(metaSeg)}/dia · usa o período selecionado</span></h2>
+    <div class="mts-head">
+      <div class="mts-nav">
+        <button class="btn" data-mts-nav="-1" data-tip="Semana anterior">‹</button>
+        <button class="btn" data-mts-nav="0" data-tip="Voltar à semana atual">hoje</button>
+        <button class="btn" data-mts-nav="1" data-tip="Próxima semana">›</button>
+        <strong>Semana ${esc(fmtBR(seg0).slice(0,5))} – ${esc(fmtBR(mtsSoma(seg0,6)).slice(0,5))}</strong>
+      </div>
+      <div class="mts-alvo" data-tip="Apontado na semana ÷ meta (${fmtH(metaSeg)} × ${uteis.length} dia(s) útil(eis), já sem feriados e ausências)">
+        <span><strong>${fmtH(totalSem)}</strong> de ${fmtH(alvoSem)}</span>
+        <span class="mts-prog"><i style="width:${pct}%"></i></span><span class="muted small">${pct}%</span>
+      </div>
+      <span class="spacer"></span>
+      <div class="ap-chips">
+        <button class="chip" aria-pressed="${ap.mtsModo==='grade'}" data-mts-modo="grade">🧮 Grade</button>
+        <button class="chip" aria-pressed="${ap.mtsModo==='cal'}" data-mts-modo="cal">🗓 Calendário</button>
+      </div>
+    </div>
     ${over.length?`<div class="aviso">⚠ Você passou da meta de <strong>${fmtH(metaSeg)}/dia</strong> em: ${over.map(d=>`${esc(fmtBR(d))} (<strong>${fmtH(porDia[d])}</strong>)`).join(' · ')}.</div>`:''}
-    <div class="mh-grid">${dias.length?dias.map(d=>{
-      const seg=porDia[d], ov=seg>metaSeg;
-      return `<div class="mh-dia${ov?' over':''}" data-tip="${ov?`acima da meta de ${fmtH(metaSeg)}`:'dentro da meta'}">
-        <div class="mh-data">${esc(_diaSemana(d))} ${esc(fmtBR(d))}</div>
-        <div class="mh-h">${fmtH(seg)}${ov?' ⚠':''}</div></div>`;
-    }).join(''):'<div class="muted small">Você ainda não tem horas apontadas no período selecionado.</div>'}</div>
+    ${legenda}
+    ${grade}${cal}
   </div>`;
 }
 // Atualiza só o painel (sem re-renderizar a lista) após um apontamento.
@@ -6466,8 +6691,8 @@ async function fazApontamento(btn){
       const info=row.querySelector('.ap-log-info');
       if(info){ info.className='ap-log-info tem';
         info.innerHTML=`⏱ <strong>${fmtH(novoTotal)}</strong> já apontadas neste ticket — o que você lançar abaixo <strong>soma</strong> a esse total.`; }
-      // Painel "minhas horas por dia": registra e avisa se passou da meta diária.
-      registraExtraDia(inicio, seg); atualizaPainelHoras();
+      // Painel "Meu timesheet": registra e avisa se passou da meta diária.
+      registraExtraDia(inicio, seg, k); atualizaPainelHoras();
       const meuId=idApontar(); const metaSeg=metaSegDe(meuId&&meuId.accountId)||8*3600;
       const totalDia=minhasHorasPorDia()[inicio]||0;
       if(totalDia>metaSeg){ fb.className='ap-fb warn';
@@ -6859,7 +7084,7 @@ async function respondeConvite(btn, recusa){
       fb.textContent=recusa?'Convite recusado.':`✓ ${fmtH(j.segundos||0)} apontadas em ${j.issue||''} (${fmtBR(j.inicio||'')}).`;
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
       pintaBadgeConvites(estado.apontar.convites.length); pintaBadgeInbox();
-      if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos); atualizaPainelHoras(); }
+      if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos, j.issue); atualizaPainelHoras(); }
       estado.cache={};   // painéis recarregam dados frescos na próxima navegação
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='inbox') renderInbox(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
@@ -6999,7 +7224,7 @@ async function enviaReuniaoGrupo(){
       if(j.proprio&&j.proprio.ok){
         const dados=estado.apontar.porData[chaveVenc()];
         const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
-        registraExtraDia(inicio, seg); atualizaPainelHoras();
+        registraExtraDia(inicio, seg, j.issue); atualizaPainelHoras();
       }
       setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, j.teams==='nao-configurado'?4200:2600);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
@@ -12475,8 +12700,12 @@ function abreAjuda(){
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
       O painel <b>🕑 Meus tickets recentes</b> lista onde <b>você</b> apontou nos últimos 14 dias, para
       <b>reapontar com 1 clique</b> sem procurar o ticket de novo.
-      No topo, o painel <b>⏱ Minhas horas por dia</b> mostra quanto você já apontou em cada dia do período e
-      <b>avisa quando um dia passa da meta</b> (padrão 8h/dia, ajustável em Metas).
+      No topo, o painel <b>⏱ Meu timesheet</b> mostra a sua semana como nas ferramentas de timetracking:
+      <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, com Σ por linha, totais por dia e fim de semana
+      destacado) e <b>🗓 Calendário</b> (blocos posicionados pela <b>hora de início</b> de cada worklog, coloridos
+      por projeto). Navegue entre as semanas (‹ hoje ›), recolha projetos, acompanhe o alvo semanal
+      (<i>apontado de meta</i>, descontando feriados e ausências) e veja o <b>aviso quando um dia passa da meta</b>
+      (padrão 8h/dia, ajustável em Metas). O que você aponta na sessão entra na hora com o selo 🕓.
     </div></details>
     <details class="help-sec"><summary>Navegação, novidades e versão</summary><div class="help-body">
       <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início</b>. Os controles do topo aparecem
@@ -12901,6 +13130,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓.'],
   ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
   ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
   ['2026-08-04','🏠 <b>Mais 4 cards acionáveis no Início</b>: <b>🗓 Tickets sem data</b> (1 clique abre o Apontar filtrado para definir os vencimentos), <b>⏰ Vencem hoje</b> (priorize o dia), <b>🧑‍💼 Projetos da semana</b> (em quais projetos VOCÊ está alocado nesta semana, com as horas/semana do plano macro) e <b>🏅 Seu ranking da semana</b> (sua posição no time pela % da meta apontada até hoje, com atalho ao Ranking).'],
@@ -12985,7 +13215,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-05.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-06.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -14646,6 +14876,12 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
   else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
   else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
+  // ---- ⏱ Meu timesheet (grade × calendário, navegação de semana, recolher projeto) ----
+  else if(t.hasAttribute('data-mts-modo')){ mtsEstado().mtsModo=t.getAttribute('data-mts-modo'); escondeTip(); atualizaPainelHoras(); }
+  else if(t.hasAttribute('data-mts-nav')){ const ap=mtsEstado(); const n=+t.getAttribute('data-mts-nav');
+    ap.mtsSem=n===0?mtsSegunda(hojeSP()):mtsSoma(ap.mtsSem, n*7); escondeTip(); atualizaPainelHoras(); }
+  else if(t.hasAttribute('data-mts-proj')){ const ap=mtsEstado(); const p=t.getAttribute('data-mts-proj');
+    ap.mtsFech[p]=!ap.mtsFech[p]; escondeTip(); atualizaPainelHoras(); }
   else if(t.hasAttribute('data-ap-mover')){ escondeTip(); toggleReclass(t); }
   else if(t.hasAttribute('data-ap-mover-do')){ executaReclass(t); }
   else if(t.hasAttribute('data-ap-projtoggle')){ escondeTip(); const pk=t.getAttribute('data-ap-projtoggle');
