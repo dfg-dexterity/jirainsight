@@ -1905,7 +1905,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:false, recDet:{}, recDetB:{} },
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{} },
   // Tela "Planejar": criação de tickets em lote (form -> revisão -> resultado).
   // Modo épico: escolhe-se o épico e, opcionalmente, uma história dentro dele
   // (histórias vão direto no épico; sub-tarefas vão dentro da história escolhida).
@@ -6510,11 +6510,13 @@ function renderApontar(){
       <span class="ap-resumo">${esc(r.resumo||'')}</span><span class="spacer"></span>${selo}
       <span class="muted small">carregando a ficha…</span></div></div>`;
   };
+  // Fica no FIM da página e recolhido por padrão: o protagonista da aba é o
+  // ⏱ Meu timesheet — os recentes são um atalho de reapontamento, não o foco.
   const recs=ap.recentes||[];
   const blocoRecentes = (id && id.accountId && (recs.length||ap.recCarr)) ? `
     <div class="card full">
       <h2><button class="ap-rec-tgl" id="ap-rec-toggle" aria-expanded="${!ap.recFechado}">${ap.recFechado?'▸':'▾'}</button>
-        🕑 Meus tickets recentes <span>onde você apontou nos últimos 14 dias — com as mesmas ações do apontamento rápido</span></h2>
+        🕑 Meus tickets recentes${recs.length?` (${recs.length})`:''} <span>onde você apontou nos últimos 14 dias — com as mesmas ações do apontamento rápido</span></h2>
       ${ap.recFechado?'' : (ap.recCarr?'<div class="muted small">Carregando seus apontamentos recentes…</div>'
         : `<div class="ap-lista">${recs.map(recRow).join('')}</div>`)}
     </div>` : '';
@@ -6595,7 +6597,6 @@ function renderApontar(){
   cont.replaceChildren(el(`<div>
     ${faixaId}
     ${bannerConvites}
-    ${blocoRecentes}
     ${htmlPainelHoras()}
     <div class="kpis ts-kpis">
       <div class="kpi a" data-ap-fil="todos" aria-pressed="${ap.fil==='todos'}" data-tip="Mostrar todos" data-tipk="clique para filtrar">
@@ -6615,6 +6616,7 @@ function renderApontar(){
       ${viewToggle}
       ${corpoLista}
     </div>
+    ${blocoRecentes}
   </div>`));
 }
 
@@ -12698,9 +12700,10 @@ function abreAjuda(){
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
       ou pelos atalhos, escolha um chamado, clique num chip de tempo (30m/1h/2h…) ou digite (<b>1h30</b>, <b>1:30</b>,
       <b>45m</b>) e clique <b>Apontar</b>. Para mudar o status, clique no status do chamado e escolha o destino.
-      O painel <b>🕑 Meus tickets recentes</b> lista onde <b>você</b> apontou nos últimos 14 dias, para
-      <b>reapontar com 1 clique</b> sem procurar o ticket de novo.
-      No topo, o painel <b>⏱ Meu timesheet</b> mostra a sua semana como nas ferramentas de timetracking:
+      No <b>fim da página</b>, recolhido, o painel <b>🕑 Meus tickets recentes</b> lista onde <b>você</b> apontou
+      nos últimos 14 dias, para <b>reapontar com 1 clique</b> sem procurar o ticket de novo (o título mostra a
+      contagem; 1 clique expande).
+      Abrindo a página, o protagonista é o painel <b>⏱ Meu timesheet</b>, que mostra a sua semana como nas ferramentas de timetracking:
       <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, com Σ por linha, totais por dia e fim de semana
       destacado) e <b>🗓 Calendário</b> (blocos posicionados pela <b>hora de início</b> de cada worklog, coloridos
       por projeto). Navegue entre as semanas (‹ hoje ›), recolha projetos, acompanhe o alvo semanal
@@ -13130,7 +13133,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
-  ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓.'],
+  ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓. A página também foi <b>reorganizada</b>: o timesheet abre a tela, e os <b>🕑 tickets recentes</b> foram para o fim, <b>recolhidos</b> (o título mostra a contagem; 1 clique expande).'],
   ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
   ['2026-08-05','📐 <b>Planejar: cole a estrutura e os tickets nascem na hierarquia certa</b>: o novo modo <b>📐 Colar estrutura</b> aceita colar do Excel linhas <b>Épico → História → Task</b> (nível + título) e cria tudo <b>já vinculado</b> no Jira — as histórias entram no épico e as tasks viram sub-tarefas da história. Depois de criar, uma <b>grade estilo planilha</b> deixa mudar <b>em massa</b> a <b>data limite</b> e o <b>responsável</b> dos tickets criados: marque as linhas, aplique de uma vez e 💾 salve no Jira.'],
   ['2026-08-04','🏠 <b>Mais 4 cards acionáveis no Início</b>: <b>🗓 Tickets sem data</b> (1 clique abre o Apontar filtrado para definir os vencimentos), <b>⏰ Vencem hoje</b> (priorize o dia), <b>🧑‍💼 Projetos da semana</b> (em quais projetos VOCÊ está alocado nesta semana, com as horas/semana do plano macro) e <b>🏅 Seu ranking da semana</b> (sua posição no time pela % da meta apontada até hoje, com atalho ao Ranking).'],
