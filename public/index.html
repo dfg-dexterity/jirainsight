@@ -210,6 +210,103 @@
   tr[data-al-semtoggle]{cursor:pointer}
   .al-sem-drill>td{background:var(--hoverbg);padding:8px 12px}
 
+  /* 📋 Meu Planejamento — identidade própria: destaque #009994, fundo #F7F3E7,
+     texto #4D4D4D; sem emojis como elemento principal; teclado e mobile ok. */
+  .mp-root{--mpa:#009994;--mpbg:#F7F3E7;--mpink:#4D4D4D;--mpb:#E3DCC8;
+    background:var(--mpbg);margin:-6px;padding:6px;border-radius:12px;color:var(--mpink)}
+  [data-theme="dark"] .mp-root{--mpbg:transparent;--mpink:var(--grafite);--mpb:var(--linha);background:transparent}
+  .mp-card{color:var(--mpink)}
+  .mp-card h2{color:inherit}
+  .mp-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
+  .mp-nav{display:flex;gap:6px}
+  .mp-sem{display:flex;flex-direction:column}
+  .mp-sem .mp-dim{font-size:12px}
+  .mp-dim{color:var(--muted);font-size:12.5px}
+  .mp-b{font-weight:700}
+  .mp-btn{font-family:var(--corpo);font-size:13px;padding:7px 12px;border:1px solid var(--mpb);
+    border-radius:8px;background:var(--cartao);color:var(--mpink);cursor:pointer}
+  .mp-btn:hover{border-color:var(--mpa)}
+  .mp-btn:focus-visible,.mp-lnk:focus-visible,.mp-tab:focus-visible{outline:2px solid var(--mpa);outline-offset:2px}
+  .mp-btn[disabled]{opacity:.5;cursor:default}
+  .mp-btn-p{background:var(--mpa);border-color:var(--mpa);color:#fff}
+  .mp-btn-p:hover{filter:brightness(1.06)}
+  .mp-lnk{border:0;background:none;color:var(--mpa);cursor:pointer;font-size:12.5px;padding:2px 4px;text-decoration:underline;text-underline-offset:2px}
+  .mp-lnk-x{color:#B3261E}
+  .mp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0}
+  .mp-kpi{border:1px solid var(--mpb);border-radius:10px;background:var(--cartao);padding:10px 12px}
+  .mp-kpi .v{font-family:var(--titulo);font-size:20px;font-weight:700}
+  .mp-kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .mp-mais{color:#8A5B00} .mp-menos{color:#1E6E42}
+  .mp-st-elaboracao{color:var(--mpink)} .mp-st-enviado{color:#8A5B00}
+  .mp-st-aprovado{color:var(--mpa)} .mp-st-devolvido{color:#B3261E}
+  .mp-fluxo{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  .mp-step{font-size:12.5px;border:1px solid var(--mpb);border-radius:999px;padding:4px 12px;background:var(--cartao);color:var(--muted)}
+  .mp-step.feito{border-color:var(--mpa);color:var(--mpa)}
+  .mp-step.atual{background:var(--mpa);border-color:var(--mpa);color:#fff;font-weight:600}
+  .mp-seta{color:var(--muted)}
+  .mp-devolucao{border:1px solid #E5B8B4;background:#FBEDEB;border-radius:10px;padding:10px 12px;font-size:13px;margin:6px 0}
+  [data-theme="dark"] .mp-devolucao{background:#3A2321;border-color:#6E3B37}
+  .mp-aprovado{border:1px solid var(--mpa);border-radius:10px;padding:10px 12px;font-size:13px;margin:6px 0;background:rgba(0,153,148,.07)}
+  .mp-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .mp-alerta{color:#8A5B00;font-size:12.5px;font-weight:600}
+  .mp-abas{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap}
+  .mp-tab{font-size:13px;padding:8px 14px;border:1px solid var(--mpb);border-radius:999px;background:var(--cartao);color:var(--mpink);cursor:pointer}
+  .mp-tab.atual{background:var(--mpa);border-color:var(--mpa);color:#fff;font-weight:600}
+  .mp-ferr{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:2px 0 12px}
+  .mp-ferr label{display:flex;flex-direction:column;font-size:11.5px;color:var(--muted);gap:3px}
+  .mp-ferr input,.mp-ferr select{font-family:var(--corpo);font-size:13px;padding:6px 8px;border:1px solid var(--mpb);border-radius:7px;background:var(--cartao);color:var(--mpink)}
+  .mp-dias{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+  .mp-dia{border:1px solid var(--mpb);border-radius:12px;background:var(--cartao);padding:12px}
+  .mp-dia.vazio{background:color-mix(in srgb, var(--cartao) 60%, transparent)}
+  .mp-dia-h{display:flex;justify-content:space-between;gap:8px;align-items:baseline;border-bottom:1px solid var(--mpb);padding-bottom:6px;margin-bottom:8px}
+  .mp-dia-tot{display:flex;gap:10px;font-size:12px;color:var(--muted);white-space:nowrap}
+  .mp-tag{display:inline-block;font-size:11px;border:1px solid var(--mpb);border-radius:999px;padding:1px 8px;margin-left:4px;background:var(--cartao);color:var(--muted)}
+  .mp-grupo{margin:6px 0}
+  .mp-grupo-t{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin:2px 0}
+  .mp-atv{display:flex;gap:10px;align-items:flex-start;padding:7px 6px;border-radius:8px}
+  .mp-atv:hover{background:var(--hoverbg)}
+  .mp-atv-c{flex:1;min-width:0}
+  .mp-atv-desc{font-size:13.5px;font-weight:600;line-height:1.3}
+  .mp-atv-meta{font-size:12px;color:var(--muted)}
+  .mp-atv-h{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .mp-atv-acoes{display:flex;gap:2px;flex-wrap:wrap;max-width:150px;justify-content:flex-end}
+  .mp-vazio{color:var(--muted);font-size:12.5px;padding:6px 0}
+  .mp-add{margin-top:6px;width:100%;border-style:dashed}
+  .mp-form{border:1px solid var(--mpa);border-radius:10px;padding:10px;margin-top:8px;background:var(--cartao)}
+  .mp-form label{display:flex;flex-direction:column;font-size:11.5px;color:var(--muted);gap:3px;margin-top:6px}
+  .mp-form input,.mp-form select{font-family:var(--corpo);font-size:13px;padding:7px 9px;border:1px solid var(--mpb);border-radius:7px;background:var(--cartao);color:var(--mpink);width:100%;box-sizing:border-box}
+  .mp-form-l1{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}
+  .mp-form-acoes{display:flex;gap:8px;margin-top:10px}
+  .mp-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px;margin-top:8px}
+  table.mp-tab-cmp,table.mp-tab-mini{width:100%;border-collapse:collapse;font-size:13px}
+  .mp-tab-cmp th,.mp-tab-cmp td,.mp-tab-mini th,.mp-tab-mini td{padding:6px 8px;border-bottom:1px solid var(--mpb);text-align:left}
+  .mp-tab-cmp th,.mp-tab-mini th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .mp-tab-cmp td.num,.mp-tab-mini td.num,.mp-tab-cmp th.num,.mp-tab-mini th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .mp-cel-desc{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mp-sit{font-size:12px;border-radius:999px;padding:2px 10px;border:1px solid var(--mpb);white-space:nowrap}
+  .mp-s-ok{color:#1E6E42;border-color:#9CCDB2} .mp-s-med{color:#8A5B00;border-color:#E0C089}
+  .mp-s-ruim{color:#B3261E;border-color:#E5B8B4} .mp-s-nd{color:var(--muted)}
+  [data-theme="dark"] .mp-s-ok{border-color:#2E5C44} [data-theme="dark"] .mp-s-med{border-color:#6E5424}
+  [data-theme="dark"] .mp-s-ruim{border-color:#6E3B37}
+  .mp-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+  .mp-h3{font-size:13px;font-weight:700;margin:0 0 6px;color:var(--mpink)}
+  .mp-graf{display:flex;gap:10px;align-items:flex-end;margin:14px 0 4px;flex-wrap:wrap}
+  .mp-gcol{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .mp-gbars{display:flex;gap:3px;align-items:flex-end;height:110px}
+  .mp-gb{width:16px;border-radius:3px 3px 0 0;min-height:2px}
+  .mp-gb.plan{background:#9A968A} .mp-gb.real{background:var(--mpa)}
+  .mp-grot{font-size:11px;color:var(--muted)}
+  .mp-gleg{display:flex;gap:14px;font-size:12px;color:var(--muted);align-self:center;margin-left:8px}
+  .mp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+  .mp-sw.plan{background:#9A968A} .mp-sw.real{background:var(--mpa)}
+  .mp-pend{border:1px solid var(--mpb);border-radius:12px;background:var(--cartao);padding:12px;margin-top:10px}
+  .mp-pend-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+  .mp-pend-tot{display:flex;gap:10px;font-size:13px;align-items:baseline}
+  .mp-det{margin-top:8px} .mp-det summary{cursor:pointer;font-size:12.5px;color:var(--mpa)}
+  .mp-obs{text-decoration:underline dotted;cursor:help}
+  @media (max-width:700px){ .mp-form-l1{grid-template-columns:1fr} .mp-2col{grid-template-columns:1fr}
+    .mp-dias{grid-template-columns:1fr} .mp-head{gap:8px} .mp-cel-desc{max-width:160px} }
+
   /* 📋 Minha Semana */
   .ms-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
   .ms-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:10px}
@@ -1805,7 +1902,7 @@
       <div class="navg">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Minha Semana</button>
+          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
           <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
           <button data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
@@ -1973,8 +2070,13 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
   // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
   agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null, usuarios:null, usuCarr:false },
-  // 📋 Minha Semana: a pessoa monta o plano da semana sobre os próprios tickets do Jira.
-  minhasemana:{ w:'', tickets:null, projNomes:{}, carregandoT:false, erroT:'', ateT:'', real:{}, carregandoR:{}, busca:'', fil:'todos', proj:'' },
+  // 📋 Meu Planejamento: plano semanal por atividade (data + projeto + horas), sem tickets.
+  // 📋 Meu Planejamento: plano semanal por atividade (Supabase) + comparativo,
+  // aprovações e relatórios do gestor. rasc = itens em edição (autosave).
+  minhasemana:{ w:'', aba:'plano', meu:{}, meuB:{}, gestor:false, erro:'',
+    rasc:null, rascW:'', sujo:false, salvando:false, form:null,
+    real:{}, realB:{}, pend:null, pendB:0, rel:null, relB:0,
+    relF:{de:'',ate:'',usuario:'',projeto:'',status:''} },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
@@ -2016,7 +2118,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{},
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
@@ -3218,398 +3320,711 @@ function agRotuloDia(d){
   const [y,m,dd]=d.split('-');
   return `${dd}/${m} (${sem})`;
 }
-// ---- 📋 Minha Semana: o plano SEMANAL da pessoa sobre os próprios tickets ----
-// O processo tem DUAS camadas de planejamento (deixar isso claro na tela):
-//   • MACRO (Alocação): o gestor fecha horas por INTERVALO (ex.: até o fim do ano)
-//     — pessoa × projeto × período × h/semana, sem limite de semana.
-//   • SEMANAL (aqui): cada pessoa distribui as horas da semana nos SEUS tickets e
-//     ENVIA o plano para o gestor APROVAR (rascunho → enviado → aprovado/recusado).
-// O desvio plano × realizado aparece aqui (pessoa) e na Alocação → 📆 Semanas (gestor).
-function msSem(){ const ms=estado.minhasemana; if(!ms.w) ms.w=semChave(hojeSP()); return ms.w; }
+// ---- 📋 Meu Planejamento: planejamento semanal por ATIVIDADE (sem tickets) ----
+// Processo: Em elaboração → Enviado ao gestor → Aprovado (ou Devolvido para
+// ajustes → corrigido → reenviado). O plano é por DATA + PROJETO + ATIVIDADE +
+// HORAS; o realizado vem do Clockwork e a comparação usa accountId + data +
+// projeto. Persistência nas tabelas jirainsight_plan_* (Supabase) via
+// /api/config?plan=1 — nada fica só no navegador.
+// (Helpers ms* legados ficam abaixo só para LEITURA do modelo anterior por
+//  tickets — cfg.planosSemana — usado como histórico e pela Alocação.)
 function msKey(acc,w){ return `${acc}|${semTravaKey(w)}`; }
 function msPlanoDe(acc,w){ return (cfg.planosSemana||{})[msKey(acc,w)]||null; }
 function msItens(acc,w){ const p=msPlanoDe(acc,w); return p&&Array.isArray(p.itens)?p.itens:[]; }
 function msStatus(p){ return (p&&p.status)||'rascunho'; }
-function msSexta(w){ return somaDias(w,4); }
-// Dias úteis da semana (desconta feriados) — base das rotinas diárias.
 function msDiasUteis(w){ let n=0; for(let i=0;i<7;i++){ const d=somaDias(w,i); if(ehUtil(d)&&!ehFeriado(d)) n++; } return n; }
-// Horas EFETIVAS de um item na semana: 🔁 rotina diária = h/DIA × dias úteis (igual todos os dias).
 function msHorasItem(i,w){ const h=Number(i&&i.h)||0; return i&&i.rot?h*msDiasUteis(w):h; }
 function msTotalItens(itens,w){ return (itens||[]).reduce((s,i)=>s+msHorasItem(i,w),0); }
-function msSalva(acc,w,itens,extra){
-  cfg.planosSemana=cfg.planosSemana||{};
-  const id=idApontar()||{}; const atual=cfg.planosSemana[msKey(acc,w)]||{};
-  if((itens&&itens.length)||extra) cfg.planosSemana[msKey(acc,w)]=Object.assign({}, atual,
-    { seg:w, itens:itens||[], atualizadoEm:new Date().toISOString(), nome:atual.nome||id.nome||id.email||'' }, extra||{});
-  else delete cfg.planosSemana[msKey(acc,w)];
-  // Higiene: planos com mais de ~26 semanas saem (limite de tamanho da config compartilhada).
-  const corte=voltaDias(semChave(hojeSP()),26*7);
-  Object.entries(cfg.planosSemana).forEach(([k,p])=>{ if(p&&p.seg&&p.seg<corte) delete cfg.planosSemana[k]; });
-  salvaCfg();
+
+// ---------------- estado + API ----------------
+const MP_STATUS={ elaboracao:'Em elaboração', enviado:'Enviado para aprovação', aprovado:'Aprovado', devolvido:'Devolvido para ajustes' };
+const MP_DIAS=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+function mpSem(){ const mp=estado.minhasemana; if(!mp.w) mp.w=semChave(hojeSP()); return mp.w; }
+function mpHeaders(){ const id=idApontar()||{}; return { 'Content-Type':'application/json', 'x-jira-email':id.email||'', 'x-jira-token':id.token||'' }; }
+async function mpApi(body){
+  const r=await fetch('/api/config?plan=1',{ method:'POST', headers:mpHeaders(), body:JSON.stringify(body) });
+  return r.json();
 }
-function msMudaStatus(acc,w,st,extra){ const p=msPlanoDe(acc,w)||{seg:w,itens:[]};
-  msSalva(acc,w,p.itens||[],Object.assign({status:st},extra||{})); }
-function msEditavel(pn){ const st=msStatus(pn); return st==='rascunho'||st==='recusado'; }
-function msCarregaTickets(forca){
-  const ms=estado.minhasemana; const ate=somaDias(msSem(),34);
-  if(!forca && ms.tickets && ms.ateT===ate) return;
-  if(ms.carregandoT) return;
-  ms.carregandoT=true; ms.erroT=''; ms.ateT=ate;
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
-    .then(r=>r.json()).then(j=>{
-      ms.carregandoT=false;
-      if(j.erro){ ms.erroT=humanizaErro(j.erro); ms.tickets=null; }
-      else { ms.tickets=j.tickets||[]; ms.projNomes=j.projetos||{}; }
+// Cache do MEU plano por semana (usado pela tela e pelos cards do Início).
+function mpGaranteMeu(w, forca, aoTerminar){
+  const mp=estado.minhasemana; mp.meu=mp.meu||{}; mp.meuB=mp.meuB||{};
+  if(!forca && mp.meu[w]!==undefined) return true;
+  if(mp.meuB[w]) return false;
+  const id=idApontar(); if(!id||!id.accountId) return false;
+  mp.meuB[w]=1;
+  mpApi({acao:'meu', semana:w}).then(j=>{
+    mp.meuB[w]=0;
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano||null}; mp.gestor=!!j.gestor; mp.erro=''; }
+    else mp.erro=(j&&j.erro)||'Falha ao carregar o planejamento.';
+    if(aoTerminar) aoTerminar();
+    if(estado.vista==='minhasemana') renderMinhaSemana();
+    else if(estado.vista==='acoes') try{ renderAcoes(); }catch(e){}
+  }).catch(e=>{ mp.meuB[w]=0; mp.erro=humanizaErro(e); if(estado.vista==='minhasemana') renderMinhaSemana(); });
+  return false;
+}
+function mpPlano(w){ const c=(estado.minhasemana.meu||{})[w]; return c?c.plano:undefined; }
+function mpEditavel(p){ return !p || p.status==='elaboracao' || p.status==='devolvido'; }
+// Realizado da semana (Clockwork): worklogs próprios agrupados por data|projeto.
+function mpCarregaReal(w, forca){
+  const mp=estado.minhasemana; mp.real=mp.real||{}; mp.realB=mp.realB||{};
+  if(!forca && mp.real[w]) return; if(mp.realB[w]) return;
+  mp.realB[w]=1;
+  fetch(`/api/tempo?desde=${encodeURIComponent(w)}&ate=${encodeURIComponent(mtsSoma(w,6))}${forca?'&nocache=1':''}`)
+    .then(r=>r.json()).then(j=>{ mp.realB[w]=0;
+      mp.real[w]=j.erro?{erro:humanizaErro(j.erro)}:{wl:j.worklogs||[], projetos:j.projetos||{}};
       if(estado.vista==='minhasemana') renderMinhaSemana();
-    }).catch(e=>{ ms.carregandoT=false; ms.erroT=humanizaErro(e); if(estado.vista==='minhasemana') renderMinhaSemana(); });
+    }).catch(e=>{ mp.realB[w]=0; mp.real[w]={erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
 }
-function msCarregaReal(forca){
-  const ms=estado.minhasemana; const w=msSem();
-  if(!forca && ms.real[w]) return; if(ms.carregandoR[w]) return;
-  ms.carregandoR[w]=true;
-  fetch(`/api/tempo?desde=${encodeURIComponent(w)}&ate=${encodeURIComponent(somaDias(w,6))}${forca?'&nocache=1':''}`)
-    .then(r=>r.json()).then(j=>{
-      ms.carregandoR[w]=false; ms.real[w]=j.erro?{erro:humanizaErro(j.erro)}:{wl:j.worklogs||[]};
-      if(estado.vista==='minhasemana') renderMinhaSemana();
-    }).catch(e=>{ ms.carregandoR[w]=false; ms.real[w]={erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
-}
-function msRealPorTicket(acc,w){
+function mpRealGrupo(w, acc){
   const r=(estado.minhasemana.real||{})[w]; if(!r||!r.wl) return null;
-  const por={}; r.wl.forEach(x=>{ if(x.a===acc&&x.k) por[x.k]=(por[x.k]||0)+(Number(x.s)||0)/3600; });
-  return por;
+  const por={}; const porDia={}; const porProj={}; let tot=0;
+  r.wl.forEach(x=>{ if(x.a!==acc) return; const d=(x.d||'').slice(0,10); if(d<w||d>mtsSoma(w,6)) return;
+    const p=x.p||(x.k?String(x.k).split('-')[0]:'—'); const h=(Number(x.s)||0)/3600;
+    por[`${d}|${p}`]=(por[`${d}|${p}`]||0)+h; porDia[d]=(porDia[d]||0)+h; porProj[p]=(porProj[p]||0)+h; tot+=h; });
+  return { por, porDia, porProj, tot };
 }
-// Resumo SEMPRE visível: se o ticket não está na janela carregada, busca a ficha (?detalhe=).
-function msResumoDe(k,tkIdx){
-  const t=tkIdx?tkIdx[k]:null; if(t&&t.resumo) return t.resumo;
-  const ms=estado.minhasemana; ms.det=ms.det||{};
-  if(ms.det[k]!=null) return ms.det[k];
-  msBuscaDetalhe(k); return '';
+// Capacidade: meta/dia da pessoa nos dias úteis (feriado/ausência = 0).
+function mpCapDia(acc,d){ return (ehUtil(d)&&!ehFeriado(d)&&!ehAusencia(acc,d))?(metaSegDe(acc)/3600):0; }
+function mpCapSem(acc,w){ let s=0; for(let i=0;i<7;i++) s+=mpCapDia(acc,mtsSoma(w,i)); return s; }
+const mpH=(n)=>{ const v=Math.round((Number(n)||0)*100)/100; return String(v.toFixed(2)).replace(/\.?0+$/,'').replace('.',',')+'h'; };
+const mpPct=(n)=> (n==null?'—':`${Math.round(n)}%`);
+// Rascunho local (itens em edição) + salvamento com debounce e trava otimista.
+function mpItens(){ const mp=estado.minhasemana; if(!Array.isArray(mp.rasc)) mp.rasc=[]; return mp.rasc; }
+function mpCarregaRascunho(w){
+  const mp=estado.minhasemana; const p=mpPlano(w);
+  if(mp.rascW===w && Array.isArray(mp.rasc)) return;
+  mp.rascW=w; mp.rasc=((p&&p.itens)||[]).map(i=>({data:i.data,projeto:i.projeto,descricao:i.descricao,
+    categoria:i.categoria||'',horas:Number(i.horas)||0,observacao:i.observacao||'',ordem:i.ordem||0}));
+  mp.sujo=false;
 }
-function msBuscaDetalhe(k){
-  const ms=estado.minhasemana; ms.det=ms.det||{}; ms._detB=ms._detB||{};
-  if(ms._detB[k]) return; ms._detB[k]=1;
-  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json()).then(j=>{
-    ms.det[k]=(j&&j.resumo)||''; if(estado.vista==='minhasemana') renderMinhaSemana();
-  }).catch(()=>{ ms.det[k]=''; });
+let _mpSalvaT=null;
+function mpAgendaSalvar(){
+  const mp=estado.minhasemana; mp.sujo=true;
+  clearTimeout(_mpSalvaT); _mpSalvaT=setTimeout(()=>{ mpSalvar(); }, 700);
 }
-function msHoraSugerida(t){
-  const rest=((Number(t&&t.est)||0)-(Number(t&&t.seg)||0))/3600;
-  if(rest>0.4) return Math.min(8, Math.round(rest*2)/2);
-  return 2;
-}
-function msVencBadge(t,w){
-  if(!t.venc) return '<span class="badge" data-tip="Sem data — ao entrar no plano, assume a SEXTA desta semana">sem venc.</span>';
-  const rot=fmtBR(t.venc);
-  if(t.venc<hojeSP()) return `<span class="badge ms-b-atra" data-tip="Vencido — priorize">⚠ ${esc(rot)}</span>`;
-  if(t.venc<=somaDias(w,6)) return `<span class="badge ms-b-sem" data-tip="Vence dentro desta semana">📅 ${esc(rot)}</span>`;
-  return `<span class="badge" data-tip="Vence depois desta semana">${esc(rot)}</span>`;
-}
-// Ticket SEM data atribuído à semana assume o vencimento na SEXTA daquela semana (grava no Jira).
-function msDefineVencSexta(k,w){
-  const id=idApontar(); if(!id) return;
-  const sexta=msSexta(w);
-  fetch('/api/transicao',{ method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({ reagendar:true, issue:k, duedate:sexta, email:id.email, token:id.token }) })
-    .then(r=>r.json()).then(j=>{
-      if(j&&j.ok){ const t=((estado.minhasemana.tickets)||[]).find(x=>x.k===k); if(t) t.venc=sexta;
-        toast(`📅 ${k} estava sem data — vencimento definido para sexta (${fmtBR(sexta)}).`,'ok');
-        if(estado.vista==='minhasemana') renderMinhaSemana(); }
-      else toast(`Não consegui definir o vencimento de ${k}: ${(j&&j.erro)||'erro'}`,'err');
-    }).catch(e=>toast('Falha ao definir o vencimento: '+humanizaErro(e),'err'));
-}
-// Tipo de issue padrão do projeto (para 🆕 criar item): "Tarefa"/"Task" nível 0, senão o 1º comum.
-function msTipoPadrao(projKey){
-  const pr=(_projetosCache||[]).find(x=>x.key===projKey); const tipos=(pr&&pr.tipos)||[];
-  return tipos.find(x=>!x.subtarefa&&x.nivel===0&&/tarefa|task/i.test(x.nome||''))
-    ||tipos.find(x=>!x.subtarefa&&x.nivel===0)||tipos.find(x=>!x.subtarefa)||null;
-}
-function msAtribuirLista(lista){
-  return lista.map(t=>`<button class="pal-row" data-ms-add="${escA(t.k)}" data-ms-fecha="1"><strong>${esc(t.k)}</strong>&nbsp;<span class="ms-elip">${esc(t.resumo||'')}</span><span class="pal-g">${t.venc?esc(fmtBR(t.venc)):'sem venc.'}</span></button>`).join('')
-    ||'<div class="muted small" style="padding:8px">Nenhum ticket aberto seu neste projeto — use 🆕 criar.</div>';
-}
-function msAbreAtribuir(proj){
-  const id=idApontar(); if(!id) return; const acc=id.accountId; const w=msSem();
-  const noPlano=new Set(msItens(acc,w).map(i=>i.k));
-  const lista=((estado.minhasemana.tickets)||[]).filter(t=>t.respId===acc&&t.p===proj&&!noPlano.has(t.k));
-  abreModal(`<h2>＋ Atribuir ticket — ${esc(proj)}</h2>
-    <div class="muted small">Seus tickets abertos de ${esc(proj)}: clique para trazer ao plano da semana.</div>
-    <input class="pal-q" id="msat-q" type="text" placeholder="filtrar por chave ou resumo…" autocomplete="off">
-    <div id="msat-list" style="max-height:50vh;overflow:auto">${msAtribuirLista(lista)}</div>`);
-  const q=document.getElementById('msat-q');
-  q.addEventListener('input',()=>{ const t=q.value.toLowerCase();
-    document.getElementById('msat-list').innerHTML=msAtribuirLista(lista.filter(x=>((x.k||'')+' '+(x.resumo||'')).toLowerCase().includes(t))); });
-  setTimeout(()=>q.focus(),50);
-}
-function msAbreCriar(proj){
-  const w=msSem(); const tipo=msTipoPadrao(proj);
-  abreModal(`<h2>🆕 Criar item — ${esc(proj)}</h2>
-    <div class="muted small">Cria o ticket no Jira (no seu usuário) e ele já entra no plano da semana.${tipo?` Tipo: <b>${esc(tipo.nome)}</b>.`:' <b style="color:#d33f49">Catálogo do projeto sem tipo padrão — não dá para criar por aqui.</b>'}</div>
-    <div class="alx-campo"><label>Resumo</label><input type="text" id="msc-resumo" maxlength="250" placeholder="o que será feito"></div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div class="alx-campo"><label>Horas</label><input type="number" id="msc-h" step="0.5" min="0.5" value="2" style="max-width:100px"></div>
-      <div class="alx-campo"><label>Vencimento</label><input type="date" id="msc-venc" value="${escA(msSexta(w))}" style="max-width:170px"></div>
-      <label class="check" data-tip="Rotina diária: as horas valem POR DIA e sensibilizam igualmente todos os dias úteis da semana"><input type="checkbox" id="msc-rot"> 🔁 rotina diária (h/dia)</label>
-    </div>
-    <div style="margin-top:10px"><button class="btn primario" data-ms-criarconf="${escA(proj)}" ${tipo?'':'disabled'}>Criar e adicionar ao plano</button></div>
-    <div class="ap-fb" id="msc-msg" hidden></div>`);
-  setTimeout(()=>{ const r=document.getElementById('msc-resumo'); if(r) r.focus(); },50);
-}
-async function msCriaTicket(proj){
-  const id=idApontar(); if(!id) return; const acc=id.accountId; const w=msSem();
-  const resumo=(document.getElementById('msc-resumo').value||'').trim();
-  const h=Math.max(0.5,Math.round((parseFloat(String(document.getElementById('msc-h').value).replace(',','.'))||2)*2)/2);
-  const venc=document.getElementById('msc-venc').value||msSexta(w);
-  const rot=document.getElementById('msc-rot').checked;
-  const msg=document.getElementById('msc-msg'); msg.hidden=false; msg.className='ap-fb';
-  if(!resumo){ msg.classList.add('err'); msg.textContent='Dê um resumo ao ticket.'; return; }
-  const tipo=msTipoPadrao(proj); if(!tipo){ msg.classList.add('err'); msg.textContent='Projeto sem tipo padrão.'; return; }
-  msg.textContent='Criando no Jira…';
+async function mpSalvar(){
+  const mp=estado.minhasemana; const w=mp.rascW||mpSem(); const p=mpPlano(w);
+  if(!mp.sujo) return true;
+  if(p && !mpEditavel(p)) { mp.sujo=false; return false; }
+  mp.salvando=true; mpPintaSalvando();
+  const itens=mpItens().map((i,ix)=>({...i, ordem:ix}));
   try{
-    const r=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ email:id.email, token:id.token,
-        itens:[{ projeto:proj, tipoId:tipo.id, resumo, venc, labels:['minha-semana'] }] }) });
-    const j=await r.json();
-    const criado=j&&j.criados&&j.criados[0];
-    if(!criado||!criado.key){ msg.classList.add('err'); msg.textContent='Falha: '+esc(JSON.stringify((j&&(j.erros&&j.erros[0]))||j&&j.erro||'erro')).slice(0,300); return; }
-    const k=criado.key;
-    (estado.minhasemana.tickets=estado.minhasemana.tickets||[]).push({ k, resumo, p:proj, venc, respId:acc, resp:id.nome||'', seg:0, est:0, prio:'', prioIcon:'', pai:'', sub:false });
-    const itens=msItens(acc,w).slice(); itens.push(Object.assign({ k, h, p:proj }, rot?{rot:1}:{}));
-    msSalva(acc,w,itens);
-    toast(`✓ ${k} criado no Jira e adicionado ao plano.`,'ok');
-    fechaModal(); renderMinhaSemana();
-  }catch(e){ msg.classList.add('err'); msg.textContent='Erro de rede: '+(e.message||e); }
+    const j=await mpApi({acao:'salvar', semana:w, itens, base:(p&&p.atualizadoEm)||''});
+    mp.salvando=false;
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano}; mp.sujo=false; mpPintaSalvando(); return true; }
+    if(j&&j.conflito){ mp.meu[w]={plano:j.plano||null}; mp.rascW=''; mpCarregaRascunho(w);
+      toast('O plano foi alterado em outra aba — recarreguei a versão mais nova.','warn');
+      if(estado.vista==='minhasemana') renderMinhaSemana(); return false; }
+    toast((j&&j.erro)||'Não consegui salvar o planejamento.','err'); mpPintaSalvando(); return false;
+  }catch(e){ mp.salvando=false; toast('Falha ao salvar: '+humanizaErro(e),'err'); mpPintaSalvando(); return false; }
 }
-// Lista "Seus tickets abertos" (painel direito) — resumo em destaque + filtros úteis.
-function msListaTicketsHTML(){
-  const ms=estado.minhasemana; const id=idApontar(); if(!id) return '';
-  const acc=id.accountId; const w=msSem(); const wf=somaDias(w,6);
-  if(ms.carregandoT&&!ms.tickets) return '<div class="estado">Carregando seus tickets…</div>';
-  if(ms.erroT) return `<div class="estado">${esc(ms.erroT)} <button class="btn" data-ms-refresh="1">Tentar de novo</button></div>`;
-  let lista=(ms.tickets||[]).filter(t=>t.respId===acc);
-  const total=lista.length;
-  if(ms.fil==='vencidos') lista=lista.filter(t=>t.venc&&t.venc<hojeSP());
-  else if(ms.fil==='semana') lista=lista.filter(t=>t.venc&&t.venc<=wf);
-  else if(ms.fil==='comhoras') lista=lista.filter(t=>(Number(t.seg)||0)>0);
-  if(ms.proj) lista=lista.filter(t=>t.p===ms.proj);
-  const q=(ms.busca||'').trim().toLowerCase();
-  if(q) lista=lista.filter(t=>((t.k||'')+' '+(t.resumo||'')).toLowerCase().includes(q));
-  lista.sort((a,b)=>((a.venc||'9999')<(b.venc||'9999')?-1:(a.venc||'9999')>(b.venc||'9999')?1:0));
-  const noPlano=new Set(msItens(acc,w).map(i=>i.k));
-  const corte=lista.slice(0,80);
-  const rws=corte.map(t=>{
-    const rest=Math.max(0,((Number(t.est)||0)-(Number(t.seg)||0)));
-    return `<div class="ms-tk">
-      ${noPlano.has(t.k)
-        ?'<span class="ms-add ms-add-ok" data-tip="Já está no seu plano desta semana">✓</span>'
-        :`<button class="ms-add" data-ms-add="${escA(t.k)}" data-tip="Adicionar ao plano com ${escA(String(msHoraSugerida(t)).replace('.',','))}h (sugestão pela estimativa restante)">+</button>`}
-      <div class="ms-tk-c">
-        <div class="ms-tk-res">${esc(t.resumo||'(sem resumo)')}</div>
-        <div class="muted small"><a href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a> ${t.prioIcon?`<span data-tip="Prioridade: ${escA(t.prio||'')}">${esc(t.prioIcon)}</span>`:''} · ${msVencBadge(t,w)} · ${esc(t.p||'')}${t.pai?` · <span data-tip="Épico/pai">${esc(t.pai)}</span>`:''}${t.seg?` · <b data-tip="Horas já apontadas neste ticket">⏱ ${fmtH(t.seg)}</b>`:''}${t.est?` · est. ${fmtH(t.est)}`:''}${rest>0?` · <b data-tip="Estimativa restante (estimado − gasto)">resta ${fmtH(rest)}</b>`:''}</div>
-      </div></div>`;
-  }).join('');
-  return (rws||'<div class="muted small" style="padding:8px">Nenhum ticket seu com esses filtros.</div>')
-    + (lista.length>80?`<div class="muted small" style="padding:6px 8px">Mostrando 80 de ${lista.length} — refine a busca.</div>`:'')
-    + (total===0?'<div class="muted small" style="padding:6px 8px">Nenhum ticket aberto atribuído a você foi encontrado.</div>':'');
+function mpPintaSalvando(){
+  const elx=document.getElementById('mp-salvo'); if(!elx) return;
+  const mp=estado.minhasemana;
+  elx.textContent=mp.salvando?'salvando…':(mp.sujo?'alterações pendentes':'salvo');
+}
+// Projetos para o seletor (catálogo do Jira, mesmo usado no Planejar).
+function mpProjetos(){
+  if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='minhasemana') renderMinhaSemana(); }).catch(()=>{}); return []; }
+  return _projetosCache.map(p=>({key:p.key,nome:p.nome||p.key}));
+}
+function mpCategorias(){
+  const set=new Set(['Desenvolvimento','Reunião','Suporte','Documentação','Gestão','Treinamento']);
+  mpItens().forEach(i=>{ if(i.categoria) set.add(i.categoria); });
+  return [...set];
+}
+
+// ---------------- comparação planejado × realizado ----------------
+// Unidade de comparação: accountId + DATA + PROJETO (nunca por ticket).
+function mpComparativo(w, acc){
+  const p=mpPlano(w); const itens=(p&&p.itens)||[];
+  const real=mpRealGrupo(w, acc);
+  const plan={}; const planDesc={};
+  itens.forEach(i=>{ const k=`${i.data}|${i.projeto}`; plan[k]=(plan[k]||0)+(Number(i.horas)||0);
+    (planDesc[k]=planDesc[k]||[]).push(i.descricao); });
+  const chaves=[...new Set([...Object.keys(plan), ...(real?Object.keys(real.por):[])])].sort();
+  const linhas=chaves.map(k=>{
+    const [d,proj]=k.split('|');
+    const pl=plan[k]||0; const re=real?(real.por[k]||0):null;
+    const dif=re==null?null:re-pl;
+    const desvio=(pl>0&&re!=null)?((re-pl)/pl*100):null;
+    let sit, cor;
+    if(pl>0&&re!=null&&re>0){
+      if(Math.abs(desvio)<=10){ sit='Conforme planejado'; cor='ok'; }
+      else if(desvio<0){ sit='Abaixo do planejado'; cor=desvio<-40?'ruim':'medio'; }
+      else { sit='Acima do planejado'; cor=desvio>40?'ruim':'medio'; }
+    } else if(pl>0){ sit=re==null?'Aguardando realizado':'Planejado não realizado'; cor=re==null?'nd':'nd'; }
+    else { sit='Realizado não planejado'; cor='medio'; }
+    return { data:d, projeto:proj, desc:(planDesc[k]||[]).join(' · '), plan:pl, real:re, dif, desvio, sit, cor };
+  });
+  const totPlan=Object.values(plan).reduce((s,h)=>s+h,0);
+  const totReal=real?real.tot:null;
+  const rnp=real?chaves.reduce((s,k)=>s+((plan[k]||0)>0?0:(real.por[k]||0)),0):null;
+  const pnr=real!=null?chaves.reduce((s,k)=>s+(((real&&real.por[k])||0)>0?0:(plan[k]||0)),0):null;
+  const exec=(totPlan>0&&totReal!=null)?(totReal/totPlan*100):null;
+  const porProj={}; const porDia={};
+  linhas.forEach(l=>{
+    const pp=porProj[l.projeto]=porProj[l.projeto]||{plan:0,real:0};
+    pp.plan+=l.plan; pp.real+=(l.real||0);
+    const pd=porDia[l.data]=porDia[l.data]||{plan:0,real:0};
+    pd.plan+=l.plan; pd.real+=(l.real||0);
+  });
+  return { linhas, totPlan, totReal, rnp, pnr, exec, porProj, porDia, temReal:!!real };
+}
+const mpCorSit=(cor)=>({ok:'mp-s-ok',medio:'mp-s-med',ruim:'mp-s-ruim',nd:'mp-s-nd'}[cor]||'mp-s-nd');
+
+// ---------------- render ----------------
+function mpStepper(st){
+  if(st==='devolvido'){
+    return `<div class="mp-fluxo" role="group" aria-label="Etapas do planejamento">
+      <span class="mp-step atual">Devolvido para ajustes</span><span class="mp-seta">→</span>
+      <span class="mp-step">Corrigido pelo usuário</span><span class="mp-seta">→</span>
+      <span class="mp-step">Reenviado</span></div>`;
+  }
+  const ordem=['elaboracao','enviado','aprovado'];
+  const idx=Math.max(0,ordem.indexOf(st));
+  const rot=['Em elaboração','Enviado ao gestor','Aprovado'];
+  return `<div class="mp-fluxo" role="group" aria-label="Etapas do planejamento">${ordem.map((s,i)=>
+    `<span class="mp-step${i<idx?' feito':''}${i===idx?' atual':''}">${rot[i]}</span>`).join('<span class="mp-seta">→</span>')}</div>`;
+}
+function mpItemRow(i, idx, editavel){
+  return `<div class="mp-atv" data-mp-idx="${idx}">
+    <div class="mp-atv-c">
+      <div class="mp-atv-desc">${esc(i.descricao)}</div>
+      <div class="mp-atv-meta">${esc(i.projeto)}${i.categoria?` · ${esc(i.categoria)}`:''}${i.observacao?` · <span class="mp-obs" title="${escA(i.observacao)}">obs.</span>`:''}</div>
+    </div>
+    <div class="mp-atv-h">${mpH(i.horas)}</div>
+    ${editavel?`<div class="mp-atv-acoes">
+      <button class="mp-lnk" data-mp-editar="${idx}">Editar</button>
+      <button class="mp-lnk" data-mp-dup="${idx}">Duplicar</button>
+      <button class="mp-lnk" data-mp-sobe="${idx}" aria-label="Subir na ordem">↑</button>
+      <button class="mp-lnk" data-mp-desce="${idx}" aria-label="Descer na ordem">↓</button>
+      <button class="mp-lnk mp-lnk-x" data-mp-rem="${idx}">Excluir</button>
+    </div>`:''}
+  </div>`;
+}
+function mpFormAtividade(dia, item, idx){
+  const projs=mpProjetos();
+  const cats=mpCategorias();
+  const it=item||{projeto:'',descricao:'',horas:'',categoria:'',observacao:''};
+  return `<form class="mp-form" data-mp-form="${escA(dia)}" data-mp-formidx="${idx==null?'':idx}">
+    <div class="mp-form-l1">
+      <label>Projeto<select name="projeto" required>
+        <option value="">— escolha —</option>
+        ${projs.map(p=>`<option value="${escA(p.key)}" ${it.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('')}
+      </select></label>
+      <label>Horas<input name="horas" type="number" min="0.25" step="0.25" required value="${escA(it.horas===''?'':String(it.horas))}"></label>
+      <label>Categoria (opcional)<input name="categoria" list="mp-cats" maxlength="60" value="${escA(it.categoria)}"><datalist id="mp-cats">${cats.map(c=>`<option value="${escA(c)}">`).join('')}</datalist></label>
+    </div>
+    <label>Descrição da atividade<input name="descricao" required maxlength="300" placeholder="o que será feito" value="${escA(it.descricao)}"></label>
+    <label>Observação (opcional)<input name="observacao" maxlength="500" value="${escA(it.observacao)}"></label>
+    <div class="mp-form-acoes">
+      <button type="submit" class="mp-btn mp-btn-p">${idx==null?'Adicionar':'Salvar alteração'}</button>
+      <button type="button" class="mp-btn" data-mp-cancelaform="1">Cancelar</button>
+    </div>
+  </form>`;
+}
+function mpDiaCard(w, acc, i, editavel, real){
+  const mp=estado.minhasemana;
+  const d=mtsSoma(w,i);
+  const itens=mpItens().map((it,ix)=>({it,ix})).filter(x=>x.it.data===d);
+  const cap=mpCapDia(acc,d);
+  const plan=itens.reduce((s,x)=>s+(Number(x.it.horas)||0),0);
+  const re=real?(real.porDia[d]||0):null;
+  const dif=re==null?null:re-plan;
+  const feriado=ehUtil(d)&&ehFeriado(d);
+  const ausente=ehAusencia(acc,d);
+  const aberto=mp.form&&mp.form.dia===d;
+  // agrupa visualmente por projeto mantendo a ordem
+  const grupos=[]; const gIdx={};
+  itens.forEach(x=>{ const p=x.it.projeto; if(!(p in gIdx)){ gIdx[p]=grupos.length; grupos.push({p,rows:[]}); } grupos[gIdx[p]].rows.push(x); });
+  return `<section class="mp-dia${plan||re?'':' vazio'}" aria-label="${escA(MP_DIAS[i])} ${escA(fmtBR(d))}">
+    <header class="mp-dia-h">
+      <div><strong>${MP_DIAS[i]}</strong> <span class="mp-dim">${esc(fmtBR(d).slice(0,5))}</span>
+        ${feriado?'<span class="mp-tag">Feriado</span>':''}${ausente?'<span class="mp-tag">Ausência</span>':''}</div>
+      <div class="mp-dia-tot" data-tip="Capacidade · Planejado · Realizado · Diferença">
+        <span title="Capacidade do dia">${mpH(cap)}</span>
+        <span title="Planejado" class="mp-b">${mpH(plan)}</span>
+        <span title="Realizado">${re==null?'—':mpH(re)}</span>
+        <span title="Diferença (realizado − planejado)" class="${dif==null?'':dif>0.01?'mp-mais':dif<-0.01?'mp-menos':''}">${dif==null?'—':(dif>0?'+':'')+mpH(dif).replace('h','')+'h'}</span>
+      </div>
+    </header>
+    ${grupos.map(g=>`<div class="mp-grupo"><div class="mp-grupo-t">${esc(g.p)}</div>
+      ${g.rows.map(x=>mpItemRow(x.it,x.ix,editavel)).join('')}</div>`).join('')||'<div class="mp-vazio">Sem atividades planejadas.</div>'}
+    ${editavel?(aberto&&mp.form.editIdx==null?mpFormAtividade(d):`<button class="mp-btn mp-add" data-mp-add="${escA(d)}">Adicionar atividade</button>`):''}
+    ${editavel&&aberto&&mp.form.editIdx!=null?mpFormAtividade(d, mpItens()[mp.form.editIdx], mp.form.editIdx):''}
+  </section>`;
+}
+function mpGraficoDias(cmp, w){
+  const dias=[...Array(7)].map((_,i)=>mtsSoma(w,i)).filter((d,i)=>i<5||cmp.porDia[d]);
+  const max=Math.max(1,...dias.map(d=>Math.max((cmp.porDia[d]||{}).plan||0,(cmp.porDia[d]||{}).real||0)));
+  return `<div class="mp-graf" role="img" aria-label="Planejado e realizado por dia">
+    ${dias.map((d,i)=>{ const v=cmp.porDia[d]||{plan:0,real:0};
+      return `<div class="mp-gcol" data-tip="${escA(`${MP_DIAS[i]||''} ${fmtBR(d).slice(0,5)} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}`)}">
+        <div class="mp-gbars">
+          <div class="mp-gb plan" style="height:${Math.round(v.plan/max*100)}%"></div>
+          <div class="mp-gb real" style="height:${Math.round(v.real/max*100)}%"></div>
+        </div>
+        <div class="mp-grot">${esc((MP_DIAS[i]||'').slice(0,3))}</div>
+      </div>`; }).join('')}
+    <div class="mp-gleg"><span><i class="mp-sw plan"></i>Planejado</span><span><i class="mp-sw real"></i>Realizado</span></div>
+  </div>`;
+}
+function mpAbasHtml(mp){
+  const abas=[['plano','Planejamento'],['comparativo','Planejado × realizado']];
+  if(mp.gestor){ abas.push(['aprovacoes','Aprovações']); abas.push(['relatorios','Relatórios']); }
+  return `<div class="mp-abas" role="tablist">${abas.map(([k,r])=>
+    `<button class="mp-tab${mp.aba===k?' atual':''}" role="tab" aria-selected="${mp.aba===k}" data-mp-aba="${k}">${r}</button>`).join('')}</div>`;
 }
 function renderMinhaSemana(){
-  const cont=document.getElementById('conteudo'); const ms=estado.minhasemana; const id=idApontar();
+  const cont=document.getElementById('conteudo'); const mp=estado.minhasemana; const id=idApontar();
   if(!id||!id.accountId){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📋 Minha Semana <span>seu plano semanal sobre os seus tickets</span></h2>
-      <div class="estado">Identifique-se (e-mail + token do Jira) para montarmos a SUA semana.<br>
+    cont.replaceChildren(el(`<div class="mp-root"><div class="card full mp-card"><h2>Meu Planejamento</h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para planejar a sua semana.<br>
         <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
     return;
   }
-  const acc=id.accountId; const w=msSem(); const wf=somaDias(w,6);
-  const s=isoSemana(w); const wHoje=semChave(hojeSP());
-  msCarregaTickets(false); msCarregaReal(false);
-  if(!_projetosCache && !ms._cp){ ms._cp=true; garanteProjetos().then(()=>{ ms._cp=false; if(estado.vista==='minhasemana') renderMinhaSemana(); }).catch(()=>{ ms._cp=false; }); }
-  const rows=alocRows();
-  const plano=alocSemPlanejado(rows,w);
-  const alocado=plano.horas[acc]||0;
-  const validada=!!plano.travada;
-  const orc={}; rows.forEach(a=>{ if(a.accountId===acc&&/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&a.inicio<=wf&&a.fim>=w&&a.projeto) orc[a.projeto]=(orc[a.projeto]||0)+(Number(a.hSemana)||0); });
-  const cap=alocCapacSemana(acc,w);
-  const pn=msPlanoDe(acc,w);
-  const itens=msItens(acc,w);
-  const st=msStatus(pn);
-  const editavel=msEditavel(pn);
-  const planH=msTotalItens(itens,w);
-  const dU=msDiasUteis(w);
-  const realPor=msRealPorTicket(acc,w);
-  const realH=realPor?Object.values(realPor).reduce((x,h)=>x+h,0):null;
-  const tkIdx={}; (ms.tickets||[]).forEach(t=>{ tkIdx[t.k]=t; });
-  const nomeProjMs=(k)=>{ const n=(ms.projNomes&&ms.projNomes[k]&&ms.projNomes[k].nome)||''; return n?`${k} — ${n}`:k; };
-  // ---- Cartões POR PROJETO ----
-  const porProj={}; itens.forEach(i=>{ const p=i.p||(i.k||'').split('-')[0]; (porProj[p]=porProj[p]||[]).push(i); });
-  const projsSet=[...new Set([...Object.keys(orc),...Object.keys(porProj)])].sort();
-  const chips=(k,h,rot)=> (rot?[0.5,1,2]:[1,2,4,8]).map(v=>`<button class="chip${h===v?' primario-chip':''}" data-ms-chip="${escA(k)}|${v}" ${editavel?'':'disabled'} data-tip="Trocar para ${String(v).replace('.',',')}h${rot?'/dia':''}">${String(v).replace('.',',')}h${rot?'/d':''}</button>`).join('');
-  const itemRow=(i)=>{
-    const t=tkIdx[i.k]; const eff=msHorasItem(i,w);
-    const re=realPor?(realPor[i.k]||0):null; const dl=re==null?null:re-eff;
-    const pcr=re==null?0:Math.min(100,Math.round(re/Math.max(0.01,eff)*100));
-    const resumo=msResumoDe(i.k,tkIdx);
-    return `<div class="ms-item">
-      <div class="ms-item-top">
-        <span class="ms-tk-res ms-elip">${esc(resumo||'(carregando resumo…)')}</span>
-        <span class="spacer"></span>
-        ${i.rot?`<span class="badge ms-b-rot" data-tip="Rotina diária: ${String(i.h).replace('.',',')}h/dia × ${dU} dias úteis = ${fmtHd(eff)} na semana">🔁 rotina</span>`:''}
-        ${t?msVencBadge(t,w):''}
-        ${editavel?`<button class="ms-x" data-ms-del="${escA(i.k)}" data-tip="Tirar do plano">✕</button>`:''}
+  const acc=id.accountId; const w=mpSem(); const wf=mtsSoma(w,6); const s=isoSemana(w); const wHoje=semChave(hojeSP());
+  mp.aba=mp.aba||'plano';
+  const pronto=mpGaranteMeu(w);
+  mpCarregaReal(w,false);
+  if(!pronto && mpPlano(w)===undefined){
+    cont.replaceChildren(el(`<div class="mp-root"><div class="card full mp-card"><h2>Meu Planejamento</h2>
+      ${mp.erro?`<div class="erro">${esc(mp.erro)} <button class="btn" data-mp-recarregar="1">Tentar de novo</button></div>`
+        :'<div class="estado">Carregando o seu planejamento…</div>'}</div></div>`));
+    return;
+  }
+  mpCarregaRascunho(w);
+  const p=mpPlano(w);
+  const st=(p&&p.status)||'elaboracao';
+  const editavel=mpEditavel(p);
+  const itens=mpItens();
+  const totPlan=itens.reduce((x,i)=>x+(Number(i.horas)||0),0);
+  const cap=mpCapSem(acc,w);
+  const real=mpRealGrupo(w,acc);
+  const totReal=real?real.tot:null;
+  const dif=totReal==null?null:totReal-totPlan;
+  const legado=msItens(acc,w);
+  // ---- cabeçalho da semana ----
+  const cab=`<div class="card full mp-card">
+    <h2>Meu Planejamento <span>planeje as atividades da semana, envie ao gestor e compare com o realizado</span></h2>
+    <div class="mp-head">
+      <div class="mp-nav" role="group" aria-label="Navegação de semanas">
+        <button class="mp-btn" data-mp-nav="prev">Semana anterior</button>
+        <button class="mp-btn${w===wHoje?' mp-btn-p':''}" data-mp-nav="hoje">Semana atual</button>
+        <button class="mp-btn" data-mp-nav="next">Próxima semana</button>
       </div>
-      <div class="muted small" style="margin-top:2px"><a href="${projJira(i.k)}" target="_blank" rel="noopener">${esc(i.k)} ↗</a></div>
-      <div class="ms-item-ctl">
-        <input type="number" step="0.5" min="0.25" value="${escA(String(Number(i.h)||0))}" data-ms-h="${escA(i.k)}" ${editavel?'':'disabled'} data-tip="${i.rot?'Horas POR DIA (rotina diária)':'Horas planejadas nesta semana'}"> h${i.rot?'/dia':''}
-        ${chips(i.k,Number(i.h)||0,!!i.rot)}
-        <button class="chip${i.rot?' primario-chip':''}" data-ms-rot="${escA(i.k)}" ${editavel?'':'disabled'} data-tip="Rotina diária: as horas valem POR DIA e sensibilizam igualmente todos os ${dU} dias úteis da semana">🔁</button>
-        <span class="spacer"></span>
-        ${i.rot?`<span class="muted small">${fmtHd(eff)}/sem</span>`:''}
-        ${re==null?'<span class="muted small">apontado: …</span>':`<span class="small" data-tip="Apontado nesta semana neste ticket">${fmtHd(re)} apontadas</span> <span class="small" style="color:${dl>0.01?'#b45309':dl<-0.01?'var(--muted)':'#166534'}">${dl>0?'+':''}${fmtHd(dl)}</span>`}
+      <div class="mp-sem"><strong>Semana ${s.num}/${s.ano}</strong><span class="mp-dim">segunda ${esc(fmtBR(w))} a domingo ${esc(fmtBR(wf))}</span></div>
+      <span class="spacer"></span>
+      <span class="mp-dim" id="mp-salvo" aria-live="polite">${mp.salvando?'salvando…':(mp.sujo?'alterações pendentes':'salvo')}</span>
+    </div>
+    <div class="mp-kpis">
+      <div class="mp-kpi"><div class="v">${mpH(cap)}</div><div class="l">Capacidade disponível</div></div>
+      <div class="mp-kpi"><div class="v">${mpH(totPlan)}</div><div class="l">Total planejado</div></div>
+      <div class="mp-kpi"><div class="v">${totReal==null?'—':mpH(totReal)}</div><div class="l">Total realizado</div></div>
+      <div class="mp-kpi"><div class="v ${dif==null?'':dif>0.01?'mp-mais':dif<-0.01?'mp-menos':''}">${dif==null?'—':(dif>0?'+':'')+mpH(dif)}</div><div class="l">Diferença (real − plan.)</div></div>
+      <div class="mp-kpi"><div class="v mp-st-${st}">${MP_STATUS[st]}</div><div class="l">Status do planejamento</div></div>
+    </div>
+    ${mpStepper(st)}
+    ${st==='devolvido'&&p&&p.comentarioGestor?`<div class="mp-devolucao"><strong>Motivo da devolução</strong> (${esc((p.devolvidoPor||'gestor').split('<')[0].trim())}${p.devolvidoEm?`, ${esc(fmtBR((p.devolvidoEm||'').slice(0,10)))}`:''}): ${esc(p.comentarioGestor)}</div>`:''}
+    ${st==='aprovado'?`<div class="mp-aprovado">Aprovado por ${esc((p.aprovadoPor||'').split('<')[0].trim()||'gestor')}${p.aprovadoEm?` em ${esc(fmtBR((p.aprovadoEm||'').slice(0,10)))}`:''} · versão ${p.versao||1}. O plano está bloqueado — para alterar, use "Reabrir planejamento".</div>`:''}
+    <div class="mp-acoes">
+      ${editavel?`<button class="mp-btn mp-btn-p" data-mp-enviar="1" ${itens.length?'':'disabled'}>Enviar para aprovação</button>
+        ${!itens.length?'<span class="mp-dim">adicione pelo menos uma atividade para enviar</span>':''}
+        ${totPlan>cap+0.01?`<span class="mp-alerta">Atenção: planejado (${mpH(totPlan)}) acima da capacidade (${mpH(cap)}).</span>`:''}`:''}
+      ${st==='enviado'?`<span class="mp-dim">Enviado${p&&p.enviadoEm?` em ${esc(fmtBR((p.enviadoEm||'').slice(0,10)))}`:''} · versão ${(p&&p.versao)||1} — edição bloqueada enquanto aguarda decisão.</span>
+        <button class="mp-btn" data-mp-retirar="1">Retirar envio</button>`:''}
+      ${st==='aprovado'?'<button class="mp-btn" data-mp-reabrir="1">Reabrir planejamento</button>':''}
+      ${legado.length?`<button class="mp-lnk" data-mp-legado="1">Modelo anterior desta semana (${legado.length} itens, somente leitura)</button>`:''}
+    </div>
+  </div>`;
+  // ---- corpo por aba ----
+  let corpo='';
+  if(mp.aba==='plano'){
+    const ferram=editavel?`<div class="mp-ferr">
+      <button class="mp-btn" data-mp-copiar="1">Copiar semana anterior</button>
+      <button class="mp-btn" data-mp-rotina="1">Criar rotina (vários dias)</button>
+    </div>`:'';
+    const fimDeSemana=[5,6].some(i=>mpItens().some(x=>x.data===mtsSoma(w,i))||((real&&real.porDia[mtsSoma(w,i)])||0)>0);
+    corpo=`<div class="card full mp-card"><h2>Planejamento diário <span>projeto + atividade + horas, por dia útil</span></h2>
+      ${ferram}
+      <div class="mp-dias">
+        ${[0,1,2,3,4].map(i=>mpDiaCard(w,acc,i,editavel,real)).join('')}
+        ${fimDeSemana?[5,6].map(i=>mpDiaCard(w,acc,i,editavel,real)).join(''):''}
       </div>
-      ${re!=null?`<div class="track ms-track-mini"><div class="fill${re>eff?' ms-fill-over':''}" style="width:${pcr}%"></div></div>`:''}
     </div>`;
-  };
-  const cards=projsSet.map(p=>{
-    const its=porProj[p]||[]; const o=orc[p]||0; const h=its.reduce((x,i)=>x+msHorasItem(i,w),0);
-    const pc=o?Math.min(100,Math.round(h/o*100)):(h?100:0); const estourou=o&&h>o+0.01;
-    return `<div class="ms-card">
-      <div class="ms-card-h"><strong>${esc(nomeProjMs(p))}</strong>
-        <span class="muted small">${fmtHd(h)}${o?` de ${fmtHd(o)} alocadas`:' — fora da alocação macro'}</span>
-        ${estourou?'<span class="badge ms-b-atra" data-tip="Planejado acima do alocado — combine com o gestor">estourou</span>':''}
-        <span class="spacer"></span>
-        ${editavel?`<button class="btn" data-ms-atribuir="${escA(p)}" data-tip="Escolher um ticket aberto SEU deste projeto">＋ atribuir item</button>
-        <button class="btn" data-ms-criar="${escA(p)}" data-tip="Criar um ticket novo no Jira já dentro do plano">🆕 criar item</button>`:''}
+  } else if(mp.aba==='comparativo'){
+    const cmp=mpComparativo(w,acc);
+    const rErr=(estado.minhasemana.real[w]||{}).erro;
+    const tabela=cmp.linhas.length?`<div class="ts-wrap"><table class="mp-tab-cmp">
+      <thead><tr><th>Data</th><th>Projeto</th><th>Descrição planejada</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Diferença</th><th class="num">Desvio</th><th>Situação</th></tr></thead>
+      <tbody>${cmp.linhas.map(l=>`<tr>
+        <td>${esc(fmtBR(l.data))}</td><td>${esc(l.projeto)}</td>
+        <td class="mp-cel-desc">${esc(l.desc||'—')}</td>
+        <td class="num">${l.plan?mpH(l.plan):'—'}</td>
+        <td class="num">${l.real==null?'—':mpH(l.real)}</td>
+        <td class="num">${l.dif==null?'—':(l.dif>0?'+':'')+mpH(l.dif)}</td>
+        <td class="num">${l.desvio==null?'—':(l.desvio>0?'+':'')+Math.round(l.desvio)+'%'}</td>
+        <td><span class="mp-sit ${mpCorSit(l.cor)}">${esc(l.sit)}</span></td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="estado">Sem planejamento nem realizado nesta semana.</div>';
+    corpo=`<div class="card full mp-card"><h2>Por dia <span>comparação por usuário + data + projeto</span></h2>
+      ${rErr?`<div class="erro">Realizado indisponível: ${esc(rErr)} <button class="btn" data-mp-recreal="1">Tentar de novo</button></div>`:''}
+      ${tabela}
+    </div>
+    <div class="card full mp-card"><h2>Resumo da semana</h2>
+      <div class="mp-kpis">
+        <div class="mp-kpi"><div class="v">${mpH(cmp.totPlan)}</div><div class="l">Total planejado</div></div>
+        <div class="mp-kpi"><div class="v">${cmp.totReal==null?'—':mpH(cmp.totReal)}</div><div class="l">Total realizado</div></div>
+        <div class="mp-kpi"><div class="v">${cmp.totReal==null?'—':(cmp.totReal-cmp.totPlan>0?'+':'')+mpH(cmp.totReal-cmp.totPlan)}</div><div class="l">Diferença em horas</div></div>
+        <div class="mp-kpi"><div class="v">${mpPct(cmp.exec)}</div><div class="l">Execução do planejado</div></div>
+        <div class="mp-kpi"><div class="v">${cmp.rnp==null?'—':mpH(cmp.rnp)}</div><div class="l">Realizado não planejado</div></div>
+        <div class="mp-kpi"><div class="v">${cmp.pnr==null?'—':mpH(cmp.pnr)}</div><div class="l">Planejado não realizado</div></div>
       </div>
-      <div class="track" style="margin:4px 0 8px"><div class="fill${estourou?' ms-fill-over':''}" style="width:${pc}%"></div></div>
-      ${its.map(itemRow).join('')||'<div class="muted small" style="margin:2px 0 6px">Nenhum item ainda — atribua ou crie.</div>'}
+      ${mpGraficoDias(cmp,w)}
+      <div class="mp-2col">
+        <div><h3 class="mp-h3">Resultado por projeto</h3>
+          <table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Plan.</th><th class="num">Real.</th><th class="num">Dif.</th></tr></thead>
+          <tbody>${Object.entries(cmp.porProj).sort((a,b)=>b[1].plan-a[1].plan).map(([pj,v])=>
+            `<tr><td>${esc(pj)}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td></tr>`).join('')||'<tr><td colspan="4" class="mp-dim">—</td></tr>'}</tbody></table></div>
+        <div><h3 class="mp-h3">Resultado por dia</h3>
+          <table class="mp-tab-mini"><thead><tr><th>Dia</th><th class="num">Plan.</th><th class="num">Real.</th><th class="num">Dif.</th></tr></thead>
+          <tbody>${Object.entries(cmp.porDia).sort().map(([d,v])=>
+            `<tr><td>${esc(fmtBR(d).slice(0,5))}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td></tr>`).join('')||'<tr><td colspan="4" class="mp-dim">—</td></tr>'}</tbody></table></div>
+      </div>
+    </div>`;
+  } else if(mp.aba==='aprovacoes'){
+    corpo=mpRenderAprovacoes();
+  } else if(mp.aba==='relatorios'){
+    corpo=mpRenderRelatorios();
+  }
+  cont.replaceChildren(el(`<div class="mp-root">${cab}${mpAbasHtml(mp)}${corpo}</div>`));
+}
+
+// ---------------- gestor: aprovações ----------------
+function mpGarantePend(forca){
+  const mp=estado.minhasemana;
+  if(!forca && mp.pend) return true;
+  if(mp.pendB) return false;
+  mp.pendB=1;
+  mpApi({acao:'pendencias'}).then(j=>{ mp.pendB=0;
+    mp.pend=j&&j.ok?{lista:j.pendencias||[]}:{erro:(j&&j.erro)||'Falha ao carregar.'};
+    if(estado.vista==='minhasemana') renderMinhaSemana();
+  }).catch(e=>{ mp.pendB=0; mp.pend={erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
+  return false;
+}
+function mpRenderAprovacoes(){
+  const mp=estado.minhasemana;
+  if(!mpGarantePend(false)&&!mp.pend) return '<div class="card full mp-card"><h2>Aprovações pendentes</h2><div class="estado">Carregando pendências…</div></div>';
+  if(mp.pend.erro) return `<div class="card full mp-card"><h2>Aprovações pendentes</h2><div class="erro">${esc(mp.pend.erro)} <button class="btn" data-mp-repend="1">Tentar de novo</button></div></div>`;
+  const lista=mp.pend.lista||[];
+  if(!lista.length) return '<div class="card full mp-card"><h2>Aprovações pendentes</h2><div class="estado">Nenhum planejamento aguardando decisão.</div><div class="mp-ferr"><button class="mp-btn" data-mp-repend="1">Atualizar</button></div></div>';
+  const cards=lista.map(pl=>{
+    const cap=mpCapSem(pl.accountId, pl.semana);
+    const s=isoSemana(pl.semana);
+    const porDia={}; const porProj={}; const obs=[];
+    (pl.itens||[]).forEach(i=>{ porDia[i.data]=(porDia[i.data]||0)+i.horas; porProj[i.projeto]=(porProj[i.projeto]||0)+i.horas;
+      if(i.observacao) obs.push(`${fmtBR(i.data).slice(0,5)} ${i.projeto}: ${i.observacao}`); });
+    return `<div class="mp-pend" data-mp-pendid="${escA(pl.id)}">
+      <div class="mp-pend-h">
+        <div><strong>${esc(pl.nome||pl.email||pl.accountId)}</strong>
+          <span class="mp-dim">Semana ${s.num}/${s.ano} (${esc(fmtBR(pl.semana))}) · enviado ${pl.enviadoEm?esc(fmtBR((pl.enviadoEm||'').slice(0,10))):'—'} · versão ${pl.versao||1}</span></div>
+        <div class="mp-pend-tot">
+          <span data-tip="Total planejado">${mpH(pl.total)}</span>
+          <span class="mp-dim" data-tip="Capacidade da pessoa na semana">de ${mpH(cap)}</span>
+          <span class="${pl.total-cap>0.01?'mp-mais':''}" data-tip="Diferença planejado − capacidade">${pl.total-cap>0.01?'+'+mpH(pl.total-cap)+' acima':'dentro da capacidade'}</span>
+        </div>
+      </div>
+      <div class="mp-2col">
+        <div><span class="mp-h3">Por dia</span> ${Object.entries(porDia).sort().map(([d,h])=>`<span class="mp-tag">${esc(fmtBR(d).slice(0,5))} ${mpH(h)}</span>`).join(' ')||'—'}</div>
+        <div><span class="mp-h3">Por projeto</span> ${Object.entries(porProj).sort((a,b)=>b[1]-a[1]).map(([pj,h])=>`<span class="mp-tag">${esc(pj)} ${mpH(h)}</span>`).join(' ')||'—'}</div>
+      </div>
+      ${obs.length?`<div class="mp-dim">Observações: ${esc(obs.join(' · '))}</div>`:''}
+      <details class="mp-det"><summary>Ver as ${(pl.itens||[]).length} atividades</summary>
+        <table class="mp-tab-mini"><thead><tr><th>Data</th><th>Projeto</th><th>Descrição</th><th class="num">Horas</th><th>Categoria</th></tr></thead>
+        <tbody>${(pl.itens||[]).map(i=>`<tr><td>${esc(fmtBR(i.data).slice(0,5))}</td><td>${esc(i.projeto)}</td><td class="mp-cel-desc">${esc(i.descricao)}</td><td class="num">${mpH(i.horas)}</td><td>${esc(i.categoria||'—')}</td></tr>`).join('')}</tbody></table>
+      </details>
+      <div class="mp-form-acoes">
+        <button class="mp-btn mp-btn-p" data-mp-aprovar="${escA(pl.id)}" data-mp-base="${escA(pl.atualizadoEm||'')}">Aprovar</button>
+        <button class="mp-btn" data-mp-devolver="${escA(pl.id)}" data-mp-base="${escA(pl.atualizadoEm||'')}">Devolver para ajustes</button>
+      </div>
     </div>`;
   }).join('');
-  const prevItens=msItens(acc,voltaDias(w,7));
-  const fora=(realPor?Object.entries(realPor).filter(([k])=>!itens.some(i=>i.k===k)&&k):[]).sort((a,b)=>b[1]-a[1]);
-  const foraHtml=fora.length?`<div class="muted small" style="font-weight:600;margin:12px 0 4px">⚠ Apontado fora do plano</div>
-    ${fora.map(([k,h])=>`<div class="ms-tk">${editavel?`<button class="ms-add" data-ms-add="${escA(k)}" data-tip="Trazer para o plano">+</button>`:'<span class="ms-add ms-add-ok">·</span>'}<div class="ms-tk-c"><span class="ms-tk-res">${esc(msResumoDe(k,tkIdx)||'(carregando resumo…)')}</span> <span class="muted small"><a href="${projJira(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a> · <b>${fmtHd(h)}</b> apontadas nesta semana</span></div></div>`).join('')}`:'';
-  const projOpts=[...new Set((ms.tickets||[]).filter(t=>t.respId===acc).map(t=>t.p).filter(Boolean))].sort();
-  // ---- Processo (macro × semana) + status do plano ----
-  const processo=`<div class="ms-proc" data-tip="O planejamento tem 2 camadas: MACRO (Alocação, por período — ex.: até o fim do ano) e SEMANAL (esta tela)">
-    <span class="ms-pstep">1️⃣ Alocação <span class="muted">macro, por período</span></span><span class="ms-parrow">→</span>
-    <span class="ms-pstep">2️⃣ Validação da semana <span class="muted">${validada?'🔒 feita':'pendente'}</span></span><span class="ms-parrow">→</span>
-    <span class="ms-pstep ms-pon">3️⃣ SEU plano da semana</span><span class="ms-parrow">→</span>
-    <span class="ms-pstep">4️⃣ Aprovação do gestor</span></div>`;
-  const stBadge={
-    rascunho:'<span class="ms-st ms-st-r">✏️ Rascunho — monte o plano e envie para aprovação</span>',
-    enviado:`<span class="ms-st ms-st-e">📤 Enviado${pn&&pn.enviadoEm?` em ${esc(fmtBR((pn.enviadoEm||'').slice(0,10)))}`:''} — aguardando aprovação do gestor</span>`,
-    aprovado:`<span class="ms-st ms-st-a">✅ Aprovado${pn&&pn.decididoPor?` por ${esc(String(pn.decididoPor).split('@')[0])}`:''}${pn&&pn.decididoEm?` em ${esc(fmtBR((pn.decididoEm||'').slice(0,10)))}`:''}</span>`,
-    recusado:`<span class="ms-st ms-st-x">❌ Recusado${pn&&pn.motivo?`: “${esc(pn.motivo)}”`:''} — ajuste e reenvie</span>`,
-  }[st];
-  const stBtn=editavel
-    ?`<button class="btn primario" data-ms-enviar="1" ${itens.length?'':'disabled'} data-tip="${itens.length?'Envia este plano para o gestor aprovar':'Adicione itens antes de enviar'}">📤 Enviar para aprovação</button>`
-    :st==='enviado'?'<button class="btn" data-ms-retirar="1" data-tip="Volta para rascunho (o gestor deixa de ver como pendente)">↩ Retirar envio</button>'
-    :'<button class="btn" data-ms-reabrir="1" data-tip="Reabre para editar — precisará enviar e ser aprovado de novo">✏️ Reabrir para editar</button>';
-  const kpis=`<div class="ams-kpis">
-    <div class="ams-k" data-tip="Sua jornada na semana, descontando feriados e ausências"><div class="v">${fmtHd(cap)}</div><div class="l">Capacidade</div></div>
-    <div class="ams-k" data-tip="${validada?'Alocação validada (semana travada pelo gestor)':'Alocação atual (semana ainda aberta)'}"><div class="v">${fmtHd(alocado)}</div><div class="l">Alocado ${validada?'🔒':''}</div></div>
-    <div class="ams-k" data-tip="Soma das horas que VOCÊ distribuiu nos tickets (rotinas contam h/dia × dias úteis)"><div class="v">${fmtHd(planH)}</div><div class="l">Planejado</div></div>
-    <div class="ams-k" data-tip="Horas apontadas nesta semana (Clockwork)"><div class="v">${realH==null?'…':fmtHd(realH)}</div><div class="l">Apontado</div></div></div>`;
-  const alerta = alocado&&planH>alocado+0.01 ? `<div class="aviso">Você planejou <b>${fmtHd(planH)}</b>, acima das <b>${fmtHd(alocado)}</b> alocadas — vale alinhar com o gestor.</div>`
-    : (alocado&&planH<alocado-0.01&&itens.length&&editavel ? `<div class="muted small" style="margin:6px 0">Faltam <b>${fmtHd(alocado-planH)}</b> para cobrir sua alocação da semana.</div>` : '');
-  cont.replaceChildren(el(`<div><div class="card full">
-    <h2>📋 Minha Semana <span>planejamento SEMANAL: distribua, envie e acompanhe — salva sozinho</span></h2>
-    ${processo}
-    <div class="ms-head">
-      <button class="btn" data-ms-nav="prev" data-tip="Semana anterior">‹</button>
-      <strong>S${s.num}/${s.ano}</strong> <span class="muted">· ${esc(fmtBR(w))}–${esc(fmtBR(wf))}</span>
-      ${w===wHoje?'<span class="badge com-horas">atual</span>':''}
-      ${validada?'<span class="badge com-horas" data-tip="O gestor validou (travou) o planejado desta semana">🔒 validada</span>':''}
-      <button class="btn" data-ms-nav="next" data-tip="Próxima semana">›</button>
-      ${w!==wHoje?'<button class="btn" data-ms-nav="hoje">→ hoje</button>':''}
-      <span class="spacer"></span>
-      ${stBadge} ${stBtn}
-      <button class="btn" data-ms-refresh="1" data-tip="Recarregar tickets e horas apontadas">↻</button>
-    </div>
-    ${kpis}${alerta}
-    <div class="ms-grid">
-      <div>
-        <div class="muted small" style="font-weight:600;margin:2px 0 6px">🎯 Seu plano por projeto ${itens.length?`<span class="muted" style="font-weight:400">· ${itens.length} item(ns) · ${fmtHd(planH)}</span>`:''}</div>
-        ${cards||'<div class="muted small">Sem alocação nesta semana — atribua um ticket na lista ao lado que o projeto dele vira um cartão.</div>'}
-        ${!itens.length&&prevItens.length&&editavel?`<div style="margin:8px 0"><button class="btn primario" data-ms-copiar="1">⧉ Copiar plano da semana passada (${prevItens.length} itens)</button></div>`:''}
-        ${foraHtml}
-        <div class="muted small" style="margin-top:10px">Rotinas 🔁 valem por dia (×${dU} dias úteis nesta semana). Para lançar horas, use <button class="btn" data-ms-abrir-apontar="1">⏱ Apontar</button>.</div>
-      </div>
-      <div>
-        <div class="muted small" style="font-weight:600;margin:2px 0 6px">📁 Seus tickets abertos</div>
-        <div class="ms-filtros">
-          <input type="search" placeholder="buscar por chave ou resumo…" data-ms-busca="1" value="${escA(ms.busca||'')}">
-          <button class="chip${(!ms.fil||ms.fil==='todos')?' primario-chip':''}" data-ms-fil="todos">todos</button>
-          <button class="chip${ms.fil==='vencidos'?' primario-chip':''}" data-ms-fil="vencidos" data-tip="Vencimento no passado">⚠ vencidos</button>
-          <button class="chip${ms.fil==='semana'?' primario-chip':''}" data-ms-fil="semana" data-tip="Vencem até domingo">desta semana</button>
-          <button class="chip${ms.fil==='comhoras'?' primario-chip':''}" data-ms-fil="comhoras" data-tip="Já têm horas apontadas">⏱ com horas</button>
-          <select data-ms-proj="1"><option value="">projeto: todos</option>${projOpts.map(p=>`<option ${ms.proj===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
-        </div>
-        <div id="ms-tk-list">${msListaTicketsHTML()}</div>
-      </div>
-    </div>
-  </div></div>`));
+  return `<div class="card full mp-card"><h2>Aprovações pendentes <span>${lista.length} planejamento(s) aguardando decisão</span></h2>
+    <div class="mp-ferr"><button class="mp-btn" data-mp-repend="1">Atualizar</button></div>${cards}</div>`;
 }
-// Interações da 📋 Minha Semana — no DOCUMENT (os modais de atribuir/criar vivem fora de #conteudo)
-document.addEventListener('click',(e)=>{
-  const t=e.target.closest&&e.target.closest('[data-ms-add],[data-ms-del],[data-ms-nav],[data-ms-fil],[data-ms-copiar],[data-ms-refresh],[data-ms-chip],[data-ms-rot],[data-ms-abrir-apontar],[data-ms-atribuir],[data-ms-criar],[data-ms-enviar],[data-ms-retirar],[data-ms-reabrir]');
+
+// ---------------- gestor: relatórios ----------------
+function mpGaranteRel(forca){
+  const mp=estado.minhasemana; const f=mp.relF;
+  const chave=`${f.de}|${f.ate}`;
+  if(!forca && mp.rel && mp.rel.chave===chave) return true;
+  if(mp.relB) return false;
+  mp.relB=1;
+  Promise.all([
+    mpApi({acao:'relatorio', de:f.de, ate:f.ate}),
+    fetch(`/api/tempo?desde=${encodeURIComponent(f.de)}&ate=${encodeURIComponent(mtsSoma(f.ate,6))}`).then(r=>r.json()),
+  ]).then(([jp,jt])=>{ mp.relB=0;
+    if(!jp||!jp.ok){ mp.rel={chave, erro:(jp&&jp.erro)||'Falha ao carregar os planejamentos.'}; }
+    else mp.rel={chave, planos:jp.planos||[], wl:(jt&&jt.worklogs)||[], pessoas:(jt&&jt.pessoas)||{}, projetos:(jt&&jt.projetos)||{}};
+    if(estado.vista==='minhasemana') renderMinhaSemana();
+  }).catch(e=>{ mp.relB=0; mp.rel={chave, erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
+  return false;
+}
+function mpRelDados(){
+  const mp=estado.minhasemana; const f=mp.relF; const r=mp.rel;
+  if(!r||r.erro) return null;
+  let planos=r.planos||[];
+  if(f.usuario) planos=planos.filter(p=>p.accountId===f.usuario);
+  if(f.status) planos=planos.filter(p=>p.status===f.status);
+  // planejado por chave acc|data|projeto (com filtro de projeto)
+  const plan={}; const linhasPlan=[];
+  planos.forEach(p=>{ (p.itens||[]).forEach(i=>{ if(f.projeto&&i.projeto!==f.projeto) return;
+    plan[`${p.accountId}|${i.data}|${i.projeto}`]=(plan[`${p.accountId}|${i.data}|${i.projeto}`]||0)+i.horas;
+    linhasPlan.push({acc:p.accountId,nome:p.nome,data:i.data,projeto:i.projeto,h:i.horas}); }); });
+  // realizado agrupado acc|data|projeto (limitado ao período + filtros)
+  const accsComPlano=new Set(planos.map(p=>p.accountId));
+  const real={};
+  (r.wl||[]).forEach(x=>{ const d=(x.d||'').slice(0,10); if(d<f.de||d>mtsSoma(f.ate,6)) return;
+    const pj=x.p||(x.k?String(x.k).split('-')[0]:'—');
+    if(f.projeto&&pj!==f.projeto) return;
+    if(f.usuario&&x.a!==f.usuario) return;
+    real[`${x.a}|${d}|${pj}`]=(real[`${x.a}|${d}|${pj}`]||0)+(Number(x.s)||0)/3600; });
+  return { planos, plan, real, pessoas:r.pessoas||{}, accsComPlano };
+}
+function mpRenderRelatorios(){
+  const mp=estado.minhasemana; const f=mp.relF;
+  if(!f.de){ const w=mpSem(); f.ate=w; f.de=mtsSoma(w,-21); }
+  const carregado=mpGaranteRel(false);
+  const r=mp.rel;
+  const pess=r&&r.pessoas?r.pessoas:{};
+  const dados=mpRelDados();
+  const usuarios=r&&r.planos?[...new Set(r.planos.map(p=>[p.accountId,p.nome||p.email||p.accountId].join('§')))].map(x=>x.split('§')):[];
+  const projetos=r&&r.planos?[...new Set(r.planos.flatMap(p=>(p.itens||[]).map(i=>i.projeto)))].sort():[];
+  const filtros=`<div class="mp-ferr" role="search">
+    <label>De (semana)<input type="date" value="${escA(f.de)}" data-mp-rf="de"></label>
+    <label>Até (semana)<input type="date" value="${escA(f.ate)}" data-mp-rf="ate"></label>
+    <label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
+    <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option ${f.projeto===pj?'selected':''}>${esc(pj)}</option>`).join('')}</select></label>
+    <label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>
+    <button class="mp-btn" data-mp-relatualiza="1">Atualizar</button>
+    <button class="mp-btn" data-mp-relcsv="1" ${dados?'':'disabled'}>Exportar CSV</button>
+  </div>`;
+  if(!carregado&&!r) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="estado">Carregando…</div></div>`;
+  if(r&&r.erro) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="erro">${esc(r.erro)}</div></div>`;
+  if(!dados) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="estado">Carregando…</div></div>`;
+  const nome=(a)=>{ const p=(dados.planos||[]).find(x=>x.accountId===a); return (p&&(p.nome||p.email))||(pess[a]&&pess[a].nome)||a; };
+  // agregações
+  const porU={}; const porP={}; const porSem={}; const porDia={};
+  const soma=(mapa,k,campo,v)=>{ const o=mapa[k]=mapa[k]||{plan:0,real:0}; o[campo]+=v; };
+  Object.entries(dados.plan).forEach(([k,h])=>{ const [a,d,pj]=k.split('|');
+    soma(porU,a,'plan',h); soma(porP,pj,'plan',h); soma(porDia,d,'plan',h); soma(porSem,semChave(d),'plan',h); });
+  Object.entries(dados.real).forEach(([k,h])=>{ const [a,d,pj]=k.split('|');
+    if(!f.usuario&&!dados.accsComPlano.has(a)) return;   // sem filtro: foca nas pessoas com plano no período
+    soma(porU,a,'real',h); soma(porP,pj,'real',h); soma(porDia,d,'real',h); soma(porSem,semChave(d),'real',h); });
+  const rnp=Object.entries(dados.real).reduce((s,[k,h])=>s+((dados.plan[k]||0)>0?0:( !f.usuario&&!dados.accsComPlano.has(k.split('|')[0])?0:h)),0);
+  const pnr=Object.entries(dados.plan).reduce((s,[k,h])=>s+((dados.real[k]||0)>0?0:h),0);
+  const totPlan=Object.values(porU).reduce((s,v)=>s+v.plan,0);
+  const totReal=Object.values(porU).reduce((s,v)=>s+v.real,0);
+  const stCount={elaboracao:0,enviado:0,aprovado:0,devolvido:0};
+  dados.planos.forEach(p=>{ if(stCount[p.status]!=null) stCount[p.status]++; });
+  const tab=(titulo, mapa, rot)=>`<div><h3 class="mp-h3">${titulo}</h3>
+    <table class="mp-tab-mini"><thead><tr><th>${rot}</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
+    <tbody>${Object.entries(mapa).sort((a,b)=>b[1].plan-a[1].plan).map(([k,v])=>{
+      const ex=v.plan>0?Math.round(v.real/v.plan*100)+'%':'—';
+      return `<tr><td>${esc(rot==='Usuário'?nome(k):(rot==='Dia'||rot==='Semana'?fmtBR(k):k))}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mp-dim">Sem dados no filtro.</td></tr>'}</tbody></table></div>`;
+  return `<div class="card full mp-card"><h2>Relatórios de planejamento <span>planejado × realizado do time (Clockwork)</span></h2>
+    ${filtros}
+    <div class="mp-kpis">
+      <div class="mp-kpi"><div class="v">${mpH(totPlan)}</div><div class="l">Planejado no período</div></div>
+      <div class="mp-kpi"><div class="v">${mpH(totReal)}</div><div class="l">Realizado no período</div></div>
+      <div class="mp-kpi"><div class="v">${totPlan>0?Math.round(totReal/totPlan*100)+'%':'—'}</div><div class="l">Execução</div></div>
+      <div class="mp-kpi"><div class="v">${mpH(rnp)}</div><div class="l">Realizado não planejado</div></div>
+      <div class="mp-kpi"><div class="v">${mpH(pnr)}</div><div class="l">Planejado não realizado</div></div>
+      <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
+    </div>
+    <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
+    <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
+  </div>`;
+}
+// CSV pt-BR (datas dd/mm/aaaa, decimais com vírgula, separador ';').
+function mpExportaCSV(){
+  const dados=mpRelDados(); if(!dados) return;
+  const f=estado.minhasemana.relF;
+  const nome=(a)=>{ const p=(dados.planos||[]).find(x=>x.accountId===a); return (p&&(p.nome||p.email))||a; };
+  const chaves=[...new Set([...Object.keys(dados.plan),...Object.keys(dados.real).filter(k=>f.usuario||dados.accsComPlano.has(k.split('|')[0]))])].sort();
+  const linhas=[['Usuário','Data','Projeto','Horas planejadas','Horas realizadas','Diferença','Execução %','Situação']];
+  chaves.forEach(k=>{ const [a,d,pj]=k.split('|');
+    const pl=dados.plan[k]||0; const re=dados.real[k]||0; const dif=re-pl;
+    const sit=pl>0?(re>0?(Math.abs((re-pl)/pl*100)<=10?'Conforme planejado':(re<pl?'Abaixo do planejado':'Acima do planejado')):'Planejado não realizado'):'Realizado não planejado';
+    linhas.push([nome(a), fmtBR(d), pj, dec(pl*3600), dec(re*3600), dec(dif*3600), pl>0?String(Math.round(re/pl*100)).replace('.',','):'', sit]); });
+  const csv='﻿'+linhas.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`planejamento_${f.de}_a_${f.ate}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------------- modais (duplicar / rotina / legado / devolução) ----------------
+function mpAbreDuplicar(idx){
+  const it=mpItens()[idx]; if(!it) return; const w=mpSem();
+  abreModal(`<h2>Duplicar atividade</h2>
+    <div class="muted small">“${esc(it.descricao)}” (${esc(it.projeto)}, ${mpH(it.horas)}) — escolha os dias que vão receber uma cópia.</div>
+    <div class="mp-checks">${[0,1,2,3,4,5,6].map(i=>{ const d=mtsSoma(w,i);
+      return `<label class="check"><input type="checkbox" data-mp-dupdia="${escA(d)}" ${d===it.data?'disabled':''}> ${MP_DIAS[i]} ${esc(fmtBR(d).slice(0,5))}${d===it.data?' (origem)':''}</label>`; }).join('')}</div>
+    <div class="mp-form-acoes"><button class="mp-btn mp-btn-p" data-mp-dupconf="${idx}">Duplicar</button>
+      <button class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>`);
+}
+function mpAbreRotina(){
+  const w=mpSem(); const projs=mpProjetos();
+  abreModal(`<h2>Criar rotina</h2>
+    <div class="muted small">A mesma atividade entra em vários dias úteis da semana (ex.: reunião diária).</div>
+    <div class="mp-form" style="margin-top:8px">
+      <div class="mp-form-l1">
+        <label>Projeto<select id="mp-rot-proj"><option value="">— escolha —</option>${projs.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome)}</option>`).join('')}</select></label>
+        <label>Horas por dia<input id="mp-rot-h" type="number" min="0.25" step="0.25" value="1"></label>
+        <label>Categoria (opcional)<input id="mp-rot-cat" maxlength="60"></label>
+      </div>
+      <label>Descrição<input id="mp-rot-desc" maxlength="300" placeholder="ex.: Reunião diária do projeto"></label>
+      <div class="mp-checks">${[0,1,2,3,4].map(i=>{ const d=mtsSoma(w,i); const ut=ehUtil(d)&&!ehFeriado(d);
+        return `<label class="check"><input type="checkbox" data-mp-rotdia="${escA(d)}" ${ut?'checked':''}> ${MP_DIAS[i]} ${esc(fmtBR(d).slice(0,5))}${ut?'':' (feriado)'}</label>`; }).join('')}</div>
+      <div class="mp-form-acoes"><button class="mp-btn mp-btn-p" data-mp-rotconf="1">Criar rotina</button>
+        <button class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>
+    </div>`);
+}
+function mpAbreLegado(){
+  const id=idApontar(); const w=mpSem(); const itens=msItens(id.accountId,w); const pn=msPlanoDe(id.accountId,w);
+  abreModal(`<h2>Modelo anterior <span class="muted small">(planejamento por tickets — somente leitura)</span></h2>
+    <div class="muted small">Este é o plano desta semana no modelo antigo, mantido como histórico.${pn&&pn.status?` Status na época: ${esc(pn.status)}.`:''}</div>
+    <table class="mp-tab-mini" style="margin-top:8px"><thead><tr><th>Ticket</th><th class="num">Horas</th><th>Rotina</th></tr></thead>
+    <tbody>${itens.map(i=>`<tr><td><a href="${projJira(i.k)}" target="_blank" rel="noopener">${esc(i.k)}</a></td><td class="num">${mpH(i.h)}${i.rot?'/dia':''}</td><td>${i.rot?'diária':'—'}</td></tr>`).join('')||'<tr><td colspan="3" class="mp-dim">Sem itens.</td></tr>'}</tbody></table>`);
+}
+function mpAbreDevolver(idc, base){
+  abreModal(`<h2>Devolver para ajustes</h2>
+    <div class="muted small">Explique o que precisa mudar — o comentário é obrigatório e aparece para a pessoa.</div>
+    <textarea id="mp-dev-coment" class="alx-coment" style="margin-top:8px" placeholder="ex.: redistribua as horas de quinta; o projeto X não está previsto para esta semana"></textarea>
+    <div class="mp-form-acoes"><button class="mp-btn mp-btn-p" data-mp-devconf="${escA(idc)}" data-mp-base="${escA(base||'')}">Devolver</button>
+      <button class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>
+    <div class="ap-fb" id="mp-dev-fb" hidden></div>`);
+}
+
+// ---------------- interações ----------------
+document.addEventListener('click', async (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv]');
   if(!t) return;
-  if(t.hasAttribute('data-ms-abrir-apontar')){ vaiPara('apontar'); return; }
-  const id=idApontar(); if(!id||!id.accountId) return;
-  const acc=id.accountId; const ms=estado.minhasemana; const w=msSem();
-  const trava=()=>{ if(!msEditavel(msPlanoDe(acc,w))){ toast('🔒 Plano '+(msStatus(msPlanoDe(acc,w))==='aprovado'?'aprovado':'enviado')+' — use "Reabrir para editar".','warn'); return true; } return false; };
-  if(t.hasAttribute('data-ms-enviar')){ if(!msItens(acc,w).length) return;
-    msMudaStatus(acc,w,'enviado',{enviadoEm:new Date().toISOString()});
-    toast('📤 Plano enviado para aprovação do gestor.','ok'); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-retirar')){ msMudaStatus(acc,w,'rascunho'); toast('↩ Envio retirado — plano voltou a rascunho.','warn'); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-reabrir')){ if(!window.confirm('Reabrir o plano para edição? Ele voltará a rascunho e precisará de nova aprovação.')) return;
-    msMudaStatus(acc,w,'rascunho'); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-atribuir')){ if(trava()) return; msAbreAtribuir(t.getAttribute('data-ms-atribuir')); return; }
-  if(t.hasAttribute('data-ms-criar')){ if(trava()) return; msAbreCriar(t.getAttribute('data-ms-criar')); return; }
-  if(t.hasAttribute('data-ms-add')){ if(trava()) return; const k=t.getAttribute('data-ms-add');
-    const tk=(ms.tickets||[]).find(x=>x.k===k);
-    const itens=msItens(acc,w).slice();
-    if(!itens.some(i=>i.k===k)){
-      itens.push({ k, h:msHoraSugerida(tk), p:(tk&&tk.p)||k.split('-')[0] }); msSalva(acc,w,itens);
-      toast(`✓ ${k} entrou no seu plano.`,'ok');
-      if(tk&&!tk.venc) msDefineVencSexta(k,w);   // sem data → assume a sexta desta semana
-    }
-    if(t.hasAttribute('data-ms-fecha')) fechaModal();
-    renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-del')){ if(trava()) return; msSalva(acc,w,msItens(acc,w).filter(i=>i.k!==t.getAttribute('data-ms-del'))); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-chip')){ if(trava()) return; const [k,h]=t.getAttribute('data-ms-chip').split('|');
-    msSalva(acc,w,msItens(acc,w).map(i=>i.k===k?Object.assign({},i,{h:Number(h)}):i)); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-rot')){ if(trava()) return; const k=t.getAttribute('data-ms-rot');
-    msSalva(acc,w,msItens(acc,w).map(i=>{ if(i.k!==k) return i; const n=Object.assign({},i);
-      if(n.rot){ delete n.rot; } else { n.rot=1; if((Number(n.h)||0)>2) n.h=1; }   // vira h/DIA: acima de 2h/dia volta ao padrão de 1h/dia
-      return n; })); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-nav')){ const d=t.getAttribute('data-ms-nav');
-    ms.w=d==='hoje'?semChave(hojeSP()):(d==='prev'?voltaDias(w,7):somaDias(w,7)); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-fil')){ ms.fil=t.getAttribute('data-ms-fil'); renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-copiar')){ if(trava()) return; const prev=msItens(acc,voltaDias(w,7));
-    if(prev.length){ msSalva(acc,w,prev.map(i=>Object.assign({},i))); toast('⧉ Plano copiado da semana passada — ajuste as horas se precisar.','ok'); }
-    renderMinhaSemana(); return; }
-  if(t.hasAttribute('data-ms-refresh')){ msCarregaTickets(true); msCarregaReal(true); renderMinhaSemana(); return; }
+  const mp=estado.minhasemana; const id=idApontar();
+  if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
+  if(!id||!id.accountId) return;
+  const w=mpSem(); const p=mpPlano(w);
+  const guardaEdicao=()=>{ if(!mpEditavel(p)){ toast(p&&p.status==='enviado'?'Plano aguardando decisão — retire o envio para editar.':'Plano aprovado — use "Reabrir planejamento".','warn'); return true; } return false; };
+  if(t.hasAttribute('data-mp-nav')){
+    await mpSalvar();
+    const d=t.getAttribute('data-mp-nav');
+    mp.w=d==='hoje'?semChave(hojeSP()):mtsSoma(w, d==='prev'?-7:7);
+    mp.form=null; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-aba')){ mp.aba=t.getAttribute('data-mp-aba'); mp.form=null; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-recarregar')){ mp.erro=''; mpGaranteMeu(w,true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-recreal')){ mpCarregaReal(w,true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-add')){ if(guardaEdicao()) return; mp.form={dia:t.getAttribute('data-mp-add'), editIdx:null}; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-cancelaform')){ mp.form=null; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-editar')){ if(guardaEdicao()) return; const ix=+t.getAttribute('data-mp-editar');
+    const it=mpItens()[ix]; if(!it) return; mp.form={dia:it.data, editIdx:ix}; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-rem')){ if(guardaEdicao()) return; const ix=+t.getAttribute('data-mp-rem');
+    mpItens().splice(ix,1); mpAgendaSalvar(); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-sobe')||t.hasAttribute('data-mp-desce')){ if(guardaEdicao()) return;
+    const ix=+(t.getAttribute('data-mp-sobe')||t.getAttribute('data-mp-desce'));
+    const dir=t.hasAttribute('data-mp-sobe')?-1:1;
+    const itens=mpItens(); const it=itens[ix]; if(!it) return;
+    const doDia=itens.map((x,i2)=>({x,i2})).filter(y=>y.x.data===it.data);
+    const pos=doDia.findIndex(y=>y.i2===ix); const alvo=doDia[pos+dir]; if(!alvo) return;
+    itens[ix]=alvo.x; itens[alvo.i2]=it;
+    mpAgendaSalvar(); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-dup')){ if(guardaEdicao()) return; mpAbreDuplicar(+t.getAttribute('data-mp-dup')); return; }
+  if(t.hasAttribute('data-mp-dupconf')){ const ix=+t.getAttribute('data-mp-dupconf'); const it=mpItens()[ix]; if(!it) return;
+    const dias=[...document.querySelectorAll('[data-mp-dupdia]:checked')].map(x=>x.getAttribute('data-mp-dupdia'));
+    if(!dias.length){ toast('Escolha pelo menos um dia.','warn'); return; }
+    dias.forEach(d=>{ mpItens().push({...it, data:d}); });
+    mpAgendaSalvar(); fechaModal(); renderMinhaSemana();
+    toast(`Atividade duplicada para ${dias.length} dia(s).`,'ok'); return; }
+  if(t.hasAttribute('data-mp-rotina')){ if(guardaEdicao()) return; mpAbreRotina(); return; }
+  if(t.hasAttribute('data-mp-rotconf')){
+    const proj=(document.getElementById('mp-rot-proj')||{}).value||'';
+    const desc=((document.getElementById('mp-rot-desc')||{}).value||'').trim();
+    const h=parseFloat(String((document.getElementById('mp-rot-h')||{}).value).replace(',','.'))||0;
+    const cat=((document.getElementById('mp-rot-cat')||{}).value||'').trim();
+    const dias=[...document.querySelectorAll('[data-mp-rotdia]:checked')].map(x=>x.getAttribute('data-mp-rotdia'));
+    if(!proj||!desc||!(h>0)||!dias.length){ toast('Preencha projeto, descrição, horas e pelo menos um dia.','warn'); return; }
+    dias.forEach(d=>{ mpItens().push({data:d, projeto:proj, descricao:desc, categoria:cat, horas:h, observacao:'', ordem:99}); });
+    mpAgendaSalvar(); fechaModal(); renderMinhaSemana();
+    toast(`Rotina criada em ${dias.length} dia(s).`,'ok'); return; }
+  if(t.hasAttribute('data-mp-copiar')){ if(guardaEdicao()) return;
+    const wAnt=mtsSoma(w,-7);
+    const j=await mpApi({acao:'ver', semana:wAnt});
+    const its=(j&&j.ok&&j.plano&&j.plano.itens)||[];
+    if(!its.length){ toast('A semana anterior não tem planejamento no modelo novo.','warn'); return; }
+    its.forEach(i=>{ mpItens().push({data:mtsSoma(i.data,7), projeto:i.projeto, descricao:i.descricao,
+      categoria:i.categoria||'', horas:Number(i.horas)||0, observacao:i.observacao||'', ordem:i.ordem||0}); });
+    mpAgendaSalvar(); renderMinhaSemana();
+    toast(`${its.length} atividade(s) copiadas da semana anterior.`,'ok'); return; }
+  if(t.hasAttribute('data-mp-legado')){ mpAbreLegado(); return; }
+  if(t.hasAttribute('data-mp-enviar')){
+    if(!mpItens().length){ toast('Adicione pelo menos uma atividade antes de enviar.','warn'); return; }
+    const cap=mpCapSem(id.accountId,w); const tot=mpItens().reduce((s,i)=>s+(Number(i.horas)||0),0);
+    if(tot>cap+0.01 && !window.confirm(`O planejado (${mpH(tot)}) está acima da sua capacidade (${mpH(cap)}). Enviar mesmo assim?`)) return;
+    const okS=await mpSalvar(); if(okS===false&&mp.sujo) return;
+    const pAtual=mpPlano(w);
+    const j=await mpApi({acao:'enviar', semana:w, base:(pAtual&&pAtual.atualizadoEm)||''});
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano}; toast('Planejamento enviado para aprovação.','ok'); }
+    else toast((j&&j.erro)||'Falha ao enviar.', j&&j.conflito?'warn':'err');
+    if(j&&j.plano) mp.meu[w]={plano:j.plano};
+    mp.rascW=''; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-retirar')){
+    const j=await mpApi({acao:'retirar', semana:w, base:(p&&p.atualizadoEm)||''});
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano}; toast('Envio retirado — o plano voltou para elaboração.','ok'); }
+    else toast((j&&j.erro)||'Falha ao retirar.', 'err');
+    if(j&&j.plano) mp.meu[w]={plano:j.plano};
+    mp.rascW=''; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-reabrir')){
+    if(!window.confirm('Reabrir o planejamento aprovado? Uma nova versão será criada e precisará de nova aprovação; a versão aprovada fica no histórico.')) return;
+    const j=await mpApi({acao:'reabrir', semana:w, base:(p&&p.atualizadoEm)||''});
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano}; toast(`Planejamento reaberto (versão ${j.plano.versao}).`,'ok'); }
+    else toast((j&&j.erro)||'Falha ao reabrir.','err');
+    if(j&&j.plano) mp.meu[w]={plano:j.plano};
+    mp.rascW=''; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-repend')){ mp.pend=null; mpGarantePend(true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-aprovar')){
+    if(!window.confirm('Aprovar este planejamento? Ele ficará bloqueado para edição.')) return;
+    const j=await mpApi({acao:'decidir', id:t.getAttribute('data-mp-aprovar'), decisao:'aprovar', base:t.getAttribute('data-mp-base')||''});
+    if(j&&j.ok) toast('Planejamento aprovado.','ok'); else toast((j&&j.erro)||'Falha ao aprovar.','err');
+    mp.pend=null; mpGarantePend(true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-devolver')){ mpAbreDevolver(t.getAttribute('data-mp-devolver'), t.getAttribute('data-mp-base')); return; }
+  if(t.hasAttribute('data-mp-devconf')){
+    const coment=((document.getElementById('mp-dev-coment')||{}).value||'').trim();
+    const fb=document.getElementById('mp-dev-fb');
+    if(!coment){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='O comentário é obrigatório na devolução.'; } return; }
+    const j=await mpApi({acao:'decidir', id:t.getAttribute('data-mp-devconf'), decisao:'devolver', comentario:coment, base:t.getAttribute('data-mp-base')||''});
+    if(j&&j.ok){ toast('Planejamento devolvido para ajustes.','ok'); fechaModal(); }
+    else if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=(j&&j.erro)||'Falha ao devolver.'; }
+    mp.pend=null; if(estado.vista==='minhasemana'){ mpGarantePend(true); renderMinhaSemana(); } return; }
+  if(t.hasAttribute('data-mp-relatualiza')){ mp.rel=null; mpGaranteRel(true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-relcsv')){ mpExportaCSV(); return; }
 });
-// Confirmação do 🆕 criar item (o botão vive no modal, fora de #conteudo)
-document.addEventListener('click',(e)=>{
-  const b=e.target.closest&&e.target.closest('[data-ms-criarconf]');
-  if(b) msCriaTicket(b.getAttribute('data-ms-criarconf'));
-});
-document.getElementById('conteudo').addEventListener('change',(e)=>{
-  const t=e.target; if(!t||!t.matches) return;
-  if(t.matches('[data-ms-h]')){ const id=idApontar(); if(!id) return;
-    if(!msEditavel(msPlanoDe(id.accountId,msSem()))) return;
-    const h=Math.max(0.25,Math.round((parseFloat(String(t.value).replace(',','.'))||0)*4)/4);
-    const k=t.getAttribute('data-ms-h'); const atual=msItens(id.accountId,msSem()).find(i=>i.k===k);
-    if(atual&&Number(atual.h)===h) return;   // change nativo no blur repetiria o render
-    msSalva(id.accountId,msSem(),msItens(id.accountId,msSem()).map(i=>i.k===k?Object.assign({},i,{h}):i));
-    renderMinhaSemana(); return; }
-  if(t.matches('[data-ms-proj]')){ estado.minhasemana.proj=t.value; renderMinhaSemana(); }
-});
-document.getElementById('conteudo').addEventListener('input',(e)=>{
-  const t=e.target; if(!(t&&t.matches&&t.matches('[data-ms-busca]'))) return;
-  estado.minhasemana.busca=t.value;
-  const listEl=document.getElementById('ms-tk-list'); if(listEl) listEl.innerHTML=msListaTicketsHTML();
+// Formulário de atividade (submit) — adiciona ou edita no dia.
+document.addEventListener('submit',(e)=>{
+  const f=e.target.closest&&e.target.closest('[data-mp-form]'); if(!f) return;
+  e.preventDefault();
+  const mp=estado.minhasemana; const w=mpSem(); const pl=mpPlano(w);
+  if(!mpEditavel(pl)) return;
+  const dia=f.getAttribute('data-mp-form');
+  const idxS=f.getAttribute('data-mp-formidx');
+  const fd=new FormData(f);
+  const item={ data:dia, projeto:String(fd.get('projeto')||''), descricao:String(fd.get('descricao')||'').trim(),
+    categoria:String(fd.get('categoria')||'').trim(), horas:parseFloat(String(fd.get('horas')||'').replace(',','.'))||0,
+    observacao:String(fd.get('observacao')||'').trim(), ordem:99 };
+  if(!item.projeto){ toast('Escolha o projeto.','warn'); return; }
+  if(!item.descricao){ toast('Descreva a atividade.','warn'); return; }
+  if(!(item.horas>0)){ toast('Horas planejadas devem ser maiores que zero.','warn'); return; }
+  if(idxS!==''&&idxS!=null){ const ix=+idxS; if(mpItens()[ix]) mpItens()[ix]={...mpItens()[ix], ...item, data:mpItens()[ix].data}; }
+  else mpItens().push(item);
+  mp.form=null; mpAgendaSalvar(); renderMinhaSemana();
 });
 function renderAgenda(){
   const cont=document.getElementById('conteudo'); const ag=estado.agenda; const id=idApontar();
@@ -4390,13 +4805,21 @@ function renderAcoes(){
       :pcard(meusVenc===0?'ok':(meusVenc>3?'crit':'aten'),'⚠','Meus tickets vencidos',
         `<div class="ax-num">${meusVenc}</div><div class="ax-det">${meusVenc?'clique para resolver — abre o Apontar já filtrado':'nada vencido no seu nome 🎉'}</div>`,
         'apontar-vencidos', meusVenc?'Resolver agora →':'Ver meus tickets →');
-    // 📋 seu plano da semana
-    const wAtual=semChave(hoje); const pn=msPlanoDe(acc,wAtual); const stP=msStatus(pn);
-    const itensP=msItens(acc,wAtual); const planH=msTotalItens(itensP,wAtual);
-    const stTxt={rascunho:itensP.length?'rascunho — envie para aprovação':'você ainda não planejou esta semana',
-      enviado:'enviado — aguardando aprovação', aprovado:'aprovado ✅', recusado:'recusado — ajuste e reenvie'}[stP];
-    const cPlano=pcard(stP==='aprovado'?'ok':stP==='recusado'?'crit':itensP.length&&stP!=='rascunho'?'ok':'aten','📋','Seu plano da semana',
-      `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt)}</div>`,'minhasemana', itensP.length?'Abrir Minha Semana →':'Planejar agora →');
+    // 📋 seu planejamento da semana (modelo novo: atividades no Supabase)
+    const wAtual=semChave(hoje);
+    mpGaranteMeu(wAtual);
+    const meuPl=mpPlano(wAtual);                        // undefined = carregando
+    const itensP=(meuPl&&meuPl.itens)||[];
+    const planH=itensP.reduce((s,i)=>s+(Number(i.horas)||0),0);
+    const stP=meuPl?meuPl.status:'';
+    const stTxt=meuPl===undefined?'carregando seu planejamento…'
+      :!meuPl||!itensP.length?'você ainda não planejou esta semana'
+      :{elaboracao:'em elaboração — envie para aprovação', enviado:'enviado — aguardando aprovação',
+        aprovado:'aprovado', devolvido:'devolvido para ajustes — corrija e reenvie'}[stP]||'';
+    const cPlano=meuPl===undefined
+      ?pcard('load','📋','Seu planejamento','<div class="ax-num muted">…</div><div class="ax-det">Carregando…</div>','minhasemana','Abrir Meu Planejamento →')
+      :pcard(stP==='aprovado'?'ok':stP==='devolvido'?'crit':itensP.length&&stP==='enviado'?'ok':'aten','📋','Seu planejamento',
+        `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt)}</div>`,'minhasemana', itensP.length?'Abrir Meu Planejamento →':'Planejar agora →');
     // 📅 reuniões sem ticket
     if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
     const agp=agPendentes();
@@ -4492,12 +4915,12 @@ function renderAcoes(){
         :ordTk.length?ordTk.slice(0,6).map(tkRow).join('')+(ordTk.length>6?`<div class="muted small" style="margin-top:4px">+ ${ordTk.length-6} ticket(s) no Apontar</div>`:'')
         :'<div class="muted small">Nenhum ticket aberto atribuído a você 🎉</div>'}
       <div style="margin-top:8px"><button class="btn" data-hx-goto="apontar-meus">Abrir no Apontar →</button></div></div>`;
-    // 📊 sua semana: plano (Minha Semana) × realizado (worklogs da semana carregada)
+    // 📊 sua semana: planejamento (Meu Planejamento) × realizado (worklogs da semana)
     const wDias=[...Array(7)].map((_,i)=>somaDias(wAtual,i));
     const hpd=minhasHorasPorDia();
     const realSemSeg=wDias.reduce((s,d)=>s+(hpd[d]||0),0);
     const planSeg=Math.round(planH*3600);
-    const planPorP={}; itensP.forEach(i=>{ if(i.p) planPorP[i.p]=(planPorP[i.p]||0)+msHorasItem(i,wAtual)*3600; });
+    const planPorP={}; itensP.forEach(i=>{ if(i.projeto) planPorP[i.projeto]=(planPorP[i.projeto]||0)+(Number(i.horas)||0)*3600; });
     const realPorP={}; ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(w.a!==acc) return;
       const d=(w.d||'').slice(0,10); if(d<wDias[0]||d>wDias[6]) return;
       realPorP[w.p||'—']=(realPorP[w.p||'—']||0)+(Number(w.s)||0); });
@@ -4516,9 +4939,9 @@ function renderAcoes(){
         ${projsCmp.map(x=>`<div class="hxd-row"><span class="hxd-tit">${esc(x.p)}</span>
             <span class="muted small" style="white-space:nowrap">${fmtH(x.real)} / ${x.plan?fmtH(x.plan):'—'}</span>
             ${hxBullet(x.real,x.plan,86)}</div>`).join('')}
-        <div class="muted small" style="margin-top:6px">plano: ${esc(stTxt)}</div>`
-        :'<div class="muted small">Sem plano nem horas nesta semana ainda — comece planejando a semana.</div>'}
-      <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Minha Semana →</button></div></div>`;
+        <div class="muted small" style="margin-top:6px">planejamento: ${esc(stTxt)}</div>`
+        :'<div class="muted small">Sem planejamento nem horas nesta semana ainda — comece pelo Meu Planejamento.</div>'}
+      <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Meu Planejamento →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
       <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cRank}${cAg}${cIb}</div>
@@ -4530,7 +4953,7 @@ function renderAcoes(){
   }
   // ---- 🚀 atalhos descritivos ----
   const ATALHOS=[
-    ['minhasemana','📋 Minha Semana','planeje a semana nos seus tickets e envie para aprovação'],
+    ['minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
     ['apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
     ['agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
     ['projetos','📁 Projetos','BI por projeto direto do Jira, com drill-down'],
@@ -9991,8 +10414,12 @@ function alocPessoas(){ const out=Object.assign({}, pessoasUnidas());
 // cfg.alocTravas[accountId] = { status:'pendente'|'aprovado', por, quando, aprovadoPor?, quandoAprov? }
 function alocTravaDe(a){ return (cfg.alocTravas||{})[a]||null; }
 function alocTravada(a){ return !!alocTravaDe(a); }
-// O aprovador é o usuário identificado cujo nome/e-mail contém "Diego".
+// Gestores/aprovadores por CONFIGURAÇÃO (cfg.gestores: accountIds ou e-mails,
+// editável em ⚙️ Configurações). Sem lista configurada, cai no aprovador legado
+// (nome/e-mail contendo "diego") para não travar a operação atual.
 function souAprovador(){ const id=idApontar(); if(!id) return false;
+  const gs=(cfg.gestores||[]).map(x=>String((x&&(x.a||x.email))||x||'').trim().toLowerCase()).filter(Boolean);
+  if(gs.length) return gs.includes(String(id.accountId||'').toLowerCase())||gs.includes(String(id.email||'').toLowerCase());
   return /diego/i.test((id.nome||'')+' '+(id.email||'')); }
 function alocTravaBloqueia(a, avisa){
   if(!alocTravada(a)) return false;
@@ -10095,23 +10522,42 @@ function alocSemPlanejado(rows, w){
   if(tv&&tv.horas) return { travada:tv, horas:Object.assign({},tv.horas) };
   return { travada:null, horas:alocSemHorasVivas(rows,w) };
 }
-// Plano da equipe numa semana: {acc:{h,st,nome}} — horas efetivas (rotinas contam
-// h/dia × dias úteis) + status do fluxo de aprovação (📋 Minha Semana).
+// Planejamento da equipe por faixa de semanas (modelo NOVO, via API — uma chamada
+// para o intervalo inteiro). Cache em estado.minhasemana.equipe[w] = {acc:{h,st,nome}}.
+function mpGaranteEquipe(semanas){
+  const mp=estado.minhasemana; mp.equipe=mp.equipe||{};
+  const falta=semanas.filter(w=>mp.equipe[w]===undefined);
+  if(!falta.length||mp.equipeB) return;
+  const id=idApontar(); if(!id||!id.accountId) return;
+  mp.equipeB=1;
+  const de=falta.slice().sort()[0], ate=falta.slice().sort().pop();
+  mpApi({acao:'semana', semana:de, de, ate}).then(j=>{ mp.equipeB=0;
+    falta.forEach(w=>{ mp.equipe[w]=mp.equipe[w]||{}; });
+    if(j&&j.ok) (j.planos||[]).forEach(p=>{ const w=p.semana||de;
+      (mp.equipe[w]=mp.equipe[w]||{})[p.accountId]={ h:Number(p.total)||0, st:p.status, nome:p.nome||'' }; });
+    if(estado.vista==='alocacao') renderAlocacao();
+  }).catch(()=>{ mp.equipeB=0; falta.forEach(w=>{ mp.equipe[w]=mp.equipe[w]||{}; }); });
+}
+// Plano da equipe numa semana: modelo novo (Meu Planejamento) com fallback no
+// legado por tickets (cfg.planosSemana) para semanas antigas.
 function alocSemPlanoEquipe(w){
-  const suf='|'+semTravaKey(w); const por={};
+  const por={};
+  const suf='|'+semTravaKey(w);
   Object.entries(cfg.planosSemana||{}).forEach(([k,p])=>{
     if(!k.endsWith(suf)||!p) return;
     const acc=k.slice(0,k.length-suf.length);
-    por[acc]={ h:msTotalItens(p.itens||[],w), st:msStatus(p), nome:p.nome||'' };
+    por[acc]={ h:msTotalItens(p.itens||[],w), st:msStatus(p), nome:p.nome||'', legado:true };
   });
+  const novo=(estado.minhasemana.equipe||{})[w];
+  if(novo) Object.entries(novo).forEach(([acc,v])=>{ por[acc]=v; });   // novo modelo prevalece
   return por;
 }
-// Ícone/rótulo curto do status do plano (visão do gestor).
+// Ícone/rótulo curto do status do plano (visão do gestor) — modelo novo + legado.
 function alocSemStIcone(st){
-  return st==='enviado'?'<span class="ms-st ms-st-e" data-tip="Enviado — aguardando SUA aprovação">📤</span>'
-    :st==='aprovado'?'<span class="ms-st ms-st-a" data-tip="Plano aprovado">✅</span>'
-    :st==='recusado'?'<span class="ms-st ms-st-x" data-tip="Plano recusado — aguardando ajuste">❌</span>'
-    :'<span class="muted small" data-tip="Rascunho — a pessoa ainda não enviou">✏️</span>';
+  return st==='enviado'?'<span class="ms-st ms-st-e" data-tip="Enviado — decida em Meu Planejamento → Aprovações">📤</span>'
+    :st==='aprovado'?'<span class="ms-st ms-st-a" data-tip="Planejamento aprovado">✅</span>'
+    :(st==='recusado'||st==='devolvido')?'<span class="ms-st ms-st-x" data-tip="Devolvido para ajustes">↩</span>'
+    :'<span class="muted small" data-tip="Em elaboração — a pessoa ainda não enviou">…</span>';
 }
 // Realizado (h) por pessoa numa semana, a partir dos worklogs já carregados (Clockwork).
 function alocSemRealizado(w){
@@ -10123,6 +10569,7 @@ function alocSemRealizado(w){
 function alocViewSemanas(rows, pess){
   const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const semanas=alocSemanas(rows);
+  mpGaranteEquipe(semanas);   // planejamentos do modelo novo (uma chamada p/ a faixa)
   const wHoje=semChave(hojeSP());
   const r=estado.alocacao.real;
   if(!r.wl && !r.carregando && !r.erro && rows.length) alocCarregaReal(rows,false);
@@ -12949,7 +13396,7 @@ function abreAjuda(){
       <li><span class="lnk" data-aj-goto="acoes"><b>🏠 Início — Ações de hoje</b></span> — a página principal: SEU dia num relance (horas × meta, vencidos, plano da semana, reuniões sem ticket, Inbox), ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀.</li>
       <li><span class="lnk" data-aj-goto="visao"><b>📊 Visão Geral</b></span> — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.</li>
       <li><b>👤 Meu trabalho:</b></li>
-      <li>· <span class="lnk" data-aj-goto="minhasemana"><b>📋 Minha Semana</b></span> — distribua as horas da semana nos SEUS tickets (por projeto, com 🔁 rotinas), veja plano × realizado e envie para o gestor aprovar.</li>
+      <li>· <span class="lnk" data-aj-goto="minhasemana"><b>📋 Meu Planejamento</b></span> — planeje a semana por atividade (data + projeto + horas, sem tickets), envie ao gestor e compare planejado × realizado.</li>
       <li>· <span class="lnk" data-aj-goto="apontar"><b>⏱ Apontar</b></span> — horas, status, vencimento, comentários, transferências, reuniões em grupo e os 🕑 recentes com reaponte de 1 clique.</li>
       <li>· <span class="lnk" data-aj-goto="agenda"><b>📅 Agenda</b></span> — eventos do Outlook viram ticket de reunião (projeto à escolha ou vínculo), com convites de apontamento ao time interno e o painel 🎫 Controle de tickets (quem cria, criado ou pendente — conferido no Jira — e 📨 aviso pelo Inbox).</li>
       <li>· <span class="lnk" data-aj-goto="inbox"><b>📥 Inbox</b></span> — convites, menções, reuniões sem ticket e aprovações que dependem de você (o selo vermelho soma tudo).</li>
@@ -13087,12 +13534,19 @@ function abreAjuda(){
       Sexta-feira Santa e Corpus Christi) e <b>usuários externos a ocultar</b> (somem de todas as visões).
       Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
-    <details class="help-sec"><summary>Minha Semana (plano semanal + aprovação)</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 📋 Minha Semana</b>: o gestor fecha o MACRO na Alocação (h/semana por período);
-      você distribui as horas da SUA semana nos seus tickets, <b>por projeto</b> — atribua um ticket existente ou
-      <b>crie na hora</b>; ticket sem data assume a <b>sexta-feira</b> da semana; itens 🔁 <b>rotina diária</b> valem
-      h/dia em todos os dias úteis. Ao terminar, <b>📤 envie para aprovação</b> — o gestor aprova/recusa (com motivo)
-      na visão 📆 Semanas da Alocação, e o desvio plano × realizado aparece para os dois.
+    <details class="help-sec"><summary>Meu Planejamento (semana + aprovação + planejado × realizado)</summary><div class="help-body">
+      Em <b>👤 Meu trabalho › 📋 Meu Planejamento</b>: planeje a semana por <b>atividade</b> — cada linha tem
+      <b>data, projeto, descrição e horas</b> (categoria e observação opcionais), <b>sem escolher tickets</b>.
+      Adicione, edite, exclua, <b>duplique para outros dias</b>, crie <b>rotinas</b> para vários dias úteis,
+      reordene e <b>copie a semana anterior</b> — tudo salva sozinho no servidor (disponível em qualquer navegador).
+      O fluxo é <b>Em elaboração → Enviar para aprovação → Aprovado</b> (ou <b>Devolvido para ajustes</b>, com o
+      motivo do gestor; corrija e reenvie). Plano aprovado fica <b>bloqueado</b>; "Reabrir planejamento" cria uma
+      <b>nova versão</b> que precisa de nova aprovação (a anterior fica no histórico). Na aba
+      <b>Planejado × realizado</b>, o realizado vem do <b>Clockwork</b> e a comparação é por <b>data + projeto</b> —
+      com as situações Conforme / Abaixo / Acima do planejado, <b>Planejado não realizado</b> e
+      <b>Realizado não planejado</b>. Gestores (configurados em ⚙️ Configurações) têm as abas
+      <b>Aprovações</b> (aprovar/devolver com comentário) e <b>Relatórios</b> (filtros + CSV).
+      O plano antigo por tickets fica disponível como <b>Modelo anterior</b>, somente leitura.
     </div></details>
     <details class="help-sec"><summary>Agenda (Outlook → ticket) e o controle de tickets</summary><div class="help-body">
       Em <b>👤 Meu trabalho › 📅 Agenda</b>: seus eventos do Outlook, agrupados por dia. <b>Todo evento não
@@ -13201,7 +13655,7 @@ async function enviaFeedback(){
 const TOUR=[
   {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade, tickets, status) com o Clockwork (horas) para análise, operação do dia a dia e planejamento do time. Clicar no logo volta ao início.'},
   {sel:'#seg-vista [data-v="acoes"]',titulo:'🏠 Início',texto:'A página principal: SEU dia num relance (horas de hoje, vencidos, plano da semana, reuniões sem ticket, Inbox) + as ações do time — tudo clicável. A 📊 Visão Geral segue ao lado para a análise executiva completa.'},
-  {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Minha Semana (monte o plano da semana sobre os seus tickets), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
+  {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Meu Planejamento (planeje a semana por atividade e envie para aprovação), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
   {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa, visão 📆 Semanas com trava do planejado, linha do tempo, empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote).'},
   {sel:'#navg-an-b',titulo:'Análise',texto:'📁 Projetos (BI por projeto), Resumo (KPIs e resumo por IA), Timesheet (pessoa × dia), Ranking, Tickets, Qualidade (IA), 🕵️ Auditoria e 📈 Analytics (26 visões de governança).'},
   {sel:'#navg-ge-b',titulo:'Gestão',texto:'🛠 Gestão de Tickets (ações em massa), 🚨 Alertas (atrasados com reprogramação justificada), 🗂 Reuniões (gestão e reclassificação: mover de projeto ou vincular a tickets de AMS numa tela só), AMS (apuração por ciclo, com PDF) e 💰 Receita (bolsa de horas e projetos).'},
@@ -13220,7 +13674,7 @@ const TOUR=[
 const TOUR_TELAS=[
   {vai:'acoes',titulo:'🏠 Início — Ações de hoje',texto:'A página principal: SEU dia num relance (horas de hoje × meta, seus vencidos, plano da semana, reuniões sem ticket, Inbox), as ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀 Ir para. Tudo clicável.'},
   {vai:'visao',titulo:'📊 Visão Geral (painel executivo)',texto:'A leitura executiva num lugar só: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
-  {vai:'minhasemana',titulo:'📋 Minha Semana',texto:'A SUA semana: distribua as horas nos seus tickets por projeto (com 🔁 rotinas diárias), acompanhe plano × realizado e ENVIE o plano para o gestor aprovar. Tickets sem data assumem a sexta-feira da semana.'},
+  {vai:'minhasemana',titulo:'📋 Meu Planejamento',texto:'Planeje a semana por ATIVIDADE (data + projeto + descrição + horas — sem tickets), envie ao gestor, receba aprovação ou devolução com motivo e compare planejado × realizado por dia e por projeto (realizado do Clockwork). Gestores decidem e tiram relatórios aqui.'},
   {vai:'apontar',titulo:'⏱ Apontar',texto:'O dia a dia: aponte horas (chips 30m/1h/2h ou digitando), mova status, reagende vencimento, comente, transfira responsável e aponte reuniões para várias pessoas. Os 🕑 recentes reapontam com 1 clique.'},
   {vai:'agenda',titulo:'📅 Agenda (Outlook → ticket)',texto:'Seus eventos do Outlook viram tickets de reunião: crie no projeto certo ou vincule a um ticket existente e convide os participantes internos para apontar. O painel 🎫 Controle de tickets mostra quem deve criar, o que já foi criado (confere no Jira!) e deixa 📨 avisar o organizador pelo Inbox.'},
   {vai:'inbox',titulo:'📥 Inbox',texto:'Tudo que depende de VOCÊ num lugar só: convites de apontamento coletivo, menções sem resposta, reuniões sem ticket (avisos do time) e — para o aprovador — alocações e planos aguardando decisão. O selo vermelho no menu soma as pendências.'},
@@ -13339,7 +13793,7 @@ function vaiPara(v){
 const NAVCAT=[
   ['visao','Visão Geral','Início','inicio home executiva kpis'],
   ['acoes','🏠 Início — Ações de hoje','Início','hoje pendencias novidades inicio home principal minhas horas vencidos'],
-  ['minhasemana','📋 Minha Semana','Meu trabalho','plano semanal planejar semana meus tickets horas distribuir enviar aprovacao rotina'],
+  ['minhasemana','📋 Meu Planejamento','Meu trabalho','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado'],
   ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
   ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
   ['inbox','📥 Inbox','Meu trabalho','convites mencoes pendencias caixa entrada aprovacoes'],
@@ -13422,6 +13876,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-10','📋 <b>Minha Semana virou MEU PLANEJAMENTO — planeje por atividade, sem tickets</b>: a tela foi redesenhada do zero. Agora você planeja <b>data + projeto + atividade + horas</b> (categoria e observação opcionais) em cada dia útil — sem atribuir, criar ou escolher tickets. Dá para <b>duplicar</b> atividades para outros dias, criar <b>rotinas</b>, <b>copiar a semana anterior</b> e reordenar; tudo <b>salva no servidor</b> (aparece em qualquer navegador). O fluxo ficou explícito: <b>Em elaboração → Enviar para aprovação → Aprovado</b> (ou <b>Devolvido para ajustes</b> com o motivo do gestor — corrija e reenvie); plano aprovado fica bloqueado e <b>reabrir cria uma nova versão</b> com histórico completo. A aba <b>Planejado × realizado</b> compara com o Clockwork por <b>dia e projeto</b> (Conforme/Acima/Abaixo, <b>Planejado não realizado</b> e <b>Realizado não planejado</b>) e os <b>gestores</b> (configuráveis em ⚙️) ganham as abas <b>Aprovações</b> e <b>Relatórios</b> com exportação CSV. O plano antigo por tickets segue disponível como "Modelo anterior", somente leitura.'],
   ['2026-08-07','📁 <b>Projetos → 🛠 Gestão em 1 clique</b>: nos gráficos clicáveis da ficha do projeto (<b>⏳ idade do backlog</b>, 📅 radar de vencimentos, 👤 carga por responsável, KPIs, status/tipo/rótulo e treemap de épicos), a lista de tickets agora tem o botão <b>🛠 Abrir na Gestão</b> — os itens vão <b>já selecionados</b> para a Gestão de Tickets, prontos para as ações em massa (atribuir, status, comentar, reprogramar, mover…), como já acontecia no Analytics.'],
   ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência. E, ao <b>entrar na tela</b>, uma 🌠 <b>chuva de estrelinhas</b> dá as boas-vindas (o pódio sobe em sequência; tudo respeita a preferência de reduzir movimento).'],
   ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓. A página também foi <b>reorganizada</b>: o timesheet abre a tela, e os <b>🕑 tickets recentes</b> foram para o fim, <b>recolhidos</b> (o título mostra a contagem; 1 clique expande).'],
@@ -13509,7 +13964,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-07.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-10.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -13852,6 +14307,18 @@ function renderConfig(){
       </div>
 
       <div class="card cfgc">
+        <h2>📋 Meu Planejamento — gestores</h2>
+        <div class="cfgc-sec">
+          <h3>Quem aprova os planejamentos semanais</h3>
+          <div class="muted small">Um por linha: <strong>e-mail do Jira</strong> ou <strong>accountId</strong>.
+            Gestores veem as abas <strong>Aprovações</strong> e <strong>Relatórios</strong> no Meu Planejamento e decidem os envios do time.
+            ${(cfg.gestores||[]).length?'':'<br>⚠ Sem ninguém configurado, vale a regra antiga (usuário com "diego" no nome/e-mail).'}</div>
+          <textarea id="cf-gestores" class="pl-texto" style="min-height:90px;margin-top:8px" placeholder="ana@empresa.com.br&#10;712020:abcd-…">${esc((cfg.gestores||[]).map(g=>String((g&&(g.a||g.email))||g||'')).join('\n'))}</textarea>
+          <div style="margin-top:8px"><button class="btn primario" id="cf-gestores-salvar">Salvar gestores</button></div>
+        </div>
+      </div>
+
+      <div class="card cfgc">
         <h2>🎯 Metas, ausências &amp; feriados</h2>
         <div class="cfgc-chips">${chip(cfg.metaGlobalH+'h','meta global/dia')}${chip(nMetas,'metas individuais')}${chip(nAus,'ausências')}${chip(nFer,'feriados ajustados')}</div>
         <div class="muted small">Meta de horas por dia útil (global e por pessoa), férias/folgas e o calendário de feriados usados no Timesheet, Ranking e envios ao Teams.</div>
@@ -13942,6 +14409,12 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     try{ if(typeof alocUISave==='function') alocUISave(); }catch(err){}
     vaiPara('alocacao'); }
   else if(t.id==='cf-teste-rank'){ testaTeams(false); }
+  else if(t.id==='cf-gestores-salvar'){
+    const linhas=((document.getElementById('cf-gestores')||{}).value||'').split('\n')
+      .map(x=>x.trim()).filter(Boolean).slice(0,30);
+    cfg.gestores=linhas; salvaCfg();
+    toast(linhas.length?`✓ ${linhas.length} gestor(es) do planejamento salvos.`:'Lista de gestores esvaziada — vale a regra antiga (nome/e-mail com "diego").','ok');
+    renderConfig(); }
   else if(t.id==='cf-teste-res'){ testaTeams(true); }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
@@ -14822,19 +15295,11 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       linhas.push([`S${s.num}/${s.ano}`, w, somaDias(w,6), f1(planH), f1(peH), re==null?'':f1(re), re==null?'':f1(re-planH), pl.travada?'sim':'nao']);
     });
     baixaCSV('planejado-semanas', linhas); return; }
-  // ✔/✖ Aprovação do plano semanal da pessoa (fluxo 📋 Minha Semana → gestor)
+  // ✔/✖ Decisão de plano semanal: agora vive no Meu Planejamento → Aprovações
+  // (o modelo antigo por tickets é somente leitura; a decisão usa o modelo novo).
   if(t.hasAttribute('data-al-plaprova')||t.hasAttribute('data-al-plrecusa')){
-    const aprova=t.hasAttribute('data-al-plaprova');
-    const at=t.getAttribute(aprova?'data-al-plaprova':'data-al-plrecusa');
-    const i=at.lastIndexOf('|'); const acc=at.slice(0,i); const w=at.slice(i+1);
-    const id=idApontar()||{};
-    if(aprova){ msMudaStatus(acc,w,'aprovado',{decididoEm:new Date().toISOString(),decididoPor:id.email||id.nome||''});
-      toast('✅ Plano aprovado.','ok'); }
-    else{ const motivo=window.prompt('Motivo da recusa (a pessoa verá na Minha Semana):','');
-      if(motivo===null) return;
-      msMudaStatus(acc,w,'recusado',{decididoEm:new Date().toISOString(),decididoPor:id.email||id.nome||'',motivo:String(motivo).slice(0,200)});
-      toast('✖ Plano recusado — a pessoa foi sinalizada para ajustar.','warn'); }
-    renderAlocacao(); return; }
+    estado.minhasemana.aba='aprovacoes';
+    vaiPara('minhasemana'); return; }
   // 🔎 Plano × apontado por TICKET de uma pessoa numa semana (desvio no detalhe)
   if(t.hasAttribute('data-al-semtk')){ const at=t.getAttribute('data-al-semtk');
     const i=at.lastIndexOf('|'); const acc=at.slice(0,i); const w=at.slice(i+1); const wf=somaDias(w,6);
