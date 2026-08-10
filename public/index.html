@@ -212,9 +212,12 @@
 
   /* 📋 Meu Planejamento — identidade própria: destaque #009994, fundo #F7F3E7,
      texto #4D4D4D; sem emojis como elemento principal; teclado e mobile ok. */
-  .mp-root{--mpa:#009994;--mpbg:#F7F3E7;--mpink:#4D4D4D;--mpb:#E3DCC8;
-    background:var(--mpbg);margin:-6px;padding:6px;border-radius:12px;color:var(--mpink)}
-  [data-theme="dark"] .mp-root{--mpbg:transparent;--mpink:var(--grafite);--mpb:var(--linha);background:transparent}
+  /* Os modais do planejamento (rotina/duplicar/devolver/legado) renderizam em
+     #modal-body, fora do .mp-root — as variáveis precisam valer lá também. */
+  .mp-root,#modal-body{--mpa:#009994;--mpbg:#F7F3E7;--mpink:#4D4D4D;--mpb:#E3DCC8}
+  .mp-root{background:var(--mpbg);margin:-6px;padding:6px;border-radius:12px;color:var(--mpink)}
+  [data-theme="dark"] .mp-root,[data-theme="dark"] #modal-body{--mpbg:transparent;--mpink:var(--grafite);--mpb:var(--linha)}
+  [data-theme="dark"] .mp-root{background:transparent}
   .mp-card{color:var(--mpink)}
   .mp-card h2{color:inherit}
   .mp-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
@@ -13876,6 +13879,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-10','🎨 <b>Correção no Meu Planejamento</b>: os botões e campos dos modais (<b>Criar rotina</b>, Duplicar atividade, Devolver para ajustes e Modelo anterior) estavam sem cor — o botão de confirmar ficava invisível, na cor do fundo. Agora todos aparecem com a identidade da tela.'],
   ['2026-08-10','📋 <b>Minha Semana virou MEU PLANEJAMENTO — planeje por atividade, sem tickets</b>: a tela foi redesenhada do zero. Agora você planeja <b>data + projeto + atividade + horas</b> (categoria e observação opcionais) em cada dia útil — sem atribuir, criar ou escolher tickets. Dá para <b>duplicar</b> atividades para outros dias, criar <b>rotinas</b>, <b>copiar a semana anterior</b> e reordenar; tudo <b>salva no servidor</b> (aparece em qualquer navegador). O fluxo ficou explícito: <b>Em elaboração → Enviar para aprovação → Aprovado</b> (ou <b>Devolvido para ajustes</b> com o motivo do gestor — corrija e reenvie); plano aprovado fica bloqueado e <b>reabrir cria uma nova versão</b> com histórico completo. A aba <b>Planejado × realizado</b> compara com o Clockwork por <b>dia e projeto</b> (Conforme/Acima/Abaixo, <b>Planejado não realizado</b> e <b>Realizado não planejado</b>) e os <b>gestores</b> (configuráveis em ⚙️) ganham as abas <b>Aprovações</b> e <b>Relatórios</b> com exportação CSV. O plano antigo por tickets segue disponível como "Modelo anterior", somente leitura.'],
   ['2026-08-07','📁 <b>Projetos → 🛠 Gestão em 1 clique</b>: nos gráficos clicáveis da ficha do projeto (<b>⏳ idade do backlog</b>, 📅 radar de vencimentos, 👤 carga por responsável, KPIs, status/tipo/rótulo e treemap de épicos), a lista de tickets agora tem o botão <b>🛠 Abrir na Gestão</b> — os itens vão <b>já selecionados</b> para a Gestão de Tickets, prontos para as ações em massa (atribuir, status, comentar, reprogramar, mover…), como já acontecia no Analytics.'],
   ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência. E, ao <b>entrar na tela</b>, uma 🌠 <b>chuva de estrelinhas</b> dá as boas-vindas (o pódio sobe em sequência; tudo respeita a preferência de reduzir movimento).'],
@@ -13964,7 +13968,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-10.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-10.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
