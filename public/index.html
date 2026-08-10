@@ -2479,9 +2479,16 @@ function projTabelaItens(itens, cap) {
     <tbody>${rows || '<tr><td colspan="6" class="muted">Nenhum item.</td></tr>'}</tbody></table></div>
     ${itens.length > cap ? `<div class="muted small" style="margin-top:6px">Mostrando ${cap} de ${itens.length}.</div>` : ''}`;
 }
+// Último drill aberto (título limpo + itens) — alimenta o "🛠 Abrir na Gestão".
+let _projDrillUlt=null;
 function projDrillItens(titulo, sub, itens) {
+  _projDrillUlt = { titulo: String(titulo).replace(/<[^>]*>/g, ''), itens: itens || [] };
   abreModal(`<h2>${titulo} <span class="muted small" style="font-weight:400">${esc(sub || '')}</span></h2>
-    <div class="muted small" style="margin:2px 0 10px">${itens.length} item(ns)</div>${projTabelaItens(itens)}`);
+    <div class="muted small" style="margin:2px 0 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${itens.length} item(ns)
+      <span class="spacer"></span>
+      <button class="btn primario" data-pj-gestao ${itens.length ? '' : 'disabled'}
+        data-tip="Abre a 🛠 Gestão de Tickets só com estes itens, já selecionados — todas as ações em massa (atribuir, status, comentar, reprogramar…) e por linha">🛠 Abrir na Gestão</button></div>
+    ${projTabelaItens(itens)}`);
 }
 // Barras clicáveis próprias do módulo (mesmo visual do barlist, atributos de drill próprios).
 function projBars(pares, cor, attr, fmt) {
@@ -2899,6 +2906,20 @@ document.addEventListener('click', (e) => {
       projDrillItens(`🧩 ${esc(kTm)}`, (epTm && epTm.resumo) ? epTm.resumo.slice(0, 70) : 'composição do épico', filhosTm);
       return;
     }
+  }
+
+  // 🛠 Abrir na Gestão: leva os itens do drill atual para a Gestão de Tickets
+  // (mesmo mecanismo do Analytics: soKeys + origem + tudo pré-selecionado).
+  const pg = cl('[data-pj-gestao]');
+  if (pg && _projDrillUlt && _projDrillUlt.itens.length) {
+    const g = estado.gestao;
+    g.soKeys = _projDrillUlt.itens.map((i) => i.k);
+    g.origem = `📁 ${_projDrillUlt.titulo}`;
+    g.preset = ''; g.busca = ''; g.fProj = ''; g.fResp = ''; g.fStatus = ''; g.semTrat = false;
+    g.sel = {}; g.soKeys.forEach((k2) => { g.sel[k2] = true; });
+    fechaModal();
+    vaiPara('gestao');
+    return;
   }
 
   if (!d) return;   // os drills abaixo são da ficha
@@ -13097,7 +13118,10 @@ function abreAjuda(){
     <details class="help-sec"><summary>Projetos (BI por projeto)</summary><div class="help-body">
       Em <b>Análise › 📁 Projetos</b>: escolha o projeto e veja a ficha completa direto do Jira — épicos e saúde,
       equipe e horas, prazos, tipos e drill-down até o ticket (com as ações de detalhe/apontar). Visões por
-      categoria e consolidado do portfólio.
+      categoria e consolidado do portfólio. Em qualquer gráfico clicável da ficha (⏳ idade do backlog, 📅 radar de
+      vencimentos, 👤 carga por responsável, KPIs, status/tipo/rótulo…), a lista de itens traz o botão
+      <b>🛠 Abrir na Gestão</b> — os tickets vão <b>já selecionados</b> para a Gestão de Tickets, com todas as
+      ações em massa (atribuir, status, comentar, reprogramar, mover…).
     </div></details>
     <details class="help-sec"><summary>Analytics & Auditoria (governança)</summary><div class="help-body">
       Em <b>Análise › 📈 Analytics</b>: 26 visões de governança (prazos, pessoas, horas & estimativas, reuniões,
@@ -13206,7 +13230,7 @@ const TOUR_TELAS=[
   {vai:'planejamento',titulo:'📅 Planejamento macro',texto:'Plano de esforço por função (Implementação usa fases = épicos do Jira) com Planejado × Realizado, aderência e saldo — inclusive valor (h × custo/h).'},
   {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias. No modo 📐 Colar estrutura, cole Épico → História → Task e a hierarquia nasce pronta; depois, edite data limite e responsável EM MASSA na grade.'},
   {vai:'ondecrio',titulo:'🌳 Onde crio o ticket?',texto:'A árvore de decisão da governança (TI-04-006): responda as perguntas e crie o ticket no projeto certo — AMS (com reunião/atividade NÃO FATURÁVEL), SAP, interno, administrativa, ausências e Dexterity University. Ela também vive na página inicial.'},
-  {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket.'},
+  {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket — e todo drill (idade do backlog, vencimentos, responsável…) tem o 🛠 Abrir na Gestão, que leva os tickets já selecionados para agir em massa.'},
   {vai:'resumo',titulo:'Resumo',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
   {vai:'timesheet',titulo:'Timesheet',texto:'Matriz pessoa × dia com as lacunas até a meta; exporta em vários recortes (detalhado, por pessoa, projeto, ticket, tipo).'},
   {vai:'ranking',titulo:'Ranking',texto:'Cumprimento de apontamento por pessoa NO TEMPO: 📅 esta semana, 🗓 este mês e 📆 este ano — com 🏆 pódio dos destaques, ⭐ estrelinhas (fechou a semana na meta = ganhou uma) e 🔥 sequências. A aba Engajamento segue com o uso do Jira.'},
@@ -13398,6 +13422,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-07','📁 <b>Projetos → 🛠 Gestão em 1 clique</b>: nos gráficos clicáveis da ficha do projeto (<b>⏳ idade do backlog</b>, 📅 radar de vencimentos, 👤 carga por responsável, KPIs, status/tipo/rótulo e treemap de épicos), a lista de tickets agora tem o botão <b>🛠 Abrir na Gestão</b> — os itens vão <b>já selecionados</b> para a Gestão de Tickets, prontos para as ações em massa (atribuir, status, comentar, reprogramar, mover…), como já acontecia no Analytics.'],
   ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência. E, ao <b>entrar na tela</b>, uma 🌠 <b>chuva de estrelinhas</b> dá as boas-vindas (o pódio sobe em sequência; tudo respeita a preferência de reduzir movimento).'],
   ['2026-08-06','⏱ <b>Meu timesheet — a sua semana como nas ferramentas de timetracking</b>: o painel "Minhas horas por dia" (tela ⏱ Apontar) virou um timesheet de verdade, com <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, Σ por linha, totais por dia e fim de semana destacado) e <b>🗓 Calendário semanal</b> (blocos pela <b>hora de início</b> de cada worklog, coloridos por projeto). Tem navegação de semanas (‹ hoje ›), <b>alvo semanal</b> com barra de progresso (descontando feriados e ausências), recolher projetos e legenda com as horas por projeto — e o que você aponta agora entra na hora com o selo 🕓. A página também foi <b>reorganizada</b>: o timesheet abre a tela, e os <b>🕑 tickets recentes</b> foram para o fim, <b>recolhidos</b> (o título mostra a contagem; 1 clique expande).'],
   ['2026-08-05','👥 <b>Comentar marcando o time</b>: no <b>💬 comentar</b> da tela ⏱ Apontar (e nos tickets da Gestão), agora dá para <b>marcar pessoas (@)</b> no comentário — escolha uma a uma ou use <b>👥 marcar o time</b> para citar todo mundo de uma vez. O Jira <b>notifica cada pessoa marcada</b>, e as menções aparecem no início do comentário.'],
@@ -13484,7 +13509,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-07.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-07.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
