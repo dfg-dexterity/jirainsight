@@ -23,24 +23,29 @@
   src:url('https://cdn.jsdelivr.net/npm/@sap-theming/theming-base-content@11/content/Base/baseLib/sap_horizon/fonts/72-Bold-full.woff2') format('woff2');}
 </style>
 <style>
-  /* Tema: SAP Fiori (Horizon). Os NOMES das variáveis foram mantidos para não tocar
-     nos componentes — os valores é que mudam para a paleta Fiori:
-     --cerceta = azul primário (#0070F2) · --musgo = verde (positivo) · --amarelo =
-     laranja (crítico) · --err = vermelho (negativo) · --roxo = violeta de apoio. */
+  /* Tema: identidade Dexterity (fundo areia #F7F3E7, verde-petróleo #009994,
+     texto #4D4D4D). Os NOMES das variáveis foram mantidos para não tocar nos
+     componentes — só os valores mudam:
+     --cerceta = primária (verde-petróleo, tom acessível para texto/botão) ·
+     --marca = o verde-petróleo puro da marca (preenchimentos e gráficos, sem
+     texto por cima) · --areia = a faixa de fundo das SEÇÕES de conteúdo (o topo,
+     os filtros e o rodapé ficam fora dela) · --musgo = verde (positivo) ·
+     --amarelo = âmbar (atenção) · --err = vermelho (negativo) · --roxo = apoio.
+     Todas as cores de texto passam em AA (≥4.5:1) sobre o cartão e sobre o fundo. */
   :root{
-    --offwhite:#F5F6F7; --grafite:#1D2D3E; --cerceta:#0070F2; --roxo:#7858FF;
-    --amarelo:#E76500; --musgo:#188918; --err:#BB0000;
-    --linha:#D9D9D9; --cartao:#FFFFFF;
-    --muted:#64748B; --muted2:#94A3B8; --trilho:#EEF1F8; --hoverbg:#EAF1FB;
-    --linha2:#E2E8F0; --texto2:#475569; --cartao2:#FAFBFC;
-    --sombra:0 0 0 1px rgba(34,54,79,.02), 0 1px 4px rgba(34,54,79,.10);
+    --offwhite:#F5F6F7; --areia:#F7F3E7; --grafite:#4D4D4D; --cerceta:#00817D; --marca:#009994; --roxo:#6B4FD8;
+    --amarelo:#B45309; --musgo:#1E7A46; --err:#B3261E;
+    --linha:#E3DCC8; --cartao:#FFFFFF;
+    --muted:#6E6A60; --muted2:#7A7568; --trilho:#EFE9DA; --hoverbg:#F1EDE0;
+    --linha2:#EDE7D6; --texto2:#5C5850; --cartao2:#FBF8F0;
+    --sombra:0 0 0 1px rgba(77,77,77,.03), 0 1px 4px rgba(77,66,40,.10);
     --titulo:'72','72full',Arial,Helvetica,sans-serif;
     --corpo:'72','72full',Arial,Helvetica,sans-serif;
   }
   /* ===== Modo escuro ===== */
   [data-theme="dark"]{
     --offwhite:#0E1726; --grafite:#E6EDF6; --cartao:#16212F; --cartao2:#1B2737;
-    --linha:#2B3A4D; --linha2:#2B3A4D; --cerceta:#4D9BFF; --roxo:#9B86FF;
+    --linha:#2B3A4D; --linha2:#2B3A4D; --cerceta:#2FBDB4; --marca:#2FBDB4; --areia:transparent; --roxo:#9B86FF;
     --amarelo:#F0883E; --musgo:#2EA043; --err:#F2555A;
     --muted:#93A4BA; --muted2:#7E90A6; --trilho:#22303F; --hoverbg:#1E2C3F; --texto2:#B7C3D3;
     --sombra:0 0 0 1px rgba(0,0,0,.25), 0 2px 10px rgba(0,0,0,.5);
@@ -49,7 +54,7 @@
   [data-theme="dark"] .tsc-dot{background:#16212F}
   [data-theme="dark"] .modal,[data-theme="dark"] .tour-pop{background:var(--cartao)}
   [data-theme="dark"] .help-sec>summary{background:var(--cartao2)}
-  [data-theme="dark"] .ts-c.hoje,[data-theme="dark"] .ts-legend .sw.hoje{background:#22303F;color:#7FB4FF}
+  [data-theme="dark"] .ts-c.hoje,[data-theme="dark"] .ts-legend .sw.hoje{background:#22303F;color:#6FD8CF}
   [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:var(--cartao);color:var(--grafite)}
   [data-theme="dark"] .navg-menu button{color:var(--grafite)}
   [data-theme="dark"] .btn:hover,[data-theme="dark"] .navg-menu button:hover,[data-theme="dark"] .chip:hover{background:var(--hoverbg)}
@@ -78,7 +83,7 @@
     @page{size:A4;margin:12mm}
     :root,[data-theme="dark"]{ --offwhite:#fff; --grafite:#15212e; --cartao:#fff; --cartao2:#f7f9fc;
       --linha:#cfd8e3; --linha2:#e6ebf2; --muted:#566879; --muted2:#7e8ea0; --trilho:#eef1f8;
-      --hoverbg:#eef4fc; --texto2:#475569; --cerceta:#0064D9; --sombra:none; }
+      --hoverbg:#f1ede0; --texto2:#5C5850; --cerceta:#00726E; --marca:#00817D; --areia:#fff; --sombra:none; }
     body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     header,.filtros,#to-top,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
     .wrap{max-width:none!important;padding:0!important}
@@ -105,7 +110,7 @@
     #print-doc .doc-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
     #print-doc .doc-k{border:1px solid #d7dee7;border-radius:8px;padding:8px 10px}
     #print-doc .doc-k .dk-v{font-weight:700;font-size:15px} #print-doc .doc-k .dk-l{font-size:10px;color:#566879;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
-    #print-doc .doc-k.good .dk-v{color:#0F6B2E} #print-doc .doc-k.warn .dk-v{color:#8A5200} #print-doc .doc-k.bad .dk-v{color:#B91C1C} #print-doc .doc-k.tot{background:#f0f6ff;border-color:#9fc1ec}
+    #print-doc .doc-k.good .dk-v{color:#0F6B2E} #print-doc .doc-k.warn .dk-v{color:#8A5200} #print-doc .doc-k.bad .dk-v{color:#B91C1C} #print-doc .doc-k.tot{background:#F4F1E4;border-color:#D8CFB4}
     #print-doc .doc-val{font-size:11px;background:#f7f9fc;border:1px solid #e6ebf2;border-radius:8px;padding:8px 10px;margin:6px 0 4px}
     #print-doc .doc-t th,#print-doc .doc-t td{border:1px solid #d7dee7;padding:4px 8px;text-align:left}
     #print-doc .doc-t .num,#print-doc .doc-ct .num{text-align:right;font-variant-numeric:tabular-nums}
@@ -137,6 +142,10 @@
     font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
   a{color:var(--cerceta)}
   .wrap{max-width:min(1520px,95vw);margin:0 auto;padding:clamp(16px,2.4vw,28px) clamp(12px,2vw,24px) 64px}
+  /* Identidade Dexterity: o areia é a faixa das SEÇÕES de conteúdo — os cartões
+     ficam brancos por cima dela; topo, filtros e rodapé seguem no fundo neutro. */
+  #conteudo{background:var(--areia);border-radius:16px;padding:12px clamp(8px,1.2vw,14px)}
+  [data-theme="dark"] #conteudo{background:transparent;padding:0}
 
   header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     padding-bottom:0;border-bottom:1px solid var(--linha);margin-bottom:20px}
@@ -210,11 +219,12 @@
   tr[data-al-semtoggle]{cursor:pointer}
   .al-sem-drill>td{background:var(--hoverbg);padding:8px 12px}
 
-  /* 📋 Meu Planejamento — identidade própria: destaque #009994, fundo #F7F3E7,
-     texto #4D4D4D; sem emojis como elemento principal; teclado e mobile ok. */
-  .mp-root{--mpa:#009994;--mpbg:#F7F3E7;--mpink:#4D4D4D;--mpb:#E3DCC8;
-    background:var(--mpbg);margin:-6px;padding:6px;border-radius:12px;color:var(--mpink)}
-  [data-theme="dark"] .mp-root{--mpbg:transparent;--mpink:var(--grafite);--mpb:var(--linha);background:transparent}
+  /* 📋 Meu Planejamento — a identidade desta tela virou o tema do app inteiro,
+     então as variáveis abaixo só apontam para os tokens globais (o fundo areia
+     já vem do body). Os modais do planejamento renderizam em #modal-body, fora
+     do .mp-root — daí as duas seleções. */
+  .mp-root,#modal-body{--mpa:var(--cerceta);--mpink:var(--grafite);--mpb:var(--linha)}
+  .mp-root{color:var(--mpink)}
   .mp-card{color:var(--mpink)}
   .mp-card h2{color:inherit}
   .mp-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
@@ -290,19 +300,50 @@
   [data-theme="dark"] .mp-s-ruim{border-color:#6E3B37}
   .mp-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
   .mp-h3{font-size:13px;font-weight:700;margin:0 0 6px;color:var(--mpink)}
-  .mp-graf{display:flex;gap:10px;align-items:flex-end;margin:14px 0 4px;flex-wrap:wrap}
-  .mp-gcol{display:flex;flex-direction:column;align-items:center;gap:4px}
-  .mp-gbars{display:flex;gap:3px;align-items:flex-end;height:110px}
-  .mp-gb{width:16px;border-radius:3px 3px 0 0;min-height:2px}
-  .mp-gb.plan{background:#9A968A} .mp-gb.real{background:var(--mpa)}
-  .mp-grot{font-size:11px;color:var(--muted)}
-  .mp-gleg{display:flex;gap:14px;font-size:12px;color:var(--muted);align-self:center;margin-left:8px}
-  .mp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
-  .mp-sw.plan{background:#9A968A} .mp-sw.real{background:var(--mpa)}
   .mp-pend{border:1px solid var(--mpb);border-radius:12px;background:var(--cartao);padding:12px;margin-top:10px}
   .mp-pend-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
   .mp-pend-tot{display:flex;gap:10px;font-size:13px;align-items:baseline}
   .mp-det{margin-top:8px} .mp-det summary{cursor:pointer;font-size:12.5px;color:var(--mpa)}
+  /* Gráficos do planejamento (HTML/CSS, sem bibliotecas). A dupla planejado ×
+     realizado foi conferida no validador de paleta (separação em CVD e contraste
+     ok nos dois temas); o par do desvio é laranja/azul pelo mesmo motivo. */
+  .mp-root{--mgp:#4a3aa7;--mgr:#009994;--mga:#C2660A;--mgb:#2a78d6}
+  [data-theme="dark"] .mp-root{--mgp:#8070E8;--mgr:#0FA79D;--mga:#D07E1C;--mgb:#4F94DC}
+  .mpg{margin:14px 0 6px}
+  .mpg-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  .mpg-t{font-size:13px;font-weight:700;color:var(--mpink)}
+  .mpg-sub{font-size:11.5px;color:var(--muted)}
+  .mpg-leg{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+  .mpg-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .mpg-sw.plan{background:var(--mgp)} .mpg-sw.real{background:var(--mgr)}
+  .mpg-sw.acima{background:var(--mga)} .mpg-sw.abaixo{background:var(--mgb)}
+  .mpg-row,.mpg-dv{display:grid;grid-template-columns:minmax(96px,26%) minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0}
+  .mpg-row+.mpg-row,.mpg-dv+.mpg-dv{border-top:1px solid var(--linha2)}
+  .mpg-lbl{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mpg-tr{display:flex;flex-direction:column;gap:2px;min-width:0}   /* 2px de respiro entre as barras */
+  .mpg-b{display:block;height:9px;border-radius:0 4px 4px 0;min-width:2px}
+  .mpg-b.plan{background:var(--mgp)} .mpg-b.real{background:var(--mgr)}
+  .mpg-v{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;line-height:1.35}
+  .mpg-v b{color:var(--mpink);font-weight:700}
+  .mpg-cols{display:flex;gap:10px;align-items:flex-end;justify-content:flex-start;overflow-x:auto;padding-top:2px}
+  .mpg-c{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1 1 42px;min-width:42px;max-width:104px}
+  .mpg-cb{display:flex;gap:2px;align-items:flex-end;height:118px}
+  .mpg-cb i{display:block;width:14px;border-radius:4px 4px 0 0;min-height:2px}
+  .mpg-cb i.plan{background:var(--mgp)} .mpg-cb i.real{background:var(--mgr)}
+  .mpg-rot{font-size:11px;color:var(--muted);text-align:center;line-height:1.2}
+  .mpg-rot b{display:block;color:var(--mpink);font-weight:600}
+  .mpg-eixo{position:relative;height:14px}
+  .mpg-eixo::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--linha)}
+  .mpg-eixo i{position:absolute;top:2px;height:10px;border-radius:3px}
+  .mpg-eixo i.acima{background:var(--mga);left:50%;border-radius:0 4px 4px 0}
+  .mpg-eixo i.abaixo{background:var(--mgb);right:50%;border-radius:4px 0 0 4px}
+  .mpg-st{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;background:var(--trilho);margin:6px 0 4px}
+  .mpg-st i{display:block;min-width:2px}
+  .mpg-st i.elaboracao{background:var(--muted2)} .mpg-st i.enviado{background:var(--amarelo)}
+  .mpg-st i.aprovado{background:var(--mgr)} .mpg-st i.devolvido{background:var(--err)}
+  .mpg-stleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .mpg-stleg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  @media (max-width:700px){ .mpg-row,.mpg-dv{grid-template-columns:minmax(64px,34%) minmax(0,1fr) auto} }
   .mp-obs{text-decoration:underline dotted;cursor:help}
   @media (max-width:700px){ .mp-form-l1{grid-template-columns:1fr} .mp-2col{grid-template-columns:1fr}
     .mp-dias{grid-template-columns:1fr} .mp-head{gap:8px} .mp-cel-desc{max-width:160px} }
@@ -514,7 +555,7 @@
   .ts-c.fds{background:#F1F4FA;color:#A5B0C2}
   .ts-c.fer{background:#F5F3FF;color:#7C3AED;font-style:italic}
   .ts-c.aus{background:#F1F5F9;color:var(--muted);font-style:italic}
-  .ts-c.hoje{background:#fff;color:#0064D9;font-weight:700}
+  .ts-c.hoje{background:#fff;color:var(--cerceta);font-weight:700}
   .ts-lac.tem-lacuna{color:#B91C1C;font-weight:700}
 
   /* ---- Horas por pessoa e projeto (barras empilhadas) ---- */
@@ -634,8 +675,8 @@
 
   /* ---- Apontar (apontamento rápido) ---- */
   .ap-id{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--hoverbg);
-    border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
-  .ap-id strong{color:#0064D9}
+    border:1px solid var(--linha);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .ap-id strong{color:var(--cerceta)}
   .ap-id .btn{padding:5px 10px}
   .ap-id.sem{background:#FFF8EB;border-color:#FDE68A;color:#92400E}
   .ap-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
@@ -714,13 +755,13 @@
   @media (prefers-reduced-motion:reduce){ .skel{animation:none} }
   /* Cabeçalho de grupo por projeto (clicável: expande/recolhe) na aba Apontar */
   .ap-proj-head{display:flex;width:100%;text-align:left;align-items:center;gap:8px;margin:18px 0 2px;padding:8px 12px;
-    background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:9px;cursor:pointer;font-family:var(--corpo);
+    background:var(--hoverbg);border:1px solid var(--linha);border-radius:9px;cursor:pointer;font-family:var(--corpo);
     transition:background .12s ease}
   .ap-proj-head:hover{background:#E1ECFB}
   .ap-lista .ap-proj-head:first-child{margin-top:0}
-  .ap-proj-chev{color:#0064D9;font-size:12px;transition:transform .15s ease}
+  .ap-proj-chev{color:var(--cerceta);font-size:12px;transition:transform .15s ease}
   .ap-proj-head.recolhido .ap-proj-chev{transform:rotate(-90deg)}
-  .ap-proj-cod{font-weight:700;color:#0064D9;font-size:13px}
+  .ap-proj-cod{font-weight:700;color:var(--cerceta);font-size:13px}
   .ap-proj-nome{color:var(--grafite);font-size:13px}
   .ap-proj-cont{font-size:11px;color:var(--muted)}
   .ap-grp-bar{display:flex;align-items:center;gap:8px;margin:0 0 4px}
@@ -786,7 +827,7 @@
   .mts-tab .mts-c1{text-align:left;max-width:340px;overflow:hidden;text-overflow:ellipsis}
   .mts-tab .mts-sig{border-right:2px solid var(--linha);font-weight:600}
   .mts-tab th.fds,.mts-tab td.fds{background:var(--hoverbg)}
-  .mts-tab th.hj{color:var(--azul,#0A6ED1)}
+  .mts-tab th.hj{color:var(--azul,var(--cerceta))}
   .mts-tab th.fer{color:#B45309}
   .mts-z{color:var(--linha)}
   .mts-v.f{font-weight:600}
@@ -806,7 +847,7 @@
   .mts-col.fds{background:var(--hoverbg)}
   .mts-col-h{height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;
     font-size:11px;color:var(--muted);text-transform:capitalize;border-bottom:2px solid var(--linha)}
-  .mts-col.hj .mts-col-h{color:var(--azul,#0A6ED1);font-weight:700}
+  .mts-col.hj .mts-col-h{color:var(--azul,var(--cerceta));font-weight:700}
   .mts-col-t{font-size:12px;font-weight:700;color:var(--grafite)}
   .mts-col-t.over{color:#B45309}
   [data-theme="dark"] .mts-col-t.over{color:#F0C674}
@@ -850,7 +891,7 @@
     text-decoration:none;color:var(--grafite);transition:box-shadow .12s ease,border-color .12s ease}
   .kb-card:hover{box-shadow:var(--sombra);border-color:#A5B4FC}
   .kb-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
-  .kb-k{font-weight:700;font-size:12.5px;color:#0064D9}
+  .kb-k{font-weight:700;font-size:12.5px;color:var(--cerceta)}
   .kb-res{font-size:13px;line-height:1.4;margin-bottom:6px}
   .kb-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
   /* Central de Alertas */
@@ -864,7 +905,7 @@
   .al-tit{font-size:14px;font-weight:700;color:var(--grafite);margin:6px 0 2px}
   .al-det{font-size:12.5px;color:var(--texto2);line-height:1.45}
   .al-foot{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--texto2);margin-top:8px;border-top:1px dashed var(--linha);padding-top:7px}
-  .al-acao{color:#0064D9}
+  .al-acao{color:var(--cerceta)}
   /* Alertas — central de ação dos tickets atrasados */
   .alx-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
   .alx-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 12px}
@@ -873,7 +914,7 @@
   .alx-filtros label.alx-chkf{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--texto2);cursor:pointer}
   .alx-filtros .alx-limpar{margin-left:auto}
   .alx-bulk{position:sticky;top:6px;z-index:5;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-    background:var(--cartao);border:1px solid var(--linha);border-left:5px solid #0064D9;border-radius:11px;padding:9px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+    background:var(--cartao);border:1px solid var(--linha);border-left:5px solid var(--cerceta);border-radius:11px;padding:9px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
   .alx-bulk .n{font-weight:700;color:var(--grafite)}
   .alx-bulk .spacer{flex:1}
   .alx-list{display:flex;flex-direction:column;gap:9px}
@@ -902,7 +943,7 @@
     border:1px solid var(--linha);border-radius:11px;padding:12px 14px;background:var(--cartao2);margin:10px 0 4px}
   .alx-rsum .dt{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
   .alx-rsum .dd{font-size:13px;color:var(--grafite);font-weight:600;margin-top:1px}
-  .alx-rsum .dd.nova{color:#0064D9} .alx-rsum .dd.atraso{color:#B91C1C}
+  .alx-rsum .dd.nova{color:var(--cerceta)} .alx-rsum .dd.atraso{color:#B91C1C}
   .alx-campo{margin-top:14px}
   .alx-campo > label{display:block;font-weight:700;font-size:12.5px;color:var(--grafite);margin-bottom:5px}
   .alx-campo .req{color:#B91C1C}
@@ -1055,7 +1096,7 @@
   .aloc-leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
   .aloc-leg i.disp{background:rgba(0,112,242,.4)} .aloc-leg i.saud{background:rgba(24,137,24,.45)} .aloc-leg i.aten{background:rgba(231,101,0,.5)} .aloc-leg i.crit{background:rgba(210,10,10,.55)}
   .aloc-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
-  .aloc-badge.disp{background:rgba(0,112,242,.15);color:#0064D9} .aloc-badge.saud{background:rgba(24,137,24,.16);color:#188918} .aloc-badge.aten{background:rgba(231,101,0,.18);color:#B45309} .aloc-badge.crit{background:rgba(210,10,10,.18);color:#B91C1C}
+  .aloc-badge.disp{background:rgba(0,153,148,.15);color:var(--cerceta)} .aloc-badge.saud{background:rgba(24,137,24,.16);color:#188918} .aloc-badge.aten{background:rgba(231,101,0,.18);color:#B45309} .aloc-badge.crit{background:rgba(210,10,10,.18);color:#B91C1C}
   .aloc-ed select{width:100%;border:1px solid var(--linha);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--cartao);color:var(--grafite);min-width:120px}
   /* Alocação — Gantt / linha do tempo (arrastar para mover · puxar bordas para redimensionar) */
   .gt-toolbar{display:flex;align-items:center;gap:10px;margin:6px 0 8px;flex-wrap:wrap}
@@ -1106,7 +1147,7 @@
   .gt-name{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
   .gt-nm{font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .gt-nh{font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-  .gt-nh.disp{color:#0064D9} .gt-nh.saud{color:#188918} .gt-nh.aten{color:#B45309} .gt-nh.crit{color:#B91C1C}
+  .gt-nh.disp{color:var(--cerceta)} .gt-nh.saud{color:#188918} .gt-nh.aten{color:#B45309} .gt-nh.crit{color:#B91C1C}
   /* Alocações — board por pessoa (edição inline estilo Monday/Asana; salva sozinho) */
   .gt-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .ab-grupo{border:1px solid var(--linha);border-radius:10px;margin-bottom:12px;background:var(--cartao);overflow:hidden}
@@ -1120,12 +1161,12 @@
   .ab-acts{display:inline-flex;gap:2px;justify-content:flex-end;align-items:center}
   /* Bolinha do TIPO (definido por projeto na aba Projetos) em cada linha do board */
   .ab-tdot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 11px;margin-right:2px}
-  .ab-tdot.t-faturavel{background:#188918} .ab-tdot.t-fechado{background:#0F766E} .ab-tdot.t-ams{background:#0070F2}
+  .ab-tdot.t-faturavel{background:#188918} .ab-tdot.t-fechado{background:#0F766E} .ab-tdot.t-ams{background:var(--marca)}
   .ab-tdot.t-prevenda{background:#B45309} .ab-tdot.t-interno{background:#64748B} .ab-tdot.t-treino{background:#7858FF}
   /* Skills por pessoa: chips (a 1ª é a principal) + campo de adicionar */
   .al-skcell{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
   .al-chip{display:inline-flex;align-items:center;gap:3px;background:var(--cartao2);border:1px solid var(--linha);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
-  .al-chip.prim{background:#E7F0FB;border-color:#A6C8F0;color:#0B5FBF}
+  .al-chip.prim{background:var(--trilho);border-color:var(--linha);color:var(--cerceta)}
   [data-theme="dark"] .al-chip.prim{background:#1C3560;border-color:#2E5288;color:#8FBEF7}
   .al-chip-b{border:none;background:none;cursor:pointer;font-size:11px;padding:0 1px;color:inherit;opacity:.55;line-height:1}
   .al-chip-b:hover{opacity:1}
@@ -1135,7 +1176,7 @@
   .ap-row.gx-emb:hover{box-shadow:none}
   /* 🌳 Árvore de decisão (Criação de Ticket) */
   .arv-trilha{font-size:12px;color:var(--muted);margin:2px 0 10px;padding:6px 10px;background:var(--cartao2);border-radius:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-  .arv-bc{border:none;background:none;padding:2px 4px;font-size:12px;color:var(--azulforte,#0B5FBF);cursor:pointer;border-radius:6px;font-family:var(--corpo)}
+  .arv-bc{border:none;background:none;padding:2px 4px;font-size:12px;color:var(--azulforte,var(--cerceta));cursor:pointer;border-radius:6px;font-family:var(--corpo)}
   .arv-bc:hover{background:var(--hoverbg);text-decoration:underline}
   .arv-sep{opacity:.6}
   .arv-atual{color:var(--grafite)}
@@ -1253,7 +1294,7 @@
   .rklb-nome{font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rklb-score{font-weight:800;font-size:16px;color:var(--grafite)}
   .rklb-bar{height:8px;border-radius:999px;background:rgba(0,112,242,.14);margin:6px 0}
-  .rklb-bar i{display:block;height:100%;background:#0070F2;border-radius:999px}
+  .rklb-bar i{display:block;height:100%;background:var(--marca);border-radius:999px}
   .rklb-chips{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--texto2)}
   .rklb-chips span{border:1px solid var(--linha2);border-radius:999px;padding:2px 8px;background:var(--cartao2)}
   /* 🕵️ Auditoria de Tickets (TI-04-014) */
@@ -1261,7 +1302,7 @@
   .aud-card{border-top:3px solid var(--linha)}
   .aud-card.ok{border-top-color:#188918}
   .aud-card.bad{border-top-color:#C2410C}
-  .aud-card.act{border-top-color:#0070F2}
+  .aud-card.act{border-top-color:var(--cerceta)}
   .aud-ok li{margin:6px 0}
   .aud-prob{border:1px solid var(--linha2);border-left:4px solid #C77700;border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--cartao2)}
   .aud-prob.critico{border-left-color:#DC2626}
@@ -1302,7 +1343,7 @@
   select.ab-tipo{border-radius:999px;font-weight:700;color:#fff;border:1px solid transparent;text-align:center;padding:4px 8px;cursor:pointer}
   select.ab-tipo option{background:var(--cartao);color:var(--grafite);font-weight:600}
   select.ab-tipo.t-faturavel{background:#188918} select.ab-tipo.t-fechado{background:#0F766E}
-  select.ab-tipo.t-ams{background:#0070F2} select.ab-tipo.t-prevenda{background:#B45309}
+  select.ab-tipo.t-ams{background:var(--cerceta)} select.ab-tipo.t-prevenda{background:#B45309}
   select.ab-tipo.t-interno{background:#64748B} select.ab-tipo.t-treino{background:#7858FF}
   .ab-row.past{opacity:.55}
   .ab-row select,.ab-row input{border:1px solid transparent;border-radius:6px;padding:4px 6px;font-size:13px;background:transparent;color:var(--grafite);width:100%;min-width:0}
@@ -1351,9 +1392,9 @@
   .ax-var.up{color:#BB0000;font-weight:700} .ax-var.down{color:#107E3E;font-weight:700}
   .ax-det{font-size:12.5px;color:var(--muted);min-height:16px;max-width:calc(100% - 56px)}
   .ax-foot{margin-top:auto}
-  .ax-card .ax-foot .btn{border:0;background:transparent;color:#0A6ED1;font-weight:600;padding:6px 0}
+  .ax-card .ax-foot .btn{border:0;background:transparent;color:var(--cerceta);font-weight:600;padding:6px 0}
   .ax-card .ax-foot .btn:hover{text-decoration:underline;background:transparent}
-  .ax-card .ax-foot .btn.primario{background:transparent;color:#0A6ED1}
+  .ax-card .ax-foot .btn.primario{background:transparent;color:var(--cerceta)}
   :root[data-theme="dark"] .ax-card{box-shadow:0 0 2px rgba(0,0,0,.4),0 2px 10px rgba(0,0,0,.45)}
   :root[data-theme="dark"] .ax-card .ax-foot .btn{color:#7cb7ff}
   :root[data-theme="dark"] .ax-card.ok .ax-num{color:#4C9F70} :root[data-theme="dark"] .ax-card.crit .ax-num{color:#f87171}
@@ -1377,8 +1418,8 @@
   .arv-pl-h{display:flex;align-items:center;gap:8px;padding:5px 0 5px 16px;border-top:1px dashed var(--linha);font-size:12.5px;min-width:0;margin-top:5px}
   .hxg-donut{flex:none} .hxg-bullet,.hxg-cols{display:block;max-width:100%}
   .hxg-dtxt{font-size:12.5px;font-weight:700;fill:var(--grafite)}
-  .hxg-ctxt{font-size:9px;fill:var(--muted)} .hxg-ctxt.hoje{fill:#0A6ED1;font-weight:700}
-  .hxg-vtxt{font-size:9.5px;font-weight:700;fill:#0A6ED1}
+  .hxg-ctxt{font-size:9px;fill:var(--muted)} .hxg-ctxt.hoje{fill:var(--cerceta);font-weight:700}
+  .hxg-vtxt{font-size:9.5px;font-weight:700;fill:var(--cerceta)}
   :root[data-theme="dark"] .hxg-ctxt.hoje,:root[data-theme="dark"] .hxg-vtxt{fill:#7cb7ff}
   /* Agenda — 🎫 controle de tickets das reuniões */
   .ag-ct-head,.ag-ct-row{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1.2fr) minmax(160px,1.4fr) minmax(120px,auto);gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--linha)}
@@ -1405,7 +1446,7 @@
   .gx-trat{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;background:rgba(24,137,24,.14);color:#188918;white-space:nowrap}
   .gx-card{cursor:default}
   .gx-card.sel{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.18)}
-  .gx-card .kb-k a{color:#0064D9;text-decoration:none;font-weight:700}
+  .gx-card .kb-k a{color:var(--cerceta);text-decoration:none;font-weight:700}
   /* 📈 Analytics de governança */
   .anl-grupo{margin-top:16px}
   .anl-grupo h3{margin:0 0 8px;font-size:14.5px}
@@ -1415,7 +1456,7 @@
   .anl-card:hover{border-color:var(--cerceta);box-shadow:0 1px 6px rgba(0,0,0,.08)}
   .anl-card.alta{border-left-color:#D5393E}
   .anl-card.media{border-left-color:#E58F00}
-  .anl-card.info{border-left-color:#0070F2}
+  .anl-card.info{border-left-color:var(--cerceta)}
   .anl-card.ok{border-left-color:#188918;opacity:.75}
   .anl-card.manual{border-left-color:#64748B;opacity:.85}
   .anl-top{display:flex;align-items:center;gap:8px;width:100%}
@@ -1632,7 +1673,7 @@
     .vg-split{grid-template-columns:1fr} }
   .ap-passos{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.7}
   /* ---- Convites de reunião (apontamento em grupo) ---- */
-  .cv-card{border:1px solid #A6C8F0;background:#F3F8FF}
+  .cv-card{border:1px solid var(--linha);background:var(--cartao2)}
   .cv-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px solid var(--linha);
     border-radius:10px;padding:10px 12px;background:var(--cartao);font-size:13px}
   .cv-row.feito{border-color:#A7F3D0;background:#F0FDF4}
@@ -1661,7 +1702,7 @@
   .pl-grid input[type=date]{cursor:pointer}
   .pl-grid input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.85}
   .pl-dica{font-size:12px;color:var(--muted);margin:6px 0 12px;line-height:1.6}
-  .pl-destino{background:var(--hoverbg);border:1px solid #A6C8F0;border-radius:10px;padding:10px 14px;
+  .pl-destino{background:var(--hoverbg);border:1px solid var(--linha);border-radius:10px;padding:10px 14px;
     margin-bottom:12px;font-size:13px}
   /* ---- Histórias dentro do épico (modo épico) ---- */
   .pl-hist{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin:0 0 14px;background:var(--cartao2)}
@@ -1669,14 +1710,14 @@
   .pl-hist-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 8px;border-radius:8px;
     border:1px solid transparent;font-size:13px}
   .pl-hist-row + .pl-hist-row{border-top:1px dashed var(--linha)}
-  .pl-hist-row.sel{background:#EEF7FF;border-color:#A6C8F0}
+  .pl-hist-row.sel{background:var(--hoverbg);border-color:var(--linha)}
   .pl-hist-row a{font-weight:700;white-space:nowrap}
   .pl-hist-res{flex:1;min-width:140px}
   .pl-hist-row .btn{padding:4px 10px;font-size:12px}
   /* ---- Resumo de atividades por IA ---- */
-  .ia-card{background:linear-gradient(180deg,#F6F9FF, var(--cartao))}
+  .ia-card{background:linear-gradient(180deg,#FDFAF0, var(--cartao))}
   .ia-geral{background:#EEF4FF;border:1px solid #C7DBFF;border-radius:10px;padding:12px 14px;
-    font-size:13.5px;line-height:1.6;color:#1D2D3E;margin-bottom:14px}
+    font-size:13.5px;line-height:1.6;color:var(--grafite);margin-bottom:14px}
   .ia-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
   .ia-pessoa{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);
     border-left-width:5px;border-left-color:var(--linha2)}
@@ -1742,7 +1783,7 @@
 
   /* ---- Ajuda & feedback ---- */
   .help-sec{border:1px solid var(--linha);border-radius:8px;margin-top:10px;overflow:hidden}
-  .help-sec>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:13.5px;background:#F5F6F7;list-style:none}
+  .help-sec>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:13.5px;background:var(--cartao2);list-style:none}
   .help-sec>summary::-webkit-details-marker{display:none}
   .help-sec>summary::after{content:'▾';float:right;color:var(--muted)}
   .help-sec[open]>summary::after{content:'▴'}
@@ -2037,9 +2078,9 @@
 <script>
 // As CHAVES seguem o tema antigo (para não tocar nos usos); os valores são o tema novo:
 // cerceta = índigo (primária) · roxo = violeta · amarelo = âmbar · musgo = esmeralda.
-const cores = { cerceta:'#0070F2', roxo:'#7858FF', amarelo:'#E76500', musgo:'#188918', grafite:'#1D2D3E' };
+const cores = { cerceta:'#009994', roxo:'#4a3aa7', amarelo:'#eb6834', musgo:'#008300', grafite:'#4D4D4D' };
 // Paleta (cores qualitativas do Fiori) para diferenciar projetos nas barras empilhadas.
-const PALETA = ['#0070F2','#188918','#E76500','#7858FF','#049F9A','#D20A0A','#7CB342','#C0399F'];
+const PALETA = ['#009994','#eb6834','#4a3aa7','#2a78d6','#e34948','#eda100','#008300','#e87ba4'];
 const COR_OUTROS = 'var(--linha2)';
 const RE_ROTINA = /rotina|reuni/i;
 // Usuários técnicos / apps do Jira a esconder (não são pessoas). Para esconder
@@ -2395,7 +2436,7 @@ function preencheFiltros(){
     [...arr].filter(Boolean).sort((x,y)=>x.localeCompare(y,'pt')).map(v=>`<option>${esc(v)}</option>`).join('');
   preserva('f-categoria', opt(cats,'Todas as categorias'));
   preserva('f-projeto', `<option value="">Todos os projetos</option>` +
-    Object.keys(projs).sort().map(k=>`<option value="${esc(k)}">${esc(k)} — ${esc(projs[k].nome||'')}</option>`).join(''));
+    Object.keys(projs).sort((a,b)=>projNome(a).localeCompare(projNome(b),'pt')).map(k=>`<option value="${esc(k)}">${esc(projNome(k))}${esc(projCod(k))}</option>`).join(''));
   preserva('f-tipo', opt(tipos,'Todos os tipos'));
 
   const pessoas = Object.entries(pessoasUnidas())
@@ -2555,7 +2596,7 @@ function carregaProjFicha(key, forca) {
 function projSelectorHTML() {
   const p = estado.projetos; const cons = p.consolidado;
   const opts = ['<option value="">Todos os projetos (consolidado)</option>']
-    .concat(((cons && cons.projetos) || []).map((x) => `<option value="${escA(x.key)}"${p.sel === x.key ? ' selected' : ''}>${esc(x.key)} — ${esc(x.nome)}</option>`)).join('');
+    .concat(((cons && cons.projetos) || []).map((x) => `<option value="${escA(x.key)}"${p.sel === x.key ? ' selected' : ''}>${esc(x.nome||x.key)} (${esc(x.key)})</option>`)).join('');
   return `<label class="hdr-sel" style="min-width:min(320px,80vw)"><span>Projeto</span><select data-proj-sel>${opts}</select></label>`;
 }
 function projToolbar() {
@@ -3031,20 +3072,20 @@ document.addEventListener('click', (e) => {
   if (ag) {
     const b = ag.getAttribute('data-pdrill-aging'); const hoje = projHoje();
     const rot = (PROJ_AGING.find(([k2]) => k2 === b) || [])[1] || b;
-    projDrillItens(`⏳ ${esc(rot)} — ${esc(p.sel)}`, 'itens abertos por idade de criação', (d.itens || []).filter((i) => projAgingKey(i, hoje) === b));
+    projDrillItens(`⏳ ${esc(rot)} — ${esc(projNome(p.sel))}`, 'itens abertos por idade de criação', (d.itens || []).filter((i) => projAgingKey(i, hoje) === b));
     return;
   }
   const vc = cl('[data-pdrill-venc]');
   if (vc) {
     const b = vc.getAttribute('data-pdrill-venc'); const hoje = projHoje();
     const rot = (PROJ_VENC.find(([k2]) => k2 === b) || [])[1] || b;
-    projDrillItens(`📅 ${esc(rot)} — ${esc(p.sel)}`, 'itens abertos por vencimento', (d.itens || []).filter((i) => projVencKey(i, hoje) === b));
+    projDrillItens(`📅 ${esc(rot)} — ${esc(projNome(p.sel))}`, 'itens abertos por vencimento', (d.itens || []).filter((i) => projVencKey(i, hoje) === b));
     return;
   }
   const rp = cl('[data-pdrill-resp]');
   if (rp) {
     const nome = rp.getAttribute('data-pdrill-resp');
-    projDrillItens(`👤 ${esc(nome)} — ${esc(p.sel)}`, 'itens abertos da pessoa', (d.itens || []).filter((i) => projAberto(i) && (i.r || 'Não atribuído') === nome));
+    projDrillItens(`👤 ${esc(nome)} — ${esc(projNome(p.sel))}`, 'itens abertos da pessoa', (d.itens || []).filter((i) => projAberto(i) && (i.r || 'Não atribuído') === nome));
     return;
   }
 
@@ -3054,11 +3095,11 @@ document.addEventListener('click', (e) => {
     const kpi = kf.getAttribute('data-proj-kpi');
     if (kpi === 'epicos') {
       const rows = (d.epicos || []).map((ep) => `<tr class="proj-linha" data-pdrill-epico="${escA(ep.k)}"><td><a href="${projJira(ep.k)}" target="_blank" rel="noopener">${esc(ep.k)}</a></td><td>${esc((ep.resumo || '').slice(0, 60))}</td><td>${esc(ep.status)}</td><td class="num">${nBR(ep.nConcluidos)}/${nBR(ep.nFilhos)}</td><td class="num">${nBR(ep.pct)}%</td></tr>`).join('');
-      abreModal(`<h2>Épicos de ${esc(p.sel)}</h2><div class="muted small" style="margin:2px 0 10px">clique num épico para ver o que o compõe</div>
+      abreModal(`<h2>Épicos de ${esc(projNome(p.sel))}</h2><div class="muted small" style="margin:2px 0 10px">clique num épico para ver o que o compõe</div>
         <div class="scroll-x"><table><thead><tr><th>Épico</th><th>Resumo</th><th>Status</th><th class="num">Concl./Filhos</th><th class="num">%</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">Sem épicos.</td></tr>'}</tbody></table></div>`);
     } else {
       const rot = { total: 'Todos os itens', concluidos: 'Concluídos', cancelados: 'Cancelados', andamento: 'Em andamento', backlog: 'Backlog', vencidos: 'Vencidos' }[kpi] || kpi;
-      projDrillItens(`${esc(rot)} — ${esc(p.sel)}`, '', projFiltraKpi(d.itens || [], kpi));
+      projDrillItens(`${esc(rot)} — ${esc(projNome(p.sel))}`, '', projFiltraKpi(d.itens || [], kpi));
     }
     return;
   }
@@ -3073,7 +3114,7 @@ document.addEventListener('click', (e) => {
       : tipo === 't' ? i.t === val
       : tipo === 'pr' ? i.pr === val
       : (val === 'Sem categoria' ? !i.l : (i.l || '').split(',').includes(val)));
-    projDrillItens(`${esc(val)} — ${esc(p.sel)}`, { st: 'por status', t: 'por tipo', pr: 'por prioridade', l: 'por rótulo' }[tipo] || '', its);
+    projDrillItens(`${esc(val)} — ${esc(projNome(p.sel))}`, { st: 'por status', t: 'por tipo', pr: 'por prioridade', l: 'por rótulo' }[tipo] || '', its);
     return;
   }
   // Ficha: épico → composição (filhos em 2 níveis).
@@ -3091,7 +3132,7 @@ document.addEventListener('click', (e) => {
     const mes = dm.getAttribute('data-pdrill-mes');
     const criados = (d.itens || []).filter((i) => (i.c || '').startsWith(mes));
     const concl = (d.itens || []).filter((i) => (i.rd || '').startsWith(mes));
-    abreModal(`<h2>${esc(mes)} — ${esc(p.sel)}</h2>
+    abreModal(`<h2>${esc(mes)} — ${esc(projNome(p.sel))}</h2>
       <div class="sec">Criados no mês (${criados.length})</div>${projTabelaItens(criados, 150)}
       <div class="sec" style="margin-top:14px">Concluídos no mês (${concl.length})</div>${projTabelaItens(concl, 150)}`);
     return;
@@ -3209,7 +3250,7 @@ function agAtualizaModal(){
     </div>
     ${modo==='criar'?`
       <div class="alx-campo"><label>Projeto</label>
-        <select id="agm-proj">${projetos.map(p=>`<option value="${escA(p.key)}" ${projSel===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')||'<option value="">carregando projetos…</option>'}</select>
+        <select id="agm-proj">${projetos.map(p=>`<option value="${escA(p.key)}" ${projSel===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')||'<option value="">carregando projetos…</option>'}</select>
         <span class="muted small" style="margin-left:8px">${tipo?`tipo: <b>${esc(tipo.nome)}</b>`:'sem tipo disponível'}</span></div>`
     :`<div class="alx-campo"><label>Chave do ticket</label><input type="text" id="agm-chave" value="${escA(chave)}" placeholder="ex.: IMI-41" maxlength="20" style="width:140px;text-transform:uppercase">
         <span class="muted small" style="margin-left:8px">os detalhes do evento entram como comentário</span></div>`}`}
@@ -3491,7 +3532,7 @@ function mpItemRow(i, idx, editavel){
   return `<div class="mp-atv" data-mp-idx="${idx}">
     <div class="mp-atv-c">
       <div class="mp-atv-desc">${esc(i.descricao)}</div>
-      <div class="mp-atv-meta">${esc(i.projeto)}${i.categoria?` · ${esc(i.categoria)}`:''}${i.observacao?` · <span class="mp-obs" title="${escA(i.observacao)}">obs.</span>`:''}</div>
+      <div class="mp-atv-meta"><span data-tip="${escA(i.projeto)}">${esc(projNome(i.projeto))}</span>${i.categoria?` · ${esc(i.categoria)}`:''}${i.observacao?` · <span class="mp-obs" title="${escA(i.observacao)}">obs.</span>`:''}</div>
     </div>
     <div class="mp-atv-h">${mpH(i.horas)}</div>
     ${editavel?`<div class="mp-atv-acoes">
@@ -3511,7 +3552,7 @@ function mpFormAtividade(dia, item, idx){
     <div class="mp-form-l1">
       <label>Projeto<select name="projeto" required>
         <option value="">— escolha —</option>
-        ${projs.map(p=>`<option value="${escA(p.key)}" ${it.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('')}
+        ${projs.map(p=>`<option value="${escA(p.key)}" ${it.projeto===p.key?'selected':''}>${esc(p.nome)} (${esc(p.key)})</option>`).join('')}
       </select></label>
       <label>Horas<input name="horas" type="number" min="0.25" step="0.25" required value="${escA(it.horas===''?'':String(it.horas))}"></label>
       <label>Categoria (opcional)<input name="categoria" list="mp-cats" maxlength="60" value="${escA(it.categoria)}"><datalist id="mp-cats">${cats.map(c=>`<option value="${escA(c)}">`).join('')}</datalist></label>
@@ -3549,26 +3590,11 @@ function mpDiaCard(w, acc, i, editavel, real){
         <span title="Diferença (realizado − planejado)" class="${dif==null?'':dif>0.01?'mp-mais':dif<-0.01?'mp-menos':''}">${dif==null?'—':(dif>0?'+':'')+mpH(dif).replace('h','')+'h'}</span>
       </div>
     </header>
-    ${grupos.map(g=>`<div class="mp-grupo"><div class="mp-grupo-t">${esc(g.p)}</div>
+    ${grupos.map(g=>`<div class="mp-grupo"><div class="mp-grupo-t" data-tip="${escA(g.p)}">${esc(projNome(g.p))}</div>
       ${g.rows.map(x=>mpItemRow(x.it,x.ix,editavel)).join('')}</div>`).join('')||'<div class="mp-vazio">Sem atividades planejadas.</div>'}
     ${editavel?(aberto&&mp.form.editIdx==null?mpFormAtividade(d):`<button class="mp-btn mp-add" data-mp-add="${escA(d)}">Adicionar atividade</button>`):''}
     ${editavel&&aberto&&mp.form.editIdx!=null?mpFormAtividade(d, mpItens()[mp.form.editIdx], mp.form.editIdx):''}
   </section>`;
-}
-function mpGraficoDias(cmp, w){
-  const dias=[...Array(7)].map((_,i)=>mtsSoma(w,i)).filter((d,i)=>i<5||cmp.porDia[d]);
-  const max=Math.max(1,...dias.map(d=>Math.max((cmp.porDia[d]||{}).plan||0,(cmp.porDia[d]||{}).real||0)));
-  return `<div class="mp-graf" role="img" aria-label="Planejado e realizado por dia">
-    ${dias.map((d,i)=>{ const v=cmp.porDia[d]||{plan:0,real:0};
-      return `<div class="mp-gcol" data-tip="${escA(`${MP_DIAS[i]||''} ${fmtBR(d).slice(0,5)} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}`)}">
-        <div class="mp-gbars">
-          <div class="mp-gb plan" style="height:${Math.round(v.plan/max*100)}%"></div>
-          <div class="mp-gb real" style="height:${Math.round(v.real/max*100)}%"></div>
-        </div>
-        <div class="mp-grot">${esc((MP_DIAS[i]||'').slice(0,3))}</div>
-      </div>`; }).join('')}
-    <div class="mp-gleg"><span><i class="mp-sw plan"></i>Planejado</span><span><i class="mp-sw real"></i>Realizado</span></div>
-  </div>`;
 }
 function mpAbasHtml(mp){
   const abas=[['plano','Planejamento'],['comparativo','Planejado × realizado']];
@@ -3659,7 +3685,7 @@ function renderMinhaSemana(){
     const tabela=cmp.linhas.length?`<div class="ts-wrap"><table class="mp-tab-cmp">
       <thead><tr><th>Data</th><th>Projeto</th><th>Descrição planejada</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Diferença</th><th class="num">Desvio</th><th>Situação</th></tr></thead>
       <tbody>${cmp.linhas.map(l=>`<tr>
-        <td>${esc(fmtBR(l.data))}</td><td>${esc(l.projeto)}</td>
+        <td>${esc(fmtBR(l.data))}</td><td data-tip="${escA(l.projeto)}">${esc(projNome(l.projeto))}</td>
         <td class="mp-cel-desc">${esc(l.desc||'—')}</td>
         <td class="num">${l.plan?mpH(l.plan):'—'}</td>
         <td class="num">${l.real==null?'—':mpH(l.real)}</td>
@@ -3680,12 +3706,16 @@ function renderMinhaSemana(){
         <div class="mp-kpi"><div class="v">${cmp.rnp==null?'—':mpH(cmp.rnp)}</div><div class="l">Realizado não planejado</div></div>
         <div class="mp-kpi"><div class="v">${cmp.pnr==null?'—':mpH(cmp.pnr)}</div><div class="l">Planejado não realizado</div></div>
       </div>
-      ${mpGraficoDias(cmp,w)}
+      ${mpgColunas('Por dia da semana','planejado × realizado em cada dia',
+        [0,1,2,3,4,5,6].map(i=>mtsSoma(w,i)).filter((d,i)=>i<5||cmp.porDia[d])
+          .map((d,i)=>[`${MP_DIAS[i]||''} ${fmtBR(d).slice(0,5)}`, cmp.porDia[d]||{plan:0,real:0}, MP_DIAS[i]?MP_DIAS[i].slice(0,3):fmtBR(d).slice(0,5)]))}
+      ${mpgBarras('Por projeto','horas planejadas e realizadas na semana',
+        Object.entries(cmp.porProj).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([pj,v])=>[projNome(pj),v,pj]))}
       <div class="mp-2col">
         <div><h3 class="mp-h3">Resultado por projeto</h3>
           <table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Plan.</th><th class="num">Real.</th><th class="num">Dif.</th></tr></thead>
           <tbody>${Object.entries(cmp.porProj).sort((a,b)=>b[1].plan-a[1].plan).map(([pj,v])=>
-            `<tr><td>${esc(pj)}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td></tr>`).join('')||'<tr><td colspan="4" class="mp-dim">—</td></tr>'}</tbody></table></div>
+            `<tr><td data-tip="${escA(pj)}">${esc(projNome(pj))}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td></tr>`).join('')||'<tr><td colspan="4" class="mp-dim">—</td></tr>'}</tbody></table></div>
         <div><h3 class="mp-h3">Resultado por dia</h3>
           <table class="mp-tab-mini"><thead><tr><th>Dia</th><th class="num">Plan.</th><th class="num">Real.</th><th class="num">Dif.</th></tr></thead>
           <tbody>${Object.entries(cmp.porDia).sort().map(([d,v])=>
@@ -3723,7 +3753,7 @@ function mpRenderAprovacoes(){
     const s=isoSemana(pl.semana);
     const porDia={}; const porProj={}; const obs=[];
     (pl.itens||[]).forEach(i=>{ porDia[i.data]=(porDia[i.data]||0)+i.horas; porProj[i.projeto]=(porProj[i.projeto]||0)+i.horas;
-      if(i.observacao) obs.push(`${fmtBR(i.data).slice(0,5)} ${i.projeto}: ${i.observacao}`); });
+      if(i.observacao) obs.push(`${fmtBR(i.data).slice(0,5)} ${projNome(i.projeto)}: ${i.observacao}`); });
     return `<div class="mp-pend" data-mp-pendid="${escA(pl.id)}">
       <div class="mp-pend-h">
         <div><strong>${esc(pl.nome||pl.email||pl.accountId)}</strong>
@@ -3736,12 +3766,12 @@ function mpRenderAprovacoes(){
       </div>
       <div class="mp-2col">
         <div><span class="mp-h3">Por dia</span> ${Object.entries(porDia).sort().map(([d,h])=>`<span class="mp-tag">${esc(fmtBR(d).slice(0,5))} ${mpH(h)}</span>`).join(' ')||'—'}</div>
-        <div><span class="mp-h3">Por projeto</span> ${Object.entries(porProj).sort((a,b)=>b[1]-a[1]).map(([pj,h])=>`<span class="mp-tag">${esc(pj)} ${mpH(h)}</span>`).join(' ')||'—'}</div>
+        <div><span class="mp-h3">Por projeto</span> ${Object.entries(porProj).sort((a,b)=>b[1]-a[1]).map(([pj,h])=>`<span class="mp-tag" data-tip="${escA(pj)}">${esc(projNome(pj))} ${mpH(h)}</span>`).join(' ')||'—'}</div>
       </div>
       ${obs.length?`<div class="mp-dim">Observações: ${esc(obs.join(' · '))}</div>`:''}
       <details class="mp-det"><summary>Ver as ${(pl.itens||[]).length} atividades</summary>
         <table class="mp-tab-mini"><thead><tr><th>Data</th><th>Projeto</th><th>Descrição</th><th class="num">Horas</th><th>Categoria</th></tr></thead>
-        <tbody>${(pl.itens||[]).map(i=>`<tr><td>${esc(fmtBR(i.data).slice(0,5))}</td><td>${esc(i.projeto)}</td><td class="mp-cel-desc">${esc(i.descricao)}</td><td class="num">${mpH(i.horas)}</td><td>${esc(i.categoria||'—')}</td></tr>`).join('')}</tbody></table>
+        <tbody>${(pl.itens||[]).map(i=>`<tr><td>${esc(fmtBR(i.data).slice(0,5))}</td><td data-tip="${escA(i.projeto)}">${esc(projNome(i.projeto))}</td><td class="mp-cel-desc">${esc(i.descricao)}</td><td class="num">${mpH(i.horas)}</td><td>${esc(i.categoria||'—')}</td></tr>`).join('')}</tbody></table>
       </details>
       <div class="mp-form-acoes">
         <button class="mp-btn mp-btn-p" data-mp-aprovar="${escA(pl.id)}" data-mp-base="${escA(pl.atualizadoEm||'')}">Aprovar</button>
@@ -3751,6 +3781,81 @@ function mpRenderAprovacoes(){
   }).join('');
   return `<div class="card full mp-card"><h2>Aprovações pendentes <span>${lista.length} planejamento(s) aguardando decisão</span></h2>
     <div class="mp-ferr"><button class="mp-btn" data-mp-repend="1">Atualizar</button></div>${cards}</div>`;
+}
+
+// ---------------- gráficos do planejamento (HTML/CSS, sem bibliotecas) -------
+// A forma segue o trabalho que o leitor precisa fazer: evolução no tempo →
+// colunas agrupadas; comparar itens nomeados (projeto/pessoa) → barras
+// horizontais, onde o NOME cabe inteiro; acima/abaixo do plano → barras
+// divergentes a partir do zero; composição do status → barra empilhada.
+// Toda série tem legenda e a tabela equivalente fica logo abaixo — nenhuma
+// informação depende só da cor.
+const MPG_TOPO=9;   // itens no gráfico; o excedente vira "Outros (n)" — nunca corta calado
+function mpgTopo(ent){
+  if(ent.length<=MPG_TOPO) return ent;
+  const cauda=ent.slice(MPG_TOPO-1);
+  const som=cauda.reduce((o,x)=>({plan:o.plan+x[1].plan,real:o.real+x[1].real}),{plan:0,real:0});
+  return ent.slice(0,MPG_TOPO-1).concat([[`Outros (${cauda.length})`,som,'']]);
+}
+const mpgLeg=()=>'<div class="mpg-leg"><span><i class="mpg-sw plan"></i>Planejado</span><span><i class="mpg-sw real"></i>Realizado</span></div>';
+const mpgCab=(t,sub,leg)=>`<div class="mpg-h"><div><div class="mpg-t">${esc(t)}</div>${sub?`<div class="mpg-sub">${esc(sub)}</div>`:''}</div>${leg||''}</div>`;
+const mpgVazio=(t,sub)=>`<div class="mpg">${mpgCab(t,sub,mpgLeg())}<div class="mp-vazio">Sem dados no filtro.</div></div>`;
+// entradas: [rótulo, {plan,real}, códigoOpcional][] — já ordenadas
+function mpgBarras(titulo, sub, entradas){
+  if(!entradas.length) return mpgVazio(titulo,sub);
+  const itens=mpgTopo(entradas);
+  const max=Math.max(0.01,...itens.map(x=>Math.max(x[1].plan,x[1].real)));
+  const linhas=itens.map(([rot,v,cod])=>{
+    const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
+    const tip=`${rot}${cod?` (${cod})`:''} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}`;
+    return `<div class="mpg-row" data-tip="${escA(tip)}">
+      <div class="mpg-lbl">${esc(rot)}</div>
+      <div class="mpg-tr"><i class="mpg-b plan" style="width:${(v.plan/max*100).toFixed(1)}%"></i>
+        <i class="mpg-b real" style="width:${(v.real/max*100).toFixed(1)}%"></i></div>
+      <div class="mpg-v"><b>${mpH(v.real)}</b> de ${mpH(v.plan)}${ex==null?'':`<br>${ex}%`}</div>
+    </div>`;
+  }).join('');
+  return `<div class="mpg" role="img" aria-label="${escA(titulo)} — planejado e realizado, em horas">
+    ${mpgCab(titulo,sub,mpgLeg())}${linhas}</div>`;
+}
+// entradas: [rótulo, {plan,real}, rótuloCurto][] em ordem cronológica
+function mpgColunas(titulo, sub, entradas){
+  if(!entradas.length) return mpgVazio(titulo,sub);
+  const max=Math.max(0.01,...entradas.map(x=>Math.max(x[1].plan,x[1].real)));
+  const cols=entradas.map(([rot,v,curto])=>{
+    const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
+    const tip=`${rot} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}`;
+    return `<div class="mpg-c" data-tip="${escA(tip)}">
+      <div class="mpg-cb"><i class="plan" style="height:${(v.plan/max*100).toFixed(1)}%"></i>
+        <i class="real" style="height:${(v.real/max*100).toFixed(1)}%"></i></div>
+      <div class="mpg-rot"><b>${esc(curto||rot)}</b>${mpH(v.real)}</div></div>`;
+  }).join('');
+  return `<div class="mpg" role="img" aria-label="${escA(titulo)} — planejado e realizado, em horas">
+    ${mpgCab(titulo,sub,mpgLeg())}<div class="mpg-cols">${cols}</div></div>`;
+}
+// Desvio (realizado − planejado): à direita do zero está acima do plano; à esquerda, abaixo.
+function mpgDivergente(titulo, sub, entradas){
+  const dif=entradas.map(([rot,v,cod])=>[rot,(v.real-v.plan),cod])
+    .filter(x=>Math.abs(x[1])>0.009).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,MPG_TOPO);
+  if(!dif.length) return `<div class="mpg">${mpgCab(titulo,sub,'')}<div class="mp-vazio">Tudo dentro do planejado.</div></div>`;
+  const max=Math.max(...dif.map(x=>Math.abs(x[1])));
+  const leg='<div class="mpg-leg"><span><i class="mpg-sw abaixo"></i>Abaixo do planejado</span><span><i class="mpg-sw acima"></i>Acima do planejado</span></div>';
+  const linhas=dif.map(([rot,d,cod])=>`<div class="mpg-dv" data-tip="${escA(`${rot}${cod?` (${cod})`:''} · ${d>0?'+':''}${mpH(d)} em relação ao planejado`)}">
+      <div class="mpg-lbl">${esc(rot)}</div>
+      <div class="mpg-eixo"><i class="${d>0?'acima':'abaixo'}" style="width:${(Math.abs(d)/max*50).toFixed(1)}%"></i></div>
+      <div class="mpg-v"><b>${d>0?'+':''}${mpH(d)}</b></div></div>`).join('');
+  return `<div class="mpg" role="img" aria-label="${escA(titulo)}">${mpgCab(titulo,sub,leg)}${linhas}</div>`;
+}
+function mpgStatus(stCount){
+  const tot=Object.values(stCount).reduce((s,v)=>s+v,0);
+  if(!tot) return '';
+  const ordem=['elaboracao','enviado','aprovado','devolvido'];
+  const barras=ordem.filter(k=>stCount[k]>0).map(k=>
+    `<i class="${k}" style="width:${(stCount[k]/tot*100).toFixed(1)}%" data-tip="${escA(`${MP_STATUS[k]}: ${stCount[k]} de ${tot}`)}"></i>`).join('');
+  const leg=ordem.map(k=>`<span><i class="mpg-st-sw ${k}" style="background:${{elaboracao:'var(--muted2)',enviado:'var(--amarelo)',aprovado:'var(--mgr)',devolvido:'var(--err)'}[k]}"></i>${MP_STATUS[k]}: <strong>${stCount[k]}</strong></span>`).join('');
+  return `<div class="mpg" role="img" aria-label="Situação dos planejamentos no período">
+    ${mpgCab('Situação dos planejamentos',`${tot} planejamento(s) no período`,'')}
+    <div class="mpg-st">${barras}</div><div class="mpg-stleg">${leg}</div></div>`;
 }
 
 // ---------------- gestor: relatórios ----------------
@@ -3804,7 +3909,7 @@ function mpRenderRelatorios(){
     <label>De (semana)<input type="date" value="${escA(f.de)}" data-mp-rf="de"></label>
     <label>Até (semana)<input type="date" value="${escA(f.ate)}" data-mp-rf="ate"></label>
     <label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
-    <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option ${f.projeto===pj?'selected':''}>${esc(pj)}</option>`).join('')}</select></label>
+    <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option value="${escA(pj)}" ${f.projeto===pj?'selected':''}>${esc(projNome(pj))}</option>`).join('')}</select></label>
     <label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>
     <button class="mp-btn" data-mp-relatualiza="1">Atualizar</button>
     <button class="mp-btn" data-mp-relcsv="1" ${dados?'':'disabled'}>Exportar CSV</button>
@@ -3831,7 +3936,8 @@ function mpRenderRelatorios(){
     <table class="mp-tab-mini"><thead><tr><th>${rot}</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
     <tbody>${Object.entries(mapa).sort((a,b)=>b[1].plan-a[1].plan).map(([k,v])=>{
       const ex=v.plan>0?Math.round(v.real/v.plan*100)+'%':'—';
-      return `<tr><td>${esc(rot==='Usuário'?nome(k):(rot==='Dia'||rot==='Semana'?fmtBR(k):k))}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mp-dim">Sem dados no filtro.</td></tr>'}</tbody></table></div>`;
+      const rk=(rot==='Usuário'?nome(k):(rot==='Dia'||rot==='Semana'?fmtBR(k):projNome(k)));
+      return `<tr><td ${rot==='Projeto'?`data-tip="${escA(k)}"`:''}>${esc(rk)}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mp-dim">Sem dados no filtro.</td></tr>'}</tbody></table></div>`;
   return `<div class="card full mp-card"><h2>Relatórios de planejamento <span>planejado × realizado do time (Clockwork)</span></h2>
     ${filtros}
     <div class="mp-kpis">
@@ -3842,6 +3948,17 @@ function mpRenderRelatorios(){
       <div class="mp-kpi"><div class="v">${mpH(pnr)}</div><div class="l">Planejado não realizado</div></div>
       <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
     </div>
+    ${mpgStatus(stCount)}
+    ${mpgColunas('Evolução por semana','planejado × realizado em cada semana do período',
+      Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, fmtBR(w2).slice(0,5)]))}
+    <div class="mp-2col">
+      ${mpgBarras('Por projeto','horas planejadas e realizadas, do maior para o menor',
+        Object.entries(porP).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([pj,v])=>[projNome(pj),v,pj]))}
+      ${mpgBarras('Por pessoa','horas planejadas e realizadas, do maior para o menor',
+        Object.entries(porU).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([a2,v])=>[nome(a2),v,'']))}
+    </div>
+    ${mpgDivergente('Maiores desvios por projeto','diferença entre o realizado e o planejado, em horas',
+      Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj]))}
     <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
     <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
   </div>`;
@@ -3852,11 +3969,11 @@ function mpExportaCSV(){
   const f=estado.minhasemana.relF;
   const nome=(a)=>{ const p=(dados.planos||[]).find(x=>x.accountId===a); return (p&&(p.nome||p.email))||a; };
   const chaves=[...new Set([...Object.keys(dados.plan),...Object.keys(dados.real).filter(k=>f.usuario||dados.accsComPlano.has(k.split('|')[0]))])].sort();
-  const linhas=[['Usuário','Data','Projeto','Horas planejadas','Horas realizadas','Diferença','Execução %','Situação']];
+  const linhas=[['Usuário','Data','Projeto','Código do projeto','Horas planejadas','Horas realizadas','Diferença','Execução %','Situação']];
   chaves.forEach(k=>{ const [a,d,pj]=k.split('|');
     const pl=dados.plan[k]||0; const re=dados.real[k]||0; const dif=re-pl;
     const sit=pl>0?(re>0?(Math.abs((re-pl)/pl*100)<=10?'Conforme planejado':(re<pl?'Abaixo do planejado':'Acima do planejado')):'Planejado não realizado'):'Realizado não planejado';
-    linhas.push([nome(a), fmtBR(d), pj, dec(pl*3600), dec(re*3600), dec(dif*3600), pl>0?String(Math.round(re/pl*100)).replace('.',','):'', sit]); });
+    linhas.push([nome(a), fmtBR(d), projNome(pj), pj, dec(pl*3600), dec(re*3600), dec(dif*3600), pl>0?String(Math.round(re/pl*100)).replace('.',','):'', sit]); });
   const csv='﻿'+linhas.map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -3867,7 +3984,7 @@ function mpExportaCSV(){
 function mpAbreDuplicar(idx){
   const it=mpItens()[idx]; if(!it) return; const w=mpSem();
   abreModal(`<h2>Duplicar atividade</h2>
-    <div class="muted small">“${esc(it.descricao)}” (${esc(it.projeto)}, ${mpH(it.horas)}) — escolha os dias que vão receber uma cópia.</div>
+    <div class="muted small">“${esc(it.descricao)}” (${esc(projNome(it.projeto))}, ${mpH(it.horas)}) — escolha os dias que vão receber uma cópia.</div>
     <div class="mp-checks">${[0,1,2,3,4,5,6].map(i=>{ const d=mtsSoma(w,i);
       return `<label class="check"><input type="checkbox" data-mp-dupdia="${escA(d)}" ${d===it.data?'disabled':''}> ${MP_DIAS[i]} ${esc(fmtBR(d).slice(0,5))}${d===it.data?' (origem)':''}</label>`; }).join('')}</div>
     <div class="mp-form-acoes"><button class="mp-btn mp-btn-p" data-mp-dupconf="${idx}">Duplicar</button>
@@ -3879,7 +3996,7 @@ function mpAbreRotina(){
     <div class="muted small">A mesma atividade entra em vários dias úteis da semana (ex.: reunião diária).</div>
     <div class="mp-form" style="margin-top:8px">
       <div class="mp-form-l1">
-        <label>Projeto<select id="mp-rot-proj"><option value="">— escolha —</option>${projs.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome)}</option>`).join('')}</select></label>
+        <label>Projeto<select id="mp-rot-proj"><option value="">— escolha —</option>${projs.map(p=>`<option value="${escA(p.key)}">${esc(p.nome)} (${esc(p.key)})</option>`).join('')}</select></label>
         <label>Horas por dia<input id="mp-rot-h" type="number" min="0.25" step="0.25" value="1"></label>
         <label>Categoria (opcional)<input id="mp-rot-cat" maxlength="60"></label>
       </div>
@@ -4175,6 +4292,7 @@ const ROADMAP=[
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
+  { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
 ];
 function renderRoadmap(){
   const cont=document.getElementById('conteudo');
@@ -4244,7 +4362,7 @@ function cardPessoaProjeto(){
   const orden=Object.entries(totProj).sort((a,b)=>b[1]-a[1]);
   const top=orden.slice(0,PALETA.length).map(([k])=>k);
   const corDe={}; top.forEach((k,i)=>corDe[k]=PALETA[i]);
-  const nomeProj=(k)=> (projs[k]&&projs[k].nome) ? `${k} — ${projs[k].nome}` : k;
+  const nomeProj=(k)=>projNome(k);   // a interface mostra o NOME do projeto
 
   const linhas=ativos.map(a=>{
     const segs=porPessoa[a]; const tot=Object.values(segs).reduce((s,v)=>s+v,0);
@@ -4266,7 +4384,7 @@ function cardPessoaProjeto(){
       <div class="pp-val">${fmtH(l.tot)}</div></div>`;
   }).join('');
 
-  const legenda=top.map(k=>`<span data-drill="projeto" data-key="${escA(k)}" data-tip="${escA(nomeProj(k))}" data-tipk="clique para detalhar"><i style="background:${corDe[k]}"></i>${esc(k)}</span>`).join('')
+  const legenda=top.map(k=>`<span data-drill="projeto" data-key="${escA(k)}" data-tip="${escA(k)}" data-tipk="clique para detalhar"><i style="background:${corDe[k]}"></i>${esc(projNome(k))}</span>`).join('')
     + (orden.length>top.length?`<span><i style="background:${COR_OUTROS}"></i>Outros</span>`:'');
   return `<div class="pp-legend">${legenda}</div><div class="pp-list">${rows}</div>`;
 }
@@ -4517,7 +4635,7 @@ function abrePessoa(a){
   const vals=d.dias.map(x=>d.porDia[x]||0);
   const projObj={}; const projs=projetosUnidos();
   Object.keys(d.porProj).forEach(k=>{
-    const nm=(projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k; projObj[nm]=d.porProj[k];
+    projObj[projNome(k)]=d.porProj[k];   // a lista mostra o NOME do projeto
   });
   const semana=['dom','seg','ter','qua','qui','sex','sáb'];
   const comH=d.dias.filter(x=>d.porDia[x]);
@@ -4562,7 +4680,7 @@ function agregaPred(predW, predE){
 // Bloco padrão de um detalhe (KPIs + tendência + barras). `secoes` controla o que mostrar.
 function blocoDetalhe(d, secoes){
   const projs=d.projs, pn=d.pessoasNome;
-  const nomeProj=(k)=> (projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
+  const nomeProj=(k)=>projNome(k);   // a interface mostra o NOME do projeto
   const pessoasBar=()=>{
     const ent=Object.entries(d.porPessoa).sort((a,b)=>b[1]-a[1]).slice(0,12);
     const max=Math.max(1,...ent.map(e=>e[1]));
@@ -4590,7 +4708,7 @@ const _periodoRotulo=()=>{ const m=estado.tempo&&estado.tempo.meta||{}; return `
 function abreProjeto(p){
   const projs=projetosUnidos(); const nome=(projs[p]&&projs[p].nome)?projs[p].nome:p;
   const d=agregaPred(w=>w.p===p, e=>e.p===p);
-  abreModal(`<h2>${esc(p)} — ${esc(nome)}</h2><div class="muted small">Projeto · ${esc(_periodoRotulo())}</div>
+  abreModal(`<h2>${esc(projNome(p))}</h2><div class="muted small">Projeto ${esc(p)} · ${esc(_periodoRotulo())}</div>
     ${blocoDetalhe(d,['trend','pessoa','tipo'])}`);
 }
 function abreCategoria(c){
@@ -4748,7 +4866,7 @@ function renderAcoes(){
   // Bullet chart: barra do realizado + traço-alvo do planejado (escala = maior dos dois).
   const hxBullet=(realSeg,planSeg,w)=>{ const max=Math.max(realSeg,planSeg,1);
     const wR=realSeg/max*w, xP=planSeg?planSeg/max*w:null;
-    const cor=planSeg&&realSeg>=planSeg?'#188918':'#0A6ED1';
+    const cor=planSeg&&realSeg>=planSeg?'#188918':'var(--cerceta)';
     return `<svg class="hxg-bullet" width="${w}" height="12" viewBox="0 0 ${w} 12" role="img" aria-label="realizado ${fmtH(realSeg)} de ${planSeg?fmtH(planSeg):'—'} planejadas">
       <rect x="0" y="3" width="${w}" height="6" rx="3" style="fill:var(--linha)"/>
       ${realSeg?`<rect x="0" y="3" width="${Math.max(3,wR).toFixed(1)}" height="6" rx="3" fill="${cor}"/>`:''}
@@ -4764,7 +4882,7 @@ function renderAcoes(){
       const top=y(x.seg), h=(H-12)-top;
       return `<g data-tip="${escA(x.rot)}" data-tip2="${escA(fmtH(x.seg)+(x.hoje?' (hoje)':''))}">
         <rect x="${(cx-slot/2+1).toFixed(1)}" y="0" width="${(slot-2).toFixed(1)}" height="${H}" fill="transparent"/>
-        ${x.seg?`<rect x="${(cx-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(3,h).toFixed(1)}" rx="3" fill="${x.hoje?'#0A6ED1':'#7E8E9E'}"/>`
+        ${x.seg?`<rect x="${(cx-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(3,h).toFixed(1)}" rx="3" fill="${x.hoje?'var(--cerceta)':'#7E8E9E'}"/>`
           :`<rect x="${(cx-bw/2).toFixed(1)}" y="${H-14}" width="${bw}" height="2" rx="1" style="fill:var(--linha)"/>`}
         ${x.hoje&&x.seg?`<text x="${cx.toFixed(1)}" y="${Math.max(9,top-3).toFixed(1)}" text-anchor="middle" class="hxg-vtxt">${fmtH(x.seg)}</text>`:''}
         <text x="${cx.toFixed(1)}" y="${H-2}" text-anchor="middle" class="hxg-ctxt${x.hoje?' hoje':''}">${x.ini}</text>
@@ -4936,7 +5054,7 @@ function renderAcoes(){
         <div style="margin:4px 0 6px">${hxBullet(realSemSeg,planSeg,216)}</div>
         ${hxColunas(diasSem,metaSeg)}
         <div class="muted small" style="margin:0 0 6px">seu ritmo dia a dia · tracejado = meta/dia</div>
-        ${projsCmp.map(x=>`<div class="hxd-row"><span class="hxd-tit">${esc(x.p)}</span>
+        ${projsCmp.map(x=>`<div class="hxd-row"><span class="hxd-tit" data-tip="${escA(x.p)}">${esc(projNome(x.p))}</span>
             <span class="muted small" style="white-space:nowrap">${fmtH(x.real)} / ${x.plan?fmtH(x.plan):'—'}</span>
             ${hxBullet(x.real,x.plan,86)}</div>`).join('')}
         <div class="muted small" style="margin-top:6px">planejamento: ${esc(stTxt)}</div>`
@@ -5132,7 +5250,7 @@ function renderResumo(){
   const d=agrega();
   const cont=document.getElementById('conteudo');
   const k=d.kpi;
-  const nomeProjResumo=(key)=>{ const p=d.projs[key]; return p&&p.nome?`${key} — ${p.nome}`:key; };
+  const nomeProjResumo=(key)=>projNome(key);   // a interface mostra o NOME do projeto
 
   // Meta e horas extras por pessoa (mesma base do timesheet). metaPct = horas
   // apontadas ÷ meta esperada no período. Acima de 100% NÃO é problema — sinaliza
@@ -5549,7 +5667,7 @@ function renderQualidade(){
   const q=estado.qualidade;
   if(!_projetosCache) garanteProjetos().catch(()=>{});
   const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
-  const optProj='<option value="">todos os projetos</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${q.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const optProj='<option value="">todos os projetos</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${q.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const controles=`<div class="ap-filtros">
       <div class="campo"><label>Tickets criados nos últimos</label><select id="qa-dias">${[7,14,30,60].map(d=>`<option value="${d}" ${q.dias===d?'selected':''}>${d} dias</option>`).join('')}</select></div>
       <div class="campo"><label>Projeto</label><select id="qa-proj">${optProj}</select></div>
@@ -5880,7 +5998,7 @@ function renderMeuDia(){
         : s.acao==='apontar'
           ? `<button class="btn primario" data-md-apontar="${i}">⏱ Apontar ${esc(s.tempo)} em ${esc(s.ticket)}</button>`
           : `<button class="btn primario" data-md-criar="${i}">🌳 Criar pelo caminho certo</button>`;
-      return `<div class="aud-prob ${s.acao==='apontar'?'':'critico'}" style="border-left-color:${s.acao==='apontar'?'#188918':'#0070F2'}">
+      return `<div class="aud-prob ${s.acao==='apontar'?'':'critico'}" style="border-left-color:${s.acao==='apontar'?'#1E7A46':'#009994'}">
         <div class="aud-prob-t"><span class="badge">${esc(s.periodo)}</span><strong>${icone[s.acao]||''} ${esc(s.atividade)}</strong>
           <span class="spacer"></span><span class="badge com-horas">${esc(s.tempo)}</span></div>
         <div class="aud-prob-d">${esc(s.justificativa)}${s.acao==='criar'?` <span class="muted">· caminho: <strong>${esc(s.caminhoArvore||'árvore de decisão')}</strong>${s.projeto?` · projeto ${esc(s.projeto)}`:''}</span>`:''}</div>
@@ -6138,7 +6256,7 @@ function cardPorMes(){
 // ===================== 📈 Ranking — Engajamento & uso do Jira =====================
 // Paleta categórica VALIDADA para daltonismo (ordem fixa: cada par adjacente passa
 // no teste de separação CVD nos temas claro e escuro — não trocar a ordem).
-const RK_PAL={ verde:'#188918', azul:'#0070F2', laranja:'#E76500', roxo:'#7858FF', vermelho:'#D20A0A' };
+const RK_PAL={ verde:'#008300', azul:'#009994', laranja:'#eb6834', roxo:'#4a3aa7', vermelho:'#e34948' };
 // Segunda-feira (ISO) da semana de uma data — agrupa os worklogs por semana.
 function rkSemanaDe(dia){ const dt=new Date(dia+'T12:00:00Z'); const w=(dt.getUTCDay()+6)%7;
   dt.setUTCDate(dt.getUTCDate()-w); return dt.toISOString().slice(0,10); }
@@ -6684,7 +6802,7 @@ function renderTickets(){
     return;
   }
   const group=estado.tkGroup||'';
-  const nomeProj=(k)=> (projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
+  const nomeProj=(k)=>projNome(k);   // a interface mostra o NOME do projeto
 
   // KPIs (sempre sobre o total, independente do agrupamento).
   const horasTot=linhas.reduce((s,l)=>s+l.seg,0);
@@ -6735,7 +6853,7 @@ function renderTickets(){
       return `<tr>
         <td><a href="${url}" target="_blank" rel="noopener" title="Abrir ${esc(l.k)} no Jira">${esc(l.k)} ↗</a></td>
         <td class="tk-nome" title="${esc(l.nome)}">${l.nome?esc(l.nome):'<span class="muted">—</span>'}</td>
-        <td><span class="codigo-proj" data-drill="projeto" data-key="${escA(l.p)}" data-tip="${escA(nomeProj(l.p))}" data-tipk="clique para detalhar">${esc(l.p)}</span></td>
+        <td><span class="codigo-proj" data-drill="projeto" data-key="${escA(l.p)}" data-tip="${escA(l.p)}" data-tipk="clique para detalhar">${esc(projNome(l.p))}</span></td>
         <td><span data-drill="tipo" data-key="${escA(l.t)}" data-tip="${escA(l.t)}" data-tipk="clique para detalhar">${esc(l.t)}</span></td>
         <td class="num">${l.seg?fmtH(l.seg):'—'}</td>
         <td title="${esc(quem.join(', '))}">${quem.length}</td>
@@ -6912,7 +7030,7 @@ function htmlPainelHoras(){
   // Legenda de projetos (cor segue o projeto nas duas visões).
   const legenda=projs.length?`<div class="mts-leg">${projs.map(([p,pj])=>{
     const nome=(projNomes[p]&&projNomes[p].nome)?` — ${projNomes[p].nome}`:'';
-    return `<span class="mts-lchip"><i class="mts-dot c${corDe.get(p)}"></i>${esc(p)}<span class="muted">${esc(nome)}</span> · ${fmtH(pj.tot)}</span>`;
+    return `<span class="mts-lchip" data-tip="${escA(p)}"><i class="mts-dot c${corDe.get(p)}"></i>${esc(projNome(p))} · ${fmtH(pj.tot)}</span>`;
   }).join('')}</div>`:'';
 
   // ---- 🧮 Grade: Projeto → Ticket × dia ----
@@ -6932,7 +7050,7 @@ function htmlPainelHoras(){
       }).join('');
       return `<tr class="mts-proj"><td class="mts-c1">
           <button class="mts-tgl" data-mts-proj="${escA(p)}" data-tip="${fech?'Mostrar':'Ocultar'} os tickets do projeto">${fech?'▸':'▾'}</button>
-          <i class="mts-dot c${corDe.get(p)}"></i><strong>${esc(p)}</strong><span class="mts-res">${esc(nome)}</span></td>
+          <i class="mts-dot c${corDe.get(p)}"></i><strong data-tip="${escA(p)}">${esc(projNome(p))}</strong></td>
         <td class="mts-sig"><strong>${fmtH(pj.tot)}</strong></td>
         ${dias.map(d=>cel(pj.dias[d],true)).join('')}</tr>${rowsT}`;
     }).join('');
@@ -7126,7 +7244,7 @@ function renderApontar(){
     <div class="campo"><label>Projeto</label><select id="ap-proj">
       <option value="">Todos</option>${
       Object.keys(projs).filter(k=>!ap.cat||catDe(k)===ap.cat).sort()
-        .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(k)} — ${esc(projs[k].nome||'')}</option>`).join('')}</select></div>
+        .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(projNome(k))}${esc(projCod(k))}</option>`).join('')}</select></div>
     ${id?`<label class="check" style="padding-bottom:9px"><input type="checkbox" id="ap-meus" ${ap.soMeus?'checked':''}> Só os meus</label>`:''}
     <label class="check" style="padding-bottom:9px" data-tip="Traz também os chamados abertos que ainda não têm data de vencimento, para você programá-los"><input type="checkbox" id="ap-semvenc" ${ap.semVenc?'checked':''}> Incluir sem vencimento</label>
     <div class="campo"><label>Buscar</label>
@@ -7202,7 +7320,7 @@ function renderApontar(){
   // chips e apontar). Ticket fora da lista de abertos (ex.: concluído ou vencendo
   // longe) busca a ficha completa via ?detalhe= e entra com tudo também.
   const recRow=(r)=>{
-    const selo=`<span class="badge codigo-proj" data-tip="${escA(nomeProj(r.p))}">${esc(r.p)}</span>
+    const selo=`<span class="badge codigo-proj" data-tip="${escA(r.p)}">${esc(projNome(r.p))}</span>
       <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
       <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>`;
     const tk=todos.find(t=>t.k===r.k) || ap.recDet[r.k];
@@ -7234,7 +7352,7 @@ function renderApontar(){
     const tr=arr.map(t=>`<tr>
       <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
       <td class="ap-tab-res">${esc(t.resumo||'')}</td>
-      <td>${esc(t.p)}</td>
+      <td data-tip="${escA(t.p)}">${esc(projNome(t.p))}</td>
       <td>${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:''}${esc(t.t)}</td>
       <td>${esc(t.status)}</td>
       <td>${t.prio?(t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:'')+esc(t.prio):'—'}</td>
@@ -7254,7 +7372,7 @@ function renderApontar(){
       const arr=porSt[s].slice().sort((a,b)=>(a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'));
       return `<div class="kb-col"><div class="kb-head">${esc(s)} <span>${arr.length}</span></div>
         <div class="kb-cards">${arr.map(t=>`<a class="kb-card" href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">
-          <div class="kb-top"><span class="kb-k">${esc(t.k)}</span><span class="badge codigo-proj" data-tip="${escA(nomeProj(t.p))}">${esc(t.p)}</span></div>
+          <div class="kb-top"><span class="kb-k">${esc(t.k)}</span><span class="badge codigo-proj" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></div>
           <div class="kb-res">${esc(t.resumo||'')}</div>
           <div class="kb-meta">
             ${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}
@@ -7286,10 +7404,10 @@ function renderApontar(){
     const chavesProj=Object.keys(porProj).sort((a,b)=>a.localeCompare(b));
     const rows=chavesProj.map(pk=>{
       const grupo=porProj[pk]; const recolhido=!!ap.recolhidos[pk];
-      const cab=`<button class="ap-proj-head${recolhido?' recolhido':''}" data-ap-projtoggle="${escA(pk)}" aria-expanded="${!recolhido}" data-tip="${escA(nomeProj(pk))} — clique para ${recolhido?'expandir':'recolher'}">
+      const cab=`<button class="ap-proj-head${recolhido?' recolhido':''}" data-ap-projtoggle="${escA(pk)}" aria-expanded="${!recolhido}" data-tip="${escA(projNomeCod(pk))} — clique para ${recolhido?'expandir':'recolher'}">
         <span class="ap-proj-chev">▾</span>
-        <span class="ap-proj-cod">${esc(pk)}</span>
-        <span class="ap-proj-nome">${esc((projs[pk]&&projs[pk].nome)||'')}</span>
+        <span class="ap-proj-cod">${esc(projNome(pk))}</span>
+        <span class="ap-proj-nome">${esc(pk)}</span>
         <span class="spacer"></span>
         <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
       return cab + (recolhido?'':grupo.map(linhaTicket).join(''));
@@ -7666,6 +7784,40 @@ async function executaComentar(btn){
 // ---------------- Reclassificar: mover o chamado para outro projeto ----------------
 // Carrega (uma vez) a lista de projetos com seus tipos; reaproveita o cache do Planejar.
 let _projetosPromise=null, _projetosCache=null;
+// ---- Nome do projeto na interface (regra de produto de 2026-08-10) ----------
+// Em relatórios, tabelas, gráficos e legendas a ferramenta mostra o NOME do
+// projeto — nunca só a sigla. O código continua existindo (links do Jira, JQL,
+// chaves de ticket) e aparece no tooltip/legenda de apoio.
+// Fontes, nesta ordem: projetos que vêm com os worklogs (/api/tempo) e o
+// catálogo do Jira (/api/projetos, que tem o nome oficial de todos).
+let _projNomeMap=null, _projNomeSel='', _projNomeBusca=false;
+function projNomes(){
+  const tp=(estado.tempo&&estado.tempo.projetos)||{};
+  const sel=`${(_projetosCache||[]).length}|${Object.keys(tp).length}`;
+  if(_projNomeMap&&_projNomeSel===sel) return _projNomeMap;
+  const m={};
+  Object.keys(tp).forEach(k=>{ if(tp[k]&&tp[k].nome) m[k]=tp[k].nome; });
+  (_projetosCache||[]).forEach(p=>{ if(p&&p.key&&p.nome) m[p.key]=p.nome; });   // catálogo prevalece
+  _projNomeMap=m; _projNomeSel=sel;
+  return m;
+}
+// Nome do projeto; enquanto o catálogo não chegou, devolve a própria chave e
+// dispara UMA busca — quando responder, a tela se redesenha com os nomes.
+function projNome(k){
+  const key=String(k==null?'':k).trim();
+  if(!key||key==='—') return key||'—';
+  const n=projNomes()[key];
+  if(!n && !_projetosCache && !_projNomeBusca){
+    _projNomeBusca=true;
+    garanteProjetos().then(()=>{ _projNomeBusca=false; _projNomeMap=null; try{ render(); }catch(e){} })
+      .catch(()=>{ _projNomeBusca=false; });
+  }
+  return n||key;
+}
+// " (COD)" para pendurar no title/tooltip — vazio quando o nome é a própria sigla.
+function projCod(k){ const key=String(k==null?'':k).trim(); return (key&&projNome(key)!==key)?` (${key})`:''; }
+// Nome + código, para tooltips e listas de apoio.
+function projNomeCod(k){ const key=String(k==null?'':k).trim(); return projNome(key)+projCod(key); }
 function garanteProjetos(){
   if(estado.planejar && estado.planejar.projetos){ _projetosCache=estado.planejar.projetos; return Promise.resolve(estado.planejar.projetos); }
   if(!_projetosPromise){
@@ -7710,7 +7862,7 @@ function toggleReclass(btn){
     if(!area.isConnected) return;
     const sel=area.querySelector('.ap-mover-sel');
     const outros=ps.filter(p=>p.key!==(t&&t.p)).sort((a,b)=>a.key.localeCompare(b.key));
-    sel.innerHTML='<option value="">— escolha o projeto —</option>'+outros.map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+    sel.innerHTML='<option value="">— escolha o projeto —</option>'+outros.map(p=>`<option value="${escA(p.key)}">${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
     sel.disabled=false;
   }).catch(()=>{ const sel=area.querySelector('.ap-mover-sel'); if(sel){ sel.innerHTML='<option>erro ao carregar projetos</option>'; } });
 }
@@ -8417,10 +8569,10 @@ function arvHTML(){
       } else {
       const sugSet=new Set(sug.map(p=>p.key));
       const optProj = chaveFixa
-        ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].key)} — ${esc(sug[0].nome||'')}</option>`:`<option value="">projeto ${esc(chaveFixa)} não encontrado</option>`)
+        ? (sug.length?`<option value="${escA(sug[0].key)}" selected>${esc(sug[0].nome||sug[0].key)} (${esc(sug[0].key)})</option>`:`<option value="">projeto ${esc(chaveFixa)} não encontrado</option>`)
         : '<option value="">— escolha —</option>'
-          +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`:'')
-          +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('')}</optgroup>`;
+          +(sug.length?`<optgroup label="Sugeridos (${esc(no.badge)})">${sug.map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')}</optgroup>`:'')
+          +`<optgroup label="Todos os projetos">${ps.filter(p=>!sugSet.has(p.key)).map(p=>`<option value="${escA(p.key)}" ${f.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')}</optgroup>`;
       const proj=ps.find(p=>p.key===f.projeto);
       // Projeto escolhido via card: aparece fixo, com a descrição e um botão para trocar.
       const campoProjeto = escolhe
@@ -8663,7 +8815,7 @@ function renderPlanejarForm(){
          <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
 
   const optProjetos='<option value="">— escolha —</option>'+pl.projetos.map(p=>
-    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const tipos=tiposDisponiveis();
   const optTipos=tipos.length?tipos.map(t=>
     `<option value="${escA(t.id)}" ${pl.tipoId===t.id?'selected':''}>${esc(t.nome)}</option>`).join('')
@@ -8773,7 +8925,7 @@ function renderPlanejarEstruForm(){
     : `<div class="ap-id sem">Para criar tickets, identifique-se uma única vez (e-mail + token de API do Jira).
          <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
   const optProjetos='<option value="">— escolha —</option>'+pl.projetos.map(p=>
-    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+    `<option value="${escA(p.key)}" ${pl.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const pessoas=Object.entries(pessoasUnidas()).map(([a,o])=>[a,(o&&o.nome)||a])
     .sort((x,y)=>x[1].localeCompare(y[1],'pt'));
   const optResp='<option value="">— sem responsável —</option>'+pessoas.map(([a,n])=>
@@ -10222,7 +10374,7 @@ function planSyncDraft(){
 }
 function planEditorHTML(d){
   const projs=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
-  const projOpts='<option value="">— escolha o projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${d.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  const projOpts='<option value="">— escolha o projeto —</option>'+projs.map(p=>`<option value="${escA(p.key)}" ${d.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const tipoOpts=PLAN_TIPOS.map(([v,l])=>`<option value="${v}" ${d.tipo===v?'selected':''}>${esc(l)}</option>`).join('');
   const ehImpl=d.tipo==='implementacao';
   const funcChips=(d.funcoes||[]).map(fn=>`<span class="pl-chip"><input type="text" data-pl-func="${escA(fn.id)}" value="${escA(fn.nome)}" placeholder="Função"><button class="pl-x" data-pl-func-del="${escA(fn.id)}" title="Remover função">×</button></span>`).join('');
@@ -10629,7 +10781,7 @@ function alocViewProjeto(rows, pess){
   const semanas=alocSemanas(rows); const r=estado.alocacao.real; const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const porProj={}; rows.forEach(a=>{ if(a.projeto){ (porProj[a.projeto]=porProj[a.projeto]||[]).push(a); } });
   const projetos=Object.keys(porProj).sort();
-  const projNome=(k)=>{ const p=(_projetosCache||[]).find(x=>x.key===k); return p&&p.nome?`${k} — ${p.nome}`:k; };
+  // nome do projeto: helper global projNome()
   const apont={}; if(r.wl) r.wl.forEach(w=>{ if(w.p) apont[w.p]=(apont[w.p]||0)+(Number(w.s)||0); });
   const temAp=!!r.wl && r.range===alocRealKey(rows);
   const rowsHtml=projetos.map(k=>{
@@ -10971,7 +11123,7 @@ function alocViewSimulacao(_rows, pess){
   const imp=simImpacto(); const demanda=imp.sim.reduce((s,a)=>s+(Number(a.hSemana)||0),0); const gargalos=imp.linhas.filter(l=>l.novo).length;
   const impRows=imp.linhas.map(l=>{ const [clsB]=alocStatus(l.uBase), [clsC,lblC]=alocStatus(l.uCen);
     return `<tr class="${l.novo?'sim-new':''}"><td>${esc(nm(l.a))}${l.novo?' <span class="sim-tag gargalo">novo gargalo</span>':''}</td>
-      <td class="num">${alocH(l.avgCap)}/sem</td><td class="num" style="color:#0064D9;font-weight:600">+${alocH(l.peakSim)}/sem</td>
+      <td class="num">${alocH(l.avgCap)}/sem</td><td class="num" style="color:var(--cerceta);font-weight:600">+${alocH(l.peakSim)}/sem</td>
       <td class="num sim-arrow"><span class="aloc-badge ${clsB}">${l.uBase}%</span> → <span class="aloc-badge ${clsC}">${l.uCen}%</span></td>
       <td><span class="aloc-badge ${clsC}">${esc(lblC)}</span></td></tr>`; }).join('');
   const impTab = imp.linhas.length
@@ -11060,7 +11212,7 @@ function renderAlocacao(){
   const pessoaSel=(x)=>'<select data-ab-f="accountId|'+escA(x.id)+'"><option value="">— pessoa —</option>'+
     pordPess.map(([id,pp])=>`<option value="${escA(id)}" ${x.accountId===id?'selected':''}>${esc(pp.nome||id)}</option>`).join('')+'</select>';
   const projetoSel=(x)=>{ const prSolto=x.projeto && !projs.some(pp=>pp.key===x.projeto);
-    return `<span style="display:flex;align-items:center;min-width:0"><i class="gt-dot gtc${gtCor(x.projeto)}" style="flex:0 0 9px"></i><select data-ab-f="projeto|${escA(x.id)}"><option value="">— projeto —</option>${prSolto?`<option value="${escA(x.projeto)}" selected>${esc(x.projeto)}</option>`:''}${projs.map(pp=>`<option value="${escA(pp.key)}" ${x.projeto===pp.key?'selected':''}>${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('')}</select></span>`; };
+    return `<span style="display:flex;align-items:center;min-width:0"><i class="gt-dot gtc${gtCor(x.projeto)}" style="flex:0 0 9px"></i><select data-ab-f="projeto|${escA(x.id)}"><option value="">— projeto —</option>${prSolto?`<option value="${escA(x.projeto)}" selected>${esc(x.projeto)}</option>`:''}${projs.map(pp=>`<option value="${escA(pp.key)}" ${x.projeto===pp.key?'selected':''}>${esc(pp.nome||pp.key)} (${esc(pp.key)})</option>`).join('')}</select></span>`; };
   const skillsCat=alocSkillsTodas();
   const funcaoSel=(x)=>{ const opts=[...new Set([...(x.funcao?[x.funcao]:[]), ...alocSkills(x.accountId), ...skillsCat])];
     return `<select data-ab-f="funcao|${escA(x.id)}" data-tip="Função da pessoa NESTA alocação — a mesma pessoa pode entrar mais de uma vez no mesmo projeto, com funções diferentes. As opções vêm das skills (aba Por Skill).">
@@ -11090,7 +11242,7 @@ function renderAlocacao(){
     : modoB==='projeto'?(k?`${k} — ${((projs.find(pp=>pp.key===k)||{}).nome||'')}`:'Sem projeto')
     : modoB==='tipo'?(((ALOC_TIPOS.find(([t])=>t===k))||[k,k])[1]) : (k||'Sem skill');
   const chaves=Object.keys(gruposMap).sort((x,y)=>rotuloDe(x).localeCompare(rotuloDe(y),'pt'));
-  const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(pp=>`<option value="${escA(pp.key)}">${esc(pp.key)} — ${esc(pp.nome||'')}</option>`).join('');
+  const addOpt='<option value="">+ adicionar projeto…</option>'+projs.map(pp=>`<option value="${escA(pp.key)}">${esc(pp.nome||pp.key)} (${esc(pp.key)})</option>`).join('');
   const addPessOpt='<option value="">+ adicionar pessoa…</option>'+pordPess.map(([id,pp])=>`<option value="${escA(id)}">${esc(pp.nome||id)}</option>`).join('');
   // Ordenação das linhas dentro de cada grupo — escolhida pelo usuário (lembrada no navegador).
   // Padrão: por PROJETO (A–Z) no planejamento por pessoa.
@@ -11195,7 +11347,7 @@ function renderAdmin(){
         ? `<div class="rg-pessoas" id="ad-projs">${projs.map(p=>{
             const ck = jaMarcados.has(p.key);
             const foraAMS = !ehCategoriaAMS(p.categoria);
-            return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.key)} — ${esc(p.nome||'')}${foraAMS?' <span class="muted small">(fora da categoria AMS)</span>':''}</label>`;
+            return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.nome||p.key)} (${esc(p.key)})${foraAMS?' <span class="muted small">(fora da categoria AMS)</span>':''}</label>`;
           }).join('')}</div>`
         : '<div class="muted small">Nenhum projeto da categoria <strong>AMS</strong> encontrado no Jira.</div>')
     : '<div class="muted small">Carregando projetos do Jira…</div>';
@@ -11690,7 +11842,7 @@ function renderMencoes(){
         <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
         <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
         <span class="spacer"></span>
-        <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
+        <span class="badge" data-tip="${escA(x.p)}">${esc(projNome(x.p))}</span><span class="badge">${esc(x.status)}</span>
         ${ehIgn?'<span class="mn-badge">🔕 ignorada</span>':(x.respondido?'<span class="mn-badge ok">✓ você respondeu</span>':'<span class="mn-badge pend">⏳ aguardando sua resposta</span>')}
       </div>
       <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
@@ -11941,7 +12093,7 @@ function renderInbox(){
           <a href="${link}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>
           <span class="mn-res" title="${escA(x.resumo)}">${esc(x.resumo||'—')}</span>
           <span class="spacer"></span>
-          <span class="badge">${esc(x.p)}</span><span class="badge">${esc(x.status)}</span>
+          <span class="badge" data-tip="${escA(x.p)}">${esc(projNome(x.p))}</span><span class="badge">${esc(x.status)}</span>
           <span class="mn-badge pend">⏳ aguardando sua resposta</span>
         </div>
         <div class="mn-quote"><strong>${esc(x.por)}</strong> te marcou ${x.dia?`em ${esc(alxDataBR(x.dia))}`:''}: <span class="muted">“${esc(x.texto||'')}”</span></div>
@@ -12591,7 +12743,7 @@ function abreModalApontarGx(k){
   _gxApont={ k };
   abreModal(`
     <h2>⏱ Apontar horas · ${esc(k)}</h2>
-    <div class="muted small">${esc((t.resumo||'').slice(0,110))||'—'}${t.p?` · ${esc(t.p)}`:''}${t.status?` · ${esc(t.status)}`:''}</div>
+    <div class="muted small">${esc((t.resumo||'').slice(0,110))||'—'}${t.p?` · ${esc(projNome(t.p))}`:''}${t.status?` · ${esc(t.status)}`:''}</div>
     <div class="rv-form" style="margin-top:10px">
       <div class="campo"><label>Tempo <span class="req">*</span></label><input type="text" id="gx-ap-tempo" placeholder="ex.: 1h30, 45m, 2:15" autocomplete="off"></div>
       <div class="campo"><label>Dia</label><input type="date" id="gx-ap-dia" value="${escA(hojeSP())}"></div>
@@ -12676,7 +12828,7 @@ function abreModalDuplicados(){
     const atras=a[0].venc&&a[0].venc<hoje;
     const rows=a.map(t=>`<tr>
       <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
-      <td><span class="badge">${esc(t.p)}</span></td>
+      <td><span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></td>
       <td><span class="badge">${esc(t.status)}</span></td>
       <td>${esc(t.resp||'—')}</td>
       <td class="num" title="Horas apontadas">${t.seg?fmtH(t.seg):'—'}</td>
@@ -12824,7 +12976,7 @@ function renderGestao(){
         <td class="c">${chk(t)}</td>
         <td>${linkK(t)}${tratado(t)}</td>
         <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
-        <td><span class="badge">${esc(t.p)}</span></td>
+        <td><span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></td>
         <td><span class="badge">${esc(t.status)}</span></td>
         <td>${esc(t.resp||'—')}</td>
         <td class="gx-venc ${atras?'atrasado':''}">${t.venc?esc(alxDataBR(t.venc)):'—'}</td>
@@ -12862,7 +13014,7 @@ function renderGestao(){
         <div class="ap-row gx-emb" data-k="${escA(t.k)}" style="flex:1;min-width:0">
           <div class="ap-l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span>${tratado(t)}<span class="spacer"></span>${riscoBadge(t)}</div>
           <div class="ap-l2">
-            <span class="badge">${esc(t.p)}</span>
+            <span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span>
             <span class="badge">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t||'—')}</span>
             ${idAp?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`:`<span class="badge">${esc(t.status)}</span>`}
             ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
@@ -12898,7 +13050,7 @@ function renderGestao(){
       return `<div class="kb-col"><div class="kb-head">${esc(st)} <span>${arr.length}</span></div>
         <div class="kb-cards">${arr.map(t=>{ const atras=gxAtrasoDias(t,hoje);
           return `<div class="kb-card gx-card ${g.sel[t.k]?'sel':''}" data-gx-card="${escA(t.k)}">
-          <div class="kb-top"><span class="kb-k">${chk(t)} ${linkK(t)}</span><span class="badge">${esc(t.p)}</span></div>
+          <div class="kb-top"><span class="kb-k">${chk(t)} ${linkK(t)}</span><span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></div>
           <div class="kb-res">${esc(t.resumo||'')}</div>
           <div class="kb-meta">
             ${riscoBadge(t)}
@@ -13039,7 +13191,7 @@ function renderRvModal(){
   const modoBtns=`<div class="rv-modo">
     <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto escolhido'}</span></button>
     <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra ${G?'os detalhes':'a reunião'} nos comentários de um ticket aberto</span></button></div>`;
-  const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.key)} — ${esc(p.nome)}</option>`).join('');
+  const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const horasCampos=`<div class="campo"><label>Duração (horas)</label><input type="number" id="rv-horas" value="${rv.horas}" min="0" step="0.5"></div>
       <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="rv-worklog" ${rv.worklog?'checked':''}> registrar como <strong>meu apontamento</strong> no destino</label></div>`;
   const rotProj=G?'Projeto destino':'Projeto destino (AMS primeiro)';
@@ -13190,7 +13342,7 @@ function renderReclass(){
   }
 
   const optAlvo=alvos.length
-    ? alvos.map(a=>`<option value="${escA(a.key)}" ${rc.alvo===a.key?'selected':''}>${esc(a.key)} — ${esc(a.nome)}</option>`).join('')
+    ? alvos.map(a=>`<option value="${escA(a.key)}" ${rc.alvo===a.key?'selected':''}>${esc(a.nome||a.key)} (${esc(a.key)})</option>`).join('')
     : '<option value="">— nenhum projeto destino com esse tipo —</option>';
 
   const rows=lista.map(t=>`<tr>
@@ -13876,6 +14028,10 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-10','🎨 <b>A cara da Dexterity no app inteiro</b>: a identidade que estreou no Meu Planejamento passou a valer em todas as telas — o <b>verde-petróleo</b> substituiu o azul em botões, links, abas e gráficos, os textos ficaram no <b>grafite</b> e cada tela ganhou a <b>faixa areia</b> ao fundo (o topo e o rodapé seguem limpos). O <b>modo escuro</b> continua igual, e todas as cores de texto foram conferidas para passar em contraste AA.'],
+  ['2026-08-10','🏷️ <b>Projeto pelo NOME, não pela sigla</b>: relatórios, tabelas, gráficos, legendas, filtros e seletores agora mostram o <b>nome do projeto</b> (ex.: <i>DAMS | Casa dos Ventos</i> no lugar de <i>CCDV</i>) — a sigla continua no tooltip e nos links, e a chave do ticket (ex.: CCDV-46) não muda.'],
+  ['2026-08-10','📊 <b>Relatórios do planejamento com gráficos de verdade</b>: os Relatórios do gestor ganharam <b>evolução por semana</b>, <b>planejado × realizado por projeto e por pessoa</b> (barras com o nome inteiro e o % de execução), <b>maiores desvios</b> em barras que saem do zero para os dois lados e a <b>situação dos planejamentos</b> numa faixa só. Na aba Planejado × realizado, o gráfico do dia a dia ficou mais legível e ganhou um comparativo por projeto. As tabelas continuam logo abaixo de cada gráfico.'],
+  ['2026-08-10','🎨 <b>Correção no Meu Planejamento</b>: os botões e campos dos modais (<b>Criar rotina</b>, Duplicar atividade, Devolver para ajustes e Modelo anterior) estavam sem cor — o botão de confirmar ficava invisível, na cor do fundo. Agora todos aparecem com a identidade da tela.'],
   ['2026-08-10','📋 <b>Minha Semana virou MEU PLANEJAMENTO — planeje por atividade, sem tickets</b>: a tela foi redesenhada do zero. Agora você planeja <b>data + projeto + atividade + horas</b> (categoria e observação opcionais) em cada dia útil — sem atribuir, criar ou escolher tickets. Dá para <b>duplicar</b> atividades para outros dias, criar <b>rotinas</b>, <b>copiar a semana anterior</b> e reordenar; tudo <b>salva no servidor</b> (aparece em qualquer navegador). O fluxo ficou explícito: <b>Em elaboração → Enviar para aprovação → Aprovado</b> (ou <b>Devolvido para ajustes</b> com o motivo do gestor — corrija e reenvie); plano aprovado fica bloqueado e <b>reabrir cria uma nova versão</b> com histórico completo. A aba <b>Planejado × realizado</b> compara com o Clockwork por <b>dia e projeto</b> (Conforme/Acima/Abaixo, <b>Planejado não realizado</b> e <b>Realizado não planejado</b>) e os <b>gestores</b> (configuráveis em ⚙️) ganham as abas <b>Aprovações</b> e <b>Relatórios</b> com exportação CSV. O plano antigo por tickets segue disponível como "Modelo anterior", somente leitura.'],
   ['2026-08-07','📁 <b>Projetos → 🛠 Gestão em 1 clique</b>: nos gráficos clicáveis da ficha do projeto (<b>⏳ idade do backlog</b>, 📅 radar de vencimentos, 👤 carga por responsável, KPIs, status/tipo/rótulo e treemap de épicos), a lista de tickets agora tem o botão <b>🛠 Abrir na Gestão</b> — os itens vão <b>já selecionados</b> para a Gestão de Tickets, prontos para as ações em massa (atribuir, status, comentar, reprogramar, mover…), como já acontecia no Analytics.'],
   ['2026-08-07','🏆 <b>Ranking no tempo + a brincadeira das ⭐ estrelinhas</b>: o Ranking agora tem faixas <b>📅 Esta semana · 🗓 Este mês · 📆 Este ano</b> (além do período da tela) e passou a celebrar quem faz a diferença: <b>🏆 pódio</b> com os 3 melhores (👑 no campeão), <b>🌟 Mural de estrelinhas</b> — <b>fechou a semana batendo a meta, ganhou uma ⭐</b> —, <b>🔥 sequências</b> de semanas seguidas na meta, selo <b>💯</b> para quem está 100%+ no período e "⭐ em rota" para quem vai garantir a da semana. Semanas sem meta (férias/feriados) não contam nem quebram a sequência. E, ao <b>entrar na tela</b>, uma 🌠 <b>chuva de estrelinhas</b> dá as boas-vindas (o pódio sobe em sequência; tudo respeita a preferência de reduzir movimento).'],
@@ -13964,7 +14120,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-10.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-10.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -14046,7 +14202,7 @@ function exportaTimesheet(modo){
   const pess=pessoasUnidas(); const nm=(a)=>(pess[a]&&pess[a].nome)||a;
   const projs=(estado.tempo&&estado.tempo.projetos)||{};
   const resumos=(estado.tempo&&estado.tempo.resumos)||{};
-  const projNome=(p)=> (projs[p]&&projs[p].nome) ? `${p} — ${projs[p].nome}` : (p||'—');
+  // nome do projeto: helper global projNome()
   if(modo==='detalhado'){
     // Uma linha por dia + pessoa + ticket (agrega múltiplos worklogs do mesmo dia).
     const map={};
