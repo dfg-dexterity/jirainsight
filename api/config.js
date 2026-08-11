@@ -354,6 +354,104 @@ async function planejamento(req, res, base, headers) {
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
 }
 
+// ============================================================================
+// 🎯 Prioridades do time — log de decisões e próximas ações (POST /api/config?dec=1).
+// Contrato da decisão: frase no perfeito + dono + prazo + ticket Jira. Estados:
+// aberta → concluida | reprazada (1×; a 2ª volta como pauta) | escalada | revogada.
+// Decisão nunca é apagada — revogar é status. Auth = mesma do planejamento
+// (token do Jira validado por requisição; identidade sempre do servidor).
+const T_DEC = 'jirainsight_decisoes';
+const RE_TICKET_D = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+function decPublico(d) {
+  return {
+    id: d.id, decisao: d.decisao, tipo: d.tipo, status: d.status,
+    reprazos: d.reprazos || 0,
+    dono: { accountId: d.dono_account_id || '', nome: d.dono_nome || '' },
+    prazo: d.prazo || '', ticket: d.ticket || '', projeto: d.projeto || '',
+    contexto: d.contexto || '', ataUrl: d.ata_url || '',
+    decididoEm: d.decidido_em || '', atualizadoEm: d.updated_at,
+  };
+}
+async function decisoes(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const raw = await lerBody(req);
+  const b = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  const acao = String(b.acao || '');
+  const agora = new Date().toISOString();
+
+  if (acao === 'listar') {
+    const soAbertas = b.status !== 'todas';
+    const fStatus = soAbertas ? '&status=in.(aberta,reprazada,escalada)' : '';
+    const fProj = RE_PROJ_P.test(String(b.projeto || '')) ? `&projeto=eq.${b.projeto}` : '';
+    const rows = await sbRows(await sbFetch(base, headers,
+      `${T_DEC}?select=*${fStatus}${fProj}&order=prazo.asc.nullslast,criado_em.asc&limit=200`));
+    return json(res, 200, { ok: true, decisoes: rows.map(decPublico) });
+  }
+
+  if (acao === 'registrar') {
+    const texto = String(b.decisao || '').trim();
+    if (!texto) return json(res, 400, { ok: false, erro: 'Escreva a decisão em uma frase.' });
+    if (texto.length > 300) return json(res, 400, { ok: false, erro: 'Decisão longa demais (máx. 300).' });
+    const ticket = String(b.ticket || '').trim().toUpperCase();
+    if (!RE_TICKET_D.test(ticket)) return json(res, 400, { ok: false, erro: 'Informe o ticket Jira vinculado (ex.: CCDV-2) — sem rastro em ticket, a decisão não é auditável.' });
+    const prazo = RE_DATA_P.test(String(b.prazo || '')) ? b.prazo : '';
+    if (!prazo) return json(res, 400, { ok: false, erro: 'Informe o prazo (data concreta).' });
+    const dono = (b.dono && typeof b.dono === 'object') ? b.dono : {};
+    const reg = {
+      decisao: texto,
+      tipo: b.tipo === 'proxima-acao' ? 'proxima-acao' : 'decisao',
+      status: 'aberta',
+      dono_account_id: String(dono.accountId || quem.accountId).slice(0, 128),
+      dono_nome: String(dono.nome || quem.nome || '').slice(0, 120),
+      prazo,
+      ticket,
+      projeto: ticket.split('-')[0],
+      contexto: String(b.contexto || '').trim().slice(0, 500),
+      decidido_em: String(b.decididoEm || '').slice(0, 10) || agora.slice(0, 10),
+      registrado_por: quem.accountId,
+      updated_at: agora,
+    };
+    const rows = await sbRows(await sbFetch(base, headers, T_DEC, {
+      method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([reg]),
+    }));
+    return json(res, 200, { ok: true, decisao: decPublico(rows[0]) });
+  }
+
+  if (acao === 'atualizar') {
+    const id = String(b.id || '');
+    if (!/^[0-9a-f-]{36}$/.test(id)) return json(res, 400, { ok: false, erro: 'Decisão inválida.' });
+    const atual = (await sbRows(await sbFetch(base, headers, `${T_DEC}?id=eq.${id}&select=*`)))[0];
+    if (!atual) return json(res, 400, { ok: false, erro: 'Decisão não encontrada.' });
+    const campos = {};
+    const st = String(b.status || '');
+    if (st) {
+      if (!['concluida', 'reprazada', 'escalada', 'revogada', 'aberta'].includes(st)) {
+        return json(res, 400, { ok: false, erro: 'Status inválido.' });
+      }
+      campos.status = st;
+      if (st === 'reprazada') {
+        if (!RE_DATA_P.test(String(b.prazo || ''))) return json(res, 400, { ok: false, erro: 'Reprazar exige a nova data.' });
+        campos.prazo = b.prazo;
+        campos.reprazos = (atual.reprazos || 0) + 1;
+      }
+    }
+    if (b.ataUrl !== undefined) campos.ata_url = String(b.ataUrl || '').slice(0, 500);
+    if (!Object.keys(campos).length) return json(res, 400, { ok: false, erro: 'Nada para atualizar.' });
+    // Trava otimista: a escrita exige a revisão em que o cliente se baseou.
+    const baseRev = String(b.base || '');
+    const filtroRev = baseRev ? `&updated_at=eq.${encodeURIComponent(baseRev)}` : '';
+    const rows = await sbRows(await sbFetch(base, headers, `${T_DEC}?id=eq.${id}${filtroRev}`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ ...campos, updated_at: agora }),
+    }));
+    if (!rows[0]) return json(res, 200, { ok: false, conflito: true, decisao: decPublico(atual) });
+    return json(res, 200, { ok: true, decisao: decPublico(rows[0]) });
+  }
+
+  return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
+}
+
 // ---- AMS: ciclo de apuração vigente (espelha a lógica do front) ----
 const AMS_MESES = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
 function spHoje() {
@@ -516,6 +614,12 @@ export default async function handler(req, res) {
     if (req.query && req.query.plan) {
       if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
       return await planejamento(req, res, base, headers);
+    }
+
+    // 🎯 Prioridades do time: log de decisões (sempre POST, com identidade do Jira).
+    if (req.query && req.query.dec) {
+      if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
+      return await decisoes(req, res, base, headers);
     }
 
     if (req.method === 'POST') {

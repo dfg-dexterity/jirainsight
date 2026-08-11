@@ -348,6 +348,38 @@
   @media (max-width:700px){ .mp-form-l1{grid-template-columns:1fr} .mp-2col{grid-template-columns:1fr}
     .mp-dias{grid-template-columns:1fr} .mp-head{gap:8px} .mp-cel-desc{max-width:160px} }
 
+  /* 🎯 Prioridades do time */
+  .pr-prios{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;margin-top:10px}
+  .pr-prio{border:1px solid var(--linha2);border-left:4px solid var(--marca);border-radius:12px;background:var(--cartao);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  .pr-prio.err{border-left-color:var(--err)} .pr-prio.warn{border-left-color:var(--amarelo)}
+  .pr-prio.ok{border-left-color:var(--musgo)} .pr-prio.nd{border-left-color:var(--muted2)}
+  .pr-obj{font-weight:700;font-size:14px;line-height:1.3}
+  .pr-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--texto2)}
+  .pr-dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .pr-dot.err{background:var(--err)} .pr-dot.warn{background:var(--amarelo)}
+  .pr-dot.ok{background:var(--musgo)} .pr-dot.nd{background:var(--muted2)}
+  .pr-pedido{font-size:12.5px;background:var(--cartao2);border:1px dashed var(--linha);border-radius:8px;padding:7px 10px;color:var(--texto2)}
+  .pr-vivo{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--linha2);padding-top:8px;margin-top:auto;font-size:12px;color:var(--muted)}
+  .pr-vivo .mono,.pr-linha .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;font-weight:600;text-decoration:none}
+  .pr-selo{font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--linha);border-radius:4px;padding:2px 6px;color:var(--muted);white-space:nowrap}
+  .pr-vaga{border:1px dashed var(--linha);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12.5px;min-height:110px;text-align:center;padding:10px}
+  .pr-nat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pr-natc{border:1px solid var(--linha2);border-radius:12px;background:var(--cartao);padding:11px 13px}
+  .pr-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .pr-chip.err{background:rgba(179,38,30,.1);color:var(--err)} .pr-chip.dec{background:rgba(107,79,216,.12);color:var(--roxo)}
+  .pr-chip.ok{background:rgba(30,122,70,.1);color:var(--musgo)}
+  [data-theme="dark"] .pr-chip.err{background:rgba(242,85,90,.16)} [data-theme="dark"] .pr-chip.dec{background:rgba(155,134,255,.16)} [data-theme="dark"] .pr-chip.ok{background:rgba(46,160,67,.16)}
+  .pr-linha{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--linha2);font-size:13px;flex-wrap:wrap}
+  .pr-linha:first-of-type{border-top:0}
+  .pr-fim{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .pr-ata{background:var(--cartao2);border:1px solid var(--linha);border-radius:10px;padding:12px 14px;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;max-height:340px;overflow-y:auto}
+  .pr-timer{margin-left:auto;font-size:12.5px;color:var(--muted);border:1px solid var(--linha);border-radius:999px;padding:4px 11px;background:var(--cartao);font-variant-numeric:tabular-nums}
+  .pr-hig{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#FBEFDD;color:var(--amarelo);border-radius:9px;padding:8px 12px;font-size:12.5px;margin-top:10px}
+  [data-theme="dark"] .pr-hig{background:#33270F}
+  details.pr-fila summary{cursor:pointer;font-size:12px;color:var(--cerceta);list-style:none;margin-top:8px}
+  details.pr-fila summary::before{content:"▸ "} details.pr-fila[open] summary::before{content:"▾ "}
+  @media (max-width:760px){ .pr-nat{grid-template-columns:1fr} }
+
   /* 📋 Minha Semana */
   .ms-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
   .ms-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:10px}
@@ -1939,6 +1971,7 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <button class="navtab" data-v="acoes" aria-pressed="true"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🏠 Início</button>
       <button class="navtab" data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
+      <button class="navtab" data-v="prioridades"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🎯 Prioridades</button>
       <span id="nav-favs" style="display:contents"></span>
       <div class="navg">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
@@ -2091,6 +2124,10 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
 const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
+  // 🎯 Prioridades do time: base da reunião (?reuniao=1), vencidos até hoje,
+  // log de decisões, diff de atividade e o estado do Modo reunião.
+  prioridades:{ dados:null, carregando:false, erro:'', venc:null, vencB:false, decs:null, decsB:false,
+    ativ:null, ativB:false, aba:'visao', passo:0, novas:[], t0:0, ataUrl:'', proj:'' },
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
@@ -2160,7 +2197,12 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
-  teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' } }; }
+  teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
+  // 🎯 Prioridades do time — configuração do painel/reunião semanal.
+  reuniao:{ facilitador:'Jéssica Cavalheiro', ultimaReuniao:'', ataUltimaUrl:'', prioridades:{},
+    statusDecisao:['Proposta de Solução','Aguardando Aprovação do Cliente','Aguardando Validação','Em Validação','📆 Reunião Agendada'],
+    mapaNatureza:{ DAMS:'operacao', DEF:'entrega', PEA:'entrega', PEF:'entrega', IPA:'produtos', IMI:'produtos', ITPR:'rotinas', ARQ:'outros' },
+    notionPorProjeto:{}, envioTeams:{ ativo:false, dias:[1], hora:'09:00' } } }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -2554,7 +2596,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, roadmap:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -4293,6 +4335,7 @@ const ROADMAP=[
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
   { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
+  { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
 ];
 function renderRoadmap(){
   const cont=document.getElementById('conteudo');
@@ -4312,6 +4355,407 @@ function renderRoadmap(){
   </div>`));
 }
 
+
+// ============================ 🎯 PRIORIDADES DO TIME ============================
+// Painel das (até 5) prioridades da semana + Modo reunião (pauta de 35 min).
+// Jira é a fonte da SELEÇÃO (label prioridade-semana); o painel guarda só a
+// embalagem de negócio (cfg.reuniao.prioridades), o log de decisões (Supabase,
+// config?dec=1) e o marco da última reunião (cfg.reuniao.ultimaReuniao).
+const PR_CAP=5;
+const PR_NATUREZAS=[
+  ['entrega','Clientes · Entrega','marcos, dependências e aceite'],
+  ['operacao','Clientes · Operação','SLA, criticidade e recorrência'],
+  ['produtos','Produtos e melhoria interna','valor entregue, adoção e próxima versão'],
+  ['rotinas','Rotinas e governança','só atrasos, desvios e decisões'],
+  ['outros','Outros','itens fora das naturezas mapeadas'],
+];
+const PR_EV_ROT={criado:'criado',comentario:'comentário',alteracao:'alteração',transicao:'mudou de status',concluido:'concluído'};
+function prCfg(){ return Object.assign({}, cfgDefaults().reuniao, cfg.reuniao||{}); }
+function prNatDe(cat){ const m=prCfg().mapaNatureza||{}; const pref=String(cat||'').split('|')[0].trim();
+  return m[pref]||m[String(cat||'').trim()]||'outros'; }
+const prH=(d)=>d?`${d.slice(8,10)}/${d.slice(5,7)}`:'';
+function prSemaforo(venc){ const hoje=hojeSP();
+  if(!venc) return {cl:'nd',txt:'sem prazo definido'};
+  if(venc<hoje) return {cl:'err',txt:`venceu ${prH(venc)}`};
+  if(venc<=mtsSoma(hoje,3)) return {cl:'warn',txt:`vence ${prH(venc)}`};
+  return {cl:'ok',txt:`no prazo · ${prH(venc)}`}; }
+
+// ---- cargas (cada uma independente; re-render quando chega) ----
+function prGarante(forca){ const pr=estado.prioridades;
+  if(!forca&&(pr.dados||pr.carregando)) return; pr.carregando=true; pr.erro='';
+  fetch('/api/vencimentos?reuniao=1'+(forca?'&nocache=1':'')).then(r=>r.json()).then(j=>{
+    pr.carregando=false; if(j&&j.erro) pr.erro=j.erro; else pr.dados=j;
+    if(estado.vista==='prioridades') renderPrioridades();
+  }).catch(e=>{ pr.carregando=false; pr.erro=humanizaErro(e); if(estado.vista==='prioridades') renderPrioridades(); }); }
+function prGaranteVenc(forca){ const pr=estado.prioridades;
+  if(!forca&&(pr.venc||pr.vencB)) return; pr.vencB=true;
+  fetch(`/api/vencimentos?ate=${hojeSP()}${forca?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
+    pr.vencB=false; pr.venc=(j&&!j.erro)?j:{tickets:[],projetos:{}};
+    if(estado.vista==='prioridades') renderPrioridades();
+  }).catch(()=>{ pr.vencB=false; pr.venc={tickets:[],projetos:{}}; }); }
+function prGaranteDecs(forca){ const pr=estado.prioridades; const id=idApontar();
+  if(!id||!id.accountId){ pr.decs=null; return; }
+  if(!forca&&(pr.decs||pr.decsB)) return; pr.decsB=true;
+  fetch('/api/config?dec=1',{method:'POST',headers:mpHeaders(),body:JSON.stringify({acao:'listar'})})
+    .then(r=>r.json()).then(j=>{ pr.decsB=false; pr.decs=(j&&j.ok)?(j.decisoes||[]):[];
+      if(estado.vista==='prioridades') renderPrioridades(); })
+    .catch(()=>{ pr.decsB=false; pr.decs=[]; }); }
+function prGaranteAtiv(forca){ const pr=estado.prioridades;
+  if(!forca&&(pr.ativ||pr.ativB)) return; pr.ativB=true;
+  fetch('/api/atividade?janela=30d').then(r=>r.json()).then(j=>{ pr.ativB=false;
+    pr.ativ=(j&&!j.erro)?j:{eventos:[],pessoas:{}};
+    if(estado.vista==='prioridades') renderPrioridades(); })
+    .catch(()=>{ pr.ativB=false; pr.ativ={eventos:[],pessoas:{}}; }); }
+
+function prPrios(){ const d=estado.prioridades.dados||{}; return (d.prioridades||[]).slice(0,PR_CAP); }
+function prVencidos(){ const pr=estado.prioridades; const hoje=hojeSP();
+  return (((pr.venc||{}).tickets)||[]).filter(t=>t.venc&&t.venc<hoje); }
+// Follow-ups: decisões em aberto com prazo vencido ou vencendo em ≤7 dias.
+function prFollowUps(){ const pr=estado.prioridades; const lim=mtsSoma(hojeSP(),7);
+  return (pr.decs||[]).filter(d=>['aberta','reprazada','escalada'].includes(d.status)&&d.prazo&&d.prazo<=lim); }
+function prProjetosMapa(){ const pr=estado.prioridades;
+  return Object.assign({}, ((pr.venc||{}).projetos)||{}, ((pr.dados||{}).projetos)||{}); }
+// Exceções agrupadas por natureza do trabalho (vencidos + aguardando decisão).
+function prPorNatureza(){ const projs=prProjetosMapa(); const m=prCfg().mapaNatureza||{};
+  const g={}; let catNova='';
+  PR_NATUREZAS.forEach(([slug])=>{ g[slug]={venc:[],dec:[]}; });
+  const natECheca=(pk)=>{ const cat=(projs[pk]||{}).categoria||'';
+    const pref=cat.split('|')[0].trim();
+    if(cat&&!m[pref]&&!m[cat.trim()]) catNova=cat;
+    return prNatDe(cat); };
+  prVencidos().forEach(t=>{ g[natECheca(t.p)].venc.push(t); });
+  (((estado.prioridades.dados)||{}).decisoes||[]).forEach(t=>{ g[natECheca(t.p)].dec.push(t); });
+  return {g,catNova}; }
+// Diff de uma prioridade: eventos desde a última reunião (marco da ata) — cap 3.
+function prDiffDe(t){ const pr=estado.prioridades; const r=prCfg();
+  const desde=(String(r.ultimaReuniao||'').slice(0,10))||mtsSoma(hojeSP(),-7);
+  const pess=((pr.ativ||{}).pessoas)||{};
+  return (((pr.ativ||{}).eventos)||[]).filter(ev=>ev.k===t.k&&String(ev.d||'').slice(0,10)>=desde)
+    .slice(-3).map(ev=>`${PR_EV_ROT[ev.e]||ev.e} · ${(pess[ev.a]&&pess[ev.a].nome)||''} · ${fmtBR(String(ev.d||'').slice(0,10))}`); }
+
+// ---- Ata em markdown (também vira a pauta do convite do Teams) ----
+function prAtaMd(preview){ const pr=estado.prioridades; const r=prCfg(); const hoje=hojeSP();
+  const met=r.prioridades||{}; const pri=prPrios();
+  const lin=[`# Reunião semanal de prioridades — ${hoje}`,'',
+    'Painel: https://jirainsight.vercel.app/?v=prioridades','',
+    `## Prioridades da semana (${pri.length} de ${PR_CAP} vagas)`];
+  pri.forEach((t,i)=>{ const m=met[t.k]||{};
+    lin.push(`${i+1}. ${t.k} — ${m.obj||t.resumo} · ${t.resp||'sem dono'}${t.venc?` · venc. ${prH(t.venc)}`:''}${m.pedido?` · próximo passo: ${m.pedido}`:''}`); });
+  const fu=prFollowUps();
+  lin.push('','## Follow-ups (decisões anteriores com prazo)');
+  if(fu.length) fu.forEach(f=>lin.push(`- ${f.ticket} — ${f.decisao} · ${f.dono.nome||''} · até ${prH(f.prazo)} (${f.status})`));
+  else lin.push('- Nenhum follow-up pendente.');
+  lin.push('','## Decisões desta reunião');
+  if(pr.novas.length) pr.novas.forEach(dc=>lin.push(`- ${dc.ticket} — ${dc.decisao} Resp: ${dc.dono.nome||''}. Até ${prH(dc.prazo)}.`));
+  else lin.push(preview?'- (as decisões registradas na reunião entram aqui)':'- Nenhuma decisão registrada nesta reunião.');
+  lin.push('',`## Fila de vencidos: ${prVencidos().length}`);
+  return lin.join('\n'); }
+function prMarcarReuniao(){
+  const url='https://teams.microsoft.com/l/meeting/new?subject='
+    +encodeURIComponent('Reunião semanal de prioridades')
+    +'&content='+encodeURIComponent(prAtaMd(true).slice(0,1800));
+  window.open(url,'_blank','noopener');
+  toast('Convite do Teams aberto com a pauta preenchida.','ok'); }
+
+// ---- Tour de primeiro acesso (motor de tour existente) ----
+const TOUR_PRIO=[
+  {sel:'#pr-kpis',titulo:'🎯 Prioridades do time',texto:'A leitura de 10 segundos: prioridades no prazo, fila de vencidos, o que aguarda decisão e os follow-ups da última reunião.'},
+  {sel:'#pr-prios',titulo:'As 5 vagas da semana',texto:'Cada prioridade tem dono, prazo com semáforo e o pedido ao time. O teto é 5 — a sexta só entra quando alguém responde "qual das 5 sai?". A seleção vive no Jira (label prioridade-semana).'},
+  {sel:'#pr-nat',titulo:'Portfólio por natureza',texto:'Os projetos agrupados pelo tipo de trabalho, mostrando SÓ exceções: vencidos e decisões pendentes. Categoria em dia fica quieta.'},
+  {sel:'[data-pr-aba="reuniao"]',titulo:'Modo reunião',texto:'A mesma tela vira a pauta de 35 minutos: follow-up → prioridades → decisões → exceções → ata. Status puro não entra — o painel já contou.'},
+  {sel:'[data-pr-marcar]',titulo:'Marcar reunião',texto:'Abre o convite do Teams com a pauta preenchida e o link do painel. E em ⚙️ dá para ativar o resumo periódico no canal.'},
+];
+
+function renderPrioridades(){
+  const cont=document.getElementById('conteudo'); const pr=estado.prioridades; const r=prCfg();
+  prGarante(false); prGaranteVenc(false); prGaranteDecs(false); prGaranteAtiv(false);
+  const d=pr.dados;
+  if(!d){ cont.replaceChildren(el(`<div class="mp-root"><div class="card full mp-card"><h2>🎯 Prioridades do time</h2>${
+    pr.erro?`<div class="erro">${esc(pr.erro)} <button class="btn" data-pr-rec="1">Tentar de novo</button></div>`
+      :'<div class="estado">Carregando as prioridades da semana…</div>'}</div></div>`)); return; }
+  const hoje=hojeSP(); const seg=semChave(hoje); const sex=mtsSoma(seg,4);
+  const pri=prPrios(); const met=r.prioridades||{};
+  const vencidos=prVencidos(); const fu=pr.decs?prFollowUps():null;
+  const geradoHM=String(d.meta&&d.meta.geradoEm||'').slice(11,16);
+  const idn=idApontar();
+
+  // ---- cabeçalho ----
+  const ultima=String(r.ultimaReuniao||'').slice(0,10);
+  const cab=`<div class="card full mp-card">
+    <h2>🎯 Prioridades do time <span>a reunião não é para saber como estão as coisas — é para decidir</span></h2>
+    <div class="mp-head">
+      <div class="mp-sem"><strong>Semana de ${esc(prH(seg))} a ${esc(prH(sex))}</strong>
+        <span class="mp-dim">${ultima?`última reunião: ${esc(fmtBR(ultima))}${r.ataUltimaUrl?` · <a href="${escA(r.ataUltimaUrl)}" target="_blank" rel="noopener">ata</a>`:''}`:'primeira reunião ainda não registrada'} · facilitadora: ${esc(r.facilitador||'—')}</span></div>
+      <span class="spacer"></span>
+      <span class="pr-selo" data-tip="Dados lidos do Jira agora — o painel é o status; a reunião decide">Atualizado pelo Jira${geradoHM?` · ${esc(geradoHM)}`:''}</span>
+      <button class="mp-btn" data-pr-marcar="1" data-tip="Abre o convite do Teams com a pauta preenchida">Marcar reunião</button>
+    </div>
+    <div class="kpis" id="pr-kpis">
+      <div class="kpi ${pri.some(t=>t.venc&&t.venc<hoje)?'r':'a'}"><div class="v">${pri.filter(t=>!t.venc||t.venc>=hoje).length} de ${pri.length||0}</div><div class="l">Prioridades no prazo · ${pri.length} de ${PR_CAP} vagas</div></div>
+      <div class="kpi ${vencidos.length?'r':'v'}"><div class="v">${vencidos.length}</div><div class="l">Vencidos · fila de saneamento</div></div>
+      <div class="kpi a"><div class="v">${(d.decisoes||[]).length}</div><div class="l">Aguardando decisão</div></div>
+      <div class="kpi t"><div class="v">${fu?fu.length:'—'}</div><div class="l">${fu?'Follow-ups com prazo':'Follow-ups (identifique-se)'}</div></div>
+    </div>
+    ${(d.prioridades||[]).length>PR_CAP?`<div class="pr-hig">⚠ ${(d.prioridades||[]).length} tickets com a label <code>prioridade-semana</code> — o painel mostra 5; remova ${(d.prioridades||[]).length-PR_CAP} no Jira: ${
+      (d.prioridades||[]).slice(PR_CAP).map(t=>`<a href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>`).join(' ')}</div>`:''}
+  </div>`;
+
+  // ---- abas ----
+  const abas=`<div class="mp-abas" role="tablist">${[['visao','Visão do time'],['reuniao','Modo reunião'],['projeto','Página do projeto']]
+    .map(([k,rot])=>`<button class="mp-tab${pr.aba===k?' atual':''}" role="tab" aria-selected="${pr.aba===k}" data-pr-aba="${k}">${rot}</button>`).join('')}</div>`;
+
+  let corpo='';
+  if(pr.aba==='visao'){
+    const cards=pri.map(t=>{ const m=met[t.k]||{}; const sf=prSemaforo(t.venc);
+      return `<article class="pr-prio ${sf.cl}">
+        <div class="pr-obj">${esc(m.obj||t.resumo)}</div>
+        <div class="pr-meta"><span>${esc((t.resp||'sem dono').split(' ')[0])}</span> · <span><i class="pr-dot ${sf.cl}"></i> ${esc(sf.txt)}</span></div>
+        ${m.pedido?`<div class="pr-pedido">${esc(m.pedido)}</div>`:''}
+        <div class="pr-vivo"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
+          <span>${esc(t.status)}</span><span class="pr-selo">Jira</span>
+          <span class="pr-fim"><button class="mp-lnk" data-pr-edit="${escA(t.k)}">Editar texto</button></span></div>
+      </article>`; }).join('');
+    const vagas=Array.from({length:Math.max(0,PR_CAP-pri.length)},(_,i)=>
+      `<article class="pr-vaga">Vaga livre (${pri.length+i+1} de ${PR_CAP})<br>marque um ticket com a label <code>prioridade-semana</code></article>`).join('');
+    const {g,catNova}=prPorNatureza();
+    const emDia=PR_NATUREZAS.filter(([slug])=>!(g[slug].venc.length||g[slug].dec.length)).map(([,rot])=>rot);
+    const natCards=PR_NATUREZAS.filter(([slug])=>g[slug].venc.length||g[slug].dec.length).map(([slug,rot,foco])=>{
+      const x=g[slug];
+      const fila=x.venc.slice(0,7).map(t=>`<div class="pr-linha"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
+        <span>${esc((t.resumo||'').slice(0,60))}</span><span class="pr-fim mp-dim">${esc((t.resp||'—').split(' ')[0])} · ${esc(prH(t.venc))}</span></div>`).join('');
+      return `<div class="pr-natc"><header style="display:flex;gap:8px;align-items:baseline"><b>${esc(rot)}</b><span class="mp-dim" style="margin-left:auto;font-size:11.5px">${esc(foco)}</span></header>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${x.venc.length?`<span class="pr-chip err">${x.venc.length} vencido${x.venc.length>1?'s':''}</span>`:''}
+          ${x.dec.length?`<span class="pr-chip dec">${x.dec.length} aguardando decisão</span>`:''}
+        </div>
+        ${x.venc.length?`<details class="pr-fila"><summary>ver a fila</summary>${fila}
+          ${x.venc.length>7?`<div class="mp-dim" style="padding:4px 0">+${x.venc.length-7} na fila</div>`:''}
+          <div style="margin-top:8px"><button class="mp-btn" data-pr-gestao="${slug}">Abrir na Gestão</button></div></details>`:''}
+      </div>`; }).join('');
+    corpo=`<div class="card full mp-card"><h2>As prioridades da semana <span>objetivo em linguagem de negócio, dono, prazo e pedido ao time</span></h2>
+      <div class="pr-prios" id="pr-prios">${cards}${vagas}</div></div>
+    <div class="card full mp-card"><h2>Portfólio por natureza do trabalho <span>só exceções — o que está em dia fica quieto</span></h2>
+      <div class="pr-nat" id="pr-nat">${natCards||'<div class="estado">Nenhuma exceção — tudo em dia. 🎉</div>'}</div>
+      ${emDia.length&&natCards?`<div class="mp-dim" style="margin-top:10px">Em dia: ${esc(emDia.join(' · '))}</div>`:''}
+      ${catNova?`<div class="pr-hig" style="margin-top:10px">⚠ Categoria "${esc(catNova)}" sem natureza mapeada — caiu em "Outros". Classifique em ⚙️ Configurações.</div>`:''}
+    </div>`;
+  } else if(pr.aba==='reuniao'){
+    const passos=[['0','Follow-up'],['1','Prioridades'],['2','Decisões'],['3','Exceções'],['✓','Ata']];
+    const stepper=`<div class="mp-fluxo" role="tablist" aria-label="Pauta da reunião" style="align-items:center">
+      ${passos.map(([nn,rot],i)=>`<button class="mp-step${pr.passo===i?' atual':''}${pr.passo>i?' feito':''}" data-pr-passo="${i}" style="cursor:pointer;border:0">${nn} · ${rot}</button>`).join('<span class="mp-seta">→</span>')}
+      <span class="pr-timer" id="pr-timer">00:00 / 35 min</span></div>`;
+    let pc='';
+    if(pr.passo===0){
+      const rows=(fu||[]).map(f=>`<div class="pr-linha"><a class="mono" href="${projJira(f.ticket)}" target="_blank" rel="noopener">${esc(f.ticket)}</a>
+        <span>${esc(f.decisao)}</span><span class="mp-dim">${esc(f.dono.nome||'')} · até ${esc(prH(f.prazo))}${f.reprazos?` · reprazada ${f.reprazos}×`:''}</span>
+        <span class="pr-fim"><button class="mp-btn" data-pr-fu="${escA(f.id)}|concluida|${escA(f.atualizadoEm)}">Feita</button>
+          <button class="mp-btn" data-pr-fu="${escA(f.id)}|reprazada|${escA(f.atualizadoEm)}">Nova data</button>
+          <button class="mp-btn" data-pr-fu="${escA(f.id)}|escalada|${escA(f.atualizadoEm)}">Escalar</button></span></div>`).join('');
+      pc=`<h3>0 · As decisões da semana passada, primeiro</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">Resposta binária do dono: feita ou não feita. Não feita = nova data (1× no máximo) ou escalação. Reprazada 2× volta como pauta de decisão.</div>
+        ${pr.decs===null?'<div class="estado">Identifique-se (e-mail + token do Jira, em ⏱ Apontar) para ver e tratar os follow-ups.</div>'
+          :(rows||'<div class="estado">Nenhum follow-up com prazo — siga para as prioridades.</div>')}`;
+    } else if(pr.passo===1){
+      pc=`<h3>1 · As prioridades — com o que mudou embutido</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">Fala só o dono: o que mudou → o que implica → precisa de algo do grupo? Saída única: continua no top-5?</div>
+        ${pri.map(t=>{ const m=met[t.k]||{}; const sf=prSemaforo(t.venc); const diff=prDiffDe(t);
+          return `<article class="pr-prio ${sf.cl}" style="max-width:640px;margin-bottom:10px">
+            <div class="pr-obj">${esc(m.obj||t.resumo)}</div>
+            <div class="pr-meta"><span>${esc((t.resp||'sem dono').split(' ')[0])}</span> · <span><i class="pr-dot ${sf.cl}"></i> ${esc(sf.txt)}</span></div>
+            ${diff.length?diff.map(x=>`<div class="mp-dim" style="border-left:2px solid var(--linha);padding-left:10px">${esc(x)}</div>`).join(''):'<div class="mp-dim">Sem mudanças desde a última reunião.</div>'}
+            <div class="pr-vivo"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
+              <span class="pr-fim"><button class="mp-btn mp-btn-p" data-pr-decidir="${escA(t.k)}" data-pr-resumo="${escA(m.obj||t.resumo)}" data-pr-resp="${escA(t.resp||'')}">Registrar decisão</button></span></div>
+          </article>`; }).join('')||'<div class="estado">Nenhuma prioridade marcada — defina no Jira ou na Visão do time.</div>'}`;
+    } else if(pr.passo===2){
+      const rows=(d.decisoes||[]).slice(0,6).map(t=>`<div class="pr-linha"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
+        <span>${esc((t.resumo||'').slice(0,70))}</span><span class="mp-dim">${esc(t.status)} · ${esc((t.resp||'—').split(' ')[0])}</span>
+        <span class="pr-fim"><button class="mp-btn mp-btn-p" data-pr-decidir="${escA(t.k)}" data-pr-resumo="${escA(t.resumo)}" data-pr-resp="${escA(t.resp||'')}">Decidir</button></span></div>`).join('');
+      pc=`<h3>2 · O que está aguardando decisão</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">Em 4 minutos: decide-se com a informação que há, ou nomeia-se um dono para trazer a decisão pronta. "Discutir mais" não é saída.</div>
+        ${rows||'<div class="estado">Nada aguardando decisão. 🎉</div>'}
+        ${(d.decisoes||[]).length>6?`<div class="mp-dim" style="padding-top:6px">+${(d.decisoes||[]).length-6} — trate os demais de forma assíncrona</div>`:''}
+        ${pr.novas.length?`<div class="mp-dim" style="margin-top:10px">✓ Registradas nesta reunião: ${pr.novas.map(x=>esc(x.ticket)).join(', ')}</div>`:''}`;
+    } else if(pr.passo===3){
+      const {g}=prPorNatureza();
+      const linhas=PR_NATUREZAS.filter(([slug])=>g[slug].venc.length).map(([slug,rot])=>
+        `<div class="pr-linha"><span class="pr-chip err">${g[slug].venc.length} vencidos</span><span>${esc(rot)}</span>
+          <span class="pr-fim"><button class="mp-btn" data-pr-gestao="${slug}">Levar para a Gestão</button></span></div>`).join('');
+      pc=`<h3>3 · Exceções — em bloco, nunca item a item</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">A fila de vencidos é dívida operacional com meta assíncrona (8–10/semana). Aqui só se despacham os lotes.</div>
+        ${linhas||'<div class="estado">Nenhuma exceção nesta semana. 🎉</div>'}`;
+    } else {
+      pc=`<h3>✓ · Ata pronta — publicada antes de todos saírem</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">Copie, cole no banco "Status Diário e Reuniões" do Notion e confirme a URL. Ao encerrar: o marco da última reunião avança (zera o diff) e cada ticket decidido recebe o comentário com o link da ata.</div>
+        <div class="pr-ata" id="pr-ata">${esc(prAtaMd(false))}</div>
+        <div class="mp-form-acoes" style="align-items:center;flex-wrap:wrap">
+          <button class="mp-btn" data-pr-copiar="1">Copiar ata</button>
+          <input id="pr-ata-url" class="mp-btn" style="cursor:text;min-width:280px" placeholder="URL da ata no Notion" value="${escA(pr.ataUrl)}">
+          <button class="mp-btn mp-btn-p" data-pr-encerrar="1">Publicar e encerrar</button>
+        </div>`;
+    }
+    corpo=`<div class="card full mp-card">${stepper}<div style="margin-top:12px">${pc}</div>
+      <div class="mp-acoes">${pr.passo<4?`<button class="mp-btn mp-btn-p" data-pr-passo="${pr.passo+1}">Avançar →</button>`:''}
+        <button class="mp-lnk" data-pr-aba="visao">Sair do modo reunião</button></div></div>`;
+  } else {
+    // ---- Página do projeto (MVP: pulso do Jira + narrativa apontada) ----
+    const projs=prProjetosMapa();
+    const keys=Object.keys(projs).sort((a,b)=>projNome(a).localeCompare(projNome(b),'pt'));
+    const sel=pr.proj&&projs[pr.proj]?pr.proj:(pri[0]&&pri[0].p)||keys[0]||'';
+    const nomeP=sel?projNome(sel):'';
+    const cat=(projs[sel]||{}).categoria||'';
+    const natRot=(PR_NATUREZAS.find(([slug])=>slug===prNatDe(cat))||[])[1]||'Outros';
+    const vencP=prVencidos().filter(t=>t.p===sel).slice(0,5);
+    const priP=pri.filter(t=>t.p===sel);
+    const decsP=(pr.decs||[]).filter(x=>x.projeto===sel).slice(0,3);
+    const nURL=(prCfg().notionPorProjeto||{})[sel]||'';
+    corpo=`<div class="card full mp-card">
+      <div class="mp-head"><h2 style="margin:0">${esc(nomeP)||'Escolha um projeto'} <span class="mono" style="font-size:12px">${esc(sel)}</span></h2>
+        <span class="mp-tag">${esc(natRot)}</span><span class="spacer"></span>
+        <label class="mp-dim">Projeto <select id="pr-proj-sel" class="mp-btn" style="cursor:pointer">${keys.map(k=>`<option value="${escA(k)}" ${k===sel?'selected':''}>${esc(projNome(k))} (${esc(k)})</option>`).join('')}</select></label></div>
+      <div class="mp-2col">
+        <div><h3 class="mp-h3">Pulso <span class="pr-selo">Jira · somente leitura</span></h3>
+          ${priP.map(t=>`<div class="pr-linha"><span class="pr-chip ok">prioridade</span><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a><span>${esc((met[t.k]||{}).obj||t.resumo)}</span></div>`).join('')}
+          ${vencP.map(t=>`<div class="pr-linha"><span class="pr-chip err">venceu ${esc(prH(t.venc))}</span><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a><span>${esc((t.resumo||'').slice(0,60))}</span></div>`).join('')||'<div class="mp-dim" style="padding:6px 0">Sem vencidos neste projeto.</div>'}
+          ${decsP.length?`<h3 class="mp-h3" style="margin-top:12px">Decisões do projeto</h3>${decsP.map(x=>`<div class="pr-linha"><span>${esc(x.decisao)}</span><span class="mp-dim">${esc(x.dono.nome||'')} · ${esc(prH(x.prazo))} · ${esc(x.status)}</span></div>`).join('')}`:''}
+        </div>
+        <div><h3 class="mp-h3">Narrativa <span class="pr-selo">Notion</span></h3>
+          <div class="pr-linha"><span>📓 Página do projeto</span><span class="pr-fim">${nURL?`<a href="${escA(nURL)}" target="_blank" rel="noopener">Abrir no Notion</a>`:'<span class="mp-dim">sem página — cadastre em ⚙️</span>'}</span></div>
+          <div class="pr-linha"><span>💡 Registrar aprendizado</span><span class="pr-fim"><a href="https://app.notion.com/p/698ed174fe9d4e158a61837bdd676b16" target="_blank" rel="noopener">Lições Aprendidas</a></span></div>
+          <div class="pr-linha"><span>⚠ Registrar risco</span><span class="pr-fim"><a href="https://app.notion.com/p/313c69371e1781ab8ab2eb5ad59b553b" target="_blank" rel="noopener">Mapeamento de Risco</a></span></div>
+          <div class="mp-dim" style="margin-top:8px">A narrativa (sobre, atualizações, aprendizados, riscos) vive no Notion — o painel aponta e nunca duplica. Status e prazos vêm do Jira, ao lado.</div>
+        </div>
+      </div></div>`;
+  }
+  cont.replaceChildren(el(`<div class="mp-root">${cab}${abas}${corpo}</div>`));
+  // tour de primeiro acesso (uma vez por navegador; motor de tour existente)
+  try{ if(!localStorage.getItem('jirainsight_tour_prioridades')){
+    localStorage.setItem('jirainsight_tour_prioridades','1');
+    setTimeout(()=>{ if(estado.vista!=='prioridades') return; _tourLista=TOUR_PRIO; _tourHome=false; _tourI=0; mostraTour(); },500);
+  } }catch(e){}
+}
+
+// ---- modal de decisão (contrato: decisão + dono + prazo + ticket) ----
+function prAbreDecisao(k, resumo, resp){
+  abreModal(`<h2>Registrar decisão</h2>
+    <div class="muted small">${esc(k)} — ${esc((resumo||'').slice(0,90))}</div>
+    <form id="pr-form-dec" class="mp-form" style="margin-top:8px" data-ticket="${escA(k)}">
+      <label>Decisão (uma frase no perfeito: “Decidimos…”)<input name="decisao" required maxlength="300" placeholder="Decidimos encerrar o chamado com registro formal em produção."></label>
+      <div class="mp-form-l1">
+        <label>Dono (uma pessoa)<input name="dono" required maxlength="120" value="${escA(resp||'')}"></label>
+        <label>Prazo<input name="prazo" type="date" required></label>
+        <label>Tipo<select name="tipo"><option value="decisao">Decisão</option><option value="proxima-acao">Próxima ação</option></select></label>
+      </div>
+      <label>Contexto (opcional)<input name="contexto" maxlength="500" placeholder="pergunta em jogo, alternativas e recomendação"></label>
+      <div class="mp-form-acoes"><button type="submit" class="mp-btn mp-btn-p">Registrar decisão</button>
+        <button type="button" class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>
+      <div class="ap-fb" id="pr-dec-fb" hidden></div>
+    </form>`); }
+function prAbreEditPrio(k){ const m=(prCfg().prioridades||{})[k]||{};
+  abreModal(`<h2>Texto de negócio da prioridade</h2>
+    <div class="muted small">${esc(k)} — a seleção vive no Jira; aqui fica só a embalagem que o time lê.</div>
+    <form id="pr-form-edit" class="mp-form" style="margin-top:8px" data-ticket="${escA(k)}">
+      <label>Objetivo em linguagem de negócio<input name="obj" maxlength="140" value="${escA(m.obj||'')}" placeholder="Entregar o controle de consórcios da Fiagril"></label>
+      <label>Próximo passo / pedido ao time<input name="pedido" maxlength="200" value="${escA(m.pedido||'')}" placeholder="Homologação depende do cliente — quem falou com a Fiagril esta semana?"></label>
+      <div class="mp-form-acoes"><button type="submit" class="mp-btn mp-btn-p">Salvar</button>
+        <button type="button" class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>
+    </form>`); }
+
+// ---- interações ----
+let _prTimerInt=null;
+function prTimer(){ clearInterval(_prTimerInt);
+  _prTimerInt=setInterval(()=>{ const e=document.getElementById('pr-timer'); const pr=estado.prioridades;
+    if(!e||!pr.t0){ clearInterval(_prTimerInt); return; }
+    const s=Math.floor((Date.now()-pr.t0)/1000);
+    e.textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')} / 35 min`;
+    if(s>35*60) e.style.color='var(--amarelo)';
+  },1000); }
+document.addEventListener('click', async (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-pr-rec],[data-pr-aba],[data-pr-passo],[data-pr-edit],[data-pr-gestao],[data-pr-marcar],[data-pr-decidir],[data-pr-fu],[data-pr-copiar],[data-pr-encerrar]');
+  if(!t) return;
+  const pr=estado.prioridades;
+  if(t.hasAttribute('data-pr-rec')){ prGarante(true); prGaranteVenc(true); renderPrioridades(); return; }
+  if(t.hasAttribute('data-pr-marcar')){ prMarcarReuniao(); return; }
+  if(t.hasAttribute('data-pr-aba')){ const aba=t.getAttribute('data-pr-aba');
+    pr.aba=aba;
+    if(aba==='reuniao'&&!pr.t0){ pr.t0=Date.now(); pr.passo=0; prGaranteDecs(true); prGarante(true); prTimer(); }
+    if(aba!=='reuniao'&&pr.t0&&!pr.novas.length){ pr.t0=0; }
+    renderPrioridades(); if(aba==='reuniao') prTimer(); return; }
+  if(t.hasAttribute('data-pr-passo')){ pr.passo=Number(t.getAttribute('data-pr-passo'))||0; renderPrioridades(); prTimer(); return; }
+  if(t.hasAttribute('data-pr-edit')){ prAbreEditPrio(t.getAttribute('data-pr-edit')); return; }
+  if(t.hasAttribute('data-pr-decidir')){ const id=idApontar();
+    if(!id||!id.accountId){ toast('Identifique-se em ⏱ Apontar para registrar decisões.','warn'); return; }
+    prAbreDecisao(t.getAttribute('data-pr-decidir'), t.getAttribute('data-pr-resumo')||'', t.getAttribute('data-pr-resp')||''); return; }
+  if(t.hasAttribute('data-pr-gestao')){ const slug=t.getAttribute('data-pr-gestao');
+    const {g}=prPorNatureza(); const keys=((g[slug]||{}).venc||[]).map(x=>x.k);
+    if(!keys.length) return;
+    const gx=estado.gestao; gx.soKeys=keys; gx.origem=`🎯 Prioridades — ${(PR_NATUREZAS.find(([s])=>s===slug)||[])[1]||slug}`;
+    gx.preset=''; gx.busca=''; gx.fProj=''; gx.fResp=''; gx.fStatus=''; gx.semTrat=false;
+    gx.sel={}; keys.forEach(k=>{ gx.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  if(t.hasAttribute('data-pr-fu')){ const [id,st,base]=t.getAttribute('data-pr-fu').split('|');
+    let prazo='';
+    if(st==='reprazada'){ prazo=window.prompt('Nova data do follow-up (AAAA-MM-DD) — só é possível reprazar 1×:','')||'';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(prazo)){ toast('Data inválida — use AAAA-MM-DD.','warn'); return; } }
+    t.disabled=true;
+    try{
+      const j=await (await fetch('/api/config?dec=1',{method:'POST',headers:mpHeaders(),
+        body:JSON.stringify({acao:'atualizar',id,status:st,prazo,base})})).json();
+      if(j&&j.ok){ toast(st==='concluida'?'✓ Follow-up concluído.':st==='reprazada'?'Follow-up reprazado.':'Follow-up escalado.','ok'); prGaranteDecs(true); }
+      else if(j&&j.conflito){ toast('Alguém alterou este follow-up — recarregando.','warn'); prGaranteDecs(true); }
+      else toast((j&&j.erro)||'Não consegui atualizar.','err');
+    }catch(err){ toast('Falha: '+humanizaErro(err),'err'); }
+    return; }
+  if(t.hasAttribute('data-pr-copiar')){ const ata=document.getElementById('pr-ata');
+    try{ await navigator.clipboard.writeText(ata?ata.textContent:prAtaMd(false)); toast('✓ Ata copiada — cole no banco "Status Diário e Reuniões" do Notion.','ok'); }
+    catch(err){ toast('Não consegui copiar — selecione o texto manualmente.','warn'); }
+    return; }
+  if(t.hasAttribute('data-pr-encerrar')){
+    const url=String((document.getElementById('pr-ata-url')||{}).value||'').trim();
+    if(!url&&!window.confirm('Encerrar sem registrar a URL da ata no Notion? O follow-up continua funcionando, mas a ata fica sem link.')) return;
+    const id=idApontar();
+    cfg.reuniao=Object.assign({}, prCfg(), { ultimaReuniao:new Date().toISOString(), ataUltimaUrl:url });
+    salvaCfg();
+    const novas=pr.novas.slice(); pr.novas=[]; pr.ataUrl=''; pr.t0=0; pr.aba='visao'; pr.ativ=null;
+    // rastro: ata na decisão + comentário no ticket com o link
+    if(id&&id.accountId){
+      novas.forEach(dc=>{
+        if(url) fetch('/api/config?dec=1',{method:'POST',headers:mpHeaders(),
+          body:JSON.stringify({acao:'atualizar',id:dc.id,ataUrl:url,base:dc.atualizadoEm})}).catch(()=>{});
+        fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({comentar:true,issue:dc.ticket,email:id.email,token:id.token,
+            texto:`[DECISÃO ${hojeSP()}] ${dc.decisao} | Dono: ${dc.dono.nome||''} | Prazo: ${dc.prazo}${url?` | Ata: ${url}`:''}`})}).catch(()=>{});
+      });
+    }
+    toast(`✓ Reunião encerrada${novas.length?` — ${novas.length} decisão(ões) registrada(s) e comentada(s) nos tickets`:''}. O diff da próxima semana começa agora.`,'ok');
+    prGaranteDecs(true); renderPrioridades(); return; }
+});
+document.addEventListener('submit', async (e)=>{
+  const f=e.target;
+  if(f&&f.id==='pr-form-dec'){ e.preventDefault();
+    const fb=document.getElementById('pr-dec-fb'); const id=idApontar();
+    const dados={ acao:'registrar', decisao:f.decisao.value.trim(), tipo:f.tipo.value,
+      dono:{ accountId:'', nome:f.dono.value.trim() }, prazo:f.prazo.value,
+      ticket:f.getAttribute('data-ticket'), contexto:f.contexto.value.trim() };
+    try{
+      const j=await (await fetch('/api/config?dec=1',{method:'POST',headers:mpHeaders(),body:JSON.stringify(dados)})).json();
+      if(j&&j.ok){ estado.prioridades.novas.push(j.decisao); fechaModal();
+        toast('✓ Decisão registrada — ela entra na ata e volta no follow-up da próxima reunião.','ok');
+        prGaranteDecs(true); if(estado.vista==='prioridades') renderPrioridades(); }
+      else{ fb.hidden=false; fb.textContent=(j&&j.erro)||'Não consegui registrar.'; }
+    }catch(err){ fb.hidden=false; fb.textContent='Falha: '+humanizaErro(err); }
+    return; }
+  if(f&&f.id==='pr-form-edit'){ e.preventDefault();
+    const k=f.getAttribute('data-ticket');
+    cfg.reuniao=prCfg();
+    cfg.reuniao.prioridades=Object.assign({}, cfg.reuniao.prioridades,
+      { [k]: { obj:f.obj.value.trim(), pedido:f.pedido.value.trim() } });
+    salvaCfg(); fechaModal(); toast('✓ Texto da prioridade salvo para o time.','ok');
+    if(estado.vista==='prioridades') renderPrioridades(); return; }
+});
+document.addEventListener('change', (e)=>{
+  if(e.target&&e.target.id==='pr-proj-sel'){ estado.prioridades.proj=e.target.value; renderPrioridades(); }
+});
+
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -4329,6 +4773,7 @@ function render(){
   if(estado.vista==='agenda') return renderAgenda();
   if(estado.vista==='minhasemana') return renderMinhaSemana();
   if(estado.vista==='roadmap') return renderRoadmap();
+  if(estado.vista==='prioridades') return renderPrioridades();
   if(estado.vista==='apontar') return renderApontar();
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
@@ -5071,6 +5516,7 @@ function renderAcoes(){
   }
   // ---- 🚀 atalhos descritivos ----
   const ATALHOS=[
+    ['prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
     ['minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
     ['apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
     ['agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
@@ -13851,6 +14297,7 @@ const TOUR_TELAS=[
   {vai:'reuvinc',titulo:'🗂 Reuniões — aba Vincular',texto:'Transforme reuniões em registro num ticket de AMS (criar novo ou comentar num aberto, com worklog) — e 🔁 transfira QUALQUER ticket pelo número (vincula o esforço e exclui o original).'},
   {vai:'ams',titulo:'AMS (apuração por ciclo)',texto:'Um contrato por vez, por ciclo: banco de horas, faturamento, faturável × não faturável (pelo TIPO do chamado), chamados do ciclo e PDF da apuração.'},
   {vai:'receita',titulo:'💰 Receita',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
+  {vai:'prioridades',titulo:'🎯 Prioridades do time',texto:'As (até) 5 prioridades da semana com dono, prazo e pedido ao time; portfólio por natureza mostrando só exceções; e o Modo reunião que conduz a pauta de 35 minutos — status é assíncrono, a reunião decide.'},
   {vai:'config',titulo:'⚙️ Central de configurações',texto:'Todos os ajustes num lugar só: metas & ausências, contratos, resumo agendado no Teams, integrações e preferências.'},
   {vai:'admin',titulo:'⚙️ Contratos (Admin)',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento.'},
   {vai:'acoes',sel:'#grp-mais',titulo:'É isso! 🎉',texto:'Você passou por TODAS as telas. Dúvida em alguma? Em ⋯ Mais → ❓ Ajuda tem o passo a passo escrito de cada uma — e o canal de dúvidas/sugestões/bugs. Bom uso!'},
@@ -13945,6 +14392,7 @@ function vaiPara(v){
 const NAVCAT=[
   ['visao','Visão Geral','Início','inicio home executiva kpis'],
   ['acoes','🏠 Início — Ações de hoje','Início','hoje pendencias novidades inicio home principal minhas horas vencidos'],
+  ['prioridades','🎯 Prioridades do time','Início','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
   ['minhasemana','📋 Meu Planejamento','Meu trabalho','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado'],
   ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
   ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
@@ -14028,6 +14476,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-11','🎯 <b>Prioridades do time — o painel que conduz a reunião semanal</b>: nova tela (🎯 Prioridades, no menu) com as <b>até 5 prioridades da semana</b> (marcadas no Jira pela label <code>prioridade-semana</code>) com dono, prazo com semáforo e o pedido ao time; <b>portfólio por natureza do trabalho</b> mostrando só exceções (vencidos e aguardando decisão) com atalho para a Gestão; e o <b>Modo reunião</b> — pauta de 35 minutos em 5 passos (follow-up → prioridades com o diff embutido → decisões → exceções → ata pronta para o Notion). Toda decisão tem <b>dono, prazo e ticket</b>, vira comentário no chamado e <b>volta sozinha</b> no follow-up da semana seguinte. Tem ainda <b>tour guiado no primeiro acesso</b>, botão <b>Marcar reunião</b> (convite do Teams com a pauta preenchida), <b>Página do projeto</b> (pulso do Jira + links do Notion) e resumo periódico configurável no canal do Teams (⚙️). Facilitadora do rito: Jéssica.'],
   ['2026-08-10','🎨 <b>A cara da Dexterity no app inteiro</b>: a identidade que estreou no Meu Planejamento passou a valer em todas as telas — o <b>verde-petróleo</b> substituiu o azul em botões, links, abas e gráficos, os textos ficaram no <b>grafite</b> e cada tela ganhou a <b>faixa areia</b> ao fundo (o topo e o rodapé seguem limpos). O <b>modo escuro</b> continua igual, e todas as cores de texto foram conferidas para passar em contraste AA.'],
   ['2026-08-10','🏷️ <b>Projeto pelo NOME, não pela sigla</b>: relatórios, tabelas, gráficos, legendas, filtros e seletores agora mostram o <b>nome do projeto</b> (ex.: <i>DAMS | Casa dos Ventos</i> no lugar de <i>CCDV</i>) — a sigla continua no tooltip e nos links, e a chave do ticket (ex.: CCDV-46) não muda.'],
   ['2026-08-10','📊 <b>Relatórios do planejamento com gráficos de verdade</b>: os Relatórios do gestor ganharam <b>evolução por semana</b>, <b>planejado × realizado por projeto e por pessoa</b> (barras com o nome inteiro e o % de execução), <b>maiores desvios</b> em barras que saem do zero para os dois lados e a <b>situação dos planejamentos</b> numa faixa só. Na aba Planejado × realizado, o gráfico do dia a dia ficou mais legível e ganhou um comparativo por projeto. As tabelas continuam logo abaixo de cada gráfico.'],
@@ -14120,7 +14569,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-10.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-11.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -14475,6 +14924,28 @@ function renderConfig(){
       </div>
 
       <div class="card cfgc">
+        <h2>🎯 Prioridades do time</h2>
+        <div class="cfgc-sec">
+          <h3>Reunião semanal e painel</h3>
+          <div class="muted small">Facilitador(a) — aparece no cabeçalho e conduz o Modo reunião.</div>
+          <input id="cf-reu-facil" class="pl-texto" style="margin-top:6px" maxlength="80" value="${escA(prCfg().facilitador||'')}">
+          <div class="muted small" style="margin-top:10px">Status que contam como <strong>aguardando decisão</strong> (um por linha) — além deles, a label <code>aguardando-decisao</code> sempre vale.</div>
+          <textarea id="cf-reu-status" class="pl-texto" style="min-height:80px;margin-top:6px">${esc((prCfg().statusDecisao||[]).join('\n'))}</textarea>
+          <div class="muted small" style="margin-top:10px">Natureza do trabalho por categoria do Jira — <code>PREFIXO=natureza</code> (naturezas: entrega, operacao, produtos, rotinas, outros).</div>
+          <textarea id="cf-reu-nat" class="pl-texto" style="min-height:90px;margin-top:6px">${esc(Object.entries(prCfg().mapaNatureza||{}).map(([k,v])=>`${k}=${v}`).join('\n'))}</textarea>
+          <div class="muted small" style="margin-top:10px">Página do projeto no Notion — <code>CHAVE=url</code> (ex.: <code>FDFR=https://…</code>).</div>
+          <textarea id="cf-reu-notion" class="pl-texto" style="min-height:70px;margin-top:6px" placeholder="FDFR=https://www.notion.so/…">${esc(Object.entries(prCfg().notionPorProjeto||{}).map(([k,v])=>`${k}=${v}`).join('\n'))}</textarea>
+          <div class="muted small" style="margin-top:10px"><strong>Resumo periódico no Teams</strong> — cartão "🎯 Prioridades da semana" no canal, pelo agendador que já existe.</div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <label class="check"><input type="checkbox" id="cf-reu-tativo" ${(prCfg().envioTeams||{}).ativo?'checked':''}> ativo</label>
+            ${['seg','ter','qua','qui','sex'].map((d,i)=>`<label class="check"><input type="checkbox" data-cf-reu-dia="${i+1}" ${((prCfg().envioTeams||{}).dias||[]).map(Number).includes(i+1)?'checked':''}> ${d}</label>`).join('')}
+            <label class="muted small">hora <input id="cf-reu-thora" type="time" value="${escA((prCfg().envioTeams||{}).hora||'09:00')}"></label>
+          </div>
+          <div style="margin-top:10px"><button class="btn primario" id="cf-reuniao-salvar">Salvar Prioridades do time</button></div>
+        </div>
+      </div>
+
+      <div class="card cfgc">
         <h2>🎯 Metas, ausências &amp; feriados</h2>
         <div class="cfgc-chips">${chip(cfg.metaGlobalH+'h','meta global/dia')}${chip(nMetas,'metas individuais')}${chip(nAus,'ausências')}${chip(nFer,'feriados ajustados')}</div>
         <div class="muted small">Meta de horas por dia útil (global e por pessoa), férias/folgas e o calendário de feriados usados no Timesheet, Ranking e envios ao Teams.</div>
@@ -14571,6 +15042,22 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     cfg.gestores=linhas; salvaCfg();
     toast(linhas.length?`✓ ${linhas.length} gestor(es) do planejamento salvos.`:'Lista de gestores esvaziada — vale a regra antiga (nome/e-mail com "diego").','ok');
     renderConfig(); }
+  else if(t.id==='cf-reuniao-salvar'){
+    const r2=prCfg();
+    r2.facilitador=((document.getElementById('cf-reu-facil')||{}).value||'').trim().slice(0,80);
+    r2.statusDecisao=((document.getElementById('cf-reu-status')||{}).value||'').split('\n').map(x=>x.trim()).filter(Boolean).slice(0,15);
+    const nat={}; ((document.getElementById('cf-reu-nat')||{}).value||'').split('\n').forEach(l=>{
+      const kv=l.split('='); if(kv[0]&&kv[1]&&['entrega','operacao','produtos','rotinas','outros'].includes(kv[1].trim())) nat[kv[0].trim()]=kv[1].trim(); });
+    if(Object.keys(nat).length) r2.mapaNatureza=nat;
+    const np={}; ((document.getElementById('cf-reu-notion')||{}).value||'').split('\n').forEach(l=>{
+      const i2=l.indexOf('='); if(i2>0){ const k=l.slice(0,i2).trim().toUpperCase(); const v=l.slice(i2+1).trim();
+        if(/^[A-Z][A-Z0-9_]*$/.test(k)&&/^https:\/\//.test(v)) np[k]=v.slice(0,300); } });
+    r2.notionPorProjeto=np;
+    r2.envioTeams={ ativo:!!((document.getElementById('cf-reu-tativo')||{}).checked),
+      dias:[...document.querySelectorAll('[data-cf-reu-dia]')].filter(x=>x.checked).map(x=>Number(x.getAttribute('data-cf-reu-dia'))),
+      hora:/^\d{2}:\d{2}$/.test(((document.getElementById('cf-reu-thora')||{}).value||''))?document.getElementById('cf-reu-thora').value:'09:00' };
+    cfg.reuniao=r2; salvaCfg();
+    toast('✓ Configuração do Prioridades do time salva.','ok'); renderConfig(); }
   else if(t.id==='cf-teste-res'){ testaTeams(true); }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
@@ -14586,7 +15073,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;

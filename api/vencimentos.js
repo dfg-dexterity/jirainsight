@@ -3,7 +3,7 @@
 // data pedida, com as horas já apontadas em cada um (timespent do Jira). Alimenta a
 // tela "Apontar" — apontamento rápido dos tickets vencendo/vencidos.
 import {
-  cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json,
+  cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json, configCompartilhada,
 } from './_lib/util.js';
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,6 +59,77 @@ async function concluidosSemHoras(q, res) {
     tickets,
   };
   return json(res, 200, cacheSetTTL(ck, payload, 5));
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/vencimentos?reuniao=1 — base do painel 🎯 Prioridades do time.
+// Duas buscas na conta de serviço:
+//   prioridades — tickets abertos com a label `prioridade-semana` (a SELEÇÃO das
+//                 prioridades vive no Jira; o painel só lê e trava a exibição em 5);
+//   decisoes    — tickets abertos "aguardando decisão": status de espera (lista
+//                 configurável em cfg.reuniao.statusDecisao) OU label `aguardando-decisao`
+//                 (cobre os workflows sem esses status).
+const STATUS_DECISAO_PADRAO = [
+  'Proposta de Solução', 'Aguardando Aprovação do Cliente', 'Aguardando Validação',
+  'Em Validação', '📆 Reunião Agendada',
+];
+async function baseReuniao(q, res) {
+  const ck = 'venc:reuniao';
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  let statusDec = STATUS_DECISAO_PADRAO;
+  try {
+    const cfg = await configCompartilhada({});
+    const lista = cfg && cfg.reuniao && Array.isArray(cfg.reuniao.statusDecisao) ? cfg.reuniao.statusDecisao : [];
+    if (lista.length) statusDec = lista;
+  } catch (e) { /* sem config → lista padrão */ }
+  const CAMPOS = ['summary', 'issuetype', 'status', 'duedate', 'assignee', 'priority', 'labels', 'project', 'updated'];
+  const projetos = {};
+  const mapa = (it) => {
+    const f = it.fields || {};
+    const pk = (f.project && f.project.key) || String(it.key).split('-')[0];
+    if (f.project && !projetos[pk]) {
+      projetos[pk] = {
+        nome: f.project.name || pk,
+        categoria: (f.project.projectCategory && f.project.projectCategory.name) || '',
+      };
+    }
+    const ass = f.assignee || {};
+    return {
+      k: it.key,
+      resumo: f.summary || '',
+      p: pk,
+      t: (f.issuetype && f.issuetype.name) || '',
+      status: (f.status && f.status.name) || '',
+      venc: String(f.duedate || '').slice(0, 10),
+      resp: ass.displayName || '',
+      respId: ass.accountId || '',
+      prio: (f.priority && f.priority.name) || '',
+      prioIcon: (f.priority && f.priority.iconUrl) || '',
+      labels: Array.isArray(f.labels) ? f.labels : [],
+      atualizado: String(f.updated || '').slice(0, 10),
+    };
+  };
+  const jqlStatus = statusDec.map((s) => `"${String(s).replace(/"/g, '\\"')}"`).join(', ');
+  const [rp, rd] = await Promise.all([
+    jiraSearchAll({
+      jql: 'labels = "prioridade-semana" AND statusCategory != Done ORDER BY priority DESC, duedate ASC, updated DESC',
+      fields: CAMPOS, pageSize: 50, maxPages: 1,
+    }),
+    jiraSearchAll({
+      jql: `(status IN (${jqlStatus}) OR labels = "aguardando-decisao") AND statusCategory != Done ORDER BY updated ASC`,
+      fields: CAMPOS, pageSize: 50, maxPages: 1,
+    }),
+  ]);
+  const payload = {
+    meta: { hoje: hojeSP(), geradoEm: new Date().toISOString(), statusDecisao: statusDec },
+    projetos,
+    prioridades: (rp.issues || []).map(mapa),
+    decisoes: (rd.issues || []).map(mapa),
+  };
+  return json(res, 200, cacheSetTTL(ck, payload, 2));
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +405,7 @@ export default async function handler(req, res) {
   try {
     const q = req.query || {};
     if (q.mencoes === '1') return await mencoesDe(q, res);
+    if (q.reuniao === '1') return await baseReuniao(q, res);
     if (q.detalhe) return await detalheTicket(q, res);
     if (q.analytics === '1') return await baseAnalytics(q, res);
     if (q.semHoras === '1') return await concluidosSemHoras(q, res);

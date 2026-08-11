@@ -9,7 +9,7 @@
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
 // pelos horários configurados no painel (cfg.teamsHora e cfg.teamsResumo).
-import { jiraBase, jiraUsuariosAtivos, json, configCompartilhada as cfgCompartilhada, feriadosBR } from './_lib/util.js';
+import { jiraBase, jiraUsuariosAtivos, jiraSearchAll, json, configCompartilhada as cfgCompartilhada, feriadosBR } from './_lib/util.js';
 import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 
@@ -322,6 +322,55 @@ async function montaResumoIA(cfg, extras, removidos, hoje, freq) {
   return { cartao: cartaoAdaptive(blocos), de, ate, stats: { pessoas: pessoas.length, horas: +(horasTot / 3600).toFixed(1) } };
 }
 
+// ---- 🎯 Prioridades da semana (painel Prioridades do time) ----------------
+// Cartão periódico configurável em ⚙️ (cfg.reuniao.envioTeams: ativo, dias da
+// semana e hora). As prioridades vêm da label `prioridade-semana` no Jira (a
+// mesma fonte do painel); "aguardando decisão" usa os status configurados.
+const STATUS_DECISAO_TEAMS = [
+  'Proposta de Solução', 'Aguardando Aprovação do Cliente', 'Aguardando Validação',
+  'Em Validação', '📆 Reunião Agendada',
+];
+async function montaPrioridades(cfg, hoje) {
+  const statusDec = (cfg.reuniao && Array.isArray(cfg.reuniao.statusDecisao) && cfg.reuniao.statusDecisao.length)
+    ? cfg.reuniao.statusDecisao : STATUS_DECISAO_TEAMS;
+  const jqlStatus = statusDec.map((s) => `"${String(s).replace(/"/g, '\\"')}"`).join(', ');
+  const [rp, rd, rv] = await Promise.all([
+    jiraSearchAll({
+      jql: 'labels = "prioridade-semana" AND statusCategory != Done ORDER BY priority DESC, duedate ASC',
+      fields: ['summary', 'assignee', 'duedate', 'status'], pageSize: 25, maxPages: 1,
+    }),
+    jiraSearchAll({
+      jql: `(status IN (${jqlStatus}) OR labels = "aguardando-decisao") AND statusCategory != Done`,
+      fields: ['summary'], pageSize: 100, maxPages: 1,
+    }),
+    jiraSearchAll({
+      jql: `duedate <= "${hoje}" AND statusCategory != Done`,
+      fields: ['summary'], pageSize: 100, maxPages: 2,
+    }),
+  ]);
+  const prios = (rp.issues || []).slice(0, 5);
+  const linhas = prios.map((it) => {
+    const f = it.fields || {};
+    const dono = (f.assignee && f.assignee.displayName) ? ` — ${f.assignee.displayName.split(' ')[0]}` : '';
+    const venc = String(f.duedate || '').slice(0, 10);
+    const atras = venc && venc < hoje;
+    const pz = venc ? ` · ${atras ? '⚠ venceu ' : 'até '}${venc.slice(8, 10)}/${venc.slice(5, 7)}` : '';
+    return { type: 'TextBlock', wrap: true, text: `• **${it.key}** ${f.summary || ''}${dono}${pz}` };
+  });
+  const cartao = cartaoAdaptive([
+    { type: 'TextBlock', size: 'Large', weight: 'Bolder', wrap: true, text: '🎯 Prioridades da semana' },
+    { type: 'TextBlock', isSubtle: true, wrap: true, spacing: 'None', text: `Semana de ${hoje.slice(8, 10)}/${hoje.slice(5, 7)} · o painel conduz a reunião — status é assíncrono` },
+    { type: 'ColumnSet', spacing: 'Medium', columns: [
+      kpiCol(String(prios.length), 'prioridades'),
+      kpiCol(String((rv.issues || []).length), 'vencidos'),
+      kpiCol(String((rd.issues || []).length), 'aguardando decisão'),
+    ] },
+    ...(linhas.length ? linhas : [{ type: 'TextBlock', wrap: true, isSubtle: true, text: 'Nenhuma prioridade marcada — defina com a label `prioridade-semana` ou pelo painel.' }]),
+    { type: 'TextBlock', wrap: true, text: '[Abrir o painel de prioridades](https://jirainsight.vercel.app/?v=prioridades)' },
+  ]);
+  return { cartao, stats: { prioridades: prios.length, vencidos: (rv.issues || []).length, aguardandoDecisao: (rd.issues || []).length } };
+}
+
 // ---- 📣 Aviso de melhorias no canal "Avisos Gerais" (acordo de 2026-07-28) ----
 // Adaptive Card com as melhorias entregues + MENÇÃO a todos os usuários ativos do
 // Jira (webhook/fluxo de canal não expõe a lista de membros; a equipe ativa do Jira
@@ -425,7 +474,32 @@ export default async function handler(req, res) {
           } catch (e) { out.resumo = { enviado: false, erro: String(e.message || e) }; }
         } else out.resumo = { enviado: false, motivo: gs.motivo, hora: horaRes };
       }
+      // 🎯 Prioridades da semana (cfg.reuniao.envioTeams: {ativo, dias[], hora})
+      const pcfg = Object.assign({ ativo: false, dias: [1], hora: '09:00' }, (cfg.reuniao || {}).envioTeams || {});
+      const horaPrio = /^\d{2}:\d{2}$/.test(String(pcfg.hora || '')) ? pcfg.hora : '09:00';
+      const diasPrio = (Array.isArray(pcfg.dias) ? pcfg.dias : [1]).map(Number);
+      if (!pcfg.ativo) out.prioridades = { enviado: false, motivo: 'desativado no painel' };
+      else if (!diasPrio.includes(diaSemana(hoje))) out.prioridades = { enviado: false, motivo: `só nos dias ${diasPrio.join(',')} da semana` };
+      else {
+        const gp = gateHorario(horaPrio, agora, hoje, ult('ultimoEnvioPrioridades'));
+        if (gp.pronto) {
+          try {
+            const m = await montaPrioridades(cfg, hoje);
+            const env = await enviaCartao(webhook, m.cartao);
+            if (env.ok) await gravaTeamsEstado({ ultimoEnvioPrioridades: hoje }, estado);
+            out.prioridades = { enviado: env.ok, status: env.status, ...m.stats, ...(env.ok ? {} : { erro: env.erro }) };
+          } catch (e) { out.prioridades = { enviado: false, erro: String(e.message || e) }; }
+        } else out.prioridades = { enviado: false, motivo: gp.motivo, hora: horaPrio };
+      }
       return json(res, 200, out);
+    }
+
+    // ---- Chamada manual: ?tipo=prioridades (com ?dry=1) ----
+    if (String(q.tipo || '') === 'prioridades') {
+      const m = await montaPrioridades(cfg, hoje);
+      if (dry) return json(res, 200, { enviado: false, dry: true, ...m.stats, cartao: m.cartao });
+      const env = await enviaCartao(webhook, m.cartao);
+      return json(res, 200, { enviado: env.ok, status: env.status, ...m.stats, ...(env.ok ? {} : { erro: env.erro }) });
     }
 
     // ---- Chamada manual: ?tipo=resumo (com ?dry=1) ou o ranking (padrão) ----

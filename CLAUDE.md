@@ -32,16 +32,25 @@ Usar a ferramenta MCP do Notion: `mcp__Notion__notion-fetch` para ler a página 
 `mcp__Notion__notion-update-page` para editar. Carregar os schemas via `ToolSearch`
 quando necessário.
 
-## ⏱ Apontamento no Jira — TAD-829 (acordo de 2026-07-19)
+## ⏱ Apontamento no Jira — projeto JI (atualizado em 2026-08-11)
+
+> **Mudança de 2026-08-11 (a pedido do usuário):** as entregas da ferramenta passaram
+> do TAD-829 para o projeto **`JI` (IMI | Jira Insights)**, organizado por ÉPICOS:
+> JI-7 🎯 Prioridades do time · JI-8 📋 Meu Planejamento · JI-9 ⏱ Apontar & Timesheet ·
+> JI-10 🏆 Ranking & Metas · JI-11 🎨 Identidade visual & Experiência ·
+> JI-12 📊 Análises & Relatórios · JI-13 🔌 Integrações & Plataforma.
+> O histórico anterior segue no TAD-829 (as horas antigas ficam lá; os tickets foram
+> espelhados no JI com link "relates to").
 
 A cada **entrega/commit** desta ferramenta:
 
-1. **Criar uma SUB-TAREFA no ticket `TAD-829`** ("Aplicativo Jira Insight", projeto
-   `TAD` — ITPR | Tarefas Avulsas, tipo "Subtarefa" id 10010) **detalhando o que foi
-   feito**, atribuída ao usuário (Diego, accountId
-   `712020:3a98a142-a5ce-443c-b3f2-32cd080d2583`).
+1. **Criar uma TAREFA no projeto `JI`** (tipo "Tarefa" — usar o id `11112`, o nome
+   traduzido é rejeitado pela API) **sob o épico correspondente** (campo
+   `parent: {key: 'JI-x'}`), detalhando o que foi feito, atribuída ao usuário (Diego,
+   accountId `712020:3a98a142-a5ce-443c-b3f2-32cd080d2583`). Transições do fluxo JI:
+   "Fazendo" id 21 · "Feito" id 41 (aceitas no próprio create via `transition`).
 2. **SEMPRE perguntar ao usuário quantas horas apontar** (nunca presumir) e registrar
-   o worklog nessa sub-tarefa via MCP do Atlassian (`addWorklogToJiraIssue`) ou, se o
+   o worklog nessa tarefa via MCP do Atlassian (`addWorklogToJiraIssue`) ou, se o
    conector pedir aprovação indisponível, via Zapier
    (`jira_software_cloud_add_work_log_to_issue`).
 
