@@ -364,6 +364,7 @@
   .pr-selo{font-size:10px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--linha);border-radius:4px;padding:2px 6px;color:var(--muted);white-space:nowrap}
   .pr-vaga{border:1px dashed var(--linha);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12.5px;min-height:110px;text-align:center;padding:10px}
   .pr-nat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pr-projrow+.pr-projrow{border-top:1px dashed var(--linha2)}
   .pr-natc{border:1px solid var(--linha2);border-radius:12px;background:var(--cartao);padding:11px 13px}
   .pr-chip{display:inline-flex;gap:5px;align-items:center;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;white-space:nowrap}
   .pr-chip.err{background:rgba(179,38,30,.1);color:var(--err)} .pr-chip.dec{background:rgba(107,79,216,.12);color:var(--roxo)}
@@ -4415,17 +4416,31 @@ function prFollowUps(){ const pr=estado.prioridades; const lim=mtsSoma(hojeSP(),
   return (pr.decs||[]).filter(d=>['aberta','reprazada','escalada'].includes(d.status)&&d.prazo&&d.prazo<=lim); }
 function prProjetosMapa(){ const pr=estado.prioridades;
   return Object.assign({}, ((pr.venc||{}).projetos)||{}, ((pr.dados||{}).projetos)||{}); }
-// Exceções agrupadas por natureza do trabalho (vencidos + aguardando decisão).
+// Visão projeto a projeto: cada natureza agrupa os PROJETOS do time, e cada
+// projeto carrega os próprios vencidos, aguardando decisão e prioridades — com
+// vários projetos rodando ao mesmo tempo, a leitura é por projeto, não em bloco.
 function prPorNatureza(){ const projs=prProjetosMapa(); const m=prCfg().mapaNatureza||{};
+  // projetos "ativos" = os que aparecem nas exceções/prioridades + os com horas
+  // recentes (catálogo do /api/tempo, que traz a categoria)
+  const ativos=Object.assign({}, ((estado.tempo||{}).projetos)||{}, projs);
   const g={}; let catNova='';
-  PR_NATUREZAS.forEach(([slug])=>{ g[slug]={venc:[],dec:[]}; });
-  const natECheca=(pk)=>{ const cat=(projs[pk]||{}).categoria||'';
+  PR_NATUREZAS.forEach(([slug])=>{ g[slug]={projetos:{},venc:[],dec:[]}; });
+  const natECheca=(pk)=>{ const cat=(ativos[pk]||{}).categoria||'';
     const pref=cat.split('|')[0].trim();
     if(cat&&!m[pref]&&!m[cat.trim()]) catNova=cat;
     return prNatDe(cat); };
-  prVencidos().forEach(t=>{ g[natECheca(t.p)].venc.push(t); });
-  (((estado.prioridades.dados)||{}).decisoes||[]).forEach(t=>{ g[natECheca(t.p)].dec.push(t); });
+  const pj=(pk)=>{ const n=natECheca(pk);
+    return (g[n].projetos[pk]=g[n].projetos[pk]||{venc:[],dec:[],prio:[]}); };
+  Object.keys(ativos).forEach(pk=>{ pj(pk); });
+  prVencidos().forEach(t=>{ const o=pj(t.p); o.venc.push(t); g[natECheca(t.p)].venc.push(t); });
+  (((estado.prioridades.dados)||{}).decisoes||[]).forEach(t=>{ const o=pj(t.p); o.dec.push(t); g[natECheca(t.p)].dec.push(t); });
+  prPrios().forEach(t=>{ pj(t.p).prio.push(t); });
   return {g,catNova}; }
+// Ordena os projetos de uma natureza: mais crítico primeiro (vencidos, decisões,
+// prioridades); os "em dia" ficam para a linha recolhida.
+function prProjOrdenados(nat){
+  return Object.entries(nat.projetos)
+    .sort((x,y)=>(y[1].venc.length-x[1].venc.length)||(y[1].dec.length-x[1].dec.length)||(y[1].prio.length-x[1].prio.length)||projNome(x[0]).localeCompare(projNome(y[0]),'pt')); }
 // Diff de uma prioridade: eventos desde a última reunião (marco da ata) — cap 3.
 function prDiffDe(t){ const pr=estado.prioridades; const r=prCfg();
   const desde=(String(r.ultimaReuniao||'').slice(0,10))||mtsSoma(hojeSP(),-7);
@@ -4448,7 +4463,10 @@ function prAtaMd(preview){ const pr=estado.prioridades; const r=prCfg(); const h
   lin.push('','## Decisões desta reunião');
   if(pr.novas.length) pr.novas.forEach(dc=>lin.push(`- ${dc.ticket} — ${dc.decisao} Resp: ${dc.dono.nome||''}. Até ${prH(dc.prazo)}.`));
   else lin.push(preview?'- (as decisões registradas na reunião entram aqui)':'- Nenhuma decisão registrada nesta reunião.');
-  lin.push('',`## Fila de vencidos: ${prVencidos().length}`);
+  const porProj={}; prVencidos().forEach(t=>{ porProj[t.p]=(porProj[t.p]||0)+1; });
+  const partes=Object.entries(porProj).sort((x,y)=>y[1]-x[1]).slice(0,6)
+    .map(([pk,n])=>`${projNome(pk)}: ${n}`);
+  lin.push('',`## Fila de vencidos: ${prVencidos().length}${partes.length?` — ${partes.join(' · ')}`:''}`);
   return lin.join('\n'); }
 function prMarcarReuniao(){
   const url='https://teams.microsoft.com/l/meeting/new?subject='
@@ -4461,7 +4479,7 @@ function prMarcarReuniao(){
 const TOUR_PRIO=[
   {sel:'#pr-kpis',titulo:'🎯 Prioridades do time',texto:'A leitura de 10 segundos: prioridades no prazo, fila de vencidos, o que aguarda decisão e os follow-ups da última reunião.'},
   {sel:'#pr-prios',titulo:'As 5 vagas da semana',texto:'Cada prioridade tem dono, prazo com semáforo e o pedido ao time. O teto é 5 — a sexta só entra quando alguém responde "qual das 5 sai?". A seleção vive no Jira (label prioridade-semana).'},
-  {sel:'#pr-nat',titulo:'Portfólio por natureza',texto:'Os projetos agrupados pelo tipo de trabalho, mostrando SÓ exceções: vencidos e decisões pendentes. Categoria em dia fica quieta.'},
+  {sel:'#pr-nat',titulo:'Portfólio — projeto por projeto',texto:'Cada projeto do time com a própria situação: vencidos, decisões pendentes e a estrela de prioridade da semana — agrupados pela natureza do trabalho. Projeto em dia fica numa linha recolhida.'},
   {sel:'[data-pr-aba="reuniao"]',titulo:'Modo reunião',texto:'A mesma tela vira a pauta de 35 minutos: follow-up → prioridades → decisões → exceções → ata. Status puro não entra — o painel já contou.'},
   {sel:'[data-pr-marcar]',titulo:'Marcar reunião',texto:'Abre o convite do Teams com a pauta preenchida e o link do painel. E em ⚙️ dá para ativar o resumo periódico no canal.'},
 ];
@@ -4518,25 +4536,38 @@ function renderPrioridades(){
     const vagas=Array.from({length:Math.max(0,PR_CAP-pri.length)},(_,i)=>
       `<article class="pr-vaga">Vaga livre (${pri.length+i+1} de ${PR_CAP})<br>marque um ticket com a label <code>prioridade-semana</code></article>`).join('');
     const {g,catNova}=prPorNatureza();
-    const emDia=PR_NATUREZAS.filter(([slug])=>!(g[slug].venc.length||g[slug].dec.length)).map(([,rot])=>rot);
-    const natCards=PR_NATUREZAS.filter(([slug])=>g[slug].venc.length||g[slug].dec.length).map(([slug,rot,foco])=>{
-      const x=g[slug];
-      const fila=x.venc.slice(0,7).map(t=>`<div class="pr-linha"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
+    const projRow=(pk,o)=>{
+      const fila=o.venc.slice(0,7).map(t=>`<div class="pr-linha"><a class="mono" href="${projJira(t.k)}" target="_blank" rel="noopener">${esc(t.k)}</a>
         <span>${esc((t.resumo||'').slice(0,60))}</span><span class="pr-fim mp-dim">${esc((t.resp||'—').split(' ')[0])} · ${esc(prH(t.venc))}</span></div>`).join('');
-      return `<div class="pr-natc"><header style="display:flex;gap:8px;align-items:baseline"><b>${esc(rot)}</b><span class="mp-dim" style="margin-left:auto;font-size:11.5px">${esc(foco)}</span></header>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${x.venc.length?`<span class="pr-chip err">${x.venc.length} vencido${x.venc.length>1?'s':''}</span>`:''}
-          ${x.dec.length?`<span class="pr-chip dec">${x.dec.length} aguardando decisão</span>`:''}
+      return `<div class="pr-projrow">
+        <div class="pr-linha" style="border-top:0;padding:9px 0 4px">
+          <strong data-tip="${escA(pk)}">${esc(projNome(pk))}</strong>
+          ${o.prio.length?`<span class="pr-chip ok">⭐ prioridade da semana</span>`:''}
+          ${o.venc.length?`<span class="pr-chip err">${o.venc.length} vencido${o.venc.length>1?'s':''}</span>`:''}
+          ${o.dec.length?`<span class="pr-chip dec">${o.dec.length} aguardando decisão</span>`:''}
+          <span class="pr-fim"><button class="mp-lnk" data-pr-verproj="${escA(pk)}">Página do projeto</button>
+            ${o.venc.length?`<button class="mp-btn" data-pr-gproj="${escA(pk)}">Gestão</button>`:''}</span>
         </div>
-        ${x.venc.length?`<details class="pr-fila"><summary>ver a fila</summary>${fila}
-          ${x.venc.length>7?`<div class="mp-dim" style="padding:4px 0">+${x.venc.length-7} na fila</div>`:''}
-          <div style="margin-top:8px"><button class="mp-btn" data-pr-gestao="${slug}">Abrir na Gestão</button></div></details>`:''}
-      </div>`; }).join('');
+        ${o.venc.length?`<details class="pr-fila" style="margin:0 0 4px"><summary>ver a fila de ${esc(projNome(pk))}</summary>${fila}
+          ${o.venc.length>7?`<div class="mp-dim" style="padding:4px 0">+${o.venc.length-7} na fila</div>`:''}</details>`:''}
+      </div>`; };
+    const natSecoes=PR_NATUREZAS.map(([slug,rot,foco])=>{
+      const x=g[slug]; const ord=prProjOrdenados(x);
+      const comAlgo=ord.filter(([,o])=>o.venc.length||o.dec.length||o.prio.length);
+      const emDiaP=ord.filter(([,o])=>!(o.venc.length||o.dec.length||o.prio.length));
+      if(!ord.length) return '';
+      return `<div class="pr-natc" data-pr-nat="${slug}">
+        <header style="display:flex;gap:8px;align-items:baseline;border-bottom:1px solid var(--linha2);padding-bottom:6px"><b>${esc(rot)}</b>
+          <span class="mp-dim" style="font-size:11.5px">${comAlgo.length+emDiaP.length} projeto${(comAlgo.length+emDiaP.length)>1?'s':''}</span>
+          <span class="mp-dim" style="margin-left:auto;font-size:11.5px">${esc(foco)}</span></header>
+        ${comAlgo.map(([pk,o])=>projRow(pk,o)).join('')||'<div class="mp-dim" style="padding:8px 0">Todos os projetos em dia.</div>'}
+        ${emDiaP.length?`<details class="pr-fila"><summary>Em dia: ${emDiaP.length} projeto${emDiaP.length>1?'s':''}</summary>
+          <div class="mp-dim" style="padding:6px 0">${emDiaP.map(([pk])=>esc(projNome(pk))).join(' · ')}</div></details>`:''}
+      </div>`; }).filter(Boolean).join('');
     corpo=`<div class="card full mp-card"><h2>As prioridades da semana <span>objetivo em linguagem de negócio, dono, prazo e pedido ao time</span></h2>
       <div class="pr-prios" id="pr-prios">${cards}${vagas}</div></div>
-    <div class="card full mp-card"><h2>Portfólio por natureza do trabalho <span>só exceções — o que está em dia fica quieto</span></h2>
-      <div class="pr-nat" id="pr-nat">${natCards||'<div class="estado">Nenhuma exceção — tudo em dia. 🎉</div>'}</div>
-      ${emDia.length&&natCards?`<div class="mp-dim" style="margin-top:10px">Em dia: ${esc(emDia.join(' · '))}</div>`:''}
+    <div class="card full mp-card"><h2>Portfólio — projeto por projeto <span>cada projeto com a sua situação; agrupados pela natureza do trabalho</span></h2>
+      <div id="pr-nat" style="display:flex;flex-direction:column;gap:12px">${natSecoes||'<div class="estado">Nenhum projeto ativo no recorte.</div>'}</div>
       ${catNova?`<div class="pr-hig" style="margin-top:10px">⚠ Categoria "${esc(catNova)}" sem natureza mapeada — caiu em "Outros". Classifique em ⚙️ Configurações.</div>`:''}
     </div>`;
   } else if(pr.aba==='reuniao'){
@@ -4577,11 +4608,14 @@ function renderPrioridades(){
         ${pr.novas.length?`<div class="mp-dim" style="margin-top:10px">✓ Registradas nesta reunião: ${pr.novas.map(x=>esc(x.ticket)).join(', ')}</div>`:''}`;
     } else if(pr.passo===3){
       const {g}=prPorNatureza();
-      const linhas=PR_NATUREZAS.filter(([slug])=>g[slug].venc.length).map(([slug,rot])=>
-        `<div class="pr-linha"><span class="pr-chip err">${g[slug].venc.length} vencidos</span><span>${esc(rot)}</span>
-          <span class="pr-fim"><button class="mp-btn" data-pr-gestao="${slug}">Levar para a Gestão</button></span></div>`).join('');
-      pc=`<h3>3 · Exceções — em bloco, nunca item a item</h3>
-        <div class="mp-dim" style="margin:2px 0 8px">A fila de vencidos é dívida operacional com meta assíncrona (8–10/semana). Aqui só se despacham os lotes.</div>
+      const linhas=PR_NATUREZAS.map(([slug,rot])=>{
+        const comVenc=prProjOrdenados(g[slug]).filter(([,o])=>o.venc.length);
+        if(!comVenc.length) return '';
+        return comVenc.map(([pk,o])=>`<div class="pr-linha"><span class="pr-chip err">${o.venc.length} vencido${o.venc.length>1?'s':''}</span>
+          <strong data-tip="${escA(pk)}">${esc(projNome(pk))}</strong><span class="mp-dim">${esc(rot)}</span>
+          <span class="pr-fim"><button class="mp-btn" data-pr-gproj="${escA(pk)}">Levar para a Gestão</button></span></div>`).join(''); }).filter(Boolean).join('');
+      pc=`<h3>3 · Exceções — projeto por projeto, em lote</h3>
+        <div class="mp-dim" style="margin:2px 0 8px">A fila de vencidos é dívida operacional com meta assíncrona (8–10/semana). Cada projeto despacha o seu lote para a Gestão — nunca item a item na reunião.</div>
         ${linhas||'<div class="estado">Nenhuma exceção nesta semana. 🎉</div>'}`;
     } else {
       pc=`<h3>✓ · Ata pronta — publicada antes de todos saírem</h3>
@@ -4670,7 +4704,7 @@ function prTimer(){ clearInterval(_prTimerInt);
     if(s>35*60) e.style.color='var(--amarelo)';
   },1000); }
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-pr-rec],[data-pr-aba],[data-pr-passo],[data-pr-edit],[data-pr-gestao],[data-pr-marcar],[data-pr-decidir],[data-pr-fu],[data-pr-copiar],[data-pr-encerrar]');
+  const t=e.target.closest&&e.target.closest('[data-pr-rec],[data-pr-aba],[data-pr-passo],[data-pr-edit],[data-pr-gestao],[data-pr-gproj],[data-pr-verproj],[data-pr-marcar],[data-pr-decidir],[data-pr-fu],[data-pr-copiar],[data-pr-encerrar]');
   if(!t) return;
   const pr=estado.prioridades;
   if(t.hasAttribute('data-pr-rec')){ prGarante(true); prGaranteVenc(true); renderPrioridades(); return; }
@@ -4685,10 +4719,15 @@ document.addEventListener('click', async (e)=>{
   if(t.hasAttribute('data-pr-decidir')){ const id=idApontar();
     if(!id||!id.accountId){ toast('Identifique-se em ⏱ Apontar para registrar decisões.','warn'); return; }
     prAbreDecisao(t.getAttribute('data-pr-decidir'), t.getAttribute('data-pr-resumo')||'', t.getAttribute('data-pr-resp')||''); return; }
-  if(t.hasAttribute('data-pr-gestao')){ const slug=t.getAttribute('data-pr-gestao');
-    const {g}=prPorNatureza(); const keys=((g[slug]||{}).venc||[]).map(x=>x.k);
+  if(t.hasAttribute('data-pr-verproj')){ pr.proj=t.getAttribute('data-pr-verproj'); pr.aba='projeto'; renderPrioridades(); return; }
+  if(t.hasAttribute('data-pr-gestao')||t.hasAttribute('data-pr-gproj')){
+    const {g}=prPorNatureza(); let keys=[]; let origem='';
+    if(t.hasAttribute('data-pr-gproj')){ const pk=t.getAttribute('data-pr-gproj');
+      keys=prVencidos().filter(x=>x.p===pk).map(x=>x.k); origem=`🎯 Prioridades — ${projNome(pk)}`; }
+    else { const slug=t.getAttribute('data-pr-gestao'); keys=((g[slug]||{}).venc||[]).map(x=>x.k);
+      origem=`🎯 Prioridades — ${(PR_NATUREZAS.find(([s])=>s===slug)||[])[1]||slug}`; }
     if(!keys.length) return;
-    const gx=estado.gestao; gx.soKeys=keys; gx.origem=`🎯 Prioridades — ${(PR_NATUREZAS.find(([s])=>s===slug)||[])[1]||slug}`;
+    const gx=estado.gestao; gx.soKeys=keys; gx.origem=origem;
     gx.preset=''; gx.busca=''; gx.fProj=''; gx.fResp=''; gx.fStatus=''; gx.semTrat=false;
     gx.sel={}; keys.forEach(k=>{ gx.sel[k]=true; });
     vaiPara('gestao'); return; }
@@ -14476,6 +14515,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-11','📁 <b>Prioridades do time: portfólio projeto por projeto</b>: com vários projetos rodando ao mesmo tempo, o painel agora abre a situação de <b>cada projeto</b> em linha própria — nome, ⭐ prioridade da semana, vencidos e aguardando decisão — agrupados pela natureza do trabalho, com atalhos diretos para a <b>Página do projeto</b> e para a <b>Gestão</b> (levando só os vencidos daquele projeto). Projetos em dia ficam numa linha recolhida, e a <b>ata</b> passou a quebrar a fila de vencidos por projeto.'],
   ['2026-08-11','🎯 <b>Prioridades do time — o painel que conduz a reunião semanal</b>: nova tela (🎯 Prioridades, no menu) com as <b>até 5 prioridades da semana</b> (marcadas no Jira pela label <code>prioridade-semana</code>) com dono, prazo com semáforo e o pedido ao time; <b>portfólio por natureza do trabalho</b> mostrando só exceções (vencidos e aguardando decisão) com atalho para a Gestão; e o <b>Modo reunião</b> — pauta de 35 minutos em 5 passos (follow-up → prioridades com o diff embutido → decisões → exceções → ata pronta para o Notion). Toda decisão tem <b>dono, prazo e ticket</b>, vira comentário no chamado e <b>volta sozinha</b> no follow-up da semana seguinte. Tem ainda <b>tour guiado no primeiro acesso</b>, botão <b>Marcar reunião</b> (convite do Teams com a pauta preenchida), <b>Página do projeto</b> (pulso do Jira + links do Notion) e resumo periódico configurável no canal do Teams (⚙️). Facilitadora do rito: Jéssica.'],
   ['2026-08-10','🎨 <b>A cara da Dexterity no app inteiro</b>: a identidade que estreou no Meu Planejamento passou a valer em todas as telas — o <b>verde-petróleo</b> substituiu o azul em botões, links, abas e gráficos, os textos ficaram no <b>grafite</b> e cada tela ganhou a <b>faixa areia</b> ao fundo (o topo e o rodapé seguem limpos). O <b>modo escuro</b> continua igual, e todas as cores de texto foram conferidas para passar em contraste AA.'],
   ['2026-08-10','🏷️ <b>Projeto pelo NOME, não pela sigla</b>: relatórios, tabelas, gráficos, legendas, filtros e seletores agora mostram o <b>nome do projeto</b> (ex.: <i>DAMS | Casa dos Ventos</i> no lugar de <i>CCDV</i>) — a sigla continua no tooltip e nos links, e a chave do ticket (ex.: CCDV-46) não muda.'],
@@ -14569,7 +14609,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-11.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-11.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
