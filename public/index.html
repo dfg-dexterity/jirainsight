@@ -2,9 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Insights de Uso · Jira + Clockwork</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<!-- 📱 Versão iPhone/iPad (PWA): instalável pela Tela de Início do Safari -->
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Insights" />
+<meta name="theme-color" content="#F5F6F7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0E1726" media="(prefers-color-scheme: dark)" />
 <!-- Vercel Web Analytics -->
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -1934,6 +1943,31 @@
   // Aplica o tema salvo o quanto antes (evita "flash" claro ao abrir no escuro).
   try{ var _t=localStorage.getItem('jirainsight_theme'); if(_t==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 </script>
+<style>
+  /* 📱 iPhone/iPad (PWA) — áreas seguras do iOS, toque e teclado.
+     Só vale em telas de toque/instalado; o desktop não muda nada. */
+  html{-webkit-text-size-adjust:100%}
+  body{-webkit-tap-highlight-color:transparent}
+  @supports (padding: env(safe-area-inset-left)){
+    body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+    footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+    #to-top{bottom:calc(18px + env(safe-area-inset-bottom))}
+    .gx-bar{bottom:calc(10px + env(safe-area-inset-bottom))}
+  }
+  @media (pointer:coarse){
+    /* alvo de toque confortável (Apple HIG: ≥44pt nos controles principais) */
+    .btn,.hdrmenu-m button,.navg-menu button,.nav-toggle{min-height:42px}
+    .seg button{min-height:38px}
+    /* 16px nos campos evita o ZOOM automático do Safari ao focar */
+    input,select,textarea{font-size:16px}
+    /* rolagem horizontal com inércia nas tabelas largas */
+    .tabela-wrap,.gt-wrap,.mts-wrap{-webkit-overflow-scrolling:touch}
+  }
+  /* Instalado na Tela de Início (standalone): sem "esticão" de borracha no fundo */
+  @media (display-mode: standalone){
+    html{overscroll-behavior-y:none}
+  }
+</style>
 </head>
 <body>
 <!-- Sprite de ícones (linha, monocromático, herda currentColor) usado nos menus. -->
@@ -2058,6 +2092,7 @@
         <div class="hdrmenu-m">
           <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
           <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
+          <button id="btn-instalar" aria-label="Instalar no iPhone, iPad ou computador">📱 Instalar no aparelho</button>
         </div>
       </div>
     </div>
@@ -4337,6 +4372,7 @@ const ROADMAP=[
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
   { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
   { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
+  { s:'avaliacao', t:'📱 Aplicativo nas lojas (App Store / Play)', d:'A versão instalável (PWA) já cobre iPhone/iPad pela Tela de Início; publicar nas lojas exigiria empacotar com Capacitor e conta Apple Developer — avaliar se há demanda real.' },
 ];
 function renderRoadmap(){
   const cont=document.getElementById('conteudo');
@@ -14515,6 +14551,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-12','📱 <b>Versão para iPhone e iPad — instale o painel como aplicativo</b>: em <b>⋯ Mais → 📱 Instalar no aparelho</b> tem o passo a passo (no Safari: Compartilhar → <b>Adicionar à Tela de Início</b>). O painel ganha o <b>ícone da Dexterity</b> na Tela de Início e abre em <b>tela cheia</b>, sem a barra do navegador, respeitando as áreas seguras do iPhone; os campos não dão mais zoom sozinhos ao digitar e os botões ficaram no tamanho certo para o dedo. Funciona também no computador (Chrome/Edge: instalar como aplicativo).'],
   ['2026-08-11','📁 <b>Prioridades do time: portfólio projeto por projeto</b>: com vários projetos rodando ao mesmo tempo, o painel agora abre a situação de <b>cada projeto</b> em linha própria — nome, ⭐ prioridade da semana, vencidos e aguardando decisão — agrupados pela natureza do trabalho, com atalhos diretos para a <b>Página do projeto</b> e para a <b>Gestão</b> (levando só os vencidos daquele projeto). Projetos em dia ficam numa linha recolhida, e a <b>ata</b> passou a quebrar a fila de vencidos por projeto.'],
   ['2026-08-11','🎯 <b>Prioridades do time — o painel que conduz a reunião semanal</b>: nova tela (🎯 Prioridades, no menu) com as <b>até 5 prioridades da semana</b> (marcadas no Jira pela label <code>prioridade-semana</code>) com dono, prazo com semáforo e o pedido ao time; <b>portfólio por natureza do trabalho</b> mostrando só exceções (vencidos e aguardando decisão) com atalho para a Gestão; e o <b>Modo reunião</b> — pauta de 35 minutos em 5 passos (follow-up → prioridades com o diff embutido → decisões → exceções → ata pronta para o Notion). Toda decisão tem <b>dono, prazo e ticket</b>, vira comentário no chamado e <b>volta sozinha</b> no follow-up da semana seguinte. Tem ainda <b>tour guiado no primeiro acesso</b>, botão <b>Marcar reunião</b> (convite do Teams com a pauta preenchida), <b>Página do projeto</b> (pulso do Jira + links do Notion) e resumo periódico configurável no canal do Teams (⚙️). Facilitadora do rito: Jéssica.'],
   ['2026-08-10','🎨 <b>A cara da Dexterity no app inteiro</b>: a identidade que estreou no Meu Planejamento passou a valer em todas as telas — o <b>verde-petróleo</b> substituiu o azul em botões, links, abas e gráficos, os textos ficaram no <b>grafite</b> e cada tela ganhou a <b>faixa areia</b> ao fundo (o topo e o rodapé seguem limpos). O <b>modo escuro</b> continua igual, e todas as cores de texto foram conferidas para passar em contraste AA.'],
@@ -14609,7 +14646,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-11.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-12.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -15418,6 +15455,55 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 { const bm=document.getElementById('btn-metas'); if(bm) bm.addEventListener('click', abreMetas); }
 document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
+
+// ── 📱 Versão iPhone/iPad (PWA) ──────────────────────────────────────────────
+// O app é instalável pela Tela de Início: em pé de app nativo (tela cheia, ícone
+// da Dexterity), sem App Store. O modal abaixo guia a instalação por plataforma.
+let _bipEvento=null;   // beforeinstallprompt (Chrome/Edge/Android)
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); _bipEvento=e; });
+function pwaEhIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); // iPadOS se apresenta como Mac
+}
+function pwaInstalado(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
+}
+function abreInstalar(){
+  const passoIOS=(n,txt)=>`<div class="nov-item"><span class="nov-data">${n}.</span><span class="nov-txt">${txt}</span></div>`;
+  let corpo='';
+  if(pwaInstalado()){
+    corpo=`<p>✅ <b>Você já está no app instalado</b> — tela cheia, com o ícone da Dexterity na Tela de Início. Nada a fazer aqui.</p>`;
+  } else if(pwaEhIOS()){
+    corpo=`<p>No <b>iPhone</b> ou <b>iPad</b>, a instalação é feita pelo <b>Safari</b> (2 toques):</p>
+      <div class="nov-lista" style="margin-top:8px">
+        ${passoIOS(1,'Abra <b>este endereço no Safari</b> (no Chrome do iOS o botão não aparece).')}
+        ${passoIOS(2,'Toque em <b>Compartilhar</b> <svg width="16" height="18" viewBox="0 0 16 19" style="vertical-align:-3px" aria-hidden="true"><g fill="none" stroke="var(--cerceta)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 H2 V17 H14 V7.5 H13"/><path d="M8 1.5 V11.5"/><path d="M4.8 4.6 L8 1.4 L11.2 4.6"/></g></svg> — no iPhone fica embaixo, no iPad no topo, ao lado da barra de endereço.')}
+        ${passoIOS(3,'Role e toque em <b>“Adicionar à Tela de Início”</b> e confirme em <b>Adicionar</b>.')}
+      </div>
+      <p class="muted small" style="margin-top:10px">O ícone <b>Insights</b> aparece na Tela de Início e o painel abre em <b>tela cheia</b>, sem a barra do navegador — com o mesmo login por token de sempre.</p>`;
+  } else if(_bipEvento){
+    corpo=`<p>Seu navegador permite instalar o painel como aplicativo (janela própria, ícone no sistema):</p>
+      <p style="margin-top:10px"><button class="btn primario" id="btn-instalar-agora">📲 Instalar agora</button></p>`;
+  } else {
+    corpo=`<p>Neste navegador a instalação fica no menu do próprio navegador (ex.: <b>⋮ → Instalar aplicativo</b> no Chrome/Edge).</p>
+      <p class="muted small" style="margin-top:8px">No <b>iPhone/iPad</b>: abra este endereço no <b>Safari</b> → <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>.</p>`;
+  }
+  abreModal(`<h2>📱 Instalar no aparelho</h2>
+    <div class="muted small">O painel vira um aplicativo no seu iPhone, iPad ou computador — sem loja, sem download.</div>
+    <div style="margin-top:12px">${corpo}</div>`);
+  const b=document.getElementById('btn-instalar-agora');
+  if(b) b.addEventListener('click', async ()=>{
+    if(!_bipEvento) return;
+    _bipEvento.prompt();
+    try{ await _bipEvento.userChoice; }catch(e){}
+    _bipEvento=null; fechaModal();
+  });
+}
+document.getElementById('btn-instalar').addEventListener('click', abreInstalar);
+// Service worker: só registra em produção (https); rede-primeiro, nunca toca /api/.
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
+}
 { const bl=document.getElementById('btn-log'); if(bl) bl.addEventListener('click', abreLogAcoes); }
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
 // Modo claro/escuro (persistido em localStorage; o tema já foi aplicado cedo no <head>).
