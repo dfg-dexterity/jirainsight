@@ -1,0 +1,17 @@
+{
+  "name": "Insights de Uso — Jira + Clockwork",
+  "short_name": "Insights",
+  "description": "Painel Insights de Uso da Dexterity IT: prioridades, planejamento, apontamento e relatórios do Jira + Clockwork.",
+  "lang": "pt-BR",
+  "start_url": "/?fonte=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F5F6F7",
+  "theme_color": "#F5F6F7",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

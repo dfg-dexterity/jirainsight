@@ -39,8 +39,12 @@ quando necessário.
 > JI-7 🎯 Prioridades do time · JI-8 📋 Meu Planejamento · JI-9 ⏱ Apontar & Timesheet ·
 > JI-10 🏆 Ranking & Metas · JI-11 🎨 Identidade visual & Experiência ·
 > JI-12 📊 Análises & Relatórios · JI-13 🔌 Integrações & Plataforma.
-> O histórico anterior segue no TAD-829 (as horas antigas ficam lá; os tickets foram
-> espelhados no JI com link "relates to").
+> O histórico anterior segue no TAD-829 apenas como arquivo: os tickets foram
+> espelhados no JI com link "relates to" e, em **2026-08-11 (a pedido do usuário)**,
+> os **29 worklogs (32,02h) foram COPIADOS para os espelhos JI** (JI-14..JI-46) com a
+> data original e o autor original citado no comentário ("Transferido do TAD-xxx…").
+> **NÃO recopiar essas horas** — a transferência está completa; as horas do TAD-829
+> são duplicatas históricas (a API não move nem apaga worklogs; limpeza só pela UI).
 
 A cada **entrega/commit** desta ferramenta:
 
