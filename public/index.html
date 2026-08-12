@@ -936,6 +936,9 @@
   .kb-k{font-weight:700;font-size:12.5px;color:var(--cerceta)}
   .kb-res{font-size:13px;line-height:1.4;margin-bottom:6px}
   .kb-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .kb-stbtn{border:1px solid var(--linha);background:var(--cartao);border-radius:7px;font-size:11px;
+    padding:2px 7px;cursor:pointer;color:var(--texto2);font-family:var(--corpo)}
+  .kb-stbtn:hover{color:var(--cerceta);border-color:var(--cerceta)}
   /* Central de Alertas */
   .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .al-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left-width:5px}
@@ -1290,10 +1293,40 @@
     8%{opacity:1}
     82%{opacity:1}
     100%{transform:translateY(108vh) rotate(260deg);opacity:0}}
-  .rk-pod{animation:rkSobe .5s ease-out both}
-  .rk-pod.p2{animation-delay:.05s} .rk-pod.p1{animation-delay:.16s} .rk-pod.p3{animation-delay:.27s}
-  @keyframes rkSobe{from{opacity:0;transform:translateY(18px) scale(.95)}}
-  @media (prefers-reduced-motion: reduce){ .rk-chuva{display:none} .rk-pod{animation:none} }
+  /* Confete nas cores da marca caindo junto com as estrelas (metade balança no ar) */
+  .rk-chuva i.cf{width:9px;height:15px;border-radius:2px;top:-24px}
+  .rk-chuva i.cf1{background:var(--marca)} .rk-chuva i.cf2{background:#E8B800}
+  .rk-chuva i.cf3{background:var(--roxo)} .rk-chuva i.cf4{background:var(--musgo)}
+  .rk-chuva i:nth-child(odd){animation-name:rkChuvaS}
+  @keyframes rkChuvaS{
+    0%{transform:translateY(0) translateX(0) rotate(0);opacity:0}
+    8%{opacity:1}
+    50%{transform:translateY(54vh) translateX(26px) rotate(160deg)}
+    82%{opacity:1}
+    100%{transform:translateY(108vh) translateX(-14px) rotate(320deg);opacity:0}}
+  /* Pódio: entrada em salto com overshoot, medalha com "pop", estrelas surgindo */
+  .rk-pod{animation:rkSobe .65s cubic-bezier(.22,1.4,.36,1) both}
+  .rk-pod.p2{animation-delay:.1s} .rk-pod.p3{animation-delay:.46s}
+  .rk-pod.p1{animation:rkSobe .65s cubic-bezier(.22,1.4,.36,1) .28s both, rkGlow 2.4s ease-in-out 1.1s infinite}
+  @keyframes rkSobe{from{opacity:0;transform:translateY(46px) scale(.82)}}
+  @keyframes rkGlow{0%,100%{box-shadow:0 0 0 rgba(240,198,116,0)}50%{box-shadow:0 0 34px rgba(240,198,116,.75)}}
+  .rk-pod .rk-pod-medal{animation:rkPop .55s cubic-bezier(.22,1.6,.36,1) both}
+  .rk-pod.p2 .rk-pod-medal{animation-delay:.5s} .rk-pod.p1 .rk-pod-medal{animation-delay:.7s} .rk-pod.p3 .rk-pod-medal{animation-delay:.86s}
+  @keyframes rkPop{from{opacity:0;transform:scale(.2) rotate(-14deg)}}
+  .rk-pod-stars{animation:rkSurge .5s ease-out .95s both}
+  @keyframes rkSurge{from{opacity:0;transform:translateY(6px)}}
+  /* Raios de sol girando devagar atrás da medalha do campeão */
+  .rk-pod>:not(.rk-crown){position:relative;z-index:1}
+  .rk-pod.p1::after{content:'';position:absolute;left:50%;top:30px;width:130px;height:130px;
+    transform:translateX(-50%);border-radius:50%;pointer-events:none;opacity:.5;z-index:0;
+    background:repeating-conic-gradient(rgba(240,198,116,.45) 0 12deg, transparent 12deg 30deg);
+    -webkit-mask-image:radial-gradient(circle,#000 0%,transparent 68%);
+    mask-image:radial-gradient(circle,#000 0%,transparent 68%);
+    animation:rkGira 9s linear infinite}
+  @keyframes rkGira{to{transform:translateX(-50%) rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){ .rk-chuva{display:none}
+    .rk-pod,.rk-pod.p1,.rk-pod .rk-pod-medal,.rk-pod-stars{animation:none}
+    .rk-pod.p1::after{display:none} }
   .rk-mural{display:flex;gap:8px;flex-wrap:wrap}
   .rk-mchip{display:inline-flex;gap:8px;align-items:center;border:1px solid #F0C674;border-radius:999px;
     padding:6px 12px;background:#FFF9E8;font-size:13px}
@@ -7036,22 +7069,45 @@ const rkStars=(n)=> n<=0?'' : (n<=8 ? '⭐'.repeat(n) : `⭐×${n}`);
 // Respeita prefers-reduced-motion e se remove sozinha ao terminar.
 function rkAnimaEntrada(){
   const rk=estado.ranking;
-  if(rk._entrou) return;
+  if(rk._entrou) return false;
   rk._entrou=true;
-  try{ if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(e){}
-  const glifos=['⭐','⭐','⭐','⭐','✨','⭐','🌟','⭐','✨','⭐'];
-  const n=22;
+  try{ if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return false; }catch(e){}
+  const glifos=['⭐','✨','⭐','🌟','⭐','✨','⭐','🎉','⭐','🏆','⭐','✨'];
+  const n=36;
   const itens=[...Array(n)].map((_,i)=>{
     const g=glifos[i%glifos.length];
     const esq=(i*47+13)%100;                          // espalha sem Math.random (determinístico)
-    const dur=(1.4+((i*31)%80)/100).toFixed(2);
-    const atraso=(((i*53)%90)/100).toFixed(2);
-    const tam=14+((i*29)%14);
+    const dur=(1.3+((i*31)%130)/100).toFixed(2);
+    const atraso=(((i*53)%120)/100).toFixed(2);
+    const tam=13+((i*29)%18);
     return `<i style="left:${esq}%;font-size:${tam}px;animation-duration:${dur}s;animation-delay:${atraso}s">${g}</i>`;
   }).join('');
-  const ov=el(`<div class="rk-chuva" aria-hidden="true">${itens}</div>`);
+  const conf=[...Array(20)].map((_,i)=>{               // fitas de confete nas cores da marca
+    const esq=(i*37+7)%100;
+    const dur=(1.6+((i*41)%90)/100).toFixed(2);
+    const atraso=(((i*67)%110)/100).toFixed(2);
+    return `<i class="cf cf${1+(i%4)}" style="left:${esq}%;animation-duration:${dur}s;animation-delay:${atraso}s"></i>`;
+  }).join('');
+  const ov=el(`<div class="rk-chuva" aria-hidden="true">${itens}${conf}</div>`);
   document.body.appendChild(ov);
-  setTimeout(()=>{ try{ ov.remove(); }catch(e){} }, 3000);
+  setTimeout(()=>{ try{ ov.remove(); }catch(e){} }, 3600);
+  return true;
+}
+// 🔢 O percentual do pódio conta de 0 até o valor (uma vez por entrada na tela;
+// o HTML já traz o valor final, então com menos-movimento nada muda).
+function rkContaPct(){
+  const rk=estado.ranking||{}; if(rk._contou) return;
+  const els=document.querySelectorAll('[data-rk-conta]'); if(!els.length) return;
+  rk._contou=true;
+  try{ if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(e){}
+  els.forEach((s,ix)=>{
+    const alvo=Number(s.getAttribute('data-rk-conta'))||0;
+    const dur=900, ini=performance.now()+150+ix*130;
+    s.textContent='0%';
+    const tick=(t)=>{ const p=Math.min(1,Math.max(0,(t-ini)/dur)); const e=1-Math.pow(1-p,3);
+      s.textContent=Math.round(alvo*e)+'%'; if(p<1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  });
 }
 // Pódio dos 3 melhores do período (2º · 1º · 3º), com coroa no campeão.
 function rkPodio(linhas){
@@ -7064,7 +7120,7 @@ function rkPodio(linhas){
       ${i===0?'<div class="rk-crown" aria-hidden="true">👑</div>':''}
       <div class="rk-pod-medal">${medal[i]}</div>
       <div class="rk-pod-nome" title="${escA(l.nome)}">${esc(l.nome)}</div>
-      <div class="rk-pod-pct">${l.pct==null?fmtH(l.tot):l.pct+'%'}${l.metaCem?' <span class="rk-100">💯</span>':''}</div>
+      <div class="rk-pod-pct">${l.pct==null?fmtH(l.tot):`<span data-rk-conta="${l.pct}">${l.pct}%</span>`}${l.metaCem?' <span class="rk-100">💯</span>':''}</div>
       <div class="rk-pod-sub">${fmtH(l.tot)}${l.esperado?` de ${fmtH(l.esperado)}`:' apontadas'}</div>
       <div class="rk-pod-stars">${rkStars(l.estrelas)||(l.emRota?'<span class="rk-rota">⭐ em rota</span>':'&nbsp;')}${l.streak>=2?` <span class="rk-fire" data-tip="${l.streak} semanas seguidas batendo a meta">🔥${l.streak}</span>`:''}</div>
     </div>`; }).join('')}</div>`;
@@ -7166,11 +7222,12 @@ function renderRankingFaixa(fx){
     </div>
     ${fx==='ano'?`<div class="card full"><h2>Apontamentos por mês <span>horas do time em cada mês do ano</span></h2>${cardPorMesDe(dados.worklogs)}</div>`:''}
   </div>`));
-  rkAnimaEntrada();
+  rkContaPct();
 }
 
 function renderRanking(){
   const cont=document.getElementById('conteudo');
+  rkAnimaEntrada();   // 🌠 a festa começa já na entrada, mesmo com os dados ainda carregando
   if(((estado.ranking&&estado.ranking.aba)||'apontamento')==='uso') return renderRankingUso();
   const rk=estado.ranking=estado.ranking||{};
   rk.faixa=rk.faixa||'semana';
@@ -7241,7 +7298,7 @@ function renderRanking(){
     <div class="card full"><h2>Apontamentos por mês <span>horas lançadas em cada mês</span></h2>${cardPorMes()}</div>
     <div class="card full"><h2>Lacunas por dia da semana <span>onde mais falta apontar</span></h2>${cardHeatSemana()}</div>
   </div>`));
-  rkAnimaEntrada();
+  rkContaPct();
 }
 
 // Agrega os tickets (issues) do período: horas (Clockwork) + atividade (Jira).
@@ -12985,6 +13042,74 @@ function gxLista(){
   return l;
 }
 function gxSelKeys(){ const g=estado.gestao; return Object.keys(g.sel).filter(k=>g.sel[k]); }
+
+// ---- ⭐ Filtros salvos da Gestão — compartilhados com o time (cfg remota) e por link ----
+// 🔄 dinâmico = guarda os CRITÉRIOS (o resultado acompanha o Jira a cada carga);
+// 📌 estático = congela a LISTA de chaves exatamente como está (soKeys).
+function gxfLista(){ return Array.isArray(cfg.gxFiltros)?cfg.gxFiltros:[]; }
+function gxfCodifica(f){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify(f)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }catch(e){ return ''; } }
+function gxfDecodifica(s){ try{ s=String(s||'').replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+  return JSON.parse(decodeURIComponent(escape(atob(s)))); }catch(e){ return null; } }
+function gxfCriteriosAtuais(){ const g=estado.gestao;
+  return {preset:g.preset||'',busca:g.busca||'',fProj:g.fProj||'',fResp:g.fResp||'',fStatus:g.fStatus||'',
+    semTrat:!!g.semTrat,agrupar:g.agrupar||'',vis:g.vis||'tabela'}; }
+function gxfAplica(f,viaLink){ const g=estado.gestao; if(!f) return;
+  if(f.tipo==='estatico'){ g.soKeys=(f.keys||[]).slice(); g.origem=`⭐ ${f.nome||'filtro'} (estático${viaLink?' · via link':''})`;
+    g.preset='';g.busca='';g.fProj='';g.fResp='';g.fStatus='';g.semTrat=false; }
+  else { const c=f.f||{}; g.soKeys=null; g.origem=viaLink?`⭐ ${f.nome||'filtro'} (via link)`:'';
+    g.preset=c.preset||''; g.busca=c.busca||''; g.fProj=c.fProj||''; g.fResp=c.fResp||''; g.fStatus=c.fStatus||'';
+    g.semTrat=!!c.semTrat; g.agrupar=c.agrupar||''; if(c.vis) g.vis=c.vis; }
+  g.sel={}; renderGestao(); }
+function gxfLinkDe(f){ return `${location.origin}${location.pathname}?v=gestao&gxf=${gxfCodifica(f)}`; }
+function gxfCopiaLink(f){ const url=gxfLinkDe(f);
+  const fb=document.getElementById('gxf-g-fb');
+  const mostra=()=>{ if(fb){ fb.hidden=false; fb.className='ap-fb';
+    fb.innerHTML=`Link do filtro <b>${esc(f.nome)}</b> (selecione e copie): <input type="text" readonly value="${escA(url)}" style="width:100%;margin-top:4px" onclick="this.select()">`; } };
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(url).then(()=>toast('🔗 Link copiado — cole no Teams para compartilhar.','ok')).catch(mostra);
+  else mostra(); }
+function gxfCopiaLinkAtual(){ estadoParaURL(); const url=location.href;
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(url).then(()=>toast('🔗 Link desta visão copiado — quem abrir vê os mesmos filtros.','ok')).catch(()=>prompt('Copie o link:',url));
+  else prompt('Copie o link:',url); }
+function abreModalFiltroSalvar(){ const g=estado.gestao; const nSel=gxSelKeys().length;
+  const temFixo=nSel||(g.soKeys&&g.soKeys.length);
+  abreModal(`<h2>💾 Salvar filtro da Gestão</h2>
+    <div class="muted small">O filtro fica visível para o <b>time todo</b> nesta tela — e tem um 🔗 link para compartilhar direto.</div>
+    <div class="alx-campo"><label>Nome <span class="req">*</span></label>
+      <input type="text" id="gxf-nome" class="alx-motivo" maxlength="60" placeholder="ex.: Vencidos AMS sem tratamento"></div>
+    <div class="alx-campo"><label>Tipo</label>
+      <label style="display:block;margin-top:4px;cursor:pointer"><input type="radio" name="gxf-tipo" value="dinamico" checked>
+        🔄 <b>Dinâmico</b> — guarda os critérios atuais (busca, projeto, responsável, status, preset, agrupamento); o resultado <b>acompanha o Jira</b>.</label>
+      <label style="display:block;margin-top:4px;cursor:${temFixo?'pointer':'not-allowed'}"><input type="radio" name="gxf-tipo" value="estatico" ${temFixo?'':'disabled'}>
+        📌 <b>Estático</b> — congela a lista ${nSel?`dos ${nSel} selecionados`:(g.soKeys&&g.soKeys.length?`atual (${g.soKeys.length} tickets)`:'(selecione tickets antes)')} exatamente como está.</label></div>
+    <div class="alx-fb" id="gxf-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" id="gxf-salvar">Salvar</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`); }
+function gxfSalva(){ const nome=((document.getElementById('gxf-nome')||{}).value||'').trim();
+  const fb=document.getElementById('gxf-fb');
+  const erroFb=(m)=>{ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent=m; } };
+  const tipo=(document.querySelector('input[name="gxf-tipo"]:checked')||{}).value||'dinamico';
+  if(!nome) return erroFb('Dê um nome ao filtro.');
+  const g=estado.gestao; const quem=(idApontar()||{}).nome||'';
+  const f={id:'f'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36), nome, tipo, por:quem, em:hojeSP()};
+  if(tipo==='estatico'){ const ks=gxSelKeys(); f.keys=ks.length?ks:(g.soKeys||[]).slice();
+    if(!f.keys.length) return erroFb('Selecione tickets (ou aplique uma lista por chaves) para congelar.'); }
+  else f.f=gxfCriteriosAtuais();
+  cfg.gxFiltros=gxfLista().concat([f]); salvaCfg();
+  fechaModal(); toast(`✓ Filtro "${nome}" salvo — visível para o time.`,'ok'); renderGestao(); }
+function abreModalFiltrosGerir(){ const fs=gxfLista();
+  abreModal(`<h2>⭐ Filtros salvos da Gestão</h2>
+    ${fs.length?'<div class="muted small">Aplicar abre o filtro nesta tela; 🔗 link copia o endereço para mandar a alguém (abre a Gestão já filtrada).</div>':'<div class="muted small">Nenhum filtro salvo ainda — monte os filtros e use <b>💾 Salvar filtro</b>.</div>'}
+    <div class="nov-lista">${fs.map(f=>`<div class="nov-item" style="align-items:center">
+      <span class="nov-txt" style="flex:1"><b>${f.tipo==='estatico'?'📌':'🔄'} ${esc(f.nome)}</b>
+        <span class="muted small">· ${f.tipo==='estatico'?`${(f.keys||[]).length} tickets congelados`:'critérios dinâmicos'}${f.por?` · por ${esc(f.por)}`:''}${f.em?` · ${esc(alxDataBR(f.em))}`:''}</span></span>
+      <span style="display:flex;gap:6px;flex:0 0 auto">
+        <button class="btn" data-gxf-apl="${escA(f.id)}">Aplicar</button>
+        <button class="btn" data-gxf-link="${escA(f.id)}" title="Copiar o link deste filtro">🔗 link</button>
+        <button class="btn" data-gxf-del="${escA(f.id)}" title="Excluir este filtro salvo (para todo o time)">✕</button></span></div>`).join('')}</div>
+    <div class="ap-fb" id="gxf-g-fb" hidden style="margin-top:8px"></div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); }
 // ---- Agrupamento da Gestão: pessoa, projeto, tipo, status, prioridade, épico, vencimento, risco ----
 const GX_AGRUPAR=[['','sem agrupamento'],['resp','responsável'],['proj','projeto'],['tipo','tipo'],
   ['status','status'],['prio','prioridade'],['epico','épico'],['venc','vencimento'],['risco','risco']];
@@ -13245,6 +13370,7 @@ function renderModalTicket(d){
       ${anx||'<div class="muted small" style="margin-top:6px">Nenhum anexo.</div>'}</details>
     <div class="alx-modal-acoes">
       <button class="btn primario" data-gx-apont="${escA(d.k)}">⏱ Apontar</button>
+      <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
       <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
@@ -13461,6 +13587,8 @@ async function gxAplicaEpico(p){
 function renderGestao(){
   const cont=document.getElementById('conteudo');
   const g=estado.gestao;
+  if(_gxfURL){ const f=gxfDecodifica(_gxfURL); _gxfURL='';   // link compartilhado (?gxf=…)
+    if(f){ gxfAplica(f,true); return; } }
   if(!g.dados && !g.carregando && !g.erro) carregaGestao(false);
   if(g.erro){ cont.replaceChildren(el(`<div class="erro"><strong>Falha ao carregar.</strong> ${esc(g.erro)}
     <button class="btn" id="gx-retry" style="margin-left:10px">Tentar de novo</button></div>`)); return; }
@@ -13487,6 +13615,7 @@ function renderGestao(){
     <button data-gx-r="${escA(t.k)}|PROX" title="Reprogramar para a próxima segunda">próx. sem</button>
     <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
+    <button data-gx-st="${escA(t.k)}" title="Alterar o status deste ticket no Jira (transição no seu usuário)">🔁 status</button>
     <button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button>
     <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
@@ -13577,6 +13706,7 @@ function renderGestao(){
             ${riscoBadge(t)}
             ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
             ${t.resp?`<span class="badge">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>'}
+            <button class="kb-stbtn" data-gx-st="${escA(t.k)}" title="Alterar o status deste ticket no Jira">🔁 status</button>
           </div></div>`; }).join('')}</div></div>`;
     }).join('')}</div>
     <div class="muted small" style="margin-top:8px">Clique no cartão para <b>selecionar</b>; o código abre o ticket no Jira.</div>`;
@@ -13605,6 +13735,13 @@ function renderGestao(){
   const presets=`<div class="ap-vis" style="margin:0 0 10px"><span class="muted small">Prontos:</span>
     ${GX_PRESETS.map(([k,l])=>`<button class="chip" aria-pressed="${g.preset===k}" data-gx-preset="${k}">${esc(l)}</button>`).join(' ')}
     ${g.preset?`<button class="chip" data-gx-preset="">limpar</button>`:''}</div>`;
+  const fsalvos=(()=>{ const fs=gxfLista();
+    return `<div class="ap-vis" style="margin:0 0 10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">⭐ Filtros salvos:</span>
+      ${fs.slice(0,12).map(f=>`<button class="chip" data-gxf-apl="${escA(f.id)}" title="${f.tipo==='estatico'?'📌 estático — lista congelada':'🔄 dinâmico — critérios'}${f.por?` · por ${escA(f.por)}`:''}">${f.tipo==='estatico'?'📌':'🔄'} ${esc(f.nome)}</button>`).join(' ')}
+      ${fs.length?'':'<span class="muted small">nenhum ainda</span>'}
+      <button class="chip" data-gxf-salvar="1" title="Salvar os filtros atuais (dinâmico) ou a seleção (estático) com um nome, visível para o time">💾 Salvar filtro</button>
+      ${fs.length?`<button class="chip" data-gxf-gerir="1" title="Aplicar, copiar link ou excluir filtros salvos">⚙️ gerenciar</button>`:''}
+      <button class="chip" data-gxf-linkatual="1" title="Copiar o endereço desta visão com os filtros atuais — quem abrir vê o mesmo">🔗 copiar link da visão</button></div>`; })();
   const corpo = vis==='lista'?htmlLista() : vis==='quadro'?htmlQuadro() : htmlTabela();
   const bar=nSel?`<div class="gx-bar"><span class="n">${nSel} selecionado(s)</span>
       <button class="btn" data-gx-act="atribuir">👤 Atribuir</button>
@@ -13633,9 +13770,11 @@ function renderGestao(){
       ${chipAnalytics}
       ${viewToggle}
       ${presets}
+      ${fsalvos}
       ${corpo}
       ${bar}
     </div></div>`));
+  estadoParaURL();   // filtros da Gestão viram parâmetros na URL — copiar o endereço já compartilha a visão
 }
 // ============== VINCULAR REUNIÕES A TICKETS DE AMS (menu Operação) ==============
 // Fluxo: escolhe a reunião → assistente (modal) → cria ticket de apoio funcional OU
@@ -14454,7 +14593,7 @@ function marcaVista(v){
 function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').forEach(x=>{ x.classList.remove('open');
   const hb=x.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-expanded','false'); }); }
 function vaiPara(v){
-  if(v!=='ranking' && estado.ranking) estado.ranking._entrou=false;   // 🌠 anima de novo na próxima entrada
+  if(v!=='ranking' && estado.ranking){ estado.ranking._entrou=false; estado.ranking._contou=false; }   // 🌠 anima de novo na próxima entrada
   estado.vista=v;
   marcaVista(v); fechaMenusNav();
   render(); estadoParaURL();
@@ -14551,6 +14690,9 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-12','⭐ <b>Filtros salvos e compartilháveis na 🛠 Gestão</b>: monte os filtros e use <b>💾 Salvar filtro</b> — <b>🔄 dinâmico</b> guarda os critérios (o resultado acompanha o Jira) ou <b>📌 estático</b> congela a lista de tickets exatamente como está. Os filtros salvos aparecem como chips para o <b>time todo</b>, e cada um tem um <b>🔗 link</b> para mandar a alguém (a Gestão abre já filtrada). Tem também <b>🔗 copiar link da visão</b>: os filtros da Gestão agora vivem na URL — copiar o endereço já compartilha exatamente o que você está vendo.'],
+  ['2026-08-12','🔁 <b>Trocar status direto na 🛠 Gestão</b>: além da ação em massa, agora cada ticket tem o botão <b>🔁 status</b> — na lista, na tabela, nos cartões do quadro e na ficha 🔍 detalhes. Abre as transições disponíveis do fluxo e aplica no seu usuário, com comentário opcional.'],
+  ['2026-08-12','🌠 <b>Ranking com entrada de gala</b>: chuva de estrelas em dobro com <b>confete nas cores da Dexterity</b>, pódio subindo em salto, medalhas com "pop", <b>holofote e raios girando</b> no campeão e o percentual <b>contando de 0 até o valor</b>. Tudo respeita a preferência de menos movimento do sistema.'],
   ['2026-08-12','📱 <b>Versão para iPhone e iPad — instale o painel como aplicativo</b>: em <b>⋯ Mais → 📱 Instalar no aparelho</b> tem o passo a passo (no Safari: Compartilhar → <b>Adicionar à Tela de Início</b>). O painel ganha o <b>ícone da Dexterity</b> na Tela de Início e abre em <b>tela cheia</b>, sem a barra do navegador, respeitando as áreas seguras do iPhone; os campos não dão mais zoom sozinhos ao digitar e os botões ficaram no tamanho certo para o dedo. Funciona também no computador (Chrome/Edge: instalar como aplicativo).'],
   ['2026-08-11','📁 <b>Prioridades do time: portfólio projeto por projeto</b>: com vários projetos rodando ao mesmo tempo, o painel agora abre a situação de <b>cada projeto</b> em linha própria — nome, ⭐ prioridade da semana, vencidos e aguardando decisão — agrupados pela natureza do trabalho, com atalhos diretos para a <b>Página do projeto</b> e para a <b>Gestão</b> (levando só os vencidos daquele projeto). Projetos em dia ficam numa linha recolhida, e a <b>ata</b> passou a quebrar a fila de vencidos por projeto.'],
   ['2026-08-11','🎯 <b>Prioridades do time — o painel que conduz a reunião semanal</b>: nova tela (🎯 Prioridades, no menu) com as <b>até 5 prioridades da semana</b> (marcadas no Jira pela label <code>prioridade-semana</code>) com dono, prazo com semáforo e o pedido ao time; <b>portfólio por natureza do trabalho</b> mostrando só exceções (vencidos e aguardando decisão) com atalho para a Gestão; e o <b>Modo reunião</b> — pauta de 35 minutos em 5 passos (follow-up → prioridades com o diff embutido → decisões → exceções → ata pronta para o Notion). Toda decisão tem <b>dono, prazo e ticket</b>, vira comentário no chamado e <b>volta sozinha</b> no follow-up da semana seguinte. Tem ainda <b>tour guiado no primeiro acesso</b>, botão <b>Marcar reunião</b> (convite do Teams com a pauta preenchida), <b>Página do projeto</b> (pulso do Jira + links do Notion) e resumo periódico configurável no canal do Teams (⚙️). Facilitadora do rito: Jéssica.'],
@@ -14646,7 +14788,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-12.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-12.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -15154,6 +15296,7 @@ const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','priorid
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
+let _gxfURL='';   // filtro da Gestão vindo por link compartilhado (?gxf=…), aplicado na 1ª renderização
 // ---- Persistência dos filtros (localStorage): recarregar mantém a última visão ----
 // Um link compartilhado (com parâmetros na URL) sempre vence; sem parâmetros,
 // restauramos os últimos filtros salvos neste navegador.
@@ -15176,6 +15319,12 @@ function leURL(){
   ap.vis = ['lista','tabela','quadro'].includes(p.get('av')) ? p.get('av') : 'lista';
   ap.cat = p.get('acat')||'';
   ap.proj = p.get('aproj')||'';
+  const gx=estado.gestao;
+  gx.busca=p.get('gq')||''; gx.fProj=p.get('gpj')||''; gx.fResp=p.get('grs')||''; gx.fStatus=p.get('gst')||'';
+  gx.preset=p.get('gpr')||''; gx.semTrat=p.get('gtr')==='1';
+  if(['resp','proj','tipo','status','prio','epico','venc','risco'].includes(p.get('gag'))) gx.agrupar=p.get('gag');
+  if(['lista','tabela','quadro'].includes(p.get('gvi'))) gx.vis=p.get('gvi');
+  _gxfURL=p.get('gxf')||'';
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'' };
 }
@@ -15204,6 +15353,15 @@ function estadoParaURL(){
     if(!ap.soMeus) p.set('meus','0');
     if(ap.cat) p.set('acat',ap.cat);
     if(ap.proj) p.set('aproj',ap.proj); }
+  if(estado.vista==='gestao'){ const gx=estado.gestao;
+    if(gx.busca) p.set('gq',gx.busca);
+    if(gx.fProj) p.set('gpj',gx.fProj);
+    if(gx.fResp) p.set('grs',gx.fResp);
+    if(gx.fStatus) p.set('gst',gx.fStatus);
+    if(gx.preset) p.set('gpr',gx.preset);
+    if(gx.semTrat) p.set('gtr','1');
+    if(gx.agrupar) p.set('gag',gx.agrupar);
+    if(gx.vis!=='tabela') p.set('gvi',gx.vis); }
   if(f.pessoa) p.set('u',f.pessoa);
   if(f.categoria) p.set('cat',f.categoria);
   if(f.projeto) p.set('proj',f.projeto);
@@ -15725,7 +15883,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     else if(a==='excluir') abreModalExcluirLote(keys);
     return; }
   const card=e.target.closest&&e.target.closest('[data-gx-card]');
-  if(card && !e.target.closest('a') && !e.target.closest('input')){
+  if(card && !e.target.closest('a') && !e.target.closest('input') && !e.target.closest('button')){
     const g0=estado.gestao; const k=card.getAttribute('data-gx-card');
     if(g0.sel[k]) delete g0.sel[k]; else g0.sel[k]=true; renderGestao(); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
@@ -15738,8 +15896,14 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-salvar')){ abreModalFiltroSalvar(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-gerir')){ abreModalFiltrosGerir(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-linkatual')){ gxfCopiaLinkAtual(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-apl')){ const f=gxfLista().find(x=>x.id===t.getAttribute('data-gxf-apl'));
+    if(f){ gxfAplica(f); toast(`⭐ Filtro "${f.nome}" aplicado.`,'ok'); } return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-grp-sel')){
     t.getAttribute('data-gx-grp-sel').split(',').forEach(k=>{ if(k) g.sel[k]=true; });
     renderGestao(); toast('Grupo selecionado — use as ações em massa.','ok'); return; }
@@ -15788,6 +15952,13 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.id==='gx-ap-confirmar'){ gxApontaConfirma(); }
   else if(t.id==='gx-ap-cancelar'){ _gxApont=null; fechaModal(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); }
+  else if(t.id==='gxf-salvar'){ gxfSalva(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gxf-apl')){ const f=gxfLista().find(x=>x.id===t.getAttribute('data-gxf-apl'));
+    fechaModal(); if(f){ gxfAplica(f); toast(`⭐ Filtro "${f.nome}" aplicado.`,'ok'); } }
+  else if(t.hasAttribute&&t.hasAttribute('data-gxf-link')){ const f=gxfLista().find(x=>x.id===t.getAttribute('data-gxf-link')); if(f) gxfCopiaLink(f); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gxf-del')){ const id=t.getAttribute('data-gxf-del'); const f=gxfLista().find(x=>x.id===id);
+    cfg.gxFiltros=gxfLista().filter(x=>x.id!==id); salvaCfg(); toast(f?`Filtro "${esc(f.nome)}" excluído (para o time).`:'Filtro excluído.','ok'); abreModalFiltrosGerir(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-det-com')){ abreModalComentarLote([t.getAttribute('data-gx-det-com')]); }
   else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
 });
