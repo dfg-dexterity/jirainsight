@@ -4096,6 +4096,7 @@ function mpRenderRelatorios(){
               ${esc((p.nome||p.email||p.accountId).split(' ')[0])} · ${esc(fmtBR(p.semana).slice(0,5))}${(p.versao||1)>1?` · v${p.versao}`:''}</button>`).join(' ')}</div>`;
       }).join('');
       return `<div><h3 class="mp-h3">Quem está em cada situação <span class="mp-dim">clique num nome para filtrar tudo por ele</span></h3>${bloco}</div>`; })()}
+    ${f.usuario?mpRelPessoaBloco(dados,f,porSem,nome):''}
     ${mpgColunas('Evolução por semana','planejado × realizado em cada semana do período',
       Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, fmtBR(w2).slice(0,5)]))}
     <div class="mp-2col">
@@ -4108,6 +4109,42 @@ function mpRenderRelatorios(){
       Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj]))}
     <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
     <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
+  </div>`;
+}
+// 👤 Visão analítica do planejamento de UMA pessoa (aparece ao filtrar por usuário):
+// KPIs próprios + trajetória semana a semana (status do plano, planejado × realizado,
+// execução) + contagem de semanas SEM plano no intervalo (respeitando o início da apuração).
+function mpRelPessoaBloco(dados, f, porSem, nomeFn){
+  const a=f.usuario; if(!a) return '';
+  const planos=(dados.planos||[]).filter(p=>p.accountId===a);
+  const porW={}; planos.forEach(p=>{ porW[p.semana]=p; });
+  const ini=mpInicioVig();
+  const ate=semChave(f.ate);
+  const sems=[]; let w=semChave(f.de), n=0;
+  while(w<=ate && n++<106){ if(!ini||w>=ini) sems.push(w); w=mtsSoma(w,7); }
+  const st={aprovado:0,enviado:0,devolvido:0,elaboracao:0}; let semPlano=0;
+  const rows=sems.map(w2=>{
+    const p=porW[w2]; const v=porSem[w2]||{plan:0,real:0};
+    if(p&&st[p.status]!=null) st[p.status]++; if(!p) semPlano++;
+    const ex=v.plan>0?Math.round(v.real/v.plan*100)+'%':'—';
+    const badge=p?`<span class="badge">${esc(MP_STATUS[p.status]||p.status)}${(p.versao||1)>1?` · v${p.versao}`:''}</span>`
+                 :'<span class="badge" style="opacity:.55">sem plano</span>';
+    return `<tr><td>${esc(fmtBR(w2))}</td><td>${badge}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td>
+      <td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`;
+  }).join('');
+  const totP=sems.reduce((s,w2)=>s+((porSem[w2]||{}).plan||0),0);
+  const totR=sems.reduce((s,w2)=>s+((porSem[w2]||{}).real||0),0);
+  return `<div class="mp-card" style="border:1px solid var(--mpb);border-radius:12px;padding:12px 14px;margin:0 0 14px">
+    <h3 class="mp-h3">👤 Análise de ${esc(nomeFn(a))} <span class="mp-dim">o planejamento desta pessoa, semana a semana — clique no nome de novo (ou no ✕) para voltar ao time</span></h3>
+    <div class="mp-kpis">
+      <div class="mp-kpi"><div class="v">${mpH(totP)}</div><div class="l">Planejado</div></div>
+      <div class="mp-kpi"><div class="v">${mpH(totR)}</div><div class="l">Realizado</div></div>
+      <div class="mp-kpi"><div class="v">${totP>0?Math.round(totR/totP*100)+'%':'—'}</div><div class="l">Execução</div></div>
+      <div class="mp-kpi"><div class="v">${st.aprovado} · ${st.enviado} · ${st.devolvido}</div><div class="l">Aprovados · Enviados · Devolvidos</div></div>
+      <div class="mp-kpi"><div class="v">${semPlano}</div><div class="l">Semanas SEM plano</div></div>
+    </div>
+    <table class="mp-tab-mini"><thead><tr><th>Semana</th><th>Plano</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="6" class="mp-dim">Sem semanas no intervalo.</td></tr>'}</tbody></table>
   </div>`;
 }
 // 🔎 De onde vêm as horas: drill dos KPIs "Realizado não planejado" e
@@ -14853,6 +14890,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
   ['2026-08-13','📥 <b>Planos semanais para aprovar chegam no seu Inbox</b>: quando alguém envia o planejamento da semana, o aviso aparece no <b>📥 Inbox do aprovador</b> — com pessoa, semana, total planejado e data de envio — e o <b>selo vermelho no menu</b> passa a contar essas pendências também. O botão <b>Revisar e decidir →</b> abre o Meu Planejamento direto na aba Aprovações; ao aprovar ou devolver, o aviso some sozinho.'],
+  ['2026-08-13','👤 <b>Análise por pessoa nos relatórios do planejamento</b>: escolha um usuário (no filtro ou clicando no nome em "Quem está em cada situação") e os Relatórios abrem a <b>visão analítica daquela pessoa</b> — KPIs próprios, a trajetória <b>semana a semana</b> com o status de cada plano (aprovado/enviado/devolvido/sem plano), planejado × realizado, execução e a contagem de <b>semanas sem plano</b> no período.'],
   ['2026-08-13','📊 <b>Relatórios do planejamento interativos</b>: atalhos de período por <b>número de semanas</b> (últimas 2/4/8/12/26), os cartões <b>Realizado não planejado</b> e <b>Planejado não realizado</b> agora abrem com 🔎 <b>de onde vêm as horas</b> (pessoa → projeto → dias) e o bloco novo <b>"Quem está em cada situação"</b> mostra nome a nome quem está em elaboração, enviado, aprovado ou devolvido — clicar num nome filtra o relatório inteiro por ele.'],
   ['2026-08-13','📆 <b>Início da apuração do planejamento</b>: nos Relatórios do gestor dá para definir <b>a data em que o time começou a usar o Meu Planejamento</b> — semanas e horas anteriores ficam <b>fora</b> dos relatórios e comparativos (nada de "pendência" ou "não planejado" do período pré-adoção sujando os números). A configuração vale para o time todo.'],
   ['2026-08-13','🖐 <b>Arrastar e soltar no 📋 Meu Planejamento</b>: segure no <b>⠿</b> e arraste a atividade de um dia para outro — o dia de destino acende e o plano salva sozinho. No celular (onde não dá para arrastar), o novo botão <b>Mover</b> faz o mesmo em dois toques. Vale junto com os atalhos de sempre: Duplicar para vários dias, rotina e copiar a semana anterior.'],
@@ -14954,7 +14992,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-13.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-13.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
