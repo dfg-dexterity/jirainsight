@@ -253,6 +253,9 @@
   .mp-lnk-x{color:#B3261E}
   .mp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0}
   .mp-kpi{border:1px solid var(--mpb);border-radius:10px;background:var(--cartao);padding:10px 12px}
+  .mp-kpi-click{cursor:pointer}
+  .mp-kpi-click:hover{border-color:var(--mpa)}
+  .mp-st-quem{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
   .mp-kpi .v{font-family:var(--titulo);font-size:20px;font-weight:700}
   .mp-kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px}
   .mp-mais{color:#8A5B00} .mp-menos{color:#1E6E42}
@@ -284,6 +287,11 @@
   .mp-grupo-t{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin:2px 0}
   .mp-atv{display:flex;gap:10px;align-items:flex-start;padding:7px 6px;border-radius:8px}
   .mp-atv:hover{background:var(--hoverbg)}
+  /* 🖐 arrastar e soltar entre dias */
+  .mp-arrasta{cursor:grab;color:var(--muted);user-select:none;font-size:14px;line-height:1.5;flex:0 0 auto}
+  .mp-atv[draggable="true"]{cursor:grab}
+  .mp-atv.mp-arrastando{opacity:.45}
+  .mp-dia.mp-solta{outline:2px dashed var(--cerceta);outline-offset:2px;background:var(--hoverbg)}
   .mp-atv-c{flex:1;min-width:0}
   .mp-atv-desc{font-size:13.5px;font-weight:600;line-height:1.3}
   .mp-atv-meta{font-size:12px;color:var(--muted)}
@@ -3516,6 +3524,10 @@ function mpGaranteMeu(w, forca, aoTerminar){
 }
 function mpPlano(w){ const c=(estado.minhasemana.meu||{})[w]; return c?c.plano:undefined; }
 function mpEditavel(p){ return !p || p.status==='elaboracao' || p.status==='devolvido'; }
+// 📆 Início da apuração do Meu Planejamento (cfg compartilhada): semanas e horas
+// ANTERIORES a esta data ficam fora dos relatórios — evita "pendências" falsas
+// do período em que o time ainda não usava a ferramenta.
+function mpInicioVig(){ const d=String(cfg.mpInicio||'').slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:''; }
 // Realizado da semana (Clockwork): worklogs próprios agrupados por data|projeto.
 function mpCarregaReal(w, forca){
   const mp=estado.minhasemana; mp.real=mp.real||{}; mp.realB=mp.realB||{};
@@ -3640,7 +3652,8 @@ function mpStepper(st){
     `<span class="mp-step${i<idx?' feito':''}${i===idx?' atual':''}">${rot[i]}</span>`).join('<span class="mp-seta">→</span>')}</div>`;
 }
 function mpItemRow(i, idx, editavel){
-  return `<div class="mp-atv" data-mp-idx="${idx}">
+  return `<div class="mp-atv" data-mp-idx="${idx}"${editavel?' draggable="true"':''}>
+    ${editavel?'<span class="mp-arrasta" title="Arraste para levar esta atividade a outro dia" aria-hidden="true">⠿</span>':''}
     <div class="mp-atv-c">
       <div class="mp-atv-desc">${esc(i.descricao)}</div>
       <div class="mp-atv-meta"><span data-tip="${escA(i.projeto)}">${esc(projNome(i.projeto))}</span>${i.categoria?` · ${esc(i.categoria)}`:''}${i.observacao?` · <span class="mp-obs" title="${escA(i.observacao)}">obs.</span>`:''}</div>
@@ -3649,6 +3662,7 @@ function mpItemRow(i, idx, editavel){
     ${editavel?`<div class="mp-atv-acoes">
       <button class="mp-lnk" data-mp-editar="${idx}">Editar</button>
       <button class="mp-lnk" data-mp-dup="${idx}">Duplicar</button>
+      <button class="mp-lnk" data-mp-mover="${idx}" title="Mover para outro dia (sem arrastar — bom no celular)">Mover</button>
       <button class="mp-lnk" data-mp-sobe="${idx}" aria-label="Subir na ordem">↑</button>
       <button class="mp-lnk" data-mp-desce="${idx}" aria-label="Descer na ordem">↓</button>
       <button class="mp-lnk mp-lnk-x" data-mp-rem="${idx}">Excluir</button>
@@ -3690,7 +3704,7 @@ function mpDiaCard(w, acc, i, editavel, real){
   // agrupa visualmente por projeto mantendo a ordem
   const grupos=[]; const gIdx={};
   itens.forEach(x=>{ const p=x.it.projeto; if(!(p in gIdx)){ gIdx[p]=grupos.length; grupos.push({p,rows:[]}); } grupos[gIdx[p]].rows.push(x); });
-  return `<section class="mp-dia${plan||re?'':' vazio'}" aria-label="${escA(MP_DIAS[i])} ${escA(fmtBR(d))}">
+  return `<section class="mp-dia${plan||re?'':' vazio'}"${editavel?` data-mp-dia="${escA(d)}"`:''} aria-label="${escA(MP_DIAS[i])} ${escA(fmtBR(d))}">
     <header class="mp-dia-h">
       <div><strong>${MP_DIAS[i]}</strong> <span class="mp-dim">${esc(fmtBR(d).slice(0,5))}</span>
         ${feriado?'<span class="mp-tag">Feriado</span>':''}${ausente?'<span class="mp-tag">Ausência</span>':''}</div>
@@ -3990,6 +4004,8 @@ function mpRelDados(){
   const mp=estado.minhasemana; const f=mp.relF; const r=mp.rel;
   if(!r||r.erro) return null;
   let planos=r.planos||[];
+  const ini=mpInicioVig();
+  if(ini) planos=planos.filter(p=>(p.semana||'')>=ini);
   if(f.usuario) planos=planos.filter(p=>p.accountId===f.usuario);
   if(f.status) planos=planos.filter(p=>p.status===f.status);
   // planejado por chave acc|data|projeto (com filtro de projeto)
@@ -4001,6 +4017,7 @@ function mpRelDados(){
   const accsComPlano=new Set(planos.map(p=>p.accountId));
   const real={};
   (r.wl||[]).forEach(x=>{ const d=(x.d||'').slice(0,10); if(d<f.de||d>mtsSoma(f.ate,6)) return;
+    if(ini&&d<ini) return;   // realizado antes da adoção não entra na comparação
     const pj=x.p||(x.k?String(x.k).split('-')[0]:'—');
     if(f.projeto&&pj!==f.projeto) return;
     if(f.usuario&&x.a!==f.usuario) return;
@@ -4009,7 +4026,8 @@ function mpRelDados(){
 }
 function mpRenderRelatorios(){
   const mp=estado.minhasemana; const f=mp.relF;
-  if(!f.de){ const w=mpSem(); f.ate=w; f.de=mtsSoma(w,-21); }
+  if(!f.de){ const w=mpSem(); f.ate=w; f.de=mtsSoma(w,-21);
+    const ini=mpInicioVig(); if(ini&&f.de<ini) f.de=(ini>w?w:ini); }
   const carregado=mpGaranteRel(false);
   const r=mp.rel;
   const pess=r&&r.pessoas?r.pessoas:{};
@@ -4022,9 +4040,14 @@ function mpRenderRelatorios(){
     <label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
     <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option value="${escA(pj)}" ${f.projeto===pj?'selected':''}>${esc(projNome(pj))}</option>`).join('')}</select></label>
     <label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>
+    <label title="Data em que o time começou a usar o Meu Planejamento — semanas e horas ANTERIORES ficam fora destes relatórios (configuração do time, não suja a apuração com o período pré-adoção)">📆 Início da apuração<input type="date" value="${escA(mpInicioVig())}" data-mp-rf="inicio"></label>
     <button class="mp-btn" data-mp-relatualiza="1">Atualizar</button>
     <button class="mp-btn" data-mp-relcsv="1" ${dados?'':'disabled'}>Exportar CSV</button>
-  </div>`;
+  </div>
+  <div class="ap-vis" style="margin:2px 0 10px"><span class="muted small">Período rápido:</span>
+    ${[2,4,8,12,26].map(n=>{ const sel=f.de&&f.ate&&f.de===mtsSoma(f.ate,-(n-1)*7);
+      return `<button class="chip" aria-pressed="${!!sel}" data-mp-rsem="${n}">últimas ${n} semanas</button>`; }).join(' ')}
+    ${f.usuario?`<button class="chip" data-mp-ruser="${escA(f.usuario)}" title="Remover o filtro de pessoa">✕ só ${esc((usuarios.find(u=>u[0]===f.usuario)||['',f.usuario])[1].split(' ')[0])}</button>`:''}</div>`;
   if(!carregado&&!r) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="estado">Carregando…</div></div>`;
   if(r&&r.erro) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="erro">${esc(r.erro)}</div></div>`;
   if(!dados) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="estado">Carregando…</div></div>`;
@@ -4055,11 +4078,24 @@ function mpRenderRelatorios(){
       <div class="mp-kpi"><div class="v">${mpH(totPlan)}</div><div class="l">Planejado no período</div></div>
       <div class="mp-kpi"><div class="v">${mpH(totReal)}</div><div class="l">Realizado no período</div></div>
       <div class="mp-kpi"><div class="v">${totPlan>0?Math.round(totReal/totPlan*100)+'%':'—'}</div><div class="l">Execução</div></div>
-      <div class="mp-kpi"><div class="v">${mpH(rnp)}</div><div class="l">Realizado não planejado</div></div>
-      <div class="mp-kpi"><div class="v">${mpH(pnr)}</div><div class="l">Planejado não realizado</div></div>
+      <div class="mp-kpi mp-kpi-click" data-mp-rdrill="rnp" title="Clique para ver DE ONDE vêm estas horas (pessoa → projeto → dia)"><div class="v">${mpH(rnp)} 🔎</div><div class="l">Realizado não planejado</div></div>
+      <div class="mp-kpi mp-kpi-click" data-mp-rdrill="pnr" title="Clique para ver O QUE estava no plano e ficou sem horas (pessoa → projeto → dia)"><div class="v">${mpH(pnr)} 🔎</div><div class="l">Planejado não realizado</div></div>
       <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
     </div>
     ${mpgStatus(stCount)}
+    ${(()=>{ // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
+      const ini2=mpInicioVig();
+      const todos=((r&&r.planos)||[]).filter(p=>!ini2||(p.semana||'')>=ini2);
+      if(!todos.length) return '';
+      const bloco=Object.entries(MP_STATUS).map(([st,rot])=>{
+        const ps=todos.filter(p=>p.status===st); if(!ps.length) return '';
+        return `<div class="mp-st-quem"><span class="mp-dim" style="min-width:170px">${rot}:</span>
+          ${ps.sort((a,b)=>(a.semana||'').localeCompare(b.semana||'')).map(p=>
+            `<button class="chip" data-mp-ruser="${escA(p.accountId)}" aria-pressed="${f.usuario===p.accountId}"
+              title="${escA((p.nome||p.email||p.accountId)+' · semana de '+fmtBR(p.semana)+' · '+mpH(p.total)+' planejadas — clique para filtrar o relatório por esta pessoa')}">
+              ${esc((p.nome||p.email||p.accountId).split(' ')[0])} · ${esc(fmtBR(p.semana).slice(0,5))}${(p.versao||1)>1?` · v${p.versao}`:''}</button>`).join(' ')}</div>`;
+      }).join('');
+      return `<div><h3 class="mp-h3">Quem está em cada situação <span class="mp-dim">clique num nome para filtrar tudo por ele</span></h3>${bloco}</div>`; })()}
     ${mpgColunas('Evolução por semana','planejado × realizado em cada semana do período',
       Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, fmtBR(w2).slice(0,5)]))}
     <div class="mp-2col">
@@ -4073,6 +4109,39 @@ function mpRenderRelatorios(){
     <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
     <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
   </div>`;
+}
+// 🔎 De onde vêm as horas: drill dos KPIs "Realizado não planejado" e
+// "Planejado não realizado" — pessoa → projeto → dias, do maior para o menor.
+function mpAbreDrill(tipo){
+  const dados=mpRelDados(); if(!dados) return;
+  const f=estado.minhasemana.relF;
+  const nomeDe=(a)=>{ const p=(dados.planos||[]).find(x=>x.accountId===a); return (p&&(p.nome||p.email))||a; };
+  const linhas=[];
+  if(tipo==='rnp'){
+    Object.entries(dados.real).forEach(([k,h])=>{ if((dados.plan[k]||0)>0) return;
+      const [a,d,pj]=k.split('|'); if(!f.usuario&&!dados.accsComPlano.has(a)) return;
+      linhas.push({a,d,pj,h}); });
+  } else {
+    Object.entries(dados.plan).forEach(([k,h])=>{ if((dados.real[k]||0)>0) return;
+      const [a,d,pj]=k.split('|'); linhas.push({a,d,pj,h}); });
+  }
+  const tot=linhas.reduce((s,x)=>s+x.h,0);
+  const porA={};
+  linhas.forEach(x=>{ const o=porA[x.a]=porA[x.a]||{tot:0,projs:{}};
+    o.tot+=x.h; const pr=o.projs[x.pj]=o.projs[x.pj]||{tot:0,dias:[]}; pr.tot+=x.h;
+    pr.dias.push(`${fmtBR(x.d).slice(0,5)} ${mpH(x.h)}`); });
+  const corpo=Object.entries(porA).sort((x,y)=>y[1].tot-x[1].tot).map(([a,o])=>`
+    <div class="mp-pend" style="padding:10px 12px">
+      <div class="mp-pend-h"><strong>${esc(nomeDe(a))}</strong><span class="mp-pend-tot">${mpH(o.tot)}</span></div>
+      <div>${Object.entries(o.projs).sort((x,y)=>y[1].tot-x[1].tot).map(([pj,pr])=>
+        `<div class="mp-atv-meta" style="margin-top:4px"><b data-tip="${escA(pj)}">${esc(projNome(pj))}</b> · ${mpH(pr.tot)} <span class="mp-dim">(${pr.dias.join(' · ')})</span></div>`).join('')}</div>
+    </div>`).join('');
+  abreModal(`<h2>${tipo==='rnp'?'🔎 Realizado não planejado':'🔎 Planejado não realizado'} · ${mpH(tot)}</h2>
+    <div class="muted small">${tipo==='rnp'
+      ?'Horas APONTADAS em dia/projeto que não estavam no plano da pessoa — é daqui que vem o número do cartão.'
+      :'O que estava no plano e ficou SEM nenhuma hora apontada naquele dia/projeto.'}</div>
+    <div class="nov-lista" style="margin-top:10px">${corpo||'<div class="alx-vazio">✓ Nada por aqui com os filtros atuais.</div>'}</div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
 // CSV pt-BR (datas dd/mm/aaaa, decimais com vírgula, separador ';').
 function mpExportaCSV(){
@@ -4100,6 +4169,14 @@ function mpAbreDuplicar(idx){
       return `<label class="check"><input type="checkbox" data-mp-dupdia="${escA(d)}" ${d===it.data?'disabled':''}> ${MP_DIAS[i]} ${esc(fmtBR(d).slice(0,5))}${d===it.data?' (origem)':''}</label>`; }).join('')}</div>
     <div class="mp-form-acoes"><button class="mp-btn mp-btn-p" data-mp-dupconf="${idx}">Duplicar</button>
       <button class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>`);
+}
+function mpAbreMover(idx){
+  const it=mpItens()[idx]; if(!it) return; const w=mpSem();
+  abreModal(`<h2>Mover atividade</h2>
+    <div class="muted small">“${esc(it.descricao)}” (${esc(projNome(it.projeto))}, ${mpH(it.horas)}) — para qual dia?</div>
+    <div class="mp-checks">${[0,1,2,3,4,5,6].map(i=>{ const d=mtsSoma(w,i);
+      return `<button class="mp-btn" data-mp-movdia="${idx}|${escA(d)}" ${d===it.data?'disabled':''} style="margin:2px 4px 2px 0">${MP_DIAS[i]} ${esc(fmtBR(d).slice(0,5))}${d===it.data?' (atual)':''}</button>`; }).join('')}</div>
+    <div class="mp-form-acoes"><button class="mp-btn" data-mp-fechamodal="1">Cancelar</button></div>`);
 }
 function mpAbreRotina(){
   const w=mpSem(); const projs=mpProjetos();
@@ -4135,8 +4212,36 @@ function mpAbreDevolver(idc, base){
 }
 
 // ---------------- interações ----------------
+// 🖐 Arrastar e soltar: leva a atividade de um dia para outro (só com o plano
+// editável — as linhas nem viram "draggable" quando está enviado/aprovado).
+let _mpDragIdx=null;
+document.addEventListener('dragstart',(e)=>{
+  const r=e.target.closest&&e.target.closest('.mp-atv[draggable="true"]'); if(!r) return;
+  _mpDragIdx=+r.getAttribute('data-mp-idx');
+  r.classList.add('mp-arrastando');
+  try{ e.dataTransfer.setData('text/plain', String(_mpDragIdx)); e.dataTransfer.effectAllowed='move'; }catch(_){}
+});
+document.addEventListener('dragend',()=>{ _mpDragIdx=null;
+  document.querySelectorAll('.mp-arrastando').forEach(x=>x.classList.remove('mp-arrastando'));
+  document.querySelectorAll('.mp-dia.mp-solta').forEach(x=>x.classList.remove('mp-solta')); });
+document.addEventListener('dragover',(e)=>{
+  const s=e.target.closest&&e.target.closest('[data-mp-dia]'); if(!s||_mpDragIdx==null) return;
+  e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){}
+  if(!s.classList.contains('mp-solta')){
+    document.querySelectorAll('.mp-dia.mp-solta').forEach(x=>x.classList.remove('mp-solta'));
+    s.classList.add('mp-solta'); }
+});
+document.addEventListener('drop',(e)=>{
+  const s=e.target.closest&&e.target.closest('[data-mp-dia]'); if(!s||_mpDragIdx==null) return;
+  e.preventDefault();
+  const it=mpItens()[_mpDragIdx]; const d=s.getAttribute('data-mp-dia'); _mpDragIdx=null;
+  if(!it||it.data===d){ renderMinhaSemana(); return; }
+  const de=it.data; it.data=d;
+  mpAgendaSalvar(); renderMinhaSemana();
+  toast(`↔ "${esc((it.descricao||'atividade').slice(0,40))}" foi de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok');
+});
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv]');
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill]');
   if(!t) return;
   const mp=estado.minhasemana; const id=idApontar();
   if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
@@ -4166,6 +4271,13 @@ document.addEventListener('click', async (e)=>{
     itens[ix]=alvo.x; itens[alvo.i2]=it;
     mpAgendaSalvar(); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-dup')){ if(guardaEdicao()) return; mpAbreDuplicar(+t.getAttribute('data-mp-dup')); return; }
+  if(t.hasAttribute('data-mp-mover')){ if(guardaEdicao()) return; mpAbreMover(+t.getAttribute('data-mp-mover')); return; }
+  if(t.hasAttribute('data-mp-movdia')){ if(guardaEdicao()) return;
+    const at=t.getAttribute('data-mp-movdia'); const sep=at.indexOf('|');
+    const it=mpItens()[+at.slice(0,sep)]; const d=at.slice(sep+1); if(!it||it.data===d) return;
+    const de=it.data; it.data=d;
+    mpAgendaSalvar(); fechaModal(); renderMinhaSemana();
+    toast(`↔ Atividade movida de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok'); return; }
   if(t.hasAttribute('data-mp-dupconf')){ const ix=+t.getAttribute('data-mp-dupconf'); const it=mpItens()[ix]; if(!it) return;
     const dias=[...document.querySelectorAll('[data-mp-dupdia]:checked')].map(x=>x.getAttribute('data-mp-dupdia'));
     if(!dias.length){ toast('Escolha pelo menos um dia.','warn'); return; }
@@ -4220,20 +4332,45 @@ document.addEventListener('click', async (e)=>{
   if(t.hasAttribute('data-mp-repend')){ mp.pend=null; mpGarantePend(true); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-aprovar')){
     if(!window.confirm('Aprovar este planejamento? Ele ficará bloqueado para edição.')) return;
-    const j=await mpApi({acao:'decidir', id:t.getAttribute('data-mp-aprovar'), decisao:'aprovar', base:t.getAttribute('data-mp-base')||''});
-    if(j&&j.ok) toast('Planejamento aprovado.','ok'); else toast((j&&j.erro)||'Falha ao aprovar.','err');
+    const idPl=t.getAttribute('data-mp-aprovar');
+    const j=await mpApi({acao:'decidir', id:idPl, decisao:'aprovar', base:t.getAttribute('data-mp-base')||''});
+    if(j&&j.ok){ toast('Planejamento aprovado.','ok');
+      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox(); }
+    else toast((j&&j.erro)||'Falha ao aprovar.','err');
     mp.pend=null; mpGarantePend(true); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-devolver')){ mpAbreDevolver(t.getAttribute('data-mp-devolver'), t.getAttribute('data-mp-base')); return; }
   if(t.hasAttribute('data-mp-devconf')){
     const coment=((document.getElementById('mp-dev-coment')||{}).value||'').trim();
     const fb=document.getElementById('mp-dev-fb');
     if(!coment){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='O comentário é obrigatório na devolução.'; } return; }
-    const j=await mpApi({acao:'decidir', id:t.getAttribute('data-mp-devconf'), decisao:'devolver', comentario:coment, base:t.getAttribute('data-mp-base')||''});
-    if(j&&j.ok){ toast('Planejamento devolvido para ajustes.','ok'); fechaModal(); }
+    const idPl=t.getAttribute('data-mp-devconf');
+    const j=await mpApi({acao:'decidir', id:idPl, decisao:'devolver', comentario:coment, base:t.getAttribute('data-mp-base')||''});
+    if(j&&j.ok){ toast('Planejamento devolvido para ajustes.','ok'); fechaModal();
+      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox(); }
     else if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=(j&&j.erro)||'Falha ao devolver.'; }
     mp.pend=null; if(estado.vista==='minhasemana'){ mpGarantePend(true); renderMinhaSemana(); } return; }
   if(t.hasAttribute('data-mp-relatualiza')){ mp.rel=null; mpGaranteRel(true); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-relcsv')){ mpExportaCSV(); return; }
+  if(t.hasAttribute('data-mp-rsem')){ const n=+t.getAttribute('data-mp-rsem')||4; const fR=mp.relF;
+    fR.ate=mpSem(); fR.de=mtsSoma(fR.ate,-(n-1)*7);
+    const ini=mpInicioVig(); if(ini&&fR.de<ini) fR.de=(ini>fR.ate?fR.ate:ini);
+    mp.rel=null; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-ruser')){ const a=t.getAttribute('data-mp-ruser');
+    mp.relF.usuario=(mp.relF.usuario===a?'':a); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-rdrill')){ mpAbreDrill(t.getAttribute('data-mp-rdrill')); return; }
+});
+// Filtros dos Relatórios do gestor — inclui o 📆 Início da apuração (cfg do time).
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.hasAttribute||!t.hasAttribute('data-mp-rf')) return;
+  const c=t.getAttribute('data-mp-rf'); const mp=estado.minhasemana;
+  if(c==='inicio'){
+    cfg.mpInicio=String(t.value||'').slice(0,10); salvaCfg();
+    mp.rel=null; mp.relF.de='';   // recalcula o "De" padrão respeitando o novo início
+    toast(cfg.mpInicio?`📆 Relatórios do planejamento apurados a partir de ${fmtBR(cfg.mpInicio)} (vale para o time todo).`:'📆 Início da apuração removido — relatórios voltam a considerar tudo.','ok');
+    renderMinhaSemana(); return; }
+  mp.relF[c]=t.value||'';
+  if(c==='de'||c==='ate') mp.rel=null;
+  renderMinhaSemana();
 });
 // Formulário de atividade (submit) — adiciona ou edita no dia.
 document.addEventListener('submit',(e)=>{
@@ -4399,7 +4536,7 @@ document.addEventListener('change',(e)=>{
 // próprio array NOVIDADES. Sugestões: ⋯ Mais → ❓ Ajuda & feedback.
 const ROADMAP=[
   { s:'fazendo',   t:'📣 Avisos automáticos no Teams a cada publicação', d:'O mecanismo já está no ar (modo aviso do /api/teams, com menção ao time) — falta o webhook do canal Avisos Gerais (TEAMS_AVISOS_WEBHOOK_URL) para os avisos saírem sozinhos a cada melhoria.' },
-  { s:'planejado', t:'📥 Pendências da Agenda e do plano semanal no Inbox', d:'Eventos sem ticket (do organizador) e planos aguardando aprovação/recusados entrando no 📥 Inbox, com o selo de pendências no menu.' },
+  { s:'planejado', t:'📥 Plano devolvido no Inbox da pessoa', d:'Aviso no Inbox de quem teve o plano semanal devolvido (a parte do aprovador — planos aguardando decisão no Inbox — foi entregue em 2026-08-13; a devolução hoje aparece dentro do Meu Planejamento).' },
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
@@ -12572,7 +12709,7 @@ function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
   const ign=mnIgnoradasSet();
   const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
-  return conv+men+inboxAprovacoes().length+inboxAvisosAgenda().length;
+  return conv+men+inboxAprovacoes().length+inboxAvisosAgenda().length+((estado.inbox.planos)||[]).length;
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
@@ -12596,7 +12733,11 @@ function carregaInbox(forca){
   const pM=fetch(`/api/vencimentos?mencoes=1&accountId=${encodeURIComponent(id.accountId)}&dias=${estado.mencoes.dias||14}${forca?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ if(j&&!j.erro){ ib.mencoes=j; estado.mencoes.dados=j; } else if(j&&j.erro) ib.erro=j.erro; })
     .catch(e=>{ ib.erro=String(e.message||e); });
-  Promise.all([pC,pM]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
+  // 📋 Planos semanais aguardando decisão — só para o aprovador (o servidor também valida).
+  const pP=souAprovador()
+    ? mpApi({acao:'pendencias'}).then(j=>{ ib.planos=(j&&j.ok&&j.pendencias)||[]; }).catch(()=>{ ib.planos=ib.planos||[]; })
+    : Promise.resolve(ib.planos=[]);
+  Promise.all([pC,pM,pP]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
     if(estado.vista==='inbox') renderInbox(); });
 }
 function renderInbox(){
@@ -12616,13 +12757,15 @@ function renderInbox(){
   const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
   const aprs=inboxAprovacoes();
   const avs=inboxAvisosAgenda();
-  const total=cvs.length+mens.length+aprs.length+avs.length;
+  const plns=(souAprovador()&&ib.planos)||[];
+  const total=cvs.length+mens.length+aprs.length+avs.length+plns.length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
     <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
     <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
     ${avs.length?`<div class="kpi w"><div class="v">${avs.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
+    ${souAprovador()?`<div class="kpi ${plns.length?'w':'a'}"><div class="v">${plns.length}</div><div class="l">📋 Planos semanais p/ aprovar</div></div>`:''}
     ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
   </div>`;
 
@@ -12685,6 +12828,22 @@ function renderInbox(){
     :'<div class="alx-vazio">✓ Nenhuma menção sem resposta.</div>'}
   </div>`;
 
+  // 📋 Planos semanais aguardando a decisão do aprovador — clicar abre o
+  // Meu Planejamento já na aba Aprovações (onde vive a decisão completa).
+  const secPl=(souAprovador()&&plns.length)?`<div class="card full">
+    <h2>📋 Planos semanais aguardando sua aprovação <span>a pessoa fica com a edição travada até você decidir</span></h2>
+    <div class="cv-lista">${plns.map(p=>{ const s=isoSemana(p.semana);
+      return `<div class="cv-row">
+        <strong>${esc(p.nome||p.email||p.accountId)}</strong>
+        <span class="badge">Semana ${s.num}/${s.ano} · ${esc(fmtBR(p.semana))}</span>
+        <span class="badge" data-tip="Total planejado na semana">${mpH(p.total)}</span>
+        ${p.enviadoEm?`<span class="badge" data-tip="Enviado em">📨 ${esc(fmtBR((p.enviadoEm||'').slice(0,10)))}</span>`:''}
+        ${(p.versao||1)>1?`<span class="badge" data-tip="Plano reenviado após devolução">v${p.versao}</span>`:''}
+        <span class="spacer"></span>
+        <button class="btn primario" data-ib-plano="1">Revisar e decidir →</button>
+      </div>`; }).join('')}</div>
+  </div>`:'';
+
   // 🔒 Aprovações de alocação — só aparece para o aprovador e quando há pendências.
   const secApr=(souAprovador()&&aprs.length)?`<div class="card full">
     <h2>🔒 Alocações aguardando sua aprovação <span>travadas até você aprovar ou recusar</span></h2>
@@ -12700,20 +12859,23 @@ function renderInbox(){
 
   cont.replaceChildren(el(`<div>
     <div class="ap-id">📥 Inbox de <strong>${esc(id.nome||id.email)}</strong>
-      <span class="muted small">convites, menções e aprovações que dependem de você</span>
+      <span class="muted small">convites, menções, planos semanais e aprovações que dependem de você</span>
       <span class="spacer"></span>
       <button class="btn" id="ib-forcar" data-tip="Rebusca convites e menções agora (ignora o cache do servidor)">⟳ Atualizar</button></div>
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
     ${secAg}
+    ${secPl}
     ${secConv}
     ${secMen}
     ${secApr}
   </div>`));
 }
-// Dispensar aviso de reunião sem ticket (só some do MEU Inbox).
+// Dispensar aviso de reunião sem ticket (só some do MEU Inbox) + abrir aprovações de plano.
 document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const pl=e.target.closest&&e.target.closest('[data-ib-plano]');
+  if(pl){ estado.minhasemana.aba='aprovacoes'; estado.minhasemana.pend=null; vaiPara('minhasemana'); return; }
   const d=e.target.closest&&e.target.closest('[data-ib-avdel]'); if(!d) return;
   const id=idApontar(); if(!id||!id.accountId) return;
   const evId=d.getAttribute('data-ib-avdel');
@@ -14690,6 +14852,10 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-13','📥 <b>Planos semanais para aprovar chegam no seu Inbox</b>: quando alguém envia o planejamento da semana, o aviso aparece no <b>📥 Inbox do aprovador</b> — com pessoa, semana, total planejado e data de envio — e o <b>selo vermelho no menu</b> passa a contar essas pendências também. O botão <b>Revisar e decidir →</b> abre o Meu Planejamento direto na aba Aprovações; ao aprovar ou devolver, o aviso some sozinho.'],
+  ['2026-08-13','📊 <b>Relatórios do planejamento interativos</b>: atalhos de período por <b>número de semanas</b> (últimas 2/4/8/12/26), os cartões <b>Realizado não planejado</b> e <b>Planejado não realizado</b> agora abrem com 🔎 <b>de onde vêm as horas</b> (pessoa → projeto → dias) e o bloco novo <b>"Quem está em cada situação"</b> mostra nome a nome quem está em elaboração, enviado, aprovado ou devolvido — clicar num nome filtra o relatório inteiro por ele.'],
+  ['2026-08-13','📆 <b>Início da apuração do planejamento</b>: nos Relatórios do gestor dá para definir <b>a data em que o time começou a usar o Meu Planejamento</b> — semanas e horas anteriores ficam <b>fora</b> dos relatórios e comparativos (nada de "pendência" ou "não planejado" do período pré-adoção sujando os números). A configuração vale para o time todo.'],
+  ['2026-08-13','🖐 <b>Arrastar e soltar no 📋 Meu Planejamento</b>: segure no <b>⠿</b> e arraste a atividade de um dia para outro — o dia de destino acende e o plano salva sozinho. No celular (onde não dá para arrastar), o novo botão <b>Mover</b> faz o mesmo em dois toques. Vale junto com os atalhos de sempre: Duplicar para vários dias, rotina e copiar a semana anterior.'],
   ['2026-08-12','⭐ <b>Filtros salvos e compartilháveis na 🛠 Gestão</b>: monte os filtros e use <b>💾 Salvar filtro</b> — <b>🔄 dinâmico</b> guarda os critérios (o resultado acompanha o Jira) ou <b>📌 estático</b> congela a lista de tickets exatamente como está. Os filtros salvos aparecem como chips para o <b>time todo</b>, e cada um tem um <b>🔗 link</b> para mandar a alguém (a Gestão abre já filtrada). Tem também <b>🔗 copiar link da visão</b>: os filtros da Gestão agora vivem na URL — copiar o endereço já compartilha exatamente o que você está vendo.'],
   ['2026-08-12','🔁 <b>Trocar status direto na 🛠 Gestão</b>: além da ação em massa, agora cada ticket tem o botão <b>🔁 status</b> — na lista, na tabela, nos cartões do quadro e na ficha 🔍 detalhes. Abre as transições disponíveis do fluxo e aplica no seu usuário, com comentário opcional.'],
   ['2026-08-12','🌠 <b>Ranking com entrada de gala</b>: chuva de estrelas em dobro com <b>confete nas cores da Dexterity</b>, pódio subindo em salto, medalhas com "pop", <b>holofote e raios girando</b> no campeão e o percentual <b>contando de 0 até o valor</b>. Tudo respeita a preferência de menos movimento do sistema.'],
@@ -14788,7 +14954,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-12.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-13.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
