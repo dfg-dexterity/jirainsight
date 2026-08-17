@@ -302,7 +302,14 @@ export async function clockworkRaw(startDate, endDate) {
   const headers = { Authorization: `Token ${token}` };
   const out = [];
   let offset = 0;
-  for (let i = 0; i < 20; i += 1) {
+  let assinaturaAnterior = '';
+  // Paginação DEFENSIVA: não assumimos o tamanho da página do Clockwork.
+  // (O código antigo supunha páginas de 10.000 e parava na 1ª página — quando o
+  // volume da janela passou disso, os dias mais antigos sumiam do relatório de
+  // horas, ex.: a segunda-feira da semana.) Agora seguimos pedindo com offset
+  // até vir página vazia; se o servidor ignorar o offset e repetir a mesma
+  // página, a assinatura detecta e paramos sem duplicar.
+  for (let i = 0; i < 60; i += 1) {
     const qs = new URLSearchParams({
       starting_at: startDate, ending_at: endDate,
       expand: 'issues,authors,emails,worklogs', tz: 'America/Sao_Paulo', offset: String(offset),
@@ -311,9 +318,13 @@ export async function clockworkRaw(startDate, endDate) {
     if (!resp.ok) { const txt = await resp.text(); throw new Error(`Clockwork ${resp.status}: ${txt.slice(0, 400)}`); }
     const lote = await resp.json();
     if (!Array.isArray(lote) || lote.length === 0) break;
+    const pri = lote[0] || {}; const ult = lote[lote.length - 1] || {};
+    const assinatura = `${lote.length}:${pri.id || pri.started || ''}:${ult.id || ult.started || ''}`;
+    if (assinatura === assinaturaAnterior) break;
+    assinaturaAnterior = assinatura;
     out.push(...lote);
-    if (lote.length < 10000) break;
-    offset += 10000;
+    offset += lote.length;
+    if (out.length >= 200000) break;
   }
   return out;
 }
