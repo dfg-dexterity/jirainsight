@@ -280,6 +280,28 @@ async function planejamento(req, res, base, headers) {
     return json(res, 200, { ok: true, planos: rows.map((p) => ({ accountId: p.account_id, nome: p.usuario_nome, status: p.status, versao: p.versao, total: Number(p.total_planejado) || 0, enviadoEm: p.enviado_em, semana: p.semana_inicio })) });
   }
 
+  // ---- relatorio: planos + itens num intervalo de semanas (o realizado o front
+  //      junta via /api/tempo, agrupando accountId + data + projeto).
+  //      ABERTO a todos os usuários identificados (pedido de 2026-08-17):
+  //      os relatórios são do time; só DECIDIR (aprovar/devolver) e listar
+  //      pendências seguem restritos ao gestor. ----
+  if (acao === 'relatorio') {
+    const de = planSegunda(b.de); const ate = planSegunda(b.ate) || de;
+    if (!de) return json(res, 400, { ok: false, erro: 'Período inválido.' });
+    const rows = await sbRows(await sbFetch(base, headers,
+      `${T_PLAN}?semana_inicio=gte.${de}&semana_inicio=lte.${ate}&select=*&order=semana_inicio.asc`));
+    const ids = rows.map((p) => p.id);
+    let itens = [];
+    if (ids.length) {
+      itens = await sbRows(await sbFetch(base, headers,
+        `${T_ITENS}?planejamento_id=in.(${ids.join(',')})&select=planejamento_id,data,projeto,descricao,categoria,horas_planejadas&order=data.asc`));
+    }
+    const porPlan = {};
+    itens.forEach((i) => { (porPlan[i.planejamento_id] = porPlan[i.planejamento_id] || []).push(i); });
+    return json(res, 200, { ok: true, planos: rows.map((p) => planPublico(p, porPlan[p.id] || [])) });
+  }
+
+
   // ---- Daqui para baixo: ações de GESTOR (ou dono, no caso do "ver") ----
   const gestor = await planEhGestor(base, headers, quem);
 
@@ -331,24 +353,6 @@ async function planejamento(req, res, base, headers) {
       executado_em: agora, comentario, snapshot: { total: Number(p.total_planejado) || 0, itens },
     });
     return json(res, 200, { ok: true, plano: planPublico(upd, itens) });
-  }
-
-  // ---- relatorio: planos + itens num intervalo de semanas (o realizado o front
-  //      junta via /api/tempo, agrupando accountId + data + projeto) ----
-  if (acao === 'relatorio') {
-    const de = planSegunda(b.de); const ate = planSegunda(b.ate) || de;
-    if (!de) return json(res, 400, { ok: false, erro: 'Período inválido.' });
-    const rows = await sbRows(await sbFetch(base, headers,
-      `${T_PLAN}?semana_inicio=gte.${de}&semana_inicio=lte.${ate}&select=*&order=semana_inicio.asc`));
-    const ids = rows.map((p) => p.id);
-    let itens = [];
-    if (ids.length) {
-      itens = await sbRows(await sbFetch(base, headers,
-        `${T_ITENS}?planejamento_id=in.(${ids.join(',')})&select=planejamento_id,data,projeto,descricao,categoria,horas_planejadas&order=data.asc`));
-    }
-    const porPlan = {};
-    itens.forEach((i) => { (porPlan[i.planejamento_id] = porPlan[i.planejamento_id] || []).push(i); });
-    return json(res, 200, { ok: true, planos: rows.map((p) => planPublico(p, porPlan[p.id] || [])) });
   }
 
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
