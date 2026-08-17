@@ -196,6 +196,7 @@
     border:1px solid var(--linha);background:var(--cartao);color:var(--grafite);
     font-family:var(--corpo);font-size:14px;font-weight:700;padding:9px 13px;border-radius:10px;cursor:pointer}
   .nav-toggle:hover{border-color:var(--cerceta);color:var(--cerceta)}
+  .navg-menu .nav-sub{padding-left:34px;font-size:12.5px;opacity:.92}
   .nt-bars{position:relative;width:18px;height:2px;background:currentColor;border-radius:2px;flex:0 0 auto}
   .nt-bars::before,.nt-bars::after{content:"";position:absolute;left:0;width:18px;height:2px;background:currentColor;border-radius:2px}
   .nt-bars::before{top:-6px}.nt-bars::after{top:6px}
@@ -2080,6 +2081,10 @@
         <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
+          <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Relatórios do planejamento</button>
+          <button data-v="planrel" data-aud="exec" class="nav-sub">👔 Visão executiva</button>
+          <button data-v="planrel" data-aud="minha" class="nav-sub">👤 Minha visão</button>
+          <button data-v="planrel" data-aud="proj" class="nav-sub">📁 Visão por projetos</button>
           <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>🧑‍💼 Alocação (macro)</button>
           <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
           <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
@@ -2245,6 +2250,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // 📋 Meu Planejamento: plano semanal por atividade (data + projeto + horas), sem tickets.
   // 📋 Meu Planejamento: plano semanal por atividade (Supabase) + comparativo,
   // aprovações e relatórios do gestor. rasc = itens em edição (autosave).
+  planrel:{ aud:'gestor' },   // 📊 Relatórios do planejamento — visão por audiência (menu Planejamento)
   minhasemana:{ w:'', aba:'plano', meu:{}, meuB:{}, gestor:false, erro:'',
     rasc:null, rascW:'', sujo:false, salvando:false, form:null,
     real:{}, realB:{}, pend:null, pendB:0, rel:null, relB:0,
@@ -2690,7 +2696,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -4013,8 +4019,8 @@ function mpGaranteRel(forca){
   ]).then(([jp,jt])=>{ mp.relB=0;
     if(!jp||!jp.ok){ mp.rel={chave, erro:(jp&&jp.erro)||'Falha ao carregar os planejamentos.'}; }
     else mp.rel={chave, planos:jp.planos||[], wl:(jt&&jt.worklogs)||[], pessoas:(jt&&jt.pessoas)||{}, projetos:(jt&&jt.projetos)||{}, resumos:(jt&&jt.resumos)||{}};
-    if(estado.vista==='minhasemana') renderMinhaSemana();
-  }).catch(e=>{ mp.relB=0; mp.rel={chave, erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
+    if(estado.vista==='minhasemana'||estado.vista==='planrel') mpReRender();
+  }).catch(e=>{ mp.relB=0; mp.rel={chave, erro:humanizaErro(e)}; if(estado.vista==='minhasemana'||estado.vista==='planrel') mpReRender(); });
   return false;
 }
 function mpRelDados(){
@@ -4041,8 +4047,18 @@ function mpRelDados(){
     real[`${x.a}|${d}|${pj}`]=(real[`${x.a}|${d}|${pj}`]||0)+(Number(x.s)||0)/3600; });
   return { planos, plan, real, pessoas:r.pessoas||{}, accsComPlano };
 }
-function mpRenderRelatorios(){
+function mpRenderRelatorios(aud){
+  // Audiências: gestor (completa) · exec (resumo de alto nível) · minha (a própria
+  // pessoa) · proj (foco projeto a projeto). Cada uma mostra só o que interessa.
+  const AUD=['exec','gestor','minha','proj'].includes(aud)?aud:'gestor';
+  const S={
+    exec:  {kpi:1,sit:1,vproj:1,evol:1,desv:1},
+    gestor:{fUser:1,fProj:1,fStatus:1,fIni:1,kpi:1,sit:1,quem:1,pess:1,vproj:1,evol:1,g2:1,desv:1,tabs:1},
+    minha: {kpi:1,pess:1,evol:1},
+    proj:  {fProj:1,kpi:1,vproj:1,evol:1,g2:1,desv:1,tabProj:1},
+  }[AUD];
   const mp=estado.minhasemana; const f=mp.relF;
+  if(AUD==='minha'){ const idm=idApontar(); if(idm&&idm.accountId) f.usuario=idm.accountId; }
   if(!f.de){ const w=mpSem(); f.ate=w; f.de=mtsSoma(w,-21);
     const ini=mpInicioVig(); if(ini&&f.de<ini) f.de=(ini>w?w:ini); }
   const carregado=mpGaranteRel(false);
@@ -4061,10 +4077,10 @@ function mpRenderRelatorios(){
   const filtros=`<div class="mp-ferr" role="search">
     <label>De (semana do ano)<select data-mp-rf="de">${semOpts(f.de)}</select></label>
     <label>Até (semana do ano)<select data-mp-rf="ate">${semOpts(f.ate)}</select></label>
-    <label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
-    <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option value="${escA(pj)}" ${f.projeto===pj?'selected':''}>${esc(projNome(pj))}</option>`).join('')}</select></label>
-    <label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>
-    <label title="Data em que o time começou a usar o Meu Planejamento — semanas e horas ANTERIORES ficam fora destes relatórios (configuração do time, não suja a apuração com o período pré-adoção)">📆 Início da apuração<input type="date" value="${escA(mpInicioVig())}" data-mp-rf="inicio"></label>
+    ${S.fUser?`<label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>`:''}
+    ${S.fProj?`<label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option value="${escA(pj)}" ${f.projeto===pj?'selected':''}>${esc(projNome(pj))}</option>`).join('')}</select></label>`:''}
+    ${S.fStatus?`<label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>`:''}
+    ${S.fIni?`<label title="Data em que o time começou a usar o Meu Planejamento — semanas e horas ANTERIORES ficam fora destes relatórios (configuração do time, não suja a apuração com o período pré-adoção)">📆 Início da apuração<input type="date" value="${escA(mpInicioVig())}" data-mp-rf="inicio"></label>`:''}
     <button class="mp-btn" data-mp-relatualiza="1">Atualizar</button>
     <button class="mp-btn" data-mp-relcsv="1" ${dados?'':'disabled'}>Exportar CSV</button>
   </div>
@@ -4109,8 +4125,8 @@ function mpRenderRelatorios(){
       <div class="mp-kpi mp-kpi-click" data-mp-rdrill="pnr" title="Clique para ver O QUE estava no plano e ficou sem horas (pessoa → projeto → dia)"><div class="v">${mpH(pnr)} 🔎</div><div class="l">Planejado não realizado</div></div>
       <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
     </div>
-    ${mpgStatus(stCount)}
-    ${(()=>{ // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
+    ${S.sit?mpgStatus(stCount):''}
+    ${(()=>{ if(!S.quem) return ''; // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
       const ini2=mpInicioVig();
       const todos=((r&&r.planos)||[]).filter(p=>!ini2||(p.semana||'')>=ini2);
       if(!todos.length) return '';
@@ -4123,8 +4139,8 @@ function mpRenderRelatorios(){
               ${esc((p.nome||p.email||p.accountId).split(' ')[0])} · ${esc(fmtBR(p.semana).slice(0,5))}${(p.versao||1)>1?` · v${p.versao}`:''}</button>`).join(' ')}</div>`;
       }).join('');
       return `<div><h3 class="mp-h3">Quem está em cada situação <span class="mp-dim">clique num nome para filtrar tudo por ele</span></h3>${bloco}</div>`; })()}
-    ${f.usuario?mpRelPessoaBloco(dados,f,porSem,nome):''}
-    ${(()=>{ // 📁 visão geral por projeto — cartões clicáveis (drill até os tickets)
+    ${(S.pess&&f.usuario)?mpRelPessoaBloco(dados,f,porSem,nome):''}
+    ${(()=>{ if(!S.vproj) return ''; // 📁 visão geral por projeto — cartões clicáveis (drill até os tickets)
       const cards=Object.entries(porP).sort((x,y)=>(y[1].plan+y[1].real)-(x[1].plan+x[1].real)).map(([pj,v])=>{
         const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
         const np=(projPess[pj]||new Set()).size;
@@ -4148,18 +4164,42 @@ function mpRenderRelatorios(){
         : Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, `S${isoSemana(w2).num}`, `w=${w2}`]);
       return tg+mpgColunas(gran==='dia'?'Evolução por dia':'Evolução por semana',
         `planejado × realizado em cada ${gran==='dia'?'dia':'semana'} do período — clique numa coluna para ver os tickets`, ent); })()}
-    <div class="mp-2col">
+    ${S.g2?`<div class="mp-2col">
       ${mpgBarras('Por projeto','clique numa barra para ver os tickets do realizado',
         Object.entries(porP).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([pj,v])=>[projNome(pj),v,pj,`pj=${pj}`]))}
-      ${mpgBarras('Por pessoa','clique numa barra para ver os tickets da pessoa',
+      ${AUD==='proj'?'':mpgBarras('Por pessoa','clique numa barra para ver os tickets da pessoa',
         Object.entries(porU).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([a2,v])=>[nome(a2),v,'',`a=${a2}`]))}
-    </div>
-    ${mpgDivergente('Maiores desvios por projeto','diferença entre o realizado e o planejado, em horas — clique para investigar os tickets',
-      Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj,`pj=${pj}`]))}
-    <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
-    <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
+    </div>`:''}
+    ${S.desv?mpgDivergente('Maiores desvios por projeto','diferença entre o realizado e o planejado, em horas — clique para investigar os tickets',
+      Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj,`pj=${pj}`])):''}
+    ${S.tabs?`<div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
+    <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>`:''}
+    ${S.tabProj?tab('Por projeto',porP,'Projeto'):''}
   </div>`;
 }
+// 📊 Vista própria "Relatórios do planejamento" (menu Planejamento) com as
+// visões por AUDIÊNCIA: 👔 executiva · 🧑‍💼 gestor · 👤 minha · 📁 projetos.
+function renderPlanRel(){
+  const cont=document.getElementById('conteudo');
+  const id=idApontar();
+  if(!id||!id.accountId){
+    cont.replaceChildren(el(`<div class="card full"><h2>📊 Relatórios do planejamento <span>planejado × realizado por audiência</span></h2>
+      <div class="estado">Identifique-se (e-mail + token do Jira) para abrir os relatórios.<br>
+        <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div>`));
+    return;
+  }
+  const pr=estado.planrel; if(!['exec','gestor','minha','proj'].includes(pr.aud)) pr.aud='gestor';
+  const CHIPS=[['gestor','🧑‍💼 Gestor','a visão completa do time'],
+    ['exec','👔 Executiva','resumo de alto nível para acompanhamento'],
+    ['minha','👤 Minha visão','o MEU planejado × realizado, semana a semana e dia a dia'],
+    ['proj','📁 Projetos','foco projeto a projeto']];
+  const nav=`<div class="card full" style="margin-bottom:12px"><h2>📊 Relatórios do planejamento <span>escolha a visão pela audiência — tudo com drill até o ticket</span></h2>
+    <div class="ap-vis" style="margin-top:6px">${CHIPS.map(([k,rot,d])=>
+      `<button class="chip" aria-pressed="${pr.aud===k}" data-plr-aud="${k}" title="${escA(d)}">${rot}</button>`).join(' ')}</div></div>`;
+  cont.replaceChildren(el(`<div>${nav}<div class="mp-root">${mpRenderRelatorios(pr.aud)}</div></div>`));
+}
+// Re-renderiza a tela certa dos relatórios (aba do Meu Planejamento OU vista própria).
+function mpReRender(){ if(estado.vista==='planrel') renderPlanRel(); else renderMinhaSemana(); }
 // 👤 Visão analítica do planejamento de UMA pessoa (aparece ao filtrar por usuário):
 // KPIs próprios + trajetória semana a semana (status do plano, planejado × realizado,
 // execução) + contagem de semanas SEM plano no intervalo (respeitando o início da apuração).
@@ -4379,7 +4419,7 @@ document.addEventListener('drop',(e)=>{
   toast(`↔ "${esc((it.descricao||'atividade').slice(0,40))}" foi de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok');
 });
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mpdrill]');
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mpdrill],[data-plr-aud]');
   if(!t) return;
   const mp=estado.minhasemana; const id=idApontar();
   if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
@@ -4473,7 +4513,8 @@ document.addEventListener('click', async (e)=>{
     const idPl=t.getAttribute('data-mp-aprovar');
     const j=await mpApi({acao:'decidir', id:idPl, decisao:'aprovar', base:t.getAttribute('data-mp-base')||''});
     if(j&&j.ok){ toast('Planejamento aprovado.','ok');
-      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox(); }
+      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox();
+      mp.meu={}; mp.meuB={}; mp.rel=null; }   // invalida caches: o status novo aparece na hora (cabeçalho, Início e relatórios)
     else toast((j&&j.erro)||'Falha ao aprovar.','err');
     mp.pend=null; mpGarantePend(true); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-devolver')){ mpAbreDevolver(t.getAttribute('data-mp-devolver'), t.getAttribute('data-mp-base')); return; }
@@ -4484,19 +4525,23 @@ document.addEventListener('click', async (e)=>{
     const idPl=t.getAttribute('data-mp-devconf');
     const j=await mpApi({acao:'decidir', id:idPl, decisao:'devolver', comentario:coment, base:t.getAttribute('data-mp-base')||''});
     if(j&&j.ok){ toast('Planejamento devolvido para ajustes.','ok'); fechaModal();
-      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox(); }
+      estado.inbox.planos=((estado.inbox.planos)||[]).filter(x=>x.id!==idPl); pintaBadgeInbox();
+      mp.meu={}; mp.meuB={}; mp.rel=null; }   // invalida caches: status novo na hora
     else if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=(j&&j.erro)||'Falha ao devolver.'; }
     mp.pend=null; if(estado.vista==='minhasemana'){ mpGarantePend(true); renderMinhaSemana(); } return; }
-  if(t.hasAttribute('data-mp-relatualiza')){ mp.rel=null; mpGaranteRel(true); renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-relatualiza')){ mp.rel=null; mpGaranteRel(true); mpReRender(); return; }
   if(t.hasAttribute('data-mp-relcsv')){ mpExportaCSV(); return; }
   if(t.hasAttribute('data-mp-rsem')){ const n=+t.getAttribute('data-mp-rsem')||4; const fR=mp.relF;
     fR.ate=mpSem(); fR.de=mtsSoma(fR.ate,-(n-1)*7);
     const ini=mpInicioVig(); if(ini&&fR.de<ini) fR.de=(ini>fR.ate?fR.ate:ini);
-    mp.rel=null; renderMinhaSemana(); return; }
+    mp.rel=null; mpReRender(); return; }
   if(t.hasAttribute('data-mp-ruser')){ const a=t.getAttribute('data-mp-ruser');
-    mp.relF.usuario=(mp.relF.usuario===a?'':a); renderMinhaSemana(); return; }
+    mp.relF.usuario=(mp.relF.usuario===a?'':a); mpReRender(); return; }
   if(t.hasAttribute('data-mp-rdrill')){ mpAbreDrill(t.getAttribute('data-mp-rdrill')); return; }
-  if(t.hasAttribute('data-mp-rgran')){ mp.relGran=t.getAttribute('data-mp-rgran')||'sem'; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mp-rgran')){ mp.relGran=t.getAttribute('data-mp-rgran')||'sem'; mpReRender(); return; }
+  if(t.hasAttribute('data-plr-aud')){ estado.planrel.aud=t.getAttribute('data-plr-aud');
+    if(estado.planrel.aud!=='minha'&&mp.relF.usuario&&estado.planrel.aud!=='gestor') mp.relF.usuario='';
+    estadoParaURL(); mpReRender(); return; }
   if(t.hasAttribute('data-mpdrill')){ mpAbreTickets(t.getAttribute('data-mpdrill')); return; }
 });
 // Filtros dos Relatórios do gestor — inclui o 📆 Início da apuração (cfg do time).
@@ -4510,7 +4555,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     renderMinhaSemana(); return; }
   mp.relF[c]=(c==='de'||c==='ate')?(semChave(t.value)||''):(t.value||'');   // De/Até viram a SEGUNDA da semana escolhida
   if(c==='de'||c==='ate') mp.rel=null;
-  renderMinhaSemana();
+  mpReRender();
 });
 // Formulário de atividade (submit) — adiciona ou edita no dia.
 document.addEventListener('submit',(e)=>{
@@ -5187,6 +5232,7 @@ function render(){
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
+  if(estado.vista==='planrel') return renderPlanRel();
   if(estado.vista==='alocacao') return renderIndisponivel('alocacao');
   if(estado.vista==='planejamento') return renderIndisponivel('planejamento');
   if(estado.vista==='admin') return renderAdmin();
@@ -14928,6 +14974,7 @@ const NAVCAT=[
   ['acoes','🏠 Início — Ações de hoje','Início','hoje pendencias novidades inicio home principal minhas horas vencidos'],
   ['prioridades','🎯 Prioridades do time','Início','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
   ['minhasemana','📋 Meu Planejamento','Planejamento','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado'],
+  ['planrel','📊 Relatórios do planejamento','Planejamento','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana'],
   ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
   ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
   ['inbox','📥 Inbox','Meu trabalho','convites mencoes pendencias caixa entrada aprovacoes'],
@@ -15010,6 +15057,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-17','🎯 <b>Relatórios do planejamento com visões por AUDIÊNCIA no menu</b>: novo item <b>Planejamento → 📊 Relatórios do planejamento</b> com atalhos direto no menu — <b>👔 Visão executiva</b> (resumo de alto nível), <b>🧑‍💼 Gestor</b> (completa), <b>👤 Minha visão</b> (o SEU planejado × realizado, semana a semana e dia a dia) e <b>📁 Projetos</b> (foco projeto a projeto). Cada visão mostra só o que interessa àquela audiência — sempre com drill até o ticket.'],
   ['2026-08-17','📊 <b>Relatórios do planejamento repensados — semana do ano, dia a dia e drill até o ticket</b>: o período agora é escolhido por <b>semana do ano</b> (ex.: S33/2026); a evolução tem granularidade <b>por semana OU por dia</b>; entrou a <b>📁 visão geral por projeto</b> em cartões; e <b>praticamente tudo é clicável</b> — colunas, barras, tabelas, cartões e o dia a dia da pessoa abrem <b>🎫 os tickets que compõem o realizado</b> (com resumo, horas, quem apontou, ficha 🔍 e link ao Jira). A ideia: ir aprendendo com o planejado × realizado e apurando o plano.'],
   ['2026-08-17','📋 <b>Meu Planejamento ganhou lugar próprio no menu Planejamento</b> — agora vive em <b>Planejamento → 📋 Meu Planejamento</b> (antes ficava em Meu trabalho). E as telas <b>🧑‍💼 Alocação (macro)</b> e <b>📅 Planejamento macro</b> ficaram <b>temporariamente indisponíveis</b>: serão reformuladas, integradas ao Meu Planejamento (acompanhe no 🗺️ Roadmap).'],
   ['2026-08-13','📥 <b>Planos semanais para aprovar chegam no seu Inbox</b>: quando alguém envia o planejamento da semana, o aviso aparece no <b>📥 Inbox do aprovador</b> — com pessoa, semana, total planejado e data de envio — e o <b>selo vermelho no menu</b> passa a contar essas pendências também. O botão <b>Revisar e decidir →</b> abre o Meu Planejamento direto na aba Aprovações; ao aprovar ou devolver, o aviso some sozinho.'],
@@ -15115,7 +15163,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-17.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-17.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -15619,7 +15667,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -15652,6 +15700,7 @@ function leURL(){
   if(['resp','proj','tipo','status','prio','epico','venc','risco'].includes(p.get('gag'))) gx.agrupar=p.get('gag');
   if(['lista','tabela','quadro'].includes(p.get('gvi'))) gx.vis=p.get('gvi');
   _gxfURL=p.get('gxf')||'';
+  if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'' };
 }
@@ -15680,6 +15729,7 @@ function estadoParaURL(){
     if(!ap.soMeus) p.set('meus','0');
     if(ap.cat) p.set('acat',ap.cat);
     if(ap.proj) p.set('aproj',ap.proj); }
+  if(estado.vista==='planrel' && estado.planrel.aud!=='gestor') p.set('paud',estado.planrel.aud);
   if(estado.vista==='gestao'){ const gx=estado.gestao;
     if(gx.busca) p.set('gq',gx.busca);
     if(gx.fProj) p.set('gpj',gx.fProj);
@@ -15743,6 +15793,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
+  if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
   estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 });
