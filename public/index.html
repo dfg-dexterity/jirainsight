@@ -3746,7 +3746,8 @@ function mpDiaCard(w, acc, i, editavel, real){
 }
 function mpAbasHtml(mp){
   const abas=[['plano','Planejamento'],['comparativo','Planejado × realizado']];
-  if(mp.gestor){ abas.push(['aprovacoes','Aprovações']); abas.push(['relatorios','Relatórios']); }
+  if(mp.gestor) abas.push(['aprovacoes','Aprovações']);   // decidir é exclusivo do gestor
+  abas.push(['relatorios','Relatórios']);                  // relatórios são de TODOS (2026-08-17)
   return `<div class="mp-abas" role="tablist">${abas.map(([k,r])=>
     `<button class="mp-tab${mp.aba===k?' atual':''}" role="tab" aria-selected="${mp.aba===k}" data-mp-aba="${k}">${r}</button>`).join('')}</div>`;
 }
@@ -15057,6 +15058,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-17','🔓 <b>Relatórios do planejamento abertos para TODO o time</b>: qualquer pessoa identificada acessa <b>Planejamento → 📊 Relatórios do planejamento</b> (e a aba Relatórios do Meu Planejamento) — inclusive a <b>👤 Minha visão</b> com o próprio planejado × realizado dia a dia. A única coisa exclusiva do gestor segue sendo <b>aprovar/devolver</b> planos (aba Aprovações e pendências no Inbox).'],
   ['2026-08-17','🎯 <b>Relatórios do planejamento com visões por AUDIÊNCIA no menu</b>: novo item <b>Planejamento → 📊 Relatórios do planejamento</b> com atalhos direto no menu — <b>👔 Visão executiva</b> (resumo de alto nível), <b>🧑‍💼 Gestor</b> (completa), <b>👤 Minha visão</b> (o SEU planejado × realizado, semana a semana e dia a dia) e <b>📁 Projetos</b> (foco projeto a projeto). Cada visão mostra só o que interessa àquela audiência — sempre com drill até o ticket.'],
   ['2026-08-17','📊 <b>Relatórios do planejamento repensados — semana do ano, dia a dia e drill até o ticket</b>: o período agora é escolhido por <b>semana do ano</b> (ex.: S33/2026); a evolução tem granularidade <b>por semana OU por dia</b>; entrou a <b>📁 visão geral por projeto</b> em cartões; e <b>praticamente tudo é clicável</b> — colunas, barras, tabelas, cartões e o dia a dia da pessoa abrem <b>🎫 os tickets que compõem o realizado</b> (com resumo, horas, quem apontou, ficha 🔍 e link ao Jira). A ideia: ir aprendendo com o planejado × realizado e apurando o plano.'],
   ['2026-08-17','📋 <b>Meu Planejamento ganhou lugar próprio no menu Planejamento</b> — agora vive em <b>Planejamento → 📋 Meu Planejamento</b> (antes ficava em Meu trabalho). E as telas <b>🧑‍💼 Alocação (macro)</b> e <b>📅 Planejamento macro</b> ficaram <b>temporariamente indisponíveis</b>: serão reformuladas, integradas ao Meu Planejamento (acompanhe no 🗺️ Roadmap).'],
@@ -15163,7 +15165,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-17.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-17.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
