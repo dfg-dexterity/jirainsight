@@ -256,6 +256,23 @@
   .mp-kpi-click{cursor:pointer}
   .mp-kpi-click:hover{border-color:var(--mpa)}
   .mp-st-quem{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
+  /* 🎫 drill até o ticket: qualquer coisa com data-mpdrill é clicável */
+  .mpg-click{cursor:pointer}
+  .mpg-click:hover{background:var(--hoverbg);border-radius:8px}
+  tr[data-mpdrill]{cursor:pointer}
+  tr[data-mpdrill]:hover td{background:var(--hoverbg)}
+  /* 📁 visão geral por projeto (cartões) */
+  .mp-projgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin:6px 0 12px}
+  .mp-projcard{border:1px solid var(--mpb);border-radius:10px;background:var(--cartao);padding:10px 12px;cursor:pointer}
+  .mp-projcard:hover{border-color:var(--mpa)}
+  .mp-projcard-h{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .mp-projcard-h b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .mp-projcard-n{display:flex;gap:8px;align-items:baseline;margin-top:6px;font-variant-numeric:tabular-nums}
+  .mp-projcard-n .mp-ok{color:var(--musgo);font-weight:700}
+  .mp-projbar{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+  .mp-projbar i{display:block;height:5px;border-radius:99px;min-width:2px}
+  .mp-projbar i.plan{background:#4a3aa7}
+  .mp-projbar i.real{background:var(--marca)}
   .mp-kpi .v{font-family:var(--titulo);font-size:20px;font-weight:700}
   .mp-kpi .l{font-size:11.5px;color:var(--muted);margin-top:2px}
   .mp-mais{color:#8A5B00} .mp-menos{color:#1E6E42}
@@ -2052,7 +2069,6 @@
       <div class="navg">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
           <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
           <button data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
@@ -2063,6 +2079,7 @@
       <div class="navg">
         <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
+          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
           <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>🧑‍💼 Alocação (macro)</button>
           <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
           <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
@@ -3930,10 +3947,10 @@ function mpgBarras(titulo, sub, entradas){
   if(!entradas.length) return mpgVazio(titulo,sub);
   const itens=mpgTopo(entradas);
   const max=Math.max(0.01,...itens.map(x=>Math.max(x[1].plan,x[1].real)));
-  const linhas=itens.map(([rot,v,cod])=>{
+  const linhas=itens.map(([rot,v,cod,drill])=>{
     const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
-    const tip=`${rot}${cod?` (${cod})`:''} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}`;
-    return `<div class="mpg-row" data-tip="${escA(tip)}">
+    const tip=`${rot}${cod?` (${cod})`:''} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}${drill!=null?' · clique para ver os tickets':''}`;
+    return `<div class="mpg-row${drill!=null?' mpg-click':''}"${drill!=null?` data-mpdrill="${escA(drill)}" role="button" tabindex="0"`:''} data-tip="${escA(tip)}">
       <div class="mpg-lbl">${esc(rot)}</div>
       <div class="mpg-tr"><i class="mpg-b plan" style="width:${(v.plan/max*100).toFixed(1)}%"></i>
         <i class="mpg-b real" style="width:${(v.real/max*100).toFixed(1)}%"></i></div>
@@ -3947,10 +3964,10 @@ function mpgBarras(titulo, sub, entradas){
 function mpgColunas(titulo, sub, entradas){
   if(!entradas.length) return mpgVazio(titulo,sub);
   const max=Math.max(0.01,...entradas.map(x=>Math.max(x[1].plan,x[1].real)));
-  const cols=entradas.map(([rot,v,curto])=>{
+  const cols=entradas.map(([rot,v,curto,drill])=>{
     const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
-    const tip=`${rot} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}`;
-    return `<div class="mpg-c" data-tip="${escA(tip)}">
+    const tip=`${rot} · planejado ${mpH(v.plan)} · realizado ${mpH(v.real)}${ex==null?'':` · execução ${ex}%`}${drill!=null?' · clique para ver os tickets':''}`;
+    return `<div class="mpg-c${drill!=null?' mpg-click':''}"${drill!=null?` data-mpdrill="${escA(drill)}" role="button" tabindex="0"`:''} data-tip="${escA(tip)}">
       <div class="mpg-cb"><i class="plan" style="height:${(v.plan/max*100).toFixed(1)}%"></i>
         <i class="real" style="height:${(v.real/max*100).toFixed(1)}%"></i></div>
       <div class="mpg-rot"><b>${esc(curto||rot)}</b>${mpH(v.real)}</div></div>`;
@@ -3960,12 +3977,12 @@ function mpgColunas(titulo, sub, entradas){
 }
 // Desvio (realizado − planejado): à direita do zero está acima do plano; à esquerda, abaixo.
 function mpgDivergente(titulo, sub, entradas){
-  const dif=entradas.map(([rot,v,cod])=>[rot,(v.real-v.plan),cod])
+  const dif=entradas.map(([rot,v,cod,drill])=>[rot,(v.real-v.plan),cod,drill])
     .filter(x=>Math.abs(x[1])>0.009).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,MPG_TOPO);
   if(!dif.length) return `<div class="mpg">${mpgCab(titulo,sub,'')}<div class="mp-vazio">Tudo dentro do planejado.</div></div>`;
   const max=Math.max(...dif.map(x=>Math.abs(x[1])));
   const leg='<div class="mpg-leg"><span><i class="mpg-sw abaixo"></i>Abaixo do planejado</span><span><i class="mpg-sw acima"></i>Acima do planejado</span></div>';
-  const linhas=dif.map(([rot,d,cod])=>`<div class="mpg-dv" data-tip="${escA(`${rot}${cod?` (${cod})`:''} · ${d>0?'+':''}${mpH(d)} em relação ao planejado`)}">
+  const linhas=dif.map(([rot,d,cod,drill])=>`<div class="mpg-dv${drill!=null?' mpg-click':''}"${drill!=null?` data-mpdrill="${escA(drill)}" role="button" tabindex="0"`:''} data-tip="${escA(`${rot}${cod?` (${cod})`:''} · ${d>0?'+':''}${mpH(d)} em relação ao planejado${drill!=null?' · clique para ver os tickets':''}`)}">
       <div class="mpg-lbl">${esc(rot)}</div>
       <div class="mpg-eixo"><i class="${d>0?'acima':'abaixo'}" style="width:${(Math.abs(d)/max*50).toFixed(1)}%"></i></div>
       <div class="mpg-v"><b>${d>0?'+':''}${mpH(d)}</b></div></div>`).join('');
@@ -3995,7 +4012,7 @@ function mpGaranteRel(forca){
     fetch(`/api/tempo?desde=${encodeURIComponent(f.de)}&ate=${encodeURIComponent(mtsSoma(f.ate,6))}`).then(r=>r.json()),
   ]).then(([jp,jt])=>{ mp.relB=0;
     if(!jp||!jp.ok){ mp.rel={chave, erro:(jp&&jp.erro)||'Falha ao carregar os planejamentos.'}; }
-    else mp.rel={chave, planos:jp.planos||[], wl:(jt&&jt.worklogs)||[], pessoas:(jt&&jt.pessoas)||{}, projetos:(jt&&jt.projetos)||{}};
+    else mp.rel={chave, planos:jp.planos||[], wl:(jt&&jt.worklogs)||[], pessoas:(jt&&jt.pessoas)||{}, projetos:(jt&&jt.projetos)||{}, resumos:(jt&&jt.resumos)||{}};
     if(estado.vista==='minhasemana') renderMinhaSemana();
   }).catch(e=>{ mp.relB=0; mp.rel={chave, erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
   return false;
@@ -4034,9 +4051,16 @@ function mpRenderRelatorios(){
   const dados=mpRelDados();
   const usuarios=r&&r.planos?[...new Set(r.planos.map(p=>[p.accountId,p.nome||p.email||p.accountId].join('§')))].map(x=>x.split('§')):[];
   const projetos=r&&r.planos?[...new Set(r.planos.flatMap(p=>(p.itens||[]).map(i=>i.projeto)))].sort():[];
+  // 📅 Período por SEMANA DO ANO (S33/2026), não por datas soltas — o plano vive por semana.
+  const semOpts=(sel)=>{ const w0=mpSem(); const ops=[];
+    for(let i=-51;i<=4;i+=1){ const w2=mtsSoma(w0,i*7); const s=isoSemana(w2);
+      ops.push(`<option value="${escA(w2)}" ${w2===sel?'selected':''}>S${s.num}/${s.ano} · ${esc(fmtBR(w2))}</option>`); }
+    if(sel&&!ops.some(o=>o.includes(`value="${sel}"`))){ const s=isoSemana(sel);
+      ops.unshift(`<option value="${escA(sel)}" selected>S${s.num}/${s.ano} · ${esc(fmtBR(sel))}</option>`); }
+    return ops.join(''); };
   const filtros=`<div class="mp-ferr" role="search">
-    <label>De (semana)<input type="date" value="${escA(f.de)}" data-mp-rf="de"></label>
-    <label>Até (semana)<input type="date" value="${escA(f.ate)}" data-mp-rf="ate"></label>
+    <label>De (semana do ano)<select data-mp-rf="de">${semOpts(f.de)}</select></label>
+    <label>Até (semana do ano)<select data-mp-rf="ate">${semOpts(f.ate)}</select></label>
     <label>Usuário<select data-mp-rf="usuario"><option value="">todos</option>${usuarios.map(([a,n])=>`<option value="${escA(a)}" ${f.usuario===a?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
     <label>Projeto<select data-mp-rf="projeto"><option value="">todos</option>${projetos.map(pj=>`<option value="${escA(pj)}" ${f.projeto===pj?'selected':''}>${esc(projNome(pj))}</option>`).join('')}</select></label>
     <label>Status<select data-mp-rf="status"><option value="">todos</option>${Object.entries(MP_STATUS).map(([k,rot])=>`<option value="${k}" ${f.status===k?'selected':''}>${rot}</option>`).join('')}</select></label>
@@ -4053,30 +4077,33 @@ function mpRenderRelatorios(){
   if(!dados) return `<div class="card full mp-card"><h2>Relatórios de planejamento</h2>${filtros}<div class="estado">Carregando…</div></div>`;
   const nome=(a)=>{ const p=(dados.planos||[]).find(x=>x.accountId===a); return (p&&(p.nome||p.email))||(pess[a]&&pess[a].nome)||a; };
   // agregações
-  const porU={}; const porP={}; const porSem={}; const porDia={};
+  const porU={}; const porP={}; const porSem={}; const porDia={}; const projPess={};
   const soma=(mapa,k,campo,v)=>{ const o=mapa[k]=mapa[k]||{plan:0,real:0}; o[campo]+=v; };
   Object.entries(dados.plan).forEach(([k,h])=>{ const [a,d,pj]=k.split('|');
-    soma(porU,a,'plan',h); soma(porP,pj,'plan',h); soma(porDia,d,'plan',h); soma(porSem,semChave(d),'plan',h); });
+    soma(porU,a,'plan',h); soma(porP,pj,'plan',h); soma(porDia,d,'plan',h); soma(porSem,semChave(d),'plan',h);
+    (projPess[pj]=projPess[pj]||new Set()).add(a); });
   Object.entries(dados.real).forEach(([k,h])=>{ const [a,d,pj]=k.split('|');
     if(!f.usuario&&!dados.accsComPlano.has(a)) return;   // sem filtro: foca nas pessoas com plano no período
-    soma(porU,a,'real',h); soma(porP,pj,'real',h); soma(porDia,d,'real',h); soma(porSem,semChave(d),'real',h); });
+    soma(porU,a,'real',h); soma(porP,pj,'real',h); soma(porDia,d,'real',h); soma(porSem,semChave(d),'real',h);
+    (projPess[pj]=projPess[pj]||new Set()).add(a); });
   const rnp=Object.entries(dados.real).reduce((s,[k,h])=>s+((dados.plan[k]||0)>0?0:( !f.usuario&&!dados.accsComPlano.has(k.split('|')[0])?0:h)),0);
   const pnr=Object.entries(dados.plan).reduce((s,[k,h])=>s+((dados.real[k]||0)>0?0:h),0);
   const totPlan=Object.values(porU).reduce((s,v)=>s+v.plan,0);
   const totReal=Object.values(porU).reduce((s,v)=>s+v.real,0);
   const stCount={elaboracao:0,enviado:0,aprovado:0,devolvido:0};
   dados.planos.forEach(p=>{ if(stCount[p.status]!=null) stCount[p.status]++; });
-  const tab=(titulo, mapa, rot)=>`<div><h3 class="mp-h3">${titulo}</h3>
+  const tab=(titulo, mapa, rot)=>`<div><h3 class="mp-h3">${titulo} <span class="mp-dim">clique numa linha para ver os tickets</span></h3>
     <table class="mp-tab-mini"><thead><tr><th>${rot}</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
     <tbody>${Object.entries(mapa).sort((a,b)=>b[1].plan-a[1].plan).map(([k,v])=>{
       const ex=v.plan>0?Math.round(v.real/v.plan*100)+'%':'—';
       const rk=(rot==='Usuário'?nome(k):(rot==='Dia'||rot==='Semana'?fmtBR(k):projNome(k)));
-      return `<tr><td ${rot==='Projeto'?`data-tip="${escA(k)}"`:''}>${esc(rk)}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mp-dim">Sem dados no filtro.</td></tr>'}</tbody></table></div>`;
+      const dr=rot==='Usuário'?`a=${k}`:rot==='Projeto'?`pj=${k}`:rot==='Semana'?`w=${k}`:`d=${k}`;
+      return `<tr data-mpdrill="${escA(dr)}"><td ${rot==='Projeto'?`data-tip="${escA(k)}"`:''}>${esc(rk)}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td><td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`; }).join('')||'<tr><td colspan="5" class="mp-dim">Sem dados no filtro.</td></tr>'}</tbody></table></div>`;
   return `<div class="card full mp-card"><h2>Relatórios de planejamento <span>planejado × realizado do time (Clockwork)</span></h2>
     ${filtros}
     <div class="mp-kpis">
       <div class="mp-kpi"><div class="v">${mpH(totPlan)}</div><div class="l">Planejado no período</div></div>
-      <div class="mp-kpi"><div class="v">${mpH(totReal)}</div><div class="l">Realizado no período</div></div>
+      <div class="mp-kpi mp-kpi-click" data-mpdrill="" title="Clique para ver TODOS os tickets que compõem o realizado"><div class="v">${mpH(totReal)} 🔎</div><div class="l">Realizado no período</div></div>
       <div class="mp-kpi"><div class="v">${totPlan>0?Math.round(totReal/totPlan*100)+'%':'—'}</div><div class="l">Execução</div></div>
       <div class="mp-kpi mp-kpi-click" data-mp-rdrill="rnp" title="Clique para ver DE ONDE vêm estas horas (pessoa → projeto → dia)"><div class="v">${mpH(rnp)} 🔎</div><div class="l">Realizado não planejado</div></div>
       <div class="mp-kpi mp-kpi-click" data-mp-rdrill="pnr" title="Clique para ver O QUE estava no plano e ficou sem horas (pessoa → projeto → dia)"><div class="v">${mpH(pnr)} 🔎</div><div class="l">Planejado não realizado</div></div>
@@ -4097,16 +4124,38 @@ function mpRenderRelatorios(){
       }).join('');
       return `<div><h3 class="mp-h3">Quem está em cada situação <span class="mp-dim">clique num nome para filtrar tudo por ele</span></h3>${bloco}</div>`; })()}
     ${f.usuario?mpRelPessoaBloco(dados,f,porSem,nome):''}
-    ${mpgColunas('Evolução por semana','planejado × realizado em cada semana do período',
-      Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, fmtBR(w2).slice(0,5)]))}
+    ${(()=>{ // 📁 visão geral por projeto — cartões clicáveis (drill até os tickets)
+      const cards=Object.entries(porP).sort((x,y)=>(y[1].plan+y[1].real)-(x[1].plan+x[1].real)).map(([pj,v])=>{
+        const ex=v.plan>0?Math.round(v.real/v.plan*100):null;
+        const np=(projPess[pj]||new Set()).size;
+        const maxpr=Math.max(v.plan,v.real,0.01);
+        return `<div class="mp-projcard" data-mpdrill="pj=${escA(pj)}" role="button" tabindex="0"
+          data-tip="${escA(projNome(pj)+' ('+pj+') · planejado '+mpH(v.plan)+' · realizado '+mpH(v.real)+' · clique para ver os tickets')}">
+          <div class="mp-projcard-h"><b>${esc(projNome(pj))}</b><span class="mp-dim">${np} pessoa(s)</span></div>
+          <div class="mp-projcard-n"><span title="Planejado">${mpH(v.plan)}</span><span class="mp-dim">→</span>
+            <b title="Realizado">${mpH(v.real)}</b>
+            <span class="${ex!=null&&Math.abs(ex-100)<=10?'mp-ok':'mp-mais'}">${ex==null?'—':ex+'%'}</span></div>
+          <div class="mp-projbar"><i class="plan" style="width:${(v.plan/maxpr*100).toFixed(1)}%"></i><i class="real" style="width:${(v.real/maxpr*100).toFixed(1)}%"></i></div>
+        </div>`; }).join('');
+      return cards?`<div><h3 class="mp-h3">📁 Visão geral por projeto <span class="mp-dim">planejado → realizado · clique num cartão para abrir os tickets</span></h3>
+        <div class="mp-projgrid">${cards}</div></div>`:''; })()}
+    ${(()=>{ const gran=mp.relGran||'sem';
+      const tg=`<div class="ap-vis" style="margin:0 0 6px"><span class="muted small">Granularidade:</span>
+        <button class="chip" aria-pressed="${gran==='sem'}" data-mp-rgran="sem">por semana</button>
+        <button class="chip" aria-pressed="${gran==='dia'}" data-mp-rgran="dia">por dia</button></div>`;
+      const ent=gran==='dia'
+        ? Object.entries(porDia).sort().map(([d,v])=>[fmtBR(d)+' ('+['dom','seg','ter','qua','qui','sex','sáb'][diaSemana(d)]+')', v, fmtBR(d), `d=${d}`])
+        : Object.entries(porSem).sort().map(([w2,v])=>[`Semana de ${fmtBR(w2)}`, v, `S${isoSemana(w2).num}`, `w=${w2}`]);
+      return tg+mpgColunas(gran==='dia'?'Evolução por dia':'Evolução por semana',
+        `planejado × realizado em cada ${gran==='dia'?'dia':'semana'} do período — clique numa coluna para ver os tickets`, ent); })()}
     <div class="mp-2col">
-      ${mpgBarras('Por projeto','horas planejadas e realizadas, do maior para o menor',
-        Object.entries(porP).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([pj,v])=>[projNome(pj),v,pj]))}
-      ${mpgBarras('Por pessoa','horas planejadas e realizadas, do maior para o menor',
-        Object.entries(porU).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([a2,v])=>[nome(a2),v,'']))}
+      ${mpgBarras('Por projeto','clique numa barra para ver os tickets do realizado',
+        Object.entries(porP).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([pj,v])=>[projNome(pj),v,pj,`pj=${pj}`]))}
+      ${mpgBarras('Por pessoa','clique numa barra para ver os tickets da pessoa',
+        Object.entries(porU).sort((a,b)=>(b[1].plan+b[1].real)-(a[1].plan+a[1].real)).map(([a2,v])=>[nome(a2),v,'',`a=${a2}`]))}
     </div>
-    ${mpgDivergente('Maiores desvios por projeto','diferença entre o realizado e o planejado, em horas',
-      Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj]))}
+    ${mpgDivergente('Maiores desvios por projeto','diferença entre o realizado e o planejado, em horas — clique para investigar os tickets',
+      Object.entries(porP).map(([pj,v])=>[projNome(pj),v,pj,`pj=${pj}`]))}
     <div class="mp-2col">${tab('Por usuário',porU,'Usuário')}${tab('Por projeto',porP,'Projeto')}</div>
     <div class="mp-2col">${tab('Comparação semanal',porSem,'Semana')}${tab('Comparação diária',porDia,'Dia')}</div>
   </div>`;
@@ -4129,7 +4178,7 @@ function mpRelPessoaBloco(dados, f, porSem, nomeFn){
     const ex=v.plan>0?Math.round(v.real/v.plan*100)+'%':'—';
     const badge=p?`<span class="badge">${esc(MP_STATUS[p.status]||p.status)}${(p.versao||1)>1?` · v${p.versao}`:''}</span>`
                  :'<span class="badge" style="opacity:.55">sem plano</span>';
-    return `<tr><td>${esc(fmtBR(w2))}</td><td>${badge}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td>
+    return `<tr data-mpdrill="a=${escA(a)}&w=${escA(w2)}" title="clique para ver os tickets do realizado desta semana"><td>${esc(fmtBR(w2))}</td><td>${badge}</td><td class="num">${mpH(v.plan)}</td><td class="num">${mpH(v.real)}</td>
       <td class="num">${(v.real-v.plan>0?'+':'')+mpH(v.real-v.plan)}</td><td class="num">${ex}</td></tr>`;
   }).join('');
   const totP=sems.reduce((s,w2)=>s+((porSem[w2]||{}).plan||0),0);
@@ -4145,7 +4194,59 @@ function mpRelPessoaBloco(dados, f, porSem, nomeFn){
     </div>
     <table class="mp-tab-mini"><thead><tr><th>Semana</th><th>Plano</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="6" class="mp-dim">Sem semanas no intervalo.</td></tr>'}</tbody></table>
+    ${(()=>{ // 📆 dia a dia da pessoa — o nível mais fino, com drill até o ticket
+      const planD={}, realD={}; const diasSet=new Set();
+      Object.entries(dados.plan).forEach(([k,h])=>{ const [a2,d]=k.split('|'); if(a2!==a) return; planD[d]=(planD[d]||0)+h; diasSet.add(d); });
+      Object.entries(dados.real).forEach(([k,h])=>{ const [a2,d]=k.split('|'); if(a2!==a) return; realD[d]=(realD[d]||0)+h; diasSet.add(d); });
+      const dias=[...diasSet].sort();
+      if(!dias.length) return '';
+      const linhas=dias.map(d=>{ const pl=planD[d]||0, re=realD[d]||0; const ex=pl>0?Math.round(re/pl*100)+'%':'—';
+        return `<tr data-mpdrill="a=${escA(a)}&d=${escA(d)}" title="clique para ver os tickets deste dia">
+          <td>${esc(fmtBR(d))} <span class="mp-dim">${['dom','seg','ter','qua','qui','sex','sáb'][diaSemana(d)]}</span></td>
+          <td class="num">${mpH(pl)}</td><td class="num">${mpH(re)}</td>
+          <td class="num">${(re-pl>0?'+':'')+mpH(re-pl)}</td><td class="num">${ex}</td></tr>`; }).join('');
+      return `<details style="margin-top:10px"><summary><b>📆 Dia a dia</b> <span class="mp-dim">planejado × realizado por dia — clique numa linha para ver os tickets</span></summary>
+        <table class="mp-tab-mini" style="margin-top:6px"><thead><tr><th>Dia</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
+        <tbody>${linhas}</tbody></table></details>`; })()}
   </div>`;
+}
+// 🎫 Drill até o TICKET: quais chamados compõem o realizado de um recorte
+// (pessoa/dia/semana/projeto, combináveis). Abre a ficha (🔍) sem sair do painel.
+function mpAbreTickets(qs){
+  const mp=estado.minhasemana; const r=mp.rel; const dados=mpRelDados(); if(!r||!dados) return;
+  const p=new URLSearchParams(qs||'');
+  const fa=p.get('a')||'', fd=p.get('d')||'', fpj=p.get('pj')||'', fw=p.get('w')||'';
+  const f=mp.relF; const ini=mpInicioVig(); const fim=mtsSoma(f.ate,6);
+  const porTk=new Map(); let tot=0;
+  (r.wl||[]).forEach(x=>{ const d=(x.d||'').slice(0,10);
+    if(d<f.de||d>fim) return; if(ini&&d<ini) return;
+    const pj=x.p||(x.k?String(x.k).split('-')[0]:'—');
+    if(f.projeto&&pj!==f.projeto) return;
+    if(f.usuario&&x.a!==f.usuario) return;
+    if(!f.usuario&&!fa&&!dados.accsComPlano.has(x.a)) return;
+    if(fa&&x.a!==fa) return;
+    if(fd&&d!==fd) return;
+    if(fw&&(d<fw||d>mtsSoma(fw,6))) return;
+    if(fpj&&pj!==fpj) return;
+    const k=x.k||'—'; const o=porTk.get(k)||{s:0,pj,pessoas:new Set(),n:0};
+    o.s+=(Number(x.s)||0)/3600; o.n+=1; o.pessoas.add(x.a); porTk.set(k,o); tot+=(Number(x.s)||0)/3600; });
+  const nomeDe=(a2)=>(((r.pessoas||{})[a2]||{}).nome)||a2;
+  const resumos=r.resumos||{};
+  const recorte=[fa?`pessoa ${nomeDe(fa)}`:'', fd?`dia ${fmtBR(fd)}`:'', fw?`semana de ${fmtBR(fw)}`:'', fpj?`projeto ${projNome(fpj)}`:''].filter(Boolean).join(' · ');
+  const linhas=[...porTk.entries()].sort((x,y)=>y[1].s-x[1].s).map(([k,o])=>`
+    <div class="cv-row">
+      <strong>${k==='—'?'(sem ticket)':esc(k)}</strong>
+      <span class="mp-dim" style="flex:1;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(resumos[k]||'')}</span>
+      <span class="badge" data-tip="${escA(o.pj)}">${esc(projNome(o.pj))}</span>
+      <span class="badge" data-tip="${o.n} apontamento(s)">${mpH(o.s)}</span>
+      <span class="badge" data-tip="quem apontou">${[...o.pessoas].map(a2=>esc(String(nomeDe(a2)).split(' ')[0])).join(', ')}</span>
+      ${k!=='—'?`<button class="btn" data-gx-det="${escA(k)}" data-tip="Ficha completa sem abrir o Jira">🔍 detalhes</button>
+      <a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">Jira ↗</a>`:''}
+    </div>`).join('');
+  abreModal(`<h2>🎫 Tickets do realizado · ${mpH(tot)}</h2>
+    <div class="muted small">${esc(recorte||'período todo (com os filtros atuais)')} — o que compõe as horas realizadas, do maior para o menor.</div>
+    <div class="cv-lista" style="margin-top:10px;max-height:420px;overflow:auto">${linhas||'<div class="alx-vazio">Nada apontado neste recorte.</div>'}</div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
 // 🔎 De onde vêm as horas: drill dos KPIs "Realizado não planejado" e
 // "Planejado não realizado" — pessoa → projeto → dias, do maior para o menor.
@@ -4278,7 +4379,7 @@ document.addEventListener('drop',(e)=>{
   toast(`↔ "${esc((it.descricao||'atividade').slice(0,40))}" foi de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok');
 });
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill]');
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mpdrill]');
   if(!t) return;
   const mp=estado.minhasemana; const id=idApontar();
   if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
@@ -4395,6 +4496,8 @@ document.addEventListener('click', async (e)=>{
   if(t.hasAttribute('data-mp-ruser')){ const a=t.getAttribute('data-mp-ruser');
     mp.relF.usuario=(mp.relF.usuario===a?'':a); renderMinhaSemana(); return; }
   if(t.hasAttribute('data-mp-rdrill')){ mpAbreDrill(t.getAttribute('data-mp-rdrill')); return; }
+  if(t.hasAttribute('data-mp-rgran')){ mp.relGran=t.getAttribute('data-mp-rgran')||'sem'; renderMinhaSemana(); return; }
+  if(t.hasAttribute('data-mpdrill')){ mpAbreTickets(t.getAttribute('data-mpdrill')); return; }
 });
 // Filtros dos Relatórios do gestor — inclui o 📆 Início da apuração (cfg do time).
 document.getElementById('conteudo').addEventListener('change',(e)=>{
@@ -4405,7 +4508,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     mp.rel=null; mp.relF.de='';   // recalcula o "De" padrão respeitando o novo início
     toast(cfg.mpInicio?`📆 Relatórios do planejamento apurados a partir de ${fmtBR(cfg.mpInicio)} (vale para o time todo).`:'📆 Início da apuração removido — relatórios voltam a considerar tudo.','ok');
     renderMinhaSemana(); return; }
-  mp.relF[c]=t.value||'';
+  mp.relF[c]=(c==='de'||c==='ate')?(semChave(t.value)||''):(t.value||'');   // De/Até viram a SEGUNDA da semana escolhida
   if(c==='de'||c==='ate') mp.rel=null;
   renderMinhaSemana();
 });
@@ -4574,6 +4677,7 @@ document.addEventListener('change',(e)=>{
 const ROADMAP=[
   { s:'fazendo',   t:'📣 Avisos automáticos no Teams a cada publicação', d:'O mecanismo já está no ar (modo aviso do /api/teams, com menção ao time) — falta o webhook do canal Avisos Gerais (TEAMS_AVISOS_WEBHOOK_URL) para os avisos saírem sozinhos a cada melhoria.' },
   { s:'planejado', t:'📥 Plano devolvido no Inbox da pessoa', d:'Aviso no Inbox de quem teve o plano semanal devolvido (a parte do aprovador — planos aguardando decisão no Inbox — foi entregue em 2026-08-13; a devolução hoje aparece dentro do Meu Planejamento).' },
+  { s:'planejado', t:'🧑‍💼 Alocação e 📅 Planejamento macro — reformulação', d:'As duas telas ficaram temporariamente indisponíveis (2026-08-17); serão reformuladas integradas ao 📋 Meu Planejamento (capacidade × planos semanais × realizado).' },
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
@@ -5038,6 +5142,23 @@ document.addEventListener('change', (e)=>{
   if(e.target&&e.target.id==='pr-proj-sel'){ estado.prioridades.proj=e.target.value; renderPrioridades(); }
 });
 
+// 🚧 Telas em reformulação: Alocação (macro) e Planejamento macro ficam
+// temporariamente indisponíveis (pedido de 2026-08-17) até a reformulação,
+// que vai integrá-las ao 📋 Meu Planejamento. O código original permanece
+// intacto (renderAlocacao/renderPlanejamento) para a volta.
+function renderIndisponivel(v){
+  const cont=document.getElementById('conteudo');
+  const rot=v==='alocacao'?'🧑‍💼 Alocação (macro)':'📅 Planejamento macro';
+  cont.replaceChildren(el(`<div class="card full">
+    <h2>${rot} <span>temporariamente indisponível</span></h2>
+    <div class="aviso" style="margin-top:8px">🚧 Esta funcionalidade está <b>temporariamente indisponível</b>.
+      Vamos <b>reformulá-la</b> no futuro, integrada ao novo <b>📋 Meu Planejamento</b> — acompanhe no 🗺️ Roadmap.</div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primario" data-goto="minhasemana">📋 Abrir o Meu Planejamento</button>
+      <button class="btn" data-goto="roadmap">🗺️ Ver o Roadmap</button>
+    </div>
+  </div>`));
+}
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -5066,8 +5187,8 @@ function render(){
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
-  if(estado.vista==='alocacao') return renderAlocacao();
-  if(estado.vista==='planejamento') return renderPlanejamento();
+  if(estado.vista==='alocacao') return renderIndisponivel('alocacao');
+  if(estado.vista==='planejamento') return renderIndisponivel('planejamento');
   if(estado.vista==='admin') return renderAdmin();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
@@ -14546,7 +14667,7 @@ function abreAjuda(){
       Fim de semana, feriado, ausência e hoje não contam na lacuna.
     </div></details>
     <details class="help-sec"><summary>Meu Planejamento (semana + aprovação + planejado × realizado)</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 📋 Meu Planejamento</b>: planeje a semana por <b>atividade</b> — cada linha tem
+      Em <b>Planejamento › 📋 Meu Planejamento</b>: planeje a semana por <b>atividade</b> — cada linha tem
       <b>data, projeto, descrição e horas</b> (categoria e observação opcionais), <b>sem escolher tickets</b>.
       Adicione, edite, exclua, <b>duplique para outros dias</b>, crie <b>rotinas</b> para vários dias úteis,
       reordene e <b>copie a semana anterior</b> — tudo salva sozinho no servidor (disponível em qualquer navegador).
@@ -14806,7 +14927,7 @@ const NAVCAT=[
   ['visao','Visão Geral','Início','inicio home executiva kpis'],
   ['acoes','🏠 Início — Ações de hoje','Início','hoje pendencias novidades inicio home principal minhas horas vencidos'],
   ['prioridades','🎯 Prioridades do time','Início','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
-  ['minhasemana','📋 Meu Planejamento','Meu trabalho','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado'],
+  ['minhasemana','📋 Meu Planejamento','Planejamento','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado'],
   ['apontar','⏱ Apontar','Meu trabalho','worklog horas lancar apontamento registrar tempo'],
   ['agenda','📅 Agenda','Meu trabalho','outlook reuniao eventos calendario convite'],
   ['inbox','📥 Inbox','Meu trabalho','convites mencoes pendencias caixa entrada aprovacoes'],
@@ -14889,6 +15010,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-17','📊 <b>Relatórios do planejamento repensados — semana do ano, dia a dia e drill até o ticket</b>: o período agora é escolhido por <b>semana do ano</b> (ex.: S33/2026); a evolução tem granularidade <b>por semana OU por dia</b>; entrou a <b>📁 visão geral por projeto</b> em cartões; e <b>praticamente tudo é clicável</b> — colunas, barras, tabelas, cartões e o dia a dia da pessoa abrem <b>🎫 os tickets que compõem o realizado</b> (com resumo, horas, quem apontou, ficha 🔍 e link ao Jira). A ideia: ir aprendendo com o planejado × realizado e apurando o plano.'],
+  ['2026-08-17','📋 <b>Meu Planejamento ganhou lugar próprio no menu Planejamento</b> — agora vive em <b>Planejamento → 📋 Meu Planejamento</b> (antes ficava em Meu trabalho). E as telas <b>🧑‍💼 Alocação (macro)</b> e <b>📅 Planejamento macro</b> ficaram <b>temporariamente indisponíveis</b>: serão reformuladas, integradas ao Meu Planejamento (acompanhe no 🗺️ Roadmap).'],
   ['2026-08-13','📥 <b>Planos semanais para aprovar chegam no seu Inbox</b>: quando alguém envia o planejamento da semana, o aviso aparece no <b>📥 Inbox do aprovador</b> — com pessoa, semana, total planejado e data de envio — e o <b>selo vermelho no menu</b> passa a contar essas pendências também. O botão <b>Revisar e decidir →</b> abre o Meu Planejamento direto na aba Aprovações; ao aprovar ou devolver, o aviso some sozinho.'],
   ['2026-08-13','👤 <b>Análise por pessoa nos relatórios do planejamento</b>: escolha um usuário (no filtro ou clicando no nome em "Quem está em cada situação") e os Relatórios abrem a <b>visão analítica daquela pessoa</b> — KPIs próprios, a trajetória <b>semana a semana</b> com o status de cada plano (aprovado/enviado/devolvido/sem plano), planejado × realizado, execução e a contagem de <b>semanas sem plano</b> no período.'],
   ['2026-08-13','📊 <b>Relatórios do planejamento interativos</b>: atalhos de período por <b>número de semanas</b> (últimas 2/4/8/12/26), os cartões <b>Realizado não planejado</b> e <b>Planejado não realizado</b> agora abrem com 🔎 <b>de onde vêm as horas</b> (pessoa → projeto → dias) e o bloco novo <b>"Quem está em cada situação"</b> mostra nome a nome quem está em elaboração, enviado, aprovado ou devolvido — clicar num nome filtra o relatório inteiro por ele.'],
@@ -14992,7 +15115,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-13.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-17.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -16157,6 +16280,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.id==='gx-ap-cancelar'){ _gxApont=null; fechaModal(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); }
   else if(t.id==='gxf-salvar'){ gxfSalva(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gxf-apl')){ const f=gxfLista().find(x=>x.id===t.getAttribute('data-gxf-apl'));
     fechaModal(); if(f){ gxfAplica(f); toast(`⭐ Filtro "${f.nome}" aplicado.`,'ok'); } }
