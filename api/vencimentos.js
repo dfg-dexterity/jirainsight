@@ -335,6 +335,49 @@ async function detalheTicket(q, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/vencimentos?chaves=K1,K2,… — conferência LEVE de vários tickets
+// (conta de serviço, leitura): resumo + status + projeto de cada chave, para o
+// ➗ Rateio validar a lista colada sem pedir N fichas completas. Chaves que não
+// existem (ou sem permissão de leitura) voltam em `naoEncontrados` — e também
+// entram no cache (TTL curto) para o endpoint não virar amplificador de
+// chamadas ao Jira. Erro numa chave NÃO derruba as demais: vai em `erros`.
+// ---------------------------------------------------------------------------
+async function resumoChaves(q, res) {
+  const chaves = [...new Set(String(q.chaves || '').toUpperCase().split(/[^A-Z0-9_-]+/)
+    .filter((k) => RE_ISSUE_V.test(k)))].slice(0, 100);
+  if (!chaves.length) return json(res, 400, { erro: 'Informe as chaves (ex.: ?chaves=ABC-1,ABC-2).' });
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const tickets = {}; const naoEncontrados = []; const erros = [];
+  const buscar = async (k) => {
+    const ck = `venc:chave:${k}`;
+    const cached = q.nocache === '1' ? null : cacheGet(ck);
+    if (cached) { if (cached.naoEnc) naoEncontrados.push(k); else tickets[k] = cached; return; }
+    try {
+      const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}?fields=summary,status,project,issuetype,assignee`, { headers });
+      if (r.status === 404) { cacheSetTTL(ck, { naoEnc: true }, 1); naoEncontrados.push(k); return; }
+      if (!r.ok) { erros.push(`${k}: Jira ${r.status}: ${(await r.text()).slice(0, 120)}`); return; }
+      const f = ((await r.json()).fields) || {};
+      const t = {
+        resumo: f.summary || '',
+        status: (f.status && f.status.name) || '',
+        statCat: (f.status && f.status.statusCategory && f.status.statusCategory.key) || '',
+        p: (f.project && f.project.key) || '', pNome: (f.project && f.project.name) || '',
+        tipo: (f.issuetype && f.issuetype.name) || '',
+        resp: (f.assignee && f.assignee.displayName) || '',
+      };
+      cacheSetTTL(ck, t, 2);
+      tickets[k] = t;
+    } catch (e) { erros.push(`${k}: ${String(e && e.message ? e.message : e).slice(0, 120)}`); }
+  };
+  for (let i = 0; i < chaves.length; i += 8) await Promise.all(chaves.slice(i, i + 8).map(buscar));
+  if (!Object.keys(tickets).length && !naoEncontrados.length && erros.length) {
+    return json(res, 500, { erro: `Não foi possível conferir os tickets — ${erros[0]}` });
+  }
+  return json(res, 200, { ok: true, tickets, naoEncontrados, ...(erros.length ? { erros: erros.slice(0, 5) } : {}) });
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/vencimentos?mencoes=1&accountId=XXX[&dias=14] — chamados em que a
 // pessoa foi MARCADA (@) em comentários recentes. Varre o ADF dos comentários
 // dos tickets atualizados no período procurando nós {type:'mention'} com o
@@ -407,6 +450,7 @@ export default async function handler(req, res) {
     if (q.mencoes === '1') return await mencoesDe(q, res);
     if (q.reuniao === '1') return await baseReuniao(q, res);
     if (q.detalhe) return await detalheTicket(q, res);
+    if (q.chaves) return await resumoChaves(q, res);
     if (q.analytics === '1') return await baseAnalytics(q, res);
     if (q.semHoras === '1') return await concluidosSemHoras(q, res);
     const ate = RE_DATA.test(q.ate || '') ? q.ate : hojeSP();
