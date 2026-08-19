@@ -1554,6 +1554,8 @@
   .rt-fat{min-width:20px;text-align:center;display:inline-block}
   .rt-fora td{opacity:.55}
   .rt-bad{background:rgba(210,10,10,.12);color:#B91C1C}
+  /* 🧭 Radar do dia — separador entre grupos de chips */
+  .rad-sep{width:1px;align-self:stretch;background:var(--linha);margin:0 4px}
   .gx-acts{display:inline-flex;gap:4px;flex-wrap:wrap}
   .gx-acts button{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);
     font-size:10.5px;font-weight:700;padding:2px 8px;cursor:pointer;white-space:nowrap}
@@ -2275,7 +2277,10 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     rasc:null, rascW:'', sujo:false, salvando:false, form:null,
     real:{}, realB:{}, pend:null, pendB:0, rel:null, relB:0,
     relF:{de:'',ate:'',usuario:'',projeto:'',status:''} },
-  acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
+  acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'',
+    // 🧭 Radar do dia: preferências (escopo × eventos × período) + caches próprios
+    // (atividade janela 7d e worklogs 7d — independentes do período global).
+    rad:null, radAtv:null, radAtvB:false, radAtvErro:'', radT:null, radTB:false },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
     agrupar:'' },               // '', resp, proj, tipo, status, prio, epico, venc, risco
@@ -5694,6 +5699,84 @@ function axVariacao(counts){
   const ant=Object.keys(hist).filter(d=>d<hoje).sort().pop();
   return { ant, de: ant?hist[ant]:null };
 }
+// ---- 🧭 Radar do dia: COMBINE informações (escopo × eventos × período) ----
+// Cruza os eventos do Jira (/api/atividade, janela 7d), as horas do Clockwork e os
+// vencimentos numa lista única de tickets — ex.: "meus tickets criados hoje" ou
+// "tudo que o time concluiu e apontou ontem". A combinação fica salva no navegador.
+const RAD_EVS=[
+  ['criados','🆕 Criados','🆕 criado'],
+  ['concluidos','✅ Concluídos','✅ concluído'],
+  ['status','🔁 Status movidos','🔁 status'],
+  ['editados','✏️ Editados','✏️ editado'],
+  ['comentados','💬 Comentados','💬 comentário'],
+  ['apontados','⏱ Horas apontadas',''],
+  ['vencem','⏰ Vencendo',''],
+];
+const RAD_KEY='jirainsight_radar_v1';
+function radPrefs(){
+  const ax=estado.acoes;
+  if(!ax.rad){
+    let sv=null; try{ sv=JSON.parse(localStorage.getItem(RAD_KEY)||'null'); }catch(e){}
+    ax.rad=(sv&&sv.ev)?sv:{ esc:'meus', per:'hoje', ev:{criados:1,concluidos:1} };
+  }
+  return ax.rad;   // sem identidade o cálculo cai para "time" (sem mutar a preferência)
+}
+function radSalva(){ try{ localStorage.setItem(RAD_KEY, JSON.stringify(estado.acoes.rad)); }catch(e){} }
+function radGarante(){
+  const ax=estado.acoes;
+  if(!ax.radAtv&&!ax.radAtvB&&!ax.radAtvErro){ ax.radAtvB=true;
+    fetch('/api/atividade?janela=7d').then(r=>r.json()).then(j=>{ ax.radAtvB=false;
+      if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
+  if(!ax.radT&&!ax.radTB){ ax.radTB=true;
+    const h=hojeSP();
+    fetch(`/api/tempo?desde=${voltaDias(h,6)}&ate=${h}`).then(r=>r.json()).then(j=>{ ax.radTB=false;
+      if(j&&!j.erro) ax.radT=j;
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(()=>{ ax.radTB=false; }); }
+}
+function radRange(per){
+  const h=hojeSP();
+  if(per==='ontem'){ const o=voltaDias(h,1); return [o,o]; }   // somaDias não anda p/ trás
+  if(per==='7d') return [voltaDias(h,6),h];
+  return [h,h];
+}
+// Junta tudo por ticket no escopo/período: lista dos eventos LIGADOS + contagem
+// de tickets distintos por evento (para os chips mostrarem o que existe).
+function radDados(){
+  const ax=estado.acoes; const rad=radPrefs(); const id=idApontar();
+  const acc=(id&&id.accountId)||'';
+  const [de,ate]=radRange(rad.per);
+  const meu=rad.esc==='meus'&&!!acc;   // "meus" exige identidade; sem ela vale o time
+  const por={}; const cont={}; RAD_EVS.forEach(([e])=>{ cont[e]=0; });
+  const abre=(k,p)=>por[k]||(por[k]={k,p:p||'',evs:{},seg:0,ult:'',venc:''});
+  const EV_DE={criado:'criados',concluido:'concluidos',transicao:'status',alteracao:'editados',comentario:'comentados'};
+  (((ax.radAtv&&ax.radAtv.eventos))||[]).forEach(ev=>{
+    const dia=String(ev.d||'').slice(0,10); if(dia<de||dia>ate) return;
+    if(meu&&ev.a!==acc) return;
+    const nome=EV_DE[ev.e]; if(!nome) return;
+    const r=abre(ev.k,ev.p); r.evs[nome]=(r.evs[nome]||0)+1;
+    if(String(ev.d)>r.ult) r.ult=String(ev.d);
+  });
+  (((ax.radT&&ax.radT.worklogs))||[]).forEach(w=>{
+    const dia=String(w.d||'').slice(0,10); if(dia<de||dia>ate||!w.k) return;
+    if(meu&&w.a!==acc) return;
+    const r=abre(w.k,w.p); r.evs.apontados=(r.evs.apontados||0)+1; r.seg+=Number(w.s)||0;
+    if(String(w.d||'')>r.ult) r.ult=String(w.d||'');
+  });
+  (((ax.venc&&ax.venc.tickets))||[]).forEach(t=>{
+    if(!t.venc||t.venc<de||t.venc>ate) return;
+    if(meu&&t.respId!==acc) return;
+    const r=abre(t.k,t.p); r.evs.vencem=1; r.venc=t.venc;
+    if(!r.ult) r.ult=t.venc;
+  });
+  Object.values(por).forEach(r=>{ Object.keys(r.evs).forEach(e=>{ if(cont[e]!=null) cont[e]+=1; }); });
+  const ligados=RAD_EVS.map(([e])=>e).filter(e=>rad.ev[e]);
+  const lista=Object.values(por).filter(r=>ligados.some(e=>r.evs[e]))
+    .sort((a,b)=>String(b.ult).localeCompare(String(a.ult)));
+  return {cont,lista,de,ate};
+}
 function renderAcoes(){
   const cont=document.getElementById('conteudo');
   const ax=estado.acoes; const hoje=hojeSP();
@@ -5986,6 +6069,51 @@ function renderAcoes(){
     heroHtml=`<div class="card full"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance (horas, vencidos, plano da semana…)</span></h2>
       <div style="margin-top:8px"><button class="btn primario" data-ap-act="config-id">Identificar-se (e-mail + token do Jira)</button></div></div>`;
   }
+  // ---- 🧭 Radar do dia: combinador de informações ----
+  radGarante();
+  const rad=radPrefs(); const rd=radDados();
+  const radResumoDe=(k)=>((ax.radAtv&&ax.radAtv.resumos&&ax.radAtv.resumos[k])
+    ||(ax.radT&&ax.radT.resumos&&ax.radT.resumos[k])
+    ||(((tks||[]).find(t2=>t2.k===k)||{}).resumo)||'');
+  const radCarr=(!ax.radAtv&&!ax.radAtvErro)||(!ax.radT&&ax.radTB);
+  const radEscEf=id?rad.esc:'time';   // efetivo: sem identidade só existe "time"
+  const chipsEsc=[['meus','👤 Meus'],['time','👥 Time']].map(([v,r])=>
+    `<button class="chip" aria-pressed="${radEscEf===v}" data-rad-esc="${v}" ${v==='meus'&&!id?'disabled data-tip="Identifique-se para combinar as SUAS informações"':''}>${r}</button>`).join(' ');
+  const chipsPer=[['hoje','Hoje'],['ontem','Ontem'],['7d','Últimos 7 dias']].map(([v,r])=>
+    `<button class="chip" aria-pressed="${rad.per===v}" data-rad-per="${v}">${r}</button>`).join(' ');
+  const chipsEv=RAD_EVS.map(([e,r])=>
+    `<button class="chip" aria-pressed="${!!rad.ev[e]}" data-rad-ev="${e}">${r} <b>${rd.cont[e]}</b></button>`).join(' ');
+  const radRow=(r)=>{
+    const badges=RAD_EVS.filter(([e])=>rad.ev[e]&&r.evs[e]).map(([e,,curto])=>{
+      if(e==='apontados') return `<span class="badge com-horas">⏱ ${fmtH(r.seg)}</span>`;
+      if(e==='vencem') return `<span class="badge ms-b-atra">⏰ ${r.venc===hoje?'vence hoje':(r.venc<hoje?'venceu ':'vence ')+alxDataBR(r.venc)}</span>`;
+      const n2=r.evs[e];
+      return `<span class="badge">${curto}${n2>1?` ×${n2}`:''}</span>`;
+    }).join(' ');
+    const q=r.ult&&r.ult.length>10?` · ${alxDataBR(r.ult.slice(0,10))} ${esc(r.ult.slice(11,16))}`:(r.ult?` · ${alxDataBR(r.ult)}`:'');
+    return `<div class="hxd-row"><a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener"><strong>${esc(r.k)}</strong> ↗</a>
+      <span class="hxd-tit" title="${escA(radResumoDe(r.k))}">${esc(radResumoDe(r.k))}</span>
+      ${badges}
+      <span class="muted small" style="white-space:nowrap">${esc(projNome(r.p))}${q}</span>
+      <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
+  };
+  const radKeys=rd.lista.map(r=>r.k);
+  const cardRadar=`<div class="card full" style="margin-top:14px">
+    <h2>🧭 Radar — combine as informações <span>escopo × eventos × período — ex.: "meus tickets criados hoje" (a combinação fica salva)</span></h2>
+    <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+      ${chipsEsc}<span class="rad-sep"></span>${chipsPer}</div>
+    <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">${chipsEv}</div>
+    ${ax.radAtvErro?`<div class="muted small" style="margin-top:8px;color:#B91C1C">${esc(ax.radAtvErro)} <button class="btn" data-rad-retry>Tentar de novo</button></div>`:''}
+    ${radCarr?'<div class="muted small" style="margin-top:8px">Cruzando Jira + Clockwork…</div>':''}
+    <div style="margin-top:8px">
+      ${rd.lista.length?rd.lista.slice(0,12).map(radRow).join('')+(rd.lista.length>12?`<div class="muted small" style="margin-top:4px">+ ${rd.lista.length-12} ticket(s) — refine a combinação ou abra tudo na Gestão</div>`:'')
+        :(radCarr||ax.radAtvErro?'':'<div class="muted small">Nenhum ticket combina com esses filtros no período — ligue outros eventos acima ou troque o período/escopo.</div>')}
+    </div>
+    ${rd.lista.length?`<div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" data-rad-gestao="${escA(radKeys.slice(0,200).join(','))}" data-tip="Abre a Gestão de Tickets já filtrada por esta combinação">🛠 Abrir na Gestão (${rd.lista.length})</button>
+      <button class="btn" data-rad-rateio="${escA(radKeys.slice(0,100).join(','))}" data-tip="Leva esta combinação para o ➗ Rateio: divida horas ou mude o status em conjunto">➗ Enviar para o Rateio</button>
+    </div>`:''}
+  </div>`;
   // ---- 🚀 atalhos descritivos ----
   const ATALHOS=[
     ['prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
@@ -6007,6 +6135,7 @@ function renderAcoes(){
   </div>`;
   cont.replaceChildren(el(`<div>
     ${heroHtml}
+    ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
       <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><button class="btn" data-hx-goto="visao">📊 Painel executivo completo →</button></div>
@@ -6025,6 +6154,25 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(g==='apontar-semdata'){ estado.apontar.fil='semvenc'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   if(g==='apontar-vencehoje'){ estado.apontar.fil='vencehoje'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   vaiPara(g);
+});
+// 🧭 Radar do dia — chips (escopo/período/eventos) e ações da combinação
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='acoes') return;
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const rad=radPrefs();
+  if(t.hasAttribute('data-rad-esc')){ rad.esc=t.getAttribute('data-rad-esc'); radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-per')){ rad.per=t.getAttribute('data-rad-per'); radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-ev')){ const ev=t.getAttribute('data-rad-ev');
+    if(rad.ev[ev]) delete rad.ev[ev]; else rad.ev[ev]=1;
+    radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
+    const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
+    const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null;
+    vaiPara('rateio'); rtConfere(); return; }
 });
 function renderVisao(){
   const cont=document.getElementById('conteudo');
@@ -15348,6 +15496,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-19','🧭 <b>Radar na tela inicial — combine as informações do seu dia</b>: novo bloco no 🏠 Início que cruza Jira + Clockwork numa lista só de tickets. Escolha o <b>escopo</b> (👤 Meus / 👥 Time), os <b>eventos</b> (🆕 criados · ✅ concluídos · 🔁 status movidos · ✏️ editados · 💬 comentados · ⏱ horas apontadas · ⏰ vencendo — cada chip mostra a contagem) e o <b>período</b> (hoje/ontem/7 dias) — ex.: <b>"meus tickets criados hoje"</b>. Cada linha traz resumo, projeto, hora e ficha 🔍; a combinação fica salva no navegador e pode ser enviada com 1 clique para a <b>🛠 Gestão</b> (já filtrada) ou para o <b>➗ Rateio</b>.'],
   ['2026-08-18','➗ <b>Rateio — apontamento em massa</b>: nova tela em <b>👤 Meu trabalho → ➗ Rateio de horas</b>. Cole vários tickets de uma vez (aceita lista, vírgulas e até links do Jira), informe as <b>horas totais</b> (ex.: 5h) e escolha como dividir: <b>⚖️ igual</b>, <b>% percentual</b>, <b>🍕 fatias</b> (dê mais fatias a quem levou mais esforço) ou <b>✏️ manual</b> — a soma fecha <b>exata</b> com o total e uma barra colorida mostra a divisão. O botão <b>🔎 Conferir no Jira</b> traz resumo/status de cada ticket e avisa se algum código não existe; depois é 1 clique para apontar tudo (com reenvio só dos que falharem) e dá para <b>🔁 alterar o status de todos em conjunto</b>. Atalhos: botão ➗ na tela Apontar e ação em massa na 🛠 Gestão.'],
   ['2026-08-17','🔓 <b>Relatórios do planejamento abertos para TODO o time</b>: qualquer pessoa identificada acessa <b>Planejamento → 📊 Relatórios do planejamento</b> (e a aba Relatórios do Meu Planejamento) — inclusive a <b>👤 Minha visão</b> com o próprio planejado × realizado dia a dia. A única coisa exclusiva do gestor segue sendo <b>aprovar/devolver</b> planos (aba Aprovações e pendências no Inbox).'],
   ['2026-08-17','🎯 <b>Relatórios do planejamento com visões por AUDIÊNCIA no menu</b>: novo item <b>Planejamento → 📊 Relatórios do planejamento</b> com atalhos direto no menu — <b>👔 Visão executiva</b> (resumo de alto nível), <b>🧑‍💼 Gestor</b> (completa), <b>👤 Minha visão</b> (o SEU planejado × realizado, semana a semana e dia a dia) e <b>📁 Projetos</b> (foco projeto a projeto). Cada visão mostra só o que interessa àquela audiência — sempre com drill até o ticket.'],
@@ -15456,7 +15605,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-18.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-19.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
