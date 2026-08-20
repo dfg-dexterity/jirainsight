@@ -1556,6 +1556,14 @@
   .rt-bad{background:rgba(210,10,10,.12);color:#B91C1C}
   /* 🧭 Radar do dia — separador entre grupos de chips */
   .rad-sep{width:1px;align-self:stretch;background:var(--linha);margin:0 4px}
+  /* 🤖 Análise da IA nos relatórios do planejamento */
+  .mp-iacard{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;margin:10px 0;background:var(--cartao)}
+  .mp-ia-res{margin-top:4px}
+  .mp-ia-dest{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:10px}
+  .mp-ia-d{border-left:4px solid var(--linha);border-radius:6px;padding:6px 10px;background:var(--hoverbg)}
+  .mp-ia-p{margin-top:5px}
+  .mp-ia-recs{margin-top:10px}
+  .mp-ia-recs ul{margin:4px 0 0;padding-left:20px}
   .gx-acts{display:inline-flex;gap:4px;flex-wrap:wrap}
   .gx-acts button{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);
     font-size:10.5px;font-weight:700;padding:2px 8px;cursor:pointer;white-space:nowrap}
@@ -4073,6 +4081,36 @@ function mpRelDados(){
     real[`${x.a}|${d}|${pj}`]=(real[`${x.a}|${d}|${pj}`]||0)+(Number(x.s)||0)/3600; });
   return { planos, plan, real, pessoas:r.pessoas||{}, accsComPlano };
 }
+// 🤖 Renderiza a análise da IA (resumo + destaques + por pessoa + recomendações).
+function mpIaHtml(r){
+  const cor=(s)=>s==='positivo'?'#188918':(s==='atencao'?'#B91C1C':'var(--muted)');
+  const ic=(s)=>s==='positivo'?'✅':(s==='atencao'?'⚠️':'▪️');
+  return `<div class="mp-ia">
+    <div class="mp-ia-res">${esc(r.resumo||'')}</div>
+    ${(r.destaques||[]).length?`<div class="mp-ia-dest">${r.destaques.map(d=>
+      `<div class="mp-ia-d" style="border-left-color:${cor(d.sinal)}"><b>${ic(d.sinal)} ${esc(d.titulo||'')}</b><div class="small">${esc(d.texto||'')}</div></div>`).join('')}</div>`:''}
+    ${(r.pessoas||[]).length?`<div style="margin-top:10px"><b class="small">Por pessoa</b>${r.pessoas.map(p=>
+      `<div class="mp-ia-p small">${ic(p.sinal)} <b>${esc(p.nome||'')}</b> — ${esc(p.analise||'')}</div>`).join('')}</div>`:''}
+    ${(r.recomendacoes||[]).length?`<div class="mp-ia-recs"><b class="small">Recomendações</b><ul>${r.recomendacoes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+    <div class="mp-dim small" style="margin-top:6px">Gerada por IA a partir dos números do recorte — confira antes de decidir.</div>
+  </div>`;
+}
+// Pede a análise ao servidor (/api/resumo?acao=planrel) com o recorte agregado.
+// A resposta fica presa à CHAVE do recorte: mudou filtro/período, pede-se de novo.
+async function mpIaAnalisa(regenerar){
+  const mp=estado.minhasemana; const ia=mp.ia=mp.ia||{res:null,chave:'',carregando:false,erro:''};
+  if(!mp.iaCtx||ia.carregando) return;
+  ia.carregando=true; ia.erro=''; const chave=mp.iaCtx.chave;
+  mpReRender();
+  try{
+    const j=await fetch('/api/resumo?acao=planrel',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({...mp.iaCtx.payload,...(regenerar?{nocache:1}:{})})}).then(r=>r.json());
+    ia.carregando=false;
+    if(j&&j.ok&&j.analise){ ia.res=j.analise; ia.chave=chave; }
+    else ia.erro=(j&&j.erro)||'Não foi possível gerar a análise agora.';
+  }catch(e){ ia.carregando=false; ia.erro='Erro de rede: '+String(e.message||e); }
+  if(estado.vista==='planrel'||estado.vista==='minhasemana') mpReRender();
+}
 function mpRenderRelatorios(aud){
   // Audiências: gestor (completa) · exec (resumo de alto nível) · minha (a própria
   // pessoa) · proj (foco projeto a projeto). Cada uma mostra só o que interessa.
@@ -4134,6 +4172,23 @@ function mpRenderRelatorios(aud){
   const totReal=Object.values(porU).reduce((s,v)=>s+v.real,0);
   const stCount={elaboracao:0,enviado:0,aprovado:0,devolvido:0};
   dados.planos.forEach(p=>{ if(stCount[p.status]!=null) stCount[p.status]++; });
+  // 🤖 Contexto da análise por IA: o MESMO recorte agregado que o relatório mostra,
+  // compactado (a chave detecta mudança de filtros e invalida a análise anterior).
+  (()=>{ const arr2=(m)=>Object.entries(m).sort((x,y)=>(y[1].plan+y[1].real)-(x[1].plan+x[1].real));
+    mp.iaCtx={ payload:{
+      periodo:{ de:f.de, ate:f.ate, semanas:Object.keys(porSem).length },
+      audiencia:AUD,
+      filtros:{ usuario:f.usuario?nome(f.usuario):'', projeto:f.projeto?projNome(f.projeto):'', status:f.status||'' },
+      totais:{ planejadoH:+totPlan.toFixed(1), realizadoH:+totReal.toFixed(1),
+        execucaoPct:totPlan>0?Math.round(totReal/totPlan*100):null,
+        realizadoNaoPlanejadoH:+rnp.toFixed(1), planejadoNaoRealizadoH:+pnr.toFixed(1) },
+      statusPlanos:stCount,
+      pessoas:arr2(porU).slice(0,25).map(([a2,v])=>({ nome:nome(a2), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1),
+        status:[...new Set((dados.planos||[]).filter(p=>p.accountId===a2).map(p=>p.status))].join(', ') })),
+      projetos:arr2(porP).slice(0,20).map(([pj,v])=>({ projeto:projNome(pj), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1) })),
+      semanas:Object.entries(porSem).sort().map(([w2,v])=>({ semana:fmtBR(w2), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1) })),
+    }};
+    mp.iaCtx.chave=JSON.stringify(mp.iaCtx.payload); })();
   const tab=(titulo, mapa, rot)=>`<div><h3 class="mp-h3">${titulo} <span class="mp-dim">clique numa linha para ver os tickets</span></h3>
     <table class="mp-tab-mini"><thead><tr><th>${rot}</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
     <tbody>${Object.entries(mapa).sort((a,b)=>b[1].plan-a[1].plan).map(([k,v])=>{
@@ -4151,6 +4206,16 @@ function mpRenderRelatorios(aud){
       <div class="mp-kpi mp-kpi-click" data-mp-rdrill="pnr" title="Clique para ver O QUE estava no plano e ficou sem horas (pessoa → projeto → dia)"><div class="v">${mpH(pnr)} 🔎</div><div class="l">Planejado não realizado</div></div>
       <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
     </div>
+    ${(()=>{ // 🤖 Análise da IA — lê o recorte atual e devolve destaques + recomendações
+      const ia=mp.ia=mp.ia||{res:null,chave:'',carregando:false,erro:''};
+      const atual=!!(ia.res&&ia.chave===mp.iaCtx.chave);
+      const corpo=ia.carregando?'<div class="estado">🤖 Analisando o planejado × realizado deste recorte…</div>'
+        :ia.erro?`<div class="erro">${esc(ia.erro)}</div><div style="margin-top:8px"><button class="mp-btn" data-mp-ia="1">Tentar de novo</button></div>`
+        :atual?(mpIaHtml(ia.res)+'<div style="margin-top:8px"><button class="chip" data-mp-ia="1" data-mp-ia-re="1">↻ Regenerar análise</button></div>')
+        :`<div class="mp-dim">${ia.res?'Os filtros mudaram desde a última análise — gere de novo para refletir o recorte atual.'
+            :'A IA lê os números deste relatório (totais, situação dos planos, pessoas, projetos e semanas do recorte atual) e devolve uma análise com destaques e recomendações práticas.'}</div>
+          <div style="margin-top:8px"><button class="mp-btn" data-mp-ia="1">🤖 Analisar com IA</button></div>`;
+      return `<div class="mp-iacard"><h3 class="mp-h3">🤖 Análise da IA <span class="mp-dim">planejado × realizado do recorte atual</span></h3>${corpo}</div>`; })()}
     ${S.sit?mpgStatus(stCount):''}
     ${(()=>{ if(!S.quem) return ''; // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
       const ini2=mpInicioVig();
@@ -4445,7 +4510,7 @@ document.addEventListener('drop',(e)=>{
   toast(`↔ "${esc((it.descricao||'atividade').slice(0,40))}" foi de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok');
 });
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mpdrill],[data-plr-aud]');
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mp-ia],[data-mpdrill],[data-plr-aud]');
   if(!t) return;
   const mp=estado.minhasemana; const id=idApontar();
   if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
@@ -4565,6 +4630,7 @@ document.addEventListener('click', async (e)=>{
     mp.relF.usuario=(mp.relF.usuario===a?'':a); mpReRender(); return; }
   if(t.hasAttribute('data-mp-rdrill')){ mpAbreDrill(t.getAttribute('data-mp-rdrill')); return; }
   if(t.hasAttribute('data-mp-rgran')){ mp.relGran=t.getAttribute('data-mp-rgran')||'sem'; mpReRender(); return; }
+  if(t.hasAttribute('data-mp-ia')){ mpIaAnalisa(t.hasAttribute('data-mp-ia-re')); return; }
   if(t.hasAttribute('data-plr-aud')){ estado.planrel.aud=t.getAttribute('data-plr-aud');
     if(estado.planrel.aud!=='minha'&&mp.relF.usuario&&estado.planrel.aud!=='gestor') mp.relF.usuario='';
     estadoParaURL(); mpReRender(); return; }
@@ -15496,6 +15562,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-20','🤖 <b>Análise por IA do planejado × realizado</b>: os <b>📊 Relatórios do planejamento</b> (menu Planejamento e aba Relatórios do Meu Planejamento) ganharam o card <b>🤖 Análise da IA</b> — um clique e a IA lê os números do recorte atual (totais, situação dos planos, pessoas, projetos e semanas, respeitando os filtros) e devolve <b>resumo executivo, destaques com sinal</b> (✅ positivo · ▪️ neutro · ⚠️ atenção), <b>análise por pessoa</b> e <b>recomendações práticas</b> para a próxima semana. Mudou o filtro? A análise avisa que ficou defasada e regenera em 1 clique. Disponível em todas as audiências (👔 Executiva, 🧑‍💼 Gestor, 👤 Minha visão e 📁 Projetos).'],
   ['2026-08-19','🧭 <b>Radar na tela inicial — combine as informações do seu dia</b>: novo bloco no 🏠 Início que cruza Jira + Clockwork numa lista só de tickets. Escolha o <b>escopo</b> (👤 Meus / 👥 Time), os <b>eventos</b> (🆕 criados · ✅ concluídos · 🔁 status movidos · ✏️ editados · 💬 comentados · ⏱ horas apontadas · ⏰ vencendo — cada chip mostra a contagem) e o <b>período</b> (hoje/ontem/7 dias) — ex.: <b>"meus tickets criados hoje"</b>. Cada linha traz resumo, projeto, hora e ficha 🔍; a combinação fica salva no navegador e pode ser enviada com 1 clique para a <b>🛠 Gestão</b> (já filtrada) ou para o <b>➗ Rateio</b>.'],
   ['2026-08-18','➗ <b>Rateio — apontamento em massa</b>: nova tela em <b>👤 Meu trabalho → ➗ Rateio de horas</b>. Cole vários tickets de uma vez (aceita lista, vírgulas e até links do Jira), informe as <b>horas totais</b> (ex.: 5h) e escolha como dividir: <b>⚖️ igual</b>, <b>% percentual</b>, <b>🍕 fatias</b> (dê mais fatias a quem levou mais esforço) ou <b>✏️ manual</b> — a soma fecha <b>exata</b> com o total e uma barra colorida mostra a divisão. O botão <b>🔎 Conferir no Jira</b> traz resumo/status de cada ticket e avisa se algum código não existe; depois é 1 clique para apontar tudo (com reenvio só dos que falharem) e dá para <b>🔁 alterar o status de todos em conjunto</b>. Atalhos: botão ➗ na tela Apontar e ação em massa na 🛠 Gestão.'],
   ['2026-08-17','🔓 <b>Relatórios do planejamento abertos para TODO o time</b>: qualquer pessoa identificada acessa <b>Planejamento → 📊 Relatórios do planejamento</b> (e a aba Relatórios do Meu Planejamento) — inclusive a <b>👤 Minha visão</b> com o próprio planejado × realizado dia a dia. A única coisa exclusiva do gestor segue sendo <b>aprovar/devolver</b> planos (aba Aprovações e pendências no Inbox).'],
@@ -15605,7 +15672,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-19.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-20.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
