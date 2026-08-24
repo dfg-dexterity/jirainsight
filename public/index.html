@@ -496,7 +496,11 @@
   @media (max-width:600px){ .pe-row{grid-template-columns:110px 1fr 70px} }
 
   /* IconTabBar do Fiori: abas com sublinhado azul no item selecionado */
-  .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap}
+  /* Navegação: mantém o wrap (os dropdowns são absolutos e não podem ser
+     cortados por overflow), mas os itens encolhem antes de quebrar a linha —
+     e, se quebrarem, ficam alinhados à direita, junto do resto do menu. */
+  .seg{display:inline-flex;background:transparent;border-radius:0;padding:0;gap:0;flex-wrap:wrap;justify-content:flex-end}
+  .seg>*{flex:0 0 auto}
   .seg button{border:0;background:transparent;color:var(--texto2);font-family:var(--corpo);
     font-size:14px;font-weight:600;padding:10px 12px;cursor:pointer;border-radius:0;
     border-bottom:3px solid transparent;margin-bottom:-1px;transition:color .12s ease,border-color .12s ease}
@@ -522,14 +526,29 @@
   .nav-ic{width:16px;height:16px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
   .seg button[aria-pressed="true"] .nav-ic{opacity:1}
   .nav-car{font-size:10px;opacity:.7;margin-left:1px}
+  /* Telas médias: o menu encolhe (padding, fonte e ícones) para caber numa faixa
+     só, em vez de quebrar linha — os grupos continuam todos visíveis. */
+  @media (max-width:1500px){ .seg button{padding:10px 9px;font-size:13.5px} }
+  @media (max-width:1320px){ .seg button{padding:10px 7px;font-size:13px;gap:5px} .nav-ic{width:15px;height:15px} }
+  @media (max-width:1180px){ .seg .nav-ic{display:none} .seg button{padding:10px 8px} }
   /* Botões Fiori: transparentes (toolbar) com texto azul; .primario = emphasized (azul cheio) */
   .btn{border:1px solid transparent;background:transparent;border-radius:6px;
     padding:7px 12px;cursor:pointer;font-family:var(--corpo);font-size:14px;font-weight:600;
     color:var(--cerceta);transition:background .12s ease,border-color .12s ease}
   .btn:hover{background:var(--hoverbg)}
   select:focus,input:focus,textarea:focus,button:focus-visible{outline:1px dotted var(--cerceta);outline-offset:1px}
+  /* Barra de ferramentas do topo: período + ações + "atualizado em" numa faixa
+     própria, alinhada — antes esses itens quebravam soltos abaixo do menu. */
+  .hdr-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;
+    padding:7px 0 8px;border-top:1px solid var(--linha);margin-top:-1px}
+  .hdr-tools .atualizado{margin-left:auto;width:auto;white-space:nowrap}
   .atualizado{font-size:12px;color:var(--muted);width:100%}
 
+  /* Período compacto: rótulo ao lado do select (não empilhado). A fonte menor
+     vale só no mouse — no toque o select mantém 16px (evita o auto-zoom do iOS). */
+  .hdr-tools .hdr-sel{flex-direction:row;align-items:center;gap:7px}
+  .hdr-tools .hdr-sel span{font-size:10px}
+  @media (pointer:fine){ .hdr-tools .hdr-sel select{padding:5px 8px;font-size:13px} }
   .hdr-sel{display:flex;flex-direction:column;gap:3px}
   .hdr-sel span{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
 
@@ -1556,6 +1575,12 @@
   .rt-bad{background:rgba(210,10,10,.12);color:#B91C1C}
   /* 🧭 Radar do dia — separador entre grupos de chips */
   .rad-sep{width:1px;align-self:stretch;background:var(--linha);margin:0 4px}
+  /* 🔀 Transformar chamado em atividade */
+  .trf-plano{border-radius:10px;padding:10px 14px;margin:4px 0 10px;line-height:1.5;font-size:13.5px}
+  .trf-plano.ok{background:rgba(24,137,24,.10);border-left:4px solid #188918}
+  .trf-plano.aten{background:rgba(232,163,61,.14);border-left:4px solid #E76500}
+  .trf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+  .trf-ficha{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:13px}
   /* 🏦 Controladoria de Projetos */
   .ct-expl{margin-top:8px;padding:8px 12px;border-left:4px solid var(--cerceta);background:var(--hoverbg);border-radius:6px;font-size:12.5px;line-height:1.45}
   .ct-kl{font-weight:400;font-size:10.5px;opacity:.75;margin-top:2px;line-height:1.25}
@@ -2179,6 +2204,7 @@
       </div>
       <button class="navtab" id="btn-paleta" type="button" title="Buscar tela — Ctrl+K" aria-label="Buscar tela (Ctrl+K)">🔍</button>
     </div>
+    <div class="hdr-tools">
     <label class="hdr-sel" id="hdr-periodo"><span>Período</span>
       <select id="f-periodo">
         <option value="hoje">Hoje</option>
@@ -2213,6 +2239,7 @@
       </div>
     </div>
     <div class="atualizado" id="atualizado"></div>
+    </div>
   </header>
 
   <div id="erro-box"></div>
@@ -4859,6 +4886,7 @@ const ROADMAP=[
   { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
   { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
   { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
+  { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
   { s:'avaliacao', t:'🏅 Scoreboard — campeão do mês e aviso no Teams', d:'Fechar um pódio mensal a partir do scoreboard diário (medalhas, campeão do mês) e comemorar automaticamente no canal do Teams; badge pessoal de sequência (🔥) no Início.' },
 ];
 function renderRoadmap(){
@@ -14697,9 +14725,200 @@ function renderModalTicket(d){
       <button class="btn primario" data-gx-apont="${escA(d.k)}">⏱ Apontar</button>
       <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
+      <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
       <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
     </div>`);
+}
+// ===========================================================================
+// 🔀 TRANSFORMAR CHAMADO EM ATIVIDADE — pega um chamado que existe (ORIGEM) e o
+// leva para dentro de OUTRO chamado (DESTINO):
+//  · destino ACEITA sub-tarefa  → cria uma SUB-TAREFA no destino com o conteúdo
+//    da origem e leva as horas para ela;
+//  · destino NÃO aceita         → registra as horas como APONTAMENTO no próprio
+//    destino, com os DETALHES (origem, resumo, quem apontou) no comentário.
+// Em ambos os casos comenta na origem apontando para onde foi (e pode encerrá-la).
+// Reusa as APIs que já existem: ?detalhe= (fichas), /api/projetos (tipos),
+// /api/criar (sub-tarefa com parent), /api/apontar e /api/transicao.
+// ===========================================================================
+const RE_ISSUE_TRF=/^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+let _trf=null;
+function abreTransformar(kOrigem){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  _trf={ origem:String(kOrigem||'').toUpperCase(), destino:'', fo:null, fd:null, tipos:null, erro:'', carregando:false, feito:null };
+  trfRenderPasso1();
+  if(_trf.origem) trfCarregaFicha('origem');
+}
+function trfRenderPasso1(){
+  const t=_trf; if(!t) return;
+  const ficha=(f,rot)=>!f?'':`<div class="trf-ficha"><b>${rot}: ${esc(f.k)}</b> — ${esc((f.resumo||'').slice(0,80))}
+    <div class="muted small">${esc(f.t||'')} · ${esc(f.status||'')} · ${esc(f.pNome||f.p||'')}${f.worklogs&&f.worklogs.totalSeg?` · ⏱ ${fmtH(f.worklogs.totalSeg)} apontadas`:' · sem horas apontadas'}</div></div>`;
+  abreModal(`<h2>🔀 Transformar chamado em atividade <span class="muted small">leve um chamado para dentro de outro</span></h2>
+    <div class="muted small" style="margin-bottom:10px;line-height:1.5">Informe o chamado que <b>vai deixar de existir sozinho</b> (origem) e o chamado que <b>vai recebê-lo</b> (destino).
+      Se o destino aceitar sub-tarefa, a origem vira uma <b>sub-tarefa</b> dele; se não aceitar, ela vira um <b>apontamento de horas</b> com os detalhes no comentário.</div>
+    <div class="ap-filtros">
+      <div class="campo"><label>Chamado de ORIGEM <span class="req">*</span></label>
+        <input type="text" id="trf-origem" placeholder="ex.: RDF-123" value="${escA(t.origem)}" autocomplete="off"></div>
+      <div class="campo"><label>Chamado de DESTINO <span class="req">*</span></label>
+        <input type="text" id="trf-destino" placeholder="ex.: CCDV-500" value="${escA(t.destino)}" autocomplete="off"></div>
+    </div>
+    ${ficha(t.fo,'Origem')}${ficha(t.fd,'Destino')}
+    ${t.erro?`<div class="erro" style="margin-top:8px">${esc(t.erro)}</div>`:''}
+    ${t.carregando?'<div class="estado">Conferindo no Jira…</div>':''}
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="trf-analisar" ${t.carregando?'disabled':''}>Analisar →</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+}
+// Busca a ficha (?detalhe=) da origem/destino e, no destino, os tipos do projeto.
+function trfCarregaFicha(qual){
+  const t=_trf; if(!t) return;
+  const k=(qual==='origem'?t.origem:t.destino);
+  if(!RE_ISSUE_TRF.test(k)) return;
+  t.carregando=true; t.erro=''; trfRenderPasso1();
+  const ps=[fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json())];
+  if(qual==='destino') ps.push(garanteProjetos().catch(()=>[]));
+  Promise.all(ps).then(([j,projs])=>{
+    if(!_trf) return;
+    t.carregando=false;
+    if(!j||j.erro){ t.erro=`${k}: ${(j&&j.erro)||'não encontrado.'}`; if(qual==='origem') t.fo=null; else t.fd=null; trfRenderPasso1(); return; }
+    if(qual==='origem'){ t.fo=j; trfRenderPasso1(); if(t.destino) trfCarregaFicha('destino'); return; }
+    t.fd=j;
+    const pj=(projs||[]).find(p=>p.key===j.p);
+    t.tipos=(pj&&pj.tipos)||[];
+    trfRenderPasso2();
+  }).catch(e=>{ if(!_trf) return; t.carregando=false; t.erro='Erro de rede: '+String(e.message||e); trfRenderPasso1(); });
+}
+// Decide o caminho: sub-tarefa só se o DESTINO for um item comum (não sub-tarefa,
+// não épico) E o projeto dele tiver um tipo de sub-tarefa habilitado.
+function trfPlano(){
+  const t=_trf; if(!t||!t.fo||!t.fd) return null;
+  const tipoSub=(t.tipos||[]).find(x=>x.subtarefa);
+  const dEhSub=(t.tipos||[]).some(x=>x.subtarefa&&String(x.nome||'').toLowerCase()===String(t.fd.t||'').toLowerCase());
+  const dEhEpico=/epic|épico/i.test(t.fd.t||'');
+  const podeSub=!!tipoSub&&!dEhSub&&!dEhEpico;
+  const motivo=podeSub?''
+    :(dEhSub?'o destino já é uma sub-tarefa (sub-tarefa não tem filha)'
+      :(dEhEpico?'o destino é um épico (épico não recebe sub-tarefa direta)'
+        :'o projeto do destino não tem tipo de sub-tarefa habilitado'));
+  return { podeSub, tipoSub, motivo, segOrigem:((t.fo.worklogs||{}).totalSeg)||0 };
+}
+function trfRenderPasso2(){
+  const t=_trf; if(!t) return; const p=trfPlano(); if(!p){ trfRenderPasso1(); return; }
+  const wl=(t.fo.worklogs||{porPessoa:[],ultimos:[],totalSeg:0});
+  const quem=(wl.porPessoa||[]).map(x=>`${x.nome} (${fmtH(x.seg)})`).join(' · ');
+  const cabec=p.podeSub
+    ? `<div class="trf-plano ok"><b>✅ O destino aceita sub-tarefa.</b><br>Vou criar a sub-tarefa <b>“${esc((t.fo.resumo||t.fo.k).slice(0,70))}”</b> dentro de <b>${esc(t.fd.k)}</b> (tipo <b>${esc((p.tipoSub||{}).nome||'Sub-tarefa')}</b>)${p.segOrigem?` e lançar <b>${fmtH(p.segOrigem)}</b> nela`:''}.</div>`
+    : `<div class="trf-plano aten"><b>⏱ O destino NÃO aceita sub-tarefa</b> — ${esc(p.motivo)}.<br>Então as horas entram como <b>apontamento direto em ${esc(t.fd.k)}</b>, com os detalhes da origem no comentário.</div>`;
+  abreModal(`<h2>🔀 ${esc(t.fo.k)} → ${esc(t.fd.k)} <span class="muted small">transformar chamado em atividade</span></h2>
+    ${cabec}
+    <div class="trf-cols">
+      <div class="trf-ficha"><b>Origem · ${esc(t.fo.k)}</b><div>${esc((t.fo.resumo||'').slice(0,90))}</div>
+        <div class="muted small">${esc(t.fo.t||'')} · ${esc(t.fo.status||'')} · ${esc(t.fo.pNome||t.fo.p||'')}</div>
+        <div class="muted small">${p.segOrigem?`⏱ <b>${fmtH(p.segOrigem)}</b> apontadas${quem?` — ${esc(quem)}`:''}`:'sem horas apontadas'}</div></div>
+      <div class="trf-ficha"><b>Destino · ${esc(t.fd.k)}</b><div>${esc((t.fd.resumo||'').slice(0,90))}</div>
+        <div class="muted small">${esc(t.fd.t||'')} · ${esc(t.fd.status||'')} · ${esc(t.fd.pNome||t.fd.p||'')}</div></div>
+    </div>
+    <div class="ap-filtros" style="margin-top:10px">
+      <div class="campo" style="flex:1;min-width:220px"><label>Título da atividade</label>
+        <input type="text" id="trf-titulo" value="${escA((t.fo.resumo||t.fo.k).slice(0,120))}"></div>
+      <div class="campo"><label>Horas a transferir <span class="muted small">(vazio = não apontar)</span></label>
+        <input type="text" id="trf-horas" placeholder="ex.: 2h30" value="${escA(p.segOrigem?fmtH(p.segOrigem):'')}"></div>
+      <div class="campo"><label>Data do apontamento</label><input type="date" id="trf-data" value="${escA(hojeSP())}"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="trf-comentar" checked> Comentar na <b>origem</b> dizendo para onde foi</label>
+    <label class="check"><input type="checkbox" id="trf-encerrar"> Encerrar a origem depois (move para “Concluído”, se o fluxo permitir)</label>
+    <div class="alx-fb ap-fb" id="trf-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="trf-executar">${p.podeSub?'✅ Criar sub-tarefa e transferir':'⏱ Apontar no destino e registrar'}</button>
+      <button class="btn" id="trf-voltar">‹ Trocar chamados</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+}
+async function trfExecuta(){
+  const t=_trf; const id=idApontar(); if(!t||!id) return;
+  const p=trfPlano(); if(!p) return;
+  const titulo=((document.getElementById('trf-titulo')||{}).value||'').trim()||t.fo.resumo||t.fo.k;
+  const seg=parseTempo(((document.getElementById('trf-horas')||{}).value||'').trim());
+  const data=((document.getElementById('trf-data')||{}).value||'')||hojeSP();
+  const comentarOrigem=!!(document.getElementById('trf-comentar')||{}).checked;
+  const encerrar=!!(document.getElementById('trf-encerrar')||{}).checked;
+  const fb=document.getElementById('trf-fb'); const bt=document.getElementById('trf-executar');
+  const diz=(txt,cls)=>{ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'+(cls?' '+cls:''); fb.innerHTML=txt; } };
+  if(seg!=null&&(seg<60||seg>24*3600)){ diz('Tempo inválido — use 1h30, 45m ou 2:15 (mínimo 1m, máximo 24h).','erro'); return; }
+  if(bt) bt.disabled=true;
+  const passos=[]; let alvo=t.fd.k; let novaKey='';
+  // Detalhes da origem que viajam junto (worklogs por pessoa + resumo).
+  const wl=(t.fo.worklogs||{porPessoa:[]});
+  const detalhes=[`Origem: ${t.fo.k} — ${t.fo.resumo||''}`,
+    `Tipo/status na origem: ${t.fo.t||'—'} · ${t.fo.status||'—'}`,
+    (wl.porPessoa||[]).length?`Horas apontadas na origem: ${(wl.porPessoa||[]).map(x=>`${x.nome} ${fmtH(x.seg)}`).join(' · ')} (total ${fmtH(wl.totalSeg||0)})`:'Origem sem horas apontadas.',
+    `Transformado em atividade por ${id.nome||id.email} em ${fmtBR(hojeSP())} pelo painel Jira Insights.`].join('\n');
+  try{
+    // 1) sub-tarefa (quando o destino aceita)
+    if(p.podeSub){
+      diz('Criando a sub-tarefa no destino…');
+      const desc=`${(t.fo.desc||'').slice(0,3000)}\n\n---\n${detalhes}`;
+      const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({itens:[{projeto:t.fd.p, tipoId:(p.tipoSub||{}).id, resumo:titulo.slice(0,240),
+          descricao:desc, paiKey:t.fd.k}], email:id.email, token:id.token})}).then(r=>r.json());
+      const cr=(j&&j.criados&&j.criados[0])||null;
+      if(!cr){ const er=(j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'falha ao criar a sub-tarefa';
+        diz(`⚠ ${esc(er)}`,'erro'); if(bt) bt.disabled=false; return; }
+      novaKey=cr.key; alvo=cr.key; passos.push(`✓ Sub-tarefa <b>${esc(novaKey)}</b> criada em ${esc(t.fd.k)}`);
+    }
+    // 2) horas no alvo (sub-tarefa nova ou o próprio destino)
+    if(seg!=null&&seg>=60){
+      diz(`Apontando ${fmtH(seg)} em ${alvo}…`);
+      const coment=p.podeSub?`Horas transferidas de ${t.fo.k}.`:`${titulo}\n\n${detalhes}`;
+      const ja=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({issue:alvo, segundos:seg, inicio:data, comentario:coment, email:id.email, token:id.token})}).then(r=>r.json());
+      if(ja&&ja.ok){ passos.push(`✓ <b>${fmtH(seg)}</b> apontadas em ${esc(alvo)} (${esc(fmtBR(data))})`);
+        registraExtraDia(data,seg,alvo); logAcao({acao:'apontar',t:alvo,para:fmtH(seg),ok:true},false); }
+      else passos.push(`⚠ Apontamento em ${esc(alvo)}: ${esc((ja&&ja.erro)||'falhou')}`);
+    }
+    // 3) sem sub-tarefa: os detalhes ficam registrados no próprio destino
+    if(!p.podeSub){
+      diz('Registrando os detalhes no destino…');
+      const texto=`🔀 Atividade incorporada: ${titulo}\n\n${detalhes}`;
+      const jc=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({comentar:true, issue:t.fd.k, texto, email:id.email, token:id.token})}).then(r=>r.json());
+      passos.push(jc&&jc.ok?`✓ Detalhes registrados em ${esc(t.fd.k)}`:`⚠ Comentário no destino: ${esc((jc&&jc.erro)||'falhou')}`);
+    }
+    // 4) comentário na origem
+    if(comentarOrigem){
+      const texto=novaKey
+        ? `🔀 Este chamado virou a sub-tarefa ${novaKey}, dentro de ${t.fd.k}. Acompanhe por lá.`
+        : `🔀 Este chamado foi incorporado ao ${t.fd.k}${seg?` (${fmtH(seg)} apontadas lá)`:''}. Acompanhe por lá.`;
+      const jo=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({comentar:true, issue:t.fo.k, texto, email:id.email, token:id.token})}).then(r=>r.json());
+      passos.push(jo&&jo.ok?`✓ Origem ${esc(t.fo.k)} comentada`:`⚠ Comentário na origem: ${esc((jo&&jo.erro)||'falhou')}`);
+    }
+    // 5) encerrar a origem (transição da categoria "done", se existir)
+    if(encerrar){
+      diz('Encerrando a origem…');
+      const lj=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({listar:true, issue:t.fo.k, email:id.email, token:id.token})}).then(r=>r.json());
+      const tr=((lj&&lj.transicoes)||[]).find(x=>x.categoria==='done');
+      if(!tr) passos.push(`⚠ A origem não tem transição de conclusão disponível no status atual`);
+      else{
+        const ej=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({issue:t.fo.k, transitionId:tr.id, email:id.email, token:id.token})}).then(r=>r.json());
+        passos.push(ej&&ej.ok?`✓ Origem movida para <b>${esc(tr.para||'Concluído')}</b>`:`⚠ Encerrar a origem: ${esc((ej&&ej.erro)||'falhou')}`);
+      }
+    }
+    estado.cache={}; estado.apontar.porData={};
+    const houveFalha=passos.some(x=>x.startsWith('⚠'));
+    _trf.feito=passos;
+    abreModal(`<h2>🔀 ${esc(t.fo.k)} → ${esc(t.fd.k)}</h2>
+      <div class="${houveFalha?'aviso':'mp-aprovado'}">${houveFalha?'Concluído com avisos:':'Tudo certo!'}</div>
+      <ul class="small" style="margin:10px 0 0;padding-left:18px;line-height:1.7">${passos.map(x=>`<li>${x}</li>`).join('')}</ul>
+      <div class="alx-modal-acoes">
+        ${novaKey?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(novaKey)}" target="_blank" rel="noopener">Abrir ${esc(novaKey)} ↗</a>`:''}
+        <a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(t.fd.k)}" target="_blank" rel="noopener">Abrir ${esc(t.fd.k)} ↗</a>
+        <button class="btn primario" id="trf-nova">🔀 Transformar outro</button>
+        <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button></div>`);
+    toast(houveFalha?'Transformação concluída com avisos — confira o detalhe.':`✓ ${t.fo.k} transformado em atividade de ${t.fd.k}.`, houveFalha?'warn':'ok');
+    if(estado.vista==='gestao') renderGestao();
+  }catch(e){ diz('Erro de rede: '+esc(String(e.message||e)),'erro'); if(bt) bt.disabled=false; }
 }
 // ---- Apontar horas em 1 ticket (modal) — usado pela Gestão e pelo drill do Analytics ----
 let _gxApont=null;
@@ -14941,6 +15160,7 @@ function renderGestao(){
     <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
     <button data-gx-st="${escA(t.k)}" title="Alterar o status deste ticket no Jira (transição no seu usuário)">🔁 status</button>
+    <button data-gx-trf="${escA(t.k)}" title="Transformar em atividade: levar este chamado para dentro de outro (sub-tarefa ou apontamento)">🔀 transformar</button>
     <button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button>
     <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
@@ -15072,6 +15292,7 @@ function renderGestao(){
       <button class="btn" data-gx-act="atribuir">👤 Atribuir</button>
       <button class="btn" data-gx-act="status">🔁 Alterar status</button>
       <button class="btn" data-gx-act="rateio" data-tip="Levar a seleção para o ➗ Rateio: divida horas totais entre estes tickets">➗ Rateio de horas</button>
+      <button class="btn" data-gx-act="transformar" data-tip="Transformar o ticket selecionado em atividade de outro chamado (sub-tarefa ou apontamento)">🔀 Transformar</button>
       <button class="btn" data-gx-act="comentar">💬 Comentar</button>
       <button class="btn" data-gx-act="reprog">📅 Reprogramar</button>
       <button class="btn" id="gx-tratar">✓ Tratado</button>
@@ -15814,6 +16035,7 @@ const TOUR_TELAS=[
   {vai:'visao',titulo:'📊 Visão Geral (painel executivo)',texto:'A leitura executiva num lugar só: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
   {vai:'minhasemana',titulo:'📋 Meu Planejamento',texto:'Planeje a semana por ATIVIDADE (data + projeto + descrição + horas — sem tickets), envie ao gestor, receba aprovação ou devolução com motivo e compare planejado × realizado por dia e por projeto (realizado do Clockwork). Gestores decidem e tiram relatórios aqui.'},
   {vai:'apontar',titulo:'⏱ Apontar',texto:'O dia a dia: aponte horas (chips 30m/1h/2h ou digitando), mova status, reagende vencimento, comente, transfira responsável e aponte reuniões para várias pessoas. Os 🕑 recentes reapontam com 1 clique.'},
+  {vai:'gestao',titulo:'🔀 Transformar chamado em atividade',texto:'Um chamado que na verdade é atividade de outro? Informe origem e destino: se o destino aceita sub-tarefa, ela é criada lá dentro com a descrição e as horas da origem; se não aceita, as horas viram apontamento no destino com todos os detalhes no comentário. Comenta na origem e pode encerrá-la. Abre pela ficha 🔍 do ticket ou pela 🛠 Gestão.'},
   {vai:'controladoria',titulo:'🏦 Controladoria de Projetos',texto:'A saúde financeira por CATEGORIA de projeto (AMS, Tarefas Avulsas…), explicada em bom português: receita, custo, MARGEM com semáforo, custo de gestão, tipo de esforço, quanto do projeto já foi executado e evolução mês a mês — tudo clicável até o ticket, com ações (ficha, status, Gestão, Rateio). Blocos configuráveis por categoria.'},
   {vai:'rateio',titulo:'➗ Rateio de horas (apontar em massa)',texto:'Cole VÁRIOS tickets (lista, vírgulas ou links do Jira), informe as horas totais (ex.: 5h) e divida entre eles: ⚖️ igual, % percentual, 🍕 fatias ou ✏️ manual — a soma fecha exata com o total, com barra visual da divisão. Confira resumo/status no Jira antes, aponte tudo em 1 clique (reenvio só dos que falharem) e 🔁 altere o status de todos em conjunto.'},
   {vai:'agenda',titulo:'📅 Agenda (Outlook → ticket)',texto:'Seus eventos do Outlook viram tickets de reunião: crie no projeto certo ou vincule a um ticket existente e convide os participantes internos para apontar. O painel 🎫 Controle de tickets mostra quem deve criar, o que já foi criado (confere no Jira!) e deixa 📨 avisar o organizador pelo Inbox.'},
@@ -16021,6 +16243,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-24','🔀 <b>Transformar chamado em atividade</b>: pegue um chamado que virou "atividade de outro" e leve-o para dentro do chamado certo. Informe <b>origem</b> e <b>destino</b> e o painel decide sozinho: se o destino <b>aceita sub-tarefa</b>, cria a <b>sub-tarefa</b> dentro dele (com a descrição e o histórico da origem) e leva as <b>horas</b> para lá; se <b>não aceita</b> (é sub-tarefa, é épico ou o projeto não tem esse tipo), lança as horas como <b>apontamento no próprio destino</b> com <b>todos os detalhes no comentário</b> (origem, resumo, quem apontou quanto). Ainda comenta na origem dizendo para onde foi e, se você quiser, <b>encerra a origem</b>. Está na ficha 🔍 do ticket, na 🛠 Gestão (por linha e em massa).'],
+  ['2026-08-24','🧭 <b>Menu superior arrumado</b>: os grupos do menu agora cabem em <b>uma faixa só</b> (encolhem antes de quebrar a linha) e <b>Período · ↻ Atualizar · ⬇ Exportar · 🌙 · ⋯ Mais</b> passaram a viver numa <b>barra de ferramentas própria</b>, com o "Atualizado em…" alinhado à direita — acabou aquela quebra solta em três linhas.'],
   ['2026-08-23','🏦 <b>Controladoria de Projetos — margem, custos e esforço por CATEGORIA</b>: nova tela em <b>Gestão → 🏦 Controladoria</b>. Escolha a categoria (AMS, Tarefas Avulsas…) e veja, <b>explicado em bom português</b>: 💰 receita (horas faturáveis × valor-hora do contrato), custo (horas × custo/h de cada pessoa), <b>margem com semáforo</b> (verde ≥30%), <b>custo de gestão</b> (horas dos gestores), 🧩 tipo de esforço, ⏳ <b>quanto do projeto já foi executado</b> (estimado × gasto no Jira) e 📈 evolução mês a mês comparável. <b>Tudo clicável</b> — linhas, barras e colunas abrem os tickets, com ações (ficha 🔍, status 🔁, 🛠 Gestão, ➗ Rateio). Os <b>blocos são configuráveis por categoria</b> (gestor) e há avisos quando falta custo/h ou contrato.'],
   ['2026-08-24','🏅 <b>Scoreboard no Ranking — agora por dia, semana e mês, com início configurável</b>: o placar <b>congela a qualidade do apontamento de cada dia útil NO DIA SEGUINTE</b> (apontou atrasado, o score daquele dia fica como estava — é essa disciplina que ele mede). Agora dá para ver <b>📅 por dia · 🗓 por semana · 📆 por mês</b> (semana/mês mostram a média dos dias fotografados) e os gestores definem a <b>📆 data de início do placar</b> — dias anteriores saem do jogo, ideal para "zerar" e recomeçar a contagem. Pontos = horas ÷ meta × 100; 🥇🥈🥉 pela média, <b>Sequência 🔥</b> e histórico do time (120 dias).'],
   ['2026-08-20','🤖 <b>Análise por IA do planejado × realizado</b>: os <b>📊 Relatórios do planejamento</b> (menu Planejamento e aba Relatórios do Meu Planejamento) ganharam o card <b>🤖 Análise da IA</b> — um clique e a IA lê os números do recorte atual (totais, situação dos planos, pessoas, projetos e semanas, respeitando os filtros) e devolve <b>resumo executivo, destaques com sinal</b> (✅ positivo · ▪️ neutro · ⚠️ atenção), <b>análise por pessoa</b> e <b>recomendações práticas</b> para a próxima semana. Mudou o filtro? A análise avisa que ficou defasada e regenera em 1 clique. Disponível em todas as audiências (👔 Executiva, 🧑‍💼 Gestor, 👤 Minha visão e 📁 Projetos).'],
@@ -16133,7 +16357,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-24.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-24.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -17236,6 +17460,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     else if(a==='status') abreModalStatusLote(keys);
     else if(a==='rateio'&&keys.length){ const rt=estado.rateio;
       rt.texto=keys.join('\n'); rt.resultados=null; vaiPara('rateio'); rtConfere(); }
+    else if(a==='transformar'&&keys.length){
+      if(keys.length>1) toast(`Transformar leva UM chamado por vez — usando ${keys[0]}.`,'warn');
+      abreTransformar(keys[0]); }
     else if(a==='excluir') abreModalExcluirLote(keys);
     return; }
   const card=e.target.closest&&e.target.closest('[data-gx-card]');
@@ -17253,6 +17480,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gxf-salvar')){ abreModalFiltroSalvar(); return; }
@@ -17442,12 +17670,25 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.hasAttribute&&t.hasAttribute('data-gxf-del')){ const id=t.getAttribute('data-gxf-del'); const f=gxfLista().find(x=>x.id===id);
     cfg.gxFiltros=gxfLista().filter(x=>x.id!==id); salvaCfg(); toast(f?`Filtro "${esc(f.nome)}" excluído (para o time).`:'Filtro excluído.','ok'); abreModalFiltrosGerir(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-det-com')){ abreModalComentarLote([t.getAttribute('data-gx-det-com')]); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); }
+  else if(t.id==='trf-analisar'){
+    const o=((document.getElementById('trf-origem')||{}).value||'').trim().toUpperCase();
+    const d=((document.getElementById('trf-destino')||{}).value||'').trim().toUpperCase();
+    if(!_trf) return;
+    if(!RE_ISSUE_TRF.test(o)||!RE_ISSUE_TRF.test(d)){ _trf.erro='Informe os dois chamados (ex.: RDF-123 e CCDV-500).'; trfRenderPasso1(); return; }
+    if(o===d){ _trf.erro='Origem e destino são o mesmo chamado.'; trfRenderPasso1(); return; }
+    _trf.origem=o; _trf.destino=d; _trf.fo=null; _trf.fd=null; _trf.erro='';
+    trfCarregaFicha('origem');
+  }
+  else if(t.id==='trf-executar'){ trfExecuta(); }
+  else if(t.id==='trf-voltar'){ if(_trf){ _trf.fd=null; _trf.erro=''; trfRenderPasso1(); } }
+  else if(t.id==='trf-nova'){ abreTransformar(''); }
   else if(t.hasAttribute&&t.hasAttribute('data-ct-gestao')){ const ks=t.getAttribute('data-ct-gestao').split(',').filter(Boolean);
     fechaModal(); const g=estado.gestao; g.soKeys=ks; g.origem='🏦 Controladoria'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
     g.sel={}; ks.forEach(k=>{ g.sel[k]=true; }); vaiPara('gestao'); }
   else if(t.hasAttribute&&t.hasAttribute('data-ct-rateio')){ const ks=t.getAttribute('data-ct-rateio').split(',').filter(Boolean);
     fechaModal(); const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null; vaiPara('rateio'); rtConfere(); }
-  else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
+  else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; _trf=null; fechaModal(); }
 });
 document.getElementById('modal-body').addEventListener('input',(e)=>{
   const t=e.target; if(!t) return;
