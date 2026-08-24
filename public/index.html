@@ -2363,7 +2363,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
-  scoreHist:{},                       // 🏅 Scoreboard: foto diária do apontamento, congelada no dia seguinte
+  scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
   reuniao:{ facilitador:'Jéssica Cavalheiro', ultimaReuniao:'', ataUltimaUrl:'', prioridades:{},
@@ -7863,7 +7863,10 @@ function rkScoreCongela(){
     // Janela de captura: só dias cujo "dia seguinte" é RECENTE (até 4 dias atrás —
     // cobre fim de semana/feriadão). Dias mais antigos NÃO ganham foto retroativa:
     // congelar tarde deixaria entrar apontamento atrasado, que é o que o placar mede.
-    const minDia=voltaDias(hoje,4);
+    let minDia=voltaDias(hoje,4);
+    // 📆 Início do placar (configurável): dias antes do início não são fotografados.
+    const iniSc=(cfg.scoreInicio&&/^\d{4}-\d{2}-\d{2}$/.test(cfg.scoreInicio))?cfg.scoreInicio:'';
+    if(iniSc&&iniSc>minDia) minDia=iniSc;
     cfg.scoreHist=cfg.scoreHist||{};
     const oc=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o));
     const pessoas=Object.keys(pessoasUnidas()).filter(a=>!oc.has(a));
@@ -7889,38 +7892,72 @@ function rkScoreCongela(){
   }catch(e){}
 }
 function rkScoreboardHTML(){
+  const rk=estado.ranking=estado.ranking||{};
+  const gran=['dia','sem','mes'].includes(rk.scGran)?rk.scGran:'dia';
+  const iniSc=(cfg.scoreInicio&&/^\d{4}-\d{2}-\d{2}$/.test(cfg.scoreInicio))?cfg.scoreInicio:'';
   const sh=cfg.scoreHist||{};
-  const dias=Object.keys(sh).sort().slice(-10);
-  const cab='<h2>🏅 Scoreboard diário <span>a foto do apontamento de cada dia útil, tirada NO DIA SEGUINTE — apontar atrasado não muda o placar</span></h2>';
-  if(!dias.length) return `<div class="card full">${cab}
-    <div class="estado">Ainda sem dias congelados — a partir de agora, cada dia útil é fotografado no dia seguinte e fica guardado aqui (o placar começa a valer amanhã).</div></div>`;
+  const dias=Object.keys(sh).filter(d2=>!iniSc||d2>=iniSc).sort();
+  const gestorEu=(typeof souAprovador==='function')&&souAprovador();
+  const chips=`<div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 8px">
+    ${[['dia','📅 Por dia'],['sem','🗓 Por semana'],['mes','📆 Por mês']].map(([g,r])=>
+      `<button class="chip" aria-pressed="${gran===g}" data-sc-gran="${g}">${r}</button>`).join(' ')}
+    <span class="rad-sep"></span>
+    ${gestorEu?`<label class="muted small" style="display:inline-flex;align-items:center;gap:6px" title="Dias ANTERIORES a esta data ficam fora do placar e não são mais fotografados — use quando o time 'zerar' o jogo e recomeçar a contagem">📆 Início do placar
+      <input type="date" id="sc-inicio" value="${escA(iniSc)}"></label>`
+      :(iniSc?`<span class="muted small">📆 placar valendo desde ${fmtBR(iniSc)}</span>`:'')}
+  </div>`;
+  const cab='<h2>🏅 Scoreboard <span>a foto do apontamento de cada dia útil, tirada NO DIA SEGUINTE — apontar atrasado não muda o placar</span></h2>';
+  if(!dias.length) return `<div class="card full">${cab}${chips}
+    <div class="estado">Ainda sem dias congelados${iniSc?` a partir de ${fmtBR(iniSc)}`:''} — a partir de agora, cada dia útil é fotografado no dia seguinte e fica guardado aqui (o placar começa a valer amanhã).</div></div>`;
   const oc=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o));
   const nomes=pessoasUnidas();
   const pess={};
   dias.forEach(d2=>{ Object.keys(sh[d2]).forEach(a=>{ if(a!=='_q'&&!oc.has(a)) pess[a]=1; }); });
-  const cor=(p)=>p>=100?'sc-100':(p>=70?'sc-70':(p>0?'sc-1':'sc-0'));
+  // Colunas por granularidade: dia (últimos 10) · semana (média, últimas 12) · mês (média, últimos 12).
+  let cols;
+  if(gran==='sem'){
+    const g={}; dias.forEach(d2=>{ const w=semChave(d2); (g[w]=g[w]||[]).push(d2); });
+    cols=Object.keys(g).sort().slice(-12).map(w=>{ const s2=isoSemana(w);
+      return { dias:g[w], rot:`S${s2.num}`, tip:`Semana de ${fmtBR(w)} (S${s2.num}/${s2.ano}) — média dos ${g[w].length} dia(s) fotografado(s)` }; });
+  } else if(gran==='mes'){
+    const g={}; dias.forEach(d2=>{ const m2=d2.slice(0,7); (g[m2]=g[m2]||[]).push(d2); });
+    cols=Object.keys(g).sort().slice(-12).map(m2=>({ dias:g[m2], rot:m2.slice(5,7)+'/'+m2.slice(2,4),
+      tip:`Mês ${m2.slice(5,7)}/${m2.slice(0,4)} — média dos ${g[m2].length} dia(s) fotografado(s)` }));
+  } else {
+    cols=dias.slice(-10).map(d2=>({ dias:[d2], rot:fmtBR(d2),
+      tip:'Dia '+fmtBR(d2)+(sh[d2]._q?' — congelado em '+fmtBR(String(sh[d2]._q).slice(0,10)):'') }));
+  }
+  const cor=(p)=>p>=100?'sc-100':(p>=90?'sc-70':(p>=70?'sc-70':(p>0?'sc-1':'sc-0')));
+  // Célula = pontos do dia OU a média dos dias fotografados do período.
+  const celDe=(a,c)=>{
+    const vs=c.dias.map(d2=>sh[d2][a]).filter(Boolean);
+    if(!vs.length) return null;
+    const p=Math.round(vs.reduce((s2,v)=>s2+v.p,0)/vs.length);
+    return { p, n:vs.length, h:vs.reduce((s2,v)=>s2+v.h,0), m:vs.reduce((s2,v)=>s2+v.m,0) };
+  };
   const linhas=Object.keys(pess).map(a=>{
-    const cels=dias.map(d2=>sh[d2][a]||null);
+    const cels=cols.map(c=>celDe(a,c));
     const vals=cels.filter(Boolean).map(c=>c.p);
-    const med=vals.length?Math.round(vals.reduce((s,v)=>s+v,0)/vals.length):null;
+    const med=vals.length?Math.round(vals.reduce((s2,v)=>s2+v,0)/vals.length):null;
     let streak=0;
     for(let i=cels.length-1;i>=0;i--){ const c=cels[i]; if(c==null) continue; if(c.p>=90) streak++; else break; }
     return { a, nome:(nomes[a]&&nomes[a].nome)||a, cels, med, streak };
   }).filter(l=>l.med!=null).sort((x,y)=>y.med-x.med||y.streak-x.streak);
+  const rotSeq=gran==='dia'?'dias':(gran==='sem'?'semanas':'meses');
   const rows=linhas.map((l,i)=>`<tr>
     <td>${i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':''}${esc(l.nome)}</td>
     ${l.cels.map((c,j)=>`<td>${c==null
-      ?'<span class="sc-cell sc-na" data-tip="Ausência, feriado ou fora do time neste dia">—</span>'
-      :`<span class="sc-cell ${cor(c.p)}" data-tip="${escA(fmtBR(dias[j])+' · '+c.p+' ponto(s) · '+(Math.round(c.h/6)/10)+'h apontadas até o congelamento · meta '+(Math.round(c.m/6)/10)+'h')}">${c.p}</span>`}</td>`).join('')}
+      ?'<span class="sc-cell sc-na" data-tip="Ausência, feriado, meta isenta ou período sem foto">—</span>'
+      :`<span class="sc-cell ${cor(c.p)}" data-tip="${escA(cols[j].rot+' · '+c.p+' ponto(s)'+(c.n>1?' (média de '+c.n+' dias)':'')+' · '+(Math.round(c.h/6)/10)+'h apontadas de '+(Math.round(c.m/6)/10)+'h de meta')}">${c.p}</span>`}</td>`).join('')}
     <td><b>${l.med}</b></td>
     <td>${l.streak>=3?'🔥 ':''}${l.streak}</td></tr>`).join('');
-  return `<div class="card full">${cab}
+  return `<div class="card full">${cab}${chips}
     <div class="scroll-x"><table class="mp-tab-mini sc-tab"><thead><tr><th>Pessoa</th>
-      ${dias.map(d2=>`<th data-tip="${escA('Dia '+fmtBR(d2)+(sh[d2]._q?' — congelado em '+fmtBR(String(sh[d2]._q).slice(0,10)):''))}">${fmtBR(d2)}</th>`).join('')}
-      <th data-tip="Média dos pontos nos dias mostrados">Média</th>
-      <th data-tip="Dias úteis SEGUIDOS com 90+ pontos, contando do mais recente">Sequência</th></tr></thead>
+      ${cols.map(c=>`<th data-tip="${escA(c.tip)}">${esc(c.rot)}</th>`).join('')}
+      <th data-tip="Média dos pontos nas colunas mostradas">Média</th>
+      <th data-tip="${escA(rotSeq.charAt(0).toUpperCase()+rotSeq.slice(1)+' SEGUIDOS com 90+ pontos, contando do mais recente')}">Sequência</th></tr></thead>
     <tbody>${rows||'<tr><td class="mp-dim" colspan="99">Sem pessoas no placar ainda.</td></tr>'}</tbody></table></div>
-    ${ctExpl('cada célula é o <b>score do dia</b>: horas apontadas ÷ meta × 100 (máximo 100), fotografado quando o painel abre <b>no dia seguinte</b> (janela de até 4 dias, para cobrir fins de semana — depois disso o dia fica sem foto, nunca retroativa). Verde 100 = meta batida em dia · amarelo 70–99 · laranja 1–69 · <b>vermelho 0 = nada apontado até a foto</b>. "—" = ausência, feriado, meta isenta ou dia sem foto. A <b>Sequência</b> conta dias seguidos com 90+ — mantenha o 🔥 aceso!')}</div>`;
+    ${ctExpl('cada célula é o <b>score</b>: horas apontadas ÷ meta × 100 (máximo 100), fotografado quando o painel abre <b>no dia seguinte</b> (janela de até 4 dias — depois disso o dia fica sem foto, nunca retroativa). Nas visões <b>por semana</b> e <b>por mês</b>, a célula é a MÉDIA dos dias fotografados do período. Verde 100 = meta batida em dia · amarelo 70–99 · laranja 1–69 · <b>vermelho 0 = nada apontado até a foto</b>. "—" = ausência, feriado, meta isenta ou sem foto. A <b>Sequência</b> conta '+rotSeq+' seguidos com 90+ — mantenha o 🔥 aceso! O 📆 <b>início do placar</b> (gestores) recomeça a contagem: dias anteriores saem do jogo.')}</div>`;
 }
 function renderRanking(){
   const cont=document.getElementById('conteudo');
@@ -15985,7 +16022,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
   ['2026-08-23','🏦 <b>Controladoria de Projetos — margem, custos e esforço por CATEGORIA</b>: nova tela em <b>Gestão → 🏦 Controladoria</b>. Escolha a categoria (AMS, Tarefas Avulsas…) e veja, <b>explicado em bom português</b>: 💰 receita (horas faturáveis × valor-hora do contrato), custo (horas × custo/h de cada pessoa), <b>margem com semáforo</b> (verde ≥30%), <b>custo de gestão</b> (horas dos gestores), 🧩 tipo de esforço, ⏳ <b>quanto do projeto já foi executado</b> (estimado × gasto no Jira) e 📈 evolução mês a mês comparável. <b>Tudo clicável</b> — linhas, barras e colunas abrem os tickets, com ações (ficha 🔍, status 🔁, 🛠 Gestão, ➗ Rateio). Os <b>blocos são configuráveis por categoria</b> (gestor) e há avisos quando falta custo/h ou contrato.'],
-  ['2026-08-23','🏅 <b>Scoreboard diário no Ranking — a foto que não muda</b>: o Ranking ganhou um placar que <b>congela a qualidade do apontamento de cada dia útil NO DIA SEGUINTE</b> — apontou atrasado, o score daquele dia fica como estava (é essa disciplina que o placar mede). Pontos = horas ÷ meta × 100; células coloridas por dia, 🥇🥈🥉 pela média, <b>Sequência 🔥</b> de dias com 90+, e o histórico fica guardado para o time (120 dias).'],
+  ['2026-08-24','🏅 <b>Scoreboard no Ranking — agora por dia, semana e mês, com início configurável</b>: o placar <b>congela a qualidade do apontamento de cada dia útil NO DIA SEGUINTE</b> (apontou atrasado, o score daquele dia fica como estava — é essa disciplina que ele mede). Agora dá para ver <b>📅 por dia · 🗓 por semana · 📆 por mês</b> (semana/mês mostram a média dos dias fotografados) e os gestores definem a <b>📆 data de início do placar</b> — dias anteriores saem do jogo, ideal para "zerar" e recomeçar a contagem. Pontos = horas ÷ meta × 100; 🥇🥈🥉 pela média, <b>Sequência 🔥</b> e histórico do time (120 dias).'],
   ['2026-08-20','🤖 <b>Análise por IA do planejado × realizado</b>: os <b>📊 Relatórios do planejamento</b> (menu Planejamento e aba Relatórios do Meu Planejamento) ganharam o card <b>🤖 Análise da IA</b> — um clique e a IA lê os números do recorte atual (totais, situação dos planos, pessoas, projetos e semanas, respeitando os filtros) e devolve <b>resumo executivo, destaques com sinal</b> (✅ positivo · ▪️ neutro · ⚠️ atenção), <b>análise por pessoa</b> e <b>recomendações práticas</b> para a próxima semana. Mudou o filtro? A análise avisa que ficou defasada e regenera em 1 clique. Disponível em todas as audiências (👔 Executiva, 🧑‍💼 Gestor, 👤 Minha visão e 📁 Projetos).'],
   ['2026-08-19','🧭 <b>Radar na tela inicial — combine as informações do seu dia</b>: novo bloco no 🏠 Início que cruza Jira + Clockwork numa lista só de tickets. Escolha o <b>escopo</b> (👤 Meus / 👥 Time), os <b>eventos</b> (🆕 criados · ✅ concluídos · 🔁 status movidos · ✏️ editados · 💬 comentados · ⏱ horas apontadas · ⏰ vencendo — cada chip mostra a contagem) e o <b>período</b> (hoje/ontem/7 dias) — ex.: <b>"meus tickets criados hoje"</b>. Cada linha traz resumo, projeto, hora e ficha 🔍; a combinação fica salva no navegador e pode ser enviada com 1 clique para a <b>🛠 Gestão</b> (já filtrada) ou para o <b>➗ Rateio</b>.'],
   ['2026-08-18','➗ <b>Rateio — apontamento em massa</b>: nova tela em <b>👤 Meu trabalho → ➗ Rateio de horas</b>. Cole vários tickets de uma vez (aceita lista, vírgulas e até links do Jira), informe as <b>horas totais</b> (ex.: 5h) e escolha como dividir: <b>⚖️ igual</b>, <b>% percentual</b>, <b>🍕 fatias</b> (dê mais fatias a quem levou mais esforço) ou <b>✏️ manual</b> — a soma fecha <b>exata</b> com o total e uma barra colorida mostra a divisão. O botão <b>🔎 Conferir no Jira</b> traz resumo/status de cada ticket e avisa se algum código não existe; depois é 1 clique para apontar tudo (com reenvio só dos que falharem) e dá para <b>🔁 alterar o status de todos em conjunto</b>. Atalhos: botão ➗ na tela Apontar e ação em massa na 🛠 Gestão.'],
@@ -16096,7 +16133,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-23.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-24.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -16556,6 +16593,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   else if(t.hasAttribute('data-rk-faixa')){ estado.ranking.faixa=t.getAttribute('data-rk-faixa'); escondeTip(); renderRanking(); }
   else if(t.hasAttribute('data-rk-refaixa')){ const fx=t.getAttribute('data-rk-refaixa');
     delete estado.ranking.tempoPer[fx]; renderRanking(); }
+  else if(t.hasAttribute('data-sc-gran')){ estado.ranking=estado.ranking||{};
+    estado.ranking.scGran=t.getAttribute('data-sc-gran'); escondeTip(); renderRanking(); }
   else if(t.id==='cf-abrir-metas'||t.id==='cf-abrir-metas-oc'){ abreMetas(); }
   else if(t.id==='cf-abrir-log'){ abreLogAcoes(); }
   else if(t.hasAttribute('data-cf-aloc')){ const v=t.getAttribute('data-cf-aloc');
@@ -17255,6 +17294,15 @@ document.getElementById('conteudo').addEventListener('input',(e)=>{
   if(e.target&&e.target.id==='gx-busca'){ buscaComposta(e,(v)=>{ estado.gestao.busca=v; },renderGestao,'gx-busca'); }
 });
 // ---- 🏦 Controladoria: período, categoria, blocos por categoria e drill ----
+// 🏅 Scoreboard — data de início do placar (gestores; vale para o time)
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||t.id!=='sc-inicio') return;
+  cfg.scoreInicio=/^\d{4}-\d{2}-\d{2}$/.test(t.value||'')?t.value:'';
+  salvaCfg();
+  toast(cfg.scoreInicio?`📆 Placar valendo a partir de ${fmtBR(cfg.scoreInicio)} — dias anteriores saem do jogo.`
+    :'📆 Início do placar removido — todo o histórico guardado volta a contar.','ok');
+  renderRanking();
+});
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='controladoria') return;
   const ct=estado.ctrl; const t=e.target; if(!t) return;
