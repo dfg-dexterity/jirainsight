@@ -1575,6 +1575,11 @@
   .rt-bad{background:rgba(210,10,10,.12);color:#B91C1C}
   /* 🧭 Radar do dia — separador entre grupos de chips */
   .rad-sep{width:1px;align-self:stretch;background:var(--linha);margin:0 4px}
+  /* 📉 Barra de diferença (planejado × realizado) por projeto */
+  .mp-difbar{min-width:90px;height:10px;border-radius:5px;background:var(--linha);overflow:hidden}
+  .mp-difbar i{display:block;height:100%;border-radius:5px}
+  .mp-difbar i.acima{background:#E76500}
+  .mp-difbar i.abaixo{background:#7E8E9E}
   /* 🔀 Transformar chamado em atividade */
   .trf-plano{border-radius:10px;padding:10px 14px;margin:4px 0 10px;line-height:1.5;font-size:13.5px}
   .trf-plano.ok{background:rgba(24,137,24,.10);border-left:4px solid #188918}
@@ -4118,10 +4123,28 @@ function mpGaranteRel(forca){
   }).catch(e=>{ mp.relB=0; mp.rel={chave, erro:humanizaErro(e)}; if(estado.vista==='minhasemana'||estado.vista==='planrel') mpReRender(); });
   return false;
 }
+// ⚠️ Um plano por PESSOA + SEMANA: fica o VIGENTE (maior versão; empate pela
+// atualização/envio mais recente). Se a base tiver mais de uma linha para a
+// mesma pessoa/semana (corrida ao salvar, importação, legado), o relatório
+// SOMAVA os dois planejamentos e inflava o "planejado" — aqui só o último vale.
+function mpPlanoMaisNovo(a,b){
+  const va=Number(a.versao)||1, vb=Number(b.versao)||1;
+  if(va!==vb) return va>vb?a:b;
+  const qa=String(a.atualizadoEm||a.enviadoEm||''), qb=String(b.atualizadoEm||b.enviadoEm||'');
+  if(qa!==qb) return qa>qb?a:b;
+  return String(a.id||'')>=String(b.id||'')?a:b;   // desempate estável
+}
+function mpPlanosVigentes(planos){
+  const por={};
+  (planos||[]).forEach(p=>{ if(!p) return;
+    const k=`${p.accountId}|${p.semana}`;
+    por[k]=por[k]?mpPlanoMaisNovo(p,por[k]):p; });
+  return Object.values(por);
+}
 function mpRelDados(){
   const mp=estado.minhasemana; const f=mp.relF; const r=mp.rel;
   if(!r||r.erro) return null;
-  let planos=r.planos||[];
+  let planos=mpPlanosVigentes(r.planos||[]);
   const ini=mpInicioVig();
   if(ini) planos=planos.filter(p=>(p.semana||'')>=ini);
   if(f.usuario) planos=planos.filter(p=>p.accountId===f.usuario);
@@ -4177,10 +4200,10 @@ function mpRenderRelatorios(aud){
   // pessoa) · proj (foco projeto a projeto). Cada uma mostra só o que interessa.
   const AUD=['exec','gestor','minha','proj'].includes(aud)?aud:'gestor';
   const S={
-    exec:  {kpi:1,sit:1,vproj:1,evol:1,desv:1},
-    gestor:{fUser:1,fProj:1,fStatus:1,fIni:1,kpi:1,sit:1,quem:1,pess:1,vproj:1,evol:1,g2:1,desv:1,tabs:1},
+    exec:  {kpi:1,sit:1,time:1,difpj:1,vproj:1,evol:1,desv:1},
+    gestor:{fUser:1,fProj:1,fStatus:1,fIni:1,kpi:1,sit:1,quem:1,time:1,difpj:1,pess:1,vproj:1,evol:1,g2:1,desv:1,tabs:1},
     minha: {kpi:1,pess:1,evol:1},
-    proj:  {fProj:1,kpi:1,vproj:1,evol:1,g2:1,desv:1,tabProj:1},
+    proj:  {fProj:1,kpi:1,difpj:1,vproj:1,evol:1,g2:1,desv:1,tabProj:1},
   }[AUD];
   const mp=estado.minhasemana; const f=mp.relF;
   if(AUD==='minha'){ const idm=idApontar(); if(idm&&idm.accountId) f.usuario=idm.accountId; }
@@ -4280,7 +4303,7 @@ function mpRenderRelatorios(aud){
     ${S.sit?mpgStatus(stCount):''}
     ${(()=>{ if(!S.quem) return ''; // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
       const ini2=mpInicioVig();
-      const todos=((r&&r.planos)||[]).filter(p=>!ini2||(p.semana||'')>=ini2);
+      const todos=mpPlanosVigentes((r&&r.planos)||[]).filter(p=>!ini2||(p.semana||'')>=ini2);
       if(!todos.length) return '';
       const bloco=Object.entries(MP_STATUS).map(([st,rot])=>{
         const ps=todos.filter(p=>p.status===st); if(!ps.length) return '';
@@ -4291,6 +4314,8 @@ function mpRenderRelatorios(aud){
               ${esc((p.nome||p.email||p.accountId).split(' ')[0])} · ${esc(fmtBR(p.semana).slice(0,5))}${(p.versao||1)>1?` · v${p.versao}`:''}</button>`).join(' ')}</div>`;
       }).join('');
       return `<div><h3 class="mp-h3">Quem está em cada situação <span class="mp-dim">clique num nome para filtrar tudo por ele</span></h3>${bloco}</div>`; })()}
+    ${(S.time&&!f.usuario)?mpQuemPlanejou(dados,f):''}
+    ${S.difpj?mpDifProjetos(porP):''}
     ${(S.pess&&f.usuario)?mpRelPessoaBloco(dados,f,porSem,nome):''}
     ${(()=>{ if(!S.vproj) return ''; // 📁 visão geral por projeto — cartões clicáveis (drill até os tickets)
       const cards=Object.entries(porP).sort((x,y)=>(y[1].plan+y[1].real)-(x[1].plan+x[1].real)).map(([pj,v])=>{
@@ -4355,6 +4380,85 @@ function mpReRender(){ if(estado.vista==='planrel') renderPlanRel(); else render
 // 👤 Visão analítica do planejamento de UMA pessoa (aparece ao filtrar por usuário):
 // KPIs próprios + trajetória semana a semana (status do plano, planejado × realizado,
 // execução) + contagem de semanas SEM plano no intervalo (respeitando o início da apuração).
+// 🏆 QUEM PLANEJOU MELHOR — visão de TIME do comparativo. Três medidas simples,
+// todas explicadas na tela (nada de "métrica mágica"):
+//   • Precisão  = o quanto o planejado bateu com o realizado (100 = fez exatamente
+//                 o que planejou; erra para mais OU para menos, cai igual);
+//   • Aderência = quanto do que a pessoa realizou estava no plano (trabalhou no
+//                 que combinou?);
+//   • Cobertura = em quantas semanas do período ela entregou plano.
+// Score = média de precisão e aderência, ponderada pela cobertura.
+function mpPrecisao(plan,real){ if(!(plan>0)) return null;
+  return Math.max(0,Math.round(100-Math.abs(real-plan)/plan*100)); }
+function mpQuemPlanejou(dados, f){
+  const nomes={}; (dados.planos||[]).forEach(p=>{ nomes[p.accountId]=p.nome||p.email||p.accountId; });
+  // semanas do período (para a cobertura) e semanas com plano por pessoa
+  const sems=[]; { let w=semChave(f.de); const ate=semChave(f.ate); let n=0;
+    while(w<=ate&&n<60){ sems.push(w); w=mtsSoma(w,7); n+=1; } }
+  const ini=mpInicioVig();
+  const semsVal=sems.filter(w=>!ini||w>=semChave(ini));
+  const comPlano={}; (dados.planos||[]).forEach(p=>{ (comPlano[p.accountId]=comPlano[p.accountId]||new Set()).add(p.semana); });
+  const agg={};
+  const pega=(a)=>agg[a]||(agg[a]={a,plan:0,real:0,realNoPlano:0});
+  Object.entries(dados.plan).forEach(([k,h])=>{ pega(k.split('|')[0]).plan+=h; });
+  Object.entries(dados.real).forEach(([k,h])=>{ const a=k.split('|')[0];
+    if(!dados.accsComPlano.has(a)) return;            // só quem participa do planejamento
+    const o=pega(a); o.real+=h; if((dados.plan[k]||0)>0) o.realNoPlano+=h; });
+  const linhas=Object.values(agg).filter(o=>o.plan>0||o.real>0).map(o=>{
+    const prec=mpPrecisao(o.plan,o.real);
+    const ader=o.real>0?Math.round(o.realNoPlano/o.real*100):null;
+    const nSem=(comPlano[o.a]||new Set()).size;
+    const cob=semsVal.length?Math.round(nSem/semsVal.length*100):null;
+    const base=(prec==null||ader==null)?null:Math.round((prec+ader)/2*(cob==null?1:Math.min(1,cob/100)));
+    return {...o, nome:nomes[o.a]||o.a, prec, ader, nSem, cob, score:base};
+  }).sort((x,y)=>(y.score==null?-1:y.score)-(x.score==null?-1:x.score)||y.plan-x.plan);
+  if(!linhas.length) return '';
+  const med=['🥇','🥈','🥉'];
+  const cor=(v)=>v==null?'na':(v>=80?'ok':(v>=50?'aten':'crit'));
+  const rows=linhas.map((l,i)=>`<tr data-mpdrill="a=${escA(l.a)}" class="ct-click" role="button" tabindex="0"
+      data-tip="${escA(`${l.nome} — clique para ver os tickets do realizado`)}">
+    <td>${med[i]||(i+1)+'º'} ${esc(l.nome)}</td>
+    <td class="num">${l.nSem}${semsVal.length?`/${semsVal.length}`:''}</td>
+    <td class="num">${mpH(l.plan)}</td><td class="num">${mpH(l.real)}</td>
+    <td class="num">${l.plan>0?Math.round(l.real/l.plan*100)+'%':'—'}</td>
+    <td class="num"><span class="ct-sem ${cor(l.prec)}">${l.prec==null?'—':l.prec+'%'}</span></td>
+    <td class="num"><span class="ct-sem ${cor(l.ader)}">${l.ader==null?'—':l.ader+'%'}</span></td>
+    <td class="num"><b>${l.score==null?'—':l.score}</b></td></tr>`).join('');
+  return `<div><h3 class="mp-h3">🏆 Quem planejou melhor <span class="mp-dim">o time no comparativo — clique numa linha para ver os tickets da pessoa</span></h3>
+    <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th>
+      <th class="num" data-tip="Semanas com plano entregue ÷ semanas do período">Semanas</th>
+      <th class="num">Planejado</th><th class="num">Realizado</th>
+      <th class="num" data-tip="Realizado ÷ planejado">Execução</th>
+      <th class="num" data-tip="O quanto o planejado bateu com o realizado — 100% = planejou exatamente o que fez (errar para mais ou para menos pesa igual)">Precisão</th>
+      <th class="num" data-tip="Quanto do que a pessoa realizou estava no plano — mede se ela trabalhou no que combinou">Aderência</th>
+      <th class="num" data-tip="Média de precisão e aderência, ponderada pelas semanas com plano">Score</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    ${ctExpl('<b>Precisão</b> premia quem acerta o tamanho do próprio plano (estourar 30% pesa igual a ficar 30% abaixo). <b>Aderência</b> mostra se as horas foram para o que estava combinado. O <b>Score</b> junta as duas e desconta quem deixou semanas sem plano — é o ranking de <b>quem planeja melhor</b>, não de quem trabalha mais.')}</div>`;
+}
+// 📉 MAIORES DIFERENÇAS POR PROJETO — com o percentual de eficiência de cada um.
+function mpDifProjetos(porP){
+  const linhas=Object.entries(porP).map(([pj,v])=>({pj,plan:v.plan,real:v.real,dif:v.real-v.plan,
+      efi:mpPrecisao(v.plan,v.real)}))
+    .filter(x=>Math.abs(x.dif)>0.009||x.plan>0)
+    .sort((a,b)=>Math.abs(b.dif)-Math.abs(a.dif)).slice(0,12);
+  if(!linhas.length) return '';
+  const maxDif=Math.max(...linhas.map(x=>Math.abs(x.dif)),0.01);
+  const cor=(v)=>v==null?'na':(v>=80?'ok':(v>=50?'aten':'crit'));
+  const rows=linhas.map(x=>`<tr data-mpdrill="pj=${escA(x.pj)}" class="ct-click" role="button" tabindex="0"
+      data-tip="${escA(`${projNome(x.pj)} — clique para ver os tickets do realizado`)}">
+    <td data-tip="${escA(x.pj)}">${esc(projNome(x.pj))}</td>
+    <td class="num">${mpH(x.plan)}</td><td class="num">${mpH(x.real)}</td>
+    <td class="num"><b class="${x.dif>0?'mp-mais':'mp-ok'}">${x.dif>0?'+':''}${mpH(x.dif)}</b></td>
+    <td><div class="mp-difbar"><i class="${x.dif>0?'acima':'abaixo'}" style="width:${(Math.abs(x.dif)/maxDif*100).toFixed(1)}%"></i></div></td>
+    <td class="num"><span class="ct-sem ${cor(x.efi)}">${x.efi==null?'—':x.efi+'%'}</span></td>
+    <td class="mp-dim small">${x.plan<=0?'realizado sem plano':(x.dif>0?'passou do plano':(x.dif<0?'ficou abaixo':'no alvo'))}</td></tr>`).join('');
+  return `<div><h3 class="mp-h3">📉 Maiores diferenças por projeto <span class="mp-dim">onde o plano mais se distanciou da realidade — clique para ver os tickets</span></h3>
+    <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Planejado</th><th class="num">Realizado</th>
+      <th class="num">Diferença</th><th></th>
+      <th class="num" data-tip="100% = o realizado bateu com o planejado; quanto mais longe (para mais ou para menos), menor">Eficiência</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    ${ctExpl('a <b>diferença</b> é realizado − planejado em horas (a barra compara o tamanho dos desvios entre si). A <b>eficiência</b> é o mesmo desvio em percentual: <b>100% = o plano acertou</b>; 50% significa que errou metade do tamanho planejado — para mais ou para menos. Projeto com "realizado sem plano" é trabalho que aconteceu fora do planejamento.')}</div>`;
+}
 function mpRelPessoaBloco(dados, f, porSem, nomeFn){
   const a=f.usuario; if(!a) return '';
   const planos=(dados.planos||[]).filter(p=>p.accountId===a);
@@ -4886,6 +4990,7 @@ const ROADMAP=[
   { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
   { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
   { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
+  { s:'avaliacao', t:'🏆 Planejamento — histórico do score e meta de precisão', d:'Guardar a evolução do score de planejamento por pessoa (como o Scoreboard faz com o apontamento) e permitir uma meta de precisão por time, com destaque de quem melhorou mais no período.' },
   { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
   { s:'avaliacao', t:'🏅 Scoreboard — campeão do mês e aviso no Teams', d:'Fechar um pódio mensal a partir do scoreboard diário (medalhas, campeão do mês) e comemorar automaticamente no canal do Teams; badge pessoal de sequência (🔥) no Início.' },
 ];
@@ -16243,6 +16348,8 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-24','🐛 <b>Correção no planejado × realizado: o total somava planos repetidos</b>. Quando existia mais de um registro de planejamento para a MESMA pessoa na MESMA semana, os relatórios somavam todos e o "planejado" ficava inflado. Agora vale só o <b>plano vigente</b> (a versão mais recente) — KPIs, gráficos, tabelas e o comparativo por pessoa passam a bater com o que foi realmente planejado.'],
+  ['2026-08-24','🏆 <b>Quem planejou melhor + eficiência por projeto</b>: os 📊 Relatórios do planejamento ganharam a <b>visão de time</b>. O bloco <b>🏆 Quem planejou melhor</b> ranqueia as pessoas por <b>precisão</b> (o quanto o plano bateu com o realizado — errar para mais pesa igual a errar para menos), <b>aderência</b> (quanto do que foi feito estava no plano) e <b>semanas com plano</b>, combinando tudo num <b>Score</b> com 🥇🥈🥉. E <b>📉 Maiores diferenças por projeto</b> mostra onde o plano mais se distanciou da realidade, com a <b>diferença em horas</b> e o <b>% de eficiência</b> de cada projeto. Tudo clicável até o ticket.'],
   ['2026-08-24','🔀 <b>Transformar chamado em atividade</b>: pegue um chamado que virou "atividade de outro" e leve-o para dentro do chamado certo. Informe <b>origem</b> e <b>destino</b> e o painel decide sozinho: se o destino <b>aceita sub-tarefa</b>, cria a <b>sub-tarefa</b> dentro dele (com a descrição e o histórico da origem) e leva as <b>horas</b> para lá; se <b>não aceita</b> (é sub-tarefa, é épico ou o projeto não tem esse tipo), lança as horas como <b>apontamento no próprio destino</b> com <b>todos os detalhes no comentário</b> (origem, resumo, quem apontou quanto). Ainda comenta na origem dizendo para onde foi e, se você quiser, <b>encerra a origem</b>. Está na ficha 🔍 do ticket, na 🛠 Gestão (por linha e em massa).'],
   ['2026-08-24','🧭 <b>Menu superior arrumado</b>: os grupos do menu agora cabem em <b>uma faixa só</b> (encolhem antes de quebrar a linha) e <b>Período · ↻ Atualizar · ⬇ Exportar · 🌙 · ⋯ Mais</b> passaram a viver numa <b>barra de ferramentas própria</b>, com o "Atualizado em…" alinhado à direita — acabou aquela quebra solta em três linhas.'],
   ['2026-08-23','🏦 <b>Controladoria de Projetos — margem, custos e esforço por CATEGORIA</b>: nova tela em <b>Gestão → 🏦 Controladoria</b>. Escolha a categoria (AMS, Tarefas Avulsas…) e veja, <b>explicado em bom português</b>: 💰 receita (horas faturáveis × valor-hora do contrato), custo (horas × custo/h de cada pessoa), <b>margem com semáforo</b> (verde ≥30%), <b>custo de gestão</b> (horas dos gestores), 🧩 tipo de esforço, ⏳ <b>quanto do projeto já foi executado</b> (estimado × gasto no Jira) e 📈 evolução mês a mês comparável. <b>Tudo clicável</b> — linhas, barras e colunas abrem os tickets, com ações (ficha 🔍, status 🔁, 🛠 Gestão, ➗ Rateio). Os <b>blocos são configuráveis por categoria</b> (gestor) e há avisos quando falta custo/h ou contrato.'],
@@ -16357,7 +16464,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-24.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-24.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
