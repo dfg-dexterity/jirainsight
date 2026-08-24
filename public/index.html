@@ -1554,6 +1554,43 @@
   .rt-fat{min-width:20px;text-align:center;display:inline-block}
   .rt-fora td{opacity:.55}
   .rt-bad{background:rgba(210,10,10,.12);color:#B91C1C}
+  /* 🧭 Radar do dia — separador entre grupos de chips */
+  .rad-sep{width:1px;align-self:stretch;background:var(--linha);margin:0 4px}
+  /* 🏦 Controladoria de Projetos */
+  .ct-expl{margin-top:8px;padding:8px 12px;border-left:4px solid var(--cerceta);background:var(--hoverbg);border-radius:6px;font-size:12.5px;line-height:1.45}
+  .ct-kl{font-weight:400;font-size:10.5px;opacity:.75;margin-top:2px;line-height:1.25}
+  .ct-sem{font-weight:800;padding:1px 8px;border-radius:999px}
+  .ct-sem.ok{background:rgba(24,137,24,.14);color:#188918}
+  .ct-sem.aten{background:rgba(232,163,61,.18);color:#8A5200}
+  .ct-sem.crit{background:rgba(210,10,10,.12);color:#B91C1C}
+  .ct-sem.na{background:var(--hoverbg)}
+  .ct-click{cursor:pointer}
+  tr.ct-click:hover td{background:var(--hoverbg)}
+  .ct-tb{display:flex;align-items:center;gap:10px;margin-top:6px;border-radius:8px;padding:2px 4px}
+  .ct-tb:hover{background:var(--hoverbg)}
+  .ct-tb-l{min-width:150px;font-size:13px}
+  .ct-tb-bar{flex:1;height:14px;border-radius:7px;background:var(--linha);overflow:hidden}
+  .ct-tb-bar i{display:block;height:100%;background:var(--cerceta);border-radius:7px}
+  .ct-tb-v{min-width:120px;text-align:right;font-size:13px;white-space:nowrap}
+  .ct-cfg{margin-top:10px;border:1px dashed var(--linha);border-radius:10px;padding:8px 12px}
+  .ct-cfg summary{cursor:pointer;font-weight:700}
+  /* 🏅 Scoreboard diário do Ranking */
+  .sc-tab td,.sc-tab th{text-align:center;padding:4px 6px}
+  .sc-tab td:first-child,.sc-tab th:first-child{text-align:left;white-space:nowrap}
+  .sc-cell{display:inline-block;min-width:34px;padding:2px 4px;border-radius:6px;font-weight:700;font-size:12px}
+  .sc-100{background:rgba(24,137,24,.18);color:#188918}
+  .sc-70{background:rgba(232,163,61,.2);color:#8A5200}
+  .sc-1{background:rgba(231,101,0,.16);color:#B45309}
+  .sc-0{background:rgba(210,10,10,.12);color:#B91C1C}
+  .sc-na{background:var(--hoverbg);color:var(--muted)}
+  /* 🤖 Análise da IA nos relatórios do planejamento */
+  .mp-iacard{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;margin:10px 0;background:var(--cartao)}
+  .mp-ia-res{margin-top:4px}
+  .mp-ia-dest{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:10px}
+  .mp-ia-d{border-left:4px solid var(--linha);border-radius:6px;padding:6px 10px;background:var(--hoverbg)}
+  .mp-ia-p{margin-top:5px}
+  .mp-ia-recs{margin-top:10px}
+  .mp-ia-recs ul{margin:4px 0 0;padding-left:20px}
   .gx-acts{display:inline-flex;gap:4px;flex-wrap:wrap}
   .gx-acts button{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);
     font-size:10.5px;font-weight:700;padding:2px 8px;cursor:pointer;white-space:nowrap}
@@ -2128,6 +2165,7 @@
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões (gestão)</button>
           <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
           <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
+          <button data-v="controladoria"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria</button>
         </div>
       </div>
       <div class="navg">
@@ -2246,6 +2284,10 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
     convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{} },
+  // 🏦 Controladoria de Projetos: período próprio, categoria ativa e caches
+  // (worklogs do período + consolidado do Jira p/ execução do esforço).
+  ctrl:{ de:'', ate:'', cat:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
+    proj:null, projB:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
   // igual / percentual / fatias (pesos) / manual; status trocado em conjunto.
   rateio:{ texto:'', tickets:[], info:{}, naoEnc:[], conferindo:false, confErro:'',
@@ -2275,7 +2317,10 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     rasc:null, rascW:'', sujo:false, salvando:false, form:null,
     real:{}, realB:{}, pend:null, pendB:0, rel:null, relB:0,
     relF:{de:'',ate:'',usuario:'',projeto:'',status:''} },
-  acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'' },
+  acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'',
+    // 🧭 Radar do dia: preferências (escopo × eventos × período) + caches próprios
+    // (atividade janela 7d e worklogs 7d — independentes do período global).
+    rad:null, radAtv:null, radAtvB:false, radAtvErro:'', radT:null, radTB:false },
   gestao:{ ate:'', dados:null, carregando:false, erro:'', sel:{}, busca:'', fProj:'', fResp:'', fStatus:'', vis:'tabela', preset:'', ord:'risco', semTrat:false,
     soKeys:null, origem:'',     // filtro por chaves vindo do 📈 Analytics (soKeys=[...], origem=nome da visão)
     agrupar:'' },               // '', resp, proj, tipo, status, prio, epico, venc, risco
@@ -2317,6 +2362,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
+  ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
+  scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
   reuniao:{ facilitador:'Jéssica Cavalheiro', ultimaReuniao:'', ataUltimaUrl:'', prioridades:{},
@@ -2714,7 +2761,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 // Telas operacionais/formulário (apontar, planejar, gestão…) têm controles próprios: nada disso aparece.
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
-  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1},
+  ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
@@ -4068,6 +4115,36 @@ function mpRelDados(){
     real[`${x.a}|${d}|${pj}`]=(real[`${x.a}|${d}|${pj}`]||0)+(Number(x.s)||0)/3600; });
   return { planos, plan, real, pessoas:r.pessoas||{}, accsComPlano };
 }
+// 🤖 Renderiza a análise da IA (resumo + destaques + por pessoa + recomendações).
+function mpIaHtml(r){
+  const cor=(s)=>s==='positivo'?'#188918':(s==='atencao'?'#B91C1C':'var(--muted)');
+  const ic=(s)=>s==='positivo'?'✅':(s==='atencao'?'⚠️':'▪️');
+  return `<div class="mp-ia">
+    <div class="mp-ia-res">${esc(r.resumo||'')}</div>
+    ${(r.destaques||[]).length?`<div class="mp-ia-dest">${r.destaques.map(d=>
+      `<div class="mp-ia-d" style="border-left-color:${cor(d.sinal)}"><b>${ic(d.sinal)} ${esc(d.titulo||'')}</b><div class="small">${esc(d.texto||'')}</div></div>`).join('')}</div>`:''}
+    ${(r.pessoas||[]).length?`<div style="margin-top:10px"><b class="small">Por pessoa</b>${r.pessoas.map(p=>
+      `<div class="mp-ia-p small">${ic(p.sinal)} <b>${esc(p.nome||'')}</b> — ${esc(p.analise||'')}</div>`).join('')}</div>`:''}
+    ${(r.recomendacoes||[]).length?`<div class="mp-ia-recs"><b class="small">Recomendações</b><ul>${r.recomendacoes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+    <div class="mp-dim small" style="margin-top:6px">Gerada por IA a partir dos números do recorte — confira antes de decidir.</div>
+  </div>`;
+}
+// Pede a análise ao servidor (/api/resumo?acao=planrel) com o recorte agregado.
+// A resposta fica presa à CHAVE do recorte: mudou filtro/período, pede-se de novo.
+async function mpIaAnalisa(regenerar){
+  const mp=estado.minhasemana; const ia=mp.ia=mp.ia||{res:null,chave:'',carregando:false,erro:''};
+  if(!mp.iaCtx||ia.carregando) return;
+  ia.carregando=true; ia.erro=''; const chave=mp.iaCtx.chave;
+  mpReRender();
+  try{
+    const j=await fetch('/api/resumo?acao=planrel',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({...mp.iaCtx.payload,...(regenerar?{nocache:1}:{})})}).then(r=>r.json());
+    ia.carregando=false;
+    if(j&&j.ok&&j.analise){ ia.res=j.analise; ia.chave=chave; }
+    else ia.erro=(j&&j.erro)||'Não foi possível gerar a análise agora.';
+  }catch(e){ ia.carregando=false; ia.erro='Erro de rede: '+String(e.message||e); }
+  if(estado.vista==='planrel'||estado.vista==='minhasemana') mpReRender();
+}
 function mpRenderRelatorios(aud){
   // Audiências: gestor (completa) · exec (resumo de alto nível) · minha (a própria
   // pessoa) · proj (foco projeto a projeto). Cada uma mostra só o que interessa.
@@ -4129,6 +4206,23 @@ function mpRenderRelatorios(aud){
   const totReal=Object.values(porU).reduce((s,v)=>s+v.real,0);
   const stCount={elaboracao:0,enviado:0,aprovado:0,devolvido:0};
   dados.planos.forEach(p=>{ if(stCount[p.status]!=null) stCount[p.status]++; });
+  // 🤖 Contexto da análise por IA: o MESMO recorte agregado que o relatório mostra,
+  // compactado (a chave detecta mudança de filtros e invalida a análise anterior).
+  (()=>{ const arr2=(m)=>Object.entries(m).sort((x,y)=>(y[1].plan+y[1].real)-(x[1].plan+x[1].real));
+    mp.iaCtx={ payload:{
+      periodo:{ de:f.de, ate:f.ate, semanas:Object.keys(porSem).length },
+      audiencia:AUD,
+      filtros:{ usuario:f.usuario?nome(f.usuario):'', projeto:f.projeto?projNome(f.projeto):'', status:f.status||'' },
+      totais:{ planejadoH:+totPlan.toFixed(1), realizadoH:+totReal.toFixed(1),
+        execucaoPct:totPlan>0?Math.round(totReal/totPlan*100):null,
+        realizadoNaoPlanejadoH:+rnp.toFixed(1), planejadoNaoRealizadoH:+pnr.toFixed(1) },
+      statusPlanos:stCount,
+      pessoas:arr2(porU).slice(0,25).map(([a2,v])=>({ nome:nome(a2), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1),
+        status:[...new Set((dados.planos||[]).filter(p=>p.accountId===a2).map(p=>p.status))].join(', ') })),
+      projetos:arr2(porP).slice(0,20).map(([pj,v])=>({ projeto:projNome(pj), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1) })),
+      semanas:Object.entries(porSem).sort().map(([w2,v])=>({ semana:fmtBR(w2), plan:+v.plan.toFixed(1), real:+v.real.toFixed(1) })),
+    }};
+    mp.iaCtx.chave=JSON.stringify(mp.iaCtx.payload); })();
   const tab=(titulo, mapa, rot)=>`<div><h3 class="mp-h3">${titulo} <span class="mp-dim">clique numa linha para ver os tickets</span></h3>
     <table class="mp-tab-mini"><thead><tr><th>${rot}</th><th class="num">Planejado</th><th class="num">Realizado</th><th class="num">Dif.</th><th class="num">Execução</th></tr></thead>
     <tbody>${Object.entries(mapa).sort((a,b)=>b[1].plan-a[1].plan).map(([k,v])=>{
@@ -4146,6 +4240,16 @@ function mpRenderRelatorios(aud){
       <div class="mp-kpi mp-kpi-click" data-mp-rdrill="pnr" title="Clique para ver O QUE estava no plano e ficou sem horas (pessoa → projeto → dia)"><div class="v">${mpH(pnr)} 🔎</div><div class="l">Planejado não realizado</div></div>
       <div class="mp-kpi"><div class="v">${stCount.enviado} · ${stCount.aprovado} · ${stCount.devolvido}</div><div class="l">Pendentes · Aprovados · Devolvidos</div></div>
     </div>
+    ${(()=>{ // 🤖 Análise da IA — lê o recorte atual e devolve destaques + recomendações
+      const ia=mp.ia=mp.ia||{res:null,chave:'',carregando:false,erro:''};
+      const atual=!!(ia.res&&ia.chave===mp.iaCtx.chave);
+      const corpo=ia.carregando?'<div class="estado">🤖 Analisando o planejado × realizado deste recorte…</div>'
+        :ia.erro?`<div class="erro">${esc(ia.erro)}</div><div style="margin-top:8px"><button class="mp-btn" data-mp-ia="1">Tentar de novo</button></div>`
+        :atual?(mpIaHtml(ia.res)+'<div style="margin-top:8px"><button class="chip" data-mp-ia="1" data-mp-ia-re="1">↻ Regenerar análise</button></div>')
+        :`<div class="mp-dim">${ia.res?'Os filtros mudaram desde a última análise — gere de novo para refletir o recorte atual.'
+            :'A IA lê os números deste relatório (totais, situação dos planos, pessoas, projetos e semanas do recorte atual) e devolve uma análise com destaques e recomendações práticas.'}</div>
+          <div style="margin-top:8px"><button class="mp-btn" data-mp-ia="1">🤖 Analisar com IA</button></div>`;
+      return `<div class="mp-iacard"><h3 class="mp-h3">🤖 Análise da IA <span class="mp-dim">planejado × realizado do recorte atual</span></h3>${corpo}</div>`; })()}
     ${S.sit?mpgStatus(stCount):''}
     ${(()=>{ if(!S.quem) return ''; // 👥 QUEM está em cada situação — clique filtra o relatório pela pessoa
       const ini2=mpInicioVig();
@@ -4440,7 +4544,7 @@ document.addEventListener('drop',(e)=>{
   toast(`↔ "${esc((it.descricao||'atividade').slice(0,40))}" foi de ${fmtBR(de).slice(0,5)} para ${fmtBR(d).slice(0,5)}.`,'ok');
 });
 document.addEventListener('click', async (e)=>{
-  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mpdrill],[data-plr-aud]');
+  const t=e.target.closest&&e.target.closest('[data-mp-nav],[data-mp-aba],[data-mp-add],[data-mp-editar],[data-mp-rem],[data-mp-dup],[data-mp-sobe],[data-mp-desce],[data-mp-enviar],[data-mp-retirar],[data-mp-reabrir],[data-mp-copiar],[data-mp-rotina],[data-mp-legado],[data-mp-cancelaform],[data-mp-recarregar],[data-mp-recreal],[data-mp-repend],[data-mp-aprovar],[data-mp-devolver],[data-mp-devconf],[data-mp-dupconf],[data-mp-rotconf],[data-mp-fechamodal],[data-mp-relatualiza],[data-mp-relcsv],[data-mp-mover],[data-mp-movdia],[data-mp-rsem],[data-mp-ruser],[data-mp-rdrill],[data-mp-rgran],[data-mp-ia],[data-mpdrill],[data-plr-aud]');
   if(!t) return;
   const mp=estado.minhasemana; const id=idApontar();
   if(t.hasAttribute('data-mp-fechamodal')){ fechaModal(); return; }
@@ -4560,6 +4664,7 @@ document.addEventListener('click', async (e)=>{
     mp.relF.usuario=(mp.relF.usuario===a?'':a); mpReRender(); return; }
   if(t.hasAttribute('data-mp-rdrill')){ mpAbreDrill(t.getAttribute('data-mp-rdrill')); return; }
   if(t.hasAttribute('data-mp-rgran')){ mp.relGran=t.getAttribute('data-mp-rgran')||'sem'; mpReRender(); return; }
+  if(t.hasAttribute('data-mp-ia')){ mpIaAnalisa(t.hasAttribute('data-mp-ia-re')); return; }
   if(t.hasAttribute('data-plr-aud')){ estado.planrel.aud=t.getAttribute('data-plr-aud');
     if(estado.planrel.aud!=='minha'&&mp.relF.usuario&&estado.planrel.aud!=='gestor') mp.relF.usuario='';
     estadoParaURL(); mpReRender(); return; }
@@ -4751,6 +4856,10 @@ const ROADMAP=[
   { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
   { s:'avaliacao', t:'📱 Aplicativo nas lojas (App Store / Play)', d:'A versão instalável (PWA) já cobre iPhone/iPad pela Tela de Início; publicar nas lojas exigiria empacotar com Capacitor e conta Apple Developer — avaliar se há demanda real.' },
   { s:'avaliacao', t:'➗ Rateio — modelos salvos e rateio recorrente', d:'Guardar composições de rateio usadas com frequência (mesmos tickets + mesma divisão) para repetir com 1 clique — evolução natural do ➗ Rateio de horas entregue em 2026-08-18.' },
+  { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
+  { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
+  { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
+  { s:'avaliacao', t:'🏅 Scoreboard — campeão do mês e aviso no Teams', d:'Fechar um pódio mensal a partir do scoreboard diário (medalhas, campeão do mês) e comemorar automaticamente no canal do Teams; badge pessoal de sequência (🔥) no Início.' },
 ];
 function renderRoadmap(){
   const cont=document.getElementById('conteudo');
@@ -5255,6 +5364,7 @@ function render(){
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
+  if(estado.vista==='controladoria') return renderControladoria();
   if(estado.vista==='planrel') return renderPlanRel();
   if(estado.vista==='alocacao') return renderIndisponivel('alocacao');
   if(estado.vista==='planejamento') return renderIndisponivel('planejamento');
@@ -5694,6 +5804,84 @@ function axVariacao(counts){
   const ant=Object.keys(hist).filter(d=>d<hoje).sort().pop();
   return { ant, de: ant?hist[ant]:null };
 }
+// ---- 🧭 Radar do dia: COMBINE informações (escopo × eventos × período) ----
+// Cruza os eventos do Jira (/api/atividade, janela 7d), as horas do Clockwork e os
+// vencimentos numa lista única de tickets — ex.: "meus tickets criados hoje" ou
+// "tudo que o time concluiu e apontou ontem". A combinação fica salva no navegador.
+const RAD_EVS=[
+  ['criados','🆕 Criados','🆕 criado'],
+  ['concluidos','✅ Concluídos','✅ concluído'],
+  ['status','🔁 Status movidos','🔁 status'],
+  ['editados','✏️ Editados','✏️ editado'],
+  ['comentados','💬 Comentados','💬 comentário'],
+  ['apontados','⏱ Horas apontadas',''],
+  ['vencem','⏰ Vencendo',''],
+];
+const RAD_KEY='jirainsight_radar_v1';
+function radPrefs(){
+  const ax=estado.acoes;
+  if(!ax.rad){
+    let sv=null; try{ sv=JSON.parse(localStorage.getItem(RAD_KEY)||'null'); }catch(e){}
+    ax.rad=(sv&&sv.ev)?sv:{ esc:'meus', per:'hoje', ev:{criados:1,concluidos:1} };
+  }
+  return ax.rad;   // sem identidade o cálculo cai para "time" (sem mutar a preferência)
+}
+function radSalva(){ try{ localStorage.setItem(RAD_KEY, JSON.stringify(estado.acoes.rad)); }catch(e){} }
+function radGarante(){
+  const ax=estado.acoes;
+  if(!ax.radAtv&&!ax.radAtvB&&!ax.radAtvErro){ ax.radAtvB=true;
+    fetch('/api/atividade?janela=7d').then(r=>r.json()).then(j=>{ ax.radAtvB=false;
+      if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
+  if(!ax.radT&&!ax.radTB){ ax.radTB=true;
+    const h=hojeSP();
+    fetch(`/api/tempo?desde=${voltaDias(h,6)}&ate=${h}`).then(r=>r.json()).then(j=>{ ax.radTB=false;
+      if(j&&!j.erro) ax.radT=j;
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(()=>{ ax.radTB=false; }); }
+}
+function radRange(per){
+  const h=hojeSP();
+  if(per==='ontem'){ const o=voltaDias(h,1); return [o,o]; }   // somaDias não anda p/ trás
+  if(per==='7d') return [voltaDias(h,6),h];
+  return [h,h];
+}
+// Junta tudo por ticket no escopo/período: lista dos eventos LIGADOS + contagem
+// de tickets distintos por evento (para os chips mostrarem o que existe).
+function radDados(){
+  const ax=estado.acoes; const rad=radPrefs(); const id=idApontar();
+  const acc=(id&&id.accountId)||'';
+  const [de,ate]=radRange(rad.per);
+  const meu=rad.esc==='meus'&&!!acc;   // "meus" exige identidade; sem ela vale o time
+  const por={}; const cont={}; RAD_EVS.forEach(([e])=>{ cont[e]=0; });
+  const abre=(k,p)=>por[k]||(por[k]={k,p:p||'',evs:{},seg:0,ult:'',venc:''});
+  const EV_DE={criado:'criados',concluido:'concluidos',transicao:'status',alteracao:'editados',comentario:'comentados'};
+  (((ax.radAtv&&ax.radAtv.eventos))||[]).forEach(ev=>{
+    const dia=String(ev.d||'').slice(0,10); if(dia<de||dia>ate) return;
+    if(meu&&ev.a!==acc) return;
+    const nome=EV_DE[ev.e]; if(!nome) return;
+    const r=abre(ev.k,ev.p); r.evs[nome]=(r.evs[nome]||0)+1;
+    if(String(ev.d)>r.ult) r.ult=String(ev.d);
+  });
+  (((ax.radT&&ax.radT.worklogs))||[]).forEach(w=>{
+    const dia=String(w.d||'').slice(0,10); if(dia<de||dia>ate||!w.k) return;
+    if(meu&&w.a!==acc) return;
+    const r=abre(w.k,w.p); r.evs.apontados=(r.evs.apontados||0)+1; r.seg+=Number(w.s)||0;
+    if(String(w.d||'')>r.ult) r.ult=String(w.d||'');
+  });
+  (((ax.venc&&ax.venc.tickets))||[]).forEach(t=>{
+    if(!t.venc||t.venc<de||t.venc>ate) return;
+    if(meu&&t.respId!==acc) return;
+    const r=abre(t.k,t.p); r.evs.vencem=1; r.venc=t.venc;
+    if(!r.ult) r.ult=t.venc;
+  });
+  Object.values(por).forEach(r=>{ Object.keys(r.evs).forEach(e=>{ if(cont[e]!=null) cont[e]+=1; }); });
+  const ligados=RAD_EVS.map(([e])=>e).filter(e=>rad.ev[e]);
+  const lista=Object.values(por).filter(r=>ligados.some(e=>r.evs[e]))
+    .sort((a,b)=>String(b.ult).localeCompare(String(a.ult)));
+  return {cont,lista,de,ate};
+}
 function renderAcoes(){
   const cont=document.getElementById('conteudo');
   const ax=estado.acoes; const hoje=hojeSP();
@@ -5986,6 +6174,51 @@ function renderAcoes(){
     heroHtml=`<div class="card full"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance (horas, vencidos, plano da semana…)</span></h2>
       <div style="margin-top:8px"><button class="btn primario" data-ap-act="config-id">Identificar-se (e-mail + token do Jira)</button></div></div>`;
   }
+  // ---- 🧭 Radar do dia: combinador de informações ----
+  radGarante();
+  const rad=radPrefs(); const rd=radDados();
+  const radResumoDe=(k)=>((ax.radAtv&&ax.radAtv.resumos&&ax.radAtv.resumos[k])
+    ||(ax.radT&&ax.radT.resumos&&ax.radT.resumos[k])
+    ||(((tks||[]).find(t2=>t2.k===k)||{}).resumo)||'');
+  const radCarr=(!ax.radAtv&&!ax.radAtvErro)||(!ax.radT&&ax.radTB);
+  const radEscEf=id?rad.esc:'time';   // efetivo: sem identidade só existe "time"
+  const chipsEsc=[['meus','👤 Meus'],['time','👥 Time']].map(([v,r])=>
+    `<button class="chip" aria-pressed="${radEscEf===v}" data-rad-esc="${v}" ${v==='meus'&&!id?'disabled data-tip="Identifique-se para combinar as SUAS informações"':''}>${r}</button>`).join(' ');
+  const chipsPer=[['hoje','Hoje'],['ontem','Ontem'],['7d','Últimos 7 dias']].map(([v,r])=>
+    `<button class="chip" aria-pressed="${rad.per===v}" data-rad-per="${v}">${r}</button>`).join(' ');
+  const chipsEv=RAD_EVS.map(([e,r])=>
+    `<button class="chip" aria-pressed="${!!rad.ev[e]}" data-rad-ev="${e}">${r} <b>${rd.cont[e]}</b></button>`).join(' ');
+  const radRow=(r)=>{
+    const badges=RAD_EVS.filter(([e])=>rad.ev[e]&&r.evs[e]).map(([e,,curto])=>{
+      if(e==='apontados') return `<span class="badge com-horas">⏱ ${fmtH(r.seg)}</span>`;
+      if(e==='vencem') return `<span class="badge ms-b-atra">⏰ ${r.venc===hoje?'vence hoje':(r.venc<hoje?'venceu ':'vence ')+alxDataBR(r.venc)}</span>`;
+      const n2=r.evs[e];
+      return `<span class="badge">${curto}${n2>1?` ×${n2}`:''}</span>`;
+    }).join(' ');
+    const q=r.ult&&r.ult.length>10?` · ${alxDataBR(r.ult.slice(0,10))} ${esc(r.ult.slice(11,16))}`:(r.ult?` · ${alxDataBR(r.ult)}`:'');
+    return `<div class="hxd-row"><a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener"><strong>${esc(r.k)}</strong> ↗</a>
+      <span class="hxd-tit" title="${escA(radResumoDe(r.k))}">${esc(radResumoDe(r.k))}</span>
+      ${badges}
+      <span class="muted small" style="white-space:nowrap">${esc(projNome(r.p))}${q}</span>
+      <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
+  };
+  const radKeys=rd.lista.map(r=>r.k);
+  const cardRadar=`<div class="card full" style="margin-top:14px">
+    <h2>🧭 Radar — combine as informações <span>escopo × eventos × período — ex.: "meus tickets criados hoje" (a combinação fica salva)</span></h2>
+    <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+      ${chipsEsc}<span class="rad-sep"></span>${chipsPer}</div>
+    <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">${chipsEv}</div>
+    ${ax.radAtvErro?`<div class="muted small" style="margin-top:8px;color:#B91C1C">${esc(ax.radAtvErro)} <button class="btn" data-rad-retry>Tentar de novo</button></div>`:''}
+    ${radCarr?'<div class="muted small" style="margin-top:8px">Cruzando Jira + Clockwork…</div>':''}
+    <div style="margin-top:8px">
+      ${rd.lista.length?rd.lista.slice(0,12).map(radRow).join('')+(rd.lista.length>12?`<div class="muted small" style="margin-top:4px">+ ${rd.lista.length-12} ticket(s) — refine a combinação ou abra tudo na Gestão</div>`:'')
+        :(radCarr||ax.radAtvErro?'':'<div class="muted small">Nenhum ticket combina com esses filtros no período — ligue outros eventos acima ou troque o período/escopo.</div>')}
+    </div>
+    ${rd.lista.length?`<div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" data-rad-gestao="${escA(radKeys.slice(0,200).join(','))}" data-tip="Abre a Gestão de Tickets já filtrada por esta combinação">🛠 Abrir na Gestão (${rd.lista.length})</button>
+      <button class="btn" data-rad-rateio="${escA(radKeys.slice(0,100).join(','))}" data-tip="Leva esta combinação para o ➗ Rateio: divida horas ou mude o status em conjunto">➗ Enviar para o Rateio</button>
+    </div>`:''}
+  </div>`;
   // ---- 🚀 atalhos descritivos ----
   const ATALHOS=[
     ['prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
@@ -6007,6 +6240,7 @@ function renderAcoes(){
   </div>`;
   cont.replaceChildren(el(`<div>
     ${heroHtml}
+    ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
       <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><button class="btn" data-hx-goto="visao">📊 Painel executivo completo →</button></div>
@@ -6025,6 +6259,25 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(g==='apontar-semdata'){ estado.apontar.fil='semvenc'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   if(g==='apontar-vencehoje'){ estado.apontar.fil='vencehoje'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
   vaiPara(g);
+});
+// 🧭 Radar do dia — chips (escopo/período/eventos) e ações da combinação
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='acoes') return;
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const rad=radPrefs();
+  if(t.hasAttribute('data-rad-esc')){ rad.esc=t.getAttribute('data-rad-esc'); radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-per')){ rad.per=t.getAttribute('data-rad-per'); radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-ev')){ const ev=t.getAttribute('data-rad-ev');
+    if(rad.ev[ev]) delete rad.ev[ev]; else rad.ev[ev]=1;
+    radSalva(); renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
+    const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
+    const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null;
+    vaiPara('rateio'); rtConfere(); return; }
 });
 function renderVisao(){
   const cont=document.getElementById('conteudo');
@@ -7519,6 +7772,7 @@ function cardPorMesDe(worklogs){
 function renderRankingFaixa(fx){
   const cont=document.getElementById('conteudo');
   const rk=estado.ranking;
+  rkScoreCongela();   // 🏅 fecha a foto dos dias úteis já passados (dia seguinte chegou)
   if(!rkGaranteFaixa(fx)){
     cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips(fx)}
       <div class="estado">Carregando os apontamentos de ${esc(RK_FAIXAS[fx].rot.replace(/^\S+\s/,'').toLowerCase())}…</div></div>`));
@@ -7584,11 +7838,127 @@ function renderRankingFaixa(fx){
       <h2>Ranking · ${esc(RK_FAIXAS[fx].rot.replace(/^\S+\s/,''))} <span>meta ${cfg.metaGlobalH}h/dia (individual em Metas) · descontando feriados e ausências</span></h2>
       <div class="rk-list">${rows||'<div class="estado">Sem pessoas ativas no período.</div>'}</div>
     </div>
+    ${rkScoreboardHTML()}
     ${fx==='ano'?`<div class="card full"><h2>Apontamentos por mês <span>horas do time em cada mês do ano</span></h2>${cardPorMesDe(dados.worklogs)}</div>`:''}
   </div>`));
   rkContaPct();
 }
 
+// 🏅 SCOREBOARD DIÁRIO — a FOTO da qualidade de apontamento de cada dia útil,
+// congelada NO DIA SEGUINTE. Regra do placar: pontos do dia = horas apontadas
+// ÷ meta × 100 (máx. 100), medidos quando o dia seguinte chega. Depois de
+// congelado, o score do dia NÃO muda mais — apontar atrasado não recupera o
+// placar (é exatamente essa disciplina que ele mede). Fica guardado para o
+// time todo em cfg.scoreHist (config compartilhada), com retenção de 120 dias.
+function rkScoreCongela(){
+  try{
+    const t=estado.tempo; if(!t||!t.worklogs||!t.meta) return;
+    // Frescor: só congela com um payload buscado há POUCO (≤2h) — uma aba parada
+    // desde ontem não pode fotografar o dia com dados velhos e faltando horas.
+    const ger=Date.parse((t.meta&&t.meta.geradoEm)||'');
+    if(!ger||Date.now()-ger>2*3600*1000) return;
+    const de=(t.meta.startDate||'').slice(0,10), ate=(t.meta.endDate||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(de)||!/^\d{4}-\d{2}-\d{2}$/.test(ate)) return;
+    const hoje=hojeSP();
+    // Janela de captura: só dias cujo "dia seguinte" é RECENTE (até 4 dias atrás —
+    // cobre fim de semana/feriadão). Dias mais antigos NÃO ganham foto retroativa:
+    // congelar tarde deixaria entrar apontamento atrasado, que é o que o placar mede.
+    let minDia=voltaDias(hoje,4);
+    // 📆 Início do placar (configurável): dias antes do início não são fotografados.
+    const iniSc=(cfg.scoreInicio&&/^\d{4}-\d{2}-\d{2}$/.test(cfg.scoreInicio))?cfg.scoreInicio:'';
+    if(iniSc&&iniSc>minDia) minDia=iniSc;
+    cfg.scoreHist=cfg.scoreHist||{};
+    const oc=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o));
+    const pessoas=Object.keys(pessoasUnidas()).filter(a=>!oc.has(a));
+    if(!pessoas.length) return;
+    const porDia={};
+    t.worklogs.forEach(w=>{ const d2=(w.d||'').slice(0,10);
+      const m2=porDia[d2]=porDia[d2]||{}; m2[w.a]=(m2[w.a]||0)+(Number(w.s)||0); });
+    let mudou=false;
+    for(let d2=(de>minDia?de:minDia); d2<=ate&&d2<hoje; d2=somaDias(d2,1)){
+      if(!ehUtil(d2)||ehFeriado(d2)) continue;
+      if(cfg.scoreHist[d2]) continue;                // a foto de um dia congelado não muda
+      const dia={_q:hoje};
+      pessoas.forEach(a=>{ if(ehAusencia(a,d2)) return;
+        const m=metaSegDe(a);
+        if(!(m>0)) return;                           // meta 0 = pessoa isenta: fora do placar
+        const h=(porDia[d2]||{})[a]||0;
+        dia[a]={p:Math.min(100,Math.round(h/m*100)), h:Math.round(h/60), m:Math.round(m/60)}; });
+      cfg.scoreHist[d2]=dia; mudou=true;
+    }
+    const ks=Object.keys(cfg.scoreHist).sort();
+    while(ks.length>120){ delete cfg.scoreHist[ks.shift()]; mudou=true; }
+    if(mudou) salvaCfg();
+  }catch(e){}
+}
+function rkScoreboardHTML(){
+  const rk=estado.ranking=estado.ranking||{};
+  const gran=['dia','sem','mes'].includes(rk.scGran)?rk.scGran:'dia';
+  const iniSc=(cfg.scoreInicio&&/^\d{4}-\d{2}-\d{2}$/.test(cfg.scoreInicio))?cfg.scoreInicio:'';
+  const sh=cfg.scoreHist||{};
+  const dias=Object.keys(sh).filter(d2=>!iniSc||d2>=iniSc).sort();
+  const gestorEu=(typeof souAprovador==='function')&&souAprovador();
+  const chips=`<div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 8px">
+    ${[['dia','📅 Por dia'],['sem','🗓 Por semana'],['mes','📆 Por mês']].map(([g,r])=>
+      `<button class="chip" aria-pressed="${gran===g}" data-sc-gran="${g}">${r}</button>`).join(' ')}
+    <span class="rad-sep"></span>
+    ${gestorEu?`<label class="muted small" style="display:inline-flex;align-items:center;gap:6px" title="Dias ANTERIORES a esta data ficam fora do placar e não são mais fotografados — use quando o time 'zerar' o jogo e recomeçar a contagem">📆 Início do placar
+      <input type="date" id="sc-inicio" value="${escA(iniSc)}"></label>`
+      :(iniSc?`<span class="muted small">📆 placar valendo desde ${fmtBR(iniSc)}</span>`:'')}
+  </div>`;
+  const cab='<h2>🏅 Scoreboard <span>a foto do apontamento de cada dia útil, tirada NO DIA SEGUINTE — apontar atrasado não muda o placar</span></h2>';
+  if(!dias.length) return `<div class="card full">${cab}${chips}
+    <div class="estado">Ainda sem dias congelados${iniSc?` a partir de ${fmtBR(iniSc)}`:''} — a partir de agora, cada dia útil é fotografado no dia seguinte e fica guardado aqui (o placar começa a valer amanhã).</div></div>`;
+  const oc=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o));
+  const nomes=pessoasUnidas();
+  const pess={};
+  dias.forEach(d2=>{ Object.keys(sh[d2]).forEach(a=>{ if(a!=='_q'&&!oc.has(a)) pess[a]=1; }); });
+  // Colunas por granularidade: dia (últimos 10) · semana (média, últimas 12) · mês (média, últimos 12).
+  let cols;
+  if(gran==='sem'){
+    const g={}; dias.forEach(d2=>{ const w=semChave(d2); (g[w]=g[w]||[]).push(d2); });
+    cols=Object.keys(g).sort().slice(-12).map(w=>{ const s2=isoSemana(w);
+      return { dias:g[w], rot:`S${s2.num}`, tip:`Semana de ${fmtBR(w)} (S${s2.num}/${s2.ano}) — média dos ${g[w].length} dia(s) fotografado(s)` }; });
+  } else if(gran==='mes'){
+    const g={}; dias.forEach(d2=>{ const m2=d2.slice(0,7); (g[m2]=g[m2]||[]).push(d2); });
+    cols=Object.keys(g).sort().slice(-12).map(m2=>({ dias:g[m2], rot:m2.slice(5,7)+'/'+m2.slice(2,4),
+      tip:`Mês ${m2.slice(5,7)}/${m2.slice(0,4)} — média dos ${g[m2].length} dia(s) fotografado(s)` }));
+  } else {
+    cols=dias.slice(-10).map(d2=>({ dias:[d2], rot:fmtBR(d2),
+      tip:'Dia '+fmtBR(d2)+(sh[d2]._q?' — congelado em '+fmtBR(String(sh[d2]._q).slice(0,10)):'') }));
+  }
+  const cor=(p)=>p>=100?'sc-100':(p>=90?'sc-70':(p>=70?'sc-70':(p>0?'sc-1':'sc-0')));
+  // Célula = pontos do dia OU a média dos dias fotografados do período.
+  const celDe=(a,c)=>{
+    const vs=c.dias.map(d2=>sh[d2][a]).filter(Boolean);
+    if(!vs.length) return null;
+    const p=Math.round(vs.reduce((s2,v)=>s2+v.p,0)/vs.length);
+    return { p, n:vs.length, h:vs.reduce((s2,v)=>s2+v.h,0), m:vs.reduce((s2,v)=>s2+v.m,0) };
+  };
+  const linhas=Object.keys(pess).map(a=>{
+    const cels=cols.map(c=>celDe(a,c));
+    const vals=cels.filter(Boolean).map(c=>c.p);
+    const med=vals.length?Math.round(vals.reduce((s2,v)=>s2+v,0)/vals.length):null;
+    let streak=0;
+    for(let i=cels.length-1;i>=0;i--){ const c=cels[i]; if(c==null) continue; if(c.p>=90) streak++; else break; }
+    return { a, nome:(nomes[a]&&nomes[a].nome)||a, cels, med, streak };
+  }).filter(l=>l.med!=null).sort((x,y)=>y.med-x.med||y.streak-x.streak);
+  const rotSeq=gran==='dia'?'dias':(gran==='sem'?'semanas':'meses');
+  const rows=linhas.map((l,i)=>`<tr>
+    <td>${i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':''}${esc(l.nome)}</td>
+    ${l.cels.map((c,j)=>`<td>${c==null
+      ?'<span class="sc-cell sc-na" data-tip="Ausência, feriado, meta isenta ou período sem foto">—</span>'
+      :`<span class="sc-cell ${cor(c.p)}" data-tip="${escA(cols[j].rot+' · '+c.p+' ponto(s)'+(c.n>1?' (média de '+c.n+' dias)':'')+' · '+(Math.round(c.h/6)/10)+'h apontadas de '+(Math.round(c.m/6)/10)+'h de meta')}">${c.p}</span>`}</td>`).join('')}
+    <td><b>${l.med}</b></td>
+    <td>${l.streak>=3?'🔥 ':''}${l.streak}</td></tr>`).join('');
+  return `<div class="card full">${cab}${chips}
+    <div class="scroll-x"><table class="mp-tab-mini sc-tab"><thead><tr><th>Pessoa</th>
+      ${cols.map(c=>`<th data-tip="${escA(c.tip)}">${esc(c.rot)}</th>`).join('')}
+      <th data-tip="Média dos pontos nas colunas mostradas">Média</th>
+      <th data-tip="${escA(rotSeq.charAt(0).toUpperCase()+rotSeq.slice(1)+' SEGUIDOS com 90+ pontos, contando do mais recente')}">Sequência</th></tr></thead>
+    <tbody>${rows||'<tr><td class="mp-dim" colspan="99">Sem pessoas no placar ainda.</td></tr>'}</tbody></table></div>
+    ${ctExpl('cada célula é o <b>score</b>: horas apontadas ÷ meta × 100 (máximo 100), fotografado quando o painel abre <b>no dia seguinte</b> (janela de até 4 dias — depois disso o dia fica sem foto, nunca retroativa). Nas visões <b>por semana</b> e <b>por mês</b>, a célula é a MÉDIA dos dias fotografados do período. Verde 100 = meta batida em dia · amarelo 70–99 · laranja 1–69 · <b>vermelho 0 = nada apontado até a foto</b>. "—" = ausência, feriado, meta isenta ou sem foto. A <b>Sequência</b> conta '+rotSeq+' seguidos com 90+ — mantenha o 🔥 aceso! O 📆 <b>início do placar</b> (gestores) recomeça a contagem: dias anteriores saem do jogo.')}</div>`;
+}
 function renderRanking(){
   const cont=document.getElementById('conteudo');
   rkAnimaEntrada();   // 🌠 a festa começa já na entrada, mesmo com os dados ainda carregando
@@ -7597,6 +7967,7 @@ function renderRanking(){
   rk.faixa=rk.faixa||'semana';
   if(rk.faixa!=='tela') return renderRankingFaixa(rk.faixa);
   const { meta, dias, hoje, linhas } = calcRanking();
+  rkScoreCongela();   // 🏅 fecha a foto dos dias úteis já passados (dia seguinte chegou)
   if(!linhas.length){
     cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips('tela')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
@@ -7659,6 +8030,7 @@ function renderRanking(){
       ${aviso}
       <div class="rk-list">${rows}</div>
     </div>
+    ${rkScoreboardHTML()}
     <div class="card full"><h2>Apontamentos por mês <span>horas lançadas em cada mês</span></h2>${cardPorMes()}</div>
     <div class="card full"><h2>Lacunas por dia da semana <span>onde mais falta apontar</span></h2>${cardHeatSemana()}</div>
   </div>`));
@@ -12274,6 +12646,305 @@ function renderAlocacao(){
   const _gt=cont.querySelector('.gt-scroll');
   if(_gt){ if(_gtSL!=null) _gt.scrollLeft=_gtSL; else { const tp=+(_gt.getAttribute('data-gt-target'))||0; if(tp>0) _gt.scrollLeft=Math.max(0, tp-140); } }
 }
+// ===========================================================================
+// 🏦 CONTROLADORIA DE PROJETOS — visão financeira por CATEGORIA de projeto
+// (AMS, Tarefas Avulsas, …): margem, custo por pessoa, custo de gestão, tipo de
+// esforço, execução do esforço e evolução mensal comparável — tudo com drill
+// até os tickets (com ações) e textos explícitos para quem não vive de métrica.
+// Fontes: worklogs do período (/api/tempo — traz tipo da issue, faturável e a
+// categoria do projeto), custo/h por pessoa (Alocação → cfg.custosPessoa, com
+// custo padrão de fallback), contratos do Admin (valor-hora) e o consolidado
+// do Jira (/api/projetos?visao=1 — estimado × gasto). Os blocos exibidos são
+// CONFIGURÁVEIS por categoria (cfg.ctrl, compartilhado; só gestores editam).
+// ===========================================================================
+const CT_BLOCOS=[
+  ['kpis','💰 KPIs financeiros'],
+  ['proj','📁 Projetos — margem & execução'],
+  ['custopes','👥 Custo por pessoa & custo de gestão'],
+  ['esforco','🧩 Tipo de esforço'],
+  ['evolucao','📈 Evolução no tempo'],
+  ['exec','⏳ Execução do esforço (Jira)'],
+];
+function ctBlocosDe(cat){
+  const c=(((cfg.ctrl||{}).cats)||{})[cat];
+  if(!c) return Object.fromEntries(CT_BLOCOS.map(([k])=>[k,1]));   // sem config: tudo ligado
+  return c;
+}
+function ctCustoDe(a){
+  const ch=ctCustoBase(a);
+  return ch>0?ch:Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+}
+// Quem é GESTOR (cfg.gestores aceita accountId OU e-mail) — as horas dessas
+// pessoas compõem o "custo de gestão" da categoria.
+function ctGestoresSet(pessoas){
+  const gs=(cfg.gestores||[]).map(x=>String((x&&(x.a||x.email))||x||'').trim().toLowerCase()).filter(Boolean);
+  const set=new Set();
+  Object.entries(pessoas||{}).forEach(([a,p])=>{
+    if(gs.includes(String(a).toLowerCase())||(p&&p.email&&gs.includes(String(p.email).toLowerCase()))) set.add(a);
+  });
+  gs.forEach(g=>{ if(/^[\w:-]{10,}$/.test(g)) set.add(g); });
+  return set;
+}
+// Contrato do projeto — se houver mais de um, prefere o que TEM valor-hora.
+function ctContratoDe(p){
+  const cs=(cfg.contratos||[]).filter(c=>c&&(c.projetos||[]).includes(p));
+  return cs.find(c=>Number(c.valorHora)>0)||cs[0]||null;
+}
+// Custo/h PRÓPRIO da pessoa (sem o fallback) — para saber quem está no padrão.
+function ctCustoBase(a){
+  return (typeof alocCustoH==='function')?alocCustoH(a):Math.max(0,Number((cfg.custosPessoa||{})[a])||0);
+}
+function ctPrimeiroDiaMes(off){ const h=hojeSP(); const y=+h.slice(0,4), m=+h.slice(5,7)-1+(off||0);
+  const d=new Date(Date.UTC(y,m,1)); return d.toISOString().slice(0,10); }
+// Busca os worklogs do período (cache pela chave de/até) + consolidado do Jira.
+// Em erro, NÃO refaz sozinho (o botão "Tentar de novo" limpa o erro e refaz) —
+// senão o render re-dispararia o fetch em loop contra a API.
+function ctGarante(){
+  const ct=estado.ctrl;
+  if(!ct.de){ ct.de=ctPrimeiroDiaMes(-2); ct.ate=hojeSP(); }   // padrão: últimos 3 meses (comparável)
+  if(ct.ate<ct.de){ const x=ct.de; ct.de=ct.ate; ct.ate=x; }   // intervalo invertido: corrige
+  if(ct.de<voltaDias(ct.ate,365)) ct.de=voltaDias(ct.ate,365); // teto de 1 ano (limite da API)
+  const chave=ct.de+'|'+ct.ate;
+  if(ct.chaveT!==chave&&!ct.tempoB&&!ct.tempoErro){
+    ct.tempoB=true;
+    fetch(`/api/tempo?desde=${encodeURIComponent(ct.de)}&ate=${encodeURIComponent(ct.ate)}`)
+      .then(r=>r.json()).then(j=>{ ct.tempoB=false;
+        if(j&&!j.erro){ ct.tempo=j; ct.chaveT=chave; } else ct.tempoErro=(j&&j.erro)||'Falha ao ler as horas.';
+        if(estado.vista==='controladoria') renderControladoria();
+      }).catch(e=>{ ct.tempoB=false; ct.tempoErro=String(e.message||e); if(estado.vista==='controladoria') renderControladoria(); });
+  }
+  if(!ct.proj&&!ct.projB){
+    ct.projB=true;
+    fetch('/api/projetos?visao=1').then(r=>r.json()).then(j=>{ ct.projB=false;
+      ct.proj=(j&&!j.erro)?j:{projetos:[],erro:(j&&j.erro)||'Consolidado do Jira indisponível.'};
+      if(estado.vista==='controladoria') renderControladoria();
+    }).catch(e=>{ ct.projB=false; ct.proj={projetos:[],erro:String(e.message||e)};
+      if(estado.vista==='controladoria') renderControladoria(); });
+  }
+}
+// Agregação da categoria ativa: por projeto, por pessoa, por tipo e por mês.
+function ctDados(){
+  const ct=estado.ctrl; const t=ct.tempo; if(!t||ct.chaveT!==(ct.de+'|'+ct.ate)) return null;
+  const projMeta=t.projetos||{};
+  const cats=[...new Set(Object.values(projMeta).map(x=>(x&&x.categoria)||'Sem categoria'))].sort((a,b)=>a.localeCompare(b,'pt'));
+  if(!ct.cat||!cats.includes(ct.cat)) ct.cat=cats[0]||'';
+  const gest=ctGestoresSet(t.pessoas||{});
+  const wl=(t.worklogs||[]).filter(w=>(((projMeta[w.p]||{}).categoria)||'Sem categoria')===ct.cat);
+  const por={}; const porPessoa={}; const porTipo={}; const porMes={}; const semCusto=new Set();
+  let segTot=0,segFat=0,custoTot=0,custoGest=0,recTot=0,temContrato=false;
+  wl.forEach(w=>{
+    const s=Number(w.s)||0; const h=s/3600;
+    const chBase=ctCustoBase(w.a); const ch=chBase>0?chBase:Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+    const custo=h*ch;
+    if(!(chBase>0)) semCusto.add(w.a);   // sem custo PRÓPRIO (mesmo que o padrão cubra)
+    const c=ctContratoDe(w.p); const vh=c?(Number(c.valorHora)||0):0;
+    const rec=(w.f&&vh)?h*vh:0; if(vh) temContrato=true;   // receita = horas FATURÁVEIS × valor-hora do contrato
+    const P=por[w.p]=por[w.p]||{p:w.p,seg:0,segFat:0,custo:0,custoGest:0,rec:0,temC:!!vh,pessoas:new Set(),tipos:{}};
+    P.seg+=s; if(w.f) P.segFat+=s; P.custo+=custo; P.rec+=rec; P.pessoas.add(w.a);
+    P.tipos[w.t||'—']=(P.tipos[w.t||'—']||0)+s;
+    const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,gestor:gest.has(w.a)};
+    U.seg+=s; U.custo+=custo;
+    porTipo[w.t||'—']=(porTipo[w.t||'—']||0)+s;
+    const mes=(w.d||'').slice(0,7);
+    const M=porMes[mes]=porMes[mes]||{custo:0,rec:0,seg:0};
+    M.custo+=custo; M.rec+=rec; M.seg+=s;
+    segTot+=s; if(w.f) segFat+=s; custoTot+=custo; recTot+=rec;
+    if(gest.has(w.a)){ custoGest+=custo; P.custoGest+=custo; }
+  });
+  return { cats, wl, por, porPessoa, porTipo, porMes, semCusto, segTot, segFat,
+    custoTot, custoGest, recTot, temContrato, projMeta, pessoas:t.pessoas||{}, resumos:t.resumos||{}, gest };
+}
+// Linha "como ler" — a explicação explícita que acompanha cada bloco.
+const ctExpl=(txt)=>`<div class="ct-expl">ℹ️ <b>Como ler:</b> ${txt}</div>`;
+const ctPct=(n,d)=>d>0?Math.round(n/d*100):null;
+function ctSemaforo(mgp){ return mgp==null?['—','na']:(mgp>=30?['saudável','ok']:(mgp>=10?['apertada','aten']:['no vermelho','crit'])); }
+function renderControladoria(){
+  const cont=document.getElementById('conteudo');
+  const ct=estado.ctrl;
+  ctGarante();
+  const d=ctDados();
+  const filtros=`<div class="ap-filtros">
+    <div class="campo"><label>De</label><input type="date" id="ct-de" value="${escA(ct.de||'')}"></div>
+    <div class="campo"><label>Até</label><input type="date" id="ct-ate" value="${escA(ct.ate||'')}"></div>
+    <div class="campo"><label>Atalhos</label><div class="ap-chips">
+      <button class="chip" data-ct-per="mes">Este mês</button>
+      <button class="chip" data-ct-per="3m">Últimos 3 meses</button>
+      <button class="chip" data-ct-per="6m">Últimos 6 meses</button>
+      <button class="chip" data-ct-per="ano">Este ano</button></div></div>
+  </div>`;
+  if(!d){
+    cont.replaceChildren(el(`<div><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
+      ${filtros}
+      ${ct.tempoErro?`<div class="erro">${esc(ct.tempoErro)} <button class="btn" id="ct-retry">Tentar de novo</button></div>`
+        :'<div class="estado">Carregando as horas do período…</div>'}</div></div>`));
+    return;
+  }
+  const S=ctBlocosDe(ct.cat);
+  const gestorEu=(typeof souAprovador==='function')&&souAprovador();
+  const nomeDe=(a)=>((d.pessoas[a]&&d.pessoas[a].nome)||a);
+  const chipsCat=d.cats.map(c=>{ const n=Object.values(d.projMeta).filter(x=>((x&&x.categoria)||'Sem categoria')===c).length;
+    return `<button class="chip" aria-pressed="${ct.cat===c}" data-ct-cat="${escA(c)}">${esc(c)} <b>${n}</b></button>`; }).join(' ');
+  const margem=d.recTot-d.custoTot;
+  const mgp=ctPct(margem,d.recTot);
+  const [mgRot,mgCls]=ctSemaforo(mgp);
+  const custoPadrao=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+  const avisos=[];
+  if(d.semCusto.size&&!custoPadrao) avisos.push(`⚠ <b>${d.semCusto.size} pessoa(s) sem custo/h cadastrado</b> (${[...d.semCusto].slice(0,4).map(a=>esc(nomeDe(a).split(' ')[0])).join(', ')}${d.semCusto.size>4?'…':''}) — as horas delas entram com custo R$ 0 e a margem fica MELHOR do que é. ${gestorEu?'Cadastre no <b>⚙️ abaixo</b> (custo por pessoa ou custo padrão).':'Peça a um gestor para cadastrar no ⚙️ desta tela.'}`);
+  else if(d.semCusto.size&&custoPadrao) avisos.push(`ℹ️ ${d.semCusto.size} pessoa(s) sem custo/h próprio — usando o custo padrão de ${fmtBRL(custoPadrao)}/h (marcadas como "padrão" na tabela de custo por pessoa).`);
+  if(!d.temContrato) avisos.push('⚠ <b>Nenhum projeto desta categoria tem contrato com valor-hora</b> no Admin — sem valor-hora não há receita nem margem (os custos continuam valendo). Cadastre em Contratos (Admin).');
+  const kpis=S.kpis?`<div class="kpis ts-kpis">
+      <div class="kpi t"><div class="v">${fmtH(d.segTot)}</div><div class="l">Horas realizadas<div class="ct-kl">todo o trabalho apontado na categoria</div></div></div>
+      <div class="kpi t"><div class="v">${d.recTot?fmtBRL(d.recTot):'—'}</div><div class="l">Receita estimada<div class="ct-kl">horas faturáveis × valor-hora do contrato</div></div></div>
+      <div class="kpi w"><div class="v">${fmtBRL(d.custoTot)}</div><div class="l">Custo estimado<div class="ct-kl">horas × custo/h de cada pessoa</div></div></div>
+      <div class="kpi ${mgCls==='ok'?'t':'w'}"><div class="v">${mgp==null?'—':mgp+'%'}</div><div class="l">Margem — ${mgRot}<div class="ct-kl">${d.recTot?`sobra ${fmtBRL(margem)} da receita`:'precisa de contrato com valor-hora'}</div></div></div>
+      <div class="kpi w"><div class="v">${fmtBRL(d.custoGest)}</div><div class="l">Custo de gestão<div class="ct-kl">horas dos gestores (${ctPct(d.custoGest,d.custoTot)==null?'—':ctPct(d.custoGest,d.custoTot)+'%'} do custo)</div></div></div>
+      <div class="kpi t"><div class="v">${ctPct(d.segFat,d.segTot)==null?'—':ctPct(d.segFat,d.segTot)+'%'}</div><div class="l">Horas faturáveis<div class="ct-kl">parte do esforço que gera receita</div></div></div>
+    </div>
+    ${ctExpl('a <b>margem</b> é o que sobra da receita depois de pagar o custo das horas — <b>≥30% saudável</b> · 10–29% apertada · &lt;10% no vermelho. Receita usa só as horas FATURÁVEIS (o tipo do ticket define); custo usa TODAS as horas. Valores são estimativas a partir do custo/h cadastrado e do valor-hora dos contratos.')}`:'';
+  // 📁 por projeto — margem, execução do esforço, pessoas e AÇÕES (drill)
+  const projRows=Object.values(d.por).sort((a,b)=>b.custo-a.custo).map(P=>{
+    const m2=P.rec-P.custo; const mp2=ctPct(m2,P.rec); const [rot2,cls2]=ctSemaforo(mp2);
+    const cons=(ct.proj&&ct.proj.projetos||[]).find(x=>x.key===P.p);
+    const execu=cons&&Number(cons.estH)>0?Math.round(Number(cons.gastoH)/Number(cons.estH)*100):null;
+    const conc=cons&&Number(cons.total)>0?Math.round(Number(cons.concluidos)/Number(cons.total)*100):null;
+    return `<tr class="ct-click" data-ct-drill="pj=${escA(P.p)}" role="button" tabindex="0" data-tip="${escA(projNome(P.p)+' — clique para ver os tickets do realizado, com ações')}">
+      <td data-tip="${escA(P.p)}">${esc(projNome(P.p))}</td>
+      <td class="num">${fmtH(P.seg)}</td>
+      <td class="num">${fmtBRL(P.custo)}</td>
+      <td class="num">${P.temC?fmtBRL(P.rec):'<span class="muted" data-tip="Projeto sem contrato com valor-hora no Admin">—</span>'}</td>
+      <td class="num"><span class="ct-sem ${cls2}">${mp2==null?'—':mp2+'%'}</span> <span class="muted small">${rot2}</span></td>
+      <td class="num" data-tip="Horas já gastas ÷ estimativa dos tickets no Jira (todo o histórico do projeto)">${execu==null?'—':execu+'%'}</td>
+      <td class="num" data-tip="Tickets concluídos ÷ total do projeto no Jira">${conc==null?'—':conc+'%'}</td>
+      <td class="num">${P.pessoas.size}</td></tr>`;
+  }).join('');
+  const blocoProj=S.proj?`<div class="card full"><h2>📁 Projetos da categoria <span>clique numa linha para os tickets — de lá dá para agir (ficha, status, Gestão, Rateio)</span></h2>
+    <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Horas</th><th class="num">Custo</th><th class="num">Receita</th><th class="num">Margem</th><th class="num">Esforço executado</th><th class="num">Concluído</th><th class="num">Pessoas</th></tr></thead>
+    <tbody>${projRows||'<tr><td colspan="8" class="mp-dim">Sem horas na categoria neste período.</td></tr>'}</tbody></table></div>
+    ${ctExpl('<b>Esforço executado</b> compara as horas já gastas com a estimativa dos tickets no Jira (histórico do projeto inteiro, não só o período) — acima de 100% significa que o projeto já custou mais esforço do que o previsto. <b>Concluído</b> é a % de tickets fechados.')}</div>`:'';
+  // 👥 custo por pessoa + custo de gestão
+  const pesRows=Object.values(d.porPessoa).sort((a,b)=>b.custo-a.custo).map(U=>{
+    const chB=ctCustoBase(U.a); const ch=ctCustoDe(U.a);
+    return `<tr class="ct-click" data-ct-drill="a=${escA(encodeURIComponent(U.a))}" role="button" tabindex="0">
+      <td>${esc(nomeDe(U.a))} ${U.gestor?'<span class="badge" data-tip="Pessoa listada como gestora — as horas dela compõem o custo de gestão">🧑‍💼 gestão</span>':''}</td>
+      <td class="num">${fmtH(U.seg)}</td>
+      <td class="num">${ch>0?fmtBRL(ch)+'/h'+(chB>0?'':' <span class="muted small" data-tip="Sem custo próprio — usando o custo padrão do ⚙️">(padrão)</span>'):'<span class="muted" data-tip="Sem custo/h cadastrado nem custo padrão — entra como R$ 0">—</span>'}</td>
+      <td class="num"><b>${fmtBRL(U.custo)}</b></td>
+      <td class="num">${ctPct(U.custo,d.custoTot)==null?'—':ctPct(U.custo,d.custoTot)+'%'}</td></tr>`;
+  }).join('');
+  const blocoPes=S.custopes?`<div class="card full"><h2>👥 Custo por pessoa <span>quem carrega o custo da categoria — clique numa linha para os tickets da pessoa</span></h2>
+    <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th class="num">Horas</th><th class="num">Custo/h</th><th class="num">Custo no período</th><th class="num">% do custo</th></tr></thead>
+    <tbody>${pesRows}</tbody></table></div>
+    ${ctExpl(`o <b>custo de gestão</b> (${fmtBRL(d.custoGest)}) soma as horas de quem está na lista de gestores (⚙️ Configurações → Meu Planejamento — gestores). O custo/h de cada pessoa é cadastrado no <b>⚙️ desta tela</b> (gestores); quem não tem, usa o custo padrão${custoPadrao?` (${fmtBRL(custoPadrao)}/h)`:' (não definido)'}.`)}</div>`:'';
+  // 🧩 tipo de esforço
+  const tiposOrd=Object.entries(d.porTipo).sort((a,b)=>b[1]-a[1]);
+  const maxTipo=Math.max(1,...tiposOrd.map(([,s])=>s));
+  const blocoTipo=S.esforco?`<div class="card full"><h2>🧩 Tipo de esforço <span>em que TIPO de trabalho as horas foram — clique numa barra para os tickets</span></h2>
+    ${tiposOrd.map(([tp,s])=>`<div class="ct-tb ct-click" data-ct-drill="tipo=${escA(encodeURIComponent(tp))}" role="button" tabindex="0" data-tip="${escA(tp+' · '+fmtH(s)+' ('+(ctPct(s,d.segTot)||0)+'% do esforço) — clique para ver os tickets')}">
+      <div class="ct-tb-l">${esc(tp)}</div>
+      <div class="ct-tb-bar"><i style="width:${(s/maxTipo*100).toFixed(1)}%"></i></div>
+      <div class="ct-tb-v">${fmtH(s)} <span class="muted small">(${ctPct(s,d.segTot)||0}%)</span></div></div>`).join('')}
+    ${ctExpl('o tipo vem do TICKET no Jira (Tarefa, Bug, Reunião, Sub-tarefa…). Muita hora em <b>Reunião</b> ou em <b>Bug</b> conta uma história diferente de horas em Tarefa — e os tipos definem também o que é faturável.')}</div>`:'';
+  // 📈 evolução mensal comparável (receita × custo, % = margem do mês)
+  const meses=Object.keys(d.porMes).sort();
+  const maxMes=Math.max(0.01,...meses.map(m=>Math.max(d.porMes[m].custo,d.porMes[m].rec)));
+  const mesAtual=hojeSP().slice(0,7);
+  const colsMes=meses.map(m=>{ const v=d.porMes[m]; const mg2=v.rec-v.custo; const mp3=ctPct(mg2,v.rec);
+    const parcial=m===mesAtual;
+    const rot=m.slice(5,7)+'/'+m.slice(2,4)+(parcial?'*':'');
+    return `<div class="mpg-c mpg-click" data-ct-drill="mes=${escA(m)}" role="button" tabindex="0"
+      data-tip="${escA(`${rot}${parcial?' (mês PARCIAL — ainda em andamento)':''} · receita ${fmtBRL(v.rec)} · custo ${fmtBRL(v.custo)} · margem ${mp3==null?'—':mp3+'%'} · ${fmtH(v.seg)} — clique para os tickets do mês`)}">
+      <div class="mpg-cb"><i class="plan" style="height:${(v.rec/maxMes*100).toFixed(1)}%"></i><i class="real" style="height:${(v.custo/maxMes*100).toFixed(1)}%"></i></div>
+      <div class="mpg-rot"><b>${esc(rot)}</b>${mp3==null?'—':mp3+'%'}</div></div>`; }).join('');
+  const blocoEvo=S.evolucao?`<div class="card full"><div class="mpg" role="img" aria-label="Evolução mensal de receita e custo">
+    ${mpgCab('📈 Evolução no tempo','receita × custo mês a mês — o número embaixo é a MARGEM do mês; * = mês parcial (em andamento); clique numa coluna para os tickets',
+      '<div class="mpg-leg"><span><i class="mpg-sw plan"></i>Receita</span><span><i class="mpg-sw real"></i>Custo</span></div>')}
+    <div class="mpg-cols">${colsMes||'<div class="mp-vazio">Sem meses no período.</div>'}</div></div>
+    ${ctExpl('compare os meses lado a lado: barras de <b>receita</b> encolhendo ou de <b>custo</b> crescendo mudam a margem — o ideal é a margem estável ou subindo mês a mês.')}</div>`:'';
+  // ⏳ execução do esforço (Jira, projeto inteiro)
+  const consProjs=S.exec?((ct.proj&&ct.proj.projetos)||[]).filter(x=>Object.keys(d.por).includes(x.key)):[];
+  const blocoExec=S.exec?`<div class="card full"><h2>⏳ Execução do esforço <span>estimado × já gasto no Jira — o histórico completo de cada projeto</span></h2>
+    ${consProjs.length?`<div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Estimado (Jira)</th><th class="num">Gasto (Jira)</th><th class="num">Esforço executado</th><th class="num">Tickets concluídos</th></tr></thead>
+      <tbody>${consProjs.map(x=>{ const ex=Number(x.estH)>0?Math.round(Number(x.gastoH)/Number(x.estH)*100):null;
+        const cc=Number(x.total)>0?Math.round(Number(x.concluidos)/Number(x.total)*100):null;
+        return `<tr class="ct-click" data-ct-drill="pj=${escA(x.key)}" role="button" tabindex="0"><td>${esc(x.nome||x.key)}</td>
+          <td class="num">${Number(x.estH)?Number(x.estH).toLocaleString('pt-BR')+'h':'<span class="muted" data-tip="Tickets sem estimativa no Jira">—</span>'}</td>
+          <td class="num">${Number(x.gastoH)?Number(x.gastoH).toLocaleString('pt-BR')+'h':'—'}</td>
+          <td class="num">${ex==null?'—':`<span class="ct-sem ${ex>110?'crit':(ex>90?'aten':'ok')}">${ex}%</span>`}</td>
+          <td class="num">${cc==null?'—':cc+'% ('+x.concluidos+'/'+x.total+')'}</td></tr>`; }).join('')}</tbody></table></div>`
+      :(ct.projB?'<div class="estado">Carregando o consolidado do Jira…</div>':'<div class="mp-dim">Sem dados do Jira para os projetos desta categoria.</div>')}
+    ${ctExpl('<b>quanto do projeto já foi executado</b>: horas gastas ÷ estimativa dos tickets (Jira, histórico completo). Verde até 90%, amarelo até 110%, vermelho acima — vermelho significa que o esforço já passou do previsto; combine com a % de tickets concluídos para saber se está perto do fim ou estourando.')}</div>`:'';
+  // ⚙️ configuração por categoria (gestor)
+  const blocoCfg=gestorEu?`<details class="ct-cfg" ${ct.cfgAberto?'open':''}><summary>⚙️ Configurar os relatórios desta categoria <span class="muted small">(gestores — vale para o time todo)</span></summary>
+    <div class="ap-vis" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      ${CT_BLOCOS.map(([k,rot])=>`<label class="check"><input type="checkbox" data-ct-b="${k}" ${S[k]?'checked':''}> ${rot}</label>`).join('')}
+    </div>
+    <div class="ap-filtros" style="margin-top:8px">
+      <div class="campo"><label>Custo/h padrão (R$) <span class="muted small">para quem não tem custo próprio</span></label>
+        <input type="number" id="ct-custopadrao" min="0" step="10" value="${escA(custoPadrao?String(custoPadrao):'')}" placeholder="ex.: 120"></div>
+    </div>
+    <div style="margin-top:8px"><b class="small">Custo/h por pessoa</b> <span class="muted small">(R$/h — quem trabalhou nesta categoria no período; vazio = usa o custo padrão)</span>
+      <div class="ap-vis" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+        ${Object.keys(d.porPessoa).sort((a,b)=>nomeDe(a).localeCompare(nomeDe(b),'pt')).map(a=>`<label class="small" style="display:inline-flex;align-items:center;gap:6px">${esc(nomeDe(a).split(' ').slice(0,2).join(' '))}
+          <input type="number" data-ct-custo="${escA(a)}" min="0" step="10" style="max-width:96px" placeholder="R$/h" value="${escA(ctCustoBase(a)>0?String(ctCustoBase(a)):'')}"></label>`).join('')}
+      </div></div>
+    <div class="muted small" style="margin-top:8px">Cada CATEGORIA (ex.: AMS, Tarefas Avulsas) pode mostrar um conjunto diferente de blocos — desligue o que não faz sentido para aquele tipo de projeto. Tudo aqui fica salvo para o time.</div>
+  </details>`:'';
+  cont.replaceChildren(el(`<div>
+    <div class="card full"><h2>🏦 Controladoria de Projetos <span>${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))} · a saúde financeira de cada categoria, explicada</span></h2>
+      ${filtros}
+      <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">Categoria:</span>${chipsCat}</div>
+      <details class="ct-cfg"><summary>❓ Como ler este relatório <span class="muted small">(para quem não vive de métricas)</span></summary>
+        <div class="muted small" style="margin-top:6px;line-height:1.5">
+        • <b>Receita</b> = horas faturáveis × valor-hora do contrato (Admin → Contratos). Sem contrato, não há receita — só custo.<br>
+        • <b>Custo</b> = horas apontadas × custo/h de cada pessoa (gestores cadastram no ⚙️ desta tela; sem cadastro vale o custo padrão).<br>
+        • <b>Margem</b> = receita − custo. É a "sobra": <b>verde ≥30%</b> · amarelo 10–29% · vermelho &lt;10%.<br>
+        • <b>Custo de gestão</b> = a parte do custo feita pelos gestores (lista de gestores nas Configurações).<br>
+        • <b>Esforço executado</b> = quanto do previsto (estimativas do Jira) já foi consumido.<br>
+        • Tudo é <b>clicável</b>: linhas, barras e colunas abrem os tickets por trás do número — e de lá dá para agir (ficha 🔍, status 🔁, 🛠 Gestão, ➗ Rateio).</div>
+      </details>
+      ${avisos.length?`<div class="aviso" style="margin-top:8px">${avisos.join('<br>')}</div>`:''}
+      ${blocoCfg}
+    </div>
+    ${kpis?`<div class="card full">${kpis}</div>`:''}
+    ${blocoProj}${blocoEvo}${blocoPes}${blocoTipo}${blocoExec}
+  </div>`));
+}
+// 🔎 Drill da controladoria: tickets por trás do número, com AÇÕES.
+// qs: '' (tudo) · pj=KEY · mes=YYYY-MM · tipo=NOME · a=accountId
+function ctAbreTickets(qs){
+  const d=ctDados(); if(!d) return;
+  const f=new URLSearchParams(qs||'');
+  const pj=f.get('pj')||'', mes=f.get('mes')||'', tipo=f.get('tipo')||'', ac=f.get('a')||'';
+  const nomeDe=(a)=>((d.pessoas[a]&&d.pessoas[a].nome)||a);
+  const por={};
+  d.wl.forEach(w=>{
+    if(pj&&w.p!==pj) return;
+    if(mes&&(w.d||'').slice(0,7)!==mes) return;
+    if(tipo&&(w.t||'—')!==tipo) return;
+    if(ac&&w.a!==ac) return;
+    const k=w.k||'(sem ticket)';
+    const r=por[k]=por[k]||{k,p:w.p,t:w.t||'—',seg:0,custo:0,quem:new Set()};
+    r.seg+=Number(w.s)||0; r.custo+=((Number(w.s)||0)/3600)*ctCustoDe(w.a); r.quem.add(w.a);
+  });
+  const lista=Object.values(por).sort((a,b)=>b.seg-a.seg);
+  const keys=lista.map(x=>x.k).filter(k=>/^[A-Z][A-Z0-9_]*-\d+$/.test(k));
+  const tit=[pj?projNome(pj):'',mes?('mês '+mes.slice(5,7)+'/'+mes.slice(0,4)):'',tipo,ac?nomeDe(ac):''].filter(Boolean).join(' · ')||'toda a categoria';
+  const rows=lista.slice(0,120).map(x=>`<tr>
+    <td>${/^[A-Z]/.test(x.k)?`<a href="${jiraBase()}/browse/${encodeURIComponent(x.k)}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>`:esc(x.k)}</td>
+    <td>${esc((d.resumos[x.k]||'').slice(0,70))}</td><td>${esc(x.t)}</td>
+    <td class="num">${fmtH(x.seg)}</td><td class="num">${fmtBRL(x.custo)}</td>
+    <td>${esc([...x.quem].map(a=>nomeDe(a).split(' ')[0]).join(', ').slice(0,60))}</td>
+    <td>${/^[A-Z]/.test(x.k)?`<button class="btn rt-step" data-gx-det="${escA(x.k)}" data-tip="Ficha completa">🔍</button>
+      <button class="btn rt-step" data-gx-st="${escA(x.k)}" data-tip="Alterar o status">🔁</button>`:''}</td></tr>`).join('');
+  abreModal(`<h2>🎫 Tickets — ${esc(tit)} <span class="muted small">${lista.length} ticket(s) · ${esc(fmtBR(estado.ctrl.de))} → ${esc(fmtBR(estado.ctrl.ate))}</span></h2>
+    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini"><thead><tr><th>Ticket</th><th>Resumo</th><th>Tipo</th><th class="num">Horas</th><th class="num">Custo</th><th>Quem</th><th></th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="7" class="mp-dim">Nada aqui.</td></tr>'}</tbody></table></div>
+    ${lista.length>120?`<div class="muted small" style="margin-top:4px">Mostrando os 120 maiores de ${lista.length} tickets — refine pelo drill de um projeto/mês ou abra tudo na Gestão.</div>`:''}
+    <div class="alx-modal-acoes">
+      ${keys.length?`<button class="btn" data-ct-gestao="${escA(keys.slice(0,200).join(','))}">🛠 Abrir na Gestão (${Math.min(keys.length,200)}${keys.length>200?` de ${keys.length}`:''})</button>
+      <button class="btn" data-ct-rateio="${escA(keys.slice(0,100).join(','))}">➗ Enviar para o Rateio${keys.length>100?` (100 de ${keys.length})`:''}</button>`:''}
+      <button class="btn" id="gx-fechar">Fechar</button></div>`);
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -15143,6 +15814,7 @@ const TOUR_TELAS=[
   {vai:'visao',titulo:'📊 Visão Geral (painel executivo)',texto:'A leitura executiva num lugar só: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.'},
   {vai:'minhasemana',titulo:'📋 Meu Planejamento',texto:'Planeje a semana por ATIVIDADE (data + projeto + descrição + horas — sem tickets), envie ao gestor, receba aprovação ou devolução com motivo e compare planejado × realizado por dia e por projeto (realizado do Clockwork). Gestores decidem e tiram relatórios aqui.'},
   {vai:'apontar',titulo:'⏱ Apontar',texto:'O dia a dia: aponte horas (chips 30m/1h/2h ou digitando), mova status, reagende vencimento, comente, transfira responsável e aponte reuniões para várias pessoas. Os 🕑 recentes reapontam com 1 clique.'},
+  {vai:'controladoria',titulo:'🏦 Controladoria de Projetos',texto:'A saúde financeira por CATEGORIA de projeto (AMS, Tarefas Avulsas…), explicada em bom português: receita, custo, MARGEM com semáforo, custo de gestão, tipo de esforço, quanto do projeto já foi executado e evolução mês a mês — tudo clicável até o ticket, com ações (ficha, status, Gestão, Rateio). Blocos configuráveis por categoria.'},
   {vai:'rateio',titulo:'➗ Rateio de horas (apontar em massa)',texto:'Cole VÁRIOS tickets (lista, vírgulas ou links do Jira), informe as horas totais (ex.: 5h) e divida entre eles: ⚖️ igual, % percentual, 🍕 fatias ou ✏️ manual — a soma fecha exata com o total, com barra visual da divisão. Confira resumo/status no Jira antes, aponte tudo em 1 clique (reenvio só dos que falharem) e 🔁 altere o status de todos em conjunto.'},
   {vai:'agenda',titulo:'📅 Agenda (Outlook → ticket)',texto:'Seus eventos do Outlook viram tickets de reunião: crie no projeto certo ou vincule a um ticket existente e convide os participantes internos para apontar. O painel 🎫 Controle de tickets mostra quem deve criar, o que já foi criado (confere no Jira!) e deixa 📨 avisar o organizador pelo Inbox.'},
   {vai:'inbox',titulo:'📥 Inbox',texto:'Tudo que depende de VOCÊ num lugar só: convites de apontamento coletivo, menções sem resposta, reuniões sem ticket (avisos do time) e — para o aprovador — alocações e planos aguardando decisão. O selo vermelho no menu soma as pendências.'},
@@ -15290,6 +15962,7 @@ const NAVCAT=[
   ['reuvinc','🗂 Reuniões — Vincular a tickets','Gestão','teams tickets ams apoio reuniao vincular gestao'],
   ['ams','AMS','Gestão','ciclo faturado banco horas chamados'],
   ['receita','💰 Receita','Gestão','bolsa horas projetos consumo contratado'],
+  ['controladoria','🏦 Controladoria de Projetos','Gestão','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria'],
   ['config','⚙️ Central de configurações','Configurações','config ajustes'],
   ['admin','Contratos (Admin)','Configurações','valores contratos admin'],
   ['acao:metas','🎯 Metas & ausências','Configurações','meta horas feriados ferias ocultar'],
@@ -15348,6 +16021,10 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-23','🏦 <b>Controladoria de Projetos — margem, custos e esforço por CATEGORIA</b>: nova tela em <b>Gestão → 🏦 Controladoria</b>. Escolha a categoria (AMS, Tarefas Avulsas…) e veja, <b>explicado em bom português</b>: 💰 receita (horas faturáveis × valor-hora do contrato), custo (horas × custo/h de cada pessoa), <b>margem com semáforo</b> (verde ≥30%), <b>custo de gestão</b> (horas dos gestores), 🧩 tipo de esforço, ⏳ <b>quanto do projeto já foi executado</b> (estimado × gasto no Jira) e 📈 evolução mês a mês comparável. <b>Tudo clicável</b> — linhas, barras e colunas abrem os tickets, com ações (ficha 🔍, status 🔁, 🛠 Gestão, ➗ Rateio). Os <b>blocos são configuráveis por categoria</b> (gestor) e há avisos quando falta custo/h ou contrato.'],
+  ['2026-08-24','🏅 <b>Scoreboard no Ranking — agora por dia, semana e mês, com início configurável</b>: o placar <b>congela a qualidade do apontamento de cada dia útil NO DIA SEGUINTE</b> (apontou atrasado, o score daquele dia fica como estava — é essa disciplina que ele mede). Agora dá para ver <b>📅 por dia · 🗓 por semana · 📆 por mês</b> (semana/mês mostram a média dos dias fotografados) e os gestores definem a <b>📆 data de início do placar</b> — dias anteriores saem do jogo, ideal para "zerar" e recomeçar a contagem. Pontos = horas ÷ meta × 100; 🥇🥈🥉 pela média, <b>Sequência 🔥</b> e histórico do time (120 dias).'],
+  ['2026-08-20','🤖 <b>Análise por IA do planejado × realizado</b>: os <b>📊 Relatórios do planejamento</b> (menu Planejamento e aba Relatórios do Meu Planejamento) ganharam o card <b>🤖 Análise da IA</b> — um clique e a IA lê os números do recorte atual (totais, situação dos planos, pessoas, projetos e semanas, respeitando os filtros) e devolve <b>resumo executivo, destaques com sinal</b> (✅ positivo · ▪️ neutro · ⚠️ atenção), <b>análise por pessoa</b> e <b>recomendações práticas</b> para a próxima semana. Mudou o filtro? A análise avisa que ficou defasada e regenera em 1 clique. Disponível em todas as audiências (👔 Executiva, 🧑‍💼 Gestor, 👤 Minha visão e 📁 Projetos).'],
+  ['2026-08-19','🧭 <b>Radar na tela inicial — combine as informações do seu dia</b>: novo bloco no 🏠 Início que cruza Jira + Clockwork numa lista só de tickets. Escolha o <b>escopo</b> (👤 Meus / 👥 Time), os <b>eventos</b> (🆕 criados · ✅ concluídos · 🔁 status movidos · ✏️ editados · 💬 comentados · ⏱ horas apontadas · ⏰ vencendo — cada chip mostra a contagem) e o <b>período</b> (hoje/ontem/7 dias) — ex.: <b>"meus tickets criados hoje"</b>. Cada linha traz resumo, projeto, hora e ficha 🔍; a combinação fica salva no navegador e pode ser enviada com 1 clique para a <b>🛠 Gestão</b> (já filtrada) ou para o <b>➗ Rateio</b>.'],
   ['2026-08-18','➗ <b>Rateio — apontamento em massa</b>: nova tela em <b>👤 Meu trabalho → ➗ Rateio de horas</b>. Cole vários tickets de uma vez (aceita lista, vírgulas e até links do Jira), informe as <b>horas totais</b> (ex.: 5h) e escolha como dividir: <b>⚖️ igual</b>, <b>% percentual</b>, <b>🍕 fatias</b> (dê mais fatias a quem levou mais esforço) ou <b>✏️ manual</b> — a soma fecha <b>exata</b> com o total e uma barra colorida mostra a divisão. O botão <b>🔎 Conferir no Jira</b> traz resumo/status de cada ticket e avisa se algum código não existe; depois é 1 clique para apontar tudo (com reenvio só dos que falharem) e dá para <b>🔁 alterar o status de todos em conjunto</b>. Atalhos: botão ➗ na tela Apontar e ação em massa na 🛠 Gestão.'],
   ['2026-08-17','🔓 <b>Relatórios do planejamento abertos para TODO o time</b>: qualquer pessoa identificada acessa <b>Planejamento → 📊 Relatórios do planejamento</b> (e a aba Relatórios do Meu Planejamento) — inclusive a <b>👤 Minha visão</b> com o próprio planejado × realizado dia a dia. A única coisa exclusiva do gestor segue sendo <b>aprovar/devolver</b> planos (aba Aprovações e pendências no Inbox).'],
   ['2026-08-17','🎯 <b>Relatórios do planejamento com visões por AUDIÊNCIA no menu</b>: novo item <b>Planejamento → 📊 Relatórios do planejamento</b> com atalhos direto no menu — <b>👔 Visão executiva</b> (resumo de alto nível), <b>🧑‍💼 Gestor</b> (completa), <b>👤 Minha visão</b> (o SEU planejado × realizado, semana a semana e dia a dia) e <b>📁 Projetos</b> (foco projeto a projeto). Cada visão mostra só o que interessa àquela audiência — sempre com drill até o ticket.'],
@@ -15456,7 +16133,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-18.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-24.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -15916,6 +16593,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   else if(t.hasAttribute('data-rk-faixa')){ estado.ranking.faixa=t.getAttribute('data-rk-faixa'); escondeTip(); renderRanking(); }
   else if(t.hasAttribute('data-rk-refaixa')){ const fx=t.getAttribute('data-rk-refaixa');
     delete estado.ranking.tempoPer[fx]; renderRanking(); }
+  else if(t.hasAttribute('data-sc-gran')){ estado.ranking=estado.ranking||{};
+    estado.ranking.scGran=t.getAttribute('data-sc-gran'); escondeTip(); renderRanking(); }
   else if(t.id==='cf-abrir-metas'||t.id==='cf-abrir-metas-oc'){ abreMetas(); }
   else if(t.id==='cf-abrir-log'){ abreLogAcoes(); }
   else if(t.hasAttribute('data-cf-aloc')){ const v=t.getAttribute('data-cf-aloc');
@@ -15960,7 +16639,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -16614,6 +17293,53 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 document.getElementById('conteudo').addEventListener('input',(e)=>{
   if(e.target&&e.target.id==='gx-busca'){ buscaComposta(e,(v)=>{ estado.gestao.busca=v; },renderGestao,'gx-busca'); }
 });
+// ---- 🏦 Controladoria: período, categoria, blocos por categoria e drill ----
+// 🏅 Scoreboard — data de início do placar (gestores; vale para o time)
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||t.id!=='sc-inicio') return;
+  cfg.scoreInicio=/^\d{4}-\d{2}-\d{2}$/.test(t.value||'')?t.value:'';
+  salvaCfg();
+  toast(cfg.scoreInicio?`📆 Placar valendo a partir de ${fmtBR(cfg.scoreInicio)} — dias anteriores saem do jogo.`
+    :'📆 Início do placar removido — todo o histórico guardado volta a contar.','ok');
+  renderRanking();
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  const ct=estado.ctrl; const t=e.target; if(!t) return;
+  if(t.id==='ct-de'){ if(t.value) ct.de=t.value; renderControladoria(); }
+  else if(t.id==='ct-ate'){ if(t.value) ct.ate=t.value; renderControladoria(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-b')){
+    cfg.ctrl=cfg.ctrl||{custoPadrao:0,cats:{}}; cfg.ctrl.cats=cfg.ctrl.cats||{};
+    const atual={...ctBlocosDe(ct.cat)}; atual[t.getAttribute('data-ct-b')]=t.checked?1:0;
+    cfg.ctrl.cats[ct.cat]=atual; ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+  else if(t.id==='ct-custopadrao'){ cfg.ctrl=cfg.ctrl||{custoPadrao:0,cats:{}};
+    cfg.ctrl.custoPadrao=Math.max(0,Number(t.value)||0); ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-custo')){
+    cfg.custosPessoa=cfg.custosPessoa||{};
+    const a=t.getAttribute('data-ct-custo'); const v=Math.max(0,Number(t.value)||0);
+    if(v>0) cfg.custosPessoa[a]=v; else delete cfg.custosPessoa[a];
+    ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+});
+// Enter/Espaço abrem o drill (as linhas anunciam role="button")
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
+  if(dr){ e.preventDefault(); ctAbreTickets(dr.getAttribute('data-ct-drill')); }
+});
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  const ct=estado.ctrl;
+  const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
+  if(dr&&!e.target.closest('button')&&!e.target.closest('a')&&!e.target.closest('input')){
+    ctAbreTickets(dr.getAttribute('data-ct-drill')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); renderControladoria(); return; }
+  if(t.hasAttribute('data-ct-per')){ const p=t.getAttribute('data-ct-per'); const h=hojeSP();
+    ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
+    ct.ate=h; renderControladoria(); return; }
+  if(t.id==='ct-retry'){ ct.tempoErro=''; ct.chaveT=''; renderControladoria(); return; }
+});
 // ---- ➗ Rateio: parsing ao vivo, modos, cálculo, execução e status em conjunto ----
 // Tickets VÁLIDOS da lista (fora os "não encontrados") — base do %, do status
 // em lote e dos preenchimentos automáticos.
@@ -16716,6 +17442,11 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.hasAttribute&&t.hasAttribute('data-gxf-del')){ const id=t.getAttribute('data-gxf-del'); const f=gxfLista().find(x=>x.id===id);
     cfg.gxFiltros=gxfLista().filter(x=>x.id!==id); salvaCfg(); toast(f?`Filtro "${esc(f.nome)}" excluído (para o time).`:'Filtro excluído.','ok'); abreModalFiltrosGerir(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-det-com')){ abreModalComentarLote([t.getAttribute('data-gx-det-com')]); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-gestao')){ const ks=t.getAttribute('data-ct-gestao').split(',').filter(Boolean);
+    fechaModal(); const g=estado.gestao; g.soKeys=ks; g.origem='🏦 Controladoria'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; }); vaiPara('gestao'); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-rateio')){ const ks=t.getAttribute('data-ct-rateio').split(',').filter(Boolean);
+    fechaModal(); const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null; vaiPara('rateio'); rtConfere(); }
   else if(t.id==='gx-com-cancelar'||t.id==='gx-st-cancelar'||t.id==='gx-del-cancelar'||t.id==='gx-fechar'){ _gxCom=null; _gxSt=null; _gxDel=null; fechaModal(); }
 });
 document.getElementById('modal-body').addEventListener('input',(e)=>{

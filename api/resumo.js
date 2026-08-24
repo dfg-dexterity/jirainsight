@@ -852,6 +852,132 @@ async function diagOdoo(res) {
   return json(res, 200, out);
 }
 
+// ---------------------------------------------------------------------------
+// 🤖 POST /api/resumo?acao=planrel — análise por IA do PLANEJADO × REALIZADO
+// (Relatórios do planejamento). O front manda o recorte JÁ AGREGADO (totais,
+// status dos planos, pessoas, projetos e semanas do filtro atual); o modelo
+// devolve resumo, destaques, análise por pessoa e recomendações. Cache por
+// hash do payload (mesmo recorte não paga a IA de novo); body.nocache regenera.
+// ---------------------------------------------------------------------------
+const SCHEMA_PLANREL = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['resumo', 'destaques', 'pessoas', 'recomendacoes'],
+  properties: {
+    resumo: { type: 'string' },
+    destaques: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['titulo', 'texto', 'sinal'],
+        properties: {
+          titulo: { type: 'string' },
+          texto: { type: 'string' },
+          sinal: { type: 'string', enum: ['positivo', 'neutro', 'atencao'] },
+        },
+      },
+    },
+    pessoas: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['nome', 'analise', 'sinal'],
+        properties: {
+          nome: { type: 'string' },
+          analise: { type: 'string' },
+          sinal: { type: 'string', enum: ['positivo', 'neutro', 'atencao'] },
+        },
+      },
+    },
+    recomendacoes: { type: 'array', items: { type: 'string' } },
+  },
+};
+const SISTEMA_PLANREL = [
+  'Você é um analista de planejamento de um time de TI. Recebe o recorte JÁ AGREGADO',
+  'de um relatório de PLANEJADO × REALIZADO (planos semanais das pessoas × horas',
+  'apontadas no Clockwork) e escreve uma análise clara em português do Brasil.',
+  '',
+  'Regras:',
+  '- Baseie-se EXCLUSIVAMENTE nos números fornecidos. Nunca invente dados, nomes ou fatos.',
+  '- "resumo": 2 a 4 frases sobre o recorte — execução geral (realizado ÷ planejado),',
+  '  horas realizadas fora do plano (realizadoNaoPlanejadoH), horas planejadas que não',
+  '  aconteceram (planejadoNaoRealizadoH) e a situação dos planos (statusPlanos).',
+  '- "destaques": até 4 achados que MERECEM atenção ou reconhecimento — ex.: projeto com',
+  '  desvio grande, semana fora da curva, muita hora não planejada, planos devolvidos/parados.',
+  '  Cada um com título curto, 1-2 frases de texto e sinal (positivo/neutro/atencao).',
+  '- "pessoas": 1-2 frases por pessoa da lista (aderência ao próprio plano, horas fora do',
+  '  plano, status do plano). Sinal: positivo (execução ~80-120% com plano em dia),',
+  '  neutro (parcial) ou atencao (sem plano, execução muito baixa/alta, plano devolvido).',
+  '  Se a lista de pessoas estiver vazia, devolva o array vazio.',
+  '- "recomendacoes": 3 a 5 ações práticas e específicas para a próxima semana (ex.: rever',
+  '  o plano de X, investigar as horas sem plano no projeto Y, aprovar planos pendentes).',
+  '- Tom construtivo e factual; nada de juízo pessoal. Diferenças de até ±10% são ruído,',
+  '  não desvio. Não use markdown; texto corrido. Horas em formato 12h30 quando natural.',
+].join('\n');
+
+async function analisaPlanRel(res, b, apiKey) {
+  const payload = {
+    periodo: { de: txt(b.periodo && b.periodo.de, 10), ate: txt(b.periodo && b.periodo.ate, 10), semanas: num(b.periodo && b.periodo.semanas) },
+    audiencia: txt(b.audiencia, 10),
+    filtros: {
+      usuario: txt(b.filtros && b.filtros.usuario, 80),
+      projeto: txt(b.filtros && b.filtros.projeto, 120),
+      status: txt(b.filtros && b.filtros.status, 20),
+    },
+    totais: {
+      planejadoH: num(b.totais && b.totais.planejadoH),
+      realizadoH: num(b.totais && b.totais.realizadoH),
+      execucaoPct: b.totais && b.totais.execucaoPct == null ? null : num(b.totais && b.totais.execucaoPct),
+      realizadoNaoPlanejadoH: num(b.totais && b.totais.realizadoNaoPlanejadoH),
+      planejadoNaoRealizadoH: num(b.totais && b.totais.planejadoNaoRealizadoH),
+    },
+    statusPlanos: {
+      elaboracao: num(b.statusPlanos && b.statusPlanos.elaboracao),
+      enviado: num(b.statusPlanos && b.statusPlanos.enviado),
+      aprovado: num(b.statusPlanos && b.statusPlanos.aprovado),
+      devolvido: num(b.statusPlanos && b.statusPlanos.devolvido),
+    },
+    pessoas: (Array.isArray(b.pessoas) ? b.pessoas : []).slice(0, MAX_PESSOAS)
+      .map((p) => ({ nome: txt(p.nome, 80), plan: num(p.plan), real: num(p.real), status: txt(p.status, 120) }))
+      .filter((p) => p.nome),
+    projetos: (Array.isArray(b.projetos) ? b.projetos : []).slice(0, 20)
+      .map((p) => ({ projeto: txt(p.projeto, 120), plan: num(p.plan), real: num(p.real) }))
+      .filter((p) => p.projeto),
+    semanas: (Array.isArray(b.semanas) ? b.semanas : []).slice(0, 54)
+      .map((s) => ({ semana: txt(s.semana, 12), plan: num(s.plan), real: num(s.real) })),
+  };
+  if (!payload.totais.planejadoH && !payload.totais.realizadoH) {
+    return json(res, 200, { ok: false, erro: 'Sem horas no recorte — ajuste o período/filtros antes de analisar.' });
+  }
+  // Hash simples (djb2) do payload sanitizado: mesmo recorte reaproveita a análise.
+  const s = JSON.stringify(payload);
+  let h = 5381; for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  const ck = `iaplanrel:${h.toString(36)}:${s.length}`;
+  if (!b.nocache) {
+    const c = cacheGet(ck);
+    if (c) return json(res, 200, { ...c, cache: true });
+  }
+  const r = await chamaClaude(apiKey, payload, { system: SISTEMA_PLANREL, schema: SCHEMA_PLANREL });
+  const out = {
+    ok: true,
+    analise: {
+      resumo: String(r.resumo || ''),
+      destaques: (Array.isArray(r.destaques) ? r.destaques : []).slice(0, 6).map((d) => ({
+        titulo: String(d.titulo || ''), texto: String(d.texto || ''),
+        sinal: ['positivo', 'neutro', 'atencao'].includes(d.sinal) ? d.sinal : 'neutro',
+      })),
+      pessoas: (Array.isArray(r.pessoas) ? r.pessoas : []).slice(0, MAX_PESSOAS).map((p) => ({
+        nome: String(p.nome || ''), analise: String(p.analise || ''),
+        sinal: ['positivo', 'neutro', 'atencao'].includes(p.sinal) ? p.sinal : 'neutro',
+      })),
+      recomendacoes: (Array.isArray(r.recomendacoes) ? r.recomendacoes : []).slice(0, 6).map((x) => String(x || '')),
+    },
+  };
+  return json(res, 200, cacheSetTTL(ck, out, 60));
+}
+
 export default async function handler(req, res) {
   try {
     // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
@@ -889,6 +1015,9 @@ export default async function handler(req, res) {
 
     // 📍 Meu dia — blocos de atividade do Mac + sugestões da IA de onde apontar/criar.
     if (acao === 'meudia') return await meuDiaAnalisa(res, b, apiKey);
+
+    // 🤖 Relatórios do planejamento — análise do planejado × realizado do recorte.
+    if (acao === 'planrel') return await analisaPlanRel(res, b, apiKey);
 
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });
