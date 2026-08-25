@@ -1586,6 +1586,33 @@
   .trf-plano.aten{background:rgba(232,163,61,.14);border-left:4px solid #E76500}
   .trf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
   .trf-ficha{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:13px}
+  /* 📚 Central de Relatórios */
+  .rc-chips{display:inline-flex;flex-wrap:wrap;gap:6px}
+  .rc-n{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--cerceta,#0f6b63);color:#fff;font-size:10px;line-height:16px;text-align:center;margin-left:3px}
+  .chip.on .rc-n{background:#fff;color:var(--cerceta,#0f6b63)}
+  .rc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px;margin:8px 0 14px}
+  .rc-card{border:1px solid var(--linha);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;background:var(--card,transparent)}
+  .rc-card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rc-card-top b{flex:1;min-width:150px}
+  .rc-meta{font-size:11px;opacity:.7}
+  .rc-obj{font-size:12.5px;line-height:1.45}
+  .rc-como{font-size:11.5px;opacity:.8;line-height:1.4;border-left:3px solid var(--linha);padding-left:8px}
+  .rc-abrir{align-self:flex-start;margin-top:2px}
+  .rc-badge{font-size:10.5px;padding:2px 7px;border-radius:9px;white-space:nowrap}
+  .rc-ok{background:rgba(47,158,68,.14);color:#2b7a3a}
+  .rc-parcial{background:rgba(232,163,61,.16);color:#9a6b17}
+  .rc-falta{background:rgba(120,120,120,.14);opacity:.85}
+  .rc-tab td,.rc-tab th{white-space:nowrap}
+  .rc-tab .rc-nome{white-space:normal;min-width:230px;max-width:330px}
+  .rc-link{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;text-decoration:underline dotted;text-underline-offset:3px}
+  .rc-td,.rc-th{text-align:center}
+  .rc-hl{background:rgba(15,107,99,.08)}
+  .rc-cell{width:30px;height:26px;border-radius:7px;border:1px solid var(--linha);font-weight:700;font-size:12px;cursor:pointer;background:transparent}
+  .rc-cell:disabled{cursor:default;opacity:.9}
+  .rc-cell.rc-O{background:var(--cerceta,#0f6b63);border-color:var(--cerceta,#0f6b63);color:#fff}
+  .rc-cell.rc-R{background:rgba(232,163,61,.2);border-color:rgba(232,163,61,.55);color:#9a6b17}
+  .rc-cell.rc-x{opacity:.45}
+  .rc-ficha p{margin:6px 0;line-height:1.5}
   /* 🏦 Controladoria de Projetos */
   .ct-expl{margin-top:8px;padding:8px 12px;border-left:4px solid var(--cerceta);background:var(--hoverbg);border-radius:6px;font-size:12.5px;line-height:1.45}
   .ct-kl{font-weight:400;font-size:10.5px;opacity:.75;margin-top:2px;line-height:1.25}
@@ -2320,6 +2347,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // (worklogs do período + consolidado do Jira p/ execução do esforço).
   ctrl:{ de:'', ate:'', cat:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
     proj:null, projB:false },
+  // 📚 Central de Relatórios — catálogo × tipo de projeto (sigla da categoria)
+  relcat:{ sigla:'', dim:'', busca:'' },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
   // igual / percentual / fatias (pesos) / manual; status trocado em conjunto.
   rateio:{ texto:'', tickets:[], info:{}, naoEnc:[], conferindo:false, confErro:'',
@@ -2395,6 +2424,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
+  relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
@@ -2795,7 +2825,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -4990,6 +5020,7 @@ const ROADMAP=[
   { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
   { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
   { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
+  { s:'avaliacao', t:'📚 Central de Relatórios — completar os relatórios 🔶/🔒', d:'Evoluir os relatórios parciais e bloqueados do catálogo: CFD real e cycle time (histórico de transições), burndown/velocity (sprints e story points), Change Requests e Riscos como tipos padronizados, causa-raiz de bugs (BUG.1–BUG.5), SLA nativo do JSM, CSAT vinculado a tickets e ritual de lições aprendidas no encerramento.' },
   { s:'avaliacao', t:'🏆 Planejamento — histórico do score e meta de precisão', d:'Guardar a evolução do score de planejamento por pessoa (como o Scoreboard faz com o apontamento) e permitir uma meta de precisão por time, com destaque de quem melhorou mais no período.' },
   { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
   { s:'avaliacao', t:'🏅 Scoreboard — campeão do mês e aviso no Teams', d:'Fechar um pódio mensal a partir do scoreboard diário (medalhas, campeão do mês) e comemorar automaticamente no canal do Teams; badge pessoal de sequência (🔥) no Início.' },
@@ -5479,6 +5510,7 @@ function render(){
   if(estado.vista==='qualidade') return renderQualidade();
   if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='analytics') return renderAnalytics();
+  if(estado.vista==='relatorios') return renderRelatorios();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
@@ -12891,6 +12923,298 @@ function ctDados(){
 const ctExpl=(txt)=>`<div class="ct-expl">ℹ️ <b>Como ler:</b> ${txt}</div>`;
 const ctPct=(n,d)=>d>0?Math.round(n/d*100):null;
 function ctSemaforo(mgp){ return mgp==null?['—','na']:(mgp>=30?['saudável','ok']:(mgp>=10?['apertada','aten']:['no vermelho','crit'])); }
+// ===========================================================================
+// 📚 Central de Relatórios — o catálogo oficial de relatórios da operação,
+// CONFIGURÁVEL POR TIPO DE PROJETO (sigla da categoria do Jira), como uma
+// matriz relatório × tipo com três estados:
+//   O = essencial (obrigatório para esse tipo) · R = recomendado · – = não se aplica
+// Cada relatório aponta para a TELA REAL do app que o entrega (deep-link) e
+// declara honestamente a disponibilidade: ✅ no app · 🔶 parcial (proxy) ·
+// 🔒 exige dados que o Jira ainda não tem (sprints, CSAT, SLA nativo…).
+// Defaults da matriz = planilha de governança aprovada pelo usuário (2026-08-25);
+// gestores podem ajustar célula a célula (cfg.relcat.m guarda só os desvios).
+// ===========================================================================
+const REL_SIGLAS=['DEA','DEF','PEA','PEF','DAMS','PAMS','ARQ','IMI','IPA','ITPR'];
+const REL_SIGLA_NOME={ DEA:'Dexterity - Escopo Aberto', DEF:'Dexterity - Escopo Fechado',
+  PEA:'Parceria - Escopo Aberto', PEF:'Parceria - Escopo Fechado', DAMS:'Dexterity - AMS',
+  PAMS:'Parceria - AMS', ARQ:'Arquivado', IMI:'Interno - Melhorias Internas',
+  IPA:'Interno - Produtos e aceleradores', ITPR:'Interno - Tarefas, Processos e Rotinas' };
+const REL_DIMS=['Entrega','Escopo','Tempo','Custo','Recursos','Risco','AMS','Portfólio'];
+// def = 10 caracteres na ordem de REL_SIGLAS (O / R / -)
+const REL_CAT=[
+  {id:'R01',nome:'Status Report Executivo',dim:'Entrega',freq:'Semanal',def:'OOOOOO-RR-',disp:'ok',vista:'projetos',
+   obj:'Uma página com a situação do projeto: progresso, prazo, esforço e pendências.',
+   resp:'O projeto está no prazo, no escopo e no orçamento? O que precisa de decisão?',
+   como:'📁 Projetos — consolidado com saúde por projeto e ficha detalhada (épicos, esforço, evolução).'},
+  {id:'R02',nome:'Burndown / Burnup de Sprint',dim:'Entrega',freq:'Diária (na sprint)',def:'OOOO---RO-',disp:'falta',vista:'projetos',
+   obj:'Acompanhar o consumo do escopo comprometido dentro da sprint.',
+   resp:'Vamos entregar o comprometido até o fim da sprint?',
+   como:'Exige sprints e story points, que a instância ainda não usa. Proxy: evolução mensal criados × concluídos na ficha do projeto.'},
+  {id:'R03',nome:'Fluxo por status (CFD)',dim:'Entrega',freq:'Semanal',def:'RRRROO-RRR',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='status'; },
+   obj:'Ver onde o trabalho está acumulando no fluxo.',
+   resp:'Onde o trabalho está acumulando? O fluxo está estável?',
+   como:'🛠 Gestão agrupada por status mostra a foto atual do fluxo. O diagrama acumulado no tempo exige histórico de transições (roadmap).'},
+  {id:'R04',nome:'Marcos e Cronograma',dim:'Entrega',freq:'Semanal',def:'OOOO---RR-',disp:'parcial',vista:'projetos',
+   obj:'Controlar as datas dos marcos de fase (Explore, Realize, Deploy, Go-live).',
+   resp:'Os marcos serão cumpridos? Qual o impacto de um atraso?',
+   como:'📁 Projetos — épicos com vencimento e esforço na ficha. Baseline formal de cronograma ainda não existe.'},
+  {id:'R05',nome:'Velocity por Sprint',dim:'Entrega',freq:'Por sprint',def:'RORO---RO-',disp:'falta',vista:'',
+   obj:'Medir a capacidade média de entrega do time por sprint.',
+   resp:'Quanto o time entrega por sprint? A previsão de término é confiável?',
+   como:'Exige sprints e story points — no roadmap para quando o time adotar.'},
+  {id:'R06',nome:'Controle de Escopo e Change Requests',dim:'Escopo',freq:'Mensal',def:'OOOORR--R-',disp:'falta',vista:'',
+   obj:'Registrar e precificar as mudanças de escopo após a linha de base.',
+   resp:'Quanto o escopo cresceu? As mudanças foram aprovadas e faturadas?',
+   como:'Exige tipo/label "Change Request" nos projetos — padronização no roadmap.'},
+  {id:'R07',nome:'Rastreabilidade de Requisitos (GAP → EF → Objeto)',dim:'Escopo',freq:'Semanal',def:'OOOORR-RO-',disp:'parcial',vista:'projetos',
+   obj:'Garantir que cada GAP tenha especificação, desenvolvimento, teste e aceite.',
+   resp:'Todo requisito está coberto? Onde está cada GAP no ciclo?',
+   como:'📁 Projetos — hierarquia épico → tickets na ficha. Rastreio completo exige links GAP→EF→Objeto padronizados.'},
+  {id:'R08',nome:'Saúde e Aging do Backlog',dim:'Escopo',freq:'Semanal',def:'OROROO-OOO',disp:'ok',vista:'analytics',
+   obj:'Avaliar volume, envelhecimento e refinamento do backlog.',
+   resp:'Há itens paralisados? O backlog está refinado o suficiente?',
+   como:'📈 Analytics — "Backlog que já deveria andar", "Sem atualização há X dias", "Estimativa zerada".'},
+  {id:'R09',nome:'Aderência a Prazos',dim:'Tempo',freq:'Semanal',def:'OOOOOO-RRO',disp:'ok',vista:'analytics',
+   obj:'Comparar a data prometida com a entrega real de cada item.',
+   resp:'Estamos cumprindo o que prometemos? Onde erramos mais?',
+   como:'📈 Analytics — "Chamados vencidos" e "Sem data de vencimento"; 🚨 Alertas para agir nos atrasados.'},
+  {id:'R10',nome:'Lead Time e Cycle Time',dim:'Tempo',freq:'Mensal',def:'RRRROO-RRR',disp:'parcial',vista:'analytics',
+   obj:'Medir o tempo de ponta a ponta das demandas.',
+   resp:'Quanto tempo levamos para atender uma demanda?',
+   como:'Lead time aproximado por criado → resolvido (base do Analytics). Cycle time exige histórico de transições (roadmap).'},
+  {id:'R11',nome:'Apontamento de Horas (Timesheet)',dim:'Tempo',freq:'Semanal',def:'OOOOOO-OOO',disp:'ok',vista:'timesheet',
+   obj:'Consolidar as horas apontadas por projeto, pessoa e dia.',
+   resp:'Onde as horas estão sendo gastas? O apontamento está completo?',
+   como:'Timesheet (grade pessoa × dia com lacunas) + ⏱ Apontar + 🏅 Ranking de apontamento.'},
+  {id:'R12',nome:'Horas Planejadas vs Realizadas',dim:'Custo',freq:'Semanal',def:'ROROOO-RRR',disp:'ok',vista:'planrel',
+   obj:'Comparar estimativa e esforço real para medir precisão e consumo.',
+   resp:'Estamos consumindo mais esforço do que o previsto?',
+   como:'📊 Relatórios do planejamento (semana a semana, por pessoa e projeto) + estimado × gasto na 🏦 Controladoria.'},
+  {id:'R13',nome:'Rentabilidade / Margem por Projeto',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'ok',vista:'controladoria',
+   obj:'Confrontar receita contratada com custo de horas para apurar a margem.',
+   resp:'O projeto é rentável? Qual a margem atual?',
+   como:'🏦 Controladoria — receita (contratos) × custo (horas × custo/h), margem R$ e %, semáforo por projeto.'},
+  {id:'R14',nome:'Consumo de Bolsa de Horas e Faturamento',dim:'Custo',freq:'Mensal',def:'OROROO----',disp:'ok',vista:'receita',
+   obj:'Controlar o saldo de horas contratadas e a base de faturamento.',
+   resp:'Quantas horas restam? Qual o valor a faturar neste mês?',
+   como:'💰 Receita — bolsa contratada × consumida por contrato; AMS traz o ciclo faturado.'},
+  {id:'R15',nome:'Forecast de Receita e Backlog Contratado',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'parcial',vista:'receita',
+   obj:'Projetar a receita futura a partir do contratado e do ritmo de consumo.',
+   resp:'Qual a receita esperada nos próximos meses? Há risco de vazio?',
+   como:'💰 Receita — saldo e ritmo de consumo permitem projeção simples; pipeline comercial fica fora do Jira.'},
+  {id:'R16',nome:'Alocação e Capacidade do Time',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'parcial',vista:'ranking',
+   obj:'Comparar a capacidade disponível com a demanda alocada.',
+   resp:'Temos gente suficiente? Quem está sub ou sobrealocado?',
+   como:'🏅 Ranking — meta de horas × apontado por pessoa (🎯 Metas & ausências). A Alocação macro está desativada.'},
+  {id:'R17',nome:'Carga por Consultor e WIP por Pessoa',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'ok',vista:'gestao',go:()=>{ estado.gestao.agrupar='resp'; },
+   obj:'Quantos itens e horas cada pessoa tem em andamento ao mesmo tempo.',
+   resp:'Alguém está sobrecarregado? O WIP individual é saudável?',
+   como:'🛠 Gestão agrupada por responsável + 📈 Analytics "Sem pessoa atribuída".'},
+  {id:'R18',nome:'Registro de Riscos e Issues',dim:'Risco',freq:'Semanal',def:'OOOORR-RR-',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='risco'; },
+   obj:'Inventário de riscos e impedimentos com dono e prazo.',
+   resp:'Quais riscos podem inviabilizar a entrega? Há impedimento sem dono?',
+   como:'🛠 Gestão agrupada por risco (vencidos/parados/bloqueados). Registro formal de riscos com probabilidade × impacto no roadmap.'},
+  {id:'R19',nome:'Qualidade — Bugs por Origem e Severidade',dim:'Risco',freq:'Mensal',def:'OOOOOO-RO-',disp:'parcial',vista:'tickets',go:()=>{ estado.tkGroup='tipo'; },
+   obj:'Classificar defeitos por origem e severidade.',
+   resp:'De onde vêm nossos defeitos? A qualidade está melhorando?',
+   como:'Tickets agrupados por tipo (Bug × demais) com prioridade como severidade. Causa-raiz BUG.1–BUG.5 exige campo padronizado (roadmap).'},
+  {id:'R20',nome:'Retrabalho e Reabertura de Tickets',dim:'Risco',freq:'Mensal',def:'RRRROO-RR-',disp:'ok',vista:'analytics',
+   obj:'Medir tickets reabertos como indicador de qualidade.',
+   resp:'Estamos entregando certo na primeira vez?',
+   como:'📈 Analytics — visão "Retrabalho (reabertos)" com a lista do período.'},
+  {id:'R21',nome:'Volumetria de Chamados por Categoria',dim:'AMS',freq:'Mensal',def:'----OO----',disp:'ok',vista:'ams',
+   obj:'Distribuir os chamados AMS nas categorias de atendimento.',
+   resp:'Que tipo de demanda o cliente mais abre? Onde atuar preventivamente?',
+   como:'AMS — ciclo do contrato com chamados, horas e banco de horas por categoria.'},
+  {id:'R22',nome:'Cumprimento de SLA',dim:'AMS',freq:'Mensal',def:'----OO---R',disp:'parcial',vista:'analytics',
+   obj:'Apurar o atendimento aos SLAs de resposta e resolução.',
+   resp:'Estamos dentro do SLA contratado? Onde há violação?',
+   como:'📈 Analytics — "Aguardando resposta há X dias" é o proxy. SLA nativo do Jira Service Management no roadmap.'},
+  {id:'R23',nome:'Satisfação do Cliente (CSAT)',dim:'AMS',freq:'Trimestral',def:'RRRROO----',disp:'falta',vista:'',
+   obj:'Capturar a percepção do cliente sobre atendimentos e entregas.',
+   resp:'O cliente está satisfeito? A satisfação está caindo?',
+   como:'Exige pesquisa de satisfação vinculada aos tickets — no roadmap.'},
+  {id:'R24',nome:'Recorrência e Top Ofensores',dim:'AMS',freq:'Mensal',def:'----OO-RR-',disp:'parcial',vista:'tickets',go:()=>{ estado.tkGroup='projeto'; },
+   obj:'Identificar temas que geram chamados repetidos, candidatos a solução definitiva.',
+   resp:'O que abre chamado repetidamente? O que vale automatizar ou treinar?',
+   como:'Tickets do período agrupados (projeto/tipo/pessoa) mostram concentração; agrupamento por tema/texto no roadmap.'},
+  {id:'R25',nome:'Dashboard de Portfólio',dim:'Portfólio',freq:'Semanal',def:'OOOOOOROOO',disp:'ok',vista:'projetos',
+   obj:'Todos os projetos numa tela com semáforo de saúde.',
+   resp:'Quais projetos precisam de atenção da diretoria agora?',
+   como:'📁 Projetos — consolidado com saúde, esforço e conclusão; 🏦 Controladoria soma a dimensão financeira.'},
+  {id:'R26',nome:'Saúde do Portfólio Interno',dim:'Portfólio',freq:'Mensal',def:'-------OOO',disp:'ok',vista:'controladoria',
+   obj:'Acompanhar as iniciativas internas e o investimento nelas.',
+   resp:'Nossos investimentos internos estão avançando e gerando valor?',
+   como:'🏦 Controladoria filtrada nas categorias internas (IMI/IPA/ITPR) — horas investidas e evolução.'},
+  {id:'R27',nome:'Lições Aprendidas e Encerramento',dim:'Portfólio',freq:'No encerramento',def:'OOOORRORR-',disp:'falta',vista:'',
+   obj:'Consolidar resultados, desvios e aprendizados ao encerrar o projeto.',
+   resp:'O que deu certo e o que repetir/evitar no próximo projeto?',
+   como:'Exige ritual/ticket padrão de encerramento — modelo no roadmap.'},
+];
+// Sigla do tipo a partir da CATEGORIA do Jira: prefixo "XXX | ..." quando houver;
+// senão, heurística pelo texto do nome (cobre categorias antigas sem prefixo).
+function relSiglaDe(cat){
+  const c=String(cat||'').trim();
+  const m=c.match(/^([A-Z]{2,5})\s*\|/);
+  if(m&&REL_SIGLAS.includes(m[1])) return m[1];
+  const t=c.toLowerCase();
+  if(/arquiv/.test(t)) return 'ARQ';
+  if(/ams/.test(t)) return /parceria/.test(t)?'PAMS':'DAMS';
+  if(/melhorias?\s+internas/.test(t)) return 'IMI';
+  if(/produtos|acelerador/.test(t)) return 'IPA';
+  if(/tarefas|processos|rotinas/.test(t)) return 'ITPR';
+  if(/escopo\s+aberto/.test(t)) return /parceria/.test(t)?'PEA':'DEA';
+  if(/escopo\s+fechado/.test(t)) return /parceria/.test(t)?'PEF':'DEF';
+  return '';
+}
+// Valor efetivo da célula: override do gestor (cfg.relcat.m) ou default do catálogo.
+function relVal(item, sigla){
+  const ov=cfg.relcat&&cfg.relcat.m&&cfg.relcat.m[item.id];
+  if(ov&&['O','R','-'].includes(ov[sigla])) return ov[sigla];
+  const i=REL_SIGLAS.indexOf(sigla);
+  return i>=0?(item.def[i]||'-'):'-';
+}
+function relCicla(id, sigla){
+  const item=REL_CAT.find(r=>r.id===id); if(!item) return;
+  const seq={O:'R',R:'-','-':'O'};
+  const novo=seq[relVal(item,sigla)]||'O';
+  cfg.relcat=cfg.relcat||{m:{}}; cfg.relcat.m=cfg.relcat.m||{};
+  const ov={...(cfg.relcat.m[item.id]||{})};
+  const i=REL_SIGLAS.indexOf(sigla);
+  if(novo===(item.def[i]||'-')) delete ov[sigla]; else ov[sigla]=novo;   // guarda só o desvio
+  if(Object.keys(ov).length) cfg.relcat.m[item.id]=ov; else delete cfg.relcat.m[item.id];
+  salvaCfg();
+}
+// Projetos reais por sigla (via catálogo /api/projetos) + categorias não reconhecidas.
+function relProjPorSigla(){
+  const por={}; REL_SIGLAS.forEach(s=>por[s]=[]);
+  const desconhecidas=new Set();
+  (_projetosCache||[]).forEach(p=>{
+    const s=relSiglaDe(p.categoria);
+    if(s) por[s].push(p); else if(p.categoria&&p.categoria!=='Sem categoria') desconhecidas.add(p.categoria);
+  });
+  return { por, desconhecidas:[...desconhecidas] };
+}
+const REL_DISP={ ok:['✅','no app','A tela que entrega este relatório já existe — clique em Abrir.'],
+  parcial:['🔶','parcial','Uma tela do app cobre parte do relatório (proxy honesto); o complemento está no roadmap.'],
+  falta:['🔒','exige dados novos','Depende de dados que o Jira ainda não tem (sprints, CSAT, SLA nativo…). Configurável desde já; entra no roadmap.'] };
+function relAbre(id){
+  const item=REL_CAT.find(r=>r.id===id);
+  if(!item||!item.vista) return;
+  if(item.go) try{ item.go(); }catch(e){}
+  vaiPara(item.vista);
+}
+function relCardHTML(item, sigla){
+  const [ic,rot,tip]=REL_DISP[item.disp]||REL_DISP.falta;
+  const v=sigla?relVal(item,sigla):'';
+  const marca=v==='O'?'<span class="rc-cell rc-O" data-tip="Essencial para este tipo de projeto">O</span>'
+    :v==='R'?'<span class="rc-cell rc-R" data-tip="Recomendado para este tipo de projeto">R</span>':'';
+  return `<div class="rc-card">
+    <div class="rc-card-top"><b>${item.id} · ${esc(item.nome)}</b>${marca}
+      <span class="rc-badge rc-${item.disp}" data-tip="${escA(tip)}">${ic} ${rot}</span></div>
+    <div class="rc-meta">${esc(item.dim)} · ${esc(item.freq)}</div>
+    <div class="rc-obj">${esc(item.obj)} <span class="mp-dim">${esc(item.resp)}</span></div>
+    <div class="rc-como">${esc(item.como)}</div>
+    ${item.vista?`<button class="btn rc-abrir" data-rel-abre="${item.id}">Abrir no app →</button>`:''}</div>`;
+}
+function renderRelatorios(){
+  const cont=document.getElementById('conteudo');
+  const rc=estado.relcat;
+  if(!_projetosCache) garanteProjetos().then(()=>{ if(estado.vista==='relatorios') renderRelatorios(); }).catch(()=>{});
+  const { por, desconhecidas }=relProjPorSigla();
+  const gestor=souAprovador();
+  const q=(rc.busca||'').toLowerCase();
+  const lista=REL_CAT.filter(r=>(!rc.dim||r.dim===rc.dim)
+    &&(!q||(r.id+' '+r.nome+' '+r.obj+' '+r.resp+' '+r.como).toLowerCase().includes(q)));
+
+  const chips=`<div class="ap-chips rc-chips">
+    <button class="chip ${!rc.sigla?'on':''}" data-rc-sig="">Todos os tipos</button>
+    ${REL_SIGLAS.map(s=>`<button class="chip ${rc.sigla===s?'on':''}" data-rc-sig="${s}"
+      data-tip="${escA(REL_SIGLA_NOME[s]+(por[s].length?` — ${por[s].length} projeto(s): `+por[s].slice(0,6).map(p=>p.key).join(', ')+(por[s].length>6?'…':''):' — sem projetos hoje'))}">${s}${por[s].length?` <span class="rc-n">${por[s].length}</span>`:''}</button>`).join('')}</div>`;
+  const filtros=`<div class="ap-filtros">
+    <div class="campo"><label>Tipo de projeto</label>${chips}</div>
+    <div class="campo"><label>Dimensão</label><select id="rc-dim"><option value="">todas</option>
+      ${REL_DIMS.map(d2=>`<option ${rc.dim===d2?'selected':''}>${d2}</option>`).join('')}</select></div>
+    <div class="campo"><label>Buscar</label><input type="search" id="rc-busca" value="${escA(rc.busca||'')}" placeholder="nome, pergunta, tela…" style="min-width:200px"></div>
+    ${gestor&&Object.keys((cfg.relcat&&cfg.relcat.m)||{}).length?`<div class="campo"><label>&nbsp;</label>
+      <button class="btn" id="rc-reset" data-tip="Volta a matriz inteira para o padrão aprovado">↺ Restaurar padrão</button></div>`:''}
+  </div>`;
+
+  // ---- cards do tipo selecionado (O primeiro, depois R) ----
+  let cards='';
+  if(rc.sigla){
+    const os=lista.filter(r=>relVal(r,rc.sigla)==='O');
+    const rs=lista.filter(r=>relVal(r,rc.sigla)==='R');
+    const na=lista.length-os.length-rs.length;
+    cards=`<div class="card full"><h2>📚 Relatórios de ${esc(REL_SIGLA_NOME[rc.sigla])} <span>${os.length} essenciais · ${rs.length} recomendados${na?` · ${na} não se aplicam`:''}</span></h2>
+      ${os.length?`<h3 class="mp-h3">⭐ Essenciais (O)</h3><div class="rc-grid">${os.map(r=>relCardHTML(r,rc.sigla)).join('')}</div>`:''}
+      ${rs.length?`<h3 class="mp-h3">👍 Recomendados (R)</h3><div class="rc-grid">${rs.map(r=>relCardHTML(r,rc.sigla)).join('')}</div>`:''}
+      ${!os.length&&!rs.length?'<div class="estado">Nenhum relatório se aplica com os filtros atuais.</div>':''}</div>`;
+  }
+
+  // ---- matriz completa ----
+  const linhas=lista.map(item=>{
+    const [ic]=REL_DISP[item.disp]||REL_DISP.falta;
+    const cels=REL_SIGLAS.map(s=>{
+      const v=relVal(item,s);
+      const cls=v==='O'?'rc-O':(v==='R'?'rc-R':'rc-x');
+      const hl=rc.sigla===s?' rc-hl':'';
+      return `<td class="rc-td${hl}"><button class="rc-cell ${cls}" data-rc-cel="${item.id}|${s}"
+        data-tip="${escA(`${item.id} × ${s}: ${v==='O'?'essencial':(v==='R'?'recomendado':'não se aplica')}${gestor?' — clique para alternar O → R → –':''}`)}"
+        ${gestor?'':'disabled'}>${v==='-'?'–':v}</button></td>`;
+    }).join('');
+    return `<tr><td class="rc-nome"><span class="rc-badge rc-${item.disp}" data-tip="${escA(REL_DISP[item.disp][2])}">${ic}</span>
+      <button class="rc-link" data-rel-info="${item.id}" data-tip="${escA(item.obj)}">${item.id} · ${esc(item.nome)}</button></td>
+      <td class="rc-dim">${esc(item.dim)}</td>${cels}</tr>`;
+  }).join('');
+  const matriz=`<div class="card full"><h2>Matriz relatório × tipo de projeto
+      <span>${gestor?'clique numa célula para alternar O → R → – (vale para o time todo)':'somente gestores editam a matriz'}</span></h2>
+    <div class="scroll-x"><table class="mp-tab-mini rc-tab"><thead><tr><th>Relatório</th><th>Dimensão</th>
+      ${REL_SIGLAS.map(s=>`<th class="rc-th${rc.sigla===s?' rc-hl':''}" data-tip="${escA(REL_SIGLA_NOME[s])}">${s}</th>`).join('')}</tr></thead>
+      <tbody>${linhas}</tbody></table></div>
+    ${ctExpl('<b>O</b> = relatório <b>essencial</b> para aquele tipo de projeto (faz parte do padrão de governança) · <b>R</b> = <b>recomendado</b> (use quando agregar) · <b>–</b> = não se aplica. O ícone diz onde o relatório vive hoje: <b>✅ no app</b> (clique e abra), <b>🔶 parcial</b> (uma tela cobre parte, o resto está no roadmap) e <b>🔒 exige dados novos</b> no Jira. O padrão vem da planilha de governança; ajustes dos gestores valem para o time todo.')}
+    ${desconhecidas.length?`<div class="aviso" style="margin-top:10px">⚠ Categorias de projeto sem tipo reconhecido: ${desconhecidas.map(esc).join(' · ')} — renomeie no Jira com o prefixo da sigla (ex.: "DAMS | …") para entrarem na matriz.</div>`:''}</div>`;
+
+  cont.replaceChildren(el(`<div>${filtros}${cards}${matriz}</div>`));
+
+  cont.querySelectorAll('[data-rc-sig]').forEach(b=>b.addEventListener('click',()=>{
+    if(estado.vista!=='relatorios') return;
+    rc.sigla=b.getAttribute('data-rc-sig')||''; renderRelatorios(); }));
+  const dim=document.getElementById('rc-dim');
+  if(dim) dim.addEventListener('change',()=>{ rc.dim=dim.value; renderRelatorios(); });
+  const bus=document.getElementById('rc-busca');
+  if(bus) bus.addEventListener('input',()=>{ rc.busca=bus.value;
+    clearTimeout(renderRelatorios._deb);
+    renderRelatorios._deb=setTimeout(()=>{ if(estado.vista==='relatorios'&&document.activeElement!==bus){ renderRelatorios(); return; }
+      if(estado.vista!=='relatorios') return;
+      const pos=bus.selectionStart; renderRelatorios();
+      const b2=document.getElementById('rc-busca'); if(b2){ b2.focus(); try{ b2.setSelectionRange(pos,pos); }catch(e){} } },350); });
+  cont.querySelectorAll('[data-rc-cel]').forEach(b=>b.addEventListener('click',()=>{
+    if(estado.vista!=='relatorios') return;
+    if(!souAprovador()){ toast('Só gestores alteram a matriz de relatórios.','warn'); return; }
+    const [id2,s]=b.getAttribute('data-rc-cel').split('|');
+    relCicla(id2,s); renderRelatorios(); }));
+  cont.querySelectorAll('[data-rel-abre]').forEach(b=>b.addEventListener('click',()=>relAbre(b.getAttribute('data-rel-abre'))));
+  cont.querySelectorAll('[data-rel-info]').forEach(b=>b.addEventListener('click',()=>{
+    const item=REL_CAT.find(r=>r.id===b.getAttribute('data-rel-info')); if(!item) return;
+    abreModal(`<h2 style="margin-top:0">${item.id} · ${esc(item.nome)}</h2>
+      <div class="rc-ficha"><p><b>O que é:</b> ${esc(item.obj)}</p>
+       <p><b>Responde:</b> ${esc(item.resp)}</p>
+       <p><b>Dimensão:</b> ${esc(item.dim)} · <b>Frequência sugerida:</b> ${esc(item.freq)}</p>
+       <p><b>Onde vive hoje:</b> ${esc(item.como)}</p>
+       <p><b>Vale para:</b> ${REL_SIGLAS.filter(s=>relVal(item,s)!=='-').map(s=>`${s} (${relVal(item,s)})`).join(' · ')||'—'}</p>
+       ${item.vista?`<button class="btn primario" data-rel-abre="${item.id}">Abrir no app →</button>`:''}
+       <div class="alx-modal-acoes"><button class="btn" id="gx-fechar" onclick="fechaModal()">Fechar</button></div></div>`);
+    const mb=document.getElementById('modal-body');
+    if(mb){ const b2=mb.querySelector('[data-rel-abre]');
+      if(b2) b2.addEventListener('click',()=>{ fechaModal(); relAbre(item.id); }); } }));
+  const rst=document.getElementById('rc-reset');
+  if(rst) rst.addEventListener('click',()=>{
+    if(!souAprovador()) return;
+    if(!confirm('Restaurar TODA a matriz para o padrão aprovado? Os ajustes feitos pelos gestores serão descartados.')) return;
+    cfg.relcat={m:{}}; salvaCfg(); toast('Matriz restaurada para o padrão.','ok'); renderRelatorios(); });
+}
+
 function renderControladoria(){
   const cont=document.getElementById('conteudo');
   const ct=estado.ctrl;
@@ -15880,6 +16204,7 @@ function abreAjuda(){
       <li>· <span class="lnk" data-aj-goto="qualidade"><b>🔎 Qualidade (IA)</b></span> — auditoria dos tickets criados vs. boas práticas TI-04-006 (nota + ações).</li>
       <li>· <span class="lnk" data-aj-goto="audit"><b>🕵️ Auditoria de Tickets</b></span> — validações TI-04-014 por pessoa, com drill-down.</li>
       <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.</li>
+      <li>· <span class="lnk" data-aj-goto="relatorios"><b>📚 Central de Relatórios</b></span> — o catálogo oficial (R01–R27) numa matriz relatório × tipo de projeto (O essencial · R recomendado · – não se aplica), com o link para a tela que entrega cada um; gestores ajustam a matriz.</li>
       <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.</li>
       <li><b>Gestão:</b></li>
       <li>· <span class="lnk" data-aj-goto="gestao"><b>🛠 Gestão de Tickets</b></span> — seleção múltipla + ações em massa (atribuir, status, comentar, reprogramar, mover, épicos, duplicados, excluir).</li>
@@ -16282,6 +16607,7 @@ const NAVCAT=[
   ['qualidade','Qualidade (IA)','Análise','auditoria ia tickets qualidade'],
   ['audit','🕵️ Auditoria de Tickets','Análise','validacoes ti-04-014 conformidade'],
   ['analytics','📈 Analytics','Análise','governanca 26 visoes graficos desvios'],
+  ['relatorios','📚 Central de Relatórios','Análise','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr'],
   ['roadmap','🗺️ Roadmap','Análise','proximas funcionalidades futuro planejado novidades melhorias'],
   ['gestao','🛠 Gestão de Tickets','Gestão','massa atribuir status transferir epico duplicados excluir'],
   ['alertas','🚨 Alertas','Gestão','central atrasados vencidos reprogramar'],
@@ -16348,6 +16674,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-25','📚 <b>Central de Relatórios — o catálogo de governança, configurável por tipo de projeto</b>. Nova tela em Análise com os <b>27 relatórios oficiais</b> (R01–R27) organizados por dimensão (Entrega, Escopo, Tempo, Custo, Recursos, Risco, AMS e Portfólio) e uma <b>matriz relatório × tipo de projeto</b> (DEA, DEF, PEA, PEF, DAMS, PAMS, ARQ, IMI, IPA e ITPR) com três estados: <b>O = essencial</b>, <b>R = recomendado</b> e <b>– = não se aplica</b>. Escolha um tipo e veja os relatórios que valem para ele, com objetivo, pergunta que responde e <b>botão que abre a tela do app</b> que já entrega aquele relatório. Cada linha declara com honestidade a disponibilidade: ✅ no app, 🔶 parcial ou 🔒 exige dados que o Jira ainda não tem. <b>Gestores editam a matriz</b> clicando nas células (vale para o time todo, com restaurar padrão).'],
   ['2026-08-24','🐛 <b>Correção no planejado × realizado: o total somava planos repetidos</b>. Quando existia mais de um registro de planejamento para a MESMA pessoa na MESMA semana, os relatórios somavam todos e o "planejado" ficava inflado. Agora vale só o <b>plano vigente</b> (a versão mais recente) — KPIs, gráficos, tabelas e o comparativo por pessoa passam a bater com o que foi realmente planejado.'],
   ['2026-08-24','🏆 <b>Quem planejou melhor + eficiência por projeto</b>: os 📊 Relatórios do planejamento ganharam a <b>visão de time</b>. O bloco <b>🏆 Quem planejou melhor</b> ranqueia as pessoas por <b>precisão</b> (o quanto o plano bateu com o realizado — errar para mais pesa igual a errar para menos), <b>aderência</b> (quanto do que foi feito estava no plano) e <b>semanas com plano</b>, combinando tudo num <b>Score</b> com 🥇🥈🥉. E <b>📉 Maiores diferenças por projeto</b> mostra onde o plano mais se distanciou da realidade, com a <b>diferença em horas</b> e o <b>% de eficiência</b> de cada projeto. Tudo clicável até o ticket.'],
   ['2026-08-24','🔀 <b>Transformar chamado em atividade</b>: pegue um chamado que virou "atividade de outro" e leve-o para dentro do chamado certo. Informe <b>origem</b> e <b>destino</b> e o painel decide sozinho: se o destino <b>aceita sub-tarefa</b>, cria a <b>sub-tarefa</b> dentro dele (com a descrição e o histórico da origem) e leva as <b>horas</b> para lá; se <b>não aceita</b> (é sub-tarefa, é épico ou o projeto não tem esse tipo), lança as horas como <b>apontamento no próprio destino</b> com <b>todos os detalhes no comentário</b> (origem, resumo, quem apontou quanto). Ainda comenta na origem dizendo para onde foi e, se você quiser, <b>encerra a origem</b>. Está na ficha 🔍 do ticket, na 🛠 Gestão (por linha e em massa).'],
@@ -16464,7 +16791,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-24.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-25.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -16970,7 +17297,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -17004,6 +17331,7 @@ function leURL(){
   if(['lista','tabela','quadro'].includes(p.get('gvi'))) gx.vis=p.get('gvi');
   _gxfURL=p.get('gxf')||'';
   if(p.get('rtk')) estado.rateio.texto=rtParse(p.get('rtk')).join('\n');   // ➗ Rateio pré-carregado por link
+  if(REL_SIGLAS.includes(p.get('rsig')||'')) estado.relcat.sigla=p.get('rsig');   // 📚 Central de Relatórios por tipo
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'' };
