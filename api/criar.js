@@ -215,6 +215,137 @@ async function editaLote(res, b, base, headers) {
   return json(res, 200, { ok: resultados.every((r) => r.ok), resultados });
 }
 
+// ===========================================================================
+// ✨ Criação MÁGICA (linguagem natural): { magico:1, texto, email, token }
+// interpreta o pedido em português com a IA (projeto da lista, épico por nome
+// aproximado, resumo, descrição e vencimento — datas relativas resolvidas no
+// fuso de São Paulo) e devolve a PRÉVIA. Com { confirmar:1 } cria o ticket na
+// hora (é o modo usado pelos Atalhos da Siri no celular) — campos explícitos
+// no corpo (projeto/resumo/descricao/venc/epicoKey) têm prioridade sobre o
+// texto, para a prévia editada no painel. Requer ANTHROPIC_API_KEY na Vercel.
+// ===========================================================================
+function magicoHojeSP() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+async function magicoProjetos(base, headers) {
+  const ck = 'criar:magico:projetos';
+  const c = cacheGet(ck);
+  if (c) return c;
+  const lista = [];
+  let startAt = 0;
+  for (let p = 0; p < 4; p++) {
+    const r = await fetch(`${base}/rest/api/3/project/search?maxResults=100&startAt=${startAt}`, { headers });
+    if (!r.ok) break;
+    const j = await r.json();
+    (j.values || []).forEach((pr) => lista.push({
+      key: pr.key, nome: pr.name || pr.key,
+      categoria: (pr.projectCategory && pr.projectCategory.name) || '',
+    }));
+    if (j.isLast || !(j.values || []).length) break;
+    startAt += (j.values || []).length;
+  }
+  const uteis = lista.filter((pr) => !/^ARQ\b|arquiv/i.test(pr.categoria) && pr.key !== 'ARQ');
+  return cacheSetTTL(ck, uteis, 30);
+}
+async function magicoTipoTarefa(base, headers, projeto) {
+  const ck = `criar:magico:tipo:${projeto}`;
+  const c = cacheGet(ck);
+  if (c) return c;
+  const r = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}`, { headers });
+  if (!r.ok) return null;
+  const tipos = (((await r.json()).projects || [])[0] || {}).issuetypes || [];
+  const uteis = tipos.filter((t) => !t.subtask && !/epic|épico/i.test(t.name || ''));
+  const alvo = uteis.find((t) => /tarefa|task/i.test(t.name || '')) || uteis[0];
+  return alvo ? cacheSetTTL(ck, { id: String(alvo.id), nome: alvo.name || '' }, 30) : null;
+}
+const magicoNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+async function magicoEpico(base, headers, projeto, epicoTexto) {
+  if (!epicoTexto) return null;
+  const jql = encodeURIComponent(`project = ${projeto} AND issuetype in (Epic, Épico) AND statusCategory != Done ORDER BY created DESC`);
+  const r = await fetch(`${base}/rest/api/3/search/jql?jql=${jql}&maxResults=100&fields=summary`, { headers });
+  if (!r.ok) return null;
+  const eps = (((await r.json()).issues) || []).map((i) => ({ k: i.key, nome: (i.fields && i.fields.summary) || '' }));
+  const alvo = magicoNorm(epicoTexto);
+  const hits = eps.filter((e) => magicoNorm(e.nome).includes(alvo) || alvo.includes(magicoNorm(e.nome)));
+  hits.sort((a, b) => a.nome.length - b.nome.length);
+  return hits[0] || null;
+}
+async function magico(res, b, base, headers) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const avisos = [];
+  let projeto = String(b.projeto || '').trim().toUpperCase();
+  let resumo = String(b.resumo || '').trim();
+  let descricao = String(b.descricao || '').trim();
+  let venc = String(b.venc || '').trim();
+  let epicoKey = String(b.epicoKey || '').trim().toUpperCase();
+  let epicoNome = '';
+  const projetos = await magicoProjetos(base, headers);
+  if (!projetos.length) return json(res, 200, { ok: false, erro: 'Não consegui listar os projetos do Jira com o seu token.' });
+
+  // Sem campos explícitos → interpreta o TEXTO com a IA.
+  if (!projeto || !resumo) {
+    const texto = String(b.texto || '').trim().slice(0, 2000);
+    if (!texto) return json(res, 400, { erro: 'Descreva o ticket (texto) ou informe os campos.' });
+    if (!apiKey) return json(res, 200, { ok: false, erro: 'A interpretação por IA precisa da ANTHROPIC_API_KEY na Vercel (a mesma do Resumo por IA).' });
+    const { chamaClaude } = await import('./_lib/ia.js');
+    const SYS = ['Você interpreta pedidos em português do Brasil para criar UM ticket no Jira.',
+      'Escolha o projeto EXCLUSIVAMENTE da lista fornecida (retorne a key exata); case por nome/apelido — ex.: "projeto da Copel" casa com o projeto cujo nome contém "Copel".',
+      'Se nenhum projeto da lista casar com o pedido, retorne projeto="" (nunca chute).',
+      'resumo: um título curto e claro (máx. 120 caracteres). descricao: o detalhamento do pedido (pode repetir o texto original organizado).',
+      'venc: data AAAA-MM-DD. Resolva datas relativas com a data de HOJE fornecida (fuso América/São Paulo): "dia 31" = dia 31 do mês corrente se ainda não passou, senão do mês seguinte (se o mês não tiver o dia, use o último dia do mês); "sexta" = a próxima sexta-feira; sem menção a prazo → "".',
+      'epicoTexto: o nome aproximado do épico citado (ex.: "épico de gestão" → "gestão"); sem épico citado → "".'].join('\n');
+    const SCHEMA_M = { type: 'object', additionalProperties: false,
+      required: ['projeto', 'resumo', 'descricao', 'venc', 'epicoTexto'],
+      properties: { projeto: { type: 'string' }, resumo: { type: 'string' }, descricao: { type: 'string' },
+        venc: { type: 'string' }, epicoTexto: { type: 'string' } } };
+    const prompt = `HOJE: ${magicoHojeSP()}\n\nPEDIDO:\n${texto}\n\nPROJETOS DISPONÍVEIS (key — nome — categoria):\n${
+      projetos.map((p) => `${p.key} — ${p.nome}${p.categoria ? ` — ${p.categoria}` : ''}`).join('\n')}`;
+    let out;
+    try { out = await chamaClaude(apiKey, null, { system: SYS, schema: SCHEMA_M, prompt }); }
+    catch (e) { return json(res, 200, { ok: false, erro: `IA indisponível: ${String(e.message || e).slice(0, 200)}` }); }
+    projeto = String(out.projeto || '').trim().toUpperCase();
+    resumo = resumo || String(out.resumo || '').trim().slice(0, 250);
+    descricao = descricao || String(out.descricao || '').trim();
+    venc = venc || String(out.venc || '').trim();
+    if (!epicoKey && out.epicoTexto) {
+      const ep = await magicoEpico(base, headers, projeto, out.epicoTexto);
+      if (ep) { epicoKey = ep.k; epicoNome = ep.nome; }
+      else if (projeto) avisos.push(`Épico "${out.epicoTexto}" não encontrado no projeto ${projeto} — o ticket sai sem épico.`);
+    }
+  }
+  if (!projeto || !projetos.some((p) => p.key === projeto)) {
+    return json(res, 200, { ok: false, erro: 'Não identifiquei o projeto no pedido — cite o nome como aparece no Jira (ex.: "no projeto da Copel").',
+      projetos: projetos.map((p) => `${p.key} — ${p.nome}`).slice(0, 60) });
+  }
+  if (!resumo) return json(res, 200, { ok: false, erro: 'Não identifiquei o título do ticket no pedido.' });
+  if (venc && !/^\d{4}-\d{2}-\d{2}$/.test(venc)) { avisos.push(`Vencimento "${venc}" inválido — ignorado.`); venc = ''; }
+  const tipo = await magicoTipoTarefa(base, headers, projeto);
+  if (!tipo) return json(res, 200, { ok: false, erro: `Não achei um tipo de tarefa utilizável no projeto ${projeto}.` });
+  const pNome = (projetos.find((p) => p.key === projeto) || {}).nome || projeto;
+  const previa = { projeto, projetoNome: pNome, tipoId: tipo.id, tipoNome: tipo.nome,
+    epicoKey, epicoNome, resumo, descricao, venc, avisos };
+
+  if (!b.confirmar) return json(res, 200, { ok: true, previa });
+
+  // ---- confirmar: cria o ticket na hora (1 issue) ----
+  const fields = { project: { key: projeto }, issuetype: { id: tipo.id }, summary: resumo.slice(0, 250) };
+  if (descricao) fields.description = adf(descricao);
+  if (venc) fields.duedate = venc;
+  if (epicoKey) fields.parent = { key: epicoKey };
+  let r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  if (!r.ok && epicoKey) {
+    // alguns fluxos recusam parent no create — tenta sem o épico e avisa
+    delete fields.parent;
+    avisos.push(`O Jira recusou o épico ${epicoKey} no create — ticket criado sem épico.`);
+    r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  }
+  if (!r.ok) return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 300)}`, previa });
+  const key = ((await r.json()) || {}).key || '';
+  cacheClear('venc:'); cacheClear('epicos:');
+  return json(res, 200, { ok: true, key, previa,
+    msg: `Criado ${key} no projeto ${pNome}${epicoKey ? ` (épico ${epicoNome || epicoKey})` : ''}${venc ? `, vence ${venc.split('-').reverse().join('/')}` : ''}: ${resumo}` });
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
@@ -224,6 +355,13 @@ export default async function handler(req, res) {
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Identifique-se (e-mail + token de API) para criar tickets.' });
+    }
+    if (b.magico) {
+      return await magico(res, b, jiraBase(), {
+        Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      });
     }
     if (b.editar) {
       return await editaLote(res, b, jiraBase(), {
