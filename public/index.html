@@ -1586,6 +1586,8 @@
   .trf-plano.aten{background:rgba(232,163,61,.14);border-left:4px solid #E76500}
   .trf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
   .trf-ficha{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:13px}
+  /* 📨 Convidar para apontar */
+  .cv-lista{max-height:190px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;border:1px solid var(--linha);border-radius:8px;padding:8px}
   /* 📚 Central de Relatórios */
   .rc-chips{display:inline-flex;flex-wrap:wrap;gap:6px}
   .rc-n{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--cerceta,#0f6b63);color:#fff;font-size:10px;line-height:16px;text-align:center;margin-left:3px}
@@ -2425,6 +2427,7 @@ const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
   relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
+  vigencias:{},                       // 🪪 {accountId:{ini,fim}} — admissão/desligamento (relatórios respeitam)
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
@@ -2516,7 +2519,15 @@ function metaSegDe(a){
   return Math.max(0, Number(h)||0) * 3600;
 }
 // A pessoa está de ausência (férias etc.) nesse dia?
+// 🪪 Vigência na empresa: {ini,fim} por pessoa (ambos opcionais). Fora da
+// vigência a pessoa não é COBRADA (conta como ausência → meta/lacunas/score
+// zerados) e some das visões de períodos em que não tem horas — o histórico
+// (worklogs antigos) permanece intacto nos períodos em que estava ativa.
+function vigenciaDe(a){ return (cfg.vigencias||{})[a]||null; }
+function foraVigencia(a, dia){ const v=vigenciaDe(a); if(!v||!dia) return false;
+  return !!((v.ini&&dia<v.ini)||(v.fim&&dia>v.fim)); }
 function ehAusencia(a, dia){
+  if(foraVigencia(a, dia)) return true;
   return (cfg.ausencias||[]).some(x => x.a===a && dia>=x.de && dia<=x.ate);
 }
 const dec = (seg) => (seg/3600).toFixed(2).replace('.',',');   // horas decimais p/ CSV (pt-BR)
@@ -2667,6 +2678,7 @@ async function carrega(periodo, forca){
   const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
   Object.keys(usuarios).forEach(id=>{ if(RE_EXCLUIR.test((usuarios[id]&&usuarios[id].nome)||'') || ocultos.has(id)) delete usuarios[id]; });
   removeUsuariosTecnicos(t, a);
+  aplicaVigenciaUsuarios(usuarios, t, a);
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
   estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
   estado.apontar.extraLogs=[];
@@ -2679,9 +2691,37 @@ function removeUsuariosTecnicos(t, a){
   const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
   const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));
   (cfg.ocultos||[]).forEach(o=>bots.add(o.a));   // usuários externos marcados como "ocultar"
-  if(!bots.size) return;
-  if(t){ if(t.worklogs) t.worklogs = t.worklogs.filter(w=>!bots.has(w.a)); if(t.pessoas) bots.forEach(id=>delete t.pessoas[id]); }
-  if(a){ if(a.eventos)  a.eventos  = a.eventos.filter(e=>!bots.has(e.a));  if(a.pessoas) bots.forEach(id=>delete a.pessoas[id]); }
+  if(bots.size){
+    if(t){ if(t.worklogs) t.worklogs = t.worklogs.filter(w=>!bots.has(w.a)); if(t.pessoas) bots.forEach(id=>delete t.pessoas[id]); }
+    if(a){ if(a.eventos)  a.eventos  = a.eventos.filter(e=>!bots.has(e.a));  if(a.pessoas) bots.forEach(id=>delete a.pessoas[id]); }
+  }
+  // 🪪 Vigência: quem está TOTALMENTE fora da vigência no período do payload e
+  // não tem nenhuma hora/evento nele sai das listas de pessoas (worklogs ficam).
+  const vigs=cfg.vigencias||{};
+  const idsV=Object.keys(vigs);
+  if(idsV.length){
+    const de=(t&&t.meta&&t.meta.startDate)||(a&&a.meta&&a.meta.startDate)||'';
+    const ate=(t&&t.meta&&t.meta.endDate)||(a&&a.meta&&a.meta.endDate)||'';
+    const comDados=new Set();
+    if(t&&t.worklogs) t.worklogs.forEach(w=>comDados.add(w.a));
+    if(a&&a.eventos)  a.eventos.forEach(e2=>comDados.add(e2.a));
+    idsV.forEach(id2=>{ const v=vigs[id2]; if(!v||comDados.has(id2)) return;
+      const fora=(v.fim&&de&&de>v.fim)||(v.ini&&ate&&ate<v.ini);
+      if(fora){ if(t&&t.pessoas) delete t.pessoas[id2]; if(a&&a.pessoas) delete a.pessoas[id2]; } });
+  }
+}
+// Mesmo critério da vigência aplicado à lista de usuários do Jira (seletores,
+// scoreboard, convites): fora do período do payload e sem horas → não aparece.
+function aplicaVigenciaUsuarios(usuarios, t, a){
+  const vigs=cfg.vigencias||{};
+  const de=(t&&t.meta&&t.meta.startDate)||'';
+  const ate=(t&&t.meta&&t.meta.endDate)||'';
+  const comDados=new Set();
+  if(t&&t.worklogs) t.worklogs.forEach(w=>comDados.add(w.a));
+  if(a&&a.eventos)  a.eventos.forEach(e2=>comDados.add(e2.a));
+  Object.keys(vigs).forEach(id2=>{ const v=vigs[id2]; if(!v||comDados.has(id2)) return;
+    const fora=(v.fim&&de&&de>v.fim)||(v.ini&&ate&&ate<v.ini);
+    if(fora) delete usuarios[id2]; });
 }
 
 function projetosUnidos(){
@@ -14735,49 +14775,173 @@ async function gxComentaLote(){
 // Alterar status em massa: escolhe a transição pelo NOME e aplica ticket a ticket
 // (cada ticket resolve o próprio transitionId; quem não tiver a transição é reportado).
 let _gxSt=null;
+// ===========================================================================
+// 📨 Convidar para apontar — em QUALQUER ticket (não só reunião). Reusa a
+// infraestrutura de convites da Agenda (/api/apontar {convidar:true}): cada
+// pessoa recebe o convite no painel (⏱ Apontar/📥 Inbox) e confirma com 1
+// clique (worklog no usuário DELA). O aviso do Teams sai INDIVIDUAL (chat
+// privado) quando TEAMS_DM_WEBHOOK_URL está configurada na Vercel; além
+// disso, o modal oferece o link de chat 1:1 pré-preenchido por pessoa.
+// ===========================================================================
+let _cv=null;
+function abreConvidarApontar(k){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const meuEmail=String(id.email||'').toLowerCase();
+  const us=Object.entries(estado.usuarios||{})
+    .filter(([a,o])=>o&&o.email&&!RE_EXCLUIR.test(o.nome||'')&&String(o.email).toLowerCase()!==meuEmail
+      &&!foraVigencia(a,hojeSP()))
+    .map(([a,o])=>({a, nome:o.nome||o.email, email:String(o.email).toLowerCase()}))
+    .sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
+  _cv={k, us};
+  const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||{};
+  abreModal(`<h2>📨 Convidar para apontar · ${esc(k)}</h2>
+    ${t.resumo?`<div class="muted small">${esc(t.resumo)}</div>`:''}
+    <div class="muted small" style="margin-top:6px">Cada pessoa recebe o convite no painel (⏱ Apontar / 📥 Inbox) e
+      confirma com 1 clique — o worklog sai <strong>no usuário dela</strong>. O aviso vai por
+      <strong>chat individual do Teams</strong> (quando configurado na Vercel) e você ainda ganha o link do chat 1:1 de cada pessoa.</div>
+    <div class="alx-campo"><label>Pessoas <span class="req">*</span></label>
+      <div class="cv-lista">${us.length?us.map(u=>`<label class="check"><input type="checkbox" data-cv-p="${escA(u.a)}"
+        data-cv-nome="${escA(u.nome)}" data-cv-email="${escA(u.email)}"> ${esc(u.nome)}</label>`).join('')
+        :'<div class="muted small">Nenhuma pessoa interna com e-mail na lista — clique em ↻ Atualizar no topo e tente de novo.</div>'}</div></div>
+    <div class="alx-campo" style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="campo"><label>Tempo por pessoa <span class="req">*</span></label>
+        <input id="cv-tempo" placeholder="1h30" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
+      <div class="campo"><label>Dia <span class="req">*</span></label><input type="date" id="cv-dia" value="${escA(hojeSP())}"></div>
+      <div class="campo"><label>Apontar também para mim?</label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="cv-eu"> incluir meu apontamento agora</label></div></div>
+    <div class="alx-campo"><label>Comentário do apontamento</label>
+      <textarea id="cv-coment" class="alx-coment" placeholder="Ex.: Atividade conjunta — levantamento do processo"></textarea></div>
+    <div class="alx-fb" id="cv-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="cv-enviar">📨 Enviar convites</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+}
+async function cvEnviar(){
+  const ctx=_cv; const id=idApontar(); if(!ctx||!id) return;
+  const fb=document.getElementById('cv-fb');
+  const erroFb=(m)=>{ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent=m; } };
+  const pessoas=[...document.querySelectorAll('[data-cv-p]:checked')].map(x=>({
+    accountId:x.getAttribute('data-cv-p'), nome:x.getAttribute('data-cv-nome')||'', email:x.getAttribute('data-cv-email')||'' }));
+  const seg=parseTempo((document.getElementById('cv-tempo')||{}).value);
+  const dia=((document.getElementById('cv-dia')||{}).value||'').trim();
+  const coment=((document.getElementById('cv-coment')||{}).value||'').trim();
+  const inclEu=!!(document.getElementById('cv-eu')||{}).checked;
+  if(!pessoas.length) return erroFb('Selecione pelo menos uma pessoa.');
+  if(!seg||seg<60||seg>24*3600) return erroFb('Tempo inválido — use por exemplo 1h30, 45m ou 2:15.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return erroFb('Informe o dia do apontamento.');
+  if(inclEu) pessoas.push({accountId:id.accountId, nome:id.nome||'', email:String(id.email||'').toLowerCase()});
+  const bt=document.getElementById('cv-enviar'); if(bt) bt.disabled=true;
+  if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Enviando convites…'; }
+  try{
+    const r=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ convidar:true, issue:ctx.k, segundos:seg, inicio:dia,
+        comentario:coment||`Convite de apontamento — ${ctx.k}`, pessoas, avisarTeams:true,
+        email:id.email, token:id.token })});
+    const j=await r.json();
+    if(!j||j.ok===false) throw new Error((j&&j.erro)||'Falha ao enviar os convites.');
+    const teams=String(j.teams||'');
+    const tTxt=teams.startsWith('individual')?`💬 Aviso individual no Teams enviado (${teams.split(':')[1]||''}).`
+      :teams==='canal'?'📣 Aviso publicado no canal do Teams (aviso individual não configurado).'
+      :teams==='desligado'?'' : '⚠ Aviso do Teams não configurado — use os links de chat abaixo.';
+    const outros=pessoas.filter(p=>p.accountId!==id.accountId);
+    const diaBR=dia.split('-').reverse().join('/');
+    const links=outros.map(p=>{
+      const msg=`Oi, ${esc((p.nome||'').split(' ')[0])}! Te enviei um convite de apontamento no ${ctx.k} (${fmtH(seg)} em ${diaBR}). Confirma com 1 clique no Jira Insights → ⏱ Apontar: https://jirainsight.vercel.app/?v=apontar`;
+      const url=`https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(p.email)}&message=${encodeURIComponent(msg)}`;
+      return `<div class="mt-item"><span>${esc(p.nome)}</span>
+        <a class="btn" href="${escA(url)}" target="_blank" rel="noopener">💬 Chamar no chat</a></div>`; }).join('');
+    abreModal(`<h2>📨 Convites enviados · ${esc(ctx.k)}</h2>
+      <div class="alx-fb ap-fb ok" style="display:block">✓ ${outros.length} convite(s) de ${fmtH(seg)} em ${esc(diaBR)}${inclEu?' · seu apontamento foi lançado':''}.
+        ${tTxt?`<br>${tTxt}`:''}</div>
+      ${outros.length?`<div class="alx-campo"><label>Reforçar pelo chat individual (abre o Teams com a mensagem pronta)</label>${links}</div>`:''}
+      <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
+    _cv=null;
+  }catch(e){ erroFb(humanizaErro(e)); if(bt) bt.disabled=false; }
+}
+
 function abreModalStatusLote(keys){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   keys=(keys||[]).filter(Boolean); if(!keys.length) return;
-  _gxSt={keys, transicoes:null};
-  abreModal(`<h2>🔁 Alterar status · ${keys.length} ticket(s)</h2><div class="estado">Carregando transições disponíveis…</div>`);
-  fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({listar:true,issue:keys[0],email:id.email,token:id.token})})
-    .then(r=>r.json()).then(j=>{ if(!_gxSt) return;
-      if(!(j.transicoes||[]).length){
-        abreModal(`<h2>🔁 Alterar status</h2><div class="erro">${esc(j.erro||('Não há transições disponíveis a partir de '+keys[0]+'.'))}</div>
-          <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
-      _gxSt.transicoes=j.transicoes; renderGxStModal();
-    }).catch(e=>{ abreModal(`<h2>🔁 Alterar status</h2><div class="erro">${esc(String(e.message||e))}</div>
-      <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); });
+  // Agrupa por STATUS ATUAL: tickets em status diferentes têm transições
+  // diferentes — cada grupo ganha o próprio seletor, consultado num
+  // representante do grupo (as transições dependem só do status no fluxo).
+  const stDe=(k)=>{ const t=alxTickets().find(x=>x.k===k);
+    if(t&&t.status) return t.status;
+    const i=estado.rateio.info&&estado.rateio.info[k];
+    return (i&&i.status)||'—'; };
+  const porSt={};
+  keys.forEach(k=>{ const s=stDe(k); (porSt[s]=porSt[s]||[]).push(k); });
+  const grupos=Object.keys(porSt).sort((a,b)=>porSt[b].length-porSt[a].length||a.localeCompare(b,'pt'))
+    .map(s=>({status:s, keys:porSt[s], transicoes:null, erro:''}));
+  _gxSt={keys, grupos};
+  abreModal(`<h2>🔁 Alterar status · ${keys.length} ticket(s)</h2>
+    <div class="estado">Consultando as transições disponíveis${grupos.length>1?` para ${grupos.length} status atuais diferentes`:''}…</div>`);
+  Promise.all(grupos.map(g=>
+    fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({listar:true,issue:g.keys[0],email:id.email,token:id.token})})
+      .then(r=>r.json()).then(j=>{ g.transicoes=(j&&j.transicoes)||[];
+        if(!g.transicoes.length) g.erro=(j&&j.erro)||`sem transições a partir de "${g.status}"`; })
+      .catch(e=>{ g.transicoes=[]; g.erro=String(e.message||e); })
+  )).then(()=>{ if(!_gxSt||_gxSt.grupos!==grupos) return;
+    if(grupos.every(g=>!g.transicoes.length)){
+      abreModal(`<h2>🔁 Alterar status</h2><div class="erro">${esc(grupos[0].erro||'Não há transições disponíveis para os tickets selecionados.')}</div>
+        <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+    renderGxStModal(); });
 }
 function renderGxStModal(){
-  const ctx=_gxSt; if(!ctx) return; const keys=ctx.keys;
-  const itens=keys.map(k=>{ const t=alxTickets().find(x=>x.k===k)||(estado.rateio.info&&estado.rateio.info[k]
-      ? {k,resumo:estado.rateio.info[k].resumo,status:estado.rateio.info[k].status} : {k});
-    return `<li><strong>${esc(k)}</strong> — ${esc((t.resumo||'').slice(0,60))} <span class="muted">(${esc(t.status||'—')})</span></li>`; }).join('');
-  const ops=(ctx.transicoes||[]).map(t=>`<option value="${escA(t.nome)}">${esc(t.nome)}${t.para?` → ${esc(t.para)}`:''}</option>`).join('');
+  const ctx=_gxSt; if(!ctx||!ctx.grupos) return; const keys=ctx.keys;
+  const resumoDe=(k)=>{ const t=alxTickets().find(x=>x.k===k)||(estado.rateio.info&&estado.rateio.info[k]
+      ? {resumo:estado.rateio.info[k].resumo} : {});
+    return (t.resumo||'').slice(0,60); };
+  const varios=ctx.grupos.length>1;
+  const secoes=ctx.grupos.map((g,i)=>{
+    const itens=g.keys.map(k=>`<li><strong>${esc(k)}</strong> — ${esc(resumoDe(k))}</li>`).join('');
+    const ops=(g.transicoes||[]).map(t=>`<option value="${escA(t.nome)}">${esc(t.nome)}${t.para?` → ${esc(t.para)}`:''}</option>`).join('');
+    const sel=g.transicoes&&g.transicoes.length
+      ? `<select class="alx-motivo" ${varios?`data-gx-st-g="${i}"`:'id="gx-st-sel"'}>
+           <option value="">${varios?'— manter como está —':'— escolha a transição —'}</option>${ops}</select>`
+      : `<div class="muted small">⚠ ${esc(g.erro||'sem transições a partir deste status')} — este grupo não será alterado.</div>`;
+    return `<div class="gx-st-grupo">
+      ${varios?`<h3 class="mp-h3">${esc(g.status)} <span class="mp-dim">${g.keys.length} ticket(s)</span></h3>`:''}
+      <ul class="muted small" style="margin:6px 0 0;padding-left:18px;max-height:110px;overflow:auto">${itens}</ul>
+      <div class="alx-campo"><label>Transição ${varios?'<span class="muted small">(deste grupo)</span>':'<span class="req">*</span>'}
+        <span class="muted small">(aplicada pelo nome, ticket a ticket)</span></label>${sel}</div></div>`;
+  }).join('');
   abreModal(`
     <h2>🔁 Alterar status · ${keys.length} ticket(s)</h2>
-    <ul class="muted small" style="margin:8px 0 0;padding-left:18px;max-height:130px;overflow:auto">${itens}</ul>
-    <div class="alx-campo"><label>Transição <span class="req">*</span> <span class="muted small">(aplicada pelo nome, ticket a ticket)</span></label>
-      <select class="alx-motivo" id="gx-st-sel"><option value="">— escolha a transição —</option>${ops}</select></div>
+    ${varios?`<div class="muted small">Os tickets estão em <strong>${ctx.grupos.length} status diferentes</strong> — escolha a transição certa para cada grupo (grupos sem escolha ficam como estão).</div>`:''}
+    ${secoes}
     <div class="alx-campo"><label>Comentário <span class="muted small">(opcional, publicado em todos)</span></label>
       <textarea class="alx-coment" id="gx-st-texto" placeholder="Comentário opcional…"></textarea></div>
     <div class="alx-fb" id="gx-fb" hidden></div>
     <div class="alx-modal-acoes">
-      <button class="btn primario" id="gx-st-confirmar">Aplicar em ${keys.length} ticket(s)</button>
+      <button class="btn primario" id="gx-st-confirmar">${varios?'Aplicar as transições escolhidas':`Aplicar em ${keys.length} ticket(s)`}</button>
       <button class="btn" id="gx-st-cancelar">Cancelar</button></div>`);
 }
 async function gxStatusLote(){
   const ctx=_gxSt; const id=idApontar(); if(!ctx||!id) return;
-  const nome=((document.getElementById('gx-st-sel')||{}).value||'').trim();
   const fb=document.getElementById('gx-fb');
-  if(!nome){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escolha a transição.'; } return; }
+  // Transição escolhida POR GRUPO de status atual (seletor único = 1 grupo).
+  const tarefas=[];   // {k, nome}
+  const nomesUsados=new Set();
+  if(ctx.grupos&&ctx.grupos.length>1){
+    ctx.grupos.forEach((g,i)=>{
+      const sel=document.querySelector(`[data-gx-st-g="${i}"]`);
+      const nome=((sel&&sel.value)||'').trim();
+      if(nome){ nomesUsados.add(nome); g.keys.forEach(k=>tarefas.push({k, nome})); }
+    });
+    if(!tarefas.length){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escolha a transição de pelo menos um grupo.'; } return; }
+  } else {
+    const nome=((document.getElementById('gx-st-sel')||{}).value||'').trim();
+    if(!nome){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escolha a transição.'; } return; }
+    nomesUsados.add(nome);
+    (ctx.grupos?ctx.grupos[0].keys:ctx.keys).forEach(k=>tarefas.push({k, nome}));
+  }
   const texto=((document.getElementById('gx-st-texto')||{}).value||'').trim();
   const bt=document.getElementById('gx-st-confirmar'); if(bt) bt.disabled=true;
   let ok=0; const erros=[];
-  for(const k of ctx.keys){
-    if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent=`Aplicando em ${k}… (${ok+erros.length+1}/${ctx.keys.length})`; }
+  for(const {k, nome} of tarefas){
+    if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent=`Aplicando em ${k}… (${ok+erros.length+1}/${tarefas.length})`; }
     try{
       const lj=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({listar:true,issue:k,email:id.email,token:id.token})}).then(x=>x.json());
@@ -14796,8 +14960,9 @@ async function gxStatusLote(){
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
   salvaCfg(); estado.cache={};
+  const nomesTxt=[...nomesUsados].map(esc).join('" / "');
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
-    fb.innerHTML=`${ok?`✓ ${ok} ticket(s) movido(s) via "${esc(nome)}".`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
+    fb.innerHTML=`${ok?`✓ ${ok} ticket(s) movido(s) via "${nomesTxt}".`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.id='gx-fechar'; }
   const bc=document.getElementById('gx-st-cancelar'); if(bc) bc.hidden=true;
 }
@@ -15155,6 +15320,7 @@ function renderModalTicket(d){
       <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
       <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>
+      <button class="btn" data-gx-conv="${escA(d.k)}" data-tip="Convida pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique e o aviso vai por chat individual do Teams">📨 Convidar para apontar</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
       <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
     </div>`);
@@ -15590,6 +15756,7 @@ function renderGestao(){
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
     <button data-gx-st="${escA(t.k)}" title="Alterar o status deste ticket no Jira (transição no seu usuário)">🔁 status</button>
     <button data-gx-trf="${escA(t.k)}" title="Transformar em atividade: levar este chamado para dentro de outro (sub-tarefa ou apontamento)">🔀 transformar</button>
+    <button data-gx-conv="${escA(t.k)}" title="Convidar pessoas do time a apontar horas neste ticket (aviso por chat individual)">📨 convidar</button>
     <button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button>
     <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
     <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
@@ -16674,6 +16841,9 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-25','🔁 <b>Status em lote agora respeita o status atual de cada ticket</b>. Quando os tickets selecionados (no ➗ Rateio ou na 🛠 Gestão) estão em <b>status diferentes</b>, o modal os separa em grupos por status atual e você escolhe <b>a transição certa para cada grupo</b> — antes só apareciam as transições do primeiro ticket e os demais falhavam. Grupos sem escolha ficam como estão.'],
+  ['2026-08-25','📨 <b>Convidar para apontar em qualquer ticket</b> — não só reuniões. Na ficha do ticket ou na linha da 🛠 Gestão, clique em <b>📨 Convidar para apontar</b>: escolha as pessoas, o tempo e o dia; cada uma recebe o convite no painel e confirma com 1 clique (o worklog sai no usuário dela). O aviso vai por <b>chat individual do Teams</b> (quando configurado) e o modal ainda entrega o <b>link do chat 1:1 com a mensagem pronta</b> para cada convidado.'],
+  ['2026-08-25','🪪 <b>Vigência na empresa (admissão/desligamento)</b>: em 🎯 Metas & ausências, cadastre a admissão e/ou o desligamento de cada pessoa. Os relatórios passam a respeitar o período: <b>antes da admissão e depois do desligamento a pessoa não é cobrada</b> (meta, lacunas e scoreboard tratam como ausência) e ela <b>some das visões</b> dos períodos em que não tem horas — <b>sem perder nenhum relatório antigo</b>.'],
   ['2026-08-25','📚 <b>Central de Relatórios — o catálogo de governança, configurável por tipo de projeto</b>. Nova tela em Análise com os <b>27 relatórios oficiais</b> (R01–R27) organizados por dimensão (Entrega, Escopo, Tempo, Custo, Recursos, Risco, AMS e Portfólio) e uma <b>matriz relatório × tipo de projeto</b> (DEA, DEF, PEA, PEF, DAMS, PAMS, ARQ, IMI, IPA e ITPR) com três estados: <b>O = essencial</b>, <b>R = recomendado</b> e <b>– = não se aplica</b>. Escolha um tipo e veja os relatórios que valem para ele, com objetivo, pergunta que responde e <b>botão que abre a tela do app</b> que já entrega aquele relatório. Cada linha declara com honestidade a disponibilidade: ✅ no app, 🔶 parcial ou 🔒 exige dados que o Jira ainda não tem. <b>Gestores editam a matriz</b> clicando nas células (vale para o time todo, com restaurar padrão).'],
   ['2026-08-24','🐛 <b>Correção no planejado × realizado: o total somava planos repetidos</b>. Quando existia mais de um registro de planejamento para a MESMA pessoa na MESMA semana, os relatórios somavam todos e o "planejado" ficava inflado. Agora vale só o <b>plano vigente</b> (a versão mais recente) — KPIs, gráficos, tabelas e o comparativo por pessoa passam a bater com o que foi realmente planejado.'],
   ['2026-08-24','🏆 <b>Quem planejou melhor + eficiência por projeto</b>: os 📊 Relatórios do planejamento ganharam a <b>visão de time</b>. O bloco <b>🏆 Quem planejou melhor</b> ranqueia as pessoas por <b>precisão</b> (o quanto o plano bateu com o realizado — errar para mais pesa igual a errar para menos), <b>aderência</b> (quanto do que foi feito estava no plano) e <b>semanas com plano</b>, combinando tudo num <b>Score</b> com 🥇🥈🥉. E <b>📉 Maiores diferenças por projeto</b> mostra onde o plano mais se distanciou da realidade, com a <b>diferença em horas</b> e o <b>% de eficiência</b> de cada projeto. Tudo clicável até o ticket.'],
@@ -16791,7 +16961,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-25.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-25.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -16974,6 +17144,10 @@ function abreMetas(){
     `<div class="mt-item"><span>${esc(o.nome||o.a)}</span>
        <button class="btn" data-del-oculto="${i}">reexibir</button></div>`).join('')
     : '<div class="muted small">Nenhum usuário externo ocultado.</div>';
+  const listaV=Object.keys(cfg.vigencias||{}).length ? Object.entries(cfg.vigencias).map(([a,v])=>
+    `<div class="mt-item"><span>${esc(nomeDe(a))} — ${v.ini?`admissão <strong>${esc(v.ini)}</strong>`:'admissão livre'}${v.fim?` · desligamento <strong>${esc(v.fim)}</strong>`:''}</span>
+       <button class="btn" data-del-vig="${escA(a)}">remover</button></div>`).join('')
+    : '<div class="muted small">Nenhuma vigência cadastrada (todo o histórico vale para todo mundo).</div>';
 
   // Feriados do(s) ano(s) abrangidos pelo período atual.
   const metaP=(estado.tempo&&estado.tempo.meta)||{};
@@ -17030,6 +17204,21 @@ function abreMetas(){
         <div class="campo"><label>De</label><input type="date" id="mt-aus-de"></div>
         <div class="campo"><label>Até</label><input type="date" id="mt-aus-ate"></div>
         <button class="btn" id="mt-add-aus">Adicionar</button>
+      </div>
+    </div>
+
+    <div class="mt-sec">
+      <h3>🪪 Vigência na empresa (admissão/desligamento)</h3>
+      <div class="muted small">Os relatórios passam a considerar o período em que a pessoa <strong>está na empresa</strong>:
+        antes da admissão e depois do desligamento ela <strong>não é cobrada</strong> (meta, lacunas e scoreboard tratam como ausência)
+        e <strong>some das visões</strong> de períodos em que não tem horas. O histórico anterior fica intacto — nada é apagado.
+        Deixe um campo vazio quando não se aplica (ex.: só desligamento).</div>
+      ${listaV}
+      <div class="mt-form">
+        <div class="campo"><label>Pessoa</label><select id="mt-vig-pessoa">${optP}</select></div>
+        <div class="campo"><label>Admissão</label><input type="date" id="mt-vig-ini"></div>
+        <div class="campo"><label>Desligamento</label><input type="date" id="mt-vig-fim"></div>
+        <button class="btn" id="mt-add-vig">Salvar vigência</button>
       </div>
     </div>
 
@@ -17916,6 +18105,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-conv')){ abreConvidarApontar(t.getAttribute('data-gx-conv')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gxf-salvar')){ abreModalFiltroSalvar(); return; }
@@ -18085,6 +18275,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.id==='gx-com-confirmar'){ gxComentaLote(); }
   else if(t.id==='gx-st-confirmar'){ gxStatusLote(); }
+  else if(t.id==='cv-enviar'){ cvEnviar(); }
   else if(t.id==='gx-del-confirmar'){ gxExcluiLote(); }
   else if(t.id==='gx-dup-selall'){ const g=estado.gestao;
     gxGruposDuplicados().forEach(a=>a.forEach(x=>{ g.sel[x.k]=true; }));
@@ -18106,6 +18297,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
     cfg.gxFiltros=gxfLista().filter(x=>x.id!==id); salvaCfg(); toast(f?`Filtro "${esc(f.nome)}" excluído (para o time).`:'Filtro excluído.','ok'); abreModalFiltrosGerir(); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-det-com')){ abreModalComentarLote([t.getAttribute('data-gx-det-com')]); }
   else if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); }
+  else if(t.hasAttribute&&t.hasAttribute('data-gx-conv')){ abreConvidarApontar(t.getAttribute('data-gx-conv')); }
   else if(t.id==='trf-analisar'){
     const o=((document.getElementById('trf-origem')||{}).value||'').trim().toUpperCase();
     const d=((document.getElementById('trf-destino')||{}).value||'').trim().toUpperCase();
@@ -18963,6 +19155,14 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='mt-add-aus'){ const a=val('mt-aus-pessoa'), de=val('mt-aus-de'), ate=val('mt-aus-ate');
     if(a&&de&&ate){ cfg.ausencias.push({a, de, ate:(ate<de?de:ate)}); salvaCfg(); render(); abreMetas(); } }
   else if(t.hasAttribute('data-del-aus')){ cfg.ausencias.splice(Number(t.getAttribute('data-del-aus')),1); salvaCfg(); render(); abreMetas(); }
+  else if(t.id==='mt-add-vig'){ const a=val('mt-vig-pessoa'), ini=val('mt-vig-ini'), fim=val('mt-vig-fim');
+    if(a&&(ini||fim)){
+      if(ini&&fim&&fim<ini){ toast('O desligamento não pode vir antes da admissão.','warn'); return; }
+      cfg.vigencias=cfg.vigencias||{}; cfg.vigencias[a]={ini:ini||'', fim:fim||''};
+      salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
+    else toast('Escolha a pessoa e informe pelo menos uma das datas.','warn'); }
+  else if(t.hasAttribute('data-del-vig')){ delete (cfg.vigencias||{})[t.getAttribute('data-del-vig')];
+    salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
   else if(t.id==='mt-add-oculto'){ const a=val('mt-oc-pessoa');
     if(a){ const nome=(pessoasUnidas()[a]&&pessoasUnidas()[a].nome)||a; cfg.ocultos=cfg.ocultos||[];
       if(!cfg.ocultos.some(o=>o.a===a)) cfg.ocultos.push({a,nome});
