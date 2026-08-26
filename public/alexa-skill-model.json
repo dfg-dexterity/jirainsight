@@ -1,0 +1,31 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "jira insights",
+      "intents": [
+        {
+          "name": "CriarTicketIntent",
+          "slots": [
+            { "name": "texto", "type": "AMAZON.SearchQuery" }
+          ],
+          "samples": [
+            "crie um ticket {texto}",
+            "criar um ticket {texto}",
+            "criar ticket {texto}",
+            "abra um ticket {texto}",
+            "abrir um chamado {texto}",
+            "novo ticket {texto}"
+          ]
+        },
+        { "name": "AMAZON.YesIntent", "samples": [] },
+        { "name": "AMAZON.NoIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] }
+      ],
+      "types": []
+    }
+  }
+}

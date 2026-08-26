@@ -5062,7 +5062,6 @@ const ROADMAP=[
   { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
   { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
   { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
-  { s:'avaliacao', t:'🔊 Skill da Alexa — criar ticket por voz', d:'Uma skill na Amazon Alexa chamando a criação por IA (/api/criar mágico), para criar tickets falando com a caixinha. Hoje o caminho por voz é a Siri (Atalhos do iPhone) e o 🎤 do card Criar ticket rápido.' },
   { s:'avaliacao', t:'📚 Central de Relatórios — completar os relatórios 🔶/🔒', d:'Evoluir os relatórios parciais e bloqueados do catálogo: CFD real e cycle time (histórico de transições), burndown/velocity (sprints e story points), Change Requests e Riscos como tipos padronizados, causa-raiz de bugs (BUG.1–BUG.5), SLA nativo do JSM, CSAT vinculado a tickets e ritual de lições aprendidas no encerramento.' },
   { s:'avaliacao', t:'🏆 Planejamento — histórico do score e meta de precisão', d:'Guardar a evolução do score de planejamento por pessoa (como o Scoreboard faz com o apontamento) e permitir uma meta de precisão por time, com destaque de quem melhorou mais no período.' },
   { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
@@ -14901,8 +14900,16 @@ function qkSiriModal(){
       </ol></div>
     <div class="mt-sec"><h3>🤖 Android</h3>
       <div class="muted small" style="line-height:1.6">Instale o painel como app (menu do navegador → <b>Adicionar à tela inicial</b>), abra o 🎫 na Início e use o <b>🎤 Ditar</b> — ou o microfone do teclado. Apps de automação (Tasker/Macrodroid) podem chamar o mesmo endpoint acima por voz.</div></div>
-    <div class="mt-sec"><h3>🔊 Alexa</h3>
-      <div class="muted small">Exige uma skill própria na Amazon — está no 🗺️ Roadmap. Por enquanto, Siri/Atalhos e o ditado do app cobrem o celular.</div></div>
+    <div class="mt-sec"><h3>🔊 Alexa — skill pronta para instalar</h3>
+      <div class="muted small" style="line-height:1.7">O painel já fala o protocolo da Alexa — diga <b>"Alexa, abrir jira insights"</b> e depois
+        <i>"crie um ticket no projeto da Copel, no épico de gestão…"</i>; ela confirma a prévia por voz e cria. Configuração (uma vez, conta gratuita de desenvolvedor Amazon):
+        <ol style="margin:6px 0 0;padding-left:20px">
+          <li>Em <b>developer.amazon.com/alexa</b> → Alexa Skills Kit → <b>Create Skill</b>: tipo <b>Custom</b>, idioma <b>Português (BR)</b>, hospedagem <b>Provision your own</b>.</li>
+          <li>Em <b>Interaction Model → JSON Editor</b>, cole o modelo pronto: <a href="/alexa-skill-model.json" target="_blank" rel="noopener"><b>alexa-skill-model.json</b> ↗</a> e salve/builde.</li>
+          <li>Em <b>Endpoint</b>: HTTPS → <code>https://jirainsight.vercel.app/api/criar</code> → certificado "<i>sub-domain of a domain that has a wildcard certificate</i>".</li>
+          <li>Copie o <b>Skill ID</b> e defina na Vercel: <code>ALEXA_SKILL_ID</code>, <code>ALEXA_JIRA_EMAIL</code> e <code>ALEXA_JIRA_TOKEN</code> (o e-mail e o token de API do Jira de quem a skill cria os tickets).</li>
+          <li>Teste na aba <b>Test</b> (modo Development) — a skill vale nas Alexas da sua conta Amazon, sem precisar de certificação.</li>
+        </ol></div></div>
     <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
 
@@ -16965,6 +16972,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-26','🔊 <b>Skill da Alexa — crie tickets falando com a caixinha</b>: o painel agora fala o protocolo da Alexa. Diga <b>"Alexa, abrir jira insights"</b> e peça: <i>"crie um ticket no projeto da Copel, no épico de gestão, com a descrição fazer atividade XPTO e vencimento dia 31"</i> — ela repete a prévia por voz, você confirma com <b>"sim"</b> e o ticket é criado. A configuração (uma vez) está no botão <b>📱 Pelo celular / Siri</b> do card 🎫 da Início: modelo de interação pronto para colar, endpoint e as 3 variáveis na Vercel (<b>ALEXA_SKILL_ID</b> + credenciais do Jira).'],
   ['2026-08-26','🎫 <b>Criar ticket rápido — por texto ou VOZ, direto da página inicial</b>: descreva em português ("crie um ticket no projeto da Copel, no épico de gestão, descrição Fazer atividade XPTO, vencimento dia 31") e a <b>IA resolve o projeto, o épico, o título e o vencimento</b>; você confere a prévia e confirma. Dá para <b>🎤 ditar</b> no navegador, e o botão <b>📱 Pelo celular / Siri</b> ensina a criar um Atalho da Siri que cria o ticket só falando com o iPhone — sem abrir o painel. Depois de criar, dá para já <b>📨 convidar</b> quem vai trabalhar junto.'],
   ['2026-08-26','📨 <b>Convidar para apontar agora também na tela ⏱ Apontar</b>: cada chamado da lista ganhou o botão 📨 convidar, junto de comentar/mover — sem precisar ir à Gestão.'],
   ['2026-08-25','🔁 <b>Status em lote agora respeita o status atual de cada ticket</b>. Quando os tickets selecionados (no ➗ Rateio ou na 🛠 Gestão) estão em <b>status diferentes</b>, o modal os separa em grupos por status atual e você escolhe <b>a transição certa para cada grupo</b> — antes só apareciam as transições do primeiro ticket e os demais falhavam. Grupos sem escolha ficam como estão.'],
@@ -17087,7 +17095,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-26.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-26.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
