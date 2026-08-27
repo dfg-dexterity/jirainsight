@@ -215,15 +215,237 @@ async function editaLote(res, b, base, headers) {
   return json(res, 200, { ok: resultados.every((r) => r.ok), resultados });
 }
 
+// ===========================================================================
+// ✨ Criação MÁGICA (linguagem natural): { magico:1, texto, email, token }
+// interpreta o pedido em português com a IA (projeto da lista, épico por nome
+// aproximado, resumo, descrição e vencimento — datas relativas resolvidas no
+// fuso de São Paulo) e devolve a PRÉVIA. Com { confirmar:1 } cria o ticket na
+// hora (é o modo usado pelos Atalhos da Siri no celular) — campos explícitos
+// no corpo (projeto/resumo/descricao/venc/epicoKey) têm prioridade sobre o
+// texto, para a prévia editada no painel. Requer ANTHROPIC_API_KEY na Vercel.
+// ===========================================================================
+function magicoHojeSP() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+async function magicoProjetos(base, headers) {
+  const ck = 'criar:magico:projetos';
+  const c = cacheGet(ck);
+  if (c) return c;
+  const lista = [];
+  let startAt = 0;
+  for (let p = 0; p < 4; p++) {
+    const r = await fetch(`${base}/rest/api/3/project/search?maxResults=100&startAt=${startAt}`, { headers });
+    if (!r.ok) break;
+    const j = await r.json();
+    (j.values || []).forEach((pr) => lista.push({
+      key: pr.key, nome: pr.name || pr.key,
+      categoria: (pr.projectCategory && pr.projectCategory.name) || '',
+    }));
+    if (j.isLast || !(j.values || []).length) break;
+    startAt += (j.values || []).length;
+  }
+  const uteis = lista.filter((pr) => !/^ARQ\b|arquiv/i.test(pr.categoria) && pr.key !== 'ARQ');
+  return cacheSetTTL(ck, uteis, 30);
+}
+async function magicoTipoTarefa(base, headers, projeto) {
+  const ck = `criar:magico:tipo:${projeto}`;
+  const c = cacheGet(ck);
+  if (c) return c;
+  const r = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}`, { headers });
+  if (!r.ok) return null;
+  const tipos = (((await r.json()).projects || [])[0] || {}).issuetypes || [];
+  const uteis = tipos.filter((t) => !t.subtask && !/epic|épico/i.test(t.name || ''));
+  const alvo = uteis.find((t) => /tarefa|task/i.test(t.name || '')) || uteis[0];
+  return alvo ? cacheSetTTL(ck, { id: String(alvo.id), nome: alvo.name || '' }, 30) : null;
+}
+const magicoNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+async function magicoEpico(base, headers, projeto, epicoTexto) {
+  if (!epicoTexto) return null;
+  const jql = encodeURIComponent(`project = ${projeto} AND issuetype in (Epic, Épico) AND statusCategory != Done ORDER BY created DESC`);
+  const r = await fetch(`${base}/rest/api/3/search/jql?jql=${jql}&maxResults=100&fields=summary`, { headers });
+  if (!r.ok) return null;
+  const eps = (((await r.json()).issues) || []).map((i) => ({ k: i.key, nome: (i.fields && i.fields.summary) || '' }));
+  const alvo = magicoNorm(epicoTexto);
+  const hits = eps.filter((e) => magicoNorm(e.nome).includes(alvo) || alvo.includes(magicoNorm(e.nome)));
+  hits.sort((a, b) => a.nome.length - b.nome.length);
+  return hits[0] || null;
+}
+async function magicoCore(b, base, headers) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const avisos = [];
+  let projeto = String(b.projeto || '').trim().toUpperCase();
+  let resumo = String(b.resumo || '').trim();
+  let descricao = String(b.descricao || '').trim();
+  let venc = String(b.venc || '').trim();
+  let epicoKey = String(b.epicoKey || '').trim().toUpperCase();
+  let epicoNome = '';
+  const projetos = await magicoProjetos(base, headers);
+  if (!projetos.length) return ({ ok: false, erro: 'Não consegui listar os projetos do Jira com o seu token.' });
+
+  // Sem campos explícitos → interpreta o TEXTO com a IA.
+  if (!projeto || !resumo) {
+    const texto = String(b.texto || '').trim().slice(0, 2000);
+    if (!texto) return ({ erro: 'Descreva o ticket (texto) ou informe os campos.' });
+    if (!apiKey) return ({ ok: false, erro: 'A interpretação por IA precisa da ANTHROPIC_API_KEY na Vercel (a mesma do Resumo por IA).' });
+    const { chamaClaude } = await import('./_lib/ia.js');
+    const SYS = ['Você interpreta pedidos em português do Brasil para criar UM ticket no Jira.',
+      'Escolha o projeto EXCLUSIVAMENTE da lista fornecida (retorne a key exata); case por nome/apelido — ex.: "projeto da Copel" casa com o projeto cujo nome contém "Copel".',
+      'Se nenhum projeto da lista casar com o pedido, retorne projeto="" (nunca chute).',
+      'resumo: um título curto e claro (máx. 120 caracteres). descricao: o detalhamento do pedido (pode repetir o texto original organizado).',
+      'venc: data AAAA-MM-DD. Resolva datas relativas com a data de HOJE fornecida (fuso América/São Paulo): "dia 31" = dia 31 do mês corrente se ainda não passou, senão do mês seguinte (se o mês não tiver o dia, use o último dia do mês); "sexta" = a próxima sexta-feira; sem menção a prazo → "".',
+      'epicoTexto: o nome aproximado do épico citado (ex.: "épico de gestão" → "gestão"); sem épico citado → "".'].join('\n');
+    const SCHEMA_M = { type: 'object', additionalProperties: false,
+      required: ['projeto', 'resumo', 'descricao', 'venc', 'epicoTexto'],
+      properties: { projeto: { type: 'string' }, resumo: { type: 'string' }, descricao: { type: 'string' },
+        venc: { type: 'string' }, epicoTexto: { type: 'string' } } };
+    const prompt = `HOJE: ${magicoHojeSP()}\n\nPEDIDO:\n${texto}\n\nPROJETOS DISPONÍVEIS (key — nome — categoria):\n${
+      projetos.map((p) => `${p.key} — ${p.nome}${p.categoria ? ` — ${p.categoria}` : ''}`).join('\n')}`;
+    let out;
+    try { out = await chamaClaude(apiKey, null, { system: SYS, schema: SCHEMA_M, prompt }); }
+    catch (e) { return ({ ok: false, erro: `IA indisponível: ${String(e.message || e).slice(0, 200)}` }); }
+    projeto = String(out.projeto || '').trim().toUpperCase();
+    resumo = resumo || String(out.resumo || '').trim().slice(0, 250);
+    descricao = descricao || String(out.descricao || '').trim();
+    venc = venc || String(out.venc || '').trim();
+    if (!epicoKey && out.epicoTexto) {
+      const ep = await magicoEpico(base, headers, projeto, out.epicoTexto);
+      if (ep) { epicoKey = ep.k; epicoNome = ep.nome; }
+      else if (projeto) avisos.push(`Épico "${out.epicoTexto}" não encontrado no projeto ${projeto} — o ticket sai sem épico.`);
+    }
+  }
+  if (!projeto || !projetos.some((p) => p.key === projeto)) {
+    return ({ ok: false, erro: 'Não identifiquei o projeto no pedido — cite o nome como aparece no Jira (ex.: "no projeto da Copel").',
+      projetos: projetos.map((p) => `${p.key} — ${p.nome}`).slice(0, 60) });
+  }
+  if (!resumo) return ({ ok: false, erro: 'Não identifiquei o título do ticket no pedido.' });
+  if (venc && !/^\d{4}-\d{2}-\d{2}$/.test(venc)) { avisos.push(`Vencimento "${venc}" inválido — ignorado.`); venc = ''; }
+  const tipo = await magicoTipoTarefa(base, headers, projeto);
+  if (!tipo) return ({ ok: false, erro: `Não achei um tipo de tarefa utilizável no projeto ${projeto}.` });
+  const pNome = (projetos.find((p) => p.key === projeto) || {}).nome || projeto;
+  const previa = { projeto, projetoNome: pNome, tipoId: tipo.id, tipoNome: tipo.nome,
+    epicoKey, epicoNome, resumo, descricao, venc, avisos };
+
+  if (!b.confirmar) return ({ ok: true, previa });
+
+  // ---- confirmar: cria o ticket na hora (1 issue) ----
+  const fields = { project: { key: projeto }, issuetype: { id: tipo.id }, summary: resumo.slice(0, 250) };
+  if (descricao) fields.description = adf(descricao);
+  if (venc) fields.duedate = venc;
+  if (epicoKey) fields.parent = { key: epicoKey };
+  let r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  if (!r.ok && epicoKey) {
+    // alguns fluxos recusam parent no create — tenta sem o épico e avisa
+    delete fields.parent;
+    avisos.push(`O Jira recusou o épico ${epicoKey} no create — ticket criado sem épico.`);
+    r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  }
+  if (!r.ok) return ({ ok: false, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 300)}`, previa });
+  const key = ((await r.json()) || {}).key || '';
+  cacheClear('venc:'); cacheClear('epicos:');
+  return ({ ok: true, key, previa,
+    msg: `Criado ${key} no projeto ${pNome}${epicoKey ? ` (épico ${epicoNome || epicoKey})` : ''}${venc ? `, vence ${venc.split('-').reverse().join('/')}` : ''}: ${resumo}` });
+}
+
+async function magico(res, b, base, headers) {
+  return json(res, 200, await magicoCore(b, base, headers));
+}
+
+// ===========================================================================
+// 🔊 SKILL DA ALEXA — endpoint HTTPS custom (não precisa de Lambda): o console
+// da Alexa aponta para POST /api/criar e o envelope {version, session, request}
+// é detectado antes das rotas do painel. Fluxo por voz com CONFIRMAÇÃO:
+//   "crie um ticket <pedido>" → interpreta (magicoCore) → fala a prévia e
+//   pergunta; "sim" cria (a prévia viaja em sessionAttributes), "não" cancela.
+// Env na Vercel: ALEXA_SKILL_ID (validação do applicationId — obrigatória),
+// ALEXA_JIRA_EMAIL + ALEXA_JIRA_TOKEN (credenciais de quem a skill cria; a
+// skill fica em modo desenvolvimento, só nas Alexas da conta do dono).
+// Modelo de interação pronto: /alexa-skill-model.json (colar no console).
+// ===========================================================================
+function alexaFala(texto, { fim = true, reprompt = '', attrs = null } = {}) {
+  const r = { version: '1.0', response: {
+    outputSpeech: { type: 'PlainText', text: String(texto).slice(0, 6000) },
+    shouldEndSession: !!fim } };
+  if (reprompt) r.response.reprompt = { outputSpeech: { type: 'PlainText', text: reprompt } };
+  if (attrs) r.sessionAttributes = attrs;
+  return r;
+}
+async function alexaSkill(res, b) {
+  const skillId = (process.env.ALEXA_SKILL_ID || '').trim();
+  const email = (process.env.ALEXA_JIRA_EMAIL || '').trim();
+  const token = (process.env.ALEXA_JIRA_TOKEN || '').trim();
+  const appId = (b.session && b.session.application && b.session.application.applicationId)
+    || (b.context && b.context.System && b.context.System.application && b.context.System.application.applicationId) || '';
+  if (!skillId || appId !== skillId) {
+    return json(res, 403, alexaFala('Esta skill não está autorizada neste servidor.'));
+  }
+  if (!email || !token) {
+    return json(res, 200, alexaFala('A skill ainda não tem as credenciais do Jira. Defina ALEXA_JIRA_EMAIL e ALEXA_JIRA_TOKEN na Vercel.'));
+  }
+  const req2 = b.request || {};
+  const tipo = req2.type || '';
+  const intent = (req2.intent && req2.intent.name) || '';
+  const attrs = (b.session && b.session.attributes) || {};
+  const base = jiraBase();
+  const headers = {
+    Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+    Accept: 'application/json', 'Content-Type': 'application/json',
+  };
+  const EXEMPLO = 'Diga, por exemplo: crie um ticket no projeto da Copel, no épico de gestão, com a descrição fazer atividade XPTO e vencimento dia trinta e um.';
+
+  if (tipo === 'SessionEndedRequest') return json(res, 200, { version: '1.0', response: {} });
+  if (tipo === 'LaunchRequest') {
+    return json(res, 200, alexaFala(`Oi! Me diga o ticket que você quer criar. ${EXEMPLO}`,
+      { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+  }
+  if (tipo === 'IntentRequest' && intent === 'CriarTicketIntent') {
+    const texto = String((((req2.intent || {}).slots || {}).texto || {}).value || '').trim();
+    if (!texto) return json(res, 200, alexaFala(`Não entendi o pedido. ${EXEMPLO}`, { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+    const out = await magicoCore({ texto }, base, headers);
+    if (!out.ok || !out.previa) {
+      return json(res, 200, alexaFala(`${out.erro || 'Não consegui interpretar.'} Tente de novo com o nome do projeto.`,
+        { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+    }
+    const p = out.previa;
+    const vencFala = p.venc ? `, vencendo em ${p.venc.split('-').reverse().join(' do ')}` : '';
+    const fala = `Entendi: ${p.resumo}, no projeto ${p.projetoNome}${p.epicoNome ? `, épico ${p.epicoNome}` : ''}${vencFala}. Posso criar?`;
+    return json(res, 200, alexaFala(fala, { fim: false, reprompt: 'Posso criar o ticket?', attrs: { previa: p } }));
+  }
+  if (tipo === 'IntentRequest' && intent === 'AMAZON.YesIntent') {
+    const p = attrs.previa;
+    if (!p) return json(res, 200, alexaFala(`Não tenho um ticket pendente. ${EXEMPLO}`, { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+    const out = await magicoCore({ confirmar: 1, projeto: p.projeto, epicoKey: p.epicoKey || '',
+      resumo: p.resumo, descricao: p.descricao || '', venc: p.venc || '' }, base, headers);
+    if (!out.ok || !out.key) return json(res, 200, alexaFala(`Não consegui criar: ${out.erro || 'erro no Jira'}.`));
+    return json(res, 200, alexaFala(`${out.msg || `Criado o ticket ${out.key}.`} Até mais!`));
+  }
+  if (tipo === 'IntentRequest' && (intent === 'AMAZON.NoIntent' || intent === 'AMAZON.CancelIntent' || intent === 'AMAZON.StopIntent')) {
+    return json(res, 200, alexaFala('Tudo bem, cancelei. Até mais!'));
+  }
+  if (tipo === 'IntentRequest' && intent === 'AMAZON.HelpIntent') {
+    return json(res, 200, alexaFala(`Eu crio tickets no Jira da Dexterity. ${EXEMPLO}`, { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+  }
+  return json(res, 200, alexaFala(`Não entendi. ${EXEMPLO}`, { fim: false, reprompt: 'Qual ticket você quer criar?' }));
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST' });
     const b = await lerBody(req);
+    // Envelope da Alexa (skill custom apontando para este endpoint): detectado
+    // pela tripla version+session/context+request, antes das rotas do painel.
+    if (b.version && b.request && b.request.type) return await alexaSkill(res, b);
     if (b.feedback) return await criaFeedbackGitHub(res, b);
     const email = String(b.email || '').trim();
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Identifique-se (e-mail + token de API) para criar tickets.' });
+    }
+    if (b.magico) {
+      return await magico(res, b, jiraBase(), {
+        Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      });
     }
     if (b.editar) {
       return await editaLote(res, b, jiraBase(), {

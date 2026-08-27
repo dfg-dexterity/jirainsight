@@ -2351,6 +2351,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     proj:null, projB:false },
   // 📚 Central de Relatórios — catálogo × tipo de projeto (sigla da categoria)
   relcat:{ sigla:'', dim:'', busca:'' },
+  // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders
+  qk:{ texto:'', criando:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
   // igual / percentual / fatias (pesos) / manual; status trocado em conjunto.
   rateio:{ texto:'', tickets:[], info:{}, naoEnc:[], conferindo:false, confErro:'',
@@ -6408,6 +6410,20 @@ function renderAcoes(){
       <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
   };
   const radKeys=rd.lista.map(r=>r.k);
+  // 🎫 Criação rápida: descreva em português (ou dite) e a IA monta o ticket.
+  const temMic=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  const cardTicket=`<div class="card full" style="margin-top:14px">
+    <h2>🎫 Criar ticket rápido <span>descreva em português — a IA resolve projeto, épico e vencimento; você confirma a prévia</span></h2>
+    <textarea id="qk-texto" class="pl-texto" style="min-height:64px;margin-top:8px" oninput="estado.qk.texto=this.value"
+      placeholder='Ex.: "Criar um ticket no projeto da Copel, dentro do épico de gestão, com a descrição Fazer atividade XPTO e vencimento até o dia 31"'>${esc(estado.qk.texto||'')}</textarea>
+    <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <button class="btn primario" id="qk-criar" ${estado.qk.criando?'disabled':''}>${estado.qk.criando?'✨ Interpretando…':'✨ Criar com IA'}</button>
+      ${temMic?'<button class="btn" id="qk-mic" data-tip="Fale o pedido — o texto entra no campo (pt-BR)">🎤 Ditar</button>':''}
+      <button class="btn" id="qk-siri" data-tip="Crie tickets por voz pelo celular (Atalhos da Siri) sem abrir o painel">📱 Pelo celular / Siri</button>
+      <span class="spacer"></span>
+      <button class="btn" data-hx-goto="planejar" data-tip="Criação completa: vários tickets, épicos, padrões e colar do Excel">📝 Criação completa</button>
+      <button class="btn" data-hx-goto="ondecrio" data-tip="Não sabe o projeto certo? A árvore de decisão te leva">🌳 Onde crio?</button></div>
+    <div class="muted small" style="margin-top:6px">💡 No celular, o microfone do teclado também dita direto no campo. A prévia sempre aparece antes de criar.</div></div>`;
   const cardRadar=`<div class="card full" style="margin-top:14px">
     <h2>🧭 Radar — combine as informações <span>escopo × eventos × período — ex.: "meus tickets criados hoje" (a combinação fica salva)</span></h2>
     <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -6445,6 +6461,7 @@ function renderAcoes(){
   </div>`;
   cont.replaceChildren(el(`<div>
     ${heroHtml}
+    ${cardTicket}
     ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
@@ -8829,6 +8846,7 @@ function renderApontar(){
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
+        ${id?`<button class="badge st-btn" data-ap-conv="${escA(t.k)}" data-tip="Convidar pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique (aviso por chat individual do Teams)">📨 convidar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
         ${id&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket: cria um ticket de apoio funcional (ou comenta num ticket aberto) com os detalhes e EXCLUI a reunião — o mesmo assistente da tela Vincular Reuniões">🔗 vincular a ticket</button>`:''}
       </div>
@@ -14783,6 +14801,128 @@ let _gxSt=null;
 // privado) quando TEAMS_DM_WEBHOOK_URL está configurada na Vercel; além
 // disso, o modal oferece o link de chat 1:1 pré-preenchido por pessoa.
 // ===========================================================================
+// ===========================================================================
+// 🎫 Criação rápida por LINGUAGEM NATURAL (home): o texto (digitado ou ditado)
+// vai para /api/criar {magico:1} — a IA resolve projeto, épico, título,
+// descrição e vencimento; a PRÉVIA editável aparece num modal e só cria após
+// confirmar. O modo {confirmar:1} direto é o usado pelos Atalhos da Siri.
+// ===========================================================================
+let _qkPrev=null;
+async function qkCria(){
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const texto=(estado.qk.texto||'').trim();
+  if(!texto){ toast('Descreva o ticket no campo (ou dite pelo 🎤).','warn'); return; }
+  estado.qk.criando=true; if(estado.vista==='acoes') renderAcoes();
+  try{
+    const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({magico:1, texto, email:id.email, token:id.token})});
+    const j=await r.json();
+    estado.qk.criando=false;
+    if(!j||!j.ok||!j.previa){
+      toast((j&&j.erro)||'Não consegui interpretar o pedido.','err');
+      if(estado.vista==='acoes') renderAcoes(); return; }
+    _qkPrev=j.previa; qkAbrePrevia();
+  }catch(e){ estado.qk.criando=false; toast(humanizaErro(e),'err'); }
+  if(estado.vista==='acoes') renderAcoes();
+}
+function qkAbrePrevia(){
+  const p=_qkPrev; if(!p) return;
+  abreModal(`<h2>🎫 Confirme o ticket</h2>
+    <div class="muted small">A IA interpretou assim — ajuste o que quiser antes de criar.</div>
+    ${(p.avisos||[]).map(a=>`<div class="aviso" style="margin-top:8px">⚠ ${esc(a)}</div>`).join('')}
+    <div class="alx-campo"><label>Projeto</label>
+      <div><strong>${esc(p.projeto)}</strong> — ${esc(p.projetoNome)} <span class="muted small">· tipo ${esc(p.tipoNome||'Tarefa')}</span></div></div>
+    ${p.epicoKey?`<div class="alx-campo"><label>Épico</label><div><strong>${esc(p.epicoKey)}</strong> — ${esc(p.epicoNome||'')}</div></div>`:''}
+    <div class="alx-campo"><label>Título <span class="req">*</span></label>
+      <input id="qk-p-resumo" class="alx-motivo" value="${escA(p.resumo)}" maxlength="250"></div>
+    <div class="alx-campo"><label>Descrição</label>
+      <textarea id="qk-p-desc" class="alx-coment" style="min-height:90px">${esc(p.descricao||'')}</textarea></div>
+    <div class="alx-campo" style="max-width:220px"><label>Vencimento</label>
+      <input type="date" id="qk-p-venc" value="${escA(p.venc||'')}"></div>
+    <div class="alx-fb" id="qk-fb" hidden></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="qk-prev-conf">✓ Criar o ticket</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+}
+async function qkConfirma(){
+  const p=_qkPrev; const id=idApontar(); if(!p||!id) return;
+  const fb=document.getElementById('qk-fb');
+  const resumo=((document.getElementById('qk-p-resumo')||{}).value||'').trim();
+  const descricao=((document.getElementById('qk-p-desc')||{}).value||'').trim();
+  const venc=((document.getElementById('qk-p-venc')||{}).value||'').trim();
+  if(!resumo){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Dê um título ao ticket.'; } return; }
+  const bt=document.getElementById('qk-prev-conf'); if(bt) bt.disabled=true;
+  if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Criando o ticket…'; }
+  try{
+    const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({magico:1, confirmar:1, projeto:p.projeto, epicoKey:p.epicoKey||'',
+        resumo, descricao, venc, email:id.email, token:id.token})});
+    const j=await r.json();
+    if(!j||!j.ok||!j.key) throw new Error((j&&j.erro)||'Falha ao criar o ticket.');
+    estado.qk.texto=''; _qkPrev=null; estado.cache={};
+    abreModal(`<h2>🎫 Ticket criado!</h2>
+      <div class="alx-fb ap-fb ok" style="display:block">✓ <a href="${jiraBase()}/browse/${encodeURIComponent(j.key)}" target="_blank" rel="noopener"><strong>${esc(j.key)}</strong> ↗</a> — ${esc(resumo)}
+        <br><span class="muted small">${esc(p.projetoNome)}${p.epicoKey?` · épico ${esc(p.epicoNome||p.epicoKey)}`:''}${venc?` · vence ${esc(venc.split('-').reverse().join('/'))}`:''}</span></div>
+      <div class="alx-modal-acoes">
+        <button class="btn primario" data-gx-conv="${escA(j.key)}" data-tip="Já convide quem vai trabalhar junto">📨 Convidar para apontar</button>
+        <button class="btn" id="gx-fechar">Fechar</button></div>`);
+    if(estado.vista==='acoes') renderAcoes();
+  }catch(e){ if(fb){ fb.className='alx-fb ap-fb erro'; fb.textContent=humanizaErro(e); } if(bt) bt.disabled=false; }
+}
+function qkMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast('Ditado não disponível neste navegador — use o microfone do teclado do celular.','warn'); return; }
+  try{
+    const rec=new SR(); rec.lang='pt-BR'; rec.interimResults=false; rec.maxAlternatives=1;
+    const btn=document.getElementById('qk-mic'); if(btn){ btn.textContent='🎙 ouvindo…'; btn.disabled=true; }
+    const solta=()=>{ const b=document.getElementById('qk-mic'); if(b){ b.textContent='🎤 Ditar'; b.disabled=false; } };
+    rec.onresult=(e)=>{ try{ const txt=e.results[0][0].transcript||'';
+      estado.qk.texto=((estado.qk.texto||'').trim()+' '+txt).trim();
+      const ta=document.getElementById('qk-texto'); if(ta) ta.value=estado.qk.texto; }catch(err){} };
+    rec.onend=solta; rec.onerror=(e)=>{ solta(); if(e&&e.error==='not-allowed') toast('Permita o microfone para ditar.','warn'); };
+    rec.start();
+  }catch(e){ toast('Não consegui iniciar o ditado aqui.','warn'); }
+}
+function qkSiriModal(){
+  const id=idApontar();
+  const corpo=`{"magico":1,"confirmar":1,"texto":"[Texto ditado]","email":"${id?esc(id.email):'seu-email@dexterityit.com.br'}","token":"[seu token de API do Jira]"}`;
+  abreModal(`<h2>📱 Criar ticket por voz no celular</h2>
+    <div class="muted small">Três caminhos: o <b>app instalável de um toque</b> (recomendado), o <b>Atalho da Siri</b> (cria só falando) e a <b>skill da Alexa</b>.</div>
+    <div class="mt-sec"><h3>📲 App de um toque na tela de início (recomendado)</h3>
+      <div class="muted small" style="line-height:1.7">Abra <a href="/voz.html" target="_blank" rel="noopener"><b>jirainsight.vercel.app/voz.html</b> ↗</a> no celular →
+        <b>Compartilhar</b> (□↑) → <b>"Adicionar à Tela de Início"</b>. Vira o app <b>🎫 Criar Ticket</b>: abre direto no campo,
+        você <b>dita pelo microfone do teclado</b> (ou digita), confere a prévia e cria. No primeiro uso do app instalado ele pede seu e-mail + token do Jira (ficam só no aparelho). Funciona em iPhone e Android.</div></div>
+    <div class="mt-sec"><h3>🍎 iPhone — Atalhos da Siri (uma vez só)</h3>
+      <div class="muted small" style="margin-bottom:6px;line-height:1.7">⬇️ <b>Atalho pronto:</b> <a href="/criar-ticket.shortcut" download><b>criar-ticket.shortcut</b></a> — já vem com as 4 ações montadas
+        (Ditar → criação com IA → resposta falada); só editar o e-mail e colar o seu token. <b>Atenção (regra da Apple):</b> o iPhone só
+        instala Atalhos <b>assinados</b> — quem tiver um Mac roda <code>shortcuts sign -m anyone -i criar-ticket.shortcut -o criar-ticket-ok.shortcut</code>
+        uma única vez e o arquivo assinado instala em qualquer iPhone. Sem Mac, monte 1× pelos passos abaixo e depois
+        distribua ao time por <b>link do iCloud</b> (Compartilhar → Copiar Link do iCloud) — instala com 1 toque.</div>
+      <ol style="margin:6px 0 0;padding-left:20px;line-height:1.7">
+        <li>Abra o app <b>Atalhos</b> → <b>+</b> novo atalho, nomeie <b>"Criar ticket"</b>.</li>
+        <li>Ação <b>"Ditar texto"</b> (idioma Português).</li>
+        <li>Ação <b>"Obter conteúdo do URL"</b>: URL <code>https://jirainsight.vercel.app/api/criar</code>, Método <b>POST</b>, Tipo <b>JSON</b>, corpo:
+          <pre class="pl-texto" style="white-space:pre-wrap;font-size:11.5px;margin-top:6px">${corpo}</pre>
+          <span class="muted small">No campo <code>texto</code>, insira a variável <b>Texto ditado</b>; no <code>token</code>, cole o seu token de API do Jira (o mesmo que você usa aqui no painel).</span></li>
+        <li>Ação <b>"Mostrar resultado"</b> escolhendo o campo <code>msg</code> (ou o retorno inteiro).</li>
+        <li>Pronto: diga <b>"E aí Siri, Criar ticket"</b> e fale o pedido — ex.: <i>"criar um ticket no projeto da Copel dentro do épico de gestão com a descrição fazer atividade XPTO com vencimento até o dia 31"</i>.</li>
+        <li class="muted small">💡 Depois de montar, toque em <b>Compartilhar → Copiar Link do iCloud</b> no Atalho e mande ao time — cada pessoa instala com 1 toque (só troca o token pelo dela). É o único jeito que a Apple aceita para distribuir Atalhos.</li>
+      </ol></div>
+    <div class="mt-sec"><h3>🤖 Android</h3>
+      <div class="muted small" style="line-height:1.6">Instale o painel como app (menu do navegador → <b>Adicionar à tela inicial</b>), abra o 🎫 na Início e use o <b>🎤 Ditar</b> — ou o microfone do teclado. Apps de automação (Tasker/Macrodroid) podem chamar o mesmo endpoint acima por voz.</div></div>
+    <div class="mt-sec"><h3>🔊 Alexa — skill pronta para instalar</h3>
+      <div class="muted small" style="line-height:1.7">O painel já fala o protocolo da Alexa — diga <b>"Alexa, abrir jira insights"</b> e depois
+        <i>"crie um ticket no projeto da Copel, no épico de gestão…"</i>; ela confirma a prévia por voz e cria. Configuração (uma vez, conta gratuita de desenvolvedor Amazon):
+        <ol style="margin:6px 0 0;padding-left:20px">
+          <li>Em <b>developer.amazon.com/alexa</b> → Alexa Skills Kit → <b>Create Skill</b>: tipo <b>Custom</b>, idioma <b>Português (BR)</b>, hospedagem <b>Provision your own</b>.</li>
+          <li>Em <b>Interaction Model → JSON Editor</b>, cole o modelo pronto: <a href="/alexa-skill-model.json" target="_blank" rel="noopener"><b>alexa-skill-model.json</b> ↗</a> e salve/builde.</li>
+          <li>Em <b>Endpoint</b>: HTTPS → <code>https://jirainsight.vercel.app/api/criar</code> → certificado "<i>sub-domain of a domain that has a wildcard certificate</i>".</li>
+          <li>Copie o <b>Skill ID</b> e defina na Vercel: <code>ALEXA_SKILL_ID</code>, <code>ALEXA_JIRA_EMAIL</code> e <code>ALEXA_JIRA_TOKEN</code> (o e-mail e o token de API do Jira de quem a skill cria os tickets).</li>
+          <li>Teste na aba <b>Test</b> (modo Development) — a skill vale nas Alexas da sua conta Amazon, sem precisar de certificação.</li>
+        </ol></div></div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
+}
+
 let _cv=null;
 function abreConvidarApontar(k){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
@@ -14793,7 +14933,8 @@ function abreConvidarApontar(k){
     .map(([a,o])=>({a, nome:o.nome||o.email, email:String(o.email).toLowerCase()}))
     .sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
   _cv={k, us};
-  const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||{};
+  const apT=((estado.apontar.porData[chaveVenc()]||{}).tickets||[]).find(x=>x.k===k);
+  const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||apT||{};
   abreModal(`<h2>📨 Convidar para apontar · ${esc(k)}</h2>
     ${t.resumo?`<div class="muted small">${esc(t.resumo)}</div>`:''}
     <div class="muted small" style="margin-top:6px">Cada pessoa recebe o convite no painel (⏱ Apontar / 📥 Inbox) e
@@ -16841,6 +16982,11 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-27','⬇️ <b>Atalho da Siri pronto para baixar</b>: o arquivo <b>criar-ticket.shortcut</b> já vem com as 4 ações montadas (Ditar → criação com IA → resposta falada) — link no modal <b>📱 Pelo celular / Siri</b> do card 🎫. Regra da Apple: o iPhone só instala Atalhos <b>assinados</b> — quem tiver um Mac assina com 1 comando (<b>shortcuts sign</b>) e o arquivo passa a instalar em qualquer iPhone; sem Mac, monte uma vez pelos passos do modal e distribua ao time por <b>link do iCloud</b> (1 toque). O caminho 100% sem montagem continua sendo o app instalável <b>jirainsight.vercel.app/voz.html</b>.'],
+  ['2026-08-26','📲 <b>App "🎫 Criar Ticket" instalável no celular</b>: abra <b>jirainsight.vercel.app/voz.html</b> no iPhone (ou Android) → Compartilhar → <b>Adicionar à Tela de Início</b> — vira um app de <b>um toque</b> na tela inicial: dite pelo microfone do teclado (ou digite), a IA monta o ticket, você confere a prévia e cria. Observação honesta: a Apple só permite distribuir Atalhos da Siri por link do iCloud (gerado no app Atalhos) — por isso o caminho instalável em 1 toque é este mini-app; quem montar o Atalho da Siri pode compartilhá-lo ao time pelo link do iCloud (dica no modal 📱).'],
+  ['2026-08-26','🔊 <b>Skill da Alexa — crie tickets falando com a caixinha</b>: o painel agora fala o protocolo da Alexa. Diga <b>"Alexa, abrir jira insights"</b> e peça: <i>"crie um ticket no projeto da Copel, no épico de gestão, com a descrição fazer atividade XPTO e vencimento dia 31"</i> — ela repete a prévia por voz, você confirma com <b>"sim"</b> e o ticket é criado. A configuração (uma vez) está no botão <b>📱 Pelo celular / Siri</b> do card 🎫 da Início: modelo de interação pronto para colar, endpoint e as 3 variáveis na Vercel (<b>ALEXA_SKILL_ID</b> + credenciais do Jira).'],
+  ['2026-08-26','🎫 <b>Criar ticket rápido — por texto ou VOZ, direto da página inicial</b>: descreva em português ("crie um ticket no projeto da Copel, no épico de gestão, descrição Fazer atividade XPTO, vencimento dia 31") e a <b>IA resolve o projeto, o épico, o título e o vencimento</b>; você confere a prévia e confirma. Dá para <b>🎤 ditar</b> no navegador, e o botão <b>📱 Pelo celular / Siri</b> ensina a criar um Atalho da Siri que cria o ticket só falando com o iPhone — sem abrir o painel. Depois de criar, dá para já <b>📨 convidar</b> quem vai trabalhar junto.'],
+  ['2026-08-26','📨 <b>Convidar para apontar agora também na tela ⏱ Apontar</b>: cada chamado da lista ganhou o botão 📨 convidar, junto de comentar/mover — sem precisar ir à Gestão.'],
   ['2026-08-25','🔁 <b>Status em lote agora respeita o status atual de cada ticket</b>. Quando os tickets selecionados (no ➗ Rateio ou na 🛠 Gestão) estão em <b>status diferentes</b>, o modal os separa em grupos por status atual e você escolhe <b>a transição certa para cada grupo</b> — antes só apareciam as transições do primeiro ticket e os demais falhavam. Grupos sem escolha ficam como estão.'],
   ['2026-08-25','📨 <b>Convidar para apontar em qualquer ticket</b> — não só reuniões. Na ficha do ticket ou na linha da 🛠 Gestão, clique em <b>📨 Convidar para apontar</b>: escolha as pessoas, o tempo e o dia; cada uma recebe o convite no painel e confirma com 1 clique (o worklog sai no usuário dela). O aviso vai por <b>chat individual do Teams</b> (quando configurado) e o modal ainda entrega o <b>link do chat 1:1 com a mensagem pronta</b> para cada convidado.'],
   ['2026-08-25','🪪 <b>Vigência na empresa (admissão/desligamento)</b>: em 🎯 Metas & ausências, cadastre a admissão e/ou o desligamento de cada pessoa. Os relatórios passam a respeitar o período: <b>antes da admissão e depois do desligamento a pessoa não é cobrada</b> (meta, lacunas e scoreboard tratam como ausência) e ela <b>some das visões</b> dos períodos em que não tem horas — <b>sem perder nenhum relatório antigo</b>.'],
@@ -16961,7 +17107,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-25.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-27.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -18276,6 +18422,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   if(t.id==='gx-com-confirmar'){ gxComentaLote(); }
   else if(t.id==='gx-st-confirmar'){ gxStatusLote(); }
   else if(t.id==='cv-enviar'){ cvEnviar(); }
+  else if(t.id==='qk-prev-conf'){ qkConfirma(); }
   else if(t.id==='gx-del-confirmar'){ gxExcluiLote(); }
   else if(t.id==='gx-dup-selall'){ const g=estado.gestao;
     gxGruposDuplicados().forEach(a=>a.forEach(x=>{ g.sel[x.k]=true; }));
@@ -18932,6 +19079,10 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-ap-resp')){ escondeTip(); toggleTransferir(t); }
   else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
   else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
+  else if(t.hasAttribute('data-ap-conv')){ escondeTip(); abreConvidarApontar(t.getAttribute('data-ap-conv')); }
+  else if(t.id==='qk-criar'){ qkCria(); }
+  else if(t.id==='qk-mic'){ qkMic(); }
+  else if(t.id==='qk-siri'){ qkSiriModal(); }
   else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
   // ---- ⏱ Meu timesheet (grade × calendário, navegação de semana, recolher projeto) ----
   else if(t.hasAttribute('data-mts-modo')){ mtsEstado().mtsModo=t.getAttribute('data-mts-modo'); escondeTip(); atualizaPainelHoras(); }
