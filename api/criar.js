@@ -347,7 +347,12 @@ async function magicoCore(b, base, headers) {
 }
 
 async function magico(res, b, base, headers) {
-  return json(res, 200, await magicoCore(b, base, headers));
+  const out = await magicoCore(b, base, headers);
+  // O Atalho da Siri lê o campo "msg" (Get Dictionary Value → Show Result):
+  // em ERRO a resposta vinha sem msg e o atalho terminava mudo — agora o
+  // motivo sempre viaja em msg, e o celular fala o que impediu a criação.
+  if (!out.msg && out.erro) out.msg = `Não criei o ticket: ${out.erro}`;
+  return json(res, 200, out);
 }
 
 // ===========================================================================
