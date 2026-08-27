@@ -14893,6 +14893,11 @@ function qkSiriModal(){
         <b>Compartilhar</b> (□↑) → <b>"Adicionar à Tela de Início"</b>. Vira o app <b>🎫 Criar Ticket</b>: abre direto no campo,
         você <b>dita pelo microfone do teclado</b> (ou digita), confere a prévia e cria. No primeiro uso do app instalado ele pede seu e-mail + token do Jira (ficam só no aparelho). Funciona em iPhone e Android.</div></div>
     <div class="mt-sec"><h3>🍎 iPhone — Atalhos da Siri (uma vez só)</h3>
+      <div class="muted small" style="margin-bottom:6px;line-height:1.7">⬇️ <b>Atalho pronto:</b> <a href="/criar-ticket.shortcut" download><b>criar-ticket.shortcut</b></a> — já vem com as 4 ações montadas
+        (Ditar → criação com IA → resposta falada); só editar o e-mail e colar o seu token. <b>Atenção (regra da Apple):</b> o iPhone só
+        instala Atalhos <b>assinados</b> — quem tiver um Mac roda <code>shortcuts sign -m anyone -i criar-ticket.shortcut -o criar-ticket-ok.shortcut</code>
+        uma única vez e o arquivo assinado instala em qualquer iPhone. Sem Mac, monte 1× pelos passos abaixo e depois
+        distribua ao time por <b>link do iCloud</b> (Compartilhar → Copiar Link do iCloud) — instala com 1 toque.</div>
       <ol style="margin:6px 0 0;padding-left:20px;line-height:1.7">
         <li>Abra o app <b>Atalhos</b> → <b>+</b> novo atalho, nomeie <b>"Criar ticket"</b>.</li>
         <li>Ação <b>"Ditar texto"</b> (idioma Português).</li>
@@ -16977,6 +16982,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-27','⬇️ <b>Atalho da Siri pronto para baixar</b>: o arquivo <b>criar-ticket.shortcut</b> já vem com as 4 ações montadas (Ditar → criação com IA → resposta falada) — link no modal <b>📱 Pelo celular / Siri</b> do card 🎫. Regra da Apple: o iPhone só instala Atalhos <b>assinados</b> — quem tiver um Mac assina com 1 comando (<b>shortcuts sign</b>) e o arquivo passa a instalar em qualquer iPhone; sem Mac, monte uma vez pelos passos do modal e distribua ao time por <b>link do iCloud</b> (1 toque). O caminho 100% sem montagem continua sendo o app instalável <b>jirainsight.vercel.app/voz.html</b>.'],
   ['2026-08-26','📲 <b>App "🎫 Criar Ticket" instalável no celular</b>: abra <b>jirainsight.vercel.app/voz.html</b> no iPhone (ou Android) → Compartilhar → <b>Adicionar à Tela de Início</b> — vira um app de <b>um toque</b> na tela inicial: dite pelo microfone do teclado (ou digite), a IA monta o ticket, você confere a prévia e cria. Observação honesta: a Apple só permite distribuir Atalhos da Siri por link do iCloud (gerado no app Atalhos) — por isso o caminho instalável em 1 toque é este mini-app; quem montar o Atalho da Siri pode compartilhá-lo ao time pelo link do iCloud (dica no modal 📱).'],
   ['2026-08-26','🔊 <b>Skill da Alexa — crie tickets falando com a caixinha</b>: o painel agora fala o protocolo da Alexa. Diga <b>"Alexa, abrir jira insights"</b> e peça: <i>"crie um ticket no projeto da Copel, no épico de gestão, com a descrição fazer atividade XPTO e vencimento dia 31"</i> — ela repete a prévia por voz, você confirma com <b>"sim"</b> e o ticket é criado. A configuração (uma vez) está no botão <b>📱 Pelo celular / Siri</b> do card 🎫 da Início: modelo de interação pronto para colar, endpoint e as 3 variáveis na Vercel (<b>ALEXA_SKILL_ID</b> + credenciais do Jira).'],
   ['2026-08-26','🎫 <b>Criar ticket rápido — por texto ou VOZ, direto da página inicial</b>: descreva em português ("crie um ticket no projeto da Copel, no épico de gestão, descrição Fazer atividade XPTO, vencimento dia 31") e a <b>IA resolve o projeto, o épico, o título e o vencimento</b>; você confere a prévia e confirma. Dá para <b>🎤 ditar</b> no navegador, e o botão <b>📱 Pelo celular / Siri</b> ensina a criar um Atalho da Siri que cria o ticket só falando com o iPhone — sem abrir o painel. Depois de criar, dá para já <b>📨 convidar</b> quem vai trabalhar junto.'],
@@ -17101,7 +17107,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-26.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-27.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
