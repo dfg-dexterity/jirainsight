@@ -126,7 +126,7 @@ async function agenda(req, res, b) {
   const de = agendaDiaSP(-1); const ate = agendaDiaSP(14);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
     + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
-    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity';
+    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity,seriesMasterId,type';
   // Segue @odata.nextLink para agendas com mais de 100 eventos no período (teto de 10 páginas).
   const valores = [];
   let prox = url;
@@ -165,6 +165,10 @@ async function agenda(req, res, b) {
     local: (e.location && e.location.displayName) || '',
     link: (e.onlineMeeting && e.onlineMeeting.joinUrl) || e.webLink || '',
     meu: orgDe(e) === email,
+    // Série recorrente: seriesMasterId agrupa TODAS as ocorrências da mesma
+    // reunião periódica — é a chave das regras de criação automática.
+    serie: String(e.seriesMasterId || ''),
+    recorrente: e.type === 'occurrence' || e.type === 'exception' || !!e.seriesMasterId,
   }));
   return json(res, 200, cacheSetTTL(ck, {
     configurado: true, email, de, ate, eventos,
@@ -533,11 +537,84 @@ async function vincular(req, res, b) {
   });
 }
 
+// ---------------- ⏱ Duração REAL da reunião (Teams) ----------------
+// POST /api/reunioes { presenca:1, email, token, joinUrl }
+// Lê o relatório de presença do Teams (Graph): quanto CADA pessoa realmente
+// ficou na chamada, em vez da duração agendada. Exige, além do Calendars.Read
+// já usado pela agenda, a permissão de aplicativo OnlineMeetingArtifact.Read.All
+// (+ política de acesso a onlineMeetings do tenant). Sem ela, a rota responde
+// {ok:false, motivo:'permissao'} e o painel cai para a duração agendada — nunca
+// quebra o fluxo de apontamento.
+async function presenca(req, res, b) {
+  const email = String((b && b.email) || '').trim().toLowerCase();
+  const token = String((b && b.token) || '').trim();
+  const joinUrl = String((b && b.joinUrl) || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json(res, 400, { erro: 'E-mail inválido.' });
+  if (!token) return json(res, 401, { erro: 'Identifique-se (e-mail + token de API do Jira).' });
+  if (!/^https:\/\/teams\.microsoft\.com\//i.test(joinUrl)) {
+    return json(res, 200, { ok: false, motivo: 'sem-link', erro: 'Esta reunião não tem link do Teams — a duração real só existe para reuniões do Teams.' });
+  }
+  if (!process.env.MS_TENANT_ID || !process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
+    return json(res, 200, { ok: false, motivo: 'config', erro: 'Integração com o Microsoft Graph não configurada na Vercel.' });
+  }
+  const dono = await agendaDonoValido(email, token);
+  if (!dono.ok) return json(res, dono.status, { erro: dono.erro });
+
+  const ck = `presenca:${email}:${joinUrl.slice(-40)}`;
+  const cache = cacheGet(ck);
+  if (cache && !(b && b.nocache)) return json(res, 200, cache);
+
+  const tok = await graphToken();
+  const hdr = { Authorization: `Bearer ${tok}`, Accept: 'application/json' };
+  const permNeg = (r, j) => (r.status === 403 || r.status === 401)
+    ? { ok: false, motivo: 'permissao',
+        erro: 'O aplicativo do Graph ainda não tem permissão para ler o relatório de presença. Peça ao admin: permissão de APLICATIVO OnlineMeetingArtifact.Read.All (com consentimento) + política de acesso a onlineMeetings para este app.' }
+    : { ok: false, motivo: 'graph', erro: `Graph ${r.status}: ${String((j.error && j.error.message) || '').slice(0, 200)}` };
+
+  // 1) reunião online a partir do link de entrada
+  const rM = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/onlineMeetings`
+    + `?$filter=joinWebUrl%20eq%20'${encodeURIComponent(joinUrl).replace(/'/g, "%27")}'`, { headers: hdr });
+  const jM = await rM.json().catch(() => ({}));
+  if (!rM.ok) return json(res, 200, permNeg(rM, jM));
+  const meeting = ((jM.value || [])[0]) || null;
+  if (!meeting) return json(res, 200, { ok: false, motivo: 'sem-reuniao', erro: 'O Teams ainda não tem registro desta reunião (ela pode não ter acontecido ou o organizador é outro).' });
+
+  // 2) relatório de presença mais recente da ocorrência
+  const rR = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/onlineMeetings/${meeting.id}/attendanceReports?$top=5&$orderby=meetingEndDateTime%20desc`, { headers: hdr });
+  const jR = await rR.json().catch(() => ({}));
+  if (!rR.ok) return json(res, 200, permNeg(rR, jR));
+  const rel = ((jR.value || [])[0]) || null;
+  if (!rel) return json(res, 200, { ok: false, motivo: 'sem-relatorio', erro: 'A reunião ainda não gerou relatório de presença (sai alguns minutos depois do fim).' });
+
+  // 3) registros por participante
+  const rA = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/onlineMeetings/${meeting.id}/attendanceReports/${rel.id}/attendanceRecords?$top=100`, { headers: hdr });
+  const jA = await rA.json().catch(() => ({}));
+  if (!rA.ok) return json(res, 200, permNeg(rA, jA));
+  const registros = (jA.value || []).map((x) => ({
+    nome: String(x.identity && x.identity.displayName || '').slice(0, 80),
+    email: String(x.emailAddress || '').toLowerCase(),
+    seg: Math.max(0, Math.round(Number(x.totalAttendanceInSeconds) || 0)),
+  })).filter((x) => x.seg > 0).sort((a2, b2) => b2.seg - a2.seg);
+  const meu = registros.find((x) => x.email === email);
+  const out = {
+    ok: true,
+    inicioReal: String(rel.meetingStartDateTime || ''),
+    fimReal: String(rel.meetingEndDateTime || ''),
+    // duração da REUNIÃO = maior permanência registrada (normalmente o organizador)
+    duracaoSeg: registros.length ? registros[0].seg : 0,
+    minhaSeg: meu ? meu.seg : 0,
+    participantes: registros.slice(0, 30),
+    total: registros.length,
+  };
+  return json(res, 200, cacheSetTTL(ck, out, 30));
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method === 'POST') {
       const b = await lerBody(req);
       if (b.agenda) return await agenda(req, res, b);
+      if (b.presenca) return await presenca(req, res, b);
       if (b.conferir) return await conferirTickets(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.

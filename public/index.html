@@ -1586,6 +1586,19 @@
   .trf-plano.aten{background:rgba(232,163,61,.14);border-left:4px solid #E76500}
   .trf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
   .trf-ficha{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:13px}
+  /* ⏰ Vencidos por projeto */
+  .vp-row{display:grid;grid-template-columns:minmax(120px,1.4fr) minmax(80px,1fr) 40px minmax(150px,1.6fr);gap:10px;align-items:center;
+    padding:7px 8px;border-radius:9px;cursor:pointer}
+  .vp-row:hover{background:rgba(15,107,99,.07)}
+  .vp-nome{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vp-bar{height:10px;border-radius:5px;background:var(--linha);overflow:hidden}
+  .vp-bar i{display:block;height:100%;border-radius:5px;background:#D14343}
+  .vp-n{text-align:right;font-size:14px}
+  @media (max-width:760px){ .vp-row{grid-template-columns:1fr 46px;grid-auto-rows:min-content}
+    .vp-bar{grid-column:1/-1} .vp-det{grid-column:1/-1} }
+  /* 🆕 Cards de criação na Início */
+  .nv-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  @media (max-width:900px){ .nv-cards{grid-template-columns:1fr} }
   /* 📨 Convidar para apontar */
   .cv-lista{max-height:190px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;border:1px solid var(--linha);border-radius:8px;padding:8px}
   /* 📚 Central de Relatórios */
@@ -2430,6 +2443,7 @@ function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], fe
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
   relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
   vigencias:{},                       // 🪪 {accountId:{ini,fim}} — admissão/desligamento (relatórios respeitam)
+  agendaAuto:{},                      // 🔁 {serie:{projeto,titulo,por,quando}} — reunião recorrente vira ticket sozinha
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
@@ -3512,6 +3526,92 @@ function agDescEvento(ev){
     ev.local?`Local: ${ev.local}`:'', ev.link?`Link: ${ev.link}`:'',
   ].filter(Boolean).join('\n');
 }
+// ===========================================================================
+// 🔁 REUNIÕES RECORRENTES — o ticket nasce sozinho, só o apontamento fica
+// Regra por SÉRIE (seriesMasterId do Outlook): "toda ocorrência desta reunião
+// vira um ticket no projeto X". Quando você abre a Agenda, as ocorrências de
+// HOJE que ainda não têm ticket são criadas em lote, com o SEU token (o painel
+// nunca guarda credenciais no servidor) — depois é só apontar as horas.
+// ===========================================================================
+function agSerieDe(ev){ return String((ev&&ev.serie)||'')|| (ev&&ev.recorrente?`t:${String(ev.titulo||'').trim().toLowerCase()}`:''); }
+function agRegraDe(ev){ const s=agSerieDe(ev); return s?((cfg.agendaAuto||{})[s]||null):null; }
+function agSalvaRegra(ev, projeto){
+  const s=agSerieDe(ev); if(!s||!projeto) return;
+  const id=idApontar()||{};
+  cfg.agendaAuto=cfg.agendaAuto||{};
+  cfg.agendaAuto[s]={ projeto, titulo:ev.titulo||'', por:id.nome||id.email||'', quando:new Date().toISOString() };
+  salvaCfg();
+}
+function agRemoveRegra(ev){ const s=agSerieDe(ev); if(s&&cfg.agendaAuto) { delete cfg.agendaAuto[s]; salvaCfg(); } }
+// Cria os tickets das ocorrências de HOJE que têm regra e ainda não têm ticket.
+// Roda uma vez por carga da agenda; falhas não travam a tela (só relatam).
+async function agAutoCria(){
+  const ag=estado.agenda; if(ag.autoRodou||ag.autoRodando) return;
+  const id=idApontar(); if(!id) return;
+  const evs=((ag.dados||{}).eventos||[]);
+  const hoje=hojeSP();
+  const alvos=evs.filter(ev=>!ev.privado && (ev.inicio||'').slice(0,10)===hoje
+    && !agTicketDe(ev.id) && agRegraDe(ev));
+  ag.autoRodou=true;
+  if(!alvos.length) return;
+  ag.autoRodando=true; if(estado.vista==='agenda') renderAgenda();
+  const criados=[]; const falhas=[];
+  for(const ev of alvos){
+    const regra=agRegraDe(ev); const proj=regra.projeto;
+    const tipo=agTipoReuniao(proj);
+    if(!tipo){ falhas.push(`${ev.titulo}: projeto ${proj} sem tipo de reunião`); continue; }
+    try{
+      const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ email:id.email, token:id.token, itens:[{ projeto:proj, tipoId:tipo.id,
+          resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:agDescEvento(ev),
+          venc:(ev.inicio||'').slice(0,10), labels:['agenda-outlook','recorrente-auto'] }] })});
+      const j=await r.json(); const c=j&&j.criados&&j.criados[0];
+      if(c&&c.key){ agMarcaTicket(ev.id,c.key); criados.push(c.key); }
+      else falhas.push(`${ev.titulo}: ${(j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'falhou'}`);
+    }catch(e){ falhas.push(`${ev.titulo}: ${e.message||e}`); }
+  }
+  ag.autoRodando=false;
+  if(criados.length) toast(`🔁 ${criados.length} ticket(s) de reunião recorrente criados: ${criados.join(', ')} — agora é só apontar.`,'ok');
+  if(falhas.length) toast(`⚠ ${falhas.length} reunião(ões) automáticas falharam: ${falhas[0]}`,'warn');
+  if(estado.vista==='agenda') renderAgenda();
+}
+// ---- ⏱ Duração REAL (relatório de presença do Teams) ----
+async function agDuracaoReal(evId, btn){
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId);
+  const id=idApontar(); if(!ev||!id) return null;
+  if(btn){ btn.disabled=true; btn.textContent='⏱ consultando o Teams…'; }
+  try{
+    const r=await fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ presenca:1, email:id.email, token:id.token, joinUrl:ev.link||'' })});
+    const j=await r.json();
+    if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui a duração real — uso a agendada.','warn'); return null; }
+    return j;
+  }catch(e){ toast(humanizaErro(e),'warn'); return null; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='⏱ duração real'; } }
+}
+
+// Modal: escolher o projeto em que as ocorrências desta série viram ticket.
+function agAbreAuto(ev){
+  const projetos=(_projetosCache||[]);
+  if(!projetos.length){ garanteProjetos().then(()=>agAbreAuto(ev)).catch(()=>toast('Não consegui listar os projetos.','err')); return; }
+  const ops=projetos.filter(p=>agTipoReuniao(p.key)).map(p=>`<option value="${escA(p.key)}">${esc(p.key)} — ${esc(p.nome||'')}</option>`).join('');
+  abreModal(`<h2>🔁 Automatizar esta reunião recorrente</h2>
+    <div class="muted small">${esc(ev.titulo)} — toda ocorrência vira um ticket <b>automaticamente</b> quando você abre a Agenda no dia. Depois é só apontar as horas (dá para usar a duração real do Teams).</div>
+    <div class="alx-campo"><label>Projeto do ticket <span class="req">*</span></label>
+      <select class="alx-motivo" id="agauto-proj">${ops||'<option value="">nenhum projeto com tipo de reunião</option>'}</select></div>
+    <div class="muted small">A regra vale para o time todo (config compartilhada) e pode ser desligada a qualquer momento na própria linha da reunião.</div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="agauto-salvar">⚡ Automatizar</button>
+      <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  const bt=document.getElementById('agauto-salvar');
+  if(bt) bt.addEventListener('click',()=>{
+    const proj=((document.getElementById('agauto-proj')||{}).value||'').trim();
+    if(!proj){ toast('Escolha o projeto.','warn'); return; }
+    agSalvaRegra(ev, proj); fechaModal();
+    toast('🔁 Automação ligada — as próximas ocorrências viram ticket sozinhas.','ok');
+    estado.agenda.autoRodou=false; agAutoCria(); renderAgenda(); });
+}
+
 // ---- Modal criar/vincular + convidar participantes ----
 let _agM=null;   // { evId, fixo(chave já vinculada — só convidar) }
 function agAbreTicket(evId, fixo){
@@ -3553,7 +3653,7 @@ function agAtualizaModal(){
       +(externos?`<div class="muted small" style="margin-top:6px">👤 ${externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
     m.prechecked=true;
   }
-  const hFmt=fmtH(agDuracaoSeg(ev));
+  const hFmt=fmtH((m.segReal&&m.segReal>0)?m.segReal:agDuracaoSeg(ev));
   const corpo=`<h2>📝 Ticket da reunião</h2>
     <div class="muted small">${esc(ev.titulo)} · ${esc((ev.inicio||'').slice(0,10))} ${ev.diaTodo?'(dia todo)':esc((ev.inicio||'').slice(11,16))}</div>
     ${m.fixo?`<div class="ap-id" style="margin-top:8px">✓ Ticket já criado: <strong>${esc(m.fixo)}</strong> — selecione quem convidar para apontar.</div>`:`
@@ -3568,6 +3668,11 @@ function agAtualizaModal(){
     :`<div class="alx-campo"><label>Chave do ticket</label><input type="text" id="agm-chave" value="${escA(chave)}" placeholder="ex.: IMI-41" maxlength="20" style="width:140px;text-transform:uppercase">
         <span class="muted small" style="margin-left:8px">os detalhes do evento entram como comentário</span></div>`}`}
     <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Convidar para apontar <span class="muted" style="font-weight:400">· cada um confirma com 1 clique (Inbox/Apontar) e o worklog de ${esc(hFmt)} sai no usuário da pessoa</span></div>
+    <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 6px">
+      <span class="muted small">⏱ Horas do convite: <strong>${esc(hFmt)}</strong> ${m.segReal>0?'<span class="badge com-horas" data-tip="Tempo real de permanência na chamada, do relatório de presença do Teams">real (Teams)</span>':'<span class="badge" data-tip="Duração agendada no Outlook">agendada</span>'}</span>
+      ${ev.link&&!m.segReal?`<button class="btn" data-agm-real="1" data-tip="Busca no Teams quanto a reunião REALMENTE durou (relatório de presença) e usa esse tempo no convite">⏱ duração real</button>`:''}
+      ${m.segReal>0?`<button class="btn" data-agm-agendada="1" data-tip="Voltar para a duração agendada no Outlook">↩ usar a agendada</button>`:''}</div>
+    ${m.realNota?`<div class="muted small" style="margin:-2px 0 6px">${esc(m.realNota)}</div>`:''}
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
     <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
     <div class="ap-fb" id="agm-fb" hidden></div>`;
@@ -3605,7 +3710,7 @@ async function agConfirma(){
     let convidados=0;
     if(pessoas.length){
       const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ convidar:true, issue:key, segundos:agDuracaoSeg(ev), inicio:dia,
+        body:JSON.stringify({ convidar:true, issue:key, segundos:((_agM&&_agM.segReal>0)?_agM.segReal:agDuracaoSeg(ev)), inicio:dia,
           comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
       const jv=await rv.json(); if(!jv||jv.ok===false) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');
       convidados=pessoas.length;
@@ -3622,7 +3727,9 @@ function carregaAgenda(forca){
     body:JSON.stringify({ agenda:1, email:id.email, token:id.token, nocache:forca?1:0 }) })
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
-      if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes(); })
+      ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
+      if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes();
+      try{ agAutoCria(); }catch(e){} })
     .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
@@ -4959,10 +5066,16 @@ function renderAgenda(){
       ?`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`
       :ach?`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>`
       :`<span class="ag-ct-pend">⚠ pendente</span>${ag.conferindo?' <span class="muted small">· 🔎 conferindo no Jira…</span>':''}`;
+    // 🔁 Recorrente: liga/desliga a criação automática do ticket de cada ocorrência
+    const reg=agRegraDe(ev);
+    const btAuto=(ev.recorrente&&(ev.meu||ext))
+      ? (reg?`<button class="btn" data-ag-auto="${escA(ev.id)}" data-tip="${escA(`Automático no projeto ${reg.projeto} — clique para desligar`)}">🔁 automático (${esc(reg.projeto)})</button>`
+           :`<button class="btn" data-ag-auto="${escA(ev.id)}" data-tip="Toda ocorrência desta reunião recorrente vira ticket sozinha quando você abre a Agenda">⚡ automatizar</button>`)
+      : '';
     const acao=tk
-      ?(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')
+      ?(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>${btAuto}`:btAuto)
       :ach?`<button class="btn primario" data-ag-usar="${escA(ev.id)}|${escA(ach.k)}" data-tip="Registra este ticket como o da reunião (vínculo compartilhado com o time)">✓ usar este ticket</button>`
-      :((ev.meu||ext)?`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>`
+      :((ev.meu||ext)?`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>${btAuto}`
         :`<span class="muted small">aguarda ${esc(orgNome||'quem organizou')}</span> ${jaAvisado
           ?'<span class="badge" data-tip="O aviso já está no Inbox da pessoa">📨 avisado</span>'
           :`<button class="btn" data-ag-avisar="${escA(ev.id)}" data-tip="Envia um aviso para o 📥 Inbox de ${escA(orgNome||'quem organizou')}: esta reunião está sem ticket">📨 avisar no Inbox</button>`}`);
@@ -4972,8 +5085,11 @@ function renderAgenda(){
       <div>${situ}</div>
       <div style="text-align:right">${acao}</div></div>`;
   }).join('');
+  const nAuto=Object.keys(cfg.agendaAuto||{}).length;
   const caixaPend=naoPriv.length?`<div class="card full" style="margin-bottom:12px">
     <h2>🎫 Controle de tickets <span>quem cria o ticket de cada reunião e o que ainda falta — 🔒 particulares ficam de fora</span></h2>
+    ${ag.autoRodando?'<div class="aviso" style="margin:6px 0 8px">🔁 Criando os tickets das reuniões recorrentes de hoje…</div>'
+      :(nAuto?`<div class="muted small" style="margin:4px 0 8px">🔁 <b>${nAuto}</b> reunião(ões) recorrente(s) automatizada(s): o ticket de cada ocorrência é criado sozinho ao abrir a Agenda — resta apontar as horas.</div>`:'')}
     ${pend.length?`<div class="aviso" style="margin:6px 0 8px">📣 <strong>Novo evento sem ticket:</strong> <b>${pend.length}</b> reunião(ões) dependem de <b>você</b> criar o ticket — as que <b>você organizou</b> e as de <b>organizador externo</b> (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.</div>`
       :'<div class="muted small" style="margin:4px 0 8px">✅ Nenhuma pendência sua — o que falta está com quem organizou.</div>'}
     <div class="ag-ct-head"><span>Reunião</span><span>Quem cria</span><span>Situação</span><span></span></div>
@@ -5038,6 +5154,23 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.addEventListener('click',(e)=>{
   const c=e.target.closest&&e.target.closest('[data-agm-conf]');
   if(c){ agConfirma(); return; }
+  const r=e.target.closest&&e.target.closest('[data-agm-real]');
+  if(r&&_agM){ agDuracaoReal(_agM.evId, r).then(j=>{ if(!_agM) return;
+    if(j&&j.ok&&(j.minhaSeg>0||j.duracaoSeg>0)){
+      _agM.segReal=j.minhaSeg>0?j.minhaSeg:j.duracaoSeg;
+      const q=(x)=>fmtH(x);
+      _agM.realNota=`⏱ Teams: a reunião durou ${q(j.duracaoSeg)}${j.minhaSeg>0?` e você ficou ${q(j.minhaSeg)}`:''} · ${j.total} participante(s) no relatório.`;
+    } else if(j&&j.ok){ _agM.realNota='O relatório do Teams não registrou permanência — mantida a duração agendada.'; }
+    agAtualizaModal(); }); return; }
+  const g=e.target.closest&&e.target.closest('[data-agm-agendada]');
+  if(g&&_agM){ _agM.segReal=0; _agM.realNota=''; agAtualizaModal(); return; }
+  // 🔁 Automatizar/desautomatizar a SÉRIE recorrente (linha do controle de tickets)
+  const au=e.target.closest&&e.target.closest('[data-ag-auto]');
+  if(au){ const evId=au.getAttribute('data-ag-auto');
+    const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
+    if(agRegraDe(ev)){ agRemoveRegra(ev); toast('Automação desligada para esta reunião recorrente.','ok'); renderAgenda(); return; }
+    if(!idApontar()){ abreIdentidade(); return; }
+    agAbreAuto(ev); return; }
 });
 document.addEventListener('change',(e)=>{
   const t=e.target; if(!t||!t.matches||!_agM) return;
@@ -5062,6 +5195,7 @@ const ROADMAP=[
   { s:'planejado', t:'🏦 Controladoria — custo/h automático do Odoo', d:'Importar o custo/hora real de cada pessoa direto do Odoo (hoje o cadastro é manual na Alocação, com custo padrão de fallback) — deixa a margem da Controladoria fiel sem manutenção manual.' },
   { s:'avaliacao', t:'🏦 Controladoria — impostos, overhead e meta de margem', d:'Percentual de impostos/overhead configurável por contrato (margem líquida além da bruta) e meta de margem por categoria com alerta no Teams quando um projeto cruzar a linha.' },
   { s:'avaliacao', t:'🏦 Controladoria — exportação executiva (CSV/PDF)', d:'Exportar o relatório da categoria (KPIs + projetos + evolução) em CSV e em PDF com a identidade Dexterity, para levar a reuniões de diretoria.' },
+  { s:'avaliacao', t:'🔁 Reuniões recorrentes — criação sem abrir o painel', d:'Hoje o ticket da ocorrência nasce quando alguém abre a Agenda no dia (usa o token da pessoa, que o servidor nunca guarda). Avaliar um robô diário que crie pela conta de serviço, com o organizador como responsável — depende de acertar repórter/permissões no Jira.' },
   { s:'avaliacao', t:'📚 Central de Relatórios — completar os relatórios 🔶/🔒', d:'Evoluir os relatórios parciais e bloqueados do catálogo: CFD real e cycle time (histórico de transições), burndown/velocity (sprints e story points), Change Requests e Riscos como tipos padronizados, causa-raiz de bugs (BUG.1–BUG.5), SLA nativo do JSM, CSAT vinculado a tickets e ritual de lições aprendidas no encerramento.' },
   { s:'avaliacao', t:'🏆 Planejamento — histórico do score e meta de precisão', d:'Guardar a evolução do score de planejamento por pessoa (como o Scoreboard faz com o apontamento) e permitir uma meta de precisão por time, com destaque de quem melhorou mais no período.' },
   { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
@@ -6048,6 +6182,54 @@ function radGarante(){
       if(estado.vista==='acoes') renderAcoes();
     }).catch(()=>{ ax.radTB=false; }); }
 }
+// 🆕 CARDS DE CRIAÇÃO NA HOME — leem a MESMA base do Radar (atividade de 7 dias),
+// sem chamada nova: "meus tickets recém criados" (últimos meus, do mais novo para
+// o mais antigo) e "criados nesta semana" (time todo, de segunda até hoje).
+// ⏰ VENCIDOS POR PROJETO — usa a base de vencimentos que a Início já carrega
+// (a mesma dos cards de atraso): tickets abertos com data no passado.
+function vpVencidos(){
+  const v=estado.acoes.venc;                       // MESMA base do card "Tickets atrasados"
+  const hoje2=(v&&v.meta&&v.meta.hoje)||hojeSP();
+  return ((v&&v.tickets)||[]).filter(t2=>t2.venc&&t2.venc<hoje2);
+}
+// Nome do projeto na base dos vencimentos (a Início nem sempre tem o catálogo).
+function vpProjNome(k){
+  const v=estado.acoes.venc; const p=((v&&v.projetos)||{})[k];
+  const n=(p&&(p.nome||p))||'';
+  return n?String(n):projNome(k);
+}
+function vpPorProjeto(){
+  const hoje2=hojeSP(); const por={};
+  vpVencidos().forEach(t2=>{
+    const o=por[t2.p]=por[t2.p]||{ p:t2.p, n:0, maxAtraso:0, semHoras:0, resp:{} };
+    o.n+=1;
+    const dias=Math.max(0, Math.round((new Date(`${hoje2}T12:00:00Z`)-new Date(`${t2.venc}T12:00:00Z`))/86400000));
+    if(dias>o.maxAtraso) o.maxAtraso=dias;
+    if(!t2.seg) o.semHoras+=1;
+    const r=t2.resp||'—'; o.resp[r]=(o.resp[r]||0)+1;
+  });
+  return Object.values(por).sort((x,y)=>y.n-x.n||y.maxAtraso-x.maxAtraso);
+}
+function novSemanaIni(){                    // segunda-feira desta semana (SP)
+  const h=hojeSP(); const d=new Date(`${h}T12:00:00Z`).getUTCDay();
+  return voltaDias(h, d===0?6:d-1);
+}
+function novCriados(){
+  const ax=estado.acoes; const acc=(idApontar()||{}).accountId||'';
+  const evs=(((ax.radAtv&&ax.radAtv.eventos))||[]).filter(e=>e.e==='criado');
+  const vistos=new Set(); const lista=[];
+  // um ticket aparece uma vez, pelo evento de criação mais recente
+  evs.slice().sort((x,y)=>String(y.d||'').localeCompare(String(x.d||''))).forEach(e=>{
+    if(vistos.has(e.k)) return; vistos.add(e.k); lista.push(e); });
+  const ini=novSemanaIni();
+  const naSemana=lista.filter(e=>String(e.d||'').slice(0,10)>=ini);
+  return {
+    meus: acc?lista.filter(e=>e.a===acc):[],
+    semana: naSemana,
+    meusSemana: acc?naSemana.filter(e=>e.a===acc):[],
+    ini,
+  };
+}
 function radRange(per){
   const h=hojeSP();
   if(per==='ontem'){ const o=voltaDias(h,1); return [o,o]; }   // somaDias não anda p/ trás
@@ -6410,6 +6592,72 @@ function renderAcoes(){
       <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
   };
   const radKeys=rd.lista.map(r=>r.k);
+  // ---- 🆕 Meus tickets recém criados · 📅 Criados nesta semana ----
+  const nv=novCriados();
+  const pess=(a2)=>{ const p2=(ax.radAtv&&ax.radAtv.pessoas&&ax.radAtv.pessoas[a2]);
+    return (p2&&(p2.nome||p2))||'—'; };
+  const quando=(d2)=>{ const dia=String(d2||'').slice(0,10); const hm=String(d2||'').slice(11,16);
+    return dia===hoje?`hoje ${hm}`:(dia===voltaDias(hoje,1)?`ontem ${hm}`:alxDataBR(dia)); };
+  const linhaNov=(e2)=>`<div class="hxd-row">
+    <a href="${jiraBase()}/browse/${encodeURIComponent(e2.k)}" target="_blank" rel="noopener"><strong>${esc(e2.k)}</strong> ↗</a>
+    <span class="hxd-tit" title="${escA(radResumoDe(e2.k))}">${esc(radResumoDe(e2.k))}</span>
+    <span class="muted small" style="white-space:nowrap">${esc(radProjNome(e2.p))} · ${esc(quando(e2.d))}</span>
+    <button class="btn rt-step" data-gx-det="${escA(e2.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
+  // por projeto e por pessoa na semana (top 4 de cada, para a leitura rápida)
+  const porProjSem={}; const porPessSem={};
+  nv.semana.forEach(e2=>{ porProjSem[e2.p]=(porProjSem[e2.p]||0)+1; porPessSem[e2.a]=(porPessSem[e2.a]||0)+1; });
+  const radProjNome=(k)=>{ const pj=((ax.radAtv&&ax.radAtv.projetos)||{})[k];
+    const n=(pj&&(pj.nome||pj))||''; return n?String(n):projNome(k); };
+  const topProj=Object.entries(porProjSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
+  const topPess=Object.entries(porPessSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
+  const semIniBR=alxDataBR(nv.ini);
+  // ---- ⏰ Tickets vencidos POR PROJETO (onde o atraso está concentrado) ----
+  const vps=vpPorProjeto(); const vpTot=vps.reduce((x,y)=>x+y.n,0);
+  const vpMax=Math.max(1,...vps.map(x=>x.n));
+  const vpCarr=!estado.acoes.venc&&!estado.acoes.erro;
+  const vpLinhas=vps.slice(0,8).map(o=>{
+    const topResp=Object.entries(o.resp).sort((x,y)=>y[1]-x[1])[0];
+    return `<div class="vp-row" data-vp-proj="${escA(o.p)}" role="button" tabindex="0"
+        data-tip="${escA(`Abrir os ${o.n} vencido(s) de ${vpProjNome(o.p)} na 🛠 Gestão`)}">
+      <div class="vp-nome">${esc(vpProjNome(o.p))}</div>
+      <div class="vp-bar"><i style="width:${(o.n/vpMax*100).toFixed(1)}%"></i></div>
+      <div class="vp-n"><b>${o.n}</b></div>
+      <div class="vp-det muted small">pior atraso <b>${o.maxAtraso}d</b>${o.semHoras?` · ${o.semHoras} sem horas`:''}${topResp?` · ${esc(String(topResp[0]).split(' ')[0])} ${topResp[1]}`:''}</div></div>`;
+  }).join('');
+  const cardVenc=`<div class="card full" style="margin-top:14px">
+    <h2>⏰ Tickets vencidos por projeto <span>onde o atraso está concentrado — clique num projeto para tratar na 🛠 Gestão</span></h2>
+    ${vpCarr?'<div class="muted small" style="margin-top:8px">Carregando os vencimentos do Jira…</div>'
+      :(vps.length?`<div class="ax-det" style="margin:6px 0 8px"><b>${vpTot}</b> ticket(s) vencido(s) em <b>${vps.length}</b> projeto(s)</div>
+          ${vpLinhas}
+          ${vps.length>8?`<div class="muted small" style="margin-top:6px">+ ${vps.length-8} projeto(s) com atraso — veja todos na 🚨 Alertas</div>`:''}
+          <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn" data-vp-proj="" data-tip="Abrir TODOS os vencidos na 🛠 Gestão">🛠 abrir todos na Gestão</button>
+            <button class="btn" data-hx-goto="alertas" data-tip="Central de atrasados com reprogramação em massa">🚨 Alertas</button></div>`
+        :'<div class="muted small" style="margin-top:8px">✅ Nenhum ticket vencido — o time está em dia.</div>')}
+  </div>`;
+  const cardsNovos=`<div class="nv-cards">
+    <div class="card full" style="margin:0">
+      <h2>🆕 Meus tickets recém criados <span>os últimos que <b>você</b> abriu (7 dias) — clique para ver a ficha</span></h2>
+      ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>'
+        :(nv.meus.length?`<div style="margin-top:8px">${nv.meus.slice(0,6).map(linhaNov).join('')}</div>
+            <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <span class="muted small">${nv.meus.length} criado(s) por você nos últimos 7 dias · ${nv.meusSemana.length} nesta semana</span>
+              <span class="spacer"></span>
+              <button class="btn" data-nv-gestao="meus" data-tip="Abrir todos na 🛠 Gestão para tratar em massa">🛠 abrir na Gestão</button>
+              <button class="btn" data-hx-goto="planejar" data-tip="Criar mais tickets (lote, épicos, colar do Excel)">📝 criar mais</button></div>`
+          :`<div class="muted small" style="margin-top:8px">${(idApontar()?'Você não criou tickets nos últimos 7 dias.':'Identifique-se para ver os seus tickets.')}</div>`)}
+    </div>
+    <div class="card full" style="margin:0">
+      <h2>📅 Criados nesta semana <span>o time todo, de ${esc(semIniBR)} até hoje</span></h2>
+      ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>':`
+      <div class="ax-num" style="margin-top:6px">${nv.semana.length}</div>
+      <div class="ax-det">ticket(s) abertos pelo time nesta semana${nv.meusSemana.length?` · <b>${nv.meusSemana.length}</b> por você`:''}</div>
+      ${topProj.length?`<div class="muted small" style="margin-top:8px"><b>Por projeto:</b> ${topProj.map(([k2,n2])=>`${esc(radProjNome(k2))} <b>${n2}</b>`).join(' · ')}${Object.keys(porProjSem).length>4?` · +${Object.keys(porProjSem).length-4}`:''}</div>`:''}
+      ${topPess.length?`<div class="muted small" style="margin-top:4px"><b>Quem abriu:</b> ${topPess.map(([a2,n2])=>`${esc(String(pess(a2)).split(' ')[0])} <b>${n2}</b>`).join(' · ')}${Object.keys(porPessSem).length>4?` · +${Object.keys(porPessSem).length-4}`:''}</div>`:''}
+      <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" data-nv-gestao="semana" data-tip="Abrir na 🛠 Gestão os tickets criados nesta semana">🛠 abrir na Gestão</button>
+        <button class="btn" data-hx-goto="tickets" data-tip="Análise completa dos tickets do período">📊 análise de tickets</button></div>`}
+    </div></div>`;
   // 🎫 Criação rápida: descreva em português (ou dite) e a IA monta o ticket.
   const temMic=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
   const cardTicket=`<div class="card full" style="margin-top:14px">
@@ -6462,6 +6710,8 @@ function renderAcoes(){
   cont.replaceChildren(el(`<div>
     ${heroHtml}
     ${cardTicket}
+    ${cardsNovos}
+    ${cardVenc}
     ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
@@ -6485,7 +6735,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 // 🧭 Radar do dia — chips (escopo/período/eventos) e ações da combinação
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='acoes') return;
-  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  // As linhas de "vencidos por projeto" são DIVs clicáveis (não botões) — por isso
+  // o alvo cai para o elemento que carrega o atributo quando não há botão.
+  const t=(e.target.closest&&(e.target.closest('button')||e.target.closest('[data-vp-proj]'))); if(!t) return;
   const rad=radPrefs();
   if(t.hasAttribute('data-rad-esc')){ rad.esc=t.getAttribute('data-rad-esc'); radSalva(); renderAcoes(); return; }
   if(t.hasAttribute('data-rad-per')){ rad.per=t.getAttribute('data-rad-per'); radSalva(); renderAcoes(); return; }
@@ -6495,6 +6747,23 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
   if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
     const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  if(t.hasAttribute('data-nv-gestao')){
+    const alvo=t.getAttribute('data-nv-gestao'); const nv2=novCriados();
+    const ks=(alvo==='meus'?nv2.meus:nv2.semana).map(e2=>e2.k).slice(0,200);
+    if(!ks.length){ toast('Nenhum ticket criado nesse recorte.','warn'); return; }
+    const g=estado.gestao; g.soKeys=ks; g.origem=alvo==='meus'?'🆕 Meus tickets recém criados':'📅 Criados nesta semana';
+    g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  // ⏰ Vencidos por projeto: abre a Gestão já filtrada no projeto escolhido
+  if(t.hasAttribute('data-vp-proj')){
+    const pk=t.getAttribute('data-vp-proj');
+    const ks=vpVencidos().filter(x=>!pk||x.p===pk).map(x=>x.k).slice(0,200);
+    if(!ks.length){ toast('Nenhum vencido nesse projeto.','warn'); return; }
+    const g=estado.gestao; g.soKeys=ks; g.origem=pk?`⏰ Vencidos — ${vpProjNome(pk)}`:'⏰ Tickets vencidos';
+    g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
     g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
     vaiPara('gestao'); return; }
   if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
@@ -16982,6 +17251,9 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-28','🏠 <b>Três visões novas na página inicial</b>: <b>🆕 Meus tickets recém criados</b> (os últimos que você abriu, com projeto e quando — e um clique leva todos para a 🛠 Gestão), <b>📅 Criados nesta semana</b> (quantos o time abriu de segunda até hoje, com a quebra por projeto e por pessoa) e <b>⏰ Tickets vencidos por projeto</b> (onde o atraso está concentrado, com barra comparativa, pior atraso, quantos estão sem horas e o responsável com mais casos — clique no projeto e trate na Gestão).'],
+  ['2026-08-27','🔁 <b>Reunião recorrente vira ticket sozinha — só o apontamento fica</b>: na 📅 Agenda, clique em <b>⚡ automatizar</b> numa reunião que se repete e escolha o projeto. A partir daí, <b>toda ocorrência ganha o ticket automaticamente</b> quando você abre a Agenda no dia (com a descrição do evento e o vencimento do dia) — você só aponta as horas. A regra vale para a <b>série inteira</b>, é compartilhada com o time e se desliga com um clique.'],
+  ['2026-08-27','⏱ <b>Apontar pela duração REAL da reunião (Teams)</b>: no convite de apontamento, o botão <b>⏱ duração real</b> consulta o <b>relatório de presença do Teams</b> e usa <b>quanto tempo você realmente ficou na chamada</b> em vez da duração agendada (ex.: reunião de 30 min que durou 45 e você ficou 40). Mostra o comparativo e permite voltar para a agendada. Se o relatório não estiver disponível, o painel <b>avisa e mantém a duração agendada</b> — nunca trava o apontamento. (Depende de o admin conceder <code>OnlineMeetingArtifact.Read.All</code> ao app do Graph.)'],
   ['2026-08-27','⬇️ <b>Atalho da Siri pronto para baixar</b>: o arquivo <b>criar-ticket.shortcut</b> já vem com as 4 ações montadas (Ditar → criação com IA → resposta falada) — link no modal <b>📱 Pelo celular / Siri</b> do card 🎫. Regra da Apple: o iPhone só instala Atalhos <b>assinados</b> — quem tiver um Mac assina com 1 comando (<b>shortcuts sign</b>) e o arquivo passa a instalar em qualquer iPhone; sem Mac, monte uma vez pelos passos do modal e distribua ao time por <b>link do iCloud</b> (1 toque). O caminho 100% sem montagem continua sendo o app instalável <b>jirainsight.vercel.app/voz.html</b>.'],
   ['2026-08-26','📲 <b>App "🎫 Criar Ticket" instalável no celular</b>: abra <b>jirainsight.vercel.app/voz.html</b> no iPhone (ou Android) → Compartilhar → <b>Adicionar à Tela de Início</b> — vira um app de <b>um toque</b> na tela inicial: dite pelo microfone do teclado (ou digite), a IA monta o ticket, você confere a prévia e cria. Observação honesta: a Apple só permite distribuir Atalhos da Siri por link do iCloud (gerado no app Atalhos) — por isso o caminho instalável em 1 toque é este mini-app; quem montar o Atalho da Siri pode compartilhá-lo ao time pelo link do iCloud (dica no modal 📱).'],
   ['2026-08-26','🔊 <b>Skill da Alexa — crie tickets falando com a caixinha</b>: o painel agora fala o protocolo da Alexa. Diga <b>"Alexa, abrir jira insights"</b> e peça: <i>"crie um ticket no projeto da Copel, no épico de gestão, com a descrição fazer atividade XPTO e vencimento dia 31"</i> — ela repete a prévia por voz, você confirma com <b>"sim"</b> e o ticket é criado. A configuração (uma vez) está no botão <b>📱 Pelo celular / Siri</b> do card 🎫 da Início: modelo de interação pronto para colar, endpoint e as 3 variáveis na Vercel (<b>ALEXA_SKILL_ID</b> + credenciais do Jira).'],
@@ -17107,7 +17379,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-27.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-28.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -18959,6 +19231,12 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
 // Modal: fechar
 document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
+// ⏰ Vencidos por projeto: Enter/Espaço abrem a linha (mesma ação do clique)
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const r=e.target.closest&&e.target.closest('[data-vp-proj]');
+  if(r){ e.preventDefault(); r.click(); }
+});
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fimTour(); fechaModal(); } });
 
 // ---- Copiar/colar datas (estilo Monday/Asana) — vale em QUALQUER campo de data ----
