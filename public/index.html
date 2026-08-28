@@ -1586,6 +1586,19 @@
   .trf-plano.aten{background:rgba(232,163,61,.14);border-left:4px solid #E76500}
   .trf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
   .trf-ficha{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:13px}
+  /* ⏰ Vencidos por projeto */
+  .vp-row{display:grid;grid-template-columns:minmax(120px,1.4fr) minmax(80px,1fr) 40px minmax(150px,1.6fr);gap:10px;align-items:center;
+    padding:7px 8px;border-radius:9px;cursor:pointer}
+  .vp-row:hover{background:rgba(15,107,99,.07)}
+  .vp-nome{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vp-bar{height:10px;border-radius:5px;background:var(--linha);overflow:hidden}
+  .vp-bar i{display:block;height:100%;border-radius:5px;background:#D14343}
+  .vp-n{text-align:right;font-size:14px}
+  @media (max-width:760px){ .vp-row{grid-template-columns:1fr 46px;grid-auto-rows:min-content}
+    .vp-bar{grid-column:1/-1} .vp-det{grid-column:1/-1} }
+  /* 🆕 Cards de criação na Início */
+  .nv-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  @media (max-width:900px){ .nv-cards{grid-template-columns:1fr} }
   /* 📨 Convidar para apontar */
   .cv-lista{max-height:190px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;border:1px solid var(--linha);border-radius:8px;padding:8px}
   /* 📚 Central de Relatórios */
@@ -6169,6 +6182,54 @@ function radGarante(){
       if(estado.vista==='acoes') renderAcoes();
     }).catch(()=>{ ax.radTB=false; }); }
 }
+// 🆕 CARDS DE CRIAÇÃO NA HOME — leem a MESMA base do Radar (atividade de 7 dias),
+// sem chamada nova: "meus tickets recém criados" (últimos meus, do mais novo para
+// o mais antigo) e "criados nesta semana" (time todo, de segunda até hoje).
+// ⏰ VENCIDOS POR PROJETO — usa a base de vencimentos que a Início já carrega
+// (a mesma dos cards de atraso): tickets abertos com data no passado.
+function vpVencidos(){
+  const v=estado.acoes.venc;                       // MESMA base do card "Tickets atrasados"
+  const hoje2=(v&&v.meta&&v.meta.hoje)||hojeSP();
+  return ((v&&v.tickets)||[]).filter(t2=>t2.venc&&t2.venc<hoje2);
+}
+// Nome do projeto na base dos vencimentos (a Início nem sempre tem o catálogo).
+function vpProjNome(k){
+  const v=estado.acoes.venc; const p=((v&&v.projetos)||{})[k];
+  const n=(p&&(p.nome||p))||'';
+  return n?String(n):projNome(k);
+}
+function vpPorProjeto(){
+  const hoje2=hojeSP(); const por={};
+  vpVencidos().forEach(t2=>{
+    const o=por[t2.p]=por[t2.p]||{ p:t2.p, n:0, maxAtraso:0, semHoras:0, resp:{} };
+    o.n+=1;
+    const dias=Math.max(0, Math.round((new Date(`${hoje2}T12:00:00Z`)-new Date(`${t2.venc}T12:00:00Z`))/86400000));
+    if(dias>o.maxAtraso) o.maxAtraso=dias;
+    if(!t2.seg) o.semHoras+=1;
+    const r=t2.resp||'—'; o.resp[r]=(o.resp[r]||0)+1;
+  });
+  return Object.values(por).sort((x,y)=>y.n-x.n||y.maxAtraso-x.maxAtraso);
+}
+function novSemanaIni(){                    // segunda-feira desta semana (SP)
+  const h=hojeSP(); const d=new Date(`${h}T12:00:00Z`).getUTCDay();
+  return voltaDias(h, d===0?6:d-1);
+}
+function novCriados(){
+  const ax=estado.acoes; const acc=(idApontar()||{}).accountId||'';
+  const evs=(((ax.radAtv&&ax.radAtv.eventos))||[]).filter(e=>e.e==='criado');
+  const vistos=new Set(); const lista=[];
+  // um ticket aparece uma vez, pelo evento de criação mais recente
+  evs.slice().sort((x,y)=>String(y.d||'').localeCompare(String(x.d||''))).forEach(e=>{
+    if(vistos.has(e.k)) return; vistos.add(e.k); lista.push(e); });
+  const ini=novSemanaIni();
+  const naSemana=lista.filter(e=>String(e.d||'').slice(0,10)>=ini);
+  return {
+    meus: acc?lista.filter(e=>e.a===acc):[],
+    semana: naSemana,
+    meusSemana: acc?naSemana.filter(e=>e.a===acc):[],
+    ini,
+  };
+}
 function radRange(per){
   const h=hojeSP();
   if(per==='ontem'){ const o=voltaDias(h,1); return [o,o]; }   // somaDias não anda p/ trás
@@ -6531,6 +6592,72 @@ function renderAcoes(){
       <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
   };
   const radKeys=rd.lista.map(r=>r.k);
+  // ---- 🆕 Meus tickets recém criados · 📅 Criados nesta semana ----
+  const nv=novCriados();
+  const pess=(a2)=>{ const p2=(ax.radAtv&&ax.radAtv.pessoas&&ax.radAtv.pessoas[a2]);
+    return (p2&&(p2.nome||p2))||'—'; };
+  const quando=(d2)=>{ const dia=String(d2||'').slice(0,10); const hm=String(d2||'').slice(11,16);
+    return dia===hoje?`hoje ${hm}`:(dia===voltaDias(hoje,1)?`ontem ${hm}`:alxDataBR(dia)); };
+  const linhaNov=(e2)=>`<div class="hxd-row">
+    <a href="${jiraBase()}/browse/${encodeURIComponent(e2.k)}" target="_blank" rel="noopener"><strong>${esc(e2.k)}</strong> ↗</a>
+    <span class="hxd-tit" title="${escA(radResumoDe(e2.k))}">${esc(radResumoDe(e2.k))}</span>
+    <span class="muted small" style="white-space:nowrap">${esc(radProjNome(e2.p))} · ${esc(quando(e2.d))}</span>
+    <button class="btn rt-step" data-gx-det="${escA(e2.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
+  // por projeto e por pessoa na semana (top 4 de cada, para a leitura rápida)
+  const porProjSem={}; const porPessSem={};
+  nv.semana.forEach(e2=>{ porProjSem[e2.p]=(porProjSem[e2.p]||0)+1; porPessSem[e2.a]=(porPessSem[e2.a]||0)+1; });
+  const radProjNome=(k)=>{ const pj=((ax.radAtv&&ax.radAtv.projetos)||{})[k];
+    const n=(pj&&(pj.nome||pj))||''; return n?String(n):projNome(k); };
+  const topProj=Object.entries(porProjSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
+  const topPess=Object.entries(porPessSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
+  const semIniBR=alxDataBR(nv.ini);
+  // ---- ⏰ Tickets vencidos POR PROJETO (onde o atraso está concentrado) ----
+  const vps=vpPorProjeto(); const vpTot=vps.reduce((x,y)=>x+y.n,0);
+  const vpMax=Math.max(1,...vps.map(x=>x.n));
+  const vpCarr=!estado.acoes.venc&&!estado.acoes.erro;
+  const vpLinhas=vps.slice(0,8).map(o=>{
+    const topResp=Object.entries(o.resp).sort((x,y)=>y[1]-x[1])[0];
+    return `<div class="vp-row" data-vp-proj="${escA(o.p)}" role="button" tabindex="0"
+        data-tip="${escA(`Abrir os ${o.n} vencido(s) de ${vpProjNome(o.p)} na 🛠 Gestão`)}">
+      <div class="vp-nome">${esc(vpProjNome(o.p))}</div>
+      <div class="vp-bar"><i style="width:${(o.n/vpMax*100).toFixed(1)}%"></i></div>
+      <div class="vp-n"><b>${o.n}</b></div>
+      <div class="vp-det muted small">pior atraso <b>${o.maxAtraso}d</b>${o.semHoras?` · ${o.semHoras} sem horas`:''}${topResp?` · ${esc(String(topResp[0]).split(' ')[0])} ${topResp[1]}`:''}</div></div>`;
+  }).join('');
+  const cardVenc=`<div class="card full" style="margin-top:14px">
+    <h2>⏰ Tickets vencidos por projeto <span>onde o atraso está concentrado — clique num projeto para tratar na 🛠 Gestão</span></h2>
+    ${vpCarr?'<div class="muted small" style="margin-top:8px">Carregando os vencimentos do Jira…</div>'
+      :(vps.length?`<div class="ax-det" style="margin:6px 0 8px"><b>${vpTot}</b> ticket(s) vencido(s) em <b>${vps.length}</b> projeto(s)</div>
+          ${vpLinhas}
+          ${vps.length>8?`<div class="muted small" style="margin-top:6px">+ ${vps.length-8} projeto(s) com atraso — veja todos na 🚨 Alertas</div>`:''}
+          <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn" data-vp-proj="" data-tip="Abrir TODOS os vencidos na 🛠 Gestão">🛠 abrir todos na Gestão</button>
+            <button class="btn" data-hx-goto="alertas" data-tip="Central de atrasados com reprogramação em massa">🚨 Alertas</button></div>`
+        :'<div class="muted small" style="margin-top:8px">✅ Nenhum ticket vencido — o time está em dia.</div>')}
+  </div>`;
+  const cardsNovos=`<div class="nv-cards">
+    <div class="card full" style="margin:0">
+      <h2>🆕 Meus tickets recém criados <span>os últimos que <b>você</b> abriu (7 dias) — clique para ver a ficha</span></h2>
+      ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>'
+        :(nv.meus.length?`<div style="margin-top:8px">${nv.meus.slice(0,6).map(linhaNov).join('')}</div>
+            <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <span class="muted small">${nv.meus.length} criado(s) por você nos últimos 7 dias · ${nv.meusSemana.length} nesta semana</span>
+              <span class="spacer"></span>
+              <button class="btn" data-nv-gestao="meus" data-tip="Abrir todos na 🛠 Gestão para tratar em massa">🛠 abrir na Gestão</button>
+              <button class="btn" data-hx-goto="planejar" data-tip="Criar mais tickets (lote, épicos, colar do Excel)">📝 criar mais</button></div>`
+          :`<div class="muted small" style="margin-top:8px">${(idApontar()?'Você não criou tickets nos últimos 7 dias.':'Identifique-se para ver os seus tickets.')}</div>`)}
+    </div>
+    <div class="card full" style="margin:0">
+      <h2>📅 Criados nesta semana <span>o time todo, de ${esc(semIniBR)} até hoje</span></h2>
+      ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>':`
+      <div class="ax-num" style="margin-top:6px">${nv.semana.length}</div>
+      <div class="ax-det">ticket(s) abertos pelo time nesta semana${nv.meusSemana.length?` · <b>${nv.meusSemana.length}</b> por você`:''}</div>
+      ${topProj.length?`<div class="muted small" style="margin-top:8px"><b>Por projeto:</b> ${topProj.map(([k2,n2])=>`${esc(radProjNome(k2))} <b>${n2}</b>`).join(' · ')}${Object.keys(porProjSem).length>4?` · +${Object.keys(porProjSem).length-4}`:''}</div>`:''}
+      ${topPess.length?`<div class="muted small" style="margin-top:4px"><b>Quem abriu:</b> ${topPess.map(([a2,n2])=>`${esc(String(pess(a2)).split(' ')[0])} <b>${n2}</b>`).join(' · ')}${Object.keys(porPessSem).length>4?` · +${Object.keys(porPessSem).length-4}`:''}</div>`:''}
+      <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" data-nv-gestao="semana" data-tip="Abrir na 🛠 Gestão os tickets criados nesta semana">🛠 abrir na Gestão</button>
+        <button class="btn" data-hx-goto="tickets" data-tip="Análise completa dos tickets do período">📊 análise de tickets</button></div>`}
+    </div></div>`;
   // 🎫 Criação rápida: descreva em português (ou dite) e a IA monta o ticket.
   const temMic=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
   const cardTicket=`<div class="card full" style="margin-top:14px">
@@ -6583,6 +6710,8 @@ function renderAcoes(){
   cont.replaceChildren(el(`<div>
     ${heroHtml}
     ${cardTicket}
+    ${cardsNovos}
+    ${cardVenc}
     ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
@@ -6606,7 +6735,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 // 🧭 Radar do dia — chips (escopo/período/eventos) e ações da combinação
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='acoes') return;
-  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  // As linhas de "vencidos por projeto" são DIVs clicáveis (não botões) — por isso
+  // o alvo cai para o elemento que carrega o atributo quando não há botão.
+  const t=(e.target.closest&&(e.target.closest('button')||e.target.closest('[data-vp-proj]'))); if(!t) return;
   const rad=radPrefs();
   if(t.hasAttribute('data-rad-esc')){ rad.esc=t.getAttribute('data-rad-esc'); radSalva(); renderAcoes(); return; }
   if(t.hasAttribute('data-rad-per')){ rad.per=t.getAttribute('data-rad-per'); radSalva(); renderAcoes(); return; }
@@ -6616,6 +6747,23 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
   if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
     const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  if(t.hasAttribute('data-nv-gestao')){
+    const alvo=t.getAttribute('data-nv-gestao'); const nv2=novCriados();
+    const ks=(alvo==='meus'?nv2.meus:nv2.semana).map(e2=>e2.k).slice(0,200);
+    if(!ks.length){ toast('Nenhum ticket criado nesse recorte.','warn'); return; }
+    const g=estado.gestao; g.soKeys=ks; g.origem=alvo==='meus'?'🆕 Meus tickets recém criados':'📅 Criados nesta semana';
+    g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
+    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    vaiPara('gestao'); return; }
+  // ⏰ Vencidos por projeto: abre a Gestão já filtrada no projeto escolhido
+  if(t.hasAttribute('data-vp-proj')){
+    const pk=t.getAttribute('data-vp-proj');
+    const ks=vpVencidos().filter(x=>!pk||x.p===pk).map(x=>x.k).slice(0,200);
+    if(!ks.length){ toast('Nenhum vencido nesse projeto.','warn'); return; }
+    const g=estado.gestao; g.soKeys=ks; g.origem=pk?`⏰ Vencidos — ${vpProjNome(pk)}`:'⏰ Tickets vencidos';
+    g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
     g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
     vaiPara('gestao'); return; }
   if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
@@ -17103,6 +17251,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-28','🏠 <b>Três visões novas na página inicial</b>: <b>🆕 Meus tickets recém criados</b> (os últimos que você abriu, com projeto e quando — e um clique leva todos para a 🛠 Gestão), <b>📅 Criados nesta semana</b> (quantos o time abriu de segunda até hoje, com a quebra por projeto e por pessoa) e <b>⏰ Tickets vencidos por projeto</b> (onde o atraso está concentrado, com barra comparativa, pior atraso, quantos estão sem horas e o responsável com mais casos — clique no projeto e trate na Gestão).'],
   ['2026-08-27','🔁 <b>Reunião recorrente vira ticket sozinha — só o apontamento fica</b>: na 📅 Agenda, clique em <b>⚡ automatizar</b> numa reunião que se repete e escolha o projeto. A partir daí, <b>toda ocorrência ganha o ticket automaticamente</b> quando você abre a Agenda no dia (com a descrição do evento e o vencimento do dia) — você só aponta as horas. A regra vale para a <b>série inteira</b>, é compartilhada com o time e se desliga com um clique.'],
   ['2026-08-27','⏱ <b>Apontar pela duração REAL da reunião (Teams)</b>: no convite de apontamento, o botão <b>⏱ duração real</b> consulta o <b>relatório de presença do Teams</b> e usa <b>quanto tempo você realmente ficou na chamada</b> em vez da duração agendada (ex.: reunião de 30 min que durou 45 e você ficou 40). Mostra o comparativo e permite voltar para a agendada. Se o relatório não estiver disponível, o painel <b>avisa e mantém a duração agendada</b> — nunca trava o apontamento. (Depende de o admin conceder <code>OnlineMeetingArtifact.Read.All</code> ao app do Graph.)'],
   ['2026-08-27','⬇️ <b>Atalho da Siri pronto para baixar</b>: o arquivo <b>criar-ticket.shortcut</b> já vem com as 4 ações montadas (Ditar → criação com IA → resposta falada) — link no modal <b>📱 Pelo celular / Siri</b> do card 🎫. Regra da Apple: o iPhone só instala Atalhos <b>assinados</b> — quem tiver um Mac assina com 1 comando (<b>shortcuts sign</b>) e o arquivo passa a instalar em qualquer iPhone; sem Mac, monte uma vez pelos passos do modal e distribua ao time por <b>link do iCloud</b> (1 toque). O caminho 100% sem montagem continua sendo o app instalável <b>jirainsight.vercel.app/voz.html</b>.'],
@@ -17230,7 +17379,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-27.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-28.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -19082,6 +19231,12 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
 // Modal: fechar
 document.getElementById('modal-x').addEventListener('click', fechaModal);
 document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') fechaModal(); });
+// ⏰ Vencidos por projeto: Enter/Espaço abrem a linha (mesma ação do clique)
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const r=e.target.closest&&e.target.closest('[data-vp-proj]');
+  if(r){ e.preventDefault(); r.click(); }
+});
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fimTour(); fechaModal(); } });
 
 // ---- Copiar/colar datas (estilo Monday/Asana) — vale em QUALQUER campo de data ----
