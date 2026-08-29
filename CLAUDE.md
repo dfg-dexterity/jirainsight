@@ -48,8 +48,10 @@ quando necessário.
 
 A cada **entrega/commit** desta ferramenta:
 
-1. **Criar uma TAREFA no projeto `JI`** (tipo "Tarefa" — usar o id `11112`, o nome
-   traduzido é rejeitado pela API) **sob o épico correspondente** (campo
+1. **Criar uma TAREFA no projeto `JI`** (tipo "Tarefa" — id `11112`; em 2026-08-28 o
+   conector passou a aceitar **só o nome `Tarefa`** em `issueTypeName` e a rejeitar o
+   id, então tente o nome primeiro e caia para o id se falhar) **sob o épico
+   correspondente** (campo
    `parent: {key: 'JI-x'}`), detalhando o que foi feito, atribuída ao usuário (Diego,
    accountId `712020:3a98a142-a5ce-443c-b3f2-32cd080d2583`). Transições do fluxo JI:
    "Fazendo" id 21 · "Feito" id 41 (aceitas no próprio create via `transition`).
