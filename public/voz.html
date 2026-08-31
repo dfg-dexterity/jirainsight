@@ -45,11 +45,20 @@
   .aviso{ background:#FFF8E7; border:1px solid #F0E2B6; border-radius:10px; padding:8px 10px; font-size:12.5px; margin-top:8px; }
   .oculto{ display:none !important; }
   .topo-links{ margin-top:14px; text-align:center; font-size:12.5px; }
+  select{ width:100%; border:1px solid var(--linha); border-radius:10px; padding:11px; font:inherit; font-size:16px;
+    background:var(--card); color:inherit; }
+  .menc{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; min-height:24px; font-size:13px; }
+  .menc .tag{ display:inline-flex; gap:6px; align-items:center; border:1px solid var(--linha); border-radius:999px;
+    padding:4px 10px; font-weight:600; }
+  .menc .tag button{ border:0; background:transparent; color:inherit; font-size:13px; cursor:pointer; padding:0 1px; }
+  .acoes{ margin-top:8px; font-size:13px; line-height:1.7; }
+  .acoes .ok{ color:var(--ok); } .acoes .nok{ color:var(--err); }
 </style>
 </head>
 <body>
 <h1>🎫 Criar Ticket <span class="dim" style="font-weight:400">Jira Insights</span></h1>
-<div class="dim">Fale ou digite o pedido — a IA resolve o projeto, o épico e o vencimento; você confirma antes de criar.</div>
+<div class="dim">Fale ou digite o pedido — a IA resolve o projeto, o épico, o responsável, o vencimento, as horas a apontar,
+o comentário (marcando quem você citar) e o status. Você confirma tudo antes de criar.</div>
 
 <div id="tela-id" class="card oculto">
   <div class="kv"><b>Primeiro uso neste aparelho</b></div>
@@ -62,7 +71,7 @@
 
 <div id="tela-pedido" class="card oculto">
   <label style="margin-top:0">O que você precisa?</label>
-  <textarea id="pedido" placeholder='Ex.: "Criar um ticket no projeto da Copel, dentro do épico de gestão, com a descrição Fazer atividade XPTO e vencimento até o dia 31"'></textarea>
+  <textarea id="pedido" placeholder='Ex.: "Crie um ticket no nome da Jéssica dentro do épico de gestão do projeto da Copel, vencimento hoje, descrição alinhamento de estratégia; marque o Diego no comentário &quot;esse é o ticket da nossa conversa&quot;, aponte 30 minutos e passe para finalizado"'></textarea>
   <div class="dim" style="margin-top:6px">💡 Toque no campo e use o <b>microfone do teclado</b> para ditar.</div>
   <div class="linha-btns">
     <button class="btn" id="btn-mic" hidden>🎤 Ditar</button>
@@ -79,6 +88,14 @@
   <label>Título</label><input id="pv-resumo" maxlength="250">
   <label>Descrição</label><textarea id="pv-desc" style="min-height:80px"></textarea>
   <label>Vencimento</label><input id="pv-venc" type="date">
+  <label>👤 Responsável</label><select id="pv-resp"></select>
+  <label>⏱ Apontar horas <span class="dim" style="font-weight:400">— sai no SEU usuário</span></label>
+  <input id="pv-tempo" placeholder="ex.: 30m, 1h30 (em branco = não apontar)">
+  <label>🔀 Status ao criar</label><select id="pv-status"></select>
+  <label>💬 Comentário</label><textarea id="pv-coment" style="min-height:60px" placeholder="ex.: Esse é o ticket da nossa conversa"></textarea>
+  <label>📣 Marcar no comentário</label>
+  <div id="pv-menc" class="menc"></div>
+  <select id="pv-menc-add"></select>
   <div class="linha-btns">
     <button class="btn" id="pv-voltar">← Ajustar o pedido</button>
     <button class="btn pri" id="pv-conf">✓ Criar o ticket</button>
@@ -97,7 +114,28 @@
 <script>
 const ID_KEY='dexterity_apontar_id_v1';   // MESMA chave do painel (vale no mesmo navegador)
 const $=(id)=>document.getElementById(id);
-let previa=null;
+let previa=null, pessoas=[], statusOpc=[], mencoes=[];
+const ACAO_NOME={responsavel:'responsável',tempo:'apontamento',comentario:'comentário',status:'status'};
+// "30m", "1h30", "2h", "1,5" -> segundos (mesma regra do painel)
+function parseTempo(str){
+  const s=String(str||'').trim().toLowerCase().replace(/\s+/g,'').replace(',','.');
+  if(!s) return null;
+  let m;
+  if((m=s.match(/^(\d+):([0-5]?\d)$/))) return (+m[1])*3600+(+m[2])*60;
+  if((m=s.match(/^(\d+(?:\.\d+)?)h(?:([0-5]?\d)m?)?$/))) return Math.round((+m[1])*3600)+((+m[2]||0)*60);
+  if((m=s.match(/^(\d+(?:\.\d+)?)m(?:in)?$/))) return Math.round((+m[1])*60);
+  if((m=s.match(/^(\d+(?:\.\d+)?)$/))) return Math.round((+m[1])*3600);
+  return null;
+}
+function opcPessoas(sel){
+  return pessoas.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.nome)+'</option>').join('');
+}
+function pintaMencoes(){
+  $('pv-menc').innerHTML=mencoes.length
+    ? mencoes.map(m=>'<span class="tag">@'+esc(m.nome||m.id)+' <button data-rm="'+esc(m.id)+'" aria-label="não marcar">✕</button></span>').join('')
+    : '<span class="dim">ninguém marcado</span>';
+  $('pv-menc-add').value='';
+}
 function ident(){ try{ const o=JSON.parse(localStorage.getItem(ID_KEY)); if(o&&o.email&&o.token) return o; }catch(e){} return null; }
 function mostra(tela){ ['tela-id','tela-pedido','tela-previa','tela-fim'].forEach(t=>$(t).classList.toggle('oculto', t!==tela)); }
 function fb(id, cls, msg){ const e=$(id); e.className='fb '+cls; e.textContent=msg; }
@@ -140,29 +178,62 @@ $('btn-criar').addEventListener('click',async()=>{
     const j=await r.json();
     if(!j||!j.ok||!j.previa) throw new Error((j&&j.erro)||'Não consegui interpretar o pedido.');
     previa=j.previa; limpaFb('pedido-fb');
+    pessoas=Array.isArray(j.pessoas)?j.pessoas:[]; statusOpc=Array.isArray(j.statusOpcoes)?j.statusOpcoes:[];
+    mencoes=(previa.mencoes||[]).slice();
     $('pv-proj').innerHTML='📁 <b>'+esc(previa.projeto)+'</b> — '+esc(previa.projetoNome)+' <span class="dim">· '+esc(previa.tipoNome||'Tarefa')+'</span>';
     $('pv-epico').innerHTML=previa.epicoKey?('🎯 Épico: <b>'+esc(previa.epicoKey)+'</b> — '+esc(previa.epicoNome||'')):'';
     $('pv-epico').style.display=previa.epicoKey?'':'none';
     $('pv-avisos').innerHTML=(previa.avisos||[]).map(a=>'<div class="aviso">⚠ '+esc(a)+'</div>').join('');
     $('pv-resumo').value=previa.resumo||''; $('pv-desc').value=previa.descricao||''; $('pv-venc').value=previa.venc||'';
+    $('pv-resp').innerHTML='<option value="">— sem responsável —</option>'+opcPessoas(previa.respId||'');
+    $('pv-menc-add').innerHTML='<option value="">+ marcar alguém…</option>'+opcPessoas('');
+    const st=(statusOpc.length?statusOpc:(previa.statusNome?[{nome:previa.statusNome}]:[]));
+    $('pv-status').innerHTML='<option value="">— manter o status inicial —</option>'
+      + st.map(s=>'<option value="'+esc(s.nome)+'"'+(s.nome===previa.statusNome?' selected':'')+'>'+esc(s.nome)+'</option>').join('');
+    $('pv-tempo').value=previa.tempoTexto||''; $('pv-coment').value=previa.comentario||'';
+    pintaMencoes();
     limpaFb('pv-fb'); mostra('tela-previa');
   }catch(e2){ fb('pedido-fb','err',String(e2.message||e2)); }
   $('btn-criar').disabled=false;
 });
 $('pv-voltar').addEventListener('click',()=>mostra('tela-pedido'));
+$('pv-menc-add').addEventListener('change',()=>{
+  const a=$('pv-menc-add').value; if(!a) return;
+  const p=pessoas.find(x=>x.id===a);
+  if(p&&!mencoes.some(m=>m.id===a)) mencoes.push({id:p.id,nome:p.nome});
+  pintaMencoes();
+});
+$('pv-menc').addEventListener('click',(e)=>{
+  const b=e.target.closest&&e.target.closest('button[data-rm]'); if(!b) return;
+  mencoes=mencoes.filter(m=>m.id!==b.getAttribute('data-rm')); pintaMencoes();
+});
 $('pv-conf').addEventListener('click',async()=>{
   const id=ident(); if(!id||!previa) return;
   const resumo=$('pv-resumo').value.trim();
   if(!resumo) return fb('pv-fb','err','Dê um título ao ticket.');
-  $('pv-conf').disabled=true; fb('pv-fb','info','Criando o ticket…');
+  const comentario=$('pv-coment').value.trim();
+  const tempoTxt=$('pv-tempo').value.trim();
+  let tempoSeg=0;
+  if(tempoTxt){
+    tempoSeg=parseTempo(tempoTxt)||0;
+    if(!tempoSeg||tempoSeg<60||tempoSeg>24*3600) return fb('pv-fb','err','Tempo inválido — use 30m, 1h30, 2h ou deixe em branco.');
+  }
+  if(mencoes.length&&!comentario) return fb('pv-fb','err','Escreva o comentário — é nele que as pessoas marcadas serão avisadas.');
+  $('pv-conf').disabled=true; fb('pv-fb','info','Criando o ticket e executando as ações…');
   try{
     const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({magico:1, confirmar:1, projeto:previa.projeto, epicoKey:previa.epicoKey||'',
-        resumo, descricao:$('pv-desc').value.trim(), venc:$('pv-venc').value.trim(), email:id.email, token:id.token})});
+        resumo, descricao:$('pv-desc').value.trim(), venc:$('pv-venc').value.trim(),
+        respId:$('pv-resp').value||'', tempoSeg, statusNome:$('pv-status').value||'', comentario, mencoes,
+        email:id.email, token:id.token})});
     const j=await r.json();
     if(!j||!j.ok||!j.key) throw new Error((j&&j.erro)||'Falha ao criar o ticket.');
-    $('fim-msg').innerHTML='✓ Criado <a href="https://dexterityit.atlassian.net/browse/'+encodeURIComponent(j.key)+'" target="_blank" rel="noopener"><b>'+esc(j.key)+'</b> ↗</a> — '+esc(resumo);
-    $('pedido').value=''; previa=null; mostra('tela-fim');
+    const acoes=Array.isArray(j.acoes)?j.acoes:[];
+    $('fim-msg').innerHTML='✓ Criado <a href="https://dexterityit.atlassian.net/browse/'+encodeURIComponent(j.key)+'" target="_blank" rel="noopener"><b>'+esc(j.key)+'</b> ↗</a> — '+esc(resumo)
+      + (acoes.length?'<div class="acoes">'+acoes.map(a=>a.ok
+          ? '<div class="ok">✓ '+esc(a.detalhe||a.tipo)+'</div>'
+          : '<div class="nok">✕ '+esc(ACAO_NOME[a.tipo]||a.tipo)+': '+esc(a.erro||'não deu certo')+'</div>').join('')+'</div>':'');
+    $('pedido').value=''; previa=null; mencoes=[]; mostra('tela-fim');
   }catch(e2){ fb('pv-fb','err',String(e2.message||e2)); }
   $('pv-conf').disabled=false;
 });

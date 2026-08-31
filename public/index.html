@@ -1037,11 +1037,22 @@
   .alx-campo{margin-top:14px}
   .alx-campo > label{display:block;font-weight:700;font-size:12.5px;color:var(--grafite);margin-bottom:5px}
   .alx-campo .req{color:#B91C1C}
-  select.alx-motivo,textarea.alx-coment{width:100%;font-size:13px;padding:8px 10px;border:1px solid var(--linha);
+  select.alx-motivo,input.alx-motivo,textarea.alx-coment{width:100%;font-size:13px;padding:8px 10px;border:1px solid var(--linha);
     border-radius:9px;background:var(--cartao);color:var(--grafite);font-family:inherit}
   textarea.alx-coment{min-height:104px;resize:vertical;line-height:1.5}
   .alx-modal-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px}
   .alx-modal-acoes .spacer{flex:1}
+  /* 🎫 Prévia ACIONÁVEL da criação rápida: responsável, tempo, status e menções */
+  .qk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px}
+  .qk-grid .alx-campo{margin-top:0}
+  .qk-grid input,.qk-grid select{width:100%;box-sizing:border-box;font-size:13px;padding:8px 10px;
+    border:1px solid var(--linha);border-radius:9px;background:var(--cartao);color:var(--grafite);font-family:inherit}
+  .qk-menc{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:28px}
+  .qk-menc .chip{display:inline-flex;gap:6px;align-items:center;cursor:default;font-weight:600}
+  .qk-x{border:0;background:transparent;color:inherit;cursor:pointer;font-size:12px;line-height:1;padding:0 1px}
+  .qk-acoes{margin-top:12px;font-size:12.5px;line-height:1.8}
+  .qk-acoes .ok{color:var(--musgo)}
+  .qk-acoes .nok{color:#B91C1C}
   /* Administração — contratos */
   .ad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
   .ad-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left:5px solid #188918}
@@ -5233,6 +5244,8 @@ const ROADMAP=[
   { s:'avaliacao', t:'🔀 Transformar em atividade — lote e sugestão automática', d:'Transformar vários chamados de uma vez para o mesmo destino e sugerir o destino provável (mesmo cliente/épico/período) — evolução do 🔀 entregue em 2026-08-24.' },
   { s:'avaliacao', t:'🧭 Guias interativos — checklist de primeiros passos', d:'Evolução dos guias por tela entregues em 2026-08-28: um checklist de onboarding ("já vi o guia do Apontar, da Agenda, do Meu Planejamento…") com progresso por pessoa, para o gestor acompanhar quem já se ambientou.' },
   { s:'avaliacao', t:'🎬 Guias com ação assistida', d:'Deixar o guia FAZER o passo junto (abrir o modal, aplicar o filtro, preencher o exemplo) em vez de só destacar o item — útil nas telas com formulário, como Criação de Ticket e Rateio.' },
+  { s:'avaliacao', t:'🎫 Criação acionável — apontar as horas NO NOME de outra pessoa', d:'Hoje "aponte 30 minutos" cria o worklog no seu usuário (é o seu token do Jira). Para lançar no tempo de outra pessoa o caminho é o 📨 convite de apontamento (ela confirma com 1 clique) — avaliar disparar esse convite direto do pedido em linguagem natural ("aponte 1h para a Jéssica").' },
+  { s:'avaliacao', t:'🎫 Criação acionável — vários tickets e edição de ticket existente por texto', d:'Evolução da criação acionável de 2026-08-31: aceitar mais de um ticket no mesmo pedido ("crie três tarefas…") e mandar ações em um ticket que JÁ existe ("no COPEL-42, aponte 2h e passe para finalizado") sem precisar abrir a Gestão.' },
   { s:'avaliacao', t:'🏅 Scoreboard — campeão do mês e aviso no Teams', d:'Fechar um pódio mensal a partir do scoreboard diário (medalhas, campeão do mês) e comemorar automaticamente no canal do Teams; badge pessoal de sequência (🔥) no Início.' },
 ];
 function renderRoadmap(){
@@ -6695,9 +6708,9 @@ function renderAcoes(){
   // 🎫 Criação rápida: descreva em português (ou dite) e a IA monta o ticket.
   const temMic=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
   const cardTicket=`<div class="card full" style="margin-top:14px">
-    <h2>🎫 Criar ticket rápido <span>descreva em português — a IA resolve projeto, épico e vencimento; você confirma a prévia</span></h2>
-    <textarea id="qk-texto" class="pl-texto" style="min-height:64px;margin-top:8px" oninput="estado.qk.texto=this.value"
-      placeholder='Ex.: "Criar um ticket no projeto da Copel, dentro do épico de gestão, com a descrição Fazer atividade XPTO e vencimento até o dia 31"'>${esc(estado.qk.texto||'')}</textarea>
+    <h2>🎫 Criar ticket rápido <span>descreva em português — a IA resolve projeto, épico, responsável, prazo, horas, comentário e status; você confirma a prévia</span></h2>
+    <textarea id="qk-texto" class="pl-texto" style="min-height:74px;margin-top:8px" oninput="estado.qk.texto=this.value"
+      placeholder='Ex.: "Crie um ticket no nome da Jéssica dentro do épico de gestão do projeto da Copel com vencimento hoje e a descrição alinhamento de estratégia; marque o Diego no comentário &quot;esse é o ticket da nossa conversa&quot;, aponte 30 minutos e passe para finalizado"'>${esc(estado.qk.texto||'')}</textarea>
     <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
       <button class="btn primario" id="qk-criar" ${estado.qk.criando?'disabled':''}>${estado.qk.criando?'✨ Interpretando…':'✨ Criar com IA'}</button>
       ${temMic?'<button class="btn" id="qk-mic" data-tip="Fale o pedido — o texto entra no campo (pt-BR)">🎤 Ditar</button>':''}
@@ -6705,7 +6718,9 @@ function renderAcoes(){
       <span class="spacer"></span>
       <button class="btn" data-hx-goto="planejar" data-tip="Criação completa: vários tickets, épicos, padrões e colar do Excel">📝 Criação completa</button>
       <button class="btn" data-hx-goto="ondecrio" data-tip="Não sabe o projeto certo? A árvore de decisão te leva">🌳 Onde crio?</button></div>
-    <div class="muted small" style="margin-top:6px">💡 No celular, o microfone do teclado também dita direto no campo. A prévia sempre aparece antes de criar.</div></div>`;
+    <div class="muted small" style="margin-top:6px">💡 O pedido pode ser <b>acionável</b>: <b>atribuir a alguém</b> ("no nome da Jéssica"),
+      <b>apontar horas</b> ("aponte 30 minutos" — sai no seu usuário), <b>comentar marcando gente</b> ("marque o Diego no comentário…")
+      e <b>mudar o status</b> ("passe para finalizado"). A prévia sempre aparece antes, e você ajusta tudo lá.</div></div>`;
   const cardRadar=`<div class="card full" style="margin-top:14px">
     <h2>🧭 Radar — combine as informações <span>escopo × eventos × período — ex.: "meus tickets criados hoje" (a combinação fica salva)</span></h2>
     <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -15110,7 +15125,8 @@ let _gxSt=null;
 // descrição e vencimento; a PRÉVIA editável aparece num modal e só cria após
 // confirmar. O modo {confirmar:1} direto é o usado pelos Atalhos da Siri.
 // ===========================================================================
-let _qkPrev=null;
+let _qkPrev=null, _qkPessoas=[], _qkStatus=[], _qkMenc=[];
+const QK_ACAO_NOME={responsavel:'responsável',tempo:'apontamento',comentario:'comentário',status:'status'};
 async function qkCria(){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const texto=(estado.qk.texto||'').trim();
@@ -15124,14 +15140,33 @@ async function qkCria(){
     if(!j||!j.ok||!j.previa){
       toast((j&&j.erro)||'Não consegui interpretar o pedido.','err');
       if(estado.vista==='acoes') renderAcoes(); return; }
-    _qkPrev=j.previa; qkAbrePrevia();
+    _qkPrev=j.previa; _qkPessoas=Array.isArray(j.pessoas)?j.pessoas:[];
+    _qkStatus=Array.isArray(j.statusOpcoes)?j.statusOpcoes:[];
+    _qkMenc=(j.previa.mencoes||[]).slice();
+    qkAbrePrevia();
   }catch(e){ estado.qk.criando=false; toast(humanizaErro(e),'err'); }
   if(estado.vista==='acoes') renderAcoes();
 }
+// Opções de pessoa (responsável e menções) — a lista vem do servidor junto da prévia.
+function qkPessoasOpc(sel){
+  return _qkPessoas.map(p=>`<option value="${escA(p.id)}"${p.id===sel?' selected':''}>${esc(p.nome)}</option>`).join('');
+}
+function qkMencHTML(){
+  if(!_qkMenc.length) return '<span class="muted small">ninguém marcado — escolha abaixo para avisar alguém no comentário</span>';
+  return _qkMenc.map(m=>`<span class="chip" data-tip="Vai como @menção no comentário — a pessoa recebe a notificação do Jira">@${esc(m.nome||m.id)}
+    <button class="qk-x" data-qk-menc-rm="${escA(m.id)}" title="Não marcar ${escA(m.nome||m.id)}">✕</button></span>`).join('');
+}
+function qkAtualizaMenc(){
+  const c=document.getElementById('qk-p-menc'); if(c) c.innerHTML=qkMencHTML();
+  const s=document.getElementById('qk-p-menc-add'); if(s) s.value='';
+}
 function qkAbrePrevia(){
   const p=_qkPrev; if(!p) return;
+  const stSel=p.statusNome||'';
+  const stOpc=(_qkStatus.length?_qkStatus:(stSel?[{nome:stSel,cat:p.statusCat||''}]:[]));
   abreModal(`<h2>🎫 Confirme o ticket</h2>
-    <div class="muted small">A IA interpretou assim — ajuste o que quiser antes de criar.</div>
+    <div class="muted small">A IA interpretou assim — ajuste o que quiser antes de criar. Além de abrir o ticket, dá para já
+      <b>atribuir a alguém</b>, <b>apontar horas</b>, <b>comentar marcando pessoas</b> e <b>mudar o status</b>.</div>
     ${(p.avisos||[]).map(a=>`<div class="aviso" style="margin-top:8px">⚠ ${esc(a)}</div>`).join('')}
     <div class="alx-campo"><label>Projeto</label>
       <div><strong>${esc(p.projeto)}</strong> — ${esc(p.projetoNome)} <span class="muted small">· tipo ${esc(p.tipoNome||'Tarefa')}</span></div></div>
@@ -15140,8 +15175,28 @@ function qkAbrePrevia(){
       <input id="qk-p-resumo" class="alx-motivo" value="${escA(p.resumo)}" maxlength="250"></div>
     <div class="alx-campo"><label>Descrição</label>
       <textarea id="qk-p-desc" class="alx-coment" style="min-height:90px">${esc(p.descricao||'')}</textarea></div>
-    <div class="alx-campo" style="max-width:220px"><label>Vencimento</label>
-      <input type="date" id="qk-p-venc" value="${escA(p.venc||'')}"></div>
+    <div class="qk-grid">
+      <div class="alx-campo"><label>👤 Responsável</label>
+        ${_qkPessoas.length
+          ?`<select id="qk-p-resp"><option value="">— sem responsável —</option>${qkPessoasOpc(p.respId||'')}</select>`
+          :'<div class="muted small">Lista de pessoas indisponível (o seu token não pode procurar usuários no Jira) — atribua depois pela 🛠 Gestão.</div>'}</div>
+      <div class="alx-campo"><label>📅 Vencimento</label>
+        <input type="date" id="qk-p-venc" value="${escA(p.venc||'')}"></div>
+      <div class="alx-campo"><label>⏱ Apontar horas <span class="muted" style="font-weight:400">— sai no SEU usuário</span></label>
+        <input type="text" id="qk-p-tempo" value="${escA(p.tempoTexto||'')}" placeholder="ex.: 30m, 1h30, 2h">
+        <div class="ap-chips" style="margin-top:6px">${['30m','1h','2h'].map(c=>`<button class="chip" data-qk-t="${c}">${c}</button>`).join('')}
+          <button class="chip" data-qk-t="" data-tip="Criar sem apontar horas">sem apontar</button></div></div>
+      <div class="alx-campo"><label>🔀 Status ao criar</label>
+        ${stOpc.length
+          ?`<select id="qk-p-status"><option value="">— manter o status inicial —</option>${
+             stOpc.map(s=>`<option value="${escA(s.nome)}"${s.nome===stSel?' selected':''}>${esc(s.nome)}</option>`).join('')}</select>`
+          :'<div class="muted small">O Jira não devolveu os status deste projeto — mova o ticket depois pela 🛠 Gestão.</div>'}</div>
+    </div>
+    <div class="alx-campo"><label>💬 Comentário no ticket <span class="muted" style="font-weight:400">(opcional)</span></label>
+      <textarea id="qk-p-coment" class="alx-coment" style="min-height:64px" placeholder="ex.: Esse é o ticket da nossa conversa">${esc(p.comentario||'')}</textarea></div>
+    <div class="alx-campo"><label>📣 Marcar pessoas no comentário</label>
+      <div class="qk-menc" id="qk-p-menc">${qkMencHTML()}</div>
+      ${_qkPessoas.length?`<select id="qk-p-menc-add" style="margin-top:8px;max-width:280px"><option value="">+ marcar alguém…</option>${qkPessoasOpc('')}</select>`:''}</div>
     <div class="alx-fb" id="qk-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="qk-prev-conf">✓ Criar o ticket</button>
@@ -15153,19 +15208,37 @@ async function qkConfirma(){
   const resumo=((document.getElementById('qk-p-resumo')||{}).value||'').trim();
   const descricao=((document.getElementById('qk-p-desc')||{}).value||'').trim();
   const venc=((document.getElementById('qk-p-venc')||{}).value||'').trim();
+  const respId=((document.getElementById('qk-p-resp')||{}).value||'').trim();
+  const statusNome=((document.getElementById('qk-p-status')||{}).value||'').trim();
+  const comentario=((document.getElementById('qk-p-coment')||{}).value||'').trim();
+  const tempoTxt=((document.getElementById('qk-p-tempo')||{}).value||'').trim();
   if(!resumo){ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Dê um título ao ticket.'; } return; }
+  let tempoSeg=0;
+  if(tempoTxt){
+    tempoSeg=parseTempo(tempoTxt)||0;
+    if(!tempoSeg||tempoSeg<60||tempoSeg>24*3600){
+      if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Tempo inválido — use 30m, 1h30, 2h ou deixe em branco.'; } return; }
+  }
+  if(_qkMenc.length&&!comentario){
+    if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escreva o comentário — é nele que as pessoas marcadas serão avisadas.'; } return; }
   const bt=document.getElementById('qk-prev-conf'); if(bt) bt.disabled=true;
-  if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Criando o ticket…'; }
+  if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Criando o ticket e executando as ações…'; }
   try{
     const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({magico:1, confirmar:1, projeto:p.projeto, epicoKey:p.epicoKey||'',
-        resumo, descricao, venc, email:id.email, token:id.token})});
+        resumo, descricao, venc, respId, tempoSeg, statusNome, comentario, mencoes:_qkMenc,
+        email:id.email, token:id.token})});
     const j=await r.json();
     if(!j||!j.ok||!j.key) throw new Error((j&&j.erro)||'Falha ao criar o ticket.');
-    estado.qk.texto=''; _qkPrev=null; estado.cache={};
+    const acoes=Array.isArray(j.acoes)?j.acoes:[];
+    estado.qk.texto=''; _qkPrev=null; _qkMenc=[]; estado.cache={};
     abreModal(`<h2>🎫 Ticket criado!</h2>
       <div class="alx-fb ap-fb ok" style="display:block">✓ <a href="${jiraBase()}/browse/${encodeURIComponent(j.key)}" target="_blank" rel="noopener"><strong>${esc(j.key)}</strong> ↗</a> — ${esc(resumo)}
         <br><span class="muted small">${esc(p.projetoNome)}${p.epicoKey?` · épico ${esc(p.epicoNome||p.epicoKey)}`:''}${venc?` · vence ${esc(venc.split('-').reverse().join('/'))}`:''}</span></div>
+      ${acoes.length?`<div class="qk-acoes">${acoes.map(a=>a.ok
+        ?`<div class="ok">✓ ${esc(a.detalhe||a.tipo)}</div>`
+        :`<div class="nok">✕ ${esc(QK_ACAO_NOME[a.tipo]||a.tipo)}: ${esc(a.erro||'não deu certo')}</div>`).join('')}</div>`:''}
+      ${acoes.some(a=>!a.ok)?'<div class="muted small" style="margin-top:6px">O ticket foi criado — o que falhou dá para resolver na 🛠 Gestão ou direto no Jira.</div>':''}
       <div class="alx-modal-acoes">
         <button class="btn primario" data-gx-conv="${escA(j.key)}" data-tip="Já convide quem vai trabalhar junto">📨 Convidar para apontar</button>
         <button class="btn" id="gx-fechar">Fechar</button></div>`);
@@ -16897,6 +16970,23 @@ function abreAjuda(){
       <b>data limite</b> e o <b>responsável</b> linha a linha, ou marque várias e <b>aplique aos marcados</b>;
       nada muda no Jira até clicar em <b>💾 Salvar</b>.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="planejar">🧭 ver na tela (guia interativo)</button></div></div></details>
+    <details class="help-sec"><summary>🎫 Criar ticket rápido — linguagem natural, voz e ações no mesmo pedido</summary><div class="help-body">
+      No card <b>🎫 Criar ticket rápido</b> da tela <b>🏠 Início</b> (ou no app 📲 <b>voz.html</b> do celular, no Atalho da
+      <b>Siri</b> e na skill da <b>Alexa</b>) você <b>descreve em português</b> e a IA monta o ticket. O pedido pode ser
+      <b>acionável</b> — além de criar, ela executa o que você mandar fazer:<br>
+      <ul style="margin:6px 0 6px 18px;line-height:1.75">
+        <li><b>👤 Responsável</b> — “<i>no nome da Jéssica</i>”, “<i>atribua ao Pedro</i>”. O nome é casado com as pessoas ativas do Jira.</li>
+        <li><b>⏱ Apontar horas</b> — “<i>aponte 30 minutos</i>”, “<i>lance 1h30</i>”. O worklog sai <b>no SEU usuário</b> (é o seu token) — para lançar
+          no tempo de outra pessoa, use o <b>📨 convidar para apontar</b> que aparece no fim.</li>
+        <li><b>💬 Comentário com @menção</b> — “<i>marque o Diego no comentário: esse é o ticket da nossa conversa</i>”. Quem for marcado
+          recebe a notificação do Jira.</li>
+        <li><b>🔀 Status</b> — “<i>passe para finalizado</i>”. O status é casado com o <b>fluxo do próprio projeto</b>; se aquela transição
+          não existir a partir do status inicial, o ticket continua criado e o motivo aparece na tela.</li>
+      </ul>
+      A <b>prévia</b> mostra tudo antes de gravar — projeto, épico, título, descrição, responsável, vencimento, horas, status,
+      comentário e quem será marcado — e <b>todos os campos são editáveis</b> ali mesmo. Depois de confirmar, o resultado lista
+      <b>ação por ação</b> o que deu certo e o que não deu (o ticket é criado mesmo que uma ação falhe).
+    <div style="margin-top:8px"><button class="aj-g" data-aj-guia="acoes">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>Reclassificar reuniões</summary><div class="help-body">
       Na aba <b>🔀 Reclassificar</b>: selecione as reuniões abertas do RDF, escolha o projeto destino e mova.
       O <b>tipo</b> é mantido e o <b>status</b> é preservado quando existe no destino.
@@ -17213,7 +17303,7 @@ function posicionaTour(){
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo.'},
-    {s:'#qk-texto',ti:'🎫 Criar ticket rápido',tx:'Descreva em português — "criar ticket no projeto da Copel, no épico de gestão, descrição fazer atividade XPTO, vencimento dia 31". A IA resolve projeto, épico, título e data; você confere a prévia antes de criar.'},
+    {s:'#qk-texto',ti:'🎫 Criar ticket rápido (e acionável)',tx:'Descreva em português tudo o que precisa acontecer — "crie um ticket no nome da Jéssica, no épico de gestão do projeto da Copel, vencimento hoje, marque o Diego no comentário, aponte 30 minutos e passe para finalizado". A IA resolve projeto, épico, título, prazo, responsável, horas, comentário com @menção e status; a prévia mostra tudo antes, campo a campo, e você ajusta o que quiser.'},
     {s:'#qk-mic',ti:'🎤 Ditar em vez de digitar',tx:'No navegador, o microfone transcreve a sua fala direto no campo. É o mesmo caminho do texto — só muda a forma de escrever.'},
     {s:'#qk-siri',ti:'📱 Pelo celular, Siri e Alexa',tx:'Este botão reúne o app instalável do celular (voz.html), o Atalho da Siri pronto e a configuração da skill da Alexa: criar ticket sem abrir o painel.'},
     {c:'🆕 Meus tickets recém criados',ti:'🆕 Meus tickets recém criados',tx:'Os últimos tickets que VOCÊ abriu, com projeto e quando. Um clique manda todos para a 🛠 Gestão, já selecionados, para ajustar responsável, data ou status em massa.'},
@@ -17579,6 +17669,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-31','🎫 <b>Criar ticket rápido virou ACIONÁVEL — um pedido só resolve tudo</b>: além de abrir o ticket, agora você manda no mesmo texto (ou por voz) <b>👤 quem fica responsável</b> ("no nome da Jéssica"), <b>⏱ quantas horas apontar</b> ("aponte 30 minutos" — o worklog sai no seu usuário), <b>💬 um comentário marcando pessoas</b> ("marque o Diego no comentário: esse é o ticket da nossa conversa" — o Jira notifica quem for marcado) e <b>🔀 o status final</b> ("passe para finalizado", casado com o fluxo do próprio projeto). A <b>prévia</b> mostra tudo antes de gravar, com <b>seletores editáveis</b> de responsável, status e menções, campo de horas com atalhos (30m/1h/2h) e o comentário; depois de confirmar, o painel lista <b>ação por ação</b> o que deu certo — e o que não deu, sem perder o ticket. Vale também no app 📲 do celular, no Atalho da <b>Siri</b> e na skill da <b>Alexa</b>.'],
   ['2026-08-28','🧭 <b>Guia interativo em CADA tela — a ferramenta explicando a si mesma</b>: em qualquer tela, o botão flutuante <b>🧭 Guia desta tela</b> (ou a tecla <b>?</b>) percorre a tela <b>item por item</b>, destacando cada campo, botão e cartão e explicando para que serve — como um colega mostrando ao lado. São <b>34 guias</b>, um para cada tela, com barra de progresso, ✓ nas que você já viu e o pontinho vermelho avisando quando a tela ainda não foi conhecida. Na <b>❓ Ajuda</b>, cada tópico e cada tela da lista ganharam o botão <b>🧭 guia</b>, e o novo índice <b>🧭 Guias interativos</b> reúne todos por grupo do menu. Item que não está na tela naquele momento (porque falta dado ou permissão) <b>continua sendo explicado</b>, com o aviso de quando ele aparece.'],
   ['2026-08-28','🏠 <b>Três visões novas na página inicial</b>: <b>🆕 Meus tickets recém criados</b> (os últimos que você abriu, com projeto e quando — e um clique leva todos para a 🛠 Gestão), <b>📅 Criados nesta semana</b> (quantos o time abriu de segunda até hoje, com a quebra por projeto e por pessoa) e <b>⏰ Tickets vencidos por projeto</b> (onde o atraso está concentrado, com barra comparativa, pior atraso, quantos estão sem horas e o responsável com mais casos — clique no projeto e trate na Gestão).'],
   ['2026-08-27','🔁 <b>Reunião recorrente vira ticket sozinha — só o apontamento fica</b>: na 📅 Agenda, clique em <b>⚡ automatizar</b> numa reunião que se repete e escolha o projeto. A partir daí, <b>toda ocorrência ganha o ticket automaticamente</b> quando você abre a Agenda no dia (com a descrição do evento e o vencimento do dia) — você só aponta as horas. A regra vale para a <b>série inteira</b>, é compartilhada com o time e se desliga com um clique.'],
@@ -17708,7 +17799,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-28.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-31.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -19033,6 +19124,10 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.id==='gx-st-confirmar'){ gxStatusLote(); }
   else if(t.id==='cv-enviar'){ cvEnviar(); }
   else if(t.id==='qk-prev-conf'){ qkConfirma(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-qk-t')){ const i=document.getElementById('qk-p-tempo');
+    if(i) i.value=t.getAttribute('data-qk-t'); }
+  else if(t.hasAttribute&&t.hasAttribute('data-qk-menc-rm')){ const a=t.getAttribute('data-qk-menc-rm');
+    _qkMenc=_qkMenc.filter(m=>m.id!==a); qkAtualizaMenc(); }
   else if(t.id==='gx-del-confirmar'){ gxExcluiLote(); }
   else if(t.id==='gx-dup-selall'){ const g=estado.gestao;
     gxGruposDuplicados().forEach(a=>a.forEach(x=>{ g.sel[x.k]=true; }));
@@ -19080,8 +19175,15 @@ document.getElementById('modal-body').addEventListener('input',(e)=>{
     if(b) b.disabled = t.value.trim().toUpperCase()!=='EXCLUIR'; }
 });
 document.getElementById('modal-body').addEventListener('change',(e)=>{
-  const t=e.target; if(!t||!t.hasAttribute||!t.hasAttribute('data-gx-ep-sel')) return;
-  if(_gxEp) _gxEp.sel[t.getAttribute('data-gx-ep-sel')]=t.value;
+  const t=e.target; if(!t||!t.hasAttribute) return;
+  if(t.hasAttribute('data-gx-ep-sel')){ if(_gxEp) _gxEp.sel[t.getAttribute('data-gx-ep-sel')]=t.value; return; }
+  // 🎫 prévia da criação rápida: escolher quem marcar (@) no comentário
+  if(t.id==='qk-p-menc-add'){
+    const a=t.value; if(!a){ return; }
+    const p=_qkPessoas.find(x=>x.id===a);
+    if(p&&!_qkMenc.some(m=>m.id===a)) _qkMenc.push({id:p.id,nome:p.nome});
+    qkAtualizaMenc();
+  }
 });
 // ---- Vincular Reuniões a AMS: lista + assistente (modal) ----
 document.getElementById('conteudo').addEventListener('click', (e)=>{
