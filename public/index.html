@@ -162,6 +162,32 @@
   .brand:hover{opacity:.85}
   .brand:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
   .brand .mark{width:36px;height:36px;flex:0 0 auto;display:block;object-fit:contain}
+  /* ---- Marca Dexterity ANIMADA no cabeçalho (geometria oficial do moinho) ----
+     Três estados, cada um com uma função — nada de laço rodando à toa:
+       • dx-entra    → "pivô": cada pétala gira no próprio canto interno ao abrir o painel;
+       • carregando  → "ciclo": a luz percorre as pétalas enquanto há chamada à API no ar
+                       (o cabeçalho vira o indicador de atividade do painel);
+       • ímã         → as pétalas acompanham de leve o ponteiro sobre a marca (JS).
+     As pétalas usam as variáveis do tema, então a marca acompanha claro/escuro.
+     Tudo desligado em prefers-reduced-motion. */
+  .dxlogo{overflow:visible}
+  .dxp{transform-box:view-box;transform-origin:312.3px 96.6px;
+    transition:transform .38s cubic-bezier(.22,1,.3,1),opacity .3s ease}
+  .dx-entra .dxp{opacity:0;animation:dx-pivo 1.05s cubic-bezier(.16,1,.3,1) forwards}
+  .dx-entra .dxp--tl{transform-origin:306.6px 90.7px;animation-delay:0s}
+  .dx-entra .dxp--bl{transform-origin:306.6px 102.1px;animation-delay:.08s}
+  .dx-entra .dxp--br{transform-origin:318px 102.5px;animation-delay:.16s}
+  .dx-entra .dxp--tr{transform-origin:318px 91px;animation-delay:.26s}
+  @keyframes dx-pivo{from{opacity:0;transform:rotate(-26deg) scale(.9)}to{opacity:1;transform:none}}
+  .dxlogo.carregando .dxp{opacity:.16;animation:dx-ciclo 1.9s cubic-bezier(.4,0,.2,1) infinite}
+  .dxlogo.carregando .dxp--tr{animation-delay:0s}
+  .dxlogo.carregando .dxp--br{animation-delay:.24s}
+  .dxlogo.carregando .dxp--bl{animation-delay:.48s}
+  .dxlogo.carregando .dxp--tl{animation-delay:.72s}
+  @keyframes dx-ciclo{0%,55%,100%{opacity:.16;transform:none}18%{opacity:1;transform:scale(1.05)}}
+  @media (prefers-reduced-motion:reduce){
+    .dxp{transition:none!important;animation:none!important;opacity:1!important;transform:none!important}
+  }
   /* Botão "voltar ao topo" (flutuante) */
   #to-top{position:fixed;right:18px;bottom:64px;z-index:40;border:1px solid var(--cerceta);background:var(--cerceta);
     color:#fff;font-family:var(--corpo);font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;
@@ -2213,7 +2239,13 @@
   <div class="print-head" id="print-head" aria-hidden="true"></div>
   <header>
     <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar ao início (Resumo)">
-      <img class="mark" src="/logo.svg" alt="Dexterity" width="36" height="36" decoding="async">
+      <svg class="mark dxlogo dx-entra" id="dx-logo" viewBox="206.8 -1.15 195.4 195.4"
+        role="img" aria-label="Dexterity" focusable="false">
+        <path class="dxp dxp--tl" fill="var(--grafite)" d="M306.8,41.1c0,6.7-1.3,13.1-3.8,19.1s-6.1,11.4-10.8,16.1c-4.7,4.7-10.2,8.4-16.1,10.8c-6,2.5-12.4,3.8-19.1,3.8c-0.2,0-1.8,0-3.4,0c-1.1,0-2.2,0-2.8,0.1c-0.4,0-0.7-0.2-0.9-0.5l-21.6-35.4l-21-34.4c-0.4-0.6,0.1-1.5,0.8-1.5h48.5h49.2c0.5,0,1,0.4,1,1v10V41.1z"/>
+        <path class="dxp dxp--tr" fill="var(--marca)" d="M318.4,40.7c0,0.1,0,0.2,0,0.3c0,0.1,0,0.2,0,0.3c0,0.1,0,0.2,0,0.3c0,0.1,0,0.2,0,0.3c0.1,6.6,1.4,12.9,3.9,18.8c2.5,5.9,6.1,11.3,10.7,15.9c4.7,4.7,10.2,8.4,16.1,10.8c6,2.5,12.4,3.8,19.1,3.8h17.4h15.7c0.8,0,1.2-0.8,0.8-1.5l-10-16.4l-10.9-17.8c-6.8-11.2-14.9-20.2-24.5-26.4c-9.6-6.2-20.8-9.6-33.9-9.6h-3.4c-0.5,0-1,0.4-1,1V30V40.7z"/>
+        <path class="dxp dxp--bl" fill="var(--grafite)" d="M306.8,152.3c0-6.7-1.3-13.1-3.8-19.1s-6.1-11.4-10.8-16.1c-4.7-4.7-10.2-8.4-16.1-10.8c-6-2.5-12.4-3.8-19.1-3.8c-0.2,0-1.8,0-3.4,0c-1.1,0-2.2,0-2.8-0.1c-0.4,0-0.7,0.2-0.9,0.5l-21.6,35.4l-21,34.4c-0.4,0.6,0.1,1.5,0.8,1.5h48.5h49.2c0.5,0,1-0.4,1-1v-10V152.3z"/>
+        <path class="dxp dxp--br" fill="var(--grafite)" d="M368.2,102.5c-6.7,0-13.1,1.3-19.1,3.8s-11.4,6.1-16.1,10.8c-4.7,4.7-8.3,10.1-10.8,16.1c-2.5,5.9-3.8,12.4-3.8,19c0,0,0,0.1,0,0.1s0,0.1,0,0.1c0,0,0,0,0,0c0,0,0,0,0,0v5.1v5.1v5.8v4.8c0,0.5,0.5,1,1,1c12.5-0.4,24.5-3.9,35-9.9c10.8-6.2,20.1-15.1,26.8-26.1l10.9-17.8l10-16.3c0.4-0.6-0.1-1.5-0.8-1.5h-15.7H368.2z"/>
+      </svg>
       <div>
         <h1>Insights de Uso</h1>
         <small>Painel do time · Jira + Clockwork</small>
@@ -5239,6 +5271,7 @@ const ROADMAP=[
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
+  { s:'avaliacao', t:'🌀 Marca animada além do cabeçalho', d:'A marca do moinho ganhou movimento no cabeçalho em 2026-08-31 (pivô na entrada, ciclo enquanto carrega, ímã no ponteiro). O material da marca tem mais variantes — abertura, assinatura com o logotipo, paleta e escaneamento — candidatas à tela de abertura do app instalado, à capa dos relatórios em PDF e às vinhetas de vídeo/deck institucional.' },
   { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
   { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
   { s:'avaliacao', t:'📱 Aplicativo nas lojas (App Store / Play)', d:'A versão instalável (PWA) já cobre iPhone/iPad pela Tela de Início; publicar nas lojas exigiria empacotar com Capacitor e conta Apple Developer — avaliar se há demanda real.' },
@@ -17678,6 +17711,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-31','🌀 <b>A marca da Dexterity ganhou vida no cabeçalho</b>: a logo do painel passou a usar o <b>desenho oficial do moinho</b> (o mesmo dos ícones do app — antes o cabeçalho tinha uma versão aproximada) e agora <b>se move, com propósito</b>: abre em <b>pivô</b> quando o painel carrega (e quando você clica nela para voltar à Início), vira o <b>indicador de atividade</b> — a luz percorre as pétalas — <b>enquanto os dados estão sendo buscados</b>, e as pétalas <b>acompanham de leve o seu ponteiro</b> quando você passa o mouse por cima. Ela também <b>acompanha o tema</b> (clareia no modo escuro) e fica <b>parada</b> para quem configurou o sistema com menos movimento.'],
   ['2026-08-31','🗺️ <b>Roadmap sempre em dia — agora com data de revisão à vista</b>: o card do <b>🗺️ Roadmap</b> mostra <b>quando a lista foi revisada pela última vez</b>, quantos itens tem e a data da última entrega — dá para saber num relance se o que está ali ainda vale. E não depende mais de ninguém lembrar: a verificação automática do projeto <b>reprova a entrega</b> se o roadmap não for revisado junto com as ✨ Novidades.'],
   ['2026-08-31','🎫 <b>Criar ticket rápido virou ACIONÁVEL — um pedido só resolve tudo</b>: além de abrir o ticket, agora você manda no mesmo texto (ou por voz) <b>👤 quem fica responsável</b> ("no nome da Jéssica"), <b>⏱ quantas horas apontar</b> ("aponte 30 minutos" — o worklog sai no seu usuário), <b>💬 um comentário marcando pessoas</b> ("marque o Diego no comentário: esse é o ticket da nossa conversa" — o Jira notifica quem for marcado) e <b>🔀 o status final</b> ("passe para finalizado", casado com o fluxo do próprio projeto). A <b>prévia</b> mostra tudo antes de gravar, com <b>seletores editáveis</b> de responsável, status e menções, campo de horas com atalhos (30m/1h/2h) e o comentário; depois de confirmar, o painel lista <b>ação por ação</b> o que deu certo — e o que não deu, sem perder o ticket. Vale também no app 📲 do celular, no Atalho da <b>Siri</b> e na skill da <b>Alexa</b>.'],
   ['2026-08-28','🧭 <b>Guia interativo em CADA tela — a ferramenta explicando a si mesma</b>: em qualquer tela, o botão flutuante <b>🧭 Guia desta tela</b> (ou a tecla <b>?</b>) percorre a tela <b>item por item</b>, destacando cada campo, botão e cartão e explicando para que serve — como um colega mostrando ao lado. São <b>34 guias</b>, um para cada tela, com barra de progresso, ✓ nas que você já viu e o pontinho vermelho avisando quando a tela ainda não foi conhecida. Na <b>❓ Ajuda</b>, cada tópico e cada tela da lista ganharam o botão <b>🧭 guia</b>, e o novo índice <b>🧭 Guias interativos</b> reúne todos por grupo do menu. Item que não está na tela naquele momento (porque falta dado ou permissão) <b>continua sendo explicado</b>, com o aviso de quando ele aparece.'],
@@ -17809,7 +17843,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-31.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-31.3';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
@@ -18742,8 +18776,69 @@ document.getElementById('btn-tema').addEventListener('click', ()=>{
   if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e){}
 });
 // Logo no canto superior esquerdo volta para o início (Resumo).
-document.getElementById('brand-home').addEventListener('click', ()=>vaiPara('acoes'));
-document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); vaiPara('acoes'); } });
+document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara('acoes'); });
+document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); dxLogoEntra(); vaiPara('acoes'); } });
+
+// ===========================================================================
+// 🌀 MARCA DEXTERITY ANIMADA (cabeçalho) — a logo com movimento, com função:
+//   1) ENTRADA "pivô": ao abrir o painel (e ao clicar na marca) cada pétala
+//      gira no próprio canto interno, como uma íris abrindo;
+//   2) "CICLO" enquanto o painel busca dados: a luz percorre as pétalas
+//      enquanto houver chamada a /api/ no ar — o cabeçalho vira o indicador de
+//      atividade, sem spinner extra na tela;
+//   3) "ÍMÃ": passando o ponteiro sobre a marca, as pétalas acompanham de leve
+//      e voltam ao lugar — vida no cabeçalho sem laço rodando o tempo todo.
+// Quem pede menos movimento no sistema (prefers-reduced-motion) não recebe
+// nenhuma das três — o CSS zera tudo e o ímã nem é ligado.
+// ===========================================================================
+const dxCalmo = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let _dxEntraT=null;
+function dxLogoEntra(){
+  const l=document.getElementById('dx-logo'); if(!l||dxCalmo) return;
+  l.classList.remove('dx-entra'); void l.offsetWidth; l.classList.add('dx-entra');
+  clearTimeout(_dxEntraT); _dxEntraT=setTimeout(()=>l.classList.remove('dx-entra'), 1400);
+}
+(function(){
+  const l=document.getElementById('dx-logo'); if(!l) return;
+  _dxEntraT=setTimeout(()=>l.classList.remove('dx-entra'), 1400);
+  if(dxCalmo){ l.classList.remove('dx-entra'); return; }
+
+  // --- ciclo enquanto carrega: conta as chamadas a /api/ no ar ---
+  const pts=[...l.querySelectorAll('.dxp')];
+  let noAr=0, liga=null;
+  const limpaIma=()=>pts.forEach(p=>{ p.style.transform=''; });
+  const pinta=()=>{
+    if(noAr>0){ if(!liga) liga=setTimeout(()=>{ limpaIma(); l.classList.add('carregando'); }, 180); }
+    else { clearTimeout(liga); liga=null; l.classList.remove('carregando'); }
+  };
+  const fetchOrig=window.fetch.bind(window);
+  window.fetch=function(...args){
+    let doPainel=false;
+    try{ const u=String((args[0]&&args[0].url)||args[0]||''); doPainel=u.includes('/api/'); }catch(e){}
+    if(!doPainel) return fetchOrig(...args);
+    noAr+=1; pinta();
+    return fetchOrig(...args).finally(()=>{ noAr=Math.max(0,noAr-1); pinta(); });
+  };
+
+  // --- ímã: as pétalas acompanham o ponteiro (só em telas com ponteiro fino) ---
+  if(!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
+  const C={tl:[256.7,54.85],tr:[360.1,55.2],bl:[256.7,138.1],br:[360.1,138.3]};
+  const quem=(el)=>(([...el.classList].find(c=>c.startsWith('dxp--'))||'').slice(5));
+  const brand=document.getElementById('brand-home');
+  brand.addEventListener('pointermove',(ev)=>{
+    if(l.classList.contains('dx-entra')||l.classList.contains('carregando')) return;
+    const r=l.getBoundingClientRect(); if(!r.width) return;
+    const x=206.8+((ev.clientX-r.left)/r.width)*195.4;
+    const y=-1.15+((ev.clientY-r.top)/r.height)*195.4;
+    pts.forEach(p=>{
+      const c=C[quem(p)]; if(!c) return;
+      const dx=x-c[0], dy=y-c[1], d=Math.hypot(dx,dy)||1, puxa=Math.min(13,520/d);
+      p.style.transform=`translate(${(dx/d*puxa).toFixed(2)}px,${(dy/d*puxa).toFixed(2)}px)`;
+    });
+  });
+  brand.addEventListener('pointerleave',limpaIma);
+  brand.addEventListener('pointercancel',limpaIma);
+})();
 // Botão "voltar ao topo": aparece após rolar a página.
 (function(){ const b=document.getElementById('to-top'); if(!b) return;
   const upd=()=>{ b.hidden=(window.scrollY||document.documentElement.scrollTop)<400; };
