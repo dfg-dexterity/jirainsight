@@ -93,6 +93,29 @@ A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
 O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
 automaticamente a partir do array.
 
-Também manter o **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) em dia a cada
-entrega: mover itens entre fazendo/planejado/avaliação e acrescentar os novos
-pedidos do usuário (as entregas recentes vêm sozinhas do array NOVIDADES).
+## 🗺️ Roadmap — REVISAR EM TODA ENTREGA (acordo de 2026-08-31, reforçado pelo usuário)
+
+O **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) **não é opcional nem "quando
+lembrar"**: toda entrega revisa a lista. Em `public/index.html`:
+
+1. **Tirar** o que esta entrega concluiu (a entrega passa a aparecer sozinha em
+   "✅ Entregas recentes", que lê o array `NOVIDADES`).
+2. **Mover** o que mudou de estágio entre `fazendo` / `planejado` / `avaliacao`.
+3. **Acrescentar** os pedidos novos do usuário e os desdobramentos naturais do que
+   acabou de ser entregue (o que ficou de fora do escopo, a evolução óbvia).
+4. **Carimbar** `const ROADMAP_REV='AAAA-MM-DD'` com a **mesma data da novidade mais
+   recente** — mesmo que nada mais mude, a data é a confirmação de que a lista foi
+   revista.
+
+**Isso é verificado por máquina, não por memória:** `npm run check` roda
+`scripts/check-entrega.mjs` (e a CI roda `npm run check` em todo PR —
+`.github/workflows/check.yml`). O gate **reprova** quando:
+
+- `ROADMAP_REV` ficou **para trás** da última entrada de `NOVIDADES` (o caso "entreguei
+  e esqueci o roadmap") — a mensagem de erro já traz a linha pronta para carimbar;
+- `NOV_VER` não acompanha a última novidade;
+- `NOVIDADES` está fora de ordem (a mais recente fica no topo) ou malformada;
+- algum item do roadmap tem estágio inválido, título/descrição vazios ou está repetido.
+
+Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
+de itens — quem lê sabe se está olhando algo atual.
