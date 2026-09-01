@@ -9,9 +9,18 @@
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
 // pelos horários configurados no painel (cfg.teamsHora e cfg.teamsResumo).
+//
+// 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
+// tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
+import crypto from 'node:crypto';
 import { jiraBase, jiraUsuariosAtivos, jiraSearchAll, json, configCompartilhada as cfgCompartilhada, feriadosBR } from './_lib/util.js';
 import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
+import { magicoCore } from './criar.js';
+
+// O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
+// saída do Teams é calculada sobre os bytes exatos do corpo.
+export const config = { api: { bodyParser: false } };
 
 const CW_BASE = 'https://api.clockwork.report/v1';
 const MAX_PESSOAS_RESUMO = 25;
@@ -390,6 +399,212 @@ function cartaoAviso(titulo, linhas, link, mencoes) {
   } }] };
 }
 
+// ===========================================================================
+// 🤖 BOT DO TEAMS — criar ticket por IA conversando no chat
+// ---------------------------------------------------------------------------
+// Mesma inteligência do card "🎫 Criar ticket rápido" da tela inicial do painel:
+// a pessoa descreve o ticket em português, o bot devolve a PRÉVIA e só cria
+// depois do "sim". O pedido pode ser acionável (responsável, horas, comentário
+// com @menção e status) — quem executa é o magicoCore de /api/criar.
+//
+// Dois jeitos de plugar no Teams (o endpoint aceita os dois):
+//  A) FLUXO/WORKFLOW do Teams (Power Automate) — recomendado, não precisa de Azure:
+//     um fluxo dispara a cada mensagem no canal e faz POST aqui com
+//     { "bot": { "texto": "...", "usuario": { "nome": "...", "email": "..." },
+//                "conversa": "<id da conversa>" } }
+//     e o header Authorization: Bearer <TEAMS_BOT_SECRET ou CRON_SECRET>.
+//     A resposta traz o Adaptive Card pronto para o fluxo publicar de volta.
+//  B) WEBHOOK DE SAÍDA do Teams (Outgoing Webhook) — o Teams assina o corpo com
+//     HMAC-SHA256; defina o mesmo segredo em TEAMS_BOT_SECRET. A resposta desta
+//     requisição já é a mensagem que aparece no canal.
+//
+// Credenciais do Jira: TEAMS_BOT_JIRA_EMAIL / TEAMS_BOT_JIRA_TOKEN (caem para as
+// da Alexa e depois para a conta de serviço). O ticket sai na conta do bot, mas o
+// RELATOR é a pessoa que pediu, casada pelo e-mail do Teams com o Jira.
+// ===========================================================================
+const BOT_EXEMPLO = 'Crie um ticket no nome da Jéssica no épico de gestão do projeto da Copel, '
+  + 'vencimento hoje, marque o Diego no comentário e aponte 30 minutos';
+
+function botCredenciais() {
+  const email = (process.env.TEAMS_BOT_JIRA_EMAIL || process.env.ALEXA_JIRA_EMAIL || process.env.JIRA_EMAIL || '').trim();
+  const token = (process.env.TEAMS_BOT_JIRA_TOKEN || process.env.ALEXA_JIRA_TOKEN || process.env.JIRA_API_TOKEN || '').trim();
+  return { email, token };
+}
+// Tira a menção ao bot (<at>Jira</at>) e espaços — o texto que sobra é o pedido.
+function botTextoLimpo(t) {
+  return String(t || '').replace(/<at[^>]*>.*?<\/at>/gi, ' ').replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+const botNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+// Estado das prévias pendentes (uma por pessoa), na mesma tabela de config do
+// Supabase (id='teams_bot'). Sem Supabase o bot cria direto e avisa disso.
+async function botPendentes() {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return null;
+  try {
+    const r = await fetch(`${base}/rest/v1/jirainsight_config?id=eq.teams_bot&select=data`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    if (!r.ok) return {};
+    const rows = await r.json();
+    return (rows && rows[0] && rows[0].data) || {};
+  } catch (e) { return {}; }
+}
+async function gravaBotPendentes(mapa) {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return;
+  // Limpa o que passou de 30 min — prévia velha não deve ser confirmada por engano.
+  const corte = Date.now() - 30 * 60 * 1000;
+  const limpo = {};
+  Object.entries(mapa || {}).forEach(([k, v]) => { if (v && Number(v.q) > corte) limpo[k] = v; });
+  try {
+    await fetch(`${base}/rest/v1/jirainsight_config`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ id: 'teams_bot', data: limpo }),
+    });
+  } catch (e) { /* pior caso: a pessoa repete o pedido */ }
+}
+
+function botCartao(titulo, linhas, acoes) {
+  const body = [
+    { type: 'TextBlock', size: 'Large', weight: 'Bolder', wrap: true, text: titulo },
+    ...linhas.filter(Boolean).map((t) => ({ type: 'TextBlock', wrap: true, text: t })),
+  ];
+  const card = { $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', type: 'AdaptiveCard',
+    version: '1.4', body, msteams: { width: 'Full' } };
+  if (acoes && acoes.length) card.actions = acoes;
+  return { type: 'message', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: card }] };
+}
+const botLink = (k) => `[${k}](${jiraBase()}/browse/${encodeURIComponent(k)})`;
+function botLinhasPrevia(p) {
+  const dBR = (d) => (d ? d.split('-').reverse().join('/') : '');
+  return [
+    `**${p.resumo}**`,
+    `📁 Projeto: **${p.projetoNome}** (${p.projeto}) · tipo ${p.tipoNome || 'Tarefa'}`,
+    p.epicoKey ? `🎯 Épico: **${p.epicoNome || p.epicoKey}**` : '',
+    p.venc ? `📅 Vencimento: **${dBR(p.venc)}**` : '',
+    p.respNome ? `👤 Responsável: **${p.respNome}**` : '',
+    p.tempoTexto ? `⏱ Apontar: **${p.tempoTexto}** (no usuário do bot)` : '',
+    p.statusNome ? `🔀 Status ao criar: **${p.statusNome}**` : '',
+    p.comentario ? `💬 Comentário: "${String(p.comentario).slice(0, 200)}"${(p.mencoes || []).length ? ` — marcando **${p.mencoes.map((m) => m.nome).join(', ')}**` : ''}` : '',
+    ...(p.avisos || []).map((a) => `⚠ ${a}`),
+  ];
+}
+
+// Casa a pessoa do Teams com o usuário do Jira pelo e-mail (para virar o relator).
+async function botAchaJira(email) {
+  if (!email) return null;
+  try {
+    const us = await jiraUsuariosAtivos();
+    const alvo = botNorm(email);
+    const hit = Object.entries(us || {}).find(([, u]) => botNorm(u.email) === alvo);
+    return hit ? { accountId: hit[0], nome: hit[1].nome } : null;
+  } catch (e) { return null; }
+}
+
+async function botHandler(res, pedido) {
+  const { email, token } = botCredenciais();
+  if (!email || !token) {
+    return json(res, 200, botCartao('🤖 Bot do Jira Insights', [
+      'Ainda não tenho credenciais do Jira para criar tickets.',
+      'Defina **TEAMS_BOT_JIRA_EMAIL** e **TEAMS_BOT_JIRA_TOKEN** nas variáveis da Vercel.']));
+  }
+  const texto = botTextoLimpo(pedido.texto);
+  const quem = pedido.usuario || {};
+  const chave = botNorm(quem.email || quem.id || quem.nome || 'anon') || 'anon';
+  const base = jiraBase();
+  const headers = { Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+    Accept: 'application/json', 'Content-Type': 'application/json' };
+  const n = botNorm(texto);
+
+  if (!n || /^(ajuda|help|\?|oi|ola|bom dia|boa tarde|boa noite)$/.test(n)) {
+    return json(res, 200, botCartao('🤖 Crio tickets no Jira para você', [
+      'Descreva o ticket em português que eu monto e mostro a prévia antes de criar.',
+      `_Exemplo:_ ${BOT_EXEMPLO}`,
+      'Posso também **atribuir a alguém**, **apontar horas**, **comentar marcando pessoas** e **mudar o status** no mesmo pedido.',
+      'Responda **sim** para confirmar a prévia, ou **não** para cancelar.']));
+  }
+
+  const pend = await botPendentes();
+  const semEstado = (pend === null);
+
+  // ---- cancelar ----
+  if (/^(nao|n|cancela|cancelar|deixa|esquece)\b/.test(n)) {
+    if (!semEstado && pend[chave]) { delete pend[chave]; await gravaBotPendentes(pend); }
+    return json(res, 200, botCartao('🤖 Cancelado', ['Beleza, não criei nada. É só me chamar de novo quando quiser.']));
+  }
+
+  // ---- confirmar ----
+  if (/^(sim|s|pode|pode criar|confirma|confirmar|isso|ok|manda|cria|criar)\b/.test(n)) {
+    const p = semEstado ? null : (pend[chave] && pend[chave].previa);
+    if (!p) {
+      return json(res, 200, botCartao('🤖 Não tenho nada pendente', [
+        semEstado ? 'Sem o Supabase configurado eu não consigo guardar a prévia entre mensagens — descreva o ticket e eu crio na hora.'
+          : 'Não achei uma prévia sua para confirmar (elas valem por 30 minutos).',
+        `_Exemplo:_ ${BOT_EXEMPLO}`]));
+    }
+    const eu = await botAchaJira(quem.email);
+    const out = await magicoCore({ confirmar: 1, projeto: p.projeto, epicoKey: p.epicoKey || '',
+      resumo: p.resumo, descricao: p.descricao || '', venc: p.venc || '', respId: p.respId || '',
+      tempoSeg: p.tempoSeg || 0, statusNome: p.statusNome || '', comentario: p.comentario || '',
+      mencoes: p.mencoes || [], reporterId: (eu && eu.accountId) || '' }, base, headers);
+    delete pend[chave]; await gravaBotPendentes(pend);
+    if (!out.ok || !out.key) {
+      return json(res, 200, botCartao('🤖 Não consegui criar', [String(out.erro || 'erro no Jira').slice(0, 400)]));
+    }
+    const feitas = (out.acoes || []).filter((a) => a.ok).map((a) => `✓ ${a.detalhe}`);
+    const falhas = (out.acoes || []).filter((a) => !a.ok).map((a) => `✕ ${a.tipo}: ${a.erro}`);
+    return json(res, 200, botCartao(`🎫 Criado ${out.key}`, [
+      `${botLink(out.key)} — **${p.resumo}**`,
+      `📁 ${p.projetoNome}${p.epicoKey ? ` · épico ${p.epicoNome || p.epicoKey}` : ''}`,
+      eu ? `🙋 Relator: **${eu.nome}**` : '',
+      ...feitas, ...falhas,
+    ], [{ type: 'Action.OpenUrl', title: 'Abrir no Jira', url: `${jiraBase()}/browse/${encodeURIComponent(out.key)}` }]));
+  }
+
+  // ---- interpretar o pedido ----
+  const out = await magicoCore({ texto }, base, headers);
+  if (!out.ok || !out.previa) {
+    return json(res, 200, botCartao('🤖 Não entendi o pedido', [
+      String(out.erro || 'Não consegui interpretar.').slice(0, 400),
+      `_Tente assim:_ ${BOT_EXEMPLO}`]));
+  }
+  const p = out.previa;
+  if (semEstado) {
+    // Sem Supabase não dá para guardar a prévia entre mensagens: cria na hora e avisa.
+    const eu = await botAchaJira(quem.email);
+    const fim = await magicoCore({ confirmar: 1, projeto: p.projeto, epicoKey: p.epicoKey || '',
+      resumo: p.resumo, descricao: p.descricao || '', venc: p.venc || '', respId: p.respId || '',
+      tempoSeg: p.tempoSeg || 0, statusNome: p.statusNome || '', comentario: p.comentario || '',
+      mencoes: p.mencoes || [], reporterId: (eu && eu.accountId) || '' }, base, headers);
+    if (!fim.ok || !fim.key) return json(res, 200, botCartao('🤖 Não consegui criar', [String(fim.erro || 'erro no Jira').slice(0, 400)]));
+    return json(res, 200, botCartao(`🎫 Criado ${fim.key}`, [
+      `${botLink(fim.key)} — **${p.resumo}**`,
+      ...(fim.acoes || []).filter((a) => a.ok).map((a) => `✓ ${a.detalhe}`),
+      '_(criei direto porque o bot está sem o Supabase para guardar a prévia)_']));
+  }
+  pend[chave] = { q: Date.now(), previa: p };
+  await gravaBotPendentes(pend);
+  return json(res, 200, botCartao('🎫 Confira antes de eu criar', [
+    ...botLinhasPrevia(p),
+    '',
+    'Responda **sim** para eu criar, ou **não** para cancelar. A prévia vale por 30 minutos.']));
+}
+
+// Confere a assinatura HMAC do webhook de saída do Teams sobre o corpo cru.
+function botHmacOk(raw, cabecalho, segredo) {
+  try {
+    const m = /^HMAC\s+(.+)$/i.exec(String(cabecalho || '').trim());
+    if (!m || !segredo || !raw) return false;
+    const esperado = crypto.createHmac('sha256', Buffer.from(segredo, 'base64')).update(Buffer.from(raw, 'utf8')).digest('base64');
+    const a = Buffer.from(esperado); const b = Buffer.from(m[1].trim());
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch (e) { return false; }
+}
+
 async function enviaCartao(webhook, cartao) {
   const r = await fetch(webhook, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cartao),
@@ -398,21 +613,61 @@ async function enviaCartao(webhook, cartao) {
   return { ok, status: r.status, erro: ok ? '' : (await r.text()).slice(0, 300) };
 }
 
+// Lê o corpo CRU (o body parser está desligado por causa do HMAC do Teams) e
+// devolve também o JSON já parseado.
+function lerCorpo(req) {
+  return new Promise((resolve) => {
+    if (req.body !== undefined && req.body !== null && typeof req.body === 'object') {
+      return resolve({ raw: '', body: req.body });
+    }
+    let d = '';
+    req.on('data', (c) => { d += c; });
+    req.on('end', () => { let o = {}; try { o = JSON.parse(d || '{}'); } catch (e) { o = {}; } resolve({ raw: d, body: o }); });
+    req.on('error', () => resolve({ raw: '', body: {} }));
+  });
+}
+
 export default async function handler(req, res) {
   try {
-    const segredo = process.env.CRON_SECRET || '';
-    if (segredo) {
-      const auth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
-      if (auth !== `Bearer ${segredo}`) return json(res, 401, { erro: 'Não autorizado.' });
-    }
-    const webhook = process.env.TEAMS_WEBHOOK_URL || '';
     const q = req.query || {};
     const dry = q.dry === '1';
+    const { raw, body: corpo } = await lerCorpo(req);
+    const auth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
+    const segredo = process.env.CRON_SECRET || '';
+
+    // ---- 🤖 BOT DO TEAMS (autenticação própria, antes do gate do CRON_SECRET) ----
+    // Aceita { bot:{texto,usuario} } (fluxo do Teams, com Bearer) e a atividade
+    // crua do webhook de saída ({type:'message',text,from}, com HMAC).
+    const segBot = process.env.TEAMS_BOT_SECRET || '';
+    const ehAtividadeTeams = corpo && corpo.type === 'message' && typeof corpo.text === 'string';
+    if (corpo && corpo.bot) {
+      const chaveOk = segBot ? (auth === `Bearer ${segBot}`) : (!segredo || auth === `Bearer ${segredo}`);
+      if (!chaveOk) return json(res, 401, { erro: 'Não autorizado.' });
+      return await botHandler(res, corpo.bot);
+    }
+    if (ehAtividadeTeams) {
+      if (!botHmacOk(raw, auth, segBot) && !(segBot && auth === `Bearer ${segBot}`)) {
+        return json(res, 401, { erro: 'Assinatura inválida — confira o TEAMS_BOT_SECRET.' });
+      }
+      const from = corpo.from || {};
+      return await botHandler(res, { texto: corpo.text,
+        usuario: { nome: from.name || '', email: from.email || from.userPrincipalName || '', id: from.id || from.aadObjectId || '' },
+        conversa: (corpo.conversation && corpo.conversation.id) || '' });
+    }
+    // Teste sem o Teams: /api/teams?bot=1&texto=... (exige o Bearer normal abaixo).
+    if (q.bot === '1') {
+      if (segredo && auth !== `Bearer ${segredo}`) return json(res, 401, { erro: 'Não autorizado.' });
+      return await botHandler(res, { texto: String(q.texto || ''),
+        usuario: { nome: String(q.nome || 'Teste'), email: String(q.email || '') } });
+    }
+
+    if (segredo && auth !== `Bearer ${segredo}`) return json(res, 401, { erro: 'Não autorizado.' });
+    const webhook = process.env.TEAMS_WEBHOOK_URL || '';
 
     // ---- 📣 Aviso de melhorias (POST {aviso:{titulo,linhas[,link]}} ou GET ?tipo=aviso&dry=1) ----
     // Publica no canal "Avisos Gerais" (env TEAMS_AVISOS_WEBHOOK_URL; cai no webhook
     // padrão se ausente) marcando todos os usuários ativos do Jira.
-    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const b = (corpo && typeof corpo === 'object') ? corpo : {};
     if (b.aviso || q.tipo === 'aviso') {
       const av = b.aviso || {};
       const titulo = String(av.titulo || 'Novidades no Insights de Uso').slice(0, 150);

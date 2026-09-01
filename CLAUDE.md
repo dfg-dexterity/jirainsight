@@ -8,29 +8,66 @@ Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
   token de API da própria pessoa (enviado por requisição, nunca persistido).
 - Deploy: a branch **`main`** publica na Vercel.
 
-## 📘 Manual no Notion — MANTER ATUALIZADO
+## 📘 Documentação no Notion — MANTER ATUALIZADA
 
-Existe um manual no Notion que documenta **todas as funcionalidades** + um **changelog**:
+> **Mudança de 2026-09-01 (a pedido do usuário):** a documentação deixou de ser uma
+> página única. Agora cada funcionalidade tem o **seu próprio processo** na database
+> **🎯 Processos Dexterity**, todos ligados ao sub-processo **TI-14 - Jira Insights**.
+> A página TI-14-001 continua existindo como **índice + changelog**.
 
-- Título: **TI-14-001 - Overview Jira Insights** (em *Processos Dexterity*)
-- URL: https://www.notion.so/dexterityitsolutions/TI-14-001-Overview-Jira-Insights-388c69371e178034b6dfd5ca9efad81c
-- Page ID: `388c6937-1e17-8034-b6df-d5ca9efad81c`
+**Onde as coisas ficam:**
 
-> **Atualizado em 2026-06-23 (a pedido do usuário):** o manual passou a ser esta
-> página. A página antiga (`37bc6937-1e17-8124-b315-c6bc7ac0a2ad`, "Manual — Insights
-> de Uso") está **descontinuada** — não atualizar mais.
+- **Sub-processo (o "guarda-chuva"):** *TI-14 - Jira Insights* — page id
+  `388c6937-1e17-8013-820b-eec985c5e773`. Todo processo novo do Jira Insights precisa
+  apontar para ele na relação **`Área - Sub-processo`** — é isso que mantém as
+  automações e as visões do Notion funcionando.
+- **Database dos processos:** 🎯 Processos Dexterity — data source
+  `collection://276c6937-1e17-8040-9aae-000b9167b98f`.
+- **Índice + changelog:** *TI-14-001 - Overview Jira Insights* — page id
+  `388c6937-1e17-8034-b6df-d5ca9efad81c` (seção 0 = mapa dos processos; seção 13 =
+  "Log de funcionalidades (changelog)").
+- **Processos por funcionalidade** (criados em 2026-09-01):
 
-**Acordo de trabalho (solicitado pelo usuário em 2026-06-10):** sempre que uma
-funcionalidade desta ferramenta for **adicionada ou alterada** a pedido do usuário,
-**atualizar essa página do Notion** na mesma entrega:
+  | Código | Processo | Page id |
+  | --- | --- | --- |
+  | TI-14-007 | Apontamento de horas no dia a dia | `3cec6937-1e17-812a-9b5d-caaef598991f` |
+  | TI-14-008 | Criação de tickets (lote, linguagem natural e voz) | `3cec6937-1e17-811f-9dd9-e30a4e934aa1` |
+  | TI-14-009 | Gestão de tickets e alertas | `3cec6937-1e17-8186-8349-cfad2187057b` |
+  | TI-14-010 | Reuniões: agenda, ticket e reclassificação | `3cec6937-1e17-817a-88bb-fad806d18f5b` |
+  | TI-14-011 | Planejamento semanal e aprovação | `3cec6937-1e17-816d-80e2-f2235d8f9adf` |
+  | TI-14-012 | Análises, ranking e relatórios | `3cec6937-1e17-81a5-9d80-de7a2753cb58` |
+  | TI-14-013 | Controladoria, receita e contratos AMS | `3cec6937-1e17-8134-b5b7-daf251c76f2b` |
+  | TI-14-014 | Prioridades do time e reunião semanal | `3cec6937-1e17-8177-91e9-e4b15f3ff382` |
+  | TI-14-015 | Configuração, metas e acesso ao painel | `3cec6937-1e17-81db-be23-c17954ca61f0` |
+  | TI-14-016 | Integrações e plataforma | `3cec6937-1e17-81b6-a91a-eec25805e2e4` |
+  | TI-14-017 | Ajuda, guias interativos e adoção | `3cec6937-1e17-8156-a485-ddba12cb794e` |
+  | TI-14-018 | Bot do Teams para criar tickets com IA | `3cec6937-1e17-8166-afe4-f469355e2076` |
 
-1. Ajustar/acrescentar a descrição na **seção correspondente** (ex.: a aba afetada).
-2. Acrescentar uma linha na tabela **"Log de funcionalidades (changelog)"** com a
-   **data (AAAA-MM-DD)** e uma descrição curta.
+  (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
+  com SharePoint, Odoo e Finder.)
 
-Usar a ferramenta MCP do Notion: `mcp__Notion__notion-fetch` para ler a página atual e
-`mcp__Notion__notion-update-page` para editar. Carregar os schemas via `ToolSearch`
-quando necessário.
+**Acordo de trabalho — a cada entrega feita a pedido do usuário:**
+
+1. Atualizar o **processo correspondente** (a descrição detalhada mora nele). Se a
+   entrega criar uma funcionalidade que não cabe em nenhum, **criar um processo novo**
+   na database, com `Área - Sub-processo` = TI-14, `Ferramenta` =
+   `https://app.notion.com/357c69371e1780e8bfddeb7dcec31946`, `Código do Processo` =
+   o próximo número livre, `Document Type` = Procedimento, `Dono` = Diego
+   (`user://4d23e88e-07dd-490a-8bae-272c45603d42`) — e acrescentá-lo ao mapa da
+   seção 0 do TI-14-001 **e** a esta tabela.
+2. Acrescentar a linha no **changelog** (seção 13 do TI-14-001) com a **data
+   (AAAA-MM-DD)** e um resumo curto.
+3. **Usar imagens sempre que possível** (pedido do usuário): os processos usam
+   **diagramas Mermaid** (bloco ```` ```mermaid ````, que o Notion renderiza nativo).
+   Screenshots do app: gerar com Playwright e anexar via
+   `mcp__Notion__notion-create-attachment`; imagens locais grandes **não** passam por
+   este ambiente (o proxy bloqueia `api.notion.com` e a saída do shell trunca base64),
+   então o caminho prático é o usuário arrastar o PNG na página ou o app ganhar uma URL
+   pública que o Notion consiga baixar.
+
+Ferramentas MCP: `mcp__Notion__notion-fetch` para ler, `mcp__Notion__notion-update-page`
+para editar, `mcp__Notion__notion-create-pages` para criar processos. Carregar os
+schemas via `ToolSearch` quando necessário.
 
 ## ⏱ Apontamento no Jira — projeto JI (atualizado em 2026-08-11)
 
@@ -93,6 +130,29 @@ A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
 O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
 automaticamente a partir do array.
 
-Também manter o **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) em dia a cada
-entrega: mover itens entre fazendo/planejado/avaliação e acrescentar os novos
-pedidos do usuário (as entregas recentes vêm sozinhas do array NOVIDADES).
+## 🗺️ Roadmap — REVISAR EM TODA ENTREGA (acordo de 2026-08-31, reforçado pelo usuário)
+
+O **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) **não é opcional nem "quando
+lembrar"**: toda entrega revisa a lista. Em `public/index.html`:
+
+1. **Tirar** o que esta entrega concluiu (a entrega passa a aparecer sozinha em
+   "✅ Entregas recentes", que lê o array `NOVIDADES`).
+2. **Mover** o que mudou de estágio entre `fazendo` / `planejado` / `avaliacao`.
+3. **Acrescentar** os pedidos novos do usuário e os desdobramentos naturais do que
+   acabou de ser entregue (o que ficou de fora do escopo, a evolução óbvia).
+4. **Carimbar** `const ROADMAP_REV='AAAA-MM-DD'` com a **mesma data da novidade mais
+   recente** — mesmo que nada mais mude, a data é a confirmação de que a lista foi
+   revista.
+
+**Isso é verificado por máquina, não por memória:** `npm run check` roda
+`scripts/check-entrega.mjs` (e a CI roda `npm run check` em todo PR —
+`.github/workflows/check.yml`). O gate **reprova** quando:
+
+- `ROADMAP_REV` ficou **para trás** da última entrada de `NOVIDADES` (o caso "entreguei
+  e esqueci o roadmap") — a mensagem de erro já traz a linha pronta para carimbar;
+- `NOV_VER` não acompanha a última novidade;
+- `NOVIDADES` está fora de ordem (a mais recente fica no topo) ou malformada;
+- algum item do roadmap tem estágio inválido, título/descrição vazios ou está repetido.
+
+Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
+de itens — quem lê sabe se está olhando algo atual.

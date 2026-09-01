@@ -30,7 +30,7 @@ console.log('API serverless:');
 walk('api');
 
 // 2) JS embutido nos HTML estáticos (cada bloco <script> sem atributos)
-for (const html of ['public/index.html', 'public/portal.html']) {
+for (const html of ['public/index.html', 'public/portal.html', 'public/voz.html']) {
   console.log(html + ':');
   const src = readFileSync(html, 'utf8');
   const blocos = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
