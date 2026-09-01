@@ -495,7 +495,7 @@ async function magicoExecutaAcoes(base, headers, key, plano) {
   return acoes;
 }
 
-async function magicoCore(b, base, headers) {
+export async function magicoCore(b, base, headers) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const avisos = [];
   let projeto = String(b.projeto || '').trim().toUpperCase();
@@ -638,8 +638,18 @@ async function magicoCore(b, base, headers) {
   if (venc) fields.duedate = venc;
   if (epicoKey) fields.parent = { key: epicoKey };
   if (respId) fields.assignee = { id: respId };
+  // 🤖 Bot do Teams: o ticket é criado pela conta de serviço, mas o REPÓRTER é a
+  // pessoa que pediu no chat (quando a conta tem a permissão "Modificar relator").
+  const reporterId = RE_ACC.test(String(b.reporterId || '')) ? String(b.reporterId) : '';
+  if (reporterId) fields.reporter = { id: reporterId };
   let atribuirDepois = false;
   let r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  if (!r.ok && reporterId) {
+    // projeto/permissão que não aceita definir o relator: cria como a própria conta
+    delete fields.reporter;
+    avisos.push('O Jira não deixou definir o relator — o ticket saiu no usuário da conta de serviço.');
+    r = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers, body: JSON.stringify({ fields }) });
+  }
   if (!r.ok && epicoKey) {
     // alguns fluxos recusam parent no create — tenta sem o épico e avisa
     delete fields.parent;

@@ -5305,7 +5305,7 @@ document.addEventListener('change',(e)=>{
 // aqui. `npm run check` (scripts/check-entrega.mjs, também na CI a cada PR)
 // REPROVA quando ROADMAP_REV ficar para trás da última entrada de NOVIDADES:
 // é a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-08-31';
+const ROADMAP_REV='2026-09-01';
 const ROADMAP=[
   { s:'fazendo',   t:'📣 Avisos automáticos no Teams a cada publicação', d:'O mecanismo já está no ar (modo aviso do /api/teams, com menção ao time) — falta o webhook do canal Avisos Gerais (TEAMS_AVISOS_WEBHOOK_URL) para os avisos saírem sozinhos a cada melhoria.' },
   { s:'planejado', t:'📥 Plano devolvido no Inbox da pessoa', d:'Aviso no Inbox de quem teve o plano semanal devolvido (a parte do aprovador — planos aguardando decisão no Inbox — foi entregue em 2026-08-13; a devolução hoje aparece dentro do Meu Planejamento).' },
@@ -5313,6 +5313,8 @@ const ROADMAP=[
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
+  { s:'avaliacao', t:'🤖 Bot do Teams — apontar horas e consultar pelo chat', d:'O bot de 2026-09-01 cria tickets; a evolução natural é apontar horas ("aponte 2h no COPEL-42"), consultar o próprio dia ("quanto eu apontei hoje?") e responder a cobrança de apontamento sem sair do Teams.' },
+  { s:'avaliacao', t:'🤖 Bot do Teams — botões de confirmar/cancelar no cartão', d:'Hoje a confirmação é por mensagem ("sim"/"não"), que funciona com fluxo do Teams e webhook de saída. Botões clicáveis no cartão exigem registrar um bot no Azure (Bot Framework) — avaliar se compensa a configuração.' },
   { s:'avaliacao', t:'📣 Cobrar o apontamento direto do card da Início', d:'O card ⏱ Apontamento do time (2026-08-31) mostra quem não lançou horas hoje; o passo natural é um botão que dispara o lembrete individual no Teams (mesma infraestrutura do 📨 convite de apontamento) para as pessoas em vermelho, sem sair da tela.' },
   { s:'avaliacao', t:'⏱ Apontamento do time — recortes por equipe e por gestor', d:'Hoje o card lista o time todo. Para times maiores, filtrar por equipe/gestor (e lembrar a escolha) para cada liderança ver só a sua gente.' },
   { s:'avaliacao', t:'🌀 Marca animada além do cabeçalho', d:'A marca do moinho ganhou movimento no cabeçalho em 2026-08-31 (pivô na entrada, ciclo enquanto carrega, ímã no ponteiro). O material da marca tem mais variantes — abertura, assinatura com o logotipo, paleta e escaneamento — candidatas à tela de abertura do app instalado, à capa dos relatórios em PDF e às vinhetas de vídeo/deck institucional.' },
@@ -17926,6 +17928,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-01','🤖 <b>Bot do Teams: crie tickets conversando no chat</b> — a mesma inteligência do <b>🎫 Criar ticket rápido</b> do painel agora atende dentro do Teams. Descreva o ticket em português (<i>"crie um ticket no nome da Jéssica no épico de gestão da Copel, vencimento hoje, marque o Diego no comentário e aponte 30 minutos"</i>) e o bot responde com a <b>prévia completa</b> — projeto, épico, título, prazo, responsável, horas, status e comentário. Responda <b>sim</b> e ele cria; <b>não</b> cancela. O ticket sai com <b>você como relator</b>, e o cartão lista <b>ação por ação</b> o que foi feito. <span class="muted">(Precisa ser configurado pela administração: um fluxo do Teams ou webhook de saída apontando para o painel.)</span>'],
   ['2026-08-31','⏱ <b>Apontamento do time na PRIMEIRA PÁGINA — hoje e nesta semana</b>: a tela <b>🏠 Início</b> abre com o placar do apontamento — <b>quantas pessoas já lançaram horas hoje</b>, quanto o time apontou hoje e na semana (contra o esperado) e <b>quantos dias úteis ficaram em branco</b>. Abaixo, <b>uma linha por pessoa</b>: quanto lançou hoje <b>contra a meta dela</b>, o total da semana <b>contra o esperado</b> e a <b>fita de dias</b> de segunda até hoje — 🟩 dia fechado, 🟨 parcial, 🟥 em branco, ▫️ dia que não é cobrado (fim de semana, feriado, ausência ou fora da vigência). <b>Quem ainda não apontou sobe para o topo</b> e você aparece em primeiro; clicar numa pessoa abre o timesheet dela. <b>Hoje nunca conta como dia em branco</b> — o dia ainda está correndo —, e o que você aponta pelo painel aparece na hora.'],
   ['2026-08-31','🌀 <b>A marca da Dexterity ganhou vida no cabeçalho</b>: a logo do painel passou a usar o <b>desenho oficial do moinho</b> (o mesmo dos ícones do app — antes o cabeçalho tinha uma versão aproximada) e agora <b>se move, com propósito</b>: abre em <b>pivô</b> quando o painel carrega (e quando você clica nela para voltar à Início), vira o <b>indicador de atividade</b> — a luz percorre as pétalas — <b>enquanto os dados estão sendo buscados</b>, e as pétalas <b>acompanham de leve o seu ponteiro</b> quando você passa o mouse por cima. Ela também <b>acompanha o tema</b> (clareia no modo escuro) e fica <b>parada</b> para quem configurou o sistema com menos movimento.'],
   ['2026-08-31','🗺️ <b>Roadmap sempre em dia — agora com data de revisão à vista</b>: o card do <b>🗺️ Roadmap</b> mostra <b>quando a lista foi revisada pela última vez</b>, quantos itens tem e a data da última entrega — dá para saber num relance se o que está ali ainda vale. E não depende mais de ninguém lembrar: a verificação automática do projeto <b>reprova a entrega</b> se o roadmap não for revisado junto com as ✨ Novidades.'],
@@ -18059,7 +18062,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-31.4';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-01.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
