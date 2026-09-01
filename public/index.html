@@ -1523,6 +1523,45 @@
   .fx-item:first-child{border-top:none}
   .fx-quando{flex:0 0 84px;color:var(--muted);font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .fx-txt{min-width:0} .fx-txt a{color:var(--grafite);text-decoration:none} .fx-txt a:hover{color:var(--cerceta)}
+  /* ⏱ Apontamento do time (card principal da Início): uma linha por pessoa com
+     hoje × meta, semana × esperado e a fita de dias (o dia em branco salta aos
+     olhos). Vira cartões empilhados no celular. */
+  .apr-topo{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:10px}
+  .apr-kpi{border:1px solid var(--linha);border-radius:10px;padding:9px 12px;background:var(--cartao2)}
+  .apr-kpi b{display:block;font-size:22px;line-height:1.15;font-family:var(--titulo)}
+  .apr-kpi span{font-size:11.5px;color:var(--muted);line-height:1.35;display:block}
+  .apr-kpi.ok b{color:var(--musgo)} .apr-kpi.aten b{color:var(--amarelo)} .apr-kpi.ruim b{color:var(--err)}
+  .apr-cab,.apr-l{display:grid;grid-template-columns:14px minmax(120px,1.4fr) minmax(150px,1.2fr) minmax(120px,1fr) auto minmax(120px,1fr);
+    gap:10px;align-items:center}
+  .apr-cab{margin-top:12px;padding:0 8px 4px;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2)}
+  .apr-lista{display:flex;flex-direction:column;gap:4px}
+  .apr-l{padding:7px 8px;border:1px solid transparent;border-radius:9px;cursor:pointer;font-size:13px}
+  .apr-l:hover{background:var(--hoverbg);border-color:var(--linha2)}
+  .apr-l:focus-visible{outline:2px solid var(--cerceta);outline-offset:1px}
+  .apr-l.eu{background:var(--cartao2);border-color:var(--linha)}
+  .apr-eu{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--cerceta)}
+  .apr-dot{width:10px;height:10px;border-radius:50%;background:var(--trilho);display:block}
+  .apr-l.ok .apr-dot{background:var(--musgo)} .apr-l.parcial .apr-dot{background:var(--amarelo)}
+  .apr-l.vazio .apr-dot{background:var(--err)} .apr-l.folga .apr-dot{background:var(--trilho)}
+  .apr-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .apr-hoje{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12.5px}
+  .apr-bar{flex:0 0 54px;height:6px;border-radius:999px;background:var(--trilho);overflow:hidden}
+  .apr-bar i{display:block;height:100%;background:var(--musgo)}
+  .apr-l.parcial .apr-bar i{background:var(--amarelo)} .apr-l.vazio .apr-bar i{background:var(--err)}
+  .apr-sem{white-space:nowrap;font-size:12.5px}
+  .apr-pct{font-size:11px;font-weight:700;margin-left:4px}
+  .apr-pct.ok{color:var(--musgo)} .apr-pct.aten{color:var(--amarelo)} .apr-pct.ruim{color:var(--err)}
+  .apr-fita{display:flex;gap:3px}
+  .apr-d{width:11px;height:16px;border-radius:3px;background:var(--trilho);display:block}
+  .apr-d.ok{background:var(--musgo)} .apr-d.parcial{background:var(--amarelo)}
+  .apr-d.vazio{background:var(--err)} .apr-d.hoje{background:var(--trilho);border:1px dashed var(--muted2)}
+  .apr-d.folga{background:transparent;border:1px solid var(--linha2)}
+  .apr-st{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (max-width:860px){
+    .apr-cab{display:none}
+    .apr-l{grid-template-columns:14px 1fr;grid-auto-rows:min-content;row-gap:4px}
+    .apr-l>.apr-hoje,.apr-l>.apr-sem,.apr-l>.apr-fita,.apr-l>.apr-st{grid-column:2}
+  }
   /* Ações de hoje — tela inicial de comando */
   /* Cards da home no estilo SAP Fiori: tile claro com sombra suave, número grande
      e FINO colorido pela semântica, ícone-marca d'água no canto e link discreto. */
@@ -2470,6 +2509,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     real:{}, realB:{}, pend:null, pendB:0, rel:null, relB:0,
     relF:{de:'',ate:'',usuario:'',projeto:'',status:''} },
   acoes:{ venc:null, carregando:false, erro:'', mes:null, mesCarr:false, mesErro:'',
+    // ⏱ Apontamento do time (card principal da Início): worklogs de segunda até
+    // hoje, buscados à parte para não depender do período escolhido no topo.
+    sem:null, semCarr:false, semErro:'', semTodos:false,
     // 🧭 Radar do dia: preferências (escopo × eventos × período) + caches próprios
     // (atividade janela 7d e worklogs 7d — independentes do período global).
     rad:null, radAtv:null, radAtvB:false, radAtvErro:'', radT:null, radTB:false },
@@ -5271,6 +5313,8 @@ const ROADMAP=[
   { s:'planejado', t:'💰 Custo e margem no Planejamento macro', d:'Custo/h do Odoo aplicado ao planejado × realizado por função (MVP 3 do Planejamento macro).' },
   { s:'avaliacao', t:'🔔 Notificação no Teams na aprovação/recusa do plano', d:'Aviso individual (chat) quando o gestor decide o plano da semana da pessoa.' },
   { s:'avaliacao', t:'📊 Carga futura: Minha Semana × Alocação', d:'Visão combinando os planos individuais das próximas semanas com a alocação macro, para antecipar gargalos.' },
+  { s:'avaliacao', t:'📣 Cobrar o apontamento direto do card da Início', d:'O card ⏱ Apontamento do time (2026-08-31) mostra quem não lançou horas hoje; o passo natural é um botão que dispara o lembrete individual no Teams (mesma infraestrutura do 📨 convite de apontamento) para as pessoas em vermelho, sem sair da tela.' },
+  { s:'avaliacao', t:'⏱ Apontamento do time — recortes por equipe e por gestor', d:'Hoje o card lista o time todo. Para times maiores, filtrar por equipe/gestor (e lembrar a escolha) para cada liderança ver só a sua gente.' },
   { s:'avaliacao', t:'🌀 Marca animada além do cabeçalho', d:'A marca do moinho ganhou movimento no cabeçalho em 2026-08-31 (pivô na entrada, ciclo enquanto carrega, ímã no ponteiro). O material da marca tem mais variantes — abertura, assinatura com o logotipo, paleta e escaneamento — candidatas à tela de abertura do app instalado, à capa dos relatórios em PDF e às vinhetas de vídeo/deck institucional.' },
   { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
   { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
@@ -6224,6 +6268,72 @@ function axCarregaMes(){
       if(estado.vista==='acoes') renderAcoes();
     }).catch(e=>{ ax.mesCarr=false; ax.mesErro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
 }
+// ===========================================================================
+// ⏱ APONTAMENTO DO TIME — hoje e nesta semana (card principal da Início)
+// O objetivo nº 1 do painel é que ninguém esqueça de apontar. Este card mostra,
+// PESSOA A PESSOA, quanto já foi lançado hoje e como está a semana (segunda →
+// hoje), com a fita de dias para ver de relance o dia que ficou em branco.
+// Busca própria (/api/tempo desde a segunda), independente do período do topo.
+// ===========================================================================
+function axCarregaSemana(){
+  const ax=estado.acoes; ax.semCarr=true; ax.semErro='';
+  const hoje=hojeSP(); const seg=semChave(hoje);
+  fetch(`/api/tempo?desde=${encodeURIComponent(seg)}&ate=${encodeURIComponent(hoje)}`)
+    .then(r=>r.json()).then(j=>{ ax.semCarr=false;
+      if(j.erro) ax.semErro=humanizaErro(j.erro);
+      else { ax.sem=j.worklogs||[]; ax.semPessoas=(j.pessoas)||{}; }
+      if(estado.vista==='acoes') renderAcoes();
+    }).catch(e=>{ ax.semCarr=false; ax.semErro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+}
+// Um dia em que a pessoa NÃO é cobrada: fim de semana, feriado, ausência
+// cadastrada ou fora da vigência dela na empresa.
+function axFolga(a, d){ return !ehUtil(d) || ehFeriado(d) || ehAusencia(a,d); }
+function axApontResumo(){
+  const ax=estado.acoes, hoje=hojeSP(), seg=semChave(hoje);
+  const dias=listaDias(seg,hoje);
+  const porPessoa={};
+  (ax.sem||[]).forEach(w=>{ const d=String(w.d||'').slice(0,10); if(!d) return;
+    (porPessoa[w.a]=porPessoa[w.a]||{})[d]=((porPessoa[w.a]||{})[d]||0)+(Number(w.s)||0); });
+  const nomes=Object.assign({}, ax.semPessoas||{}, pessoasUnidas(), estado.usuarios||{});
+  const elenco=new Set(Object.keys(estado.usuarios||{}));
+  Object.keys(porPessoa).forEach(a=>elenco.add(a));
+  const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
+  const linhas=[...elenco]
+    .filter(a=>!ocultos.has(a) && !RE_EXCLUIR.test((nomes[a]&&nomes[a].nome)||''))
+    // Quem já saiu (ou ainda não entrou) e não tem horas na semana sai da lista:
+    // não é cobrança pendente, é gente que não está no time hoje.
+    .filter(a=>!(foraVigencia(a,hoje) && !porPessoa[a]))
+    .map(a=>{
+      const porDia=porPessoa[a]||{}, meta=metaSegDe(a);
+      const hojeSeg=porDia[hoje]||0;
+      let semSeg=0, espSeg=0, ultimo='';
+      const fita=dias.map(d=>{
+        const s=porDia[d]||0; semSeg+=s; if(s>0) ultimo=d;
+        const folga=axFolga(a,d);
+        if(!folga && d!==hoje) espSeg+=meta;
+        return { d, s, st: folga?'folga':(s>=meta?'ok':(s>0?'parcial':(d===hoje?'hoje':'vazio'))) };
+      });
+      const st = axFolga(a,hoje) ? 'folga' : (hojeSeg>=meta?'ok':(hojeSeg>0?'parcial':'vazio'));
+      return { a, nome:(nomes[a]&&nomes[a].nome)||a, meta, hojeSeg, semSeg, espSeg, fita, st, ultimo,
+        buracos:fita.filter(x=>x.st==='vazio').length,
+        pct: espSeg>0?Math.round(semSeg/espSeg*100):null };
+    });
+  const eu=(idApontar()||{}).accountId||'';
+  const ordem={vazio:0,parcial:1,hoje:1,ok:2,folga:3};
+  linhas.sort((x,y)=> (x.a===eu?-1:y.a===eu?1:0)
+    || ((ordem[x.st]||0)-(ordem[y.st]||0)) || (y.buracos-x.buracos) || x.nome.localeCompare(y.nome,'pt'));
+  const cobrados=linhas.filter(l=>l.st!=='folga');
+  return { hoje, seg, dias, linhas, eu,
+    nOk:cobrados.filter(l=>l.st==='ok').length,
+    nParcial:cobrados.filter(l=>l.st==='parcial').length,
+    nVazio:cobrados.filter(l=>l.st==='vazio').length,
+    nCobrados:cobrados.length,
+    nBuracos:linhas.reduce((s,l)=>s+l.buracos,0),
+    totHoje:linhas.reduce((s,l)=>s+l.hojeSeg,0),
+    totSem:linhas.reduce((s,l)=>s+l.semSeg,0),
+    espHoje:cobrados.reduce((s,l)=>s+l.meta,0),
+    espSem:linhas.reduce((s,l)=>s+l.espSeg,0) };
+}
 // Histórico local (21 dias) para a variação "vs. dia anterior visto".
 const AX_HIST_KEY='jirainsight_axhist_v1';
 function axVariacao(counts){
@@ -6793,6 +6903,63 @@ function renderAcoes(){
   ];
   const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas — busca completa no 🔍 (Ctrl+K)</span></h2>
     <div class="hx-atalhos">${ATALHOS.map(([v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span></div>`).join('')}</div></div>`;
+  // ⏱ Apontamento do time — o card mais importante da Início: quem já lançou as
+  // horas de HOJE e como está a SEMANA de cada pessoa (segunda → hoje).
+  if(!ax.sem && !ax.semCarr && !ax.semErro) axCarregaSemana();
+  let cardApont;
+  if(ax.semErro){
+    cardApont=`<div class="card full"><h2>⏱ Apontamento do time <span>hoje e nesta semana</span></h2>
+      <div class="muted small" style="margin-top:8px;color:#B91C1C">${esc(ax.semErro)}
+        <button class="btn" id="apr-retry" style="margin-left:8px">Tentar de novo</button></div></div>`;
+  } else if(!ax.sem){
+    cardApont=`<div class="card full"><h2>⏱ Apontamento do time <span>hoje e nesta semana</span></h2>
+      <div class="muted small" style="margin-top:8px">Lendo os apontamentos da semana no Clockwork…</div></div>`;
+  } else {
+    const ar=axApontResumo();
+    const diaCurto=(d)=>['dom','seg','ter','qua','qui','sex','sáb'][diaSemana(d)];
+    const rot={ok:'apontou o dia',parcial:'apontou parcialmente',vazio:'sem apontar hoje',folga:'não é cobrado(a) hoje'};
+    const dica={ok:'Já bateu a meta de hoje',parcial:'Lançou menos que a meta de hoje',
+      vazio:'Ainda não lançou nada hoje',folga:'Fim de semana, feriado, ausência ou fora da vigência'};
+    const linha=(l)=>{
+      const pcHoje=l.meta>0?Math.min(100,Math.round(l.hojeSeg/l.meta*100)):0;
+      const eu=l.a===ar.eu;
+      return `<div class="apr-l ${l.st}${eu?' eu':''}" data-apr-p="${escA(l.a)}" role="button" tabindex="0"
+        data-tip="${escA(`${l.nome} — ${dica[l.st]}. Clique para ver o timesheet dela.`)}">
+        <span class="apr-dot" aria-hidden="true"></span>
+        <span class="apr-nome">${esc(l.nome)}${eu?' <b class="apr-eu">você</b>':''}</span>
+        <span class="apr-hoje"><span class="apr-bar"><i style="width:${pcHoje}%"></i></span>
+          <b>${l.hojeSeg?fmtH(l.hojeSeg):'—'}</b> <span class="muted">de ${fmtH(l.meta)}</span></span>
+        <span class="apr-sem">${l.semSeg?`<b>${fmtH(l.semSeg)}</b>`:'<b>—</b>'}${l.espSeg?` <span class="muted">de ${fmtH(l.espSeg)}</span>`:''}
+          ${l.pct!=null?`<span class="apr-pct ${l.pct>=90?'ok':(l.pct>=60?'aten':'ruim')}">${l.pct}%</span>`:''}</span>
+        <span class="apr-fita">${l.fita.map(x=>`<i class="apr-d ${x.st}" data-tip="${escA(`${diaCurto(x.d)} ${x.d.slice(8,10)}/${x.d.slice(5,7)} — ${x.st==='folga'?'não é cobrado':(x.s?fmtH(x.s):'nada apontado')}`)}"></i>`).join('')}</span>
+        <span class="apr-st">${esc(rot[l.st])}${l.buracos?` · <b>${l.buracos}</b> dia(s) em branco`:''}</span>
+      </div>`;
+    };
+    const mostra=ax.semTodos?ar.linhas:ar.linhas.slice(0,8);
+    const pcTime=ar.espHoje>0?Math.round(ar.totHoje/ar.espHoje*100):0;
+    cardApont=`<div class="card full">
+      <h2>⏱ Apontamento do time <span>hoje (${esc(alxDataBR(ar.hoje))}) e nesta semana — desde ${esc(alxDataBR(ar.seg))}</span></h2>
+      <div class="apr-topo">
+        <div class="apr-kpi ${ar.nVazio?'ruim':'ok'}"><b>${ar.nCobrados-ar.nVazio}/${ar.nCobrados}</b><span>já apontaram hoje</span></div>
+        <div class="apr-kpi"><b>${fmtH(ar.totHoje)}</b><span>lançadas hoje${ar.espHoje?` · ${pcTime}% do esperado`:''}</span></div>
+        <div class="apr-kpi"><b>${fmtH(ar.totSem)}</b><span>na semana${ar.espSem?` · de ${fmtH(ar.espSem)}`:''}</span></div>
+        <div class="apr-kpi ${ar.nBuracos?'aten':'ok'}"><b>${ar.nBuracos}</b><span>dia(s) útil(eis) em branco na semana</span></div>
+      </div>
+      ${ar.nVazio?`<div class="aviso" style="margin-top:10px">🔴 <b>${ar.nVazio} pessoa(s) ainda não apontaram hoje</b> — ${esc(ar.linhas.filter(l=>l.st==='vazio').slice(0,4).map(l=>String(l.nome).split(' ')[0]).join(' · '))}${ar.nVazio>4?` e mais ${ar.nVazio-4}`:''}.</div>`
+        :`<div class="muted small" style="margin-top:10px">✅ Todo mundo que é cobrado hoje já lançou alguma hora.</div>`}
+      <div class="apr-cab"><span></span><span>Pessoa</span><span>Hoje</span><span>Semana</span><span>${esc(ar.dias.map(diaCurto).join(' '))}</span><span>Situação</span></div>
+      <div class="apr-lista">${mostra.map(linha).join('')}</div>
+      ${ar.linhas.length>8?`<div style="margin-top:6px"><button class="btn" id="apr-todos">${ax.semTodos?'▲ mostrar só os 8 primeiros':`▼ ver as ${ar.linhas.length} pessoas`}</button></div>`:''}
+      <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn primario" data-hx-goto="apontar" data-tip="Lançar as suas horas agora">⏱ Apontar minhas horas</button>
+        <button class="btn" data-hx-goto="timesheet" data-tip="Grade completa pessoa × dia, com lacunas">📊 Timesheet completo</button>
+        <button class="btn" data-hx-goto="ranking" data-tip="Ranking de apontamento e metas">🏆 Ranking</button>
+        <span class="spacer"></span>
+        <button class="btn" id="apr-refresh" data-tip="Reler os apontamentos da semana no Clockwork">🔄 atualizar</button>
+      </div>
+      <div class="muted small" style="margin-top:6px">A meta é a jornada de cada pessoa (<b>Configurações → 🎯 Metas</b>), descontando fins de semana, feriados, ausências e vigência. <b>Hoje não conta como dia em branco</b> — o dia ainda está correndo.</div>
+    </div>`;
+  }
   // 🌳 A árvore de decisão TAMBÉM na home — mesmo estado da vista 'ondecrio'.
   const cardArv=`<div class="card full" style="margin-top:14px">
     <h2>🌳 Onde crio meu ticket? <span>responda e crie no lugar certo — sem sair daqui</span></h2>
@@ -6800,6 +6967,7 @@ function renderAcoes(){
   </div>`;
   cont.replaceChildren(el(`<div>
     ${heroHtml}
+    <div style="margin-top:14px">${cardApont}</div>
     ${cardTicket}
     ${cardsNovos}
     ${cardVenc}
@@ -6836,6 +7004,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     if(rad.ev[ev]) delete rad.ev[ev]; else rad.ev[ev]=1;
     radSalva(); renderAcoes(); return; }
   if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
+  // ⏱ Apontamento do time: recarregar, expandir a lista e abrir o timesheet da pessoa
+  if(t.id==='apr-retry'||t.id==='apr-refresh'){ const ax2=estado.acoes; ax2.sem=null; ax2.semErro=''; renderAcoes(); return; }
+  if(t.id==='apr-todos'){ estado.acoes.semTodos=!estado.acoes.semTodos; renderAcoes(); return; }
   if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
     const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
     g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
@@ -6860,6 +7031,24 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
     const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null;
     vaiPara('rateio'); rtConfere(); return; }
+});
+// ⏱ Apontamento do time: clicar (ou Enter/Espaço) numa pessoa abre o Timesheet
+// já filtrado nela — do "fulano não apontou" para o detalhe em um passo.
+function aprAbrePessoa(a){
+  const sel=document.getElementById('f-pessoa');
+  if(sel && [...sel.options].some(o=>o.value===a)) sel.value=a;
+  else toast('Essa pessoa não tem apontamento no período do topo — mostrando o timesheet completo.','warn');
+  vaiPara('timesheet');
+}
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='acoes') return;
+  const l=e.target.closest&&e.target.closest('[data-apr-p]'); if(!l) return;
+  aprAbrePessoa(l.getAttribute('data-apr-p'));
+});
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(estado.vista!=='acoes'||(e.key!=='Enter'&&e.key!==' ')) return;
+  const l=e.target.closest&&e.target.closest('[data-apr-p]'); if(!l) return;
+  e.preventDefault(); aprAbrePessoa(l.getAttribute('data-apr-p'));
 });
 function renderVisao(){
   const cont=document.getElementById('conteudo');
@@ -8847,6 +9036,12 @@ function registraExtraDia(dia, seg, k){
   ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
   ap.extraLogs=ap.extraLogs||[];
   ap.extraLogs.push({d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'—'});
+  // ⏱ card "Apontamento do time" da Início: reflete o meu lançamento na hora,
+  // sem esperar o Clockwork (o 🔄 atualizar relê tudo do servidor).
+  const ax=estado.acoes, id=idApontar();
+  if(ax && Array.isArray(ax.sem) && id && id.accountId && dia>=semChave(hojeSP())){
+    ax.sem.push({ a:id.accountId, d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'' });
+  }
 }
 const _diaSemana=(d)=>{ try{ return new Date(d+'T12:00:00-03:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.',''); }catch(e){ return ''; } };
 
@@ -17012,6 +17207,23 @@ function abreAjuda(){
       <b>data limite</b> e o <b>responsável</b> linha a linha, ou marque várias e <b>aplique aos marcados</b>;
       nada muda no Jira até clicar em <b>💾 Salvar</b>.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="planejar">🧭 ver na tela (guia interativo)</button></div></div></details>
+    <details class="help-sec"><summary>⏱ Apontamento do time na primeira página (hoje e nesta semana)</summary><div class="help-body">
+      O objetivo nº 1 do painel é que <b>ninguém esqueça de apontar</b>. Por isso a tela <b>🏠 Início</b> abre com o card
+      <b>⏱ Apontamento do time</b>, logo abaixo do seu resumo pessoal:<br>
+      <ul style="margin:6px 0 6px 18px;line-height:1.75">
+        <li><b>Placar do dia</b> — quantas pessoas já lançaram horas hoje, quanto o time apontou <b>hoje</b> e <b>na semana</b>
+          (contra o esperado) e quantos <b>dias úteis ficaram em branco</b> na semana.</li>
+        <li><b>Uma linha por pessoa</b> — quanto ela lançou <b>hoje contra a meta dela</b>, o total da <b>semana contra o
+          esperado</b> (com o %) e a <b>fita de dias</b> de segunda até hoje: 🟩 dia fechado, 🟨 parcial, 🟥 em branco,
+          ▫️ dia que não é cobrado.</li>
+        <li><b>Quem não apontou sobe para o topo</b>, e você aparece em primeiro, destacado. Clicar numa pessoa abre o
+          <b>📊 Timesheet</b> já filtrado nela.</li>
+      </ul>
+      A <b>meta</b> é a jornada de cada pessoa (<b>Configurações → 🎯 Metas</b>, global ou individual), descontando fins de
+      semana, <b>feriados</b>, <b>ausências</b> e a <b>vigência</b> (quem entrou depois ou já saiu não é cobrado).
+      <b>O dia de hoje nunca conta como “em branco”</b> — ele ainda está correndo. Assim que você aponta pelo painel, a sua
+      linha se atualiza na hora; o <b>🔄 atualizar</b> relê tudo do Clockwork.
+    <div style="margin-top:8px"><button class="aj-g" data-aj-guia="acoes">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>🎫 Criar ticket rápido — linguagem natural, voz e ações no mesmo pedido</summary><div class="help-body">
       No card <b>🎫 Criar ticket rápido</b> da tela <b>🏠 Início</b> (ou no app 📲 <b>voz.html</b> do celular, no Atalho da
       <b>Siri</b> e na skill da <b>Alexa</b>) você <b>descreve em português</b> e a IA monta o ticket. O pedido pode ser
@@ -17345,6 +17557,9 @@ function posicionaTour(){
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo.'},
+    {s:'#conteudo .apr-topo',ti:'⏱ Apontamento do time — o placar do dia',tx:'Quantas pessoas já lançaram horas hoje, quanto o time apontou hoje e na semana, e quantos dias úteis ficaram em branco. É o objetivo nº 1 do painel: ninguém esquecer de apontar.'},
+    {s:'#conteudo .apr-lista',ti:'Pessoa a pessoa, hoje e na semana',tx:'Cada linha traz a pessoa, quanto lançou HOJE contra a meta dela, o total da SEMANA contra o esperado e a fita de dias (verde = dia fechado, amarelo = parcial, vermelho = em branco, vazado = fim de semana, feriado, ausência ou fora da vigência). Você aparece em primeiro; clique em alguém para abrir o timesheet dessa pessoa.'},
+    {s:'#conteudo .apr-l.vazio',ti:'Quem ainda não apontou hoje',tx:'As linhas vermelhas sobem para o topo — é quem precisa de um empurrão hoje. O aviso logo acima do quadro já cita os primeiros nomes.',quando:'Aparece quando alguém que é cobrado hoje ainda não lançou nenhuma hora.'},
     {s:'#qk-texto',ti:'🎫 Criar ticket rápido (e acionável)',tx:'Descreva em português tudo o que precisa acontecer — "crie um ticket no nome da Jéssica, no épico de gestão do projeto da Copel, vencimento hoje, marque o Diego no comentário, aponte 30 minutos e passe para finalizado". A IA resolve projeto, épico, título, prazo, responsável, horas, comentário com @menção e status; a prévia mostra tudo antes, campo a campo, e você ajusta o que quiser.'},
     {s:'#qk-mic',ti:'🎤 Ditar em vez de digitar',tx:'No navegador, o microfone transcreve a sua fala direto no campo. É o mesmo caminho do texto — só muda a forma de escrever.'},
     {s:'#qk-siri',ti:'📱 Pelo celular, Siri e Alexa',tx:'Este botão reúne o app instalável do celular (voz.html), o Atalho da Siri pronto e a configuração da skill da Alexa: criar ticket sem abrir o painel.'},
@@ -17711,6 +17926,7 @@ setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é decla
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-08-31','⏱ <b>Apontamento do time na PRIMEIRA PÁGINA — hoje e nesta semana</b>: a tela <b>🏠 Início</b> abre com o placar do apontamento — <b>quantas pessoas já lançaram horas hoje</b>, quanto o time apontou hoje e na semana (contra o esperado) e <b>quantos dias úteis ficaram em branco</b>. Abaixo, <b>uma linha por pessoa</b>: quanto lançou hoje <b>contra a meta dela</b>, o total da semana <b>contra o esperado</b> e a <b>fita de dias</b> de segunda até hoje — 🟩 dia fechado, 🟨 parcial, 🟥 em branco, ▫️ dia que não é cobrado (fim de semana, feriado, ausência ou fora da vigência). <b>Quem ainda não apontou sobe para o topo</b> e você aparece em primeiro; clicar numa pessoa abre o timesheet dela. <b>Hoje nunca conta como dia em branco</b> — o dia ainda está correndo —, e o que você aponta pelo painel aparece na hora.'],
   ['2026-08-31','🌀 <b>A marca da Dexterity ganhou vida no cabeçalho</b>: a logo do painel passou a usar o <b>desenho oficial do moinho</b> (o mesmo dos ícones do app — antes o cabeçalho tinha uma versão aproximada) e agora <b>se move, com propósito</b>: abre em <b>pivô</b> quando o painel carrega (e quando você clica nela para voltar à Início), vira o <b>indicador de atividade</b> — a luz percorre as pétalas — <b>enquanto os dados estão sendo buscados</b>, e as pétalas <b>acompanham de leve o seu ponteiro</b> quando você passa o mouse por cima. Ela também <b>acompanha o tema</b> (clareia no modo escuro) e fica <b>parada</b> para quem configurou o sistema com menos movimento.'],
   ['2026-08-31','🗺️ <b>Roadmap sempre em dia — agora com data de revisão à vista</b>: o card do <b>🗺️ Roadmap</b> mostra <b>quando a lista foi revisada pela última vez</b>, quantos itens tem e a data da última entrega — dá para saber num relance se o que está ali ainda vale. E não depende mais de ninguém lembrar: a verificação automática do projeto <b>reprova a entrega</b> se o roadmap não for revisado junto com as ✨ Novidades.'],
   ['2026-08-31','🎫 <b>Criar ticket rápido virou ACIONÁVEL — um pedido só resolve tudo</b>: além de abrir o ticket, agora você manda no mesmo texto (ou por voz) <b>👤 quem fica responsável</b> ("no nome da Jéssica"), <b>⏱ quantas horas apontar</b> ("aponte 30 minutos" — o worklog sai no seu usuário), <b>💬 um comentário marcando pessoas</b> ("marque o Diego no comentário: esse é o ticket da nossa conversa" — o Jira notifica quem for marcado) e <b>🔀 o status final</b> ("passe para finalizado", casado com o fluxo do próprio projeto). A <b>prévia</b> mostra tudo antes de gravar, com <b>seletores editáveis</b> de responsável, status e menções, campo de horas com atalhos (30m/1h/2h) e o comentário; depois de confirmar, o painel lista <b>ação por ação</b> o que deu certo — e o que não deu, sem perder o ticket. Vale também no app 📲 do celular, no Atalho da <b>Siri</b> e na skill da <b>Alexa</b>.'],
@@ -17843,7 +18059,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-08-31.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-08-31.4';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;
