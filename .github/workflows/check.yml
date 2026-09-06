@@ -20,4 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+      # Só devDependencies (acorn, o parser usado pelo gate de ordem de carregamento).
+      - run: npm ci
       - run: npm run check

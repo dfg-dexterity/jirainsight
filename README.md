@@ -34,17 +34,64 @@ Os tokens de serviço ficam só nas variáveis de ambiente do servidor — nunca
 api/
   _lib/util.js     datas (America/Sao_Paulo), cache, fetch do Jira/Clockwork, heurística faturável
   tempo.js atividade.js vencimentos.js projetos.js usuarios.js   (leitura)
-  config.js resumo.js teams.js                                   (config/IA/cron)
+  config.js resumo.js teams.js                                   (config/IA/cron/bot do Teams)
   apontar.js transicao.js criar.js reunioes.js                   (escrita c/ token da pessoa)
 public/
-  index.html       dashboard (marca Dexterity, gráficos em CSS/SVG, modo escuro, filtros)
+  index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
+  css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
+  js/NN-nome.js    o painel, dividido em 30 módulos por domínio — ver tabela abaixo
+  sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
   portal.html      painel somente-leitura do cliente (AMS), escopado por token
 scripts/
-  check-syntax.mjs gate de sintaxe (npm run check) — roda na CI antes do deploy
+  check-syntax.mjs sintaxe de api/** e public/js/** + ORDEM DE CARREGAMENTO dos módulos
+  check-entrega.mjs gate de entrega (Novidades + Roadmap revisado) — ver CLAUDE.md
 ```
 
+### Os módulos do painel (`public/js/`)
+
+O painel é JavaScript puro, **sem bundler**: os arquivos são *scripts clássicos* carregados
+**nesta ordem** pelo `index.html` (`<script defer src="/js/…">`), num escopo global
+compartilhado — `const/let/function` de nível superior ficam visíveis para os arquivos
+seguintes. A única regra é: **código que EXECUTA no carregamento** (uma chamada solta, um
+`addEventListener`, uma IIFE, `const x = f()`) só pode usar o que já foi declarado em
+arquivos anteriores. `npm run check` **confere isso com um parser real** (acorn) e reprova
+o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
+
+| Arquivo | O que tem |
+| --- | --- |
+| `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
+| `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha) |
+| `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, `renderAgenda` |
+| `04-meu-planejamento.js` | 📋 Meu Planejamento (plano semanal, aprovação, relatórios planejado × realizado, drag-and-drop) |
+| `05-novidades-roadmap.js` | ✨ `NOVIDADES`/`NOV_VER` e 🗺️ `ROADMAP`/`ROADMAP_REV` — **os dados que toda entrega atualiza** |
+| `06-prioridades.js` | 🎯 Prioridades do time + Modo reunião |
+| `07-graficos-cards.js` | gráficos SVG (sparkline, área, donut, treemap, `tsChart` interativo) e cards base |
+| `08-inicio.js` | 🏠 Início (⚡ Ações de hoje, ⏱ Apontamento do time, 🧭 Radar), Visão Geral, Resumo, IA, folga |
+| `09-qualidade-auditoria-meudia.js` | ✅ Qualidade (IA), 🕵️ Auditoria, 📍 Meu dia |
+| `10-timesheet.js` · `11-ranking.js` · `12-tickets.js` | 🔎 Timesheet · 🏆 Ranking · 🎫 Tickets |
+| `13-apontar.js` | ⏱ Apontar (identidade, minhas horas, transições, reagendar, convites, reunião em grupo) |
+| `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |
+| `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
+| `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
+| `17-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação (telas em reformulação) |
+| `18-controladoria-relatorios.js` | 🏦 Controladoria, 📚 Central de Relatórios |
+| `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |
+| `20-gestao.js` | 🧰 Gestão de tickets (filtros salvos, ações em massa, ficha do ticket) |
+| `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
+| `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
+| `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
+| `25-ajuda-guias.js` | ❓ Ajuda, feedback, tour, 🧭 guias interativos |
+| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, favoritos, paleta Ctrl+K |
+| `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
+| `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
+| `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |
+
+**Para acrescentar um módulo:** crie `public/js/NN-nome.js`, adicione a tag `<script defer>` na
+posição certa do `index.html` e rode `npm run check` (ele acusa arquivo sem tag, tag sem
+arquivo, nome global duplicado e uso antes da declaração).
+
 > Sem build não há bundler para pegar erros: rode **`npm run check`** (ou deixe a CI rodar)
-> para validar a sintaxe de `api/**` e do JS embutido nos HTML antes de publicar.
+> para validar sintaxe, ordem de carregamento e a entrega (Novidades/Roadmap) antes de publicar.
 
 ## Variáveis de ambiente
 

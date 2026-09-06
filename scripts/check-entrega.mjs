@@ -2,12 +2,12 @@
 // Gate de ENTREGA: garante que cada entrega revise o 🗺️ Roadmap e as ✨ Novidades
 // (acordo com o usuário — CLAUDE.md). Roda em `npm run check` e na CI a cada PR.
 //
-// Sem build e sem framework, o roadmap é só um array em public/index.html — fácil
-// de esquecer. Aqui ele deixa de depender de memória: se entrou novidade e a data
-// de revisão do roadmap ficou para trás, a verificação falha e o PR fica vermelho.
+// Sem build e sem framework, o roadmap é só um array em public/js/05-novidades-roadmap.js
+// — fácil de esquecer. Aqui ele deixa de depender de memória: se entrou novidade e a
+// data de revisão do roadmap ficou para trás, a verificação falha e o PR fica vermelho.
 import { readFileSync } from 'node:fs';
 
-const ARQ = 'public/index.html';
+const ARQ = 'public/js/05-novidades-roadmap.js';
 const src = readFileSync(ARQ, 'utf8');
 const erros = [];
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -75,7 +75,7 @@ if (ULTIMA && typeof ROADMAP_REV === 'string') {
   } else if (ROADMAP_REV < ULTIMA) {
     erros.push([
       `🗺️ ROADMAP NÃO REVISADO NESTA ENTREGA: a última novidade é de ${ULTIMA} e o roadmap foi revisado em ${ROADMAP_REV}.`,
-      '     Antes de fechar a entrega, releia o array ROADMAP em public/index.html:',
+      `     Antes de fechar a entrega, releia o array ROADMAP em ${ARQ}:`,
       '       • tire (ou mova) o que esta entrega concluiu;',
       '       • mova o que mudou de estágio entre fazendo / planejado / avaliacao;',
       '       • acrescente os pedidos novos do usuário;',
