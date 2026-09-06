@@ -623,3 +623,35 @@ function datasDeTexto(txt){
   while((m=re.exec(s)) && out.length<4){ const iso=dataDeTexto(m[0]); if(iso) out.push(iso); }
   return out;
 }
+
+// ---- Helpers que nasceram na Alocação e são usados por várias telas (gestores, custo/h,
+// semana ISO, formato de horas, preferências da Alocação) — a tela em si está arquivada. ----
+// ---- Pessoas planejadas (ainda não contratadas): planeje a vaga antes de contratar ----
+function ppLista(){ if(!Array.isArray(cfg.pessoasPlanejadas)) cfg.pessoasPlanejadas=[]; return cfg.pessoasPlanejadas; }
+function ppDe(a){ return String(a||'').startsWith('plan_') ? ppLista().find(p=>p.id===a) : null; }
+// Gestores/aprovadores por CONFIGURAÇÃO (cfg.gestores: accountIds ou e-mails,
+// editável em ⚙️ Configurações). Sem lista configurada, cai no aprovador legado
+// (nome/e-mail contendo "diego") para não travar a operação atual.
+function souAprovador(){ const id=idApontar(); if(!id) return false;
+  const gs=(cfg.gestores||[]).map(x=>String((x&&(x.a||x.email))||x||'').trim().toLowerCase()).filter(Boolean);
+  if(gs.length) return gs.includes(String(id.accountId||'').toLowerCase())||gs.includes(String(id.email||'').toLowerCase());
+  return /diego/i.test((id.nome||'')+' '+(id.email||'')); }
+// Custo/hora da pessoa: vaga usa o custo previsto do cadastro; pessoa real usa
+// cfg.custosPessoa (manual ou importado do Odoo). 0 = sem custo cadastrado.
+function alocCustoH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.custoH)||0);
+  return Math.max(0,Number((cfg.custosPessoa||{})[a])||0); }
+function alocH(h){ return (Math.round((h||0)*10)/10).toLocaleString('pt-BR')+'h'; }
+// ---- 📆 Semanas: planejado TRAVADO por semana × realizado (nº da semana do ano) ----
+// Semana ISO 8601 (segunda a domingo; a quinta-feira define o ano) — ex.: S31/2026.
+function isoSemana(w){
+  const dt=new Date(w+'T12:00:00-03:00');
+  const qui=new Date(dt); qui.setUTCDate(dt.getUTCDate()+3-((dt.getUTCDay()+6)%7));
+  const ano=qui.getUTCFullYear();
+  const jan4=new Date(Date.UTC(ano,0,4,12));
+  const seg1=new Date(jan4); seg1.setUTCDate(jan4.getUTCDate()-((jan4.getUTCDay()+6)%7));
+  return { ano, num: Math.floor((qui-seg1)/(7*86400000))+1 };
+}
+function semTravaKey(w){ const s=isoSemana(w); return `${s.ano}-W${String(s.num).padStart(2,'0')}`; }
+// Lembra visão/granularidade/zoom da Alocação entre sessões (só no navegador, não é config compartilhada).
+const ALOC_UI_KEY='dexterity_aloc_ui_v1';
+function alocUISave(){ try{ localStorage.setItem(ALOC_UI_KEY, JSON.stringify({ visao:estado.alocacao.visao, gran:estado.alocacao.gran, gz:estado.alocacao.gz, ordB:estado.alocacao.ordB })); }catch(e){} }

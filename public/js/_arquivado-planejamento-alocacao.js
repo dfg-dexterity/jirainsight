@@ -1,5 +1,11 @@
-// Jira Insights · 17 · 🧮 PLANEJAMENTO MACRO (MVP legado) e 👥 ALOCAÇÃO por pessoa (semanas, gantt, simulação).
-// As duas telas estão marcadas como "em reformulação" (renderIndisponivel) — o código fica para a volta.
+// ⚠ ARQUIVADO — NÃO É CARREGADO pelo index.html (sem <script>). Desde 2026-08-17 as telas
+// 👥 Alocação e 🧮 Planejamento macro estão "em reformulação" (render() manda para
+// renderIndisponivel), então este código só custava download/parse a cada abertura.
+// Para reativar: (1) renomear para NN-planejamento-alocacao.js e acrescentar a tag no
+// index.html antes de 26-navegacao.js; (2) trocar renderIndisponivel(...) por
+// renderAlocacao()/renderPlanejamento() no render(); (3) rodar npm run check.
+// Os helpers que outras telas usam (souAprovador, alocCustoH, alocH, isoSemana,
+// semTravaKey, alocUISave, ppLista/ppDe) já vivem em 01-nucleo.js.
 // ====================== PLANEJAMENTO Semanal/Mensal — MVP 1 (montar o plano) ======================
 // Plano de esforço de um projeto por FUNÇÃO. Implementação: fases = épicos do Jira;
 // AMS/interno: projeto inteiro. Horas planejadas (função, fase) = horas da fase × % (1.35 = 135%).
@@ -213,9 +219,6 @@ function alocTipoDe(x){ return (x&&x.projeto&&(cfg.projTipos||{})[x.projeto]) ||
 // Função da pessoa NAQUELA alocação (permite a mesma pessoa 2× no mesmo projeto com
 // funções diferentes); sem função explícita, vale a skill principal da pessoa.
 function alocFuncaoDe(x){ return (x&&x.funcao) || alocSkillPrim(x&&x.accountId); }
-// ---- Pessoas planejadas (ainda não contratadas): planeje a vaga antes de contratar ----
-function ppLista(){ if(!Array.isArray(cfg.pessoasPlanejadas)) cfg.pessoasPlanejadas=[]; return cfg.pessoasPlanejadas; }
-function ppDe(a){ return String(a||'').startsWith('plan_') ? ppLista().find(p=>p.id===a) : null; }
 function ppNova(){ return { id:'plan_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nome:'', skills:[], hSem:40, custoH:0, inicio:'', obs:'' }; }
 // Pessoas da ALOCAÇÃO = pessoas reais (Jira/Clockwork) + planejadas (🔮 no nome).
 // Só a Alocação usa isto — as demais telas continuam vendo apenas pessoas reais.
@@ -225,13 +228,6 @@ function alocPessoas(){ const out=Object.assign({}, pessoasUnidas());
 // cfg.alocTravas[accountId] = { status:'pendente'|'aprovado', por, quando, aprovadoPor?, quandoAprov? }
 function alocTravaDe(a){ return (cfg.alocTravas||{})[a]||null; }
 function alocTravada(a){ return !!alocTravaDe(a); }
-// Gestores/aprovadores por CONFIGURAÇÃO (cfg.gestores: accountIds ou e-mails,
-// editável em ⚙️ Configurações). Sem lista configurada, cai no aprovador legado
-// (nome/e-mail contendo "diego") para não travar a operação atual.
-function souAprovador(){ const id=idApontar(); if(!id) return false;
-  const gs=(cfg.gestores||[]).map(x=>String((x&&(x.a||x.email))||x||'').trim().toLowerCase()).filter(Boolean);
-  if(gs.length) return gs.includes(String(id.accountId||'').toLowerCase())||gs.includes(String(id.email||'').toLowerCase());
-  return /diego/i.test((id.nome||'')+' '+(id.email||'')); }
 function alocTravaBloqueia(a, avisa){
   if(!alocTravada(a)) return false;
   if(avisa!==false){ const t=alocTravaDe(a);
@@ -251,17 +247,12 @@ function alocConflitoDe(rows, x){
 function alocAvisaConflito(cf){
   try{ toast(`✕ Conflito: essa pessoa já está alocada neste projeto${cf.funcao?` como ${cf.funcao}`:''} em ${dataBR(cf.inicio)} – ${dataBR(cf.fim)}. Ajuste o período ou use uma FUNÇÃO diferente.`,'err'); }catch(_){}
 }
-// Custo/hora da pessoa: vaga usa o custo previsto do cadastro; pessoa real usa
-// cfg.custosPessoa (manual ou importado do Odoo). 0 = sem custo cadastrado.
-function alocCustoH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.custoH)||0);
-  return Math.max(0,Number((cfg.custosPessoa||{})[a])||0); }
 // Semana nominal (h) da pessoa = jornada de Metas × 5 dias — base da conversão % ↔ h/sem.
 // Pessoa planejada usa a capacidade cadastrada na vaga.
 function alocSemNomH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.hSem)||40); return metaSegDe(a)/3600*5; }
 function alocPctDe(a, h){ const n=alocSemNomH(a); return n?Math.round((Number(h)||0)/n*100):0; }
 // Board por pessoa: toda alteração persiste na hora (config compartilhada), sem botão "salvar".
 function alocPersiste(){ cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows||[])); salvaCfg(); }
-function alocH(h){ return (Math.round((h||0)*10)/10).toLocaleString('pt-BR')+'h'; }
 // Semanas (segunda-feira) do horizonte das alocações (com folga à frente).
 function alocSemanas(rows){
   let ini='',fim=''; rows.forEach(a=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(a.inicio)&&(!ini||a.inicio<ini)) ini=a.inicio; if(/^\d{4}-\d{2}-\d{2}$/.test(a.fim)&&(!fim||a.fim>fim)) fim=a.fim; });
@@ -308,17 +299,6 @@ function alocCarregaReal(rows, forca){
     if(estado.vista==='alocacao') renderAlocacao();
   }).catch(e=>{ r.carregando=false; r.erro=humanizaErro(e); r.wl=null; if(estado.vista==='alocacao') renderAlocacao(); });
 }
-// ---- 📆 Semanas: planejado TRAVADO por semana × realizado (nº da semana do ano) ----
-// Semana ISO 8601 (segunda a domingo; a quinta-feira define o ano) — ex.: S31/2026.
-function isoSemana(w){
-  const dt=new Date(w+'T12:00:00-03:00');
-  const qui=new Date(dt); qui.setUTCDate(dt.getUTCDate()+3-((dt.getUTCDay()+6)%7));
-  const ano=qui.getUTCFullYear();
-  const jan4=new Date(Date.UTC(ano,0,4,12));
-  const seg1=new Date(jan4); seg1.setUTCDate(jan4.getUTCDate()-((jan4.getUTCDay()+6)%7));
-  return { ano, num: Math.floor((qui-seg1)/(7*86400000))+1 };
-}
-function semTravaKey(w){ const s=isoSemana(w); return `${s.ano}-W${String(s.num).padStart(2,'0')}`; }
 function alocSemTravaDe(w){ return (cfg.alocSemTravas||{})[semTravaKey(w)]||null; }
 // Horas planejadas "ao vivo" por pessoa numa semana (direto das alocações atuais).
 function alocSemHorasVivas(rows, w){
@@ -826,9 +806,6 @@ function alocViewSimulacao(_rows, pess){
         <span class="spacer"></span><span class="muted small">As hipóteses não afetam as alocações salvas.</span></div>
     </div>`;
 }
-// Lembra visão/granularidade/zoom da Alocação entre sessões (só no navegador, não é config compartilhada).
-const ALOC_UI_KEY='dexterity_aloc_ui_v1';
-function alocUISave(){ try{ localStorage.setItem(ALOC_UI_KEY, JSON.stringify({ visao:estado.alocacao.visao, gran:estado.alocacao.gran, gz:estado.alocacao.gz, ordB:estado.alocacao.ordB })); }catch(e){} }
 function alocUILoad(){ if(estado.alocacao._ui) return; estado.alocacao._ui=true;
   try{ const u=JSON.parse(localStorage.getItem(ALOC_UI_KEY)||'{}'); if(u&&typeof u==='object'){ if(u.visao) estado.alocacao.visao=u.visao; if(u.gran) estado.alocacao.gran=u.gran; if(u.gz) estado.alocacao.gz=u.gz; if(u.ordB) estado.alocacao.ordB=u.ordB; } }catch(e){} }
 function renderAlocacao(){
@@ -1340,31 +1317,3 @@ function abreGtInfo(al){
       <button class="btn" id="gtinfo-fechar">Fechar</button>
     </div>`);
 }
-document.addEventListener('paste', (e)=>{
-  const t=(e.target&&e.target.tagName==='INPUT')?e.target:document.activeElement;
-  if(!t||t.tagName!=='INPUT'||t.type!=='date'||t.disabled||t.readOnly) return;
-  const txt=(e.clipboardData&&e.clipboardData.getData)?e.clipboardData.getData('text'):'';
-  e.preventDefault();
-  const todas=datasDeTexto(txt);
-  // Período completo ("29/06/2026 – 23/08/2026") colado num campo do board de alocação:
-  // preenche início E fim da linha de uma vez (e salva, como uma edição manual).
-  if(todas.length>=2 && t.hasAttribute('data-ab-f')){
-    const id=t.getAttribute('data-ab-f').split('|')[1];
-    const a=(typeof alocRows==='function')?alocRows().find(r=>r.id===id):null;
-    if(a){
-      if(alocTravaBloqueia(a.accountId)) return;
-      const par=todas.slice(0,2).sort(); const antigo={i:a.inicio,f:a.fim};
-      a.inicio=par[0]; a.fim=par[1];
-      const cf=alocConflitoDe(alocRows(), a);
-      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); return; }
-      alocPersiste(); alocRedraw();
-      try{ toast('📋 Período '+dataBR(par[0])+' – '+dataBR(par[1])+' colado'); }catch(_){}
-      return; }
-  }
-  const iso=todas[0]||'';
-  if(!iso){ try{ toast('Não entendi a data colada — use 23/08/2026 ou 2026-08-23.','warn'); }catch(_){} return; }
-  if(t.value===iso) return;
-  t.value=iso;
-  t.dispatchEvent(new Event('change',{bubbles:true}));
-  try{ toast('📋 '+dataBR(iso)+' colada'); }catch(_){}
-});

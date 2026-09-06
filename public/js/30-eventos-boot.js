@@ -248,7 +248,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='pl-tpl-cancel'){ fechaModal(); }
   else if(t.id==='gtinfo-fechar'){ fechaModal(); }
   else if(t.hasAttribute('data-gtinfo-filtrar')){ estado.alocacao.fProj=t.getAttribute('data-gtinfo-filtrar');
-    fechaModal(); if(estado.vista==='alocacao') renderAlocacao(); }
+    fechaModal(); if(estado.vista==='alocacao' && typeof renderAlocacao==='function') renderAlocacao(); }
   else if(t.id==='ts-exp-cancel'){ fechaModal(); }
   else if(t.id==='ts-exp-ok'){ const m=(document.getElementById('ts-exp-modo')||{value:'matriz'}).value;
     exportaTimesheet(m); fechaModal(); toast('⬇ CSV exportado.','ok'); }
@@ -429,3 +429,34 @@ function mostraVersao(j){
     `${j.titulo?` — ${esc(j.titulo)}`:''}${j.pr&&j.sha?` <span class="muted">(${esc(j.sha)})</span>`:''}`;
 }
 fetch('/api/config?versao=1').then(x=>x.json()).then(mostraVersao).catch(()=>{});
+
+// ---- Colar data (Ctrl/Cmd+V) em QUALQUER campo de data: aceita 23/08/2026, 23/08, 2026-08-23 e datas do Excel.
+// (o ramo do board de Alocação só roda se a tela voltar a ser carregada) ----
+document.addEventListener('paste', (e)=>{
+  const t=(e.target&&e.target.tagName==='INPUT')?e.target:document.activeElement;
+  if(!t||t.tagName!=='INPUT'||t.type!=='date'||t.disabled||t.readOnly) return;
+  const txt=(e.clipboardData&&e.clipboardData.getData)?e.clipboardData.getData('text'):'';
+  e.preventDefault();
+  const todas=datasDeTexto(txt);
+  // Período completo ("29/06/2026 – 23/08/2026") colado num campo do board de alocação:
+  // preenche início E fim da linha de uma vez (e salva, como uma edição manual).
+  if(todas.length>=2 && t.hasAttribute('data-ab-f')){
+    const id=t.getAttribute('data-ab-f').split('|')[1];
+    const a=(typeof alocRows==='function')?alocRows().find(r=>r.id===id):null;
+    if(a){
+      if(alocTravaBloqueia(a.accountId)) return;
+      const par=todas.slice(0,2).sort(); const antigo={i:a.inicio,f:a.fim};
+      a.inicio=par[0]; a.fim=par[1];
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); return; }
+      alocPersiste(); alocRedraw();
+      try{ toast('📋 Período '+dataBR(par[0])+' – '+dataBR(par[1])+' colado'); }catch(_){}
+      return; }
+  }
+  const iso=todas[0]||'';
+  if(!iso){ try{ toast('Não entendi a data colada — use 23/08/2026 ou 2026-08-23.','warn'); }catch(_){} return; }
+  if(t.value===iso) return;
+  t.value=iso;
+  t.dispatchEvent(new Event('change',{bubbles:true}));
+  try{ toast('📋 '+dataBR(iso)+' colada'); }catch(_){}
+});

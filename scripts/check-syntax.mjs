@@ -50,7 +50,8 @@ walk('api');
 console.log('public/js (módulos do painel):');
 const html = readFileSync('public/index.html', 'utf8');
 const noHtml = [...html.matchAll(/<script\s+defer\s+src="\/js\/([^"]+)"><\/script>/g)].map((m) => m[1]);
-const naPasta = readdirSync('public/js').filter((n) => n.endsWith('.js')).sort();
+// Arquivos que começam com "_" são ARQUIVADOS (não carregam): ficam no repositório, fora da lista.
+const naPasta = readdirSync('public/js').filter((n) => n.endsWith('.js') && !n.startsWith('_')).sort();
 const sobrando = naPasta.filter((n) => !noHtml.includes(n));
 const faltando = noHtml.filter((n) => !naPasta.includes(n));
 if (sobrando.length) { console.error('  ✗ arquivo(s) em public/js sem <script> no index.html:', sobrando.join(', ')); fails += 1; }
