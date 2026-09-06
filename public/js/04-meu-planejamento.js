@@ -42,7 +42,7 @@ function mpGaranteMeu(w, forca, aoTerminar){
     else { mp.erro=(j&&j.erro)||'Falha ao carregar o planejamento.'; mp.meuErrAt[w]=Date.now(); }
     if(aoTerminar) aoTerminar();
     if(estado.vista==='minhasemana') renderMinhaSemana();
-    else if(estado.vista==='acoes') try{ renderAcoes(); }catch(e){}
+    else agendaRenderAcoes();
   }).catch(e=>{ mp.meuB[w]=0; mp.erro=humanizaErro(e); mp.meuErrAt[w]=Date.now(); if(estado.vista==='minhasemana') renderMinhaSemana(); });
   return false;
 }

@@ -144,8 +144,8 @@ function axCarregaVenc(forca){
   fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
       if(j.erro){ ax.erro=humanizaErro(j.erro); } else ax.venc=j;
-      if(estado.vista==='acoes') renderAcoes();
-    }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+      agendaRenderAcoes();
+    }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); agendaRenderAcoes(); });
 }
 function axCarregaMes(){
   const ax=estado.acoes; ax.mesCarr=true; ax.mesErro='';
@@ -153,8 +153,8 @@ function axCarregaMes(){
   fetch(`/api/tempo?desde=${encodeURIComponent(ini)}&ate=${encodeURIComponent(hoje)}`)
     .then(r=>r.json()).then(j=>{ ax.mesCarr=false;
       if(j.erro){ ax.mesErro=humanizaErro(j.erro); } else ax.mes=j.worklogs||[];
-      if(estado.vista==='acoes') renderAcoes();
-    }).catch(e=>{ ax.mesCarr=false; ax.mesErro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+      agendaRenderAcoes();
+    }).catch(e=>{ ax.mesCarr=false; ax.mesErro=humanizaErro(e); agendaRenderAcoes(); });
 }
 // ===========================================================================
 // ⏱ APONTAMENTO DO TIME — hoje e nesta semana (card principal da Início)
@@ -170,8 +170,8 @@ function axCarregaSemana(){
     .then(r=>r.json()).then(j=>{ ax.semCarr=false;
       if(j.erro) ax.semErro=humanizaErro(j.erro);
       else { ax.sem=j.worklogs||[]; ax.semPessoas=(j.pessoas)||{}; }
-      if(estado.vista==='acoes') renderAcoes();
-    }).catch(e=>{ ax.semCarr=false; ax.semErro=humanizaErro(e); if(estado.vista==='acoes') renderAcoes(); });
+      agendaRenderAcoes();
+    }).catch(e=>{ ax.semCarr=false; ax.semErro=humanizaErro(e); agendaRenderAcoes(); });
 }
 // Um dia em que a pessoa NÃO é cobrada: fim de semana, feriado, ausência
 // cadastrada ou fora da vigência dela na empresa.
@@ -260,14 +260,14 @@ function radGarante(){
   if(!ax.radAtv&&!ax.radAtvB&&!ax.radAtvErro){ ax.radAtvB=true;
     fetch('/api/atividade?janela=7d').then(r=>r.json()).then(j=>{ ax.radAtvB=false;
       if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
-      if(estado.vista==='acoes') renderAcoes();
-    }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
+      agendaRenderAcoes();
+    }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); agendaRenderAcoes(); }); }
   if(!ax.radT&&!ax.radTB&&!ax.radTErro){ ax.radTB=true;
     const h=hojeSP();
     fetch(`/api/tempo?desde=${voltaDias(h,6)}&ate=${h}`).then(r=>r.json()).then(j=>{ ax.radTB=false;
       if(j&&!j.erro) ax.radT=j; else ax.radTErro=(j&&j.erro)||'Falha ao ler as horas.';   // guarda o erro: sem isso o render rebuscava em laço
-      if(estado.vista==='acoes') renderAcoes();
-    }).catch(e=>{ ax.radTB=false; ax.radTErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
+      agendaRenderAcoes();
+    }).catch(e=>{ ax.radTB=false; ax.radTErro=String(e.message||e); agendaRenderAcoes(); }); }
 }
 // 🆕 CARDS DE CRIAÇÃO NA HOME — leem a MESMA base do Radar (atividade de 7 dias),
 // sem chamada nova: "meus tickets recém criados" (últimos meus, do mais novo para
@@ -357,6 +357,13 @@ function radDados(){
   const lista=Object.values(por).filter(r=>ligados.some(e=>r.evs[e]))
     .sort((a,b)=>String(b.ult).localeCompare(String(a.ult)));
   return {cont,lista,de,ate};
+}
+// Na abertura da Início chegam ~10 respostas quase juntas; cada uma refazia a tela
+// inteira. agendaRenderAcoes() junta tudo num único render por quadro.
+let _axRaf=0;
+function agendaRenderAcoes(){
+  if(_axRaf) return;
+  _axRaf=requestAnimationFrame(()=>{ _axRaf=0; if(estado.vista==='acoes') try{ renderAcoes(); }catch(e){} });
 }
 function renderAcoes(){
   const cont=document.getElementById('conteudo');
@@ -1390,8 +1397,17 @@ async function enviaFolga(){
 // Calcula a matriz pessoa × dia (segundos) e a lacuna por pessoa, respeitando a
 // meta individual e as ausências. Reutilizado por timesheet, ranking, "não
 // apontou", heatmap e exportação.
+// Memo do último cálculo: a Início, o Timesheet e o Ranking chamam isto 2–3 vezes por render
+// (e a Início renderiza várias vezes na abertura). A chave cobre filtros, período, dados
+// (identidade + nº de worklogs, que cresce com apontamentos otimistas), config e o dia.
+let _tsMemo=null;
 function calcTimesheet(){
   const f=filtros();
+  const kMemo=[JSON.stringify(f), estado.periodo, ((estado.tempo&&estado.tempo.worklogs)||[]).length, _cfgStamp,
+    Object.keys(estado.usuarios||{}).length, hojeSP()].join('|');
+  if(_tsMemo && _tsMemo.k===kMemo && _tsMemo.tempo===estado.tempo && _tsMemo.atv===estado.atividade){
+    const v=_tsMemo.v; return { meta:v.meta, dias:v.dias.slice(), hoje:v.hoje, linhas:v.linhas.slice() };
+  }
   const ft=Object.assign({}, f, {ocultar:false});   // conta TODAS as horas apontadas
   const projs=projetosUnidos();
   const pessoasNome=pessoasUnidas();
@@ -1432,7 +1448,8 @@ function calcTimesheet(){
     return { a, nome:(pessoasNome[a]&&pessoasNome[a].nome)||a, porDia, tot, lacuna, vazios, parciais, esperado };
   }).sort((x,y)=> (y.lacuna-x.lacuna) || (y.tot-x.tot) || x.nome.localeCompare(y.nome,'pt'));
 
-  return { meta, dias, hoje, linhas };
+  _tsMemo={ k:kMemo, tempo:estado.tempo, atv:estado.atividade, v:{ meta, dias, hoje, linhas } };
+  return { meta, dias: dias.slice(), hoje, linhas: linhas.slice() };
 }
 
 // Aviso: quem não apontou no último dia útil fechado do período.

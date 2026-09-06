@@ -1154,7 +1154,7 @@ function abreReuniaoGrupo(preKey){
   rgRenderTimes();
   // Elenco ainda não carregado (ex.: entrou direto na aba Apontar): busca agora.
   if(!pessoas.length){
-    fetch('/api/usuarios').then(r=>r.json()).then(j=>{
+    usuariosP().then(j=>{
       estado.usuarios=Object.assign({}, j.pessoas||{}, estado.usuarios||{});
       const cont=document.getElementById('rg-pessoas'); if(!cont) return;
       cont.innerHTML=Object.entries(estado.usuarios).filter(([a,p])=>!RE_EXCLUIR.test(p.nome||''))

@@ -406,7 +406,16 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
 
 leURL();
 sincronizaControlesURL();
-(async ()=>{ await carregaCfgRemota(); recarrega(); })();
+// Boot: o esqueleto aparece na hora e as leituras do período saem em PARALELO com a
+// config compartilhada (antes, tudo esperava o /api/config responder — duas idas ao
+// servidor em série antes da primeira pintura útil). A config chega e é aplicada em
+// carrega(), quando os dados são adotados.
+(async ()=>{
+  try{ document.getElementById('conteudo').innerHTML=skeletonPainel(); }catch(e){}
+  prefetchDados(estado.periodo);
+  await carregaCfgRemota();
+  recarrega();
+})();
 if(idApontar()) carregaInbox();   // selos já no carregamento: convites (Apontar/Operação) + pendências (📥 Inbox)
 
 // ---- Versão do deploy no rodapé (commit/PR do GitHub, via Vercel) ----

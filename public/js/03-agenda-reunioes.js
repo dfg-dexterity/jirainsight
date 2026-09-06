@@ -42,7 +42,7 @@ function agTipoReuniao(projKey){
 function agCarregaUsuarios(){
   const ag=estado.agenda; if(ag.usuarios||ag.usuCarr) return;
   ag.usuCarr=true;
-  fetch('/api/usuarios').then(r=>r.json()).then(j=>{ ag.usuCarr=false; ag.usuarios=(j&&j.pessoas)||{}; agAtualizaModal(); })
+  usuariosP().then(j=>{ ag.usuCarr=false; ag.usuarios=(j&&j.pessoas)||{}; agAtualizaModal(); })
     .catch(()=>{ ag.usuCarr=false; ag.usuarios={}; agAtualizaModal(); });
 }
 // Duração do evento em segundos (mínimo 15 min; dia todo = 8h).
@@ -264,9 +264,9 @@ function carregaAgenda(forca){
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
-      if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes();
+      if(estado.vista==='agenda') renderAgenda(); else agendaRenderAcoes();
       try{ agAutoCria(); }catch(e){} })
-    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); else if(estado.vista==='acoes') renderAcoes(); });
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); else agendaRenderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
 async function agRdfTipoReuniao(){
@@ -292,7 +292,7 @@ async function agAvisaInbox(evId){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
   if(!estado.agenda.usuarios){
-    try{ const j=await fetch('/api/usuarios').then(r=>r.json()); estado.agenda.usuarios=(j&&j.pessoas)||{}; }
+    try{ const j=await usuariosP(); estado.agenda.usuarios=(j&&j.pessoas)||{}; }
     catch(e){ estado.agenda.usuarios={}; }
   }
   const oe=String((ev.organizador&&ev.organizador.email)||'').toLowerCase();

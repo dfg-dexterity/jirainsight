@@ -237,15 +237,19 @@ function tsChart(series, opts){
   </div>`;
 }
 // Handler global: mostra crosshair/readout do gráfico sob o cursor.
+let _tscAtivo=null;   // gráfico com o cursor em cima (evita varrer o DOM a cada pixel de movimento)
 function _tscMove(clientX, target){
   const cont = target && target.closest && target.closest('[data-tsc]');
-  document.querySelectorAll('.tsc.on').forEach(c=>{ if(c!==cont) c.classList.remove('on'); });
-  if(!cont) return;
+  if(!cont){ if(_tscAtivo){ _tscAtivo.classList.remove('on'); _tscAtivo=null; } return; }
+  if(_tscAtivo&&_tscAtivo!==cont) _tscAtivo.classList.remove('on');
+  _tscAtivo=cont;
   const reg=_TSC[cont.getAttribute('data-tsc')]; if(!reg) return;
   const plot=cont.querySelector('.tsc-plot'); const rect=plot.getBoundingClientRect();
   if(!rect.width) return;
   const vx=Math.max(0,Math.min(reg.W,(clientX-rect.left)/rect.width*reg.W));
   let idx=0,best=Infinity; reg.xs.forEach((x,i)=>{ const dd=Math.abs(x-vx); if(dd<best){best=dd;idx=i;} });
+  if(reg.lastIdx===idx && cont.classList.contains('on')) return;   // mesmo ponto: nada mudou
+  reg.lastIdx=idx;
   cont.classList.add('on');
   const leftPct=reg.xs[idx]/reg.W*100;
   const cross=cont.querySelector('.tsc-cross'); if(cross) cross.style.left=leftPct.toFixed(2)+'%';
@@ -257,7 +261,7 @@ function _tscMove(clientX, target){
     read.style.left=leftPct.toFixed(2)+'%'; read.classList.toggle('flip', leftPct>62); }
 }
 document.addEventListener('mousemove',(e)=>_tscMove(e.clientX,e.target),{passive:true});
-document.addEventListener('mouseleave',()=>document.querySelectorAll('.tsc.on').forEach(c=>c.classList.remove('on')),{passive:true});
+document.addEventListener('mouseleave',()=>{ document.querySelectorAll('.tsc.on').forEach(c=>c.classList.remove('on')); _tscAtivo=null; },{passive:true});
 document.addEventListener('touchstart',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
 document.addEventListener('touchmove',(e)=>{ if(e.touches&&e.touches[0]) _tscMove(e.touches[0].clientX,e.target); },{passive:true});
 document.addEventListener('click',(e)=>{ const cont=e.target.closest&&e.target.closest('[data-tsc]'); if(!cont) return;

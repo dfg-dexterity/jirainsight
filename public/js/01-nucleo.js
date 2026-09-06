@@ -130,7 +130,10 @@ function carregaCfg(){
     return Object.assign(cfgDefaults(), c); }catch(e){}
   return cfgDefaults();
 }
-function salvaCfg(){ try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} salvaCfgRemota(); }
+// Carimbo da config: sobe a cada salvamento/adoção remota. Quem memoriza cálculos que
+// dependem de metas/ausências/ocultos (ex.: calcTimesheet) usa isto como chave.
+let _cfgStamp=0;
+function salvaCfg(){ _cfgStamp++; try{ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }catch(e){} salvaCfgRemota(); }
 let cfg = carregaCfg();
 let cfgShared = false;   // true quando a config vem/vai para o servidor (time)
 // ---- Proteção contra perda de dados na config compartilhada ----
@@ -142,6 +145,7 @@ let _cfgRev=null;                                  // rev da última config remo
 let _cfgBase=JSON.parse(JSON.stringify(cfg));      // base p/ diff (o que esta sessão mudou)
 let _cfgConectada=false, _cfgSujo=false, _cfgRetryT=null, _cfgAvisou=false;
 function cfgAdotaRemoto(j){
+  _cfgStamp++;
   const remoto=Object.assign(cfgDefaults(), (j&&j.data)||{});
   if(_cfgBase){ Object.keys(cfg).forEach(k=>{     // preserva o que esta sessão alterou
     try{ if(JSON.stringify(cfg[k])!==JSON.stringify(_cfgBase[k])) remoto[k]=cfg[k]; }catch(e){} }); }
@@ -347,17 +351,37 @@ function nomeFeriado(dia){
 }
 const ehFeriado = (dia) => !!nomeFeriado(dia);
 
+// Pessoas ativas do Jira não dependem do período: UMA busca por sessão, compartilhada por
+// todas as telas (Agenda, Apontar, filtros). `forca` rebusca; resposta ruim não fica guardada.
+let _usuariosP=null;
+function usuariosP(forca){
+  if(forca||!_usuariosP){
+    _usuariosP=fetch('/api/usuarios').then(r=>r.json()).then(j=>{ if(!j||!j.pessoas) _usuariosP=null; return j||{}; })
+      .catch(()=>{ _usuariosP=null; return {}; });
+  }
+  return _usuariosP;
+}
+// As três leituras do período, em paralelo. Separado de carrega() para o boot poder
+// dispará-las ANTES de a config compartilhada responder (ver 30-eventos-boot.js).
+function buscaDados(periodo, forca){
+  const q = forca ? '&nocache=1' : '';
+  return Promise.all([
+    fetch(`/api/tempo?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/atividade?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    usuariosP(!!forca),
+  ]);
+}
+let _prefetch=null;   // {periodo, p}: leitura já em voo, iniciada no boot
+function prefetchDados(periodo){ _prefetch={ periodo, p: buscaDados(periodo, false) }; }
 // `forca=true` ignora o cache do navegador E o do servidor (nocache=1): os dados
 // voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
 async function carrega(periodo, forca){
   if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
     estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
-  const q = forca ? '&nocache=1' : '';
-  const [t,a,u] = await Promise.all([
-    fetch(`/api/tempo?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
-    fetch(`/api/atividade?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
-    fetch(`/api/usuarios`).then(r=>r.json()).catch(()=>({})),
-  ]);
+  let pend=null;
+  if(!forca && _prefetch && _prefetch.periodo===periodo) pend=_prefetch.p;   // aproveita o que o boot já pediu
+  _prefetch=null;
+  let [t,a,u] = await (pend||buscaDados(periodo, forca));
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);   // tempo é essencial
   let aviso='';
   if (a.erro){                                                // atividade indisponível (ex.: janela muito grande): segue só com horas

@@ -30,6 +30,10 @@ function gxRisco(t,hoje){
 }
 const GX_PRESETS=[['atrasados','Atrasados'],['hoje','Vencem hoje'],['sematu','Sem atualização >5d'],
   ['semresp','Sem responsável'],['semvenc','Sem vencimento'],['cliente','Aguardando cliente'],['risco','Risco alto/crítico']];
+// Memo do risco por render: o sort/filtro chamava gxRisco milhares de vezes para 500 tickets.
+// Zerado no início de renderGestao (os tickets mudam no lugar depois de uma ação).
+let _gxRiscoW=new WeakMap();
+function gxRiscoM(t,hoje){ let r=_gxRiscoW.get(t); if(!r||r.h!==hoje){ r={h:hoje, v:gxRisco(t,hoje)}; _gxRiscoW.set(t,r); } return r.v; }
 function gxLista(){
   const g=estado.gestao; const hoje=hojeSP(); let l=((g.dados&&g.dados.tickets)||[]).slice();
   if(Array.isArray(g.soKeys)&&g.soKeys.length){ const ks=new Set(g.soKeys); l=l.filter(t=>ks.has(t.k)); }
@@ -43,10 +47,10 @@ function gxLista(){
   else if(g.preset==='semresp') l=l.filter(t=>!t.respId);
   else if(g.preset==='semvenc') l=l.filter(t=>!t.venc);
   else if(g.preset==='cliente') l=l.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||''));
-  else if(g.preset==='risco') l=l.filter(t=>gxRisco(t,hoje).s>=45);
+  else if(g.preset==='risco') l=l.filter(t=>gxRiscoM(t,hoje).s>=45);
   if(g.semTrat) l=l.filter(t=>!(cfg.tratados||{})[t.k]);
   const ord=g.ord||'risco';
-  if(ord==='risco') l.sort((x,y)=>gxRisco(y,hoje).s-gxRisco(x,hoje).s);
+  if(ord==='risco') l.sort((x,y)=>gxRiscoM(y,hoje).s-gxRiscoM(x,hoje).s);
   else if(ord==='venc') l.sort((x,y)=>((x.venc||'9999-99-99').localeCompare(y.venc||'9999-99-99')));
   else if(ord==='atual') l.sort((x,y)=>((x.up||'').localeCompare(y.up||'')));
   return l;
@@ -139,7 +143,7 @@ function gxGrupoDe(t, hoje){
       if(t.venc<=somaDias(hoje,7)) return { k:'3-semana', rot:'próximos 7 dias' };
       return { k:'4-depois', rot:'depois de 7 dias' };
     }
-    case 'risco':{ const r=gxRisco(t,hoje); return { k:String(9-Math.floor(r.s/25))+'-'+r.rot, rot:`risco ${r.rot}` }; }
+    case 'risco':{ const r=gxRiscoM(t,hoje); return { k:String(9-Math.floor(r.s/25))+'-'+r.rot, rot:`risco ${r.rot}` }; }
     default: return null;
   }
 }
@@ -492,7 +496,7 @@ function gxExportaCSV(){
   if(!rows.length){ toast('Nada para exportar.','warn'); return; }
   const cab=['Ticket','Resumo','Projeto','Tipo','Status','Responsável','Vencimento','Atraso (dias)','Última atividade','Horas apontadas','Estimativa (h)','Prioridade','Risco','Tratado'];
   const cel=(v)=>{ v=String(v==null?'':v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
-  const li=rows.map(t=>{ const r=gxRisco(t,hoje);
+  const li=rows.map(t=>{ const r=gxRiscoM(t,hoje);
     return [t.k,t.resumo,t.p,t.t,t.status,t.resp||'',t.venc||'',gxAtrasoDias(t,hoje)||'',(t.up||'').slice(0,10),
       t.seg?Math.round(t.seg/36)/100:'', t.est?Math.round(t.est/36)/100:'', t.prio||'', r.rot,
       (cfg.tratados||{})[t.k]?'sim':''].map(cel).join(';'); });
@@ -640,6 +644,7 @@ async function gxAplicaEpico(p){
   }catch(e){ ctx.aplicando=false; if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } if(bt) bt.disabled=false; }
 }
 function renderGestao(){
+  _gxRiscoW=new WeakMap();   // risco recalculado por render (os tickets podem ter mudado no lugar)
   const cont=document.getElementById('conteudo');
   const g=estado.gestao;
   if(_gxfURL){ const f=gxfDecodifica(_gxfURL); _gxfURL='';   // link compartilhado (?gxf=…)
@@ -661,7 +666,7 @@ function renderGestao(){
   const chk=(t)=>`<input type="checkbox" class="gx-chk" data-k="${escA(t.k)}" ${g.sel[t.k]?'checked':''} aria-label="selecionar ${escA(t.k)}">`;
   const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener" title="Abrir no Jira">${esc(t.k)} ↗</a>`;
   const tratado=(t)=>((cfg.tratados||{})[t.k]?` <span class="gx-trat" title="Marcado como tratado no painel">✓ tratado</span>`:'');
-  const riscoBadge=(t)=>{ const r=gxRisco(t,hoje);
+  const riscoBadge=(t)=>{ const r=gxRiscoM(t,hoje);
     return `<span class="aloc-badge ${r.cls}" title="Score ${r.s}/100 — considera atraso, falta de atualização, prioridade, estouro de estimativa e ausência de responsável">${r.rot}</span>`; };
   const upTxt=(t)=>{ const d=gxDiasSemAtu(t,hoje); return d>=999?'—':(d===0?'hoje':`${d}d atrás`); };
   const acts=(t)=>`<span class="gx-acts">
