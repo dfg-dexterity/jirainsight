@@ -565,3 +565,33 @@ function aplicaChrome(){
   mostra('#btn-novidades', !!(c.per||c.exp));   // novidades só nas telas de análise
   try{ atualizaBotaoGuia(); }catch(e){}          // 🧭 guia da tela (botão flutuante)
 }
+
+// ---- Datas digitadas/coladas (dd/mm, dd/mm/aa, ISO, serial do Excel) — usadas pelos campos de data ----
+// ---- Copiar/colar datas (estilo Monday/Asana) — vale em QUALQUER campo de data ----
+// Ctrl/Cmd+C num campo de data copia a data; Ctrl/Cmd+V em outro cola e dispara o
+// mesmo fluxo de um ajuste manual (salva na hora, ex.: board de alocação).
+// Aceita 23/08/2026, 23/08/26, 23/08 (ano atual), 2026-08-23 e datas do Excel.
+function dataDeTexto(txt){
+  const s=String(txt||'').trim();
+  let m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return validaIso(`${m[1]}-${m[2]}-${m[3]}`);
+  m=s.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
+  if(!m) return '';
+  let d=+m[1], mo=+m[2];
+  if(mo>12 && d<=12){ const t=d; d=mo; mo=t; }        // veio como mm/dd (Excel en-US)
+  let ano=m[3] ? (m[3].length===2 ? 2000+ +m[3] : +m[3]) : +hojeSP().slice(0,4);
+  if(d<1||d>31||mo<1||mo>12||ano<1990||ano>2100) return '';
+  return validaIso(`${ano}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+}
+// Garante que a data existe de verdade (31/02 etc. viram '').
+function validaIso(iso){
+  try{ return new Date(iso+'T00:00:00Z').toISOString().slice(0,10)===iso ? iso : ''; }catch(e){ return ''; }
+}
+const dataBR=(iso)=> iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : '';
+// Todas as datas reconhecidas num texto (para colar um PERÍODO inteiro de uma vez).
+function datasDeTexto(txt){
+  const out=[]; const re=/\d{4}-\d{2}-\d{2}|\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?/g;
+  const s=String(txt||''); let m;
+  while((m=re.exec(s)) && out.length<4){ const iso=dataDeTexto(m[0]); if(iso) out.push(iso); }
+  return out;
+}

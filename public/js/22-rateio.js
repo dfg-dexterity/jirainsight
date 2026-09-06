@@ -261,3 +261,82 @@ function renderRateio(){
     if(ta){ ta.focus(); try{ ta.setSelectionRange(selS,selE); }catch(e){} } }
 }
 
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- ➗ Rateio: parsing ao vivo, modos, cálculo, execução e status em conjunto ----
+// Tickets VÁLIDOS da lista (fora os "não encontrados") — base do %, do status
+// em lote e dos preenchimentos automáticos.
+function rtValidos(){ const fora=new Set(estado.rateio.naoEnc||[]); return estado.rateio.tickets.filter(k=>!fora.has(k)); }
+// Percentuais iguais fechando em 100, SÓ nos tickets válidos.
+function rtPctIgual(){
+  const rt=estado.rateio; const ks=rtValidos(); if(!ks.length) return;
+  const q=Math.floor(10000/ks.length)/100;
+  ks.forEach((k,i)=>{ rt.pcts[k]=i?q:Math.round((100-q*(ks.length-1))*100)/100; });
+}
+let _rtDeb=null;
+document.getElementById('conteudo').addEventListener('input',(e)=>{
+  if(estado.vista!=='rateio') return;
+  const rt=estado.rateio; const t=e.target; if(!t||rt.executando) return;
+  if(t.id==='rt-texto'){ rt.texto=t.value;
+    const nn=rtParse(rt.texto).length;
+    const c=document.getElementById('rt-count');
+    if(c) c.textContent=`${nn} ticket(s) reconhecido(s)${nn>=100?' — limite de 100':''}`;
+    const bc=document.getElementById('rt-conferir'); if(bc) bc.disabled=!nn;
+    const bl=document.getElementById('rt-limpar'); if(bl) bl.disabled=false;
+    // Re-render "ao vivo" com debounce (o render preserva o foco da textarea):
+    // a tabela do passo 3 acompanha a lista sem esperar o blur.
+    clearTimeout(_rtDeb);
+    _rtDeb=setTimeout(()=>{ if(estado.vista==='rateio'&&!estado.rateio.executando
+      &&rtParse(estado.rateio.texto).join()!==estado.rateio.tickets.join()) renderRateio(); },400); }
+  else if(t.id==='rt-total'){ rt.total=t.value; rtAtualizaCalculo(); }
+  else if(t.id==='rt-coment'){ rt.coment=t.value; }
+  else if(t.hasAttribute&&t.hasAttribute('data-rt-pct')){ rt.pcts[t.getAttribute('data-rt-pct')]=t.value; rtAtualizaCalculo(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-rt-man')){ rt.mans[t.getAttribute('data-rt-man')]=t.value; rtAtualizaCalculo(); }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  if(estado.vista!=='rateio') return;
+  const rt=estado.rateio; const t=e.target; if(!t||rt.executando) return;
+  if(t.id==='rt-texto'){ rt.texto=t.value;
+    // Re-render só se a LISTA mudou — o change também dispara quando um outro
+    // render remove a textarea focada, e renderizar de novo ali quebra o DOM.
+    if(rtParse(rt.texto).join()!==rt.tickets.join()) renderRateio(); }
+  else if(t.id==='rt-data'){ rt.data=t.value||hojeSP(); rtAtualizaCalculo(); }
+});
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='rateio') return;
+  const rt=estado.rateio; const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(rt.executando) return;   // nada de mexer no rateio com apontamentos em voo
+  if(t.hasAttribute('data-rt-modo')){ const m=t.getAttribute('data-rt-modo');
+    // Primeira visita ao modo percentual: pré-preenche com a divisão igual (fecha em 100).
+    if(m==='pct'&&!rtValidos().some(k=>rt.pcts[k]!=null&&rt.pcts[k]!=='')) rtPctIgual();
+    rt.modo=m; renderRateio(); return; }
+  if(t.hasAttribute('data-rt-mais')||t.hasAttribute('data-rt-menos')){
+    const k=t.getAttribute('data-rt-mais')||t.getAttribute('data-rt-menos');
+    const cur=Math.max(0,Math.round(Number(rt.pesos[k]??1)||0));
+    rt.pesos[k]=Math.max(0,cur+(t.hasAttribute('data-rt-mais')?1:-1));
+    renderRateio(); return; }
+  if(t.hasAttribute('data-rt-rm')){ const k=t.getAttribute('data-rt-rm');
+    // Reescreve a lista a partir das chaves reconhecidas (evita apagar TAB-12 ao
+    // remover AB-12 — a chave pode ser sufixo de outra no texto livre).
+    rt.texto=rt.tickets.filter(x=>x!==k).join('\n');
+    renderRateio(); return; }
+  if(t.id==='rt-conferir'){ rtConfere(); return; }
+  if(t.id==='rt-limpar'||t.id==='rt-limpar2'){
+    Object.assign(estado.rateio,{ texto:'', tickets:[], info:{}, naoEnc:[], confErro:'',
+      total:'', coment:'', modo:'igual', pesos:{}, pcts:{}, mans:{}, executando:false, resultados:null });
+    renderRateio(); return; }
+  if(t.id==='rt-igualar'){ rtPctIgual(); renderRateio(); return; }
+  if(t.id==='rt-normalizar'){
+    const ks=rtValidos();
+    const pesos=ks.map(k=>Math.max(0,Number(String(rt.pcts[k]??'').replace(',','.'))||0));
+    const soma=pesos.reduce((s,p)=>s+p,0);
+    if(soma>0){
+      ks.forEach((k,i)=>{ rt.pcts[k]=Math.round(pesos[i]/soma*10000)/100; });
+      const st=ks.reduce((s,k)=>s+Number(rt.pcts[k]||0),0);
+      const dif=Math.round((100-st)*100)/100;
+      const k0=ks.find(k=>Number(rt.pcts[k])>0);
+      if(k0!=null) rt.pcts[k0]=Math.round((Number(rt.pcts[k0])+dif)*100)/100;
+    } else rtPctIgual();   // tudo vazio/zerado: normalizar vira a divisão igual
+    renderRateio(); return; }
+  if(t.id==='rt-apontar'||t.id==='rt-retry'){ rtExecuta(); return; }
+  if(t.id==='rt-status'){ const ks=rtValidos(); if(ks.length) abreModalStatusLote(ks); return; }
+});

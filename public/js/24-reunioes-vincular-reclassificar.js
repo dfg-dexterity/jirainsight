@@ -407,3 +407,78 @@ async function verificaMover(){
     rc.resultado=j; renderReclass();
   }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } }
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const rc=estado.reclass; const t=e.target; if(!t) return;
+  if(t.id==='rc-alvo'){ rc.alvo=t.value; renderReclass(); }
+  else if(t.id==='rc-all'){
+    let lista=(rc.dados&&rc.dados.tickets)||[];
+    if(rc.busca){ const q=rc.busca.toLowerCase(); lista=lista.filter(x=>(x.k+' '+x.resumo+' '+x.status).toLowerCase().includes(q)); }
+    lista.forEach(x=>{ if(t.checked) rc.sel[x.id]=true; else delete rc.sel[x.id]; });
+    renderReclass();
+  } else if(t.classList && t.classList.contains('rc-chk')){
+    const idv=t.getAttribute('data-id');
+    if(t.checked) rc.sel[idv]=true; else delete rc.sel[idv];
+    const n=Object.keys(rc.sel).filter(x=>rc.sel[x]).length;
+    const c=document.getElementById('rc-count'); if(c) c.textContent=n+' selecionado(s)';
+    const b=document.getElementById('rc-mover');
+    if(b){ b.disabled=!(n>0 && rc.alvo && idApontar()); b.textContent=`Mover ${n||''} para ${rc.alvo||'…'} →`; }
+    const ba=document.getElementById('rc-confirma-adm'); if(ba) ba.disabled=!(n>0 && idApontar());
+  }
+});
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='rc-busca'){
+    buscaComposta(e,(v)=>{ estado.reclass.busca=v; },renderReclass,'rc-busca');
+  }
+});
+// ---- Vincular Reuniões a AMS: lista + assistente (modal) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const v=e.target.closest&&e.target.closest('[data-rv-vinc]');
+  if(v){ abreRvWizard(v.getAttribute('data-rv-vinc')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const rv=estado.reuvinc;
+  if(t.id==='rv-retry'){ rv.erro=''; rv.dados=null; renderReuVinc(); }
+  else if(t.id==='rv-refresh'){ rv.dados=null; carregaReuVinc(true); }
+  // 🔁 Transferir OUTRO ticket (qualquer tipo) pelo número: mesmo assistente da
+  // Gestão (copia detalhes, vincula o esforço ao destino e EXCLUI o original).
+  else if(t.hasAttribute('data-rv-transf')){
+    const inp=document.getElementById('rv-transf-key');
+    const k=String((inp&&inp.value)||'').trim().toUpperCase();
+    if(!/^[A-Z][A-Z0-9]*-\d+$/.test(k)){ toast('Informe a chave do ticket (ex.: TAD-123).','warn'); if(inp) inp.focus(); return; }
+    if(!idApontar()){ abreIdentidade(); return; }
+    abreRvWizard(k, true); return; }
+});
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  const t=e.target; if(!t) return;
+  if(t.id==='rv-busca'){ estado.reuvinc.busca=t.value; renderReuVinc();
+    const nb=document.getElementById('rv-busca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const t=e.target; if(!t) return;
+  if(t.id==='rv-origem'){ const v=t.value.trim().toUpperCase();
+    if(/^[A-Z][A-Z0-9_]*$/.test(v)){ estado.reuvinc.origem=v; estado.reuvinc.dados=null; carregaReuVinc(false); } }
+});
+document.getElementById('modal-body').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t||!_rv) return;
+  if(t.id==='rv-modo-criar'){ _rv.modo='criar'; renderRvModal(); }
+  else if(t.id==='rv-modo-exist'){ _rv.modo='existente'; if(!_rv.abertos&&!_rv.carregandoAb) rvCarregaAbertos(); else renderRvModal(); }
+  else if(t.id==='rv-confirm'){ rvExecuta(); }
+  else if(t.id==='rv-cancelar'||t.id==='rv-fechar'){ _rv=null; fechaModal();
+    if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='gestao') renderGestao(); }
+});
+document.getElementById('modal-body').addEventListener('change', (e)=>{
+  const t=e.target; if(!t||!_rv) return;
+  if(t.id==='rv-proj'){ _rv.projeto=t.value; _rv.tipoId=rvTipoPadrao(rvProjetosDo().find(p=>p.key===t.value));
+    if(_rv.modo==='existente'){ _rv.ticket=''; rvCarregaAbertos(); } else renderRvModal(); }
+  else if(t.id==='rv-tipo'){ _rv.tipoId=t.value; }
+  else if(t.id==='rv-ticket'){ _rv.ticket=t.value; renderRvModal(); }
+  else if(t.id==='rv-resumo'){ _rv.resumo=t.value; renderRvModal(); }
+  else if(t.id==='rv-horas'){ _rv.horas=Math.max(0,Number(t.value)||0); renderRvModal(); }
+  else if(t.id==='rv-worklog'){ _rv.worklog=t.checked; renderRvModal(); }
+});
+document.getElementById('modal-body').addEventListener('input', (e)=>{
+  const t=e.target; if(!t||!_rv) return;
+  if(t.id==='rv-tbusca'){ _rv.tbusca=t.value; renderRvModal();
+    const nb=document.getElementById('rv-tbusca'); if(nb){ nb.focus(); nb.setSelectionRange(nb.value.length,nb.value.length); } }
+});

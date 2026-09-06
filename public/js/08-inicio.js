@@ -1449,3 +1449,22 @@ function cardNaoApontou(){
     <strong>${esc(ultimo)}</strong> (último dia útil): ${nomes}</div>`;
 }
 
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Ações de hoje: Ver casos → tela certa com o preset aplicado ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const g=e.target.closest&&e.target.closest('[data-ax-goto]');
+  if(g){ const k=g.getAttribute('data-ax-goto');
+    if(k==='meta'){ vaiPara('timesheet'); return; }
+    if(k==='fat'){ vaiPara('receita'); return; }
+    estado.gestao.preset={atras:'atrasados',sematu:'sematu',semresp:'semresp',cli:'cliente'}[k]||'';
+    vaiPara('gestao'); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='ax-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
+  else if(t.id==='ax-mes-retry'){ estado.acoes.mesErro=''; estado.acoes.mes=null; renderAcoes(); }
+});
+// ⏰ Vencidos por projeto: Enter/Espaço abrem a linha (mesma ação do clique)
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const r=e.target.closest&&e.target.closest('[data-vp-proj]');
+  if(r){ e.preventDefault(); r.click(); }
+});

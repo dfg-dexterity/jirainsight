@@ -1218,3 +1218,80 @@ async function enviaReuniaoGrupo(){
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); btn.disabled=false; }
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Tela Apontar: cliques (chips, KPIs-filtro, identidade, enviar) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  // Filtro de exibição: serve para os chips E para os cards de KPI do topo.
+  const fl=e.target.closest && e.target.closest('[data-ap-fil]');
+  if(fl){ escondeTip(); const v=fl.getAttribute('data-ap-fil'); estado.apontar.fil=v;
+    if(v==='semvenc' && !estado.apontar.semVenc) estado.apontar.semVenc=true;   // precisa carregar os sem-data
+    renderApontar(); estadoParaURL(); return; }
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ap-ate')){ estado.apontar.ate=t.getAttribute('data-ap-ate'); renderApontar(); estadoParaURL(); }
+  else if(t.hasAttribute('data-ap-chip')){ const row=t.closest('.ap-row');
+    const inp=row&&row.querySelector('.ap-tempo'); if(inp){ inp.value=t.getAttribute('data-ap-chip'); inp.focus(); } }
+  else if(t.hasAttribute('data-ap-key')){ fazApontamento(t); }
+  else if(t.hasAttribute('data-ap-st')){ escondeTip(); toggleTransicoes(t); }
+  else if(t.hasAttribute('data-ap-trans')){ escondeTip(); executaTransicao(t); }
+  else if(t.hasAttribute('data-ap-venc')){ escondeTip(); toggleReagendar(t); }
+  else if(t.hasAttribute('data-ap-reag')){ escondeTip(); executaReagendar(t); }
+  else if(t.hasAttribute('data-ap-resp')){ escondeTip(); toggleTransferir(t); }
+  else if(t.hasAttribute('data-ap-resp-do')){ executaTransferir(t); }
+  else if(t.hasAttribute('data-ap-coment')){ escondeTip(); toggleComentar(t); }
+  else if(t.hasAttribute('data-ap-conv')){ escondeTip(); abreConvidarApontar(t.getAttribute('data-ap-conv')); }
+  else if(t.id==='qk-criar'){ qkCria(); }
+  else if(t.id==='qk-mic'){ qkMic(); }
+  else if(t.id==='qk-siri'){ qkSiriModal(); }
+  else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
+  // ---- ⏱ Meu timesheet (grade × calendário, navegação de semana, recolher projeto) ----
+  else if(t.hasAttribute('data-mts-modo')){ mtsEstado().mtsModo=t.getAttribute('data-mts-modo'); escondeTip(); atualizaPainelHoras(); }
+  else if(t.hasAttribute('data-mts-nav')){ const ap=mtsEstado(); const n=+t.getAttribute('data-mts-nav');
+    ap.mtsSem=n===0?mtsSegunda(hojeSP()):mtsSoma(ap.mtsSem, n*7); escondeTip(); atualizaPainelHoras(); }
+  else if(t.hasAttribute('data-mts-proj')){ const ap=mtsEstado(); const p=t.getAttribute('data-mts-proj');
+    ap.mtsFech[p]=!ap.mtsFech[p]; escondeTip(); atualizaPainelHoras(); }
+  else if(t.hasAttribute('data-ap-mover')){ escondeTip(); toggleReclass(t); }
+  else if(t.hasAttribute('data-ap-mover-do')){ executaReclass(t); }
+  else if(t.hasAttribute('data-ap-projtoggle')){ escondeTip(); const pk=t.getAttribute('data-ap-projtoggle');
+    estado.apontar.recolhidos[pk]=!estado.apontar.recolhidos[pk]; renderApontar(); }
+  else if(t.hasAttribute('data-ap-vis')){ estado.apontar.vis=t.getAttribute('data-ap-vis'); renderApontar(); estadoParaURL(); }
+  else if(t.id==='ap-expandir'){ estado.apontar.recolhidos={}; renderApontar(); }
+  else if(t.id==='ap-recolher'){ const r={};
+    [...document.querySelectorAll('[data-ap-projtoggle]')].forEach(b=>{ r[b.getAttribute('data-ap-projtoggle')]=true; });
+    estado.apontar.recolhidos=r; renderApontar(); }
+  else if(t.getAttribute('data-ap-act')==='grupo'){ escondeTip(); abreReuniaoGrupo(''); }
+  else if(t.getAttribute('data-ap-act')==='rateio'){ escondeTip(); vaiPara('rateio'); }
+  else if(t.hasAttribute('data-ap-grupo')){ escondeTip(); abreReuniaoGrupo(t.getAttribute('data-ap-grupo')); }
+  else if(t.hasAttribute('data-ap-vinc')){ escondeTip(); abreRvWizard(t.getAttribute('data-ap-vinc')); }
+  else if(t.hasAttribute('data-cv-conf')){ respondeConvite(t,false); }
+  else if(t.hasAttribute('data-cv-rec')){ escondeTip(); respondeConvite(t,true); }
+  else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
+  else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
+  else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
+    estado.apontar.recentes=null;                       // recarrega também os recentes
+    carregaVenc(estado.apontar.ate,true)
+      .then(()=>{ if(estado.vista==='apontar') renderApontar(); })
+      .catch(()=>{ t.disabled=false; t.textContent='Atualizar lista'; }); }
+  else if(t.id==='ap-rec-toggle'){ estado.apontar.recFechado=!estado.apontar.recFechado; renderApontar(); }
+});
+// Fim da composição (acento confirmado): dispara o fluxo normal da busca.
+document.getElementById('conteudo').addEventListener('compositionend',(e)=>{
+  const id2=e.target&&e.target.id;
+  if(id2==='ap-busca'||id2==='gx-busca'||id2==='rc-busca'){
+    setTimeout(()=>{ if(e.target&&e.target.isConnected) e.target.dispatchEvent(new Event('input',{bubbles:true})); },0);
+  }
+});
+// Busca da tela Apontar (mantém o foco ao re-renderizar).
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='ap-busca'){
+    buscaComposta(e,(v)=>{ estado.apontar.busca=v; },renderApontar,'ap-busca');
+  }
+});
+// Enter no campo de tempo/comentário envia o apontamento da linha.
+document.getElementById('conteudo').addEventListener('keydown', (e)=>{
+  if(e.key!=='Enter'||!e.target.classList) return;
+  if(e.target.classList.contains('ap-tempo')||e.target.classList.contains('ap-coment')){
+    const row=e.target.closest('.ap-row'); const b=row&&row.querySelector('[data-ap-key]');
+    if(b){ e.preventDefault(); fazApontamento(b); }
+  }
+});

@@ -678,3 +678,87 @@ function renderReceita(){
       Os contratos <strong>AMS</strong> têm aba própria (<strong>AMS &amp; Governança</strong>). Cadastre contratos na aba <strong>⚙️ Admin</strong>.</div></div>`}
   </div>`));
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// Receita / AMS: navegação de ciclo + PDF da apuração por contrato.
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const nav=e.target.closest&&e.target.closest('[data-ams-nav]');
+  if(nav){ escondeTip(); const dir=nav.getAttribute('data-ams-nav');
+    const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
+    const rep=amsContratoSel(ams); const cm=amsCicloMeses((rep&&rep.apuracao)||'trimestral'); const ref=amsRefSel();
+    if(dir==='prev'){ const nr=amsShiftRef(ref,-1,cm);
+      // Não recua antes do 1º ciclo do contrato: trava o ref no início do ciclo atual.
+      if(rep && amsCicloVigente(rep,nr).start===amsCicloVigente(rep,ref).start) estado.ams.ref=amsCicloVigente(rep,ref).start;
+      else estado.ams.ref=nr; }
+    else if(dir==='next'){ const nr=amsShiftRef(ref,1,cm);
+      if(rep && amsCicloVigente(rep,nr).start>=amsCicloVigente(rep,hojeSP()).start) estado.ams.ref='';
+      else estado.ams.ref=nr; }
+    renderAMS(); return; }
+  const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
+  if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
+  const atz=e.target.closest&&e.target.closest('[data-ams-atualiza]');
+  if(atz){ escondeTip(); estado.ams.dados=null; estado.ams.range=''; estado.ams.forcar=true; renderAMS(); return; }
+  const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
+  if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
+  const mes=e.target.closest&&e.target.closest('[data-ams-mes]');
+  if(mes){ escondeTip(); const v=mes.getAttribute('data-ams-mes'); const i=v.indexOf('|'); amsDrillMes(v.slice(0,i), v.slice(i+1)); return; }
+  const rel=e.target.closest&&e.target.closest('[data-ams-rel]');
+  if(rel){ escondeTip(); amsDrillRel((estado.ams&&estado.ams.sel)||'', rel.getAttribute('data-ams-rel'), rel.getAttribute('data-ams-relv')); return; }
+  const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
+  if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
+  const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
+  if(fat){ escondeTip();
+    const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
+    const c=amsContratoSel(ams); if(!c) return;
+    // O status fica salvo para o time (Supabase); a gravação compartilhada exige login do Jira.
+    if(cfgShared && !idApontar()){ abreIdentidade(); return; }
+    const cyc=amsCicloVigente(c, amsRefSel());
+    // Chaves dos chamados do ciclo ANTES do re-render (que pode recarregar os dados).
+    const keys=amsChamadosCiclo(c,cyc).map(o=>o.k).filter(k=>/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(k));
+    c.faturados=c.faturados||{};
+    const marcar=!c.faturados[cyc.start];
+    if(marcar){ const id0=idApontar(); c.faturados[cyc.start]={ em:hojeSP(), por:(id0&&(id0.nome||id0.email))||'' }; }
+    else delete c.faturados[cyc.start];
+    salvaCfg(); renderAMS();
+    // Reflete NO JIRA: labels "faturado" + "ciclo-<início>" em todos os chamados do
+    // ciclo — adicionadas ao marcar, removidas ao desmarcar (com o token de quem marca).
+    const idJ=idApontar();
+    if(!idJ){ toast('Ciclo atualizado no painel — identifique-se (token do Jira) para gravar as labels nos tickets.','err'); return; }
+    if(!keys.length){ toast(`Ciclo ${marcar?'marcado como faturado':'desmarcado'} — nenhum chamado com chave para rotular no Jira.`,'ok'); return; }
+    const labels=['faturado', 'ciclo-'+cyc.start];
+    toast(`${marcar?'Gravando':'Removendo'} a marcação de faturado em ${keys.length} ticket(s) no Jira…`);
+    fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rotular:true, issues:keys, labels, remover:!marcar, email:idJ.email, token:idJ.token})})
+      .then(r=>r.json()).then(j=>{
+        if(j.ok){ toast(`✓ ${j.rotulados} ticket(s) ${marcar?'marcados como FATURADO':'desmarcados'} no Jira (labels ${labels.join(', ')}).`,'ok');
+          logAcao({acao:marcar?'ams-faturado':'ams-desfaturado', t:'', de:c.nome||c.id, para:`${j.rotulados} tickets · ciclo ${cyc.start}`, ok:true}); }
+        else toast(`⚠ Labels no Jira: ${j.rotulados||0} ok, ${((j.falhas||[]).length)||'?'} falha(s)${j.erro?' — '+j.erro:''}. O status do ciclo no painel foi salvo.`,'err');
+      }).catch(e=>toast('⚠ Falha ao gravar as labels no Jira: '+(e.message||e)+'. O status do ciclo no painel foi salvo.','err'));
+    return; }
+});
+// AMS: seletor de cliente (mostra um contrato por vez; volta ao ciclo vigente ao trocar).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderAMS(); }
+});
+// ---- Administração: cadastro de contratos ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ir-admin')){ vaiPara('admin'); return; }
+  if(t.id==='ad-salvar'){ salvaContrato(); }
+  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; renderAdmin(); }
+  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del');
+    cfg.contratos=(cfg.contratos||[]).filter(c=>c.id!==id); if(estado.admin.editId===id) estado.admin.editId=null; salvaCfg(); renderAdmin(); }
+  else if(t.hasAttribute('data-ad-portal')||t.hasAttribute('data-ad-portal-novo')){
+    const id=t.getAttribute('data-ad-portal')||t.getAttribute('data-ad-portal-novo');
+    const c=(cfg.contratos||[]).find(x=>x.id===id);
+    if(c){ c.portalToken='pt'+Date.now().toString(36)+Math.random().toString(36).slice(2,12); salvaCfg(); renderAdmin(); }
+  }
+  else if(t.hasAttribute('data-ad-portal-copy')){
+    const url=t.getAttribute('data-ad-portal-copy');
+    const done=()=>{ const o=t.textContent; t.textContent='copiado!'; setTimeout(()=>{ t.textContent=o; },1500); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(()=>{
+      const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }); }
+    else { const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }
+  }
+});

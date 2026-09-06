@@ -990,3 +990,381 @@ function renderAlocacao(){
   const _gt=cont.querySelector('.gt-scroll');
   if(_gt){ if(_gtSL!=null) _gt.scrollLeft=_gtSL; else { const tp=+(_gt.getAttribute('data-gt-target'))||0; if(tp>0) _gt.scrollLeft=Math.max(0, tp-140); } }
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Planejamento: editor do plano (CRUD do plano, fases e funções) ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-pl-novo],[data-pl-edit],[data-pl-voltar],[data-pl-func-add],[data-pl-func-del],[data-pl-fase-add],[data-pl-row-del],[data-pl-epicos],[data-pl-salvar],[data-pl-excluir],[data-pl-aba],[data-pl-pess-del],[data-pl-real],[data-pl-real-recarrega]');
+  if(!t) return;
+  const pl=estado.planejamento;
+  if(t.hasAttribute('data-pl-novo')){ pl.draft=planNovo(); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-edit')){ const p=(cfg.planos||[]).find(x=>x.id===t.getAttribute('data-pl-edit')); if(p){ pl.draft=JSON.parse(JSON.stringify(p)); renderPlanejamento(); } }
+  else if(t.hasAttribute('data-pl-voltar')){ planSyncDraft(); pl.draft=null; renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-func-add')){ planSyncDraft(); pl.draft.funcoes.push(planFunc('')); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-func-del')){ planSyncDraft(); const fid=t.getAttribute('data-pl-func-del');
+    pl.draft.funcoes=pl.draft.funcoes.filter(f=>f.id!==fid); pl.draft.fases.forEach(fa=>{ delete fa.aloc[fid]; }); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-fase-add')){ planSyncDraft(); pl.draft.fases.push(planFase({})); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-row-del')){ planSyncDraft(); pl.draft.fases.splice(+t.getAttribute('data-pl-row-del'),1); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-epicos')){ planPuxaEpicos(); }
+  else if(t.hasAttribute('data-pl-salvar')){ planSalva(); }
+  else if(t.hasAttribute('data-pl-excluir')){ const id=pl.draft&&pl.draft.id; cfg.planos=(cfg.planos||[]).filter(p=>p.id!==id); salvaCfg(); toast('Plano excluído.','ok'); pl.draft=null; renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-aba')){ planSyncDraft(); pl.aba=t.getAttribute('data-pl-aba'); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-pess-del')){ const p=t.getAttribute('data-pl-pess-del').split('|'); const arr=(pl.draft.pessoasPorFuncao||{})[p[0]]; if(arr) pl.draft.pessoasPorFuncao[p[0]]=arr.filter(a=>a!==p[1]); renderPlanejamento(); }
+  else if(t.hasAttribute('data-pl-real')){ planCarregaReal(pl.draft, false); }
+  else if(t.hasAttribute('data-pl-real-recarrega')){ planCarregaReal(pl.draft, true); }
+});
+// Ao mudar qualquer campo do editor: ressincroniza e re-renderiza (atualiza totais/dias úteis; tipo troca o layout).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const t=e.target;
+  if(t && t.matches && t.matches('[data-pl-pess-add]')){ const fid=t.getAttribute('data-pl-pess-add'); const a=t.value;
+    if(a && estado.planejamento.draft){ const d=estado.planejamento.draft; d.pessoasPorFuncao=d.pessoasPorFuncao||{}; d.pessoasPorFuncao[fid]=d.pessoasPorFuncao[fid]||[]; if(!d.pessoasPorFuncao[fid].includes(a)) d.pessoasPorFuncao[fid].push(a); renderPlanejamento(); } return; }
+  if(t && t.matches && t.matches('[data-pl-meta],[data-pl-func],[data-pl-f],[data-pl-aloc]')){ planSyncDraft(); if(estado.planejamento.draft) renderPlanejamento(); }
+});
+// ---- Alocação macro: editor de alocações pessoa × projeto ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest&&e.target.closest('[data-ab-del],[data-ab-dup],[data-ab-cpd],[data-gt-dup],[data-al-gran],[data-al-visao],[data-al-real],[data-al-flimpar],[data-al-skdel],[data-al-skprim],[data-al-relcsv],[data-al-relreal],[data-al-odoo],[data-al-travar],[data-al-aprovar],[data-al-recusar],[data-al-destravar],[data-al-semtravar],[data-al-semdestravar],[data-al-semtoggle],[data-al-semcsv],[data-al-semtk],[data-al-plaprova],[data-al-plrecusa],[data-pp-add],[data-pp-del],[data-gt-zoom],[data-gt-hoje],[data-sim-add],[data-sim-del],[data-sim-limpar],[data-sim-fromfind]'); if(!t) return;
+  if(t.hasAttribute('data-al-travar')){ const a=t.getAttribute('data-al-travar'); const id=idApontar()||{};
+    cfg.alocTravas=cfg.alocTravas||{};
+    cfg.alocTravas[a]={ status:'pendente', por:id.nome||id.email||'—', quando:new Date().toISOString() };
+    logAcao({acao:'alocacao-travar', t:(alocPessoas()[a]||{}).nome||a, para:'aguardando aprovação (Diego)', ok:true}, false);
+    salvaCfg(); toast('🔒 Alocações travadas e enviadas para a aprovação do Diego.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-aprovar')){ const a=t.getAttribute('data-al-aprovar'); const id=idApontar()||{};
+    if(!souAprovador()){ toast('Só o Diego (aprovador) pode aprovar.','warn'); return; }
+    const tv=(cfg.alocTravas||{})[a]; if(!tv) return;
+    tv.status='aprovado'; tv.aprovadoPor=id.nome||id.email||'Diego'; tv.quandoAprov=new Date().toISOString();
+    logAcao({acao:'alocacao-aprovar', t:(alocPessoas()[a]||{}).nome||a, para:'aprovado', ok:true}, false);
+    salvaCfg(); toast('✓ Alocação aprovada — segue travada até destravar.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-recusar')){ const a=t.getAttribute('data-al-recusar');
+    if(!souAprovador()){ toast('Só o Diego (aprovador) pode recusar.','warn'); return; }
+    delete (cfg.alocTravas||{})[a];
+    logAcao({acao:'alocacao-recusar', t:(alocPessoas()[a]||{}).nome||a, para:'recusado — liberado para edição', ok:true}, false);
+    salvaCfg(); toast('✕ Recusado — a alocação voltou a ficar editável.','warn'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-destravar')){ const a=t.getAttribute('data-al-destravar');
+    delete (cfg.alocTravas||{})[a];
+    logAcao({acao:'alocacao-destravar', t:(alocPessoas()[a]||{}).nome||a, para:'liberado para edição', ok:true}, false);
+    salvaCfg(); toast('🔓 Destravado — edição liberada.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-pp-add')){ ppLista().push(ppNova()); salvaCfg(); renderAlocacao();
+    setTimeout(()=>{ const ins=document.querySelectorAll('[data-pp-f^="nome|"]'); const ult=ins[ins.length-1]; if(ult) ult.focus(); },40);
+    return; }
+  if(t.hasAttribute('data-pp-del')){ const id=t.getAttribute('data-pp-del');
+    const nAl=alocRows().filter(a=>a.accountId===id).length;
+    estado.alocacao.rows=alocRows().filter(a=>a.accountId!==id);
+    cfg.alocacoes=JSON.parse(JSON.stringify(estado.alocacao.rows));
+    cfg.pessoasPlanejadas=ppLista().filter(p=>p.id!==id);
+    salvaCfg(); toast(nAl?`Vaga removida junto com ${nAl} alocação(ões).`:'Vaga removida.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-ab-del')){ const rid=t.getAttribute('data-ab-del'); const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
+    if(ix>=0){ if(alocTravaBloqueia(rs[ix].accountId)) return; rs.splice(ix,1); alocPersiste(); } renderAlocacao(); return; }
+  if(t.hasAttribute('data-ab-cpd')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-cpd'));
+    if(a){ const txt=(a.inicio?dataBR(a.inicio):'?')+' – '+(a.fim?dataBR(a.fim):'?');
+      const done=()=>{ try{ toast('📋 Período copiado: '+txt+' — Ctrl+V em um campo de data de outra linha preenche início E fim'); }catch(_){} };
+      try{ navigator.clipboard.writeText(txt).then(done,()=>{}); }
+      catch(_){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select();
+        try{ if(document.execCommand('copy')) done(); }catch(__){} ta.remove(); } }
+    return; }
+  if(t.hasAttribute('data-al-skdel')){ const v=t.getAttribute('data-al-skdel'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
+    alocSkillsSet(a, alocSkills(a).filter(x=>x!==s)); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-skprim')){ const v=t.getAttribute('data-al-skprim'); const i=v.indexOf('|'); const a=v.slice(0,i), s=v.slice(i+1);
+    alocSkillsSet(a, [s, ...alocSkills(a).filter(x=>x!==s)]); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-relcsv')){
+    const pess=alocPessoas(); const D=alocRelDados(alocFiltraRows(alocRows()), pess);
+    const gl={pessoa:'Pessoa',projeto:'Projeto',tipo:'Tipo',skill:'Função/Skill'}[D.grupo]||'Grupo';
+    const mr=D.temReal&&D.grupoRealOk;
+    const efi=(p,r)=>p?Math.round((r||0)/p*100)+'%':'';
+    const head=[gl, ...D.meses.map(labelMesAbbr), 'Total h', '%', ...(mr?['Realizado h','Eficiência']:[]), 'Custo R$'];
+    const rowsCsv=D.linhas.map(l=>[l.rot, ...D.meses.map(m=>l.meses[m]?Math.round(l.meses[m]*10)/10:''),
+      Math.round(l.h*10)/10, D.totH?Math.round(l.h/D.totH*100)+'%':'',
+      ...(mr?[Math.round((l.real||0)*10)/10, efi(l.h,l.real)]:[]), l.c?Math.round(l.c):'']);
+    rowsCsv.push(['Total', ...D.meses.map(m=>D.mesTot[m]?Math.round(D.mesTot[m]*10)/10:''), Math.round(D.totH*10)/10, D.totH?'100%':'',
+      ...(mr?[Math.round(D.realTot*10)/10, efi(D.totH,D.realTot)]:[]), D.totC?Math.round(D.totC):'']);
+    if(D.temReal){ rowsCsv.push([]); rowsCsv.push(['Semana','Planejado h','Realizado h','Eficiência']);
+      [...new Set([...D.wks, ...Object.keys(D.realSem)])].sort()
+        .filter(w=>(D.planSem[w]||0)>0||(D.realSem[w]||0)>0)
+        .forEach(w=>rowsCsv.push([fmtBR(w), Math.round((D.planSem[w]||0)*10)/10, Math.round((D.realSem[w]||0)*10)/10, efi(D.planSem[w],D.realSem[w])])); }
+    baixaCSV('relatorio_alocacao.csv',[head,...rowsCsv]);
+    return; }
+  if(t.hasAttribute('data-al-relreal')){
+    const R=estado.alocacao.rel=estado.alocacao.rel||{};
+    if(!R.ini||!R.fim){ toast('Defina o período do relatório primeiro.','warn'); return; }
+    const RR=estado.alocacao.relReal=estado.alocacao.relReal||{};
+    RR.carregando=true; RR.erro=''; RR.range=R.ini+'|'+R.fim; renderAlocacao();
+    fetch(`/api/tempo?desde=${encodeURIComponent(R.ini)}&ate=${encodeURIComponent(R.fim)}`).then(r=>r.json()).then(j=>{
+      RR.carregando=false;
+      if(j.erro){ RR.erro=humanizaErro(j.erro); RR.wl=null; } else RR.wl=j.worklogs||[];
+      if(estado.vista==='alocacao') renderAlocacao();
+    }).catch(e=>{ RR.carregando=false; RR.erro=humanizaErro(e); RR.wl=null; if(estado.vista==='alocacao') renderAlocacao(); });
+    return; }
+  if(t.hasAttribute('data-al-odoo')){
+    t.disabled=true; t.textContent='Importando…';
+    fetch('/api/usuarios?custos=1').then(r=>r.json()).then(j=>{
+      if(!j || j.configurado===false || j.erro){ toast((j&&j.erro)||'Odoo não configurado.','warn'); renderAlocacao(); return; }
+      const porEmail={}, porNome={};
+      (j.custos||[]).forEach(c=>{ if(c.custo>0){ if(c.email) porEmail[c.email]=c.custo; if(c.nome) porNome[c.nome.trim().toLowerCase()]=c.custo; } });
+      let ok=0; const sem=[];
+      cfg.custosPessoa=cfg.custosPessoa||{};
+      Object.entries(pessoasUnidas()).forEach(([a,p])=>{
+        if(RE_EXCLUIR.test((p&&p.nome)||'')) return;
+        const em=((p&&p.email)||'').toLowerCase(); const nomeN=((p&&p.nome)||'').trim().toLowerCase();
+        const c=(em&&porEmail[em]!=null)?porEmail[em]:(porNome[nomeN]!=null?porNome[nomeN]:null);
+        if(c!=null){ cfg.custosPessoa[a]=c; ok++; } else sem.push((p&&p.nome)||a);
+      });
+      if(ok) salvaCfg();
+      toast(ok?`✓ ${ok} custo(s) importado(s) do Odoo (campo ${j.campo||'hourly_cost'})${sem.length?` · sem correspondência: ${sem.slice(0,3).join(', ')}${sem.length>3?'…':''}`:''}`
+        :'Nenhum funcionário do Odoo casou com as pessoas do Jira (por e-mail/nome).', ok?'ok':'warn');
+      renderAlocacao();
+    }).catch(e=>{ toast('Erro ao consultar o Odoo: '+(e.message||e),'err'); renderAlocacao(); });
+    return; }
+  if(t.hasAttribute('data-ab-dup')||t.hasAttribute('data-gt-dup')){
+    const rid=t.getAttribute('data-ab-dup')||t.getAttribute('data-gt-dup');
+    const rs=alocRows(); const ix=rs.findIndex(r=>r.id===rid);
+    if(ix>=0){ const o=rs[ix]; if(alocTravaBloqueia(o.accountId)) return;
+      const c=JSON.parse(JSON.stringify(o)); c.id='al'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      // A cópia entra NA SEQUÊNCIA do período original — evita o conflito de sobreposição.
+      if(/^\d{4}-\d{2}-\d{2}$/.test(o.inicio)&&/^\d{4}-\d{2}-\d{2}$/.test(o.fim)){
+        const len=gtDiff(o.inicio,o.fim); c.inicio=gtAdd(o.fim,1); c.fim=gtAdd(c.inicio,len);
+      }
+      const cf=alocConflitoDe(rs.concat([c]), c);
+      if(cf){ alocAvisaConflito(cf); return; }
+      rs.splice(ix+1,0,c); alocPersiste(); toast('✓ Duplicada na sequência do período — ajuste as datas/% da cópia.','ok'); renderAlocacao(); }
+    return; }
+  if(t.hasAttribute('data-gt-hoje')){ const g=document.querySelector('.gt-scroll'); if(g){ const tp=+(g.getAttribute('data-gt-target'))||0; if(g.scrollTo) g.scrollTo({left:Math.max(0,tp-140),behavior:'smooth'}); else g.scrollLeft=Math.max(0,tp-140); } return; }
+  if(t.hasAttribute('data-gt-zoom')){ const d=t.getAttribute('data-gt-zoom')==='in'?4:-4; estado.alocacao.gz=Math.max(10,Math.min(44,gtZoom()+d)); alocUISave(); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-add')){ simSync(); simRows().push(simNova()); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-del')){ simSync(); simRows().splice(+t.getAttribute('data-sim-del'),1); renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-limpar')){ estado.alocacao.sim=[]; renderAlocacao(); return; }
+  if(t.hasAttribute('data-sim-fromfind')){ simSync(); simFindSync(); const f=estado.alocacao.find||{};
+    simRows().push(simNova({ accountId:t.getAttribute('data-sim-fromfind'), projeto:(f.rot||'Novo projeto'), inicio:f.ini||'', fim:f.fim||'', hSemana:Math.max(0,Number(f.h)||0) }));
+    toast('✓ Adicionado ao cenário.','ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-flimpar')){ estado.alocacao.fSkill=''; estado.alocacao.fProj=''; renderAlocacao(); return; }
+  // 📆 Semanas: travar (snapshot do planejado), destravar, abrir por pessoa e CSV.
+  if(t.hasAttribute('data-al-semtravar')){ const w=t.getAttribute('data-al-semtravar');
+    const rows=alocRows(); const id=idApontar();
+    const horas=alocSemHorasVivas(rows,w);
+    cfg.alocSemTravas=cfg.alocSemTravas||{};
+    cfg.alocSemTravas[semTravaKey(w)]={ quando:new Date().toISOString(), por:(id&&id.accountId)||'', porNome:(id&&id.email)||'', horas };
+    salvaCfg(); const s=isoSemana(w);
+    toast(`🔒 Semana S${s.num}/${s.ano} travada — planejado congelado.`,'ok'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semdestravar')){ const w=t.getAttribute('data-al-semdestravar');
+    const s=isoSemana(w);
+    if(!window.confirm(`Destravar a semana S${s.num}/${s.ano}? O planejado volta a seguir as alocações atuais.`)) return;
+    if(cfg.alocSemTravas) delete cfg.alocSemTravas[semTravaKey(w)];
+    salvaCfg(); toast('🔓 Semana destravada.','warn'); renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semtoggle')){ const w=t.getAttribute('data-al-semtoggle');
+    estado.alocacao.semAberta=estado.alocacao.semAberta||{};
+    estado.alocacao.semAberta[w]=!estado.alocacao.semAberta[w]; renderAlocacao(); return; }
+  if(t.hasAttribute('data-al-semcsv')){ const rows=alocRows();
+    const linhas=[['Semana','Inicio','Fim','AlocadoH','PlanoEquipeH','RealizadoH','Delta','Travada']];
+    const ids=new Set(rows.map(a=>a.accountId).filter(Boolean));
+    alocSemanas(rows).forEach(w=>{ const s=isoSemana(w);
+      const pl=alocSemPlanejado(rows,w); const planH=Object.values(pl.horas).reduce((x,h)=>x+h,0);
+      const pe=alocSemPlanoEquipe(w); let peH=0; Object.keys(pl.horas).forEach(a=>{ peH+=(pe[a]&&pe[a].h)||0; });
+      const rp=alocSemRealizado(w); let re=null;
+      if(rp){ re=0; Object.entries(rp).forEach(([a,h])=>{ if(ids.has(a)) re+=h; }); }
+      const f1=(v)=>String(Math.round(v*10)/10).replace('.',',');
+      linhas.push([`S${s.num}/${s.ano}`, w, somaDias(w,6), f1(planH), f1(peH), re==null?'':f1(re), re==null?'':f1(re-planH), pl.travada?'sim':'nao']);
+    });
+    baixaCSV('planejado-semanas', linhas); return; }
+  // ✔/✖ Decisão de plano semanal: agora vive no Meu Planejamento → Aprovações
+  // (o modelo antigo por tickets é somente leitura; a decisão usa o modelo novo).
+  if(t.hasAttribute('data-al-plaprova')||t.hasAttribute('data-al-plrecusa')){
+    estado.minhasemana.aba='aprovacoes';
+    vaiPara('minhasemana'); return; }
+  // 🔎 Plano × apontado por TICKET de uma pessoa numa semana (desvio no detalhe)
+  if(t.hasAttribute('data-al-semtk')){ const at=t.getAttribute('data-al-semtk');
+    const i=at.lastIndexOf('|'); const acc=at.slice(0,i); const w=at.slice(i+1); const wf=somaDias(w,6);
+    const s=isoSemana(w);
+    const pn=msPlanoDe(acc,w); const itens=(pn&&pn.itens)||[];
+    const wl=(estado.alocacao.real&&estado.alocacao.real.wl)||[];
+    const realTk={}; wl.forEach(x=>{ const d=(x.d||'').slice(0,10); if(x.a===acc&&x.k&&d>=w&&d<=wf) realTk[x.k]=(realTk[x.k]||0)+(Number(x.s)||0)/3600; });
+    const noPlano=new Set(itens.map(x=>x.k));
+    const fora=Object.entries(realTk).filter(([k])=>!noPlano.has(k)).sort((a,b)=>b[1]-a[1]);
+    const f=(h)=>alocH(h||0);
+    const linhasTk=itens.map(x=>{ const eff=msHorasItem(x,w); const re=realTk[x.k]||0; const dl=re-eff;
+      return `<tr><td><a href="${projJira(x.k)}" target="_blank" rel="noopener">${esc(x.k)}</a>${x.rot?' <span class="badge ms-b-rot" data-tip="Rotina diária (h/dia × dias úteis)">🔁</span>':''}</td><td class="num">${f(eff)}</td><td class="num">${f(re)}</td><td class="num" style="color:${dl>0.01?'#b45309':dl<-0.01?'#166534':'inherit'}">${dl>0?'+':''}${f(dl)}</td></tr>`; }).join('');
+    const linhasFora=fora.map(([k,h])=>`<tr><td><a href="${projJira(k)}" target="_blank" rel="noopener">${esc(k)}</a> <span class="badge ms-b-sem" data-tip="Apontou aqui, mas o ticket não estava no plano">fora do plano</span></td><td class="num">—</td><td class="num">${f(h)}</td><td class="num" style="color:#b45309">+${f(h)}</td></tr>`).join('');
+    abreModal(`<h2>🔎 ${esc((pn&&pn.nome)||acc)} — S${s.num}/${s.ano}</h2>
+      <div class="muted small">Plano (📋 Minha Semana) × apontado por ticket · ${esc(fmtBR(w))}–${esc(fmtBR(wf))}${pn&&pn.atualizadoEm?` · plano atualizado em ${esc(fmtBR((pn.atualizadoEm||'').slice(0,10)))}`:''}</div>
+      <div class="scroll-x" style="margin-top:8px"><table><thead><tr><th>Ticket</th><th class="num">Plano</th><th class="num">Apontado</th><th class="num">Δ</th></tr></thead>
+      <tbody>${linhasTk||''}${linhasFora||''}${(!linhasTk&&!linhasFora)?'<tr><td colspan="4" class="muted">Sem plano e sem apontamentos nesta semana.</td></tr>':''}</tbody></table></div>`);
+    return; }
+  if(t.hasAttribute('data-al-gran')){ estado.alocacao.gran=t.getAttribute('data-al-gran'); alocUISave(); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-visao')){ estado.alocacao.visao=t.getAttribute('data-al-visao'); alocUISave(); renderAlocacao(); }
+  else if(t.hasAttribute('data-al-real')){ alocCarregaReal(alocRows(), true); }
+});
+// Enter no campo "+ skill" adiciona a skill (o change cobre a escolha via datalist/blur).
+document.getElementById('conteudo').addEventListener('keydown', (e)=>{
+  const t=e.target; if(!t||!t.matches||!t.matches('.al-skadd')||e.key!=='Enter') return;
+  e.preventDefault();
+  const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
+  if(!a||!s) return;
+  const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+  alocSkillsSet(a, cur); t.value=''; alocRedraw();
+  setTimeout(()=>{ const nb=[...document.querySelectorAll('.al-skadd')].find(x=>x.getAttribute('data-al-skadd')===a); if(nb) nb.focus(); },40);
+});
+// Re-render ADIADO (fora do dispatch do change): trocar o DOM no meio do evento —
+// com o campo ainda focado — dispara blur/change reentrantes e quebra o replaceChildren.
+let _alocRedrawT=null;
+function alocRedraw(){ clearTimeout(_alocRedrawT); _alocRedrawT=setTimeout(()=>{ if(estado.vista==='alocacao') renderAlocacao(); },0); }
+document.getElementById('conteudo').addEventListener('change', (e)=>{ const t=e.target; if(!t||!t.matches) return;
+  if(t.matches('[data-al-fskill]')){ estado.alocacao.fSkill=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-fproj]')){ estado.alocacao.fProj=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-ordb]')){ estado.alocacao.ordB=t.value; alocUISave(); alocRedraw(); return; }
+  if(t.matches('[data-al-ptipo]')){ const k=t.getAttribute('data-al-ptipo'); cfg.projTipos=cfg.projTipos||{};
+    if(t.value) cfg.projTipos[k]=t.value; else delete cfg.projTipos[k];
+    salvaCfg(); alocRedraw(); return; }
+  if(t.matches('[data-pp-f]')){ const p=t.getAttribute('data-pp-f').split('|'); const pp=ppLista().find(x=>x.id===p[1]);
+    if(pp){ if(p[0]==='skills') pp.skills=t.value.split(',').map(x=>x.trim()).filter(Boolean);
+      else if(p[0]==='hSem'||p[0]==='custoH') pp[p[0]]=Math.max(0,Number(t.value)||0);
+      else pp[p[0]]=t.value;
+      salvaCfg(); } alocRedraw(); return; }
+  if(t.matches('[data-al-relg]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).grupo=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-relini]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).ini=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-relfim]')){ (estado.alocacao.rel=estado.alocacao.rel||{}).fim=t.value; alocRedraw(); return; }
+  if(t.matches('[data-al-custo]')){ const a=t.getAttribute('data-al-custo'); cfg.custosPessoa=cfg.custosPessoa||{};
+    const v=Math.max(0,Number(t.value)||0); if(v) cfg.custosPessoa[a]=v; else delete cfg.custosPessoa[a];
+    salvaCfg(); alocRedraw(); return; }
+  if(t.matches('.al-skadd')){ const a=t.getAttribute('data-al-skadd'); const s=(t.value||'').trim();
+    if(a&&s){ const cur=alocSkills(a); if(!cur.includes(s)) cur.push(s);
+      alocSkillsSet(a, cur); t.value=''; alocRedraw(); } return; }
+  if(t.matches('[data-sim-f]')){ simSync(); alocRedraw(); return; }
+  if(t.matches('[data-find-f]')){ simFindSync(); alocRedraw(); return; }
+  // Board por pessoa: campos referenciam a alocação por ID (um "change" tardio do DOM
+  // antigo, disparado durante o re-render, no máximo regrava o mesmo valor — nunca a linha errada).
+  if(t.matches('[data-ab-f]')){ const p=t.getAttribute('data-ab-f').split('|'); const a=alocRows().find(r=>r.id===p[1]);
+    if(a){
+      if(alocTravaBloqueia(a.accountId)){ alocRedraw(); return; }
+      const antigo=a[p[0]]; a[p[0]]=t.value;
+      if(p[0]==='accountId' && t.value && alocTravaBloqueia(t.value)){ a[p[0]]=antigo; alocRedraw(); return; }
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a[p[0]]=antigo; alocAvisaConflito(cf); alocRedraw(); return; }
+      alocPersiste();
+    } alocRedraw(); return; }
+  if(t.matches('[data-ab-pct]')){ const a=alocRows().find(r=>r.id===t.getAttribute('data-ab-pct'));
+    if(a){ if(alocTravaBloqueia(a.accountId)){ alocRedraw(); return; }
+      const pct=Math.max(0,Number(t.value)||0); a.hSemana=Math.round(pct/100*alocSemNomH(a.accountId)*2)/2; alocPersiste(); } alocRedraw(); return; }
+  if(t.matches('[data-ab-addpessproj]')){ const k=t.getAttribute('data-ab-addpessproj'); const pid=t.value; if(!pid||!k) return;
+    if(alocTravaBloqueia(pid)){ alocRedraw(); return; }
+    const ini=semChave(hojeSP());
+    const nova=Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) });
+    const cf=alocConflitoDe(alocRows().concat([nova]), nova);
+    if(cf){ alocAvisaConflito(cf); alocRedraw(); return; }
+    alocRows().push(nova);
+    alocPersiste(); alocRedraw(); return; }
+  if(t.matches('[data-ab-addproj]')){ const pid=t.getAttribute('data-ab-addproj'); const k=t.value; if(!pid||!k) return;
+    if(alocTravaBloqueia(pid)){ alocRedraw(); return; }
+    const ini=semChave(hojeSP());
+    const nova=Object.assign(alocNova(),{ accountId:pid, projeto:k, inicio:ini, fim:somaDias(ini,55), hSemana:Math.round(alocSemNomH(pid)*0.2) });
+    const cf=alocConflitoDe(alocRows().concat([nova]), nova);
+    if(cf){ alocAvisaConflito(cf); alocRedraw(); return; }
+    alocRows().push(nova);
+    estado.alocacao.pessNovas=(estado.alocacao.pessNovas||[]).filter(x=>x!==pid);
+    alocPersiste(); alocRedraw(); return; }
+  if(t.matches('[data-ab-pess]')){ const id=t.value; if(id && !(estado.alocacao.pessNovas||[]).includes(id)) estado.alocacao.pessNovas.push(id); alocRedraw(); return; } });
+// ---- Gantt de alocação: arrastar para mover · puxar bordas para redimensionar (salva ao soltar) ----
+let _gtDrag=null;
+document.getElementById('conteudo').addEventListener('pointerdown', (e)=>{
+  if(e.button!==undefined && e.button!==0) return;
+  if(e.target.closest&&e.target.closest('.gt-dup')) return;   // duplicar não é arrastar
+  const bar=e.target.closest&&e.target.closest('[data-gt-idx]'); if(!bar) return;
+  const h=e.target.closest('[data-gt-h]'); const mode=h?('resize-'+h.getAttribute('data-gt-h')):'move';
+  const rows=alocRows(); const idx=+bar.getAttribute('data-gt-idx'); const a=rows[idx]; if(!a) return;
+  _gtDrag={ idx, mode, x0:e.clientX, D:gtZoom(), ini:a.inicio, fim:a.fim, w0:parseFloat(bar.style.width)||0, bar, dd:0, moved:false, travada:alocTravada(a.accountId) };
+  bar.classList.add('dragging'); try{ bar.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+document.addEventListener('pointermove', (e)=>{ const g=_gtDrag; if(!g) return;
+  if(g.travada){ if(!g.avisou){ g.avisou=true; const a=alocRows()[g.idx]; if(a) alocTravaBloqueia(a.accountId); } return; }
+  const dd=Math.round((e.clientX-g.x0)/g.D); if(dd!==g.dd) g.moved=true; g.dd=dd; const b=g.bar;
+  if(g.mode==='move') b.style.transform=`translateX(${dd*g.D}px)`;
+  else if(g.mode==='resize-r') b.style.width=Math.max(g.D, g.w0+dd*g.D)+'px';
+  else if(g.mode==='resize-l'){ const nd=Math.min(dd, (g.w0/g.D)-1); b.style.transform=`translateX(${nd*g.D}px)`; b.style.width=Math.max(g.D, g.w0-nd*g.D)+'px'; }
+  const nx=gtDatas(g.mode, g.ini, g.fim, dd); const inf=document.getElementById('gtInfo'); if(inf) inf.textContent=`${fmtBR(nx.ini)} – ${fmtBR(nx.fim)}`;
+});
+document.addEventListener('pointerup', (e)=>{ const g=_gtDrag; if(!g) return; _gtDrag=null;
+  g.bar.classList.remove('dragging');
+  if(g.moved && g.dd!==0){ const a=alocRows()[g.idx];
+    if(a){
+      if(alocTravaBloqueia(a.accountId)){ renderAlocacao(); return; }
+      const nx=gtDatas(g.mode, g.ini, g.fim, g.dd); const antigo={i:a.inicio,f:a.fim};
+      a.inicio=nx.ini; a.fim=nx.fim;
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); }
+      else { alocPersiste(); toast('✓ Alocação atualizada e salva.','ok'); }
+    }
+    renderAlocacao();
+  } else {
+    g.bar.style.transform=''; const inf=document.getElementById('gtInfo'); if(inf) inf.textContent='';
+    // Clique sem arrastar: abre os detalhes do projeto daquela barra.
+    if(!g.moved){ const a=alocRows()[g.idx]; if(a) abreGtInfo(a); }
+  }
+});
+// Painel ao CLICAR numa barra do Gantt: o projeto (nome, tipo herdado), a alocação
+// clicada e o resumo do projeto no plano (equipe, horas e custo previsto).
+function abreGtInfo(al){
+  const pess=alocPessoas(); const nm=(id)=>(pess[id]&&pess[id].nome)||id;
+  const k=al.projeto||'—';
+  const pj=(_projetosCache||[]).find(p=>p.key===k);
+  const tipo=alocTipoDe(al); const tipoL=((ALOC_TIPOS.find(([t])=>t===tipo))||[tipo,tipo])[1];
+  const rows=alocRows().filter(x=>x.projeto===k && /^\d{4}-\d{2}-\d{2}$/.test(x.inicio) && /^\d{4}-\d{2}-\d{2}$/.test(x.fim));
+  const per=alocPeriodo(rows);
+  const semanas=rows.length?alocSemanas(rows).filter(w=>!per.fim||w<=semChave(per.fim)):[];
+  let plan=0, custo=0, semCusto=false;
+  semanas.forEach(w=>{ const wf=somaDias(w,6); rows.forEach(x=>{ if(x.inicio<=wf&&x.fim>=w){
+    const h=Number(x.hSemana)||0; plan+=h; const c=alocCustoH(x.accountId);
+    if(c>0) custo+=h*c; else if(x.accountId) semCusto=true; } }); });
+  const equipe=rows.slice().sort((x,y)=>nm(x.accountId).localeCompare(nm(y.accountId),'pt')).map(x=>`
+    <tr${x.id===al.id?' style="font-weight:700"':''}><td>${esc(nm(x.accountId))}${x.id===al.id?' ◄':''}</td><td>${esc(x.funcao||'—')}</td>
+      <td>${esc(fmtBR(x.inicio))} – ${esc(fmtBR(x.fim))}</td>
+      <td class="num">${alocH(Number(x.hSemana)||0)}/sem · ${alocPctDe(x.accountId,x.hSemana)}%</td></tr>`).join('');
+  let url=''; try{ url=`${jiraBase()}/projects/${encodeURIComponent(k)}`; }catch(_){}
+  abreModal(`
+    <h2><i class="gt-dot gtc${gtCor(k)}"></i> ${esc(k)}${pj&&pj.nome?(' — '+esc(pj.nome)):''} <span>projeto na alocação</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 4px">
+      <span class="ab-tdot t-${escA(tipo)}"></span><strong>${esc(tipoL)}</strong>
+      <span class="muted small">(tipo do projeto — aba Projetos)</span>
+      ${url&&k!=='—'?`<span class="spacer"></span><a href="${escA(url)}" target="_blank" rel="noopener">abrir no Jira ↗</a>`:''}
+    </div>
+    <div class="pl-destino" style="margin:10px 0"><strong>Alocação clicada:</strong>
+      ${esc(nm(al.accountId))}${al.funcao?` · ${esc(al.funcao)}`:''} ·
+      ${esc(fmtBR(al.inicio))} – ${esc(fmtBR(al.fim))} · <strong>${alocH(Number(al.hSemana)||0)}/sem</strong>
+      <span class="muted">(${alocPctDe(al.accountId,al.hSemana)}% da capacidade da pessoa)</span></div>
+    <div class="muted small" style="font-weight:600;margin:12px 0 4px">Equipe do projeto
+      <span class="muted" style="font-weight:400">(${rows.length} alocação(ões)${per.ini?` · ${esc(fmtBR(per.ini))} – ${esc(fmtBR(per.fim))}`:''})</span></div>
+    <div class="pl-wrap"><table class="pl-tab"><thead><tr><th>Pessoa</th><th>Função</th><th>Período</th><th class="num">Alocação</th></tr></thead>
+      <tbody>${equipe||'<tr><td colspan="4" class="muted small">—</td></tr>'}</tbody></table></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+      <span><strong>${alocH(plan)}</strong> <span class="muted small">planejadas no horizonte do projeto</span></span>
+      ${custo>0?`<span><strong>R$ ${Math.round(custo).toLocaleString('pt-BR')}</strong> <span class="muted small">custo previsto${semCusto?' (parcial — há gente sem custo/h)':''}</span></span>`:''}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn primario" data-gtinfo-filtrar="${escA(k)}">🔎 Filtrar este projeto na tela</button>
+      <button class="btn" id="gtinfo-fechar">Fechar</button>
+    </div>`);
+}
+document.addEventListener('paste', (e)=>{
+  const t=(e.target&&e.target.tagName==='INPUT')?e.target:document.activeElement;
+  if(!t||t.tagName!=='INPUT'||t.type!=='date'||t.disabled||t.readOnly) return;
+  const txt=(e.clipboardData&&e.clipboardData.getData)?e.clipboardData.getData('text'):'';
+  e.preventDefault();
+  const todas=datasDeTexto(txt);
+  // Período completo ("29/06/2026 – 23/08/2026") colado num campo do board de alocação:
+  // preenche início E fim da linha de uma vez (e salva, como uma edição manual).
+  if(todas.length>=2 && t.hasAttribute('data-ab-f')){
+    const id=t.getAttribute('data-ab-f').split('|')[1];
+    const a=(typeof alocRows==='function')?alocRows().find(r=>r.id===id):null;
+    if(a){
+      if(alocTravaBloqueia(a.accountId)) return;
+      const par=todas.slice(0,2).sort(); const antigo={i:a.inicio,f:a.fim};
+      a.inicio=par[0]; a.fim=par[1];
+      const cf=alocConflitoDe(alocRows(), a);
+      if(cf){ a.inicio=antigo.i; a.fim=antigo.f; alocAvisaConflito(cf); return; }
+      alocPersiste(); alocRedraw();
+      try{ toast('📋 Período '+dataBR(par[0])+' – '+dataBR(par[1])+' colado'); }catch(_){}
+      return; }
+  }
+  const iso=todas[0]||'';
+  if(!iso){ try{ toast('Não entendi a data colada — use 23/08/2026 ou 2026-08-23.','warn'); }catch(_){} return; }
+  if(t.value===iso) return;
+  t.value=iso;
+  t.dispatchEvent(new Event('change',{bubbles:true}));
+  try{ toast('📋 '+dataBR(iso)+' colada'); }catch(_){}
+});

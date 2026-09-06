@@ -835,3 +835,77 @@ function renderGestao(){
     </div></div>`));
   estadoParaURL();   // filtros da Gestão viram parâmetros na URL — copiar o endereço já compartilha a visão
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Gestão de Tickets: filtros, seleção e ações em massa ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const act=e.target.closest&&e.target.closest('[data-gx-act]');
+  if(act){ const keys=gxSelKeys(); const a=act.getAttribute('data-gx-act');
+    if(a==='atribuir') abreModalAtribuir(keys);
+    else if(a==='reprog') abreModalReprog(keys,'HOJE');
+    else if(a==='comentar') abreModalComentarLote(keys);
+    else if(a==='status') abreModalStatusLote(keys);
+    else if(a==='rateio'&&keys.length){ const rt=estado.rateio;
+      rt.texto=keys.join('\n'); rt.resultados=null; vaiPara('rateio'); rtConfere(); }
+    else if(a==='transformar'&&keys.length){
+      if(keys.length>1) toast(`Transformar leva UM chamado por vez — usando ${keys[0]}.`,'warn');
+      abreTransformar(keys[0]); }
+    else if(a==='excluir') abreModalExcluirLote(keys);
+    return; }
+  const card=e.target.closest&&e.target.closest('[data-gx-card]');
+  if(card && !e.target.closest('a') && !e.target.closest('input') && !e.target.closest('button')){
+    const g0=estado.gestao; const k=card.getAttribute('data-gx-card');
+    if(g0.sel[k]) delete g0.sel[k]; else g0.sel[k]=true; renderGestao(); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const g=estado.gestao;
+  if(t.hasAttribute&&t.hasAttribute('data-gx-vis')){ g.vis=t.getAttribute('data-gx-vis'); renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-preset')){ const v=t.getAttribute('data-gx-preset');
+    g.preset=(g.preset===v?'':v); renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-r')){ const [k,acao]=t.getAttribute('data-gx-r').split('|');
+    abreModalReprog([k], acao==='DATA'?'HOJE':acao); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-conv')){ abreConvidarApontar(t.getAttribute('data-gx-conv')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-salvar')){ abreModalFiltroSalvar(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-gerir')){ abreModalFiltrosGerir(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-linkatual')){ gxfCopiaLinkAtual(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gxf-apl')){ const f=gxfLista().find(x=>x.id===t.getAttribute('data-gxf-apl'));
+    if(f){ gxfAplica(f); toast(`⭐ Filtro "${f.nome}" aplicado.`,'ok'); } return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-grp-sel')){
+    t.getAttribute('data-gx-grp-sel').split(',').forEach(k=>{ if(k) g.sel[k]=true; });
+    renderGestao(); toast('Grupo selecionado — use as ações em massa.','ok'); return; }
+  if(t.id==='gx-tratar'){ const ks=gxSelKeys(); if(!ks.length) return;
+    cfg.tratados=cfg.tratados||{}; const quem=(idApontar()||{}).nome||'';
+    const desmarca=ks.every(k=>cfg.tratados[k]);
+    ks.forEach(k=>{ if(desmarca){ delete cfg.tratados[k]; } else { cfg.tratados[k]={q:hojeSP(),u:quem};
+      logAcao({acao:'tratado',t:k,ok:true},false); } });
+    salvaCfg(); toast(desmarca?'Marcação de tratado removida.':`✓ ${ks.length} ticket(s) marcados como tratados.`,'ok');
+    renderGestao(); return; }
+  if(t.id==='gx-csv-sel'){ gxExportaCSV(); return; }
+  if(t.id==='gx-dup'){ if(g.dados) abreModalDuplicados(); return; }
+  if(t.id==='gx-epicos'){ if(g.dados) abreModalEpicos(); return; }
+  if(t.id==='gx-retry'){ g.erro=''; g.dados=null; renderGestao(); }
+  else if(t.id==='gx-refresh'){ g.dados=null; carregaGestao(true); }
+  else if(t.id==='gx-limpar'){ g.sel={}; renderGestao(); }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const g=estado.gestao; const t=e.target; if(!t) return;
+  if(t.id==='gx-ate'){ g.ate=t.value; g.dados=null; carregaGestao(false); }
+  else if(t.id==='gx-fproj'){ g.fProj=t.value; renderGestao(); }
+  else if(t.id==='gx-fresp'){ g.fResp=t.value; renderGestao(); }
+  else if(t.id==='gx-fstatus'){ g.fStatus=t.value; renderGestao(); }
+  else if(t.id==='gx-ord'){ g.ord=t.value; renderGestao(); }
+  else if(t.id==='gx-agrupar'){ g.agrupar=t.value; renderGestao(); }
+  else if(t.id==='gx-semtrat'){ g.semTrat=t.checked; renderGestao(); }
+  else if(t.id==='gx-all'){ const l=gxLista(); l.forEach(x=>{ if(t.checked) g.sel[x.k]=true; else delete g.sel[x.k]; }); renderGestao(); }
+  else if(t.classList&&t.classList.contains('gx-chk')){ const k=t.getAttribute('data-k');
+    if(t.checked) g.sel[k]=true; else delete g.sel[k]; renderGestao(); }
+});
+document.getElementById('conteudo').addEventListener('input',(e)=>{
+  if(e.target&&e.target.id==='gx-busca'){ buscaComposta(e,(v)=>{ estado.gestao.busca=v; },renderGestao,'gx-busca'); }
+});

@@ -612,3 +612,14 @@ function renderRanking(){
   rkContaPct();
 }
 
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- 🏦 Controladoria: período, categoria, blocos por categoria e drill ----
+// 🏅 Scoreboard — data de início do placar (gestores; vale para o time)
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||t.id!=='sc-inicio') return;
+  cfg.scoreInicio=/^\d{4}-\d{2}-\d{2}$/.test(t.value||'')?t.value:'';
+  salvaCfg();
+  toast(cfg.scoreInicio?`📆 Placar valendo a partir de ${fmtBR(cfg.scoreInicio)} — dias anteriores saem do jogo.`
+    :'📆 Início do placar removido — todo o histórico guardado volta a contar.','ok');
+  renderRanking();
+});

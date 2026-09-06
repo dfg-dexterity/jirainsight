@@ -1408,3 +1408,146 @@ function confirmaImportacao(){
   fechaModal();
   renderPlanejar();
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Tela Planejar: cliques e edições ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const t=e.target.closest('button'); if(!t) return;
+  const pl=estado.planejar;
+  if(t.hasAttribute('data-pl-modo')){ pl.modo=t.getAttribute('data-pl-modo'); pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.hasAttribute('data-pl-hist')){ const k=t.getAttribute('data-pl-hist');
+    pl.historiaKey=(pl.historiaKey===k?'':k); ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-tentar'){ pl.projetosErro=''; renderPlanejar(); }
+  else if(t.id==='pl-validar'){
+    const fb=document.getElementById('pl-fb');
+    const mostra=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
+    if(!pl.projeto) return mostra('Escolha o projeto.');
+    if(!pl.tipoId) return mostra('Escolha o tipo de ticket.');
+    const itens=montaItens();
+    if(!itens.length) return mostra('Digite pelo menos um ticket (uma linha por ticket).');
+    if(itens.length>100) return mostra(`São ${itens.length} linhas — o máximo é 100 por lote.`);
+    pl.itens=itens; renderPlanejar();
+  }
+  else if(t.id==='pl-importar'){
+    const fb=document.getElementById('pl-fb');
+    if(!pl.projeto||!pl.tipoId){ if(fb){ fb.hidden=false; fb.className='ap-fb err';
+      fb.textContent='Escolha o projeto e o tipo de ticket antes de colar a planilha.'; } return; }
+    abreImportar();
+  }
+  else if(t.id==='pl-modelo'){ baixaModeloPlanejar(); }
+  else if(t.id==='pl-voltar'){ pl.itens=null; renderPlanejar(); }
+  else if(t.id==='pl-criar'){ criaLote(); }
+  else if(t.hasAttribute('data-pl-del')){ pl.itens.splice(Number(t.getAttribute('data-pl-del')),1);
+    if(!pl.itens.length) pl.itens=null; renderPlanejar(); }
+  else if(t.id==='pl-novo'){ pl.resultados=null; pl.grade=null; pl.texto=''; pl.textoEstr=''; renderPlanejar(); }
+  // ---- 📐 Colar estrutura ----
+  else if(t.id==='pl-estr-validar'){
+    const fb=document.getElementById('pl-fb');
+    const mostra=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
+    if(!pl.projeto) return mostra('Escolha o projeto.');
+    const its=parseEstrutura(pl.textoEstr);
+    if(!its.length) return mostra('Cole a estrutura (uma linha por item: nível + título).');
+    if(its.length>100) return mostra(`São ${its.length} itens — o máximo é 100 por lote.`);
+    pl.estru=its; renderPlanejar();
+  }
+  else if(t.id==='pl-estr-voltar'){ pl.estru=null; renderPlanejar(); }
+  else if(t.id==='pl-estr-criar'){ criaEstrutura(); }
+  else if(t.hasAttribute('data-pl-estr-del')){ estruRemove(Number(t.getAttribute('data-pl-estr-del'))); renderPlanejar(); }
+  // ---- Grade pós-criação (edição em massa) ----
+  else if(t.id==='pl-g-apl-resp'){
+    const v=(document.getElementById('pl-g-bresp')||{}).value||'';
+    if(!v) return;
+    (pl.grade||[]).forEach(x=>{ if(x.sel){ x.respId=(v==='__rem'?'':v); x.st=''; } });
+    renderPlanejar();
+  }
+  else if(t.id==='pl-g-apl-venc'){
+    const v=(document.getElementById('pl-g-bvenc')||{}).value||'';
+    (pl.grade||[]).forEach(x=>{ if(x.sel){ x.venc=v; x.st=''; } });
+    renderPlanejar();
+  }
+  else if(t.id==='pl-g-salvar'){ salvaGrade(); }
+  else if(t.id==='pl-tpl-salvar'){ abreSalvarTemplatePl(); }
+  else if(t.id==='pl-tpl-del'){ excluiTemplatePl(); }
+  else if(t.hasAttribute('data-arv-op')){ const a=arvEstado(); const no=ARV_NOS[a.no];
+    const o=no&&no.op&&no.op[+t.getAttribute('data-arv-op')];
+    if(o){ a.hist.push({id:a.no,label:o.label}); a.no=o.next; a.erro='';
+      if(o.set) Object.assign(a.form, o.set);   // a opção pode gravar campos (ex.: frequência da rotina)
+      // ENTRAR numa folha reaplica as sugestões DELA (senão, ao voltar e escolher
+      // outro departamento/contexto, projeto/departamento antigos ficavam grudados).
+      const prox=ARV_NOS[o.next];
+      if(prox && prox.result && (prox.cria||prox.planejados)){
+        const ps=(_projetosCache||[]);
+        let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
+        const fixo=prox.filtro==='avulsa'?'TAD':(prox.soProjeto||'');
+        if(fixo){ const px=ps.find(p=>p.key===fixo)||sug[0]; sug=px?[px]:[]; }
+        // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
+        a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
+        a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId='';
+        a.form.depto=prox.depto||(prox.filtro==='avulsa'?'':a.form.depto);
+      }
+      arvRender(); } }
+  else if(t.hasAttribute('data-arv-proj')){ const a=arvEstado();
+    a.form.projeto=t.getAttribute('data-arv-proj')||''; a.form.tipoId=''; a.erro=''; arvRender(); }
+  else if(t.hasAttribute('data-arv-trocaproj')){ const a=arvEstado();
+    a.form.projeto=''; a.form.tipoId=''; a.erro=''; arvRender(); }
+  else if(t.hasAttribute('data-arv-voltar')){ const a=arvEstado();
+    const ant=a.hist.pop(); a.no=ant?ant.id:'start'; a.erro=''; a.feito=null; arvRender(); }
+  else if(t.hasAttribute('data-arv-bc')){ const a=arvEstado(); const i=+t.getAttribute('data-arv-bc');
+    if(i<0){ a.no='start'; a.hist=[]; } else if(a.hist[i]){ a.no=a.hist[i].id; a.hist=a.hist.slice(0,i); }
+    a.erro=''; a.feito=null; arvRender(); }
+  else if(t.hasAttribute('data-arv-reiniciar')){ estado.planejar.arv=null; arvEstado(); arvRender(); }
+  else if(t.hasAttribute('data-arv-criar')){ arvCria(); }
+  else if(t.hasAttribute('data-arv-aus')){ abreAusencia(t.getAttribute('data-arv-aus')); }
+});
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const pl=estado.planejar; const t=e.target; if(!t||!t.id&&!t.className) return;
+  if(t.id==='pl-projeto'){ pl.projeto=t.value; pl.epicoKey=''; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-tipo'){ pl.tipoId=t.value; }
+  else if(t.id==='pl-resp'){ pl.respId=t.value; }
+  else if(t.id==='pl-est'){ pl.est=t.value; }
+  else if(t.id==='pl-labels'){ pl.labels=t.value; }
+  else if(t.id==='pl-venc'){ pl.venc=t.value; }
+  else if(t.id==='pl-tpl'){ aplicaTemplatePl(t.value); }
+  else if(t.hasAttribute&&t.hasAttribute('data-arv-f')){ const a=arvEstado(); const c=t.getAttribute('data-arv-f');
+    a.form[c]=t.value;
+    if(c==='projeto'){ a.form.tipoId=''; a.form.epicoKey=''; a.form.amsConsId=''; a.form.amsCliId=''; arvRender(); }
+    else if(c==='amsConsId'){ a.form.amsCliId=''; arvRender(); } }
+  else if(t.id==='pl-epico'){ pl.epicoKey=t.value; pl.historiaKey=''; ajustaTipo(); renderPlanejar(); }
+  else if(t.id==='pl-historia'){ pl.historiaKey=t.value; ajustaTipo(); renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-resumo')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]){ pl.itens[i].resumo=t.value; renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-desc')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].descricao=t.value; }
+  else if(t.classList&&t.classList.contains('pl-tipo-row')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].tipoId=t.value; }
+  else if(t.classList&&t.classList.contains('pl-resp-row')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.itens&&pl.itens[i]) pl.itens[i].respId=t.value; }
+  // ---- 📐 Colar estrutura + grade de edição em massa ----
+  else if(t.hasAttribute&&t.hasAttribute('data-pl-slot')){ pl.tiposSlot[t.getAttribute('data-pl-slot')]=t.value; renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-estr-tit')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.estru&&pl.estru[i]){ const it=pl.estru[i]; it.titulo=t.value.trim();
+      if(it.nivel>0){ it.erro=!it.titulo?'Título vazio.':(it.titulo.length>255?`Título com ${it.titulo.length} caracteres (máx. 255).`:''); }
+      renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-g-sel')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].sel=t.checked; renderPlanejar(); } }
+  else if(t.id==='pl-g-all'){ const v=t.checked; (pl.grade||[]).forEach(x=>{ x.sel=v; }); renderPlanejar(); }
+  else if(t.classList&&t.classList.contains('pl-g-resp')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].respId=t.value; pl.grade[i].st=''; renderPlanejar(); } }
+  else if(t.classList&&t.classList.contains('pl-g-venc')){ const i=+t.getAttribute('data-pl-i');
+    if(pl.grade&&pl.grade[i]){ pl.grade[i].venc=t.value; pl.grade[i].st=''; renderPlanejar(); } }
+  else if(t.id==='pl-g-bresp'){ pl.gbResp=t.value; }
+  else if(t.id==='pl-g-bvenc'){ pl.gbVenc=t.value; }
+});
+// O texto do lote não re-renderiza a cada tecla — só guarda e atualiza o contador.
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  if(e.target && e.target.id==='pl-texto'){
+    estado.planejar.texto=e.target.value;
+    const c=document.getElementById('pl-contador');
+    if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
+  }
+  if(e.target && e.target.id==='pl-texto-estr'){
+    estado.planejar.textoEstr=e.target.value;
+    const c=document.getElementById('pl-estr-cont');
+    if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
+  }
+});

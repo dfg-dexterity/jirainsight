@@ -590,3 +590,42 @@ function ctAbreTickets(qs){
       <button class="btn" data-ct-rateio="${escA(keys.slice(0,100).join(','))}">➗ Enviar para o Rateio${keys.length>100?` (100 de ${keys.length})`:''}</button>`:''}
       <button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  const ct=estado.ctrl; const t=e.target; if(!t) return;
+  if(t.id==='ct-de'){ if(t.value) ct.de=t.value; renderControladoria(); }
+  else if(t.id==='ct-ate'){ if(t.value) ct.ate=t.value; renderControladoria(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-b')){
+    cfg.ctrl=cfg.ctrl||{custoPadrao:0,cats:{}}; cfg.ctrl.cats=cfg.ctrl.cats||{};
+    const atual={...ctBlocosDe(ct.cat)}; atual[t.getAttribute('data-ct-b')]=t.checked?1:0;
+    cfg.ctrl.cats[ct.cat]=atual; ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+  else if(t.id==='ct-custopadrao'){ cfg.ctrl=cfg.ctrl||{custoPadrao:0,cats:{}};
+    cfg.ctrl.custoPadrao=Math.max(0,Number(t.value)||0); ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+  else if(t.hasAttribute&&t.hasAttribute('data-ct-custo')){
+    cfg.custosPessoa=cfg.custosPessoa||{};
+    const a=t.getAttribute('data-ct-custo'); const v=Math.max(0,Number(t.value)||0);
+    if(v>0) cfg.custosPessoa[a]=v; else delete cfg.custosPessoa[a];
+    ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
+});
+// Enter/Espaço abrem o drill (as linhas anunciam role="button")
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
+  if(dr){ e.preventDefault(); ctAbreTickets(dr.getAttribute('data-ct-drill')); }
+});
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='controladoria') return;
+  const ct=estado.ctrl;
+  const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
+  if(dr&&!e.target.closest('button')&&!e.target.closest('a')&&!e.target.closest('input')){
+    ctAbreTickets(dr.getAttribute('data-ct-drill')); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); renderControladoria(); return; }
+  if(t.hasAttribute('data-ct-per')){ const p=t.getAttribute('data-ct-per'); const h=hojeSP();
+    ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
+    ct.ate=h; renderControladoria(); return; }
+  if(t.id==='ct-retry'){ ct.tempoErro=''; ct.chaveT=''; renderControladoria(); return; }
+});

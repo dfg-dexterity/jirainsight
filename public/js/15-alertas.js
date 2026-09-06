@@ -595,3 +595,35 @@ async function confirmaAtribuir(){
   }
 }
 
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Central de Alertas: ações rápidas, lote, filtros e retry ----
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  const kp=e.target.closest && e.target.closest('[data-al-sev]');
+  if(kp){ escondeTip(); estado.alertas.sev=kp.getAttribute('data-al-sev'); renderAlertas(); return; }
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const a=estado.alertas;
+  if(t.id==='al-retry'){ a.erro=''; a.dados=null; renderAlertas(); }
+  else if(t.hasAttribute('data-alx-reprog')){ escondeTip(); abreModalReprog([t.getAttribute('data-alx-k')], t.getAttribute('data-alx-reprog')); }
+  else if(t.hasAttribute('data-alx-copiar')){ alxCopiar(t, t.getAttribute('data-alx-copiar')); }
+  else if(t.hasAttribute('data-alx-bulk')){ escondeTip(); abreModalReprog(Object.keys(a.sel), t.getAttribute('data-alx-bulk')); }
+  else if(t.hasAttribute('data-alx-atrib')){ escondeTip(); abreModalAtribuir([t.getAttribute('data-alx-atrib')]); }
+  else if(t.hasAttribute('data-alx-bulk-atrib')){ escondeTip(); abreModalAtribuir(Object.keys(a.sel)); }
+  else if(t.hasAttribute('data-alx-bulk-clear')){ a.sel={}; renderAlertas(); }
+  else if(t.hasAttribute('data-alx-resp')){ escondeTip(); const r=t.getAttribute('data-alx-resp'); a.fResp=(a.fResp===r?'':r); renderAlertas(); }
+  else if(t.hasAttribute('data-alx-todos')){ const on=t.getAttribute('data-alx-todos')==='1';
+    if(on){ document.querySelectorAll('[data-alx-sel]').forEach(c=>{ a.sel[c.getAttribute('data-alx-sel')]=true; }); } else { a.sel={}; }
+    renderAlertas(); }
+  else if(t.hasAttribute('data-alx-limpar')){ a.fResp='';a.fProj='';a.fPrio='';a.fStatus='';a.fTipo='';a.fMinDias=0;a.soMeus=false;a.ord='crit'; renderAlertas(); }
+});
+// ---- Central de Alertas: filtros (selects/checkbox) e seleção em lote (checkbox da linha) ----
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const a=estado.alertas;
+  const sc=e.target.closest && e.target.closest('[data-alx-sel]');
+  if(sc){ const k=sc.getAttribute('data-alx-sel'); if(sc.checked) a.sel[k]=true; else delete a.sel[k]; renderAlertas(); return; }
+  const f=e.target.closest && e.target.closest('[data-alx-f]');
+  if(f){ const campo=f.getAttribute('data-alx-f');
+    if(campo==='soMeus'){ if(f.checked && !(idApontar()&&idApontar().accountId)){ f.checked=false; abreIdentidade(); return; } a.soMeus=f.checked; }
+    else if(campo==='fMinDias'){ a.fMinDias=Math.max(0, Number(f.value)||0); }
+    else { a[campo]=f.value; }
+    renderAlertas(); }
+});

@@ -720,3 +720,14 @@ function guiasIndiceHTML(){
     <div class="gu-grid">${grupos[g].map(([v,rot])=>`<button class="gu-b" data-aj-guia="${escA(v)}">
       <span class="gu-n">${esc(rot)}</span>${guiaVisto(v)?'<span class="gu-v">✓ visto</span>':'<span class="gu-v" style="color:var(--cerceta)">▶</span>'}</button>`).join('')}</div>`).join('');
 }
+
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// Ações dentro do painel de Metas (delegação no corpo do modal).
+// Links "abrir tela" da lista TODAS as telas (❓ Ajuda) — fecham o modal e navegam.
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  // 🧭 "guia" tem prioridade sobre "abrir tela" (o botão vive dentro do item da lista).
+  const gu=e.target.closest&&e.target.closest('[data-aj-guia]');
+  if(gu){ e.stopPropagation(); iniciaGuia(gu.getAttribute('data-aj-guia')); return; }
+  const g=e.target.closest&&e.target.closest('[data-aj-goto]'); if(!g) return;
+  fechaModal(); vaiPara(g.getAttribute('data-aj-goto'));
+});

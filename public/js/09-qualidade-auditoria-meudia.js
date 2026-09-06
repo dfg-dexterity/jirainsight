@@ -429,3 +429,38 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   }
 });
 
+// ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
+// ---- Qualidade dos Tickets (IA): analisar + menu de ações por ticket ----
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  const q=estado.qualidade;
+  if(t.id==='qa-analisar'){ qaAnalisa(false); }
+  else if(t.id==='qa-refresh'){ qaAnalisa(true); }
+  else if(t.hasAttribute('data-qa-abrir')){ window.open(`${jiraBase()}/browse/${encodeURIComponent(t.getAttribute('data-qa-abrir'))}`,'_blank'); }
+  else if(t.hasAttribute('data-qa-avisar')){
+    const k=t.getAttribute('data-qa-avisar');
+    const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); if(!tk) return;
+    const alvoId=tk.respId||tk.relatorId; const alvoNome=(tk.respId?tk.responsavel:tk.relator)||'';
+    if(!alvoId) return;
+    escondeTip();
+    abreQaComentar(k, { texto: qaTextoAviso(tk, (q.dados&&q.dados.url)||'') }, { id:alvoId, nome:alvoNome });
+  }
+  else if(t.hasAttribute('data-qa-act')){
+    const k=t.getAttribute('data-qa-k'); const i=+t.getAttribute('data-qa-i');
+    const tk=((q.dados&&q.dados.tickets)||[]).find(x=>x.k===k); const a=tk&&tk.acoes[i]; if(!a) return;
+    escondeTip();
+    if(a.tipo==='vencimento'){ abreModalReprog([k],''); }
+    else if(a.tipo==='atribuir'){ abreModalAtribuir([k]); }
+    else { abreQaComentar(k, a); }   // comentar / editar / dividir / status → feedback no ticket
+  }
+});
+document.getElementById('conteudo').addEventListener('change',(e)=>{
+  const t=e.target; if(!t||!t.id) return;
+  if(t.id==='qa-dias'){ estado.qualidade.dias=Number(t.value)||14; }
+  else if(t.id==='qa-proj'){ estado.qualidade.projeto=t.value; }
+});
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.id==='qa-com-cancel'){ fechaModal(); }
+  else if(t.id==='qa-com-pub'){ publicaQaComentario(t.getAttribute('data-qa-com-k')); }
+});
