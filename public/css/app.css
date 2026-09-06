@@ -59,12 +59,29 @@
   [data-theme="dark"] .ams-mc.lo{background:#33270F} [data-theme="dark"] .ams-mc.hi{background:#3A1715}
   [data-theme="dark"] tr.pl-row-err input.pl-resumo{background:#3A1715;border-color:#7A2A26}
   [data-theme="dark"] .rc-tab tbody tr:hover{background:var(--hoverbg)} [data-theme="dark"] .ap-proj-head:hover{background:var(--hoverbg)}
+  /* ===== Tema "Dexterity" — o visual do site novo da Dexterity (2026-09) =====
+     Fundo grafite #1B1B1B, texto off-white, cerceta como acento, títulos condensados em
+     caixa alta (Barlow Condensed), texto Figtree, rótulos em IBM Plex Mono, cantos retos e
+     superfícies chapadas com fio fino. Escolhido em 🎨 Tema no cabeçalho; Claro e Escuro
+     continuam exatamente como eram. As fontes só são baixadas quando este tema está ativo
+     (30-eventos-boot.js). Os componentes ficam no fim deste arquivo. */
+  [data-theme="dexterity"]{
+    --offwhite:#1B1B1B; --areia:transparent; --grafite:#F7F3E7; --cartao:#242424; --cartao2:#2E2E2E;
+    --linha:#383632; --linha2:#2F2E2A; --cerceta:#00B3AC; --marca:#009994; --roxo:#B27DB4;
+    --amarelo:#FFA436; --musgo:#8FB58F; --err:#F2555A;
+    --muted:#A5A099; --muted2:#908C85; --trilho:#2E2E2E; --hoverbg:#2A2A2A; --texto2:#D8D2C6;
+    --sombra:0 0 0 1px rgba(247,243,231,.06);
+    --titulo:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+    --corpo:"Figtree","Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+    color-scheme:dark;
+  }
   /* ===== Impressão / Exportar PDF (força claro, esconde controles) ===== */
   .print-head{display:none}
   #print-doc{display:none}
   @media print{
     @page{size:A4;margin:12mm}
-    :root,[data-theme="dark"]{ --offwhite:#fff; --grafite:#15212e; --cartao:#fff; --cartao2:#f7f9fc;
+    :root,[data-theme="dark"],[data-theme="dexterity"]{ --offwhite:#fff; --grafite:#15212e; --cartao:#fff; --cartao2:#f7f9fc;
       --linha:#cfd8e3; --linha2:#e6ebf2; --muted:#566879; --muted2:#7e8ea0; --trilho:#eef1f8;
       --hoverbg:#f1ede0; --texto2:#5C5850; --cerceta:#00726E; --marca:#00817D; --areia:#fff; --sombra:none; }
     body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -2222,3 +2239,267 @@
   @media (display-mode: standalone){
     html{overscroll-behavior-y:none}
   }
+
+  /* ===== Tema "Dexterity" — componentes (variáveis: ver logo após o modo escuro) ===== */
+  [data-theme="dexterity"] .tsc-dot{background:#242424}
+  [data-theme="dexterity"] .modal,[data-theme="dexterity"] .tour-pop{background:var(--cartao)}
+  [data-theme="dexterity"] .help-sec>summary{background:var(--cartao2)}
+  [data-theme="dexterity"] .ts-c.hoje,[data-theme="dexterity"] .ts-legend .sw.hoje{background:#2E2E2E;color:#5FD3CC}
+  [data-theme="dexterity"] input,[data-theme="dexterity"] select,[data-theme="dexterity"] textarea{background:var(--cartao);color:var(--grafite)}
+  [data-theme="dexterity"] .navg-menu button{color:var(--grafite)}
+  [data-theme="dexterity"] .btn:hover,[data-theme="dexterity"] .navg-menu button:hover,[data-theme="dexterity"] .chip:hover{background:var(--hoverbg)}
+  /* Painéis/células com cores claras fixas → tons escuros no modo escuro */
+  [data-theme="dexterity"] .ia-card{background:linear-gradient(180deg,#2E2E2E,#242424)}
+  [data-theme="dexterity"] .ia-geral{background:#2A2A2A;border-color:var(--linha)}
+  [data-theme="dexterity"] .ia-texto,[data-theme="dexterity"] .ad-cons,[data-theme="dexterity"] .help-body,[data-theme="dexterity"] .tour-pop p{color:var(--texto2)}
+  [data-theme="dexterity"] .kb-col{background:var(--cartao2)}
+  [data-theme="dexterity"] .cv-card{background:var(--cartao2);border-color:var(--linha)}
+  [data-theme="dexterity"] .pl-destino,[data-theme="dexterity"] .pl-hist-row.sel,[data-theme="dexterity"] .cv-card{border-color:var(--linha)}
+  [data-theme="dexterity"] .pl-hist-row.sel{background:#2A2A2A}
+  [data-theme="dexterity"] .ts-d.fer,[data-theme="dexterity"] .ts-c.fer{background:#2E2537;color:#C9A9CB}
+  [data-theme="dexterity"] .ts-c.fds{background:#262626;color:#908C85}
+  [data-theme="dexterity"] .ts-c.aus{background:#262626}
+  [data-theme="dexterity"] .aviso{background:#33270F;border-color:#5C4514;color:#F0C674}
+  [data-theme="dexterity"] .aviso.ok{background:#10291C;border-color:#1E5B3D;color:#6FD49C}
+  [data-theme="dexterity"] .ap-row.feito,[data-theme="dexterity"] .cv-row.feito{background:#10291C;border-color:#1E5B3D}
+  [data-theme="dexterity"] .mh-dia.over{background:#33270F;border-color:#5C4514} [data-theme="dexterity"] .mh-dia.over .mh-h{color:#F0C674}
+  [data-theme="dexterity"] .ams-mc.lo{background:#33270F} [data-theme="dexterity"] .ams-mc.hi{background:#3A1715}
+  [data-theme="dexterity"] tr.pl-row-err input.pl-resumo{background:#3A1715;border-color:#7A2A26}
+  [data-theme="dexterity"] .rc-tab tbody tr:hover{background:var(--hoverbg)} [data-theme="dexterity"] .ap-proj-head:hover{background:var(--hoverbg)}
+  /* Tipografia do site: títulos condensados em caixa alta, subtítulos em texto normal,
+     rótulos e cabeçalhos de tabela em mono espaçado, números grandes na condensada. */
+  [data-theme="dexterity"] body{font-weight:400}
+  [data-theme="dexterity"] h1,[data-theme="dexterity"] h2,[data-theme="dexterity"] h3,[data-theme="dexterity"] .card h2{font-family:var(--titulo);text-transform:uppercase;letter-spacing:.02em;font-weight:600}
+  [data-theme="dexterity"] h2 span,[data-theme="dexterity"] h3 span,[data-theme="dexterity"] .card h2 span{text-transform:none;letter-spacing:0;font-weight:400;font-family:var(--corpo)}
+  [data-theme="dexterity"] th,[data-theme="dexterity"] .campo label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;font-weight:500}
+  [data-theme="dexterity"] .ax-num,[data-theme="dexterity"] .vg-k .v,[data-theme="dexterity"] .kpi b{font-family:var(--titulo);font-weight:600;letter-spacing:0}
+  /* Superfícies chapadas com fio fino (sem sombra), como os cartões do site. */
+  [data-theme="dexterity"] .card,[data-theme="dexterity"] .kpi,[data-theme="dexterity"] .hdrmenu-m,[data-theme="dexterity"] .navg-menu{box-shadow:none;border:1px solid var(--linha)}
+  [data-theme="dexterity"] header{border-bottom:1px solid var(--linha)}
+  [data-theme="dexterity"] .modal{box-shadow:0 30px 70px rgba(0,0,0,.55);border:1px solid var(--linha)}
+  /* Botões do site: fantasma com fio; o primário é cerceta chapado com texto grafite e
+     "vira" contorno no hover. */
+  [data-theme="dexterity"] .btn{border-color:var(--linha);color:var(--grafite)}
+  [data-theme="dexterity"] .btn:hover{background:transparent;border-color:var(--grafite)}
+  [data-theme="dexterity"] .btn.primario{background:var(--marca);border-color:var(--marca);color:#1B1B1B}
+  [data-theme="dexterity"] .btn.primario:hover{background:transparent;color:var(--cerceta);border-color:var(--cerceta)}
+  [data-theme="dexterity"] .chip{background:transparent;border-color:var(--linha)}
+  [data-theme="dexterity"] .chip[aria-pressed="true"],[data-theme="dexterity"] .chip.on{background:rgba(0,153,148,.14);border-color:rgba(0,179,172,.5);color:var(--cerceta)}
+  [data-theme="dexterity"] input,[data-theme="dexterity"] select,[data-theme="dexterity"] textarea{background:var(--cartao);color:var(--grafite);border-color:var(--linha)}
+  [data-theme="dexterity"] :focus-visible{outline:2px solid var(--amarelo);outline-offset:2px}
+  /* A marca no cabeçalho: pétalas off-white com a de cima à direita em cerceta, como no site. */
+  [data-theme="dexterity"] .dxp{fill:var(--grafite)} [data-theme="dexterity"] .dxp--tr{fill:var(--marca)}
+  /* Cantos retos: tudo que era cartão ou pílula (8–16px e 999px) vira 2px; os círculos (50%) ficam. */
+  [data-theme="dexterity"] .btn,[data-theme="dexterity"] input,[data-theme="dexterity"] select,[data-theme="dexterity"] textarea,[data-theme="dexterity"] .seg button,[data-theme="dexterity"] .badge,
+  [data-theme="dexterity"] #print-doc .doc-k,
+  [data-theme="dexterity"] #print-doc .doc-val,
+  [data-theme="dexterity"] #conteudo,
+  [data-theme="dexterity"] .brand,
+  [data-theme="dexterity"] #to-top,
+  [data-theme="dexterity"] .hdrmenu-m,
+  [data-theme="dexterity"] .nav-toggle,
+  [data-theme="dexterity"] .nt-badge,
+  [data-theme="dexterity"] .mp-btn,
+  [data-theme="dexterity"] .mp-kpi,
+  [data-theme="dexterity"] .mpg-click:hover,
+  [data-theme="dexterity"] .mp-projcard,
+  [data-theme="dexterity"] .mp-projbar i,
+  [data-theme="dexterity"] .mp-step,
+  [data-theme="dexterity"] .mp-devolucao,
+  [data-theme="dexterity"] .mp-aprovado,
+  [data-theme="dexterity"] .mp-tab,
+  [data-theme="dexterity"] .mp-dia,
+  [data-theme="dexterity"] .mp-tag,
+  [data-theme="dexterity"] .mp-atv,
+  [data-theme="dexterity"] .mp-form,
+  [data-theme="dexterity"] .mp-sit,
+  [data-theme="dexterity"] .mp-pend,
+  [data-theme="dexterity"] .pr-prio,
+  [data-theme="dexterity"] .pr-pedido,
+  [data-theme="dexterity"] .pr-vaga,
+  [data-theme="dexterity"] .pr-natc,
+  [data-theme="dexterity"] .pr-chip,
+  [data-theme="dexterity"] .pr-ata,
+  [data-theme="dexterity"] .pr-timer,
+  [data-theme="dexterity"] .pr-hig,
+  [data-theme="dexterity"] .ms-item,
+  [data-theme="dexterity"] .ms-item-ctl input[type=number],
+  [data-theme="dexterity"] .ms-add,
+  [data-theme="dexterity"] .ms-filtros input[type=search],
+  [data-theme="dexterity"] .hx-atalho,
+  [data-theme="dexterity"] .rv-transf,
+  [data-theme="dexterity"] .rv-transf input,
+  [data-theme="dexterity"] .ms-proc,
+  [data-theme="dexterity"] .ms-pstep.ms-pon,
+  [data-theme="dexterity"] .ms-st,
+  [data-theme="dexterity"] .ms-card,
+  [data-theme="dexterity"] .pal-q,
+  [data-theme="dexterity"] .pal-row,
+  [data-theme="dexterity"] .pe-row,
+  [data-theme="dexterity"] .seg button .tab-badge,
+  [data-theme="dexterity"] .navg-menu,
+  [data-theme="dexterity"] select,
+  [data-theme="dexterity"] .kpi,
+  [data-theme="dexterity"] .card,
+  [data-theme="dexterity"] .split,
+  [data-theme="dexterity"] .ts-wrap,
+  [data-theme="dexterity"] .rk-badge,
+  [data-theme="dexterity"] .rk-bar,
+  [data-theme="dexterity"] .rk-fill,
+  [data-theme="dexterity"] .rk-cheer,
+  [data-theme="dexterity"] .rk-sad,
+  [data-theme="dexterity"] .aviso,
+  [data-theme="dexterity"] .hm-cell,
+  [data-theme="dexterity"] .modal,
+  [data-theme="dexterity"] .modal input[type=number],
+  [data-theme="dexterity"] .modal input[type=date],
+  [data-theme="dexterity"] .modal input[type=text],
+  [data-theme="dexterity"] .modal select,
+  [data-theme="dexterity"] .erro,
+  [data-theme="dexterity"] .ap-id,
+  [data-theme="dexterity"] .ap-filtros .campo input[type=date],
+  [data-theme="dexterity"] .ap-filtros .campo input[type=search],
+  [data-theme="dexterity"] .chip,
+  [data-theme="dexterity"] .ap-row,
+  [data-theme="dexterity"] .ap-horas,
+  [data-theme="dexterity"] .badge,
+  [data-theme="dexterity"] .ap-reag .ap-reag-data,
+  [data-theme="dexterity"] .toast,
+  [data-theme="dexterity"] .skel-kpi,
+  [data-theme="dexterity"] .skel-card,
+  [data-theme="dexterity"] .ap-proj-head,
+  [data-theme="dexterity"] .ap-resp-panel .ap-resp-sel,
+  [data-theme="dexterity"] .ap-mover-panel .ap-mover-sel,
+  [data-theme="dexterity"] .ap-mover-panel .ap-mover-tipo,
+  [data-theme="dexterity"] .ap-coment-txt,
+  [data-theme="dexterity"] .ap-trans,
+  [data-theme="dexterity"] .ap-filtros select,
+  [data-theme="dexterity"] .ap-log input[type=text],
+  [data-theme="dexterity"] .ap-log input[type=date],
+  [data-theme="dexterity"] .mh-dia,
+  [data-theme="dexterity"] .mts-prog,
+  [data-theme="dexterity"] .mts-prog i,
+  [data-theme="dexterity"] .mts-lchip,
+  [data-theme="dexterity"] .kb-col,
+  [data-theme="dexterity"] .kb-head span,
+  [data-theme="dexterity"] .kb-card,
+  [data-theme="dexterity"] .al-card,
+  [data-theme="dexterity"] .alx-filtros select,
+  [data-theme="dexterity"] .alx-filtros input[type=number],
+  [data-theme="dexterity"] .alx-bulk,
+  [data-theme="dexterity"] .alx-row,
+  [data-theme="dexterity"] .alx-pill,
+  [data-theme="dexterity"] .alx-rsum,
+  [data-theme="dexterity"] select.alx-motivo,
+  [data-theme="dexterity"] input.alx-motivo,
+  [data-theme="dexterity"] textarea.alx-coment,
+  [data-theme="dexterity"] .qk-grid input,
+  [data-theme="dexterity"] .qk-grid select,
+  [data-theme="dexterity"] .ad-card,
+  [data-theme="dexterity"] .rc2-card,
+  [data-theme="dexterity"] .rc2-tag,
+  [data-theme="dexterity"] .ams-card,
+  [data-theme="dexterity"] .ams-k,
+  [data-theme="dexterity"] .ams-mc,
+  [data-theme="dexterity"] .ams-tipo,
+  [data-theme="dexterity"] .ams-sel select,
+  [data-theme="dexterity"] .ams-dados,
+  [data-theme="dexterity"] .ams-dl,
+  [data-theme="dexterity"] .pl-item,
+  [data-theme="dexterity"] .pl-chip,
+  [data-theme="dexterity"] .pl-pess-add,
+  [data-theme="dexterity"] .aloc-badge,
+  [data-theme="dexterity"] .gt-scroll,
+  [data-theme="dexterity"] .ab-grupo,
+  [data-theme="dexterity"] .al-chip,
+  [data-theme="dexterity"] .al-skadd,
+  [data-theme="dexterity"] .arv-trilha,
+  [data-theme="dexterity"] .arv-op,
+  [data-theme="dexterity"] .arv-badge,
+  [data-theme="dexterity"] .arv-pcard,
+  [data-theme="dexterity"] .arv-pcard-k,
+  [data-theme="dexterity"] .arv-proj-fixo,
+  [data-theme="dexterity"] .rk-pod,
+  [data-theme="dexterity"] .rk-rota,
+  [data-theme="dexterity"] .rk-mchip,
+  [data-theme="dexterity"] .rklb-row,
+  [data-theme="dexterity"] .rklb-bar,
+  [data-theme="dexterity"] .rklb-bar i,
+  [data-theme="dexterity"] .rklb-chips span,
+  [data-theme="dexterity"] .aud-prob,
+  [data-theme="dexterity"] .cfgc-chip,
+  [data-theme="dexterity"] select.ab-tipo,
+  [data-theme="dexterity"] .ab-pess select,
+  [data-theme="dexterity"] .apr-kpi,
+  [data-theme="dexterity"] .apr-l,
+  [data-theme="dexterity"] .apr-bar,
+  [data-theme="dexterity"] .ax-card,
+  [data-theme="dexterity"] .arv-pl-ep,
+  [data-theme="dexterity"] .gx-bar,
+  [data-theme="dexterity"] .rt-barra,
+  [data-theme="dexterity"] .rt-in,
+  [data-theme="dexterity"] .rt-step,
+  [data-theme="dexterity"] .trf-plano,
+  [data-theme="dexterity"] .trf-ficha,
+  [data-theme="dexterity"] .vp-row,
+  [data-theme="dexterity"] .cv-lista,
+  [data-theme="dexterity"] .rc-n,
+  [data-theme="dexterity"] .rc-card,
+  [data-theme="dexterity"] .rc-badge,
+  [data-theme="dexterity"] .ct-sem,
+  [data-theme="dexterity"] .ct-tb,
+  [data-theme="dexterity"] .ct-cfg,
+  [data-theme="dexterity"] .mp-iacard,
+  [data-theme="dexterity"] .gx-acts button,
+  [data-theme="dexterity"] .gx-trat,
+  [data-theme="dexterity"] .anl-card,
+  [data-theme="dexterity"] .anl-num,
+  [data-theme="dexterity"] .anl-badge,
+  [data-theme="dexterity"] .mn-card,
+  [data-theme="dexterity"] .mn-badge,
+  [data-theme="dexterity"] .mn-chip,
+  [data-theme="dexterity"] .gx-det-txt,
+  [data-theme="dexterity"] .gx-grp,
+  [data-theme="dexterity"] .gx-dup-g,
+  [data-theme="dexterity"] .gx-lrow,
+  [data-theme="dexterity"] .rv-met,
+  [data-theme="dexterity"] .rv-modo button,
+  [data-theme="dexterity"] .rv-del,
+  [data-theme="dexterity"] .sim-box,
+  [data-theme="dexterity"] .sim-tag,
+  [data-theme="dexterity"] .ts-fonte,
+  [data-theme="dexterity"] .ts-dproj,
+  [data-theme="dexterity"] .tsc-read,
+  [data-theme="dexterity"] .vg-k,
+  [data-theme="dexterity"] .vg-card,
+  [data-theme="dexterity"] .vg-pill,
+  [data-theme="dexterity"] .vg-hcell,
+  [data-theme="dexterity"] .vg-alrow,
+  [data-theme="dexterity"] .cv-row,
+  [data-theme="dexterity"] .rg-pessoas,
+  [data-theme="dexterity"] .pl-texto,
+  [data-theme="dexterity"] .pl-grid select,
+  [data-theme="dexterity"] .pl-grid input[type=text],
+  [data-theme="dexterity"] .pl-grid input[type=number],
+  [data-theme="dexterity"] .pl-grid input[type=date],
+  [data-theme="dexterity"] .pl-destino,
+  [data-theme="dexterity"] .pl-hist,
+  [data-theme="dexterity"] .pl-hist-row,
+  [data-theme="dexterity"] .ia-geral,
+  [data-theme="dexterity"] .ia-pessoa,
+  [data-theme="dexterity"] .pl-nv,
+  [data-theme="dexterity"] .pl-g-bar,
+  [data-theme="dexterity"] .tour-hl,
+  [data-theme="dexterity"] .tour-pop,
+  [data-theme="dexterity"] .tour-prog,
+  [data-theme="dexterity"] #btn-guia,
+  [data-theme="dexterity"] .gu-b,
+  [data-theme="dexterity"] .aj-g,
+  [data-theme="dexterity"] .help-sec,
+  [data-theme="dexterity"] .tip,
+  [data-theme="dexterity"] #seg-vista,
+  [data-theme="dexterity"] #seg-vista > .navtab,
+  [data-theme="dexterity"] .navg-b,
+  [data-theme="dexterity"] .navg-menu button{border-radius:2px}
+  /* Opção de tema ativa no menu 🎨 (vale para todos os temas). */
+  .hdrmenu-m button[aria-pressed="true"]{color:var(--cerceta);font-weight:600}

@@ -65,21 +65,43 @@ if('serviceWorker' in navigator && location.protocol==='https:'){
 }
 { const bl=document.getElementById('btn-log'); if(bl) bl.addEventListener('click', abreLogAcoes); }
 document.getElementById('btn-novidades').addEventListener('click', abreNovidades);
-// Modo claro/escuro (persistido em localStorage; o tema já foi aplicado cedo no <head>).
-function aplicaTema(t){
-  if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
-  else document.documentElement.removeAttribute('data-theme');
-  const b=document.getElementById('btn-tema');
-  if(b){ b.textContent = t==='dark' ? '☀️' : '🌙'; b.title = t==='dark' ? 'Mudar para o modo claro' : 'Mudar para o modo escuro'; }
+// 🎨 Temas: Claro (padrão), Escuro e Dexterity (o visual do site novo — fundo grafite,
+// títulos condensados, cerceta como acento; CSS em [data-theme="dexterity"]). A escolha
+// fica no localStorage e o <head> já aplica o atributo cedo, para não piscar.
+const TEMAS={
+  light:{ ico:'☀️', nome:'Claro', cor:'#F5F6F7' },
+  dark:{ ico:'🌙', nome:'Escuro', cor:'#0E1726' },
+  dexterity:{ ico:'🟢', nome:'Dexterity', cor:'#1B1B1B' },
+};
+const FONTES_DEXTERITY='https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap';
+// As fontes do site só são baixadas quando o tema Dexterity está ativo (uma vez por página).
+function garanteFontesDexterity(){
+  if(document.getElementById('fontes-dexterity')) return;
+  const l=document.createElement('link'); l.id='fontes-dexterity'; l.rel='stylesheet'; l.href=FONTES_DEXTERITY;
+  document.head.appendChild(l);
 }
-(function(){ let t='light'; try{ t=localStorage.getItem('jirainsight_theme')==='dark'?'dark':'light'; }catch(e){} aplicaTema(t); })();
-document.getElementById('btn-tema').addEventListener('click', ()=>{
-  const dark = document.documentElement.getAttribute('data-theme')!=='dark';
-  try{ localStorage.setItem('jirainsight_theme', dark?'dark':'light'); }catch(e){}
-  aplicaTema(dark?'dark':'light');
+function aplicaTema(t){
+  if(!TEMAS[t]) t='light';
+  if(t==='light') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  if(t==='dexterity') garanteFontesDexterity();
+  const b=document.getElementById('btn-tema');
+  if(b){ b.textContent=TEMAS[t].ico; b.title=`Tema: ${TEMAS[t].nome} — clique para trocar`; b.setAttribute('aria-label', `Tema do painel: ${TEMAS[t].nome}`); }
+  document.querySelectorAll('[data-tema]').forEach(o=>o.setAttribute('aria-pressed', o.getAttribute('data-tema')===t?'true':'false'));
+  // Cor da barra do navegador/PWA acompanha o tema (no claro, volta ao par claro/escuro do sistema).
+  const ms=document.querySelectorAll('meta[name="theme-color"]');
+  if(t==='light'){ if(ms[0]) ms[0].setAttribute('content','#F5F6F7'); if(ms[1]) ms[1].setAttribute('content','#0E1726'); }
+  else ms.forEach(m=>m.setAttribute('content', TEMAS[t].cor));
+}
+(function(){ let t='light'; try{ t=localStorage.getItem('jirainsight_theme')||'light'; }catch(e){} aplicaTema(TEMAS[t]?t:'light'); })();
+document.addEventListener('click', (e)=>{
+  const o=e.target.closest&&e.target.closest('[data-tema]'); if(!o) return;
+  const t=o.getAttribute('data-tema'); if(!TEMAS[t]) return;
+  try{ localStorage.setItem('jirainsight_theme', t); }catch(e2){}
+  aplicaTema(t);
   // Recolore os gráficos (as cores das séries são fixadas no HTML na renderização).
   // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
-  if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e){}
+  if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
 });
 // Logo no canto superior esquerdo volta para o início (Resumo).
 document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara('acoes'); });

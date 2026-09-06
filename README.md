@@ -237,12 +237,20 @@ rótulo por célula, realce no hover e clique para drill-down. Usado em **Top pr
 Complementam: **donut/medidor** para metas e **barras com realce** (a barra focada destaca, as
 demais esmaecem) clicáveis para drill-down.
 
-### 🌙 Modo escuro
+### 🎨 Temas: Claro, Escuro e Dexterity
 
-Botão **🌙/☀️** no topo alterna entre claro e escuro; a preferência fica salva em `localStorage`
-(`jirainsight_theme`) e é aplicada cedo no `<head>` para evitar "flash". Implementado por
-**variáveis de tema** (`[data-theme="dark"]` sobrescreve `--offwhite/--grafite/--cartao/--linha/
---muted/--trilho/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
+O botão de tema no topo (☀️/🌙/🟢) abre um menu com três temas. A preferência fica salva em
+`localStorage` (`jirainsight_theme`: `light` · `dark` · `dexterity`) e é aplicada cedo no
+`<head>` para evitar "flash". Implementado por **variáveis de tema** (`[data-theme="dark"]` e
+`[data-theme="dexterity"]` sobrescrevem `--offwhite/--grafite/--cartao/--linha/--muted/
+--trilho/--titulo/--corpo/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
+
+- **Dexterity** (2026-09-06) é o visual do site novo da empresa: fundo grafite `#1B1B1B`,
+  texto off-white, cerceta `#009994` como acento, títulos em **Barlow Condensed** em caixa
+  alta, texto **Figtree**, rótulos em **IBM Plex Mono**, cantos retos e superfícies chapadas
+  com fio fino. As fontes só são baixadas (Google Fonts) quando esse tema está ativo. O CSS
+  fica em dois lugares de `public/css/app.css`: as variáveis logo após o modo escuro e os
+  componentes no fim do arquivo. O PDF continua saindo claro em qualquer tema.
 
 ### 🩺 Score de saúde da entrega
 

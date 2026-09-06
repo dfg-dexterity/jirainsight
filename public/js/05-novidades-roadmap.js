@@ -31,6 +31,7 @@ const ROADMAP=[
   { s:'avaliacao', t:'⏱ Apontamento do time — recortes por equipe e por gestor', d:'Hoje o card lista o time todo. Para times maiores, filtrar por equipe/gestor (e lembrar a escolha) para cada liderança ver só a sua gente.' },
   { s:'avaliacao', t:'🌀 Marca animada além do cabeçalho', d:'A marca do moinho ganhou movimento no cabeçalho em 2026-08-31 (pivô na entrada, ciclo enquanto carrega, ímã no ponteiro). O material da marca tem mais variantes — abertura, assinatura com o logotipo, paleta e escaneamento — candidatas à tela de abertura do app instalado, à capa dos relatórios em PDF e às vinhetas de vídeo/deck institucional.' },
   { s:'avaliacao', t:'🎨 Identidade Dexterity nos relatórios em PDF/CSV', d:'Levar a paleta e a tipografia da marca também para a exportação em PDF (hoje o PDF sai em preto e branco) e para os cabeçalhos dos CSVs.' },
+  { s:'avaliacao', t:'🎨 Tema Dexterity — afinar telas densas e tema padrão do time', d:'O tema chegou em 2026-09-06 cobrindo cores, tipografia, botões e cantos. Próximos passos: afinar tabelas grandes (Timesheet, Gestão) e gráficos no fundo grafite, revisar contraste dos badges coloridos, e permitir ao gestor definir o tema padrão para quem nunca escolheu.' },
   { s:'planejado', t:'🎯 Prioridades do time — Fase 2 (automações)', d:'Ata criada sozinha no Notion (NOTION_TOKEN na Vercel), reunião recorrente via Microsoft Graph com a pauta no convite, extrato de decisões/riscos/lições na Página do projeto e diff por escrito no canal quando a reunião for cancelada.' },
   { s:'avaliacao', t:'📱 Aplicativo nas lojas (App Store / Play)', d:'A versão instalável (PWA) já cobre iPhone/iPad pela Tela de Início; publicar nas lojas exigiria empacotar com Capacitor e conta Apple Developer — avaliar se há demanda real.' },
   { s:'avaliacao', t:'➗ Rateio — modelos salvos e rateio recorrente', d:'Guardar composições de rateio usadas com frequência (mesmos tickets + mesma divisão) para repetir com 1 clique — evolução natural do ➗ Rateio de horas entregue em 2026-08-18.' },
@@ -71,6 +72,7 @@ function renderRoadmap(){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-06','🎨 <b>Tema "Dexterity" — o visual do site novo dentro do painel</b>: em 🎨 (cabeçalho) agora há três temas — ☀️ Claro e 🌙 Escuro, como sempre, e 🟢 <b>Dexterity</b>: fundo grafite, títulos condensados em caixa alta, rótulos em mono, cantos retos e o cerceta como acento, igual ao site. A escolha fica salva no seu navegador; o PDF continua saindo claro.'],
   ['2026-09-06','⚡ <b>Painel mais rápido de abrir</b> — a página caiu de 1,6 MB para 19 KB: o código foi dividido em módulos por tela e uma folha de estilo que o navegador guarda em cache. O esqueleto aparece na hora e as leituras do período saem em paralelo com a configuração; a Início refaz a tela uma vez por quadro em vez de a cada resposta, e os cálculos pesados (Timesheet, Ranking, Gestão) ficam memorizados.'],
   ['2026-09-06','🐛 <b>Correções da revisão geral</b> — uma falha da API não trava mais a tela em laço de requisições (Início, Prioridades, Projetos, AMS, Meu Planejamento); o <b>Ranking por faixa</b> volta a mostrar quem não apontou nada e atualiza depois de apontar; <b>Atribuir</b> nos Alertas registra o histórico certo; a busca do Reclassificar não interfere na Central de Relatórios; a Agenda cria ticket em projeto sem tipo "Reunião".'],
   ['2026-09-06','⚡ <b>API mais rápida</b> — a resolução dos tickets dos apontamentos no Jira sai 4 lotes por vez (antes um a um), a atividade de períodos passados deixa de baixar até hoje, rotular/vincular épico em lote e os convites no Teams saem em paralelo. O código das telas de Alocação e Planejamento macro (em reformulação) deixou de ser carregado à toa.'],
@@ -208,7 +210,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-09-06.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-06.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

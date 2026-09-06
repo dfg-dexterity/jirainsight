@@ -336,7 +336,7 @@ const TOUR=[
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
   {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
-  {sel:'#btn-tema',titulo:'Claro / escuro',texto:'Alterne o tema do painel — a preferência fica salva no navegador.'},
+  {sel:'#btn-tema',titulo:'Tema do painel',texto:'Claro, Escuro ou Dexterity (o visual do site novo) — a preferência fica salva no navegador.'},
   {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🧭 Guia desta tela (explica item por item a tela aberta — atalho: tecla ?) e ❓ Ajuda & feedback, com os guias de todas as telas e os canais de dúvida/sugestão/bug.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
