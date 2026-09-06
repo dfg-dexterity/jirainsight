@@ -8,7 +8,10 @@ Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
   escopo global compartilhado — o mapa está no README, seção "Os módulos do painel").
   Regra de ouro: código que EXECUTA no carregamento só usa o que já foi declarado em
   arquivos anteriores; `npm run check` confere isso com parser (acorn) e reprova o PR.
-  Novo módulo = arquivo + tag no `index.html` na posição certa.
+  Novo módulo = arquivo + tag no `index.html` na posição certa. Listeners delegados de
+  uma tela ficam **no arquivo da tela** (fim do arquivo), não no `30-eventos-boot.js`.
+  Código de tela desligada vai para `public/js/_arquivado-*.js` (sem tag; o gate ignora
+  o prefixo `_`) — nunca fica carregando à toa.
 - Funções serverless em `api/*.js` (Vercel, Node ≥ 18, **limite de 12 arquivos** — sem
   endpoint novo). Leituras usam a conta de serviço (`JIRA_*`, `CLOCKWORK_API_TOKEN`);
   apontamentos/transições/criação usam o token de API da própria pessoa (enviado por
