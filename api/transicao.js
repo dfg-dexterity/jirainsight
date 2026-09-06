@@ -82,7 +82,7 @@ export default async function handler(req, res) {
       if (!issues.length) return json(res, 400, { erro: 'Nenhum ticket válido para rotular.' });
       if (!labels.length) return json(res, 400, { erro: 'Nenhuma label válida (use letras, números e hífens).' });
       const oks = []; const falhas = [];
-      for (const k of issues) {
+      const rotula = async (k) => {
         try {
           const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}`, {
             method: 'PUT', headers,
@@ -93,7 +93,9 @@ export default async function handler(req, res) {
           else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
           else falhas.push({ k, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 120)}` });
         } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 120) }); }
-      }
+      };
+      // 6 por vez (eram um a um em série: até 200 idas ao Jira em fila)
+      for (let i = 0; i < issues.length; i += 6) await Promise.all(issues.slice(i, i + 6).map(rotula));
       cacheClear('atividade:');
       cacheClear('reunioes:');            // a lista de reclassificação filtra por label
       return json(res, 200, {
@@ -111,7 +113,7 @@ export default async function handler(req, res) {
       if (!issues.length) return json(res, 400, { erro: 'Nenhum ticket válido para vincular.' });
       if (!RE_ISSUE.test(paiKey)) return json(res, 400, { erro: 'Épico inválido.' });
       const oks = []; const falhas = [];
-      for (const k of issues) {
+      const vincula = async (k) => {
         try {
           const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(k)}`, {
             method: 'PUT', headers,
@@ -122,9 +124,11 @@ export default async function handler(req, res) {
           else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
           else falhas.push({ k, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 160)}` });
         } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 160) }); }
-      }
+      };
+      for (let i = 0; i < issues.length; i += 6) await Promise.all(issues.slice(i, i + 6).map(vincula));   // 6 por vez
       cacheClear('venc:');
       cacheClear('atividade:');
+      cacheClear('epicos:');              // a lista de épicos/soltos muda com o vínculo
       return json(res, 200, {
         ok: falhas.length === 0, ajustados: oks.length, oks, total: issues.length, paiKey,
         ...(falhas.length ? { falhas: falhas.slice(0, 10) } : {}),
@@ -211,9 +215,11 @@ export default async function handler(req, res) {
         let cat = cacheGet(ckCat);
         if (cat == null) {
           const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projKey)}`, { headers });
-          const jp = rp.ok ? await rp.json().catch(() => ({})) : {};
-          cat = (jp.projectCategory && jp.projectCategory.name) || '';
-          cacheSetTTL(ckCat, cat, 600);
+          if (rp.ok) {   // só guarda em sucesso: uma falha do Jira não pode virar "sem categoria" por 10 h (comentário sairia público no portal)
+            const jp = await rp.json().catch(() => ({}));
+            cat = (jp.projectCategory && jp.projectCategory.name) || '';
+            cacheSetTTL(ckCat, cat, 600);
+          } else cat = '';
         }
         interno = RE_CAT_NOTA_INTERNA.test(cat);
       }
@@ -226,6 +232,7 @@ export default async function handler(req, res) {
       if (r.status === 404) return json(res, 200, { ok: false, erro: `Ticket ${issue} não encontrado.` });
       if (!r.ok) { const t = await r.text(); return json(res, 200, { ok: false, erro: `Jira ${r.status}: ${t.slice(0, 300)}` }); }
       cacheClear('atividade:');
+      cacheClear('venc:');                // a ficha do ticket (comentários) e as menções mudaram
       return json(res, 200, { ok: true, issue, ...(interno ? { interno: true } : {}) });
     }
 
