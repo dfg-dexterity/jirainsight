@@ -18,13 +18,23 @@ export function cacheGet(key) {
   return hit.val;
 }
 
+// Entradas vencidas só saíam quando relidas: janelas custom (payloads de MB) ficavam na
+// memória da instância até ela morrer. Varre de vez em quando, ao gravar.
+function varreCache() {
+  if (_cache.size < 150) return;
+  const agora = Date.now();
+  for (const [k, v] of _cache) if (v.exp < agora) _cache.delete(k);
+}
+
 export function cacheSet(key, val) {
+  varreCache();
   _cache.set(key, { val, exp: Date.now() + TTL_MIN * 60 * 1000 });
   return val;
 }
 
 // Variante com TTL próprio (minutos) — para dados que precisam ficar mais frescos.
 export function cacheSetTTL(key, val, minutos) {
+  varreCache();
   _cache.set(key, { val, exp: Date.now() + minutos * 60 * 1000 });
   return val;
 }
@@ -205,14 +215,19 @@ export async function jiraResolveIssues(ids) {
   const mapa = {};
   const paiNaoEpico = {};   // issueId -> key do pai (história) p/ resolver o épico num 2º nível
   const unicos = [...new Set(ids.map(String))].filter(Boolean);
-  for (let i = 0; i < unicos.length; i += 100) {
-    const lote = unicos.slice(i, i + 100);
-    const { issues } = await jiraSearchAll({
-      jql: `id in (${lote.join(',')})`,
-      fields: ['project', 'issuetype', 'summary', 'parent', ...CAMPOS_AMS_IDS],
-      pageSize: 100,
-      maxPages: 1,
-    });
+  // Lotes de 100 ids buscados 4 POR VEZ (eram em série: 5–10 idas ao Jira numa janela de
+  // 30 dias). maxPages 2 cobre o caso raro de o Jira devolver uma página menor que 100.
+  const lotes = [];
+  for (let i = 0; i < unicos.length; i += 100) lotes.push(unicos.slice(i, i + 100));
+  const buscaLote = (lote) => jiraSearchAll({
+    jql: `id in (${lote.join(',')})`,
+    fields: ['project', 'issuetype', 'summary', 'parent', ...CAMPOS_AMS_IDS],
+    pageSize: 100,
+    maxPages: 2,
+  });
+  const resultados = [];
+  for (let i = 0; i < lotes.length; i += 4) resultados.push(...(await Promise.all(lotes.slice(i, i + 4).map(buscaLote))));
+  for (const { issues } of resultados) {
     for (const it of issues) {
       const f = it.fields || {};
       const proj = f.project || {};
@@ -245,10 +260,11 @@ export async function jiraResolveIssues(ids) {
   const paisKeys = [...new Set(Object.values(paiNaoEpico))];
   if (paisKeys.length) {
     const epicoDoPai = {};
-    for (let i = 0; i < paisKeys.length; i += 100) {
-      const lote = paisKeys.slice(i, i + 100);
-      const { issues } = await jiraSearchAll({ jql: `key in (${lote.join(',')})`, fields: ['parent'], pageSize: 100, maxPages: 1 });
-      for (const it of issues) { const par = it.fields && it.fields.parent; epicoDoPai[it.key] = (par && par.key) || ''; }
+    const lotesPai = [];
+    for (let i = 0; i < paisKeys.length; i += 100) lotesPai.push(paisKeys.slice(i, i + 100));
+    for (let i = 0; i < lotesPai.length; i += 4) {
+      const rs = await Promise.all(lotesPai.slice(i, i + 4).map((lote) => jiraSearchAll({ jql: `key in (${lote.join(',')})`, fields: ['parent'], pageSize: 100, maxPages: 2 })));
+      for (const { issues } of rs) for (const it of issues) { const par = it.fields && it.fields.parent; epicoDoPai[it.key] = (par && par.key) || ''; }
     }
     for (const [id, paiKey] of Object.entries(paiNaoEpico)) { if (mapa[id]) mapa[id].epicoKey = epicoDoPai[paiKey] || ''; }
   }
@@ -261,6 +277,12 @@ export async function jiraResolveIssues(ids) {
 // Serve de "elenco" para o ranking/timesheet: quem está ativo no Jira aparece mesmo
 // sem ter apontado horas no período (assim ninguém some por não ter lançado nada).
 export async function jiraUsuariosAtivos() {
+  // Cache de 30 min por instância: convites, bot do Teams, criação por IA e /api/usuarios
+  // repaginavam /users/search a cada chamada.
+  const ckU = 'jira:usuariosAtivos';
+  const copia = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, { ...v }]));   // quem chama pode mexer no resultado
+  const hit = cacheGet(ckU);
+  if (hit) return copia(hit);
   const base = jiraBase();
   const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
   const out = {};
@@ -280,7 +302,8 @@ export async function jiraUsuariosAtivos() {
     }
     if (lote.length < max) break;
   }
-  return out;
+  if (Object.keys(out).length) cacheSetTTL(ckU, out, 30);
+  return copia(out);
 }
 
 // Heurística de faturável a partir do tipo de issue. Considera tanto o NOME do tipo

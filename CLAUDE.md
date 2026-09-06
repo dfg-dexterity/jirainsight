@@ -2,10 +2,20 @@
 
 Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
 
-- Front-end estático em `public/index.html` (HTML/JS puro, **sem build**).
-- Funções serverless em `api/*.js` (Vercel, Node ≥ 18). Leituras usam a conta de
-  serviço (`JIRA_*`, `CLOCKWORK_API_TOKEN`); apontamentos/transições/criação usam o
-  token de API da própria pessoa (enviado por requisição, nunca persistido).
+- Front-end estático em `public/` (HTML/JS puro, **sem build**). Desde **2026-09-06** o
+  `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **30 módulos
+  `public/js/NN-nome.js`** carregados em ordem por `<script defer>` (scripts clássicos,
+  escopo global compartilhado — o mapa está no README, seção "Os módulos do painel").
+  Regra de ouro: código que EXECUTA no carregamento só usa o que já foi declarado em
+  arquivos anteriores; `npm run check` confere isso com parser (acorn) e reprova o PR.
+  Novo módulo = arquivo + tag no `index.html` na posição certa. Listeners delegados de
+  uma tela ficam **no arquivo da tela** (fim do arquivo), não no `30-eventos-boot.js`.
+  Código de tela desligada vai para `public/js/_arquivado-*.js` (sem tag; o gate ignora
+  o prefixo `_`) — nunca fica carregando à toa.
+- Funções serverless em `api/*.js` (Vercel, Node ≥ 18, **limite de 12 arquivos** — sem
+  endpoint novo). Leituras usam a conta de serviço (`JIRA_*`, `CLOCKWORK_API_TOKEN`);
+  apontamentos/transições/criação usam o token de API da própria pessoa (enviado por
+  requisição, nunca persistido).
 - Deploy: a branch **`main`** publica na Vercel.
 
 ## 📘 Documentação no Notion — MANTER ATUALIZADA
@@ -120,7 +130,8 @@ A cada **melhoria publicada** (merge na main), **publicar um aviso no canal do T
 ## ✨ Novidades do app — MANTER ATUALIZADO (acordo de 2026-07-19)
 
 A cada **entrega**, além do Notion, atualizar as **Novidades dentro do app**
-(`public/index.html`):
+(`public/js/05-novidades-roadmap.js` — desde 2026-09-06 as Novidades e o Roadmap moram
+nesse arquivo pequeno, não mais no `index.html`):
 
 1. Acrescentar a(s) entrada(s) no topo do array `const NOVIDADES` (formato
    `['AAAA-MM-DD','texto com <b>destaques</b>']`, tom voltado ao usuário).
@@ -133,7 +144,7 @@ automaticamente a partir do array.
 ## 🗺️ Roadmap — REVISAR EM TODA ENTREGA (acordo de 2026-08-31, reforçado pelo usuário)
 
 O **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) **não é opcional nem "quando
-lembrar"**: toda entrega revisa a lista. Em `public/index.html`:
+lembrar"**: toda entrega revisa a lista. Em `public/js/05-novidades-roadmap.js`:
 
 1. **Tirar** o que esta entrega concluiu (a entrega passa a aparecer sozinha em
    "✅ Entregas recentes", que lê o array `NOVIDADES`).

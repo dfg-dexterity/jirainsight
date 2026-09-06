@@ -14,9 +14,12 @@ export async function coletaAtividade(r) {
     return t >= inicio && t <= fim;
   };
 
-  // Issues atualizadas na janela, com changelog e campos mínimos.
+  // Issues atualizadas na janela, com changelog e campos mínimos. O teto na JQL (fim + 2 dias,
+  // folga para o fuso do perfil da conta de serviço) evita baixar tudo até hoje quando a
+  // janela é passada (mês/semana anterior) — naJanela continua filtrando com precisão.
+  const fimJql = new Date(fim + 2 * 86400000).toISOString().slice(0, 10);
   const { issues, pages, truncado } = await jiraSearchAll({
-    jql: `updated >= "${r.startDate}" ORDER BY updated ASC`,
+    jql: `updated >= "${r.startDate}" AND updated < "${fimJql}" ORDER BY updated ASC`,
     fields: ['project', 'issuetype', 'created', 'reporter', 'resolutiondate', 'comment', 'summary'],
     expand: 'changelog',
     pageSize: 100,

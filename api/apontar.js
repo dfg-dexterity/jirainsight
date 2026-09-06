@@ -203,8 +203,8 @@ async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pend
 
   const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   let enviados = 0; const semEmail = []; const falhas = [];
-  for (const p of pendentes) {
-    if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); continue; }
+  const enviaUm = async (p) => {
+    if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); return; }
     const texto = `**${criadoPor}** convidou você a apontar **${tempo}** (${dia}) na reunião **${issue}**${resumo ? ` — ${resumo}` : ''}.\n\n[Abrir o painel e confirmar com 1 clique](${painel})`;
     const corpo = {
       email: p.email, nome: p.nome || '', issue,
@@ -230,7 +230,9 @@ async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pend
       if (r.status >= 200 && r.status < 300) enviados += 1;
       else falhas.push(`${p.nome || p.email}: HTTP ${r.status}`);
     } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); }
-  }
+  };
+  // 5 avisos por vez (eram um a um em série: uma reunião grande segurava a resposta por vários segundos)
+  for (let i = 0; i < pendentes.length; i += 5) await Promise.allSettled(pendentes.slice(i, i + 5).map(enviaUm));
   return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5) };
 }
 
