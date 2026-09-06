@@ -34,7 +34,9 @@ function agMarcaTicket(evId,key){
 // Tipo "Reunião" do projeto (senão o tipo padrão) — para criar o ticket do evento.
 function agTipoReuniao(projKey){
   const pr=(_projetosCache||[]).find(x=>x.key===projKey); const tipos=(pr&&pr.tipos)||[];
-  return tipos.find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''))||msTipoPadrao(projKey);
+  // Sem tipo "Reunião": cai no tipo padrão do projeto (task/tarefa de 1º nível), mesmo critério do Vincular Reuniões.
+  const base=tipos.filter(t=>!t.subtarefa&&(t.nivel===0||t.nivel===undefined));
+  return tipos.find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''))||base.find(t=>/task|tarefa/i.test(t.nome||''))||base[0]||null;
 }
 // Usuários ativos do Jira (accountId → {nome,email}) para casar com os convidados.
 function agCarregaUsuarios(){

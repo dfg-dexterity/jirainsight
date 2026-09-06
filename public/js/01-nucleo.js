@@ -377,6 +377,10 @@ async function carrega(periodo, forca){
 
 // Remove apps/bots do Jira (Automation, BigGantt…) dos dados antes de usar,
 // para que não apareçam em nenhuma visão nem no filtro de Pessoa.
+// Invalida o que o navegador guardou das leituras (chamada depois de apontar, transicionar,
+// criar…). Também zera as faixas do Ranking (semana/mês/ano), que antes ficavam congeladas
+// pela sessão inteira mesmo depois de novos apontamentos.
+function invalidaCacheDados(){ estado.cache={}; if(estado.ranking) estado.ranking.tempoPer={}; }
 function removeUsuariosTecnicos(t, a){
   const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
   const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));

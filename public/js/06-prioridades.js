@@ -27,7 +27,8 @@ function prSemaforo(venc){ const hoje=hojeSP();
 
 // ---- cargas (cada uma independente; re-render quando chega) ----
 function prGarante(forca){ const pr=estado.prioridades;
-  if(!forca&&(pr.dados||pr.carregando)) return; pr.carregando=true; pr.erro='';
+  if(!forca&&(pr.dados||pr.carregando||pr.erro)) return;   // com erro guardado, espera o "Tentar de novo" (sem laço de fetch)
+  pr.carregando=true; pr.erro='';
   fetch('/api/vencimentos?reuniao=1'+(forca?'&nocache=1':'')).then(r=>r.json()).then(j=>{
     pr.carregando=false; if(j&&j.erro) pr.erro=j.erro; else pr.dados=j;
     if(estado.vista==='prioridades') renderPrioridades();

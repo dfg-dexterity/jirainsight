@@ -464,15 +464,15 @@ function renderAMS(){
     const ate = cycSel.end<hoje?cycSel.end:hoje;
     amsKey=`${cSel.id}|${cycSel.start}|${ate}`;   // a busca é só do ciclo do contrato selecionado
     const am=estado.ams;
-    if(am.range!==amsKey && !am.carregando){
+    if(am.range!==amsKey && am.erroKey!==amsKey && !am.carregando){   // erroKey: ciclo que falhou — espera o "Atualizar agora" em vez de rebuscar em laço
       am.carregando=true; am.erro='';
       const forcar=!!am.forcar; am.forcar=false;      // "Atualizar agora" ignora o cache do servidor
       fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}${forcar?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
         am.carregando=false;
-        if(j.erro){ am.erro=j.erro; }
+        if(j.erro){ am.erro=j.erro; am.erroKey=amsKey; }
         else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; am.quando=new Date(); }
         if(estado.vista==='ams') renderAMS();
-      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); if(estado.vista==='ams') renderAMS(); });
+      }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); am.erroKey=amsKey; if(estado.vista==='ams') renderAMS(); });
     }
     amsProntos = !!estado.ams.dados && estado.ams.range===amsKey;
   }
@@ -697,7 +697,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   const cur=e.target.closest&&e.target.closest('[data-ams-cur]');
   if(cur){ escondeTip(); estado.ams.ref=''; renderAMS(); return; }
   const atz=e.target.closest&&e.target.closest('[data-ams-atualiza]');
-  if(atz){ escondeTip(); estado.ams.dados=null; estado.ams.range=''; estado.ams.forcar=true; renderAMS(); return; }
+  if(atz){ escondeTip(); estado.ams.dados=null; estado.ams.range=''; estado.ams.erroKey=''; estado.ams.forcar=true; renderAMS(); return; }
   const pdf=e.target.closest&&e.target.closest('[data-ams-pdf]');
   if(pdf){ escondeTip(); pdfApuracaoAMS(pdf.getAttribute('data-ams-pdf')); return; }
   const mes=e.target.closest&&e.target.closest('[data-ams-mes]');

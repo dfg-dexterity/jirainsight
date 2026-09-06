@@ -262,12 +262,12 @@ function radGarante(){
       if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
       if(estado.vista==='acoes') renderAcoes();
     }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
-  if(!ax.radT&&!ax.radTB){ ax.radTB=true;
+  if(!ax.radT&&!ax.radTB&&!ax.radTErro){ ax.radTB=true;
     const h=hojeSP();
     fetch(`/api/tempo?desde=${voltaDias(h,6)}&ate=${h}`).then(r=>r.json()).then(j=>{ ax.radTB=false;
-      if(j&&!j.erro) ax.radT=j;
+      if(j&&!j.erro) ax.radT=j; else ax.radTErro=(j&&j.erro)||'Falha ao ler as horas.';   // guarda o erro: sem isso o render rebuscava em laço
       if(estado.vista==='acoes') renderAcoes();
-    }).catch(()=>{ ax.radTB=false; }); }
+    }).catch(e=>{ ax.radTB=false; ax.radTErro=String(e.message||e); if(estado.vista==='acoes') renderAcoes(); }); }
 }
 // 🆕 CARDS DE CRIAÇÃO NA HOME — leem a MESMA base do Radar (atividade de 7 dias),
 // sem chamada nova: "meus tickets recém criados" (últimos meus, do mais novo para
@@ -891,7 +891,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rad-ev')){ const ev=t.getAttribute('data-rad-ev');
     if(rad.ev[ev]) delete rad.ev[ev]; else rad.ev[ev]=1;
     radSalva(); renderAcoes(); return; }
-  if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; renderAcoes(); return; }
+  if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; estado.acoes.radTErro=''; renderAcoes(); return; }
   // ⏱ Apontamento do time: recarregar, expandir a lista e abrir o timesheet da pessoa
   if(t.id==='apr-retry'||t.id==='apr-refresh'){ const ax2=estado.acoes; ax2.sem=null; ax2.semErro=''; renderAcoes(); return; }
   if(t.id==='apr-todos'){ estado.acoes.semTodos=!estado.acoes.semTodos; renderAcoes(); return; }

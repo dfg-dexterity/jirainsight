@@ -222,9 +222,16 @@ function rkCalcDe(tempo){
   const fim = (ateBr && ateBr<hoje) ? ateBr : hoje;
   const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
   const porA={};
+  // Quem NÃO apontou nada também entra (é justamente quem o ranking precisa mostrar):
+  // parte das pessoas ativas do Jira, respeitando ocultos e vigência (admissão/desligamento).
+  Object.entries(estado.usuarios||{}).forEach(([a,u])=>{
+    const nm=(u&&u.nome)||''; if(ocultos.has(a) || RE_EXCLUIR.test(nm)) return;
+    const v=vigenciaDe(a); if(v && ((v.fim&&v.fim<de)||(v.ini&&v.ini>ateBr))) return;
+    porA[a]={a, nome:nm||a, tot:0, porSem:{}};
+  });
   Object.entries(tempo.pessoas||{}).forEach(([a,p])=>{
     if(ocultos.has(a) || RE_EXCLUIR.test((p&&p.nome)||'')) return;
-    porA[a]={a, nome:(p&&p.nome)||a, tot:0, porSem:{}};
+    if(!porA[a]) porA[a]={a, nome:(p&&p.nome)||a, tot:0, porSem:{}};
   });
   (tempo.worklogs||[]).forEach(w=>{ const r=porA[w.a]; if(!r) return;
     const d=(w.d||'').slice(0,10); if(!d||d<de||d>ateBr) return;

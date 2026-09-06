@@ -337,7 +337,7 @@ async function mdAponta(i, btn){
       body:JSON.stringify({issue:s.ticket, segundos:seg, inicio:md.dados.dia, comentario:s.atividade||'',
         email:id.email, token:id.token})}).then(r=>r.json());
     if(j.ok){ s.feito=true; logAcao({acao:'meudia-apontar', t:s.ticket, para:s.tempo, ok:true});
-      toast(`✓ ${s.tempo} apontado em ${s.ticket}.`,'ok'); estado.cache={}; renderMeuDia(); }
+      toast(`✓ ${s.tempo} apontado em ${s.ticket}.`,'ok'); invalidaCacheDados(); renderMeuDia(); }
     else { toast(humanizaErro(j.erro||'Falha ao apontar.'),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
   }catch(e){ toast('Erro de rede: '+(e.message||e),'err'); if(btn){ btn.disabled=false; btn.textContent='Tentar de novo'; } }
 }

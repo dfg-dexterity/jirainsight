@@ -22,11 +22,12 @@ function carregaProjConsolidado(forca) {
 }
 function carregaProjFicha(key, forca) {
   const p = estado.projetos; p.carregando = true; p.erro = '';
+  p.erroFicha = p.erroFicha || {}; delete p.erroFicha[key];   // erro guardado POR projeto (ver renderProjFicha)
   fetch(`/api/projetos?visao=1&projeto=${encodeURIComponent(key)}${forca ? '&nocache=1' : ''}`).then((r) => r.json()).then((j) => {
     p.carregando = false;
-    if (j && j.erro) p.erro = j.erro; else p.fichas[key] = j;
+    if (j && j.erro) { p.erro = j.erro; p.erroFicha[key] = j.erro; } else p.fichas[key] = j;
     if (estado.vista === 'projetos' && p.sel === key) renderProjetos();
-  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); if (estado.vista === 'projetos' && p.sel === key) renderProjetos(); });
+  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); p.erroFicha[key] = p.erro; if (estado.vista === 'projetos' && p.sel === key) renderProjetos(); });
 }
 
 function projSelectorHTML() {
@@ -280,6 +281,11 @@ function projTabela(titulo, arr, cols) {
 function renderProjFicha(cont, key) {
   const p = estado.projetos; const d = p.fichas[key];
   if (!d) {
+    const erroF = p.erroFicha && p.erroFicha[key];
+    if (erroF) {   // falhou: mostra o erro e espera o clique — sem isso cada render rebuscava a ficha em laço
+      cont.replaceChildren(el(`<div>${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2><div class="estado">Não consegui carregar: ${esc(erroF)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
+      return;
+    }
     if (!p.carregando) carregaProjFicha(key, false);
     cont.replaceChildren(el(`<div>${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2>${skeletonPainel()}</div></div>`));
     return;

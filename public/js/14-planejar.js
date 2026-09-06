@@ -690,7 +690,7 @@ async function arvCria(){
     if(ok){ a.feito={key:ok.key, resumo:item.resumo};
       logAcao({acao:'arvore-criar', t:ok.key, para:no.badge, ok:true});
       toast(`✓ Ticket ${ok.key} criado (${no.badge}).`,'ok');
-      estado.cache={};
+      invalidaCacheDados();
     } else a.erro=(j&&(j.erro||(j.erros&&j.erros[0]&&j.erros[0].erro)))||'Falha ao criar o ticket.';
   }catch(e){ a.criando=false; a.erro='Erro de rede: '+(e.message||e); }
   arvRender();
@@ -987,7 +987,7 @@ async function criaEstrutura(){
     pl.resultados={criados, erros, ok:!erros.length};
     pl.grade=montaGrade(criados);
     pl.estru=null;
-    estado.cache={};            // os painéis verão os tickets novos
+    invalidaCacheDados();            // os painéis verão os tickets novos
     renderPlanejar();
   }catch(e){
     pl.criando=false; pl.criandoMsg='';
@@ -996,7 +996,7 @@ async function criaEstrutura(){
     if(criados.length){
       erros.push({resumo:'(interrompido)', erro:String(e.message||e)});
       pl.resultados={criados, erros, ok:false}; pl.grade=montaGrade(criados); pl.estru=null;
-      estado.cache={};
+      invalidaCacheDados();
       renderPlanejar(); return;
     }
     renderPlanejar();
@@ -1168,7 +1168,7 @@ async function salvaGrade(){
     mudadas.forEach(x=>{ const r2=por.get(x.key)||por.get(x.key.toUpperCase());
       if(r2&&r2.ok){ x.respId0=x.respId; x.venc0=x.venc; x.st='ok'; x.erro=''; }
       else { x.st='err'; x.erro=(r2&&r2.erro)||'Falha ao salvar.'; } });
-    estado.cache={};            // vencimentos/atribuições mudaram
+    invalidaCacheDados();            // vencimentos/atribuições mudaram
     renderPlanejar();
   }catch(e){
     pl.gSalvando=false; renderPlanejar();
@@ -1199,7 +1199,7 @@ async function criaLote(){
     pl.grade=montaGrade((j.criados||[]).map(c=>{ const it=pl.itens[c.indice]||{};
       return {...c, respId:it.respId||'', venc:pl.venc||''}; }));
     pl.resultados=j; pl.itens=null;
-    estado.cache={};            // os painéis verão os tickets novos
+    invalidaCacheDados();            // os painéis verão os tickets novos
     renderPlanejar();
   }catch(e){
     pl.criando=false;

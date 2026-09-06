@@ -120,7 +120,7 @@ async function qkConfirma(){
     const j=await r.json();
     if(!j||!j.ok||!j.key) throw new Error((j&&j.erro)||'Falha ao criar o ticket.');
     const acoes=Array.isArray(j.acoes)?j.acoes:[];
-    estado.qk.texto=''; _qkPrev=null; _qkMenc=[]; estado.cache={};
+    estado.qk.texto=''; _qkPrev=null; _qkMenc=[]; invalidaCacheDados();
     abreModal(`<h2>🎫 Ticket criado!</h2>
       <div class="alx-fb ap-fb ok" style="display:block">✓ <a href="${jiraBase()}/browse/${encodeURIComponent(j.key)}" target="_blank" rel="noopener"><strong>${esc(j.key)}</strong> ↗</a> — ${esc(resumo)}
         <br><span class="muted small">${esc(p.projetoNome)}${p.epicoKey?` · épico ${esc(p.epicoNome||p.epicoKey)}`:''}${venc?` · vence ${esc(venc.split('-').reverse().join('/'))}`:''}</span></div>

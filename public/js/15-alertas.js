@@ -452,7 +452,7 @@ async function confirmaReprog(){
     }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
   }
   salvaCfg();        // persiste o log de auditoria das reprogramações
-  estado.cache={};   // os outros painéis recarregam dados frescos
+  invalidaCacheDados();   // os outros painéis recarregam dados frescos
   if(okN && !erros.length){
     fb.className='alx-fb ap-fb ok';
     fb.textContent=`✓ ${okN} ticket(s) reprogramado(s) para ${alxDataBR(ctx.nova)} e comentado(s) no Jira.`;
@@ -560,6 +560,7 @@ async function confirmaAtribuir(){
   const a=estado.alertas; const dados=a.dados; let okN=0; const erros=[];
   for(const k of ctx.keys){
     fb.classList.remove('err','ok','warn'); fb.textContent=`Atribuindo ${k}… (${okN+erros.length+1}/${ctx.keys.length})`;
+    const respAntes=((alxTickets().find(x=>x.k===k)||{}).resp)||'—';   // responsável anterior, para o histórico (antes de trocar)
     try{
       const r1=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({atribuir:true,issue:k,accountId,email:id.email,token:id.token})}).then(r=>r.json());
@@ -573,12 +574,12 @@ async function confirmaAtribuir(){
       okN++;
       if(dados&&dados.tickets){ const dt=dados.tickets.find(x=>x.k===k); if(dt){ dt.respId=accountId; dt.resp=nome; } }
       const gtk=(estado.gestao.dados&&estado.gestao.dados.tickets||[]).find(x=>x.k===k); if(gtk){ gtk.respId=accountId; gtk.resp=nome; } delete estado.gestao.sel[k];
-      logAcao({acao:'atribuir', t:k, de:(t&&t.resp)||'—', para:nome||'sem responsável', ok:true}, false);
+      logAcao({acao:'atribuir', t:k, de:respAntes, para:nome||'sem responsável', ok:true}, false);
       delete a.sel[k];
       if(!comentOk) erros.push(`${k}: atribuído, mas o comentário falhou (${comentErro||'sem permissão'})`);
     }catch(e){ erros.push(`${k}: erro de rede (${e.message||e})`); }
   }
-  estado.cache={};
+  invalidaCacheDados();
   if(okN && !erros.length){
     fb.className='alx-fb ap-fb ok';
     fb.textContent=`✓ ${okN} ticket(s) atribuído(s) a ${nome} no Jira.`;

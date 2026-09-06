@@ -30,16 +30,20 @@ function mpGaranteMeu(w, forca, aoTerminar){
   const mp=estado.minhasemana; mp.meu=mp.meu||{}; mp.meuB=mp.meuB||{};
   if(!forca && mp.meu[w]!==undefined) return true;
   if(mp.meuB[w]) return false;
+  // Depois de uma falha, espera 30 s antes de tentar de novo: cada render (Início/Meu
+  // Planejamento) chama esta função, e sem a pausa a falha virava um laço de requisições.
+  mp.meuErrAt=mp.meuErrAt||{};
+  if(!forca && mp.meuErrAt[w] && Date.now()-mp.meuErrAt[w]<30000) return false;
   const id=idApontar(); if(!id||!id.accountId) return false;
   mp.meuB[w]=1;
   mpApi({acao:'meu', semana:w}).then(j=>{
     mp.meuB[w]=0;
-    if(j&&j.ok){ mp.meu[w]={plano:j.plano||null}; mp.gestor=!!j.gestor; mp.erro=''; }
-    else mp.erro=(j&&j.erro)||'Falha ao carregar o planejamento.';
+    if(j&&j.ok){ mp.meu[w]={plano:j.plano||null}; mp.gestor=!!j.gestor; mp.erro=''; delete mp.meuErrAt[w]; }
+    else { mp.erro=(j&&j.erro)||'Falha ao carregar o planejamento.'; mp.meuErrAt[w]=Date.now(); }
     if(aoTerminar) aoTerminar();
     if(estado.vista==='minhasemana') renderMinhaSemana();
     else if(estado.vista==='acoes') try{ renderAcoes(); }catch(e){}
-  }).catch(e=>{ mp.meuB[w]=0; mp.erro=humanizaErro(e); if(estado.vista==='minhasemana') renderMinhaSemana(); });
+  }).catch(e=>{ mp.meuB[w]=0; mp.erro=humanizaErro(e); mp.meuErrAt[w]=Date.now(); if(estado.vista==='minhasemana') renderMinhaSemana(); });
   return false;
 }
 function mpPlano(w){ const c=(estado.minhasemana.meu||{})[w]; return c?c.plano:undefined; }
@@ -1205,9 +1209,9 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   const c=t.getAttribute('data-mp-rf'); const mp=estado.minhasemana;
   if(c==='inicio'){
     cfg.mpInicio=String(t.value||'').slice(0,10); salvaCfg();
-    mp.rel=null; mp.relF.de='';   // recalcula o "De" padrão respeitando o novo início
+    mp.rel=null; mp.relF.de='';   // recalcula o "De" padrão respeitando o novo início (mpReRender: fica na tela em que a pessoa está)
     toast(cfg.mpInicio?`📆 Relatórios do planejamento apurados a partir de ${fmtBR(cfg.mpInicio)} (vale para o time todo).`:'📆 Início da apuração removido — relatórios voltam a considerar tudo.','ok');
-    renderMinhaSemana(); return; }
+    mpReRender(); return; }
   mp.relF[c]=(c==='de'||c==='ate')?(semChave(t.value)||''):(t.value||'');   // De/Até viram a SEGUNDA da semana escolhida
   if(c==='de'||c==='ate') mp.rel=null;
   mpReRender();

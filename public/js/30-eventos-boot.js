@@ -348,16 +348,16 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
     if(a&&(ini||fim)){
       if(ini&&fim&&fim<ini){ toast('O desligamento não pode vir antes da admissão.','warn'); return; }
       cfg.vigencias=cfg.vigencias||{}; cfg.vigencias[a]={ini:ini||'', fim:fim||''};
-      salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
+      salvaCfg(); invalidaCacheDados(); recarrega(); abreMetas(); }
     else toast('Escolha a pessoa e informe pelo menos uma das datas.','warn'); }
   else if(t.hasAttribute('data-del-vig')){ delete (cfg.vigencias||{})[t.getAttribute('data-del-vig')];
-    salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
+    salvaCfg(); invalidaCacheDados(); recarrega(); abreMetas(); }
   else if(t.id==='mt-add-oculto'){ const a=val('mt-oc-pessoa');
     if(a){ const nome=(pessoasUnidas()[a]&&pessoasUnidas()[a].nome)||a; cfg.ocultos=cfg.ocultos||[];
       if(!cfg.ocultos.some(o=>o.a===a)) cfg.ocultos.push({a,nome});
-      salvaCfg(); estado.cache={}; recarrega(); abreMetas(); } }
+      salvaCfg(); invalidaCacheDados(); recarrega(); abreMetas(); } }
   else if(t.hasAttribute('data-del-oculto')){ cfg.ocultos.splice(Number(t.getAttribute('data-del-oculto')),1);
-    salvaCfg(); estado.cache={}; recarrega(); abreMetas(); }
+    salvaCfg(); invalidaCacheDados(); recarrega(); abreMetas(); }
   else if(t.id==='mt-add-fer'){ const de=val('mt-fer-data'), nm=(val('mt-fer-nome')||'').trim();
     if(de){ cfg.feriadosExtra=cfg.feriadosExtra||{}; cfg.feriadosExtra[de]=nm||'Feriado';
       cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==de); salvaCfg(); render(); abreMetas(); } }

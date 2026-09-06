@@ -327,7 +327,7 @@ async function gxStatusLote(){
       delete estado.gestao.sel[k];
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
-  salvaCfg(); estado.cache={};
+  salvaCfg(); invalidaCacheDados();
   const nomesTxt=[...nomesUsados].map(esc).join('" / "');
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
     fb.innerHTML=`${ok?`✓ ${ok} ticket(s) movido(s) via "${nomesTxt}".`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
@@ -371,7 +371,7 @@ async function gxExcluiLote(){
       } else erros.push(`${k}: ${r.erro||'falhou'}`);
     }catch(e){ erros.push(`${k}: ${e.message||e}`); }
   }
-  salvaCfg(); estado.cache={};
+  salvaCfg(); invalidaCacheDados();
   if(fb){ fb.className='alx-fb ap-fb '+(erros.length?'erro':'ok');
     fb.innerHTML=`${ok?`✓ ${ok} ticket(s) excluído(s) do Jira.`:''}${erros.length?`<br>⚠ ${erros.map(esc).join('<br>')}`:''}`; }
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.classList.remove('perigo'); bt.id='gx-fechar'; }
@@ -479,7 +479,7 @@ async function gxApontaConfirma(){
     (((estado.analytics.dados||{}).abertos)||[]).forEach(soma);
     (((estado.analytics.dados||{}).concluidos)||[]).forEach(soma);
     logAcao({acao:'apontar', t:ctx.k, para:fmtH(seg), ok:true});
-    estado.cache={}; estado.apontar.porData={}; estado.apontar.recentes=null;
+    invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
     _gxApont=null; fechaModal();
     toast(`✓ ${fmtH(seg)} apontadas em ${ctx.k}.`,'ok');
     if(estado.vista==='gestao') renderGestao(); else if(estado.vista==='analytics') renderAnalytics();

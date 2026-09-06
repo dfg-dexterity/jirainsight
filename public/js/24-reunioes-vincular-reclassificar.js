@@ -127,7 +127,7 @@ function rvExecuta(){
         estado.reuvinc.dados=null;
       } else { estado.reuvinc.dados=null; carregaReuVinc(true); }
       // O original foi excluído: a aba Apontar recarrega as listas ao fechar o modal.
-      estado.apontar.porData={}; estado.apontar.recentes=null; estado.cache={};
+      estado.apontar.porData={}; estado.apontar.recentes=null; invalidaCacheDados();
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
 }
 // ---- 🗂 Reuniões: tela unificada (gestão e reclassificação) ----
@@ -391,7 +391,7 @@ async function executaMover(){
     rc.movendo=false;
     if(j.erro){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro; } return; }
     if(j.ok===false){ if(fb){ fb.className='ap-fb err'; fb.textContent=j.erro||'Falha ao mover.'; } return; }
-    rc.taskId=j.taskId||''; rc.resultado=j; rc.dados=null; estado.cache={};
+    rc.taskId=j.taskId||''; rc.resultado=j; rc.dados=null; invalidaCacheDados();
     fechaModal(); renderReclass();
   }catch(e){ rc.movendo=false; if(fb){ fb.className='ap-fb err'; fb.textContent='Erro de rede: '+(e.message||e); } }
 }
@@ -428,7 +428,7 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   }
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
-  if(e.target && e.target.id==='rc-busca'){
+  if(estado.vista==='reclassificar' && e.target && e.target.id==='rc-busca'){   // o id rc-busca também existe na Central de Relatórios
     buscaComposta(e,(v)=>{ estado.reclass.busca=v; },renderReclass,'rc-busca');
   }
 });

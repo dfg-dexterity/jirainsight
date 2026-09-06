@@ -662,7 +662,7 @@ async function fazApontamento(btn){
         if(rec){ rec.seg+=seg; if(inicio>rec.ult) rec.ult=inicio; }
         else{ recs.unshift({k, p:(t&&t.p)||k.split('-')[0], seg, ult:inicio}); recs.length=Math.min(recs.length,6); }
       }
-      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+      invalidaCacheDados();   // painéis recarregam dados frescos na próxima navegação
     } else { const m=humanizaErro(j.erro||'Falha ao apontar.'); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
   }catch(e){ const m=humanizaErro(e); fb.classList.add('err'); fb.textContent=m; toast(m,'err'); }
   ocupado(btn,false);
@@ -710,7 +710,7 @@ async function executaTransicao(btn){
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.status=novo;
       const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg) tg.status=novo;
       const fechou=(catg==='done');
-      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+      invalidaCacheDados();   // painéis recarregam dados frescos na próxima navegação
       if(fechou){
         // Concluído: o chamado SOME da lista (a tela mostra só abertos). Mostra o ✓,
         // esmaece a linha e re-renderiza (KPIs e contadores atualizam juntos).
@@ -773,7 +773,7 @@ async function executaReagendar(btn){
       const dados=ap.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.venc=nova||'';
       const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg) tg.venc=nova||'';
-      estado.cache={};
+      invalidaCacheDados();
       // Sai da lista se deixou de pertencer à janela atual (sem data e não estamos incluindo sem-data; ou venc além da data-limite).
       const saiu=(!nova && !ap.semVenc) || (nova && nova>ap.ate);
       if(saiu && dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);
@@ -832,7 +832,7 @@ async function executaTransferir(btn){
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k);
       if(t){ t.respId=accountId||''; t.resp=novoNome||''; }
       const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg){ tg.respId=accountId||''; tg.resp=novoNome||''; }
-      estado.cache={};
+      invalidaCacheDados();
       // Some da lista se o filtro "Só os meus" estiver ligado e não for mais minha.
       const saiu = ap.soMeus && id.accountId && (accountId!==id.accountId);
       if(saiu && dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);
@@ -899,7 +899,7 @@ async function executaComentar(btn){
       body:JSON.stringify({comentar:true,issue:k,texto,...(marcados.length?{mencionar:marcados}:{}),email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){ fb.classList.add('ok');
       fb.textContent=`✓ Comentário enviado em ${k}${marcados.length?` marcando ${marcados.length} pessoa(s)`:''}.`;
-      if(ta) ta.value=''; estado.cache={};
+      if(ta) ta.value=''; invalidaCacheDados();
       setTimeout(()=>{ const a=area; if(a) a.remove(); }, 2500);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao comentar.';
       [...area.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
@@ -1016,7 +1016,7 @@ async function executaReclass(btn){
     if(j.ok && j.status==='completo'){
       const mov=j.movidos&&j.movidos[0]; const novaChave=(mov&&mov.key)||'';
       if(dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);   // mudou de projeto/chave: sai da lista
-      estado.cache={};
+      invalidaCacheDados();
       fb.classList.add('ok'); fb.textContent=`✓ ${k} movido para ${alvo}${(novaChave&&novaChave!==k)?` (agora ${novaChave})`:''}.`;
       row.classList.add('feito'); row.style.transition='opacity .5s ease'; row.style.opacity='.35';
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); }, 1300);
@@ -1073,7 +1073,7 @@ async function respondeConvite(btn, recusa){
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
       pintaBadgeConvites(estado.apontar.convites.length); pintaBadgeInbox();
       if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos, j.issue); atualizaPainelHoras(); }
-      estado.cache={};   // painéis recarregam dados frescos na próxima navegação
+      invalidaCacheDados();   // painéis recarregam dados frescos na próxima navegação
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='inbox') renderInbox(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
       [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=false; }); }
@@ -1207,7 +1207,7 @@ async function enviaReuniaoGrupo(){
       fb.classList.add('ok');
       fb.innerHTML=`✓ <strong>${esc(j.issue)}</strong>: ${esc(partes.join(' · ')||'nada a fazer')}.
         ${j.pendentes?'<br><span class="muted small">Os convidados veem o convite no topo da aba ⏱ Apontar (precisam estar identificados com o token do Jira) e confirmam com 1 clique.</span>':''}`;
-      estado.cache={};
+      invalidaCacheDados();
       // Atualiza o total do ticket na lista (otimista), como no apontamento individual.
       if(j.proprio&&j.proprio.ok){
         const dados=estado.apontar.porData[chaveVenc()];

@@ -174,7 +174,7 @@ async function trfExecuta(){
         passos.push(ej&&ej.ok?`✓ Origem movida para <b>${esc(tr.para||'Concluído')}</b>`:`⚠ Encerrar a origem: ${esc((ej&&ej.erro)||'falhou')}`);
       }
     }
-    estado.cache={}; estado.apontar.porData={};
+    invalidaCacheDados(); estado.apontar.porData={};
     const houveFalha=passos.some(x=>x.startsWith('⚠'));
     _trf.feito=passos;
     abreModal(`<h2>🔀 ${esc(t.fo.k)} → ${esc(t.fd.k)}</h2>
