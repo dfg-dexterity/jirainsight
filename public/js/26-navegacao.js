@@ -31,6 +31,7 @@ function render(){
   if(estado.vista==='analytics') return renderAnalytics();
   if(estado.vista==='relatorios') return renderRelatorios();
   if(estado.vista==='metricas') return renderMetricas();
+  if(estado.vista==='rentab') return renderRentab();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
@@ -124,6 +125,7 @@ const NAVCAT=[
   ['ams','AMS','Gestão','ciclo faturado banco horas chamados'],
   ['receita','💰 Receita','Gestão','bolsa horas projetos consumo contratado'],
   ['controladoria','🏦 Controladoria de Projetos','Gestão','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria'],
+  ['rentab','💹 Rentabilidade de projetos','Gestão','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado'],
   ['config','⚙️ Central de configurações','Configurações','config ajustes'],
   ['admin','Contratos (Admin)','Configurações','valores contratos admin'],
   ['acao:metas','🎯 Metas & ausências','Configurações','meta horas feriados ferias ocultar'],

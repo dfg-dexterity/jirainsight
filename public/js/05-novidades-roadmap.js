@@ -14,6 +14,10 @@
 // é a garantia de que o roadmap não envelhece calado.
 const ROADMAP_REV='2026-09-07';
 const ROADMAP=[
+  { s:'planejado', t:'💹 Rentabilidade — fases/épicos dentro do plano', d:'Hoje o plano é pessoa × mês. Próximo passo: dividir o esforço por fase ou épico do Jira (o que a Alocação macro arquivada fazia), com o realizado por épico vindo dos apontamentos.' },
+  { s:'planejado', t:'💹 Rentabilidade — impostos, overhead e comissão no custo', d:'Percentuais configuráveis (impostos sobre a receita, overhead por hora, comissão de venda) para a margem sair líquida — hoje a margem é receita − custo/h das pessoas.' },
+  { s:'avaliacao', t:'💹 Rentabilidade — carteira: todos os planos numa tabela', d:'Visão consolidada dos planos (receita, custo, margem, eficiência e ocupação de cada pessoa somando os projetos) para enxergar sobrecarga e onde cabe um projeto novo.' },
+  { s:'avaliacao', t:'💹 Rentabilidade — plano vira proposta (PDF) e contrato', d:'Gerar a proposta comercial a partir do cenário escolhido e, ao fechar, criar o contrato no Admin com as horas e o valor-hora do plano.' },
   { s:'planejado', t:'📈 Métricas por tipo — nível e departamento vindos do Odoo', d:'Hoje o nível (Júnior/Pleno/Sênior) e o departamento de cada pessoa são cadastrados em ⚙️ Perfis. O Odoo já tem cargo e departamento (hr.employee): importar junto com o custo/h para o cadastro parar de ser manual.' },
   { s:'planejado', t:'📈 Métricas por tipo — horas previstas por mês no contrato', d:'Para escopo aberto e bolsa de horas, um campo "horas previstas por mês" no contrato (Admin) para comparar o apontado mensal com o combinado com o cliente — hoje a comparação é com a equipe e a capacidade.' },
   { s:'avaliacao', t:'📈 Métricas por tipo — comparar tipos e projetos lado a lado', d:'Uma visão-resumo com todos os tipos numa tabela só (horas, custo, receita, margem, backlog) e a comparação de dois projetos do mesmo tipo, para a reunião de portfólio.' },
@@ -76,6 +80,7 @@ function renderRoadmap(){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-07','💹 <b>Rentabilidade de projetos</b> (Gestão → 💹 Rentabilidade): cadastre o projeto — <b>duração</b>, <b>carga de trabalho vendida</b> (h/mês ou total) e <b>valor-hora</b> — e planeje de forma visual, numa grade <b>pessoa × mês</b>, quem faz o quê (execução e gestão). A tela calcula na hora o <b>esforço previsto</b>, a <b>eficiência</b> (quanto das horas vendidas você realmente gasta), o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> contra a meta, a receita por hora trabalhada e a <b>folga</b> para alocar um consultor mais barato. <b>Cenários</b> para simular (duplique, mude a alocação, compare), simulador rápido de esforço/eficiência e, com um projeto do Jira vinculado, o <b>realizado</b> do Clockwork contra o previsto — incluindo a eficiência real de quem entrega mais rápido do que o cliente paga.'],
   ['2026-09-07','📈 <b>Métricas por tipo de projeto</b> (Análise → 📈 Métricas por tipo, ao lado do 📚 Catálogo): cada tipo ganhou as suas visões — <b>escopo aberto</b>: horas por mês × equipe e capacidade, horas do Sênior, estimado × gasto por épico, tarefas concluídas por Júnior/Pleno/Sênior e rentabilidade; <b>escopo fechado</b>: vendidas × realizadas, custo administrativo, esforço por épico, custo por pessoa e valor vendido × custo realizado; <b>AMS</b>: consumo × franquia, chamados, causa raiz/produto e fila; <b>arquivados</b>: horas e tickets que ainda caem lá; <b>melhorias internas</b>: backlog em horas e R$, custo por épico, mês/semana/acumulado; <b>produtos</b>: custo por épico; <b>rotinas</b>: custo por departamento e carga por pessoa pelo planejamento. Período próprio, filtro por projeto, drill até o ticket, CSV e a linha "Como ler" em todo bloco. Novo <b>⚙️ Perfis</b>: nível (Júnior/Pleno/Sênior) e departamento por pessoa.'],
   ['2026-09-06','🎨 <b>Tema "Dexterity" — o visual do site novo dentro do painel</b>: em 🎨 (cabeçalho) agora há três temas — ☀️ Claro e 🌙 Escuro, como sempre, e 🟢 <b>Dexterity</b>: fundo grafite, títulos condensados em caixa alta, rótulos em mono, cantos retos e o cerceta como acento, igual ao site. A escolha fica salva no seu navegador; o PDF continua saindo claro.'],
   ['2026-09-06','⚡ <b>Painel mais rápido de abrir</b> — a página caiu de 1,6 MB para 19 KB: o código foi dividido em módulos por tela e uma folha de estilo que o navegador guarda em cache. O esqueleto aparece na hora e as leituras do período saem em paralelo com a configuração; a Início refaz a tela uma vez por quadro em vez de a cada resposta, e os cálculos pesados (Timesheet, Ranking, Gestão) ficam memorizados.'],
@@ -215,7 +220,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-09-07.1';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-07.2';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

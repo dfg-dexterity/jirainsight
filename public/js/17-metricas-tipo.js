@@ -343,6 +343,7 @@ function rmBlRentab(d){
   if(d.semCusto.size&&!(Number((cfg.ctrl||{}).custoPadrao)>0)) avisos.push(`⚠ ${d.semCusto.size} pessoa(s) sem custo/h (${[...d.semCusto].slice(0,4).map(a=>esc(rmNome(d,a).split(' ')[0])).join(', ')}${d.semCusto.size>4?'…':''}) entram com R$ 0 — a margem fica melhor do que é. Cadastre na 🏦 Controladoria (⚙️).`);
   return rmBloco('rentab', `${avisos.map(a=>`<div class="aviso">${a}</div>`).join('')}
     ${rmTab([{h:'Projeto'},{h:'Horas',num:1},{h:'Faturáveis',num:1},{h:'Receita',num:1,tip:'Horas faturáveis × valor-hora do contrato'},{h:'Custo',num:1,tip:'Horas × custo/h de cada pessoa'},{h:'Margem',num:1},{h:'Margem %',num:1},{h:'Situação'},{h:'Contrato'}],rows,foot)}
+    <div style="margin-top:8px"><button class="btn" data-goto="rentab" data-tip="Cadastre duração, carga vendida e valor-hora, planeje quem faz o quê mês a mês e simule cenários">💹 Planejar a rentabilidade (cenários)</button></div>
     ${ctExpl('<b>Receita</b> = horas faturáveis × valor-hora do contrato do projeto; <b>Custo</b> = horas de cada pessoa × custo/h dela (Odoo ou Controladoria). Margem ≥ 30% = saudável · 10–30% = apertada · abaixo = no vermelho. Clique no projeto para ver os tickets.')}`);
 }
 function rmBlPessoas(d){
