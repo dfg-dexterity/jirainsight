@@ -363,7 +363,7 @@ function renderRelatorios(){
     ${ctExpl('<b>O</b> = relatório <b>essencial</b> para aquele tipo de projeto (faz parte do padrão de governança) · <b>R</b> = <b>recomendado</b> (use quando agregar) · <b>–</b> = não se aplica. O ícone diz onde o relatório vive hoje: <b>✅ no app</b> (clique e abra), <b>🔶 parcial</b> (uma tela cobre parte, o resto está no roadmap) e <b>🔒 exige dados novos</b> no Jira. O padrão vem da planilha de governança; ajustes dos gestores valem para o time todo.')}
     ${desconhecidas.length?`<div class="aviso" style="margin-top:10px">⚠ Categorias de projeto sem tipo reconhecido: ${desconhecidas.map(esc).join(' · ')} — renomeie no Jira com o prefixo da sigla (ex.: "DAMS | …") para entrarem na matriz.</div>`:''}</div>`;
 
-  cont.replaceChildren(el(`<div>${filtros}${cards}${matriz}</div>`));
+  cont.replaceChildren(el(`<div>${rmAbasHTML('catalogo',rc.sigla)}${filtros}${cards}${matriz}</div>`));
 
   cont.querySelectorAll('[data-rc-sig]').forEach(b=>b.addEventListener('click',()=>{
     if(estado.vista!=='relatorios') return;

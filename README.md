@@ -39,7 +39,7 @@ api/
 public/
   index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
-  js/NN-nome.js    o painel, dividido em 30 módulos por domínio — ver tabela abaixo
+  js/NN-nome.js    o painel, dividido em 31 módulos por domínio — ver tabela abaixo
   sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
   portal.html      painel somente-leitura do cliente (AMS), escopado por token
 scripts/
@@ -73,6 +73,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
+| `17-metricas-tipo.js` | 📈 Métricas por tipo de projeto (DEA/PEA, DEF/PEF, AMS, ARQ, IMI, IPA, ITPR) + ⚙️ Perfis (nível e departamento por pessoa) |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
 | `18-controladoria-relatorios.js` | 🏦 Controladoria, 📚 Central de Relatórios |
 | `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |
@@ -237,12 +238,20 @@ rótulo por célula, realce no hover e clique para drill-down. Usado em **Top pr
 Complementam: **donut/medidor** para metas e **barras com realce** (a barra focada destaca, as
 demais esmaecem) clicáveis para drill-down.
 
-### 🌙 Modo escuro
+### 🎨 Temas: Claro, Escuro e Dexterity
 
-Botão **🌙/☀️** no topo alterna entre claro e escuro; a preferência fica salva em `localStorage`
-(`jirainsight_theme`) e é aplicada cedo no `<head>` para evitar "flash". Implementado por
-**variáveis de tema** (`[data-theme="dark"]` sobrescreve `--offwhite/--grafite/--cartao/--linha/
---muted/--trilho/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
+O botão de tema no topo (☀️/🌙/🟢) abre um menu com três temas. A preferência fica salva em
+`localStorage` (`jirainsight_theme`: `light` · `dark` · `dexterity`) e é aplicada cedo no
+`<head>` para evitar "flash". Implementado por **variáveis de tema** (`[data-theme="dark"]` e
+`[data-theme="dexterity"]` sobrescrevem `--offwhite/--grafite/--cartao/--linha/--muted/
+--trilho/--titulo/--corpo/…`), então todas as telas, tabelas, gráficos e campos adaptam as cores.
+
+- **Dexterity** (2026-09-06) é o visual do site novo da empresa: fundo grafite `#1B1B1B`,
+  texto off-white, cerceta `#009994` como acento, títulos em **Barlow Condensed** em caixa
+  alta, texto **Figtree**, rótulos em **IBM Plex Mono**, cantos retos e superfícies chapadas
+  com fio fino. As fontes só são baixadas (Google Fonts) quando esse tema está ativo. O CSS
+  fica em dois lugares de `public/css/app.css`: as variáveis logo após o modo escuro e os
+  componentes no fim do arquivo. O PDF continua saindo claro em qualquer tema.
 
 ### 🩺 Score de saúde da entrega
 

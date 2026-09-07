@@ -3,7 +3,7 @@
 Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
 
 - Front-end estático em `public/` (HTML/JS puro, **sem build**). Desde **2026-09-06** o
-  `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **30 módulos
+  `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **31 módulos
   `public/js/NN-nome.js`** carregados em ordem por `<script defer>` (scripts clássicos,
   escopo global compartilhado — o mapa está no README, seção "Os módulos do painel").
   Regra de ouro: código que EXECUTA no carregamento só usa o que já foi declarado em

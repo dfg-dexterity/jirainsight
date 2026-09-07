@@ -52,6 +52,7 @@ function abreAjuda(){
       <li>· <span class="lnk" data-aj-goto="audit"><b>🕵️ Auditoria de Tickets</b></span> — validações TI-04-014 por pessoa, com drill-down.<button class="aj-g" data-aj-guia="audit">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.<button class="aj-g" data-aj-guia="analytics">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="relatorios"><b>📚 Central de Relatórios</b></span> — o catálogo oficial (R01–R27) numa matriz relatório × tipo de projeto (O essencial · R recomendado · – não se aplica), com o link para a tela que entrega cada um; gestores ajustam a matriz.<button class="aj-g" data-aj-guia="relatorios">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="metricas"><b>📈 Métricas por tipo de projeto</b></span> — para cada tipo (DEA, DEF, PEA, PEF, AMS, ARQ, IMI, IPA, ITPR) as métricas que interessam: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, custo administrativo, backlog em horas e R$, custo por épico/departamento, carga do planejamento — tudo com drill até o ticket.<button class="aj-g" data-aj-guia="metricas">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.<button class="aj-g" data-aj-guia="roadmap">🧭 guia</button></li>
       <li><b>Gestão:</b></li>
       <li>· <span class="lnk" data-aj-goto="gestao"><b>🛠 Gestão de Tickets</b></span> — seleção múltipla + ações em massa (atribuir, status, comentar, reprogramar, mover, épicos, duplicados, excluir).<button class="aj-g" data-aj-guia="gestao">🧭 guia</button></li>
@@ -336,7 +337,7 @@ const TOUR=[
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
   {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
-  {sel:'#btn-tema',titulo:'Claro / escuro',texto:'Alterne o tema do painel — a preferência fica salva no navegador.'},
+  {sel:'#btn-tema',titulo:'Tema do painel',texto:'Claro, Escuro ou Dexterity (o visual do site novo) — a preferência fica salva no navegador.'},
   {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🧭 Guia desta tela (explica item por item a tela aberta — atalho: tecla ?) e ❓ Ajuda & feedback, com os guias de todas as telas e os canais de dúvida/sugestão/bug.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
@@ -620,6 +621,14 @@ const GUIAS={
     {s:'#conteudo [data-rel-abre]',ti:'Abrir no app →',tx:'Leva direto à tela que entrega aquele relatório, já no recorte certo — o catálogo é um índice para o que existe.',quando:'Aparece nos cartões do tipo escolhido.'},
     {s:'#rc-dim',ti:'Filtrar por dimensão e busca',tx:'Escopo, tempo, custo, recursos, risco… ou busque pelo nome/pergunta do relatório.'},
     {s:'#conteudo .rc-td',ti:'A matriz completa',tx:'Relatório × tipo de projeto: O essencial · R recomendado · – não se aplica. Gestores clicam na célula para ajustar a matriz da empresa.'}]},
+  metricas:{t:'📈 Métricas por tipo de projeto',p:[
+    {s:'#conteudo .rc-chips',ti:'Escolha o tipo de projeto',tx:'Cada tipo (DEA, DEF, PEA, PEF, DAMS, PAMS, ARQ, IMI, IPA, ITPR) tem o seu conjunto de métricas — o número no chip é quantos projetos estão naquela categoria do Jira.'},
+    {s:'#rm-proj',ti:'Todos os projetos ou um só',tx:'Por padrão soma os projetos do tipo; escolha um projeto (ex.: Parceria por nome) para ver as métricas dele.'},
+    {s:'#rm-de',ti:'Período próprio',tx:'As métricas não dependem do período do topo: escolha de/até ou um atalho (este mês, 3, 6 ou 12 meses, este ano). Máximo de 1 ano.'},
+    {s:'#conteudo .vg-hero',ti:'Os números do tipo',tx:'Horas, custo, receita e margem do período, projetos e tickets com horas — cada bloco abaixo detalha uma métrica e explica como ler.',quando:'Aparece quando as horas do período terminam de carregar.'},
+    {s:'#conteudo .rm-bloco',ti:'Cada bloco é uma métrica',tx:'Tabelas e gráficos com a linha "Como ler" embaixo. Linhas clicáveis abrem os tickets por trás do número, com ações (ficha, status, Gestão, Rateio).',quando:'Aparece quando as horas do período terminam de carregar.'},
+    {s:'#conteudo [data-rm-perfis]',ti:'⚙️ Perfis',tx:'Nível (Júnior/Pleno/Sênior) e departamento de cada pessoa — alimentam "horas do Sênior", "tarefas por nível" e "custo por departamento". Gestores editam; vale para o time todo.',quando:'Aparece quando as horas do período terminam de carregar.'},
+    {s:'#conteudo .rm-abas',ti:'Métricas ⇄ Catálogo',tx:'A aba ao lado é a 📚 Central de Relatórios: o catálogo oficial (O/R por tipo). As duas telas andam juntas, com o mesmo tipo selecionado.'}]},
   roadmap:{t:'🗺️ Roadmap',p:[
     {c:'🗺️ Roadmap',ti:'O que vem por aí',tx:'O rumo da ferramenta: em desenvolvimento, planejado e em avaliação — atualizado a cada entrega.'},
     {c:'✅ Entregas recentes',ti:'✅ Entregas recentes',tx:'O que já foi publicado, direto das Novidades — para conferir se o que você pediu chegou.'},

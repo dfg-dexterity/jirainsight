@@ -26,7 +26,12 @@
 <link rel="stylesheet" href="/css/app.css">
 <script>
   // Aplica o tema salvo o quanto antes (evita "flash" claro ao abrir no escuro).
-  try{ var _t=localStorage.getItem('jirainsight_theme'); if(_t==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
+  try{ var _t=localStorage.getItem('jirainsight_theme');
+    if(_t==='dark'||_t==='dexterity') document.documentElement.setAttribute('data-theme',_t);
+    // Tema Dexterity usa as fontes do site (Barlow Condensed / Figtree / IBM Plex Mono): só baixa quando está ativo.
+    if(_t==='dexterity'){ var _l=document.createElement('link'); _l.id='fontes-dexterity'; _l.rel='stylesheet';
+      _l.href='https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap';
+      document.head.appendChild(_l); } }catch(e){}
 </script>
 </head>
 <body>
@@ -110,6 +115,8 @@
           <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
           <button data-v="audit"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🕵️ Auditoria de Tickets</button>
           <button data-v="analytics"><svg class="nav-ic"><use href="#ic-analise"/></svg>📈 Analytics</button>
+          <button data-v="metricas"><svg class="nav-ic"><use href="#ic-resumo"/></svg>📈 Métricas por tipo</button>
+          <button data-v="relatorios"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios</button>
           <button data-v="roadmap"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🗺️ Roadmap</button>
         </div>
       </div>
@@ -159,7 +166,14 @@
           <button id="btn-pdf" title="Exportar a tela atual em PDF">🖨 PDF da tela</button>
         </div>
       </div>
-      <button class="btn" id="btn-tema" aria-label="Alternar modo claro/escuro" title="Modo claro/escuro">🌙</button>
+      <div class="hdrmenu" id="grp-tema">
+        <button class="btn hdrmenu-b" id="btn-tema" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Tema do painel" title="Tema do painel">🌙</button>
+        <div class="hdrmenu-m" role="menu" aria-label="Tema">
+          <button data-tema="light" role="menuitemradio" aria-pressed="false">☀️ Claro</button>
+          <button data-tema="dark" role="menuitemradio" aria-pressed="false">🌙 Escuro</button>
+          <button data-tema="dexterity" role="menuitemradio" aria-pressed="false" title="O visual do site novo da Dexterity">🟢 Dexterity</button>
+        </div>
+      </div>
       <div class="hdrmenu" id="grp-mais">
         <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⋯ Mais<span class="nov-dot" id="mais-dot" hidden></span></button>
         <div class="hdrmenu-m">
@@ -239,6 +253,7 @@
 <script defer src="/js/14-planejar.js"></script>
 <script defer src="/js/15-alertas.js"></script>
 <script defer src="/js/16-contratos-ams-receita.js"></script>
+<script defer src="/js/17-metricas-tipo.js"></script>
 <script defer src="/js/18-controladoria-relatorios.js"></script>
 <script defer src="/js/19-mencoes-inbox-analytics.js"></script>
 <script defer src="/js/20-gestao.js"></script>

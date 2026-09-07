@@ -30,6 +30,7 @@ function render(){
   if(estado.vista==='audit') return renderAudit();
   if(estado.vista==='analytics') return renderAnalytics();
   if(estado.vista==='relatorios') return renderRelatorios();
+  if(estado.vista==='metricas') return renderMetricas();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
@@ -114,6 +115,7 @@ const NAVCAT=[
   ['audit','🕵️ Auditoria de Tickets','Análise','validacoes ti-04-014 conformidade'],
   ['analytics','📈 Analytics','Análise','governanca 26 visoes graficos desvios'],
   ['relatorios','📚 Central de Relatórios','Análise','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr'],
+  ['metricas','📈 Métricas por tipo de projeto','Análise','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel'],
   ['roadmap','🗺️ Roadmap','Análise','proximas funcionalidades futuro planejado novidades melhorias'],
   ['gestao','🛠 Gestão de Tickets','Gestão','massa atribuir status transferir epico duplicados excluir'],
   ['alertas','🚨 Alertas','Gestão','central atrasados vencidos reprogramar'],
