@@ -35,6 +35,11 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     proj:null, projB:false },
   // 📚 Central de Relatórios — catálogo × tipo de projeto (sigla da categoria)
   relcat:{ sigla:'', dim:'', busca:'' },
+  // 📈 Métricas por tipo de projeto: período próprio, sigla/projeto ativos e caches
+  // (worklogs do período, consolidado, fichas por projeto, planejamentos do time).
+  metricas:{ sigla:'', proj:'', de:'', ate:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
+    cons:null, consB:false, fichas:{}, fichasB:{}, fichasErr:{}, plan:null, planB:false, planChave:'', planErro:'',
+    abertos:null, abertosB:false, abertosErro:'' },   // tickets abertos (só para os ARQUIVADOS, que o consolidado esconde)
   // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders
   qk:{ texto:'', criando:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
@@ -116,6 +121,7 @@ const CFG_KEY = 'dexterity_insights_cfg_v1';
 function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
   relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
+  perfis:{},                          // 🎓 {accountId:{nivel:'junior'|'pleno'|'senior', depto}} — 📈 Métricas por tipo
   vigencias:{},                       // 🪪 {accountId:{ini,fim}} — admissão/desligamento (relatórios respeitam)
   agendaAuto:{},                      // 🔁 {serie:{projeto,titulo,por,quando}} — reunião recorrente vira ticket sozinha
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
@@ -583,7 +589,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };

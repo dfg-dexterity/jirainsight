@@ -1713,6 +1713,26 @@
   .ct-tb-v{min-width:120px;text-align:right;font-size:13px;white-space:nowrap}
   .ct-cfg{margin-top:10px;border:1px dashed var(--linha);border-radius:10px;padding:8px 12px}
   .ct-cfg summary{cursor:pointer;font-weight:700}
+  /* 📈 Métricas por tipo de projeto */
+  .rm-abas{margin:0 0 12px}
+  .rm-bloco{margin-top:22px;padding-top:14px;border-top:1px solid var(--linha2);
+    --mgp:#4a3aa7;--mgr:#009994;--mga:#C2660A;--mgb:#2a78d6;--mpink:var(--grafite);--mpb:var(--linha)}   /* barras planejado × realizado fora do .mp-root */
+  [data-theme="dark"] .rm-bloco{--mgp:#8070E8;--mgr:#0FA79D;--mga:#D07E1C;--mgb:#4F94DC}
+  .rm-bloco>.mp-h3{font-size:15px;margin-bottom:8px}
+  .rm-bloco>.mp-h3 .mp-dim{font-weight:400;font-size:12px}
+  .rm-tab td,.rm-tab th{white-space:nowrap}
+  .rm-tab td:first-child,.rm-tab th:first-child{white-space:normal;min-width:160px}
+  .rm-tab tfoot td{border-top:2px solid var(--linha);font-variant-numeric:tabular-nums}
+  .rm-click{cursor:pointer}
+  tr.rm-click:hover td{background:var(--hoverbg)}
+  tr.rm-destaque td{background:rgba(0,153,148,.06)}
+  .rm-bar{display:inline-block;width:64px;height:7px;border-radius:4px;background:var(--linha);vertical-align:middle;margin-left:6px;overflow:hidden}
+  .rm-bar i{display:block;height:100%;border-radius:4px}
+  .rm-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .rm-hero3{grid-template-columns:repeat(3,1fr)} .rm-hero4{grid-template-columns:repeat(4,1fr)}
+  .rm-det{margin-top:8px} .rm-det summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+  .rm-ciclo{padding:8px 12px;border:1px solid var(--linha);border-radius:8px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  @media (max-width:900px){ .rm-2col{grid-template-columns:1fr} .rm-hero3,.rm-hero4{grid-template-columns:repeat(2,1fr)} }
   /* 🏅 Scoreboard diário do Ranking */
   .sc-tab td,.sc-tab th{text-align:center;padding:4px 6px}
   .sc-tab td:first-child,.sc-tab th:first-child{text-align:left;white-space:nowrap}

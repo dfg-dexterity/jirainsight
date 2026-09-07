@@ -12,8 +12,12 @@
 // aqui. `npm run check` (scripts/check-entrega.mjs, também na CI a cada PR)
 // REPROVA quando ROADMAP_REV ficar para trás da última entrada de NOVIDADES:
 // é a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-09-06';
+const ROADMAP_REV='2026-09-07';
 const ROADMAP=[
+  { s:'planejado', t:'📈 Métricas por tipo — nível e departamento vindos do Odoo', d:'Hoje o nível (Júnior/Pleno/Sênior) e o departamento de cada pessoa são cadastrados em ⚙️ Perfis. O Odoo já tem cargo e departamento (hr.employee): importar junto com o custo/h para o cadastro parar de ser manual.' },
+  { s:'planejado', t:'📈 Métricas por tipo — horas previstas por mês no contrato', d:'Para escopo aberto e bolsa de horas, um campo "horas previstas por mês" no contrato (Admin) para comparar o apontado mensal com o combinado com o cliente — hoje a comparação é com a equipe e a capacidade.' },
+  { s:'avaliacao', t:'📈 Métricas por tipo — comparar tipos e projetos lado a lado', d:'Uma visão-resumo com todos os tipos numa tabela só (horas, custo, receita, margem, backlog) e a comparação de dois projetos do mesmo tipo, para a reunião de portfólio.' },
+  { s:'avaliacao', t:'📈 Métricas por tipo — PDF executivo por tipo de projeto', d:'Exportar a tela de um tipo (KPIs + blocos) em PDF com a identidade Dexterity para enviar ao cliente ou à diretoria; hoje sai só o CSV.' },
   { s:'planejado', t:'🧹 Revisão geral — 2ª rodada', d:'A revisão de 2026-09-06 cobriu o front inteiro e 5 das 12 funções da API (apontar, atividade, tempo, usuários, transição); faltam config, criar, resumo, reuniões, teams, projetos e vencimentos, mais CSS, HTML e infraestrutura. Os achados médios já confirmados (memos em AMS/Analytics/Controladoria, salvamento da config agrupado, helpers repetidos de fetch e datas) entram nessa rodada.' },
   { s:'planejado', t:'🧰 Gestão e ⏱ Apontar — mexer na lista sem refazer a tela', d:'Marcar um ticket na Gestão refaz a lista inteira (até 500 tickets); filtrar no Apontar descarta o que a pessoa digitou nas linhas. Atualizar só a linha e a barra de ações, como a revisão apontou.' },
   { s:'planejado', t:'🔌 Ações em lote na API (reagendar, atribuir, transição)', d:'Hoje cada ticket do lote são 2–3 idas ao servidor em fila; aceitar listas nos modos unitários do /api/transicao corta o tempo dos lotes da Central de Alertas e da Gestão.' },
@@ -72,6 +76,7 @@ function renderRoadmap(){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-07','📈 <b>Métricas por tipo de projeto</b> (Análise → 📈 Métricas por tipo, ao lado do 📚 Catálogo): cada tipo ganhou as suas visões — <b>escopo aberto</b>: horas por mês × equipe e capacidade, horas do Sênior, estimado × gasto por épico, tarefas concluídas por Júnior/Pleno/Sênior e rentabilidade; <b>escopo fechado</b>: vendidas × realizadas, custo administrativo, esforço por épico, custo por pessoa e valor vendido × custo realizado; <b>AMS</b>: consumo × franquia, chamados, causa raiz/produto e fila; <b>arquivados</b>: horas e tickets que ainda caem lá; <b>melhorias internas</b>: backlog em horas e R$, custo por épico, mês/semana/acumulado; <b>produtos</b>: custo por épico; <b>rotinas</b>: custo por departamento e carga por pessoa pelo planejamento. Período próprio, filtro por projeto, drill até o ticket, CSV e a linha "Como ler" em todo bloco. Novo <b>⚙️ Perfis</b>: nível (Júnior/Pleno/Sênior) e departamento por pessoa.'],
   ['2026-09-06','🎨 <b>Tema "Dexterity" — o visual do site novo dentro do painel</b>: em 🎨 (cabeçalho) agora há três temas — ☀️ Claro e 🌙 Escuro, como sempre, e 🟢 <b>Dexterity</b>: fundo grafite, títulos condensados em caixa alta, rótulos em mono, cantos retos e o cerceta como acento, igual ao site. A escolha fica salva no seu navegador; o PDF continua saindo claro.'],
   ['2026-09-06','⚡ <b>Painel mais rápido de abrir</b> — a página caiu de 1,6 MB para 19 KB: o código foi dividido em módulos por tela e uma folha de estilo que o navegador guarda em cache. O esqueleto aparece na hora e as leituras do período saem em paralelo com a configuração; a Início refaz a tela uma vez por quadro em vez de a cada resposta, e os cálculos pesados (Timesheet, Ranking, Gestão) ficam memorizados.'],
   ['2026-09-06','🐛 <b>Correções da revisão geral</b> — uma falha da API não trava mais a tela em laço de requisições (Início, Prioridades, Projetos, AMS, Meu Planejamento); o <b>Ranking por faixa</b> volta a mostrar quem não apontou nada e atualiza depois de apontar; <b>Atribuir</b> nos Alertas registra o histórico certo; a busca do Reclassificar não interfere na Central de Relatórios; a Agenda cria ticket em projeto sem tipo "Reunião".'],
@@ -210,7 +215,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-09-06.2';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-07.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

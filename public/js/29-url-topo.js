@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','config'];
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -35,7 +35,8 @@ function leURL(){
   if(['lista','tabela','quadro'].includes(p.get('gvi'))) gx.vis=p.get('gvi');
   _gxfURL=p.get('gxf')||'';
   if(p.get('rtk')) estado.rateio.texto=rtParse(p.get('rtk')).join('\n');   // ➗ Rateio pré-carregado por link
-  if(REL_SIGLAS.includes(p.get('rsig')||'')) estado.relcat.sigla=p.get('rsig');   // 📚 Central de Relatórios por tipo
+  if(REL_SIGLAS.includes(p.get('rsig')||'')){ estado.relcat.sigla=p.get('rsig'); estado.metricas.sigla=p.get('rsig'); }   // 📚 Central / 📈 Métricas por tipo
+  if(/^[A-Z][A-Z0-9_]*$/.test(p.get('mproj')||'')) estado.metricas.proj=p.get('mproj');   // 📈 Métricas: projeto em foco
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'' };
@@ -66,6 +67,8 @@ function estadoParaURL(){
     if(ap.cat) p.set('acat',ap.cat);
     if(ap.proj) p.set('aproj',ap.proj); }
   if(estado.vista==='planrel' && estado.planrel.aud!=='gestor') p.set('paud',estado.planrel.aud);
+  if(estado.vista==='relatorios' && estado.relcat.sigla) p.set('rsig',estado.relcat.sigla);
+  if(estado.vista==='metricas'){ const mt=estado.metricas; if(mt.sigla) p.set('rsig',mt.sigla); if(mt.proj) p.set('mproj',mt.proj); }
   if(estado.vista==='rateio'){ const ks=rtParse(estado.rateio.texto);
     if(ks.length&&ks.length<=30) p.set('rtk',ks.join(','));   // link compartilhável (listas curtas)
   }

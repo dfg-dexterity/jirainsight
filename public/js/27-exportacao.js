@@ -100,6 +100,7 @@ function exportaTimesheet(modo){
   baixaCSV(`timesheet_${nomeArq}_${per}.csv`, [head, ...rows]);
 }
 function exportaCSV(){
+  if(estado.vista==='metricas'){ rmExportaCSV(); return; }   // 📈 Métricas por tipo: período próprio (não depende do topo)
   if(!estado.tempo){ return; }
   const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
   if(estado.vista==='timesheet'){
