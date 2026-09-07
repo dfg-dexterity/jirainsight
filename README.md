@@ -74,6 +74,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
 | `17-metricas-tipo.js` | 📈 Métricas por tipo de projeto (DEA/PEA, DEF/PEF, AMS, ARQ, IMI, IPA, ITPR) + ⚙️ Perfis (nível e departamento por pessoa) |
+| `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: cadastro (duração, carga vendida, valor-hora), planner pessoa × mês, cenários, simulador, realizado (`cfg.rentab`) |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
 | `18-controladoria-relatorios.js` | 🏦 Controladoria, 📚 Central de Relatórios |
 | `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |

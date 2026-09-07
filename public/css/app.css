@@ -1733,6 +1733,34 @@
   .rm-det{margin-top:8px} .rm-det summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
   .rm-ciclo{padding:8px 12px;border:1px solid var(--linha);border-radius:8px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   @media (max-width:900px){ .rm-2col{grid-template-columns:1fr} .rm-hero3,.rm-hero4{grid-template-columns:repeat(2,1fr)} }
+  /* 💹 Rentabilidade de projetos */
+  .rp-card{cursor:pointer;border-left-color:var(--cerceta)} .rp-card:hover{background:var(--hoverbg)}
+  .rp-mini{margin-top:8px} .rp-mini .ams-dl{padding:6px 9px} .rp-mini .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-mini .dd{font-weight:700}
+  .badge.rp-st-planejado{background:rgba(42,120,214,.14);color:#2a78d6} .badge.rp-st-andamento{background:rgba(0,153,148,.14);color:var(--cerceta)} .badge.rp-st-encerrado{background:var(--hoverbg);color:var(--muted)}
+  .rp-dados{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+  .rp-dados .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-dados .dd{font-weight:700}
+  .rp-form{margin-top:12px;padding:12px 14px;border:1px dashed var(--linha);border-radius:10px}
+  .rp-cen{margin-bottom:10px;align-items:center}
+  .rp-sim{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px;border:1px solid var(--linha);border-radius:10px;background:var(--cartao2);margin-bottom:6px}
+  .rp-sim input[type=number]{width:120px;font-family:var(--corpo);font-size:13px;padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .rp-grade td,.rp-grade th{white-space:nowrap}
+  .rp-grade input.rp-cel,.rp-grade input.rp-tot{width:64px;text-align:right;font-family:var(--mono,inherit);font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-grade input.rp-cel:focus{outline:2px solid var(--cerceta);outline-offset:-1px}
+  .rp-grade select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-grade tfoot td{border-top:1px solid var(--linha);font-variant-numeric:tabular-nums}
+  .rp-grade tr.rp-f-prev td{border-top:2px solid var(--linha)} .rp-grade tr.rp-f-real td{color:var(--amarelo,#eb6834);font-weight:600}
+  .rp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .rp-neg{color:var(--err);font-weight:700} .rp-pos{color:var(--musgo);font-weight:700}
+  .rp-stack{display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding:4px 2px 0}
+  .rp-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1 1 44px;min-width:44px;max-width:110px}
+  .rp-colb{position:relative;display:flex;flex-direction:column-reverse;width:26px;height:150px;background:var(--linha2);border-radius:5px 5px 0 0;overflow:visible}
+  .rp-colb i{display:block;width:100%;min-height:2px}
+  .rp-colb .rp-mark{position:absolute;left:-6px;right:-6px;height:0;border-top:2px dashed var(--grafite);z-index:2}
+  .rp-rot{font-size:11px;color:var(--muted);text-align:center;line-height:1.2} .rp-rot b{display:block;color:var(--grafite)}
+  .rp-wf{display:grid;grid-template-columns:170px 1fr 220px;gap:10px;align-items:center;padding:4px 0}
+  .rp-wf-l{font-size:13px} .rp-wf-t{height:14px;border-radius:7px;background:var(--linha2);overflow:hidden} .rp-wf-t i{display:block;height:100%;border-radius:7px}
+  .rp-wf-v{font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+  @media (max-width:700px){ .rp-wf{grid-template-columns:120px 1fr 140px} }
   /* 🏅 Scoreboard diário do Ranking */
   .sc-tab td,.sc-tab th{text-align:center;padding:4px 6px}
   .sc-tab td:first-child,.sc-tab th:first-child{text-align:left;white-space:nowrap}
