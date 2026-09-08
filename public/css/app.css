@@ -1749,6 +1749,11 @@
   .rp-grade select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .rp-grade tfoot td{border-top:1px solid var(--linha);font-variant-numeric:tabular-nums}
   .rp-grade tr.rp-f-prev td{border-top:2px solid var(--linha)} .rp-grade tr.rp-f-real td{color:var(--amarelo,#eb6834);font-weight:600}
+  .rp-grade tr.rp-real-row td{font-size:12px;color:var(--muted);padding-top:1px;padding-bottom:5px;border-bottom:1px solid var(--linha2);font-variant-numeric:tabular-nums}
+  .rp-grade tr.rp-real-row td.rp-neg{color:var(--err)}
+  .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
+  .rp-colw .rp-colb{height:100%}
+  .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}
   .rp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .rp-neg{color:var(--err);font-weight:700} .rp-pos{color:var(--musgo);font-weight:700}
   .rp-stack{display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding:4px 2px 0}
