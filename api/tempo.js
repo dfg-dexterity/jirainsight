@@ -12,6 +12,9 @@ export default async function handler(req, res) {
     const RE_D = /^\d{4}-\d{2}-\d{2}$/;
     const desde = String((req.query && req.query.desde) || '');
     const ate = String((req.query && req.query.ate) || '');
+    // ?comentarios=1 inclui o texto do comentário de cada apontamento (campo `c`) —
+    // cache à parte, porque o payload fica maior.
+    const comentarios = String((req.query && req.query.comentarios) || '') === '1';
     let r, ck;
     if (RE_D.test(desde) && RE_D.test(ate) && desde <= ate
         && (new Date(ate) - new Date(desde)) <= 400 * 86400000) {
@@ -26,13 +29,14 @@ export default async function handler(req, res) {
       r = rangeFor(janela);
       ck = `tempo:${janela}`;
     }
+    if (comentarios) ck += ':c';
     // ?nocache=1 força a leitura fresca (o resultado novo ainda alimenta o cache).
     const cached = (req.query && req.query.nocache === '1') ? null : cacheGet(ck);
     if (cached) return json(res, 200, cached);
 
-    const enr = await worklogsEnriquecidos(r.startDate, r.endDate);
+    const enr = await worklogsEnriquecidos(r.startDate, r.endDate, { comentarios });
     const payload = {
-      meta: { ...r, totalWorklogs: enr.worklogs.length },
+      meta: { ...r, totalWorklogs: enr.worklogs.length, comentarios },
       pessoas: enr.pessoas,
       projetos: enr.projetos,
       resumos: enr.resumos,

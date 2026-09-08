@@ -1754,6 +1754,17 @@
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
   .rp-colw .rp-colb{height:100%}
   .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}
+  /* ⏳ Como estou gastando meu tempo? */
+  .mtp-cols{display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding:4px 0 0}
+  .mtp-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1 1 22px;min-width:22px}
+  .mtp-colb{display:flex;align-items:flex-end;width:100%;height:110px;background:var(--linha2);border-radius:4px 4px 0 0}
+  .mtp-colb i{display:block;width:100%;min-height:2px;border-radius:4px 4px 0 0}
+  .mtp-rot{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .mtp-nuvem{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;line-height:1.2}
+  .mtp-pal{color:var(--cerceta);font-weight:600;cursor:default}
+  .mtp-lista{margin:4px 0 0 18px;padding:0;font-size:13px;line-height:1.5} .mtp-lista li{margin-bottom:4px}
+  .mtp-amostras{margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.45} .mtp-amostras li{margin-bottom:5px}
+  @media (max-width:700px){ .mtp-col{min-width:16px} .mtp-colb{height:80px} }
   .rp-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
   .rp-neg{color:var(--err);font-weight:700} .rp-pos{color:var(--musgo);font-weight:700}
   .rp-stack{display:flex;gap:8px;align-items:flex-end;overflow-x:auto;padding:4px 2px 0}

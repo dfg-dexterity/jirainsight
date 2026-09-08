@@ -12,8 +12,11 @@
 // aqui. `npm run check` (scripts/check-entrega.mjs, também na CI a cada PR)
 // REPROVA quando ROADMAP_REV ficar para trás da última entrada de NOVIDADES:
 // é a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-09-07';
+const ROADMAP_REV='2026-09-08';
 const ROADMAP=[
+  { s:'planejado', t:'⏳ Meu tempo — comparar períodos e metas pessoais', d:'Comparar dois períodos lado a lado (este mês × mês passado) e definir metas pessoais (ex.: reuniões ≤ 25%, ≥ 3 blocos de foco por dia) com acompanhamento semanal.' },
+  { s:'avaliacao', t:'⏳ Meu tempo — resumo semanal no Teams', d:'Enviar à própria pessoa, toda sexta, o retrato da semana (horas, onde foi o tempo, qualidade dos registros) com um lembrete do que melhorar nos apontamentos.' },
+  { s:'avaliacao', t:'⏳ Meu tempo — visão do time para gestores', d:'A mesma leitura agregada por time: fragmentação, reuniões, faturável e qualidade dos apontamentos por pessoa, para orientar 1:1s.' },
   { s:'planejado', t:'💹 Rentabilidade — fases/épicos dentro do plano', d:'Hoje o plano é pessoa × mês. Próximo passo: dividir o esforço por fase ou épico do Jira (o que a Alocação macro arquivada fazia), com o realizado por épico vindo dos apontamentos.' },
   { s:'planejado', t:'💹 Rentabilidade — impostos, overhead e comissão no custo', d:'Percentuais configuráveis (impostos sobre a receita, overhead por hora, comissão de venda) para a margem sair líquida — hoje a margem é receita − custo/h das pessoas.' },
   { s:'avaliacao', t:'💹 Rentabilidade — carteira: todos os planos numa tabela', d:'Visão consolidada dos planos (receita, custo, margem, eficiência e ocupação de cada pessoa somando os projetos) para enxergar sobrecarga e onde cabe um projeto novo.' },
@@ -80,6 +83,7 @@ function renderRoadmap(){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-08','⏳ <b>Como estou gastando meu tempo?</b> (Meu trabalho): todo o seu histórico de apontamentos no período que você escolher, em gráficos — <b>como o dia funciona</b> (hora do dia, dia da semana, início e fim, tamanho dos apontamentos, troca de contexto), <b>onde o tempo vai</b> (tipo de ticket, projeto, categoria, épico, semana a semana, tickets que mais consumiram), <b>colaboração</b> (quem divide seus tickets, tickets que andam juntos) e <b>o que dizem os comentários</b> dos apontamentos (natureza do trabalho, palavras frequentes, amostras). Uma <b>nota de qualidade dos dados</b> diz se os registros permitem uma boa análise e como melhorar, e a <b>análise por IA</b> devolve o retrato do período com recomendações. Gestores podem ver qualquer pessoa.'],
   ['2026-09-07','💹 <b>Rentabilidade de projetos</b> (Gestão → 💹 Rentabilidade): a base é o <b>projeto do Jira</b>: cadastre <b>duração</b>, <b>carga de trabalho vendida em horas por dia útil</b> (ou total) e o <b>valor da hora vendida</b>, e planeje de forma visual, numa grade <b>pessoa × mês</b>, quem faz o quê (execução e gestão). A tela calcula na hora o <b>esforço previsto</b>, a <b>eficiência</b> (quanto das horas vendidas você realmente gasta), o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> contra a meta, a receita por hora trabalhada e a <b>folga</b> para alocar um consultor mais barato. <b>Cenários</b> para simular (duplique, mude a alocação, compare), simulador rápido de esforço/eficiência e as <b>horas realizadas</b> do projeto (Clockwork) contra o planejado — linha "↳ realizado" sob cada pessoa, eficiência real de quem entrega mais rápido do que o cliente paga e a <b>rentabilidade real</b> (custo realizado × previsto, margem real e projetada). O custo/h do funcionário serve só para medir o custo.'],
   ['2026-09-07','📈 <b>Métricas por tipo de projeto</b> (Análise → 📈 Métricas por tipo, ao lado do 📚 Catálogo): cada tipo ganhou as suas visões — <b>escopo aberto</b>: horas por mês × equipe e capacidade, horas do Sênior, estimado × gasto por épico, tarefas concluídas por Júnior/Pleno/Sênior e rentabilidade; <b>escopo fechado</b>: vendidas × realizadas, custo administrativo, esforço por épico, custo por pessoa e valor vendido × custo realizado; <b>AMS</b>: consumo × franquia, chamados, causa raiz/produto e fila; <b>arquivados</b>: horas e tickets que ainda caem lá; <b>melhorias internas</b>: backlog em horas e R$, custo por épico, mês/semana/acumulado; <b>produtos</b>: custo por épico; <b>rotinas</b>: custo por departamento e carga por pessoa pelo planejamento. Período próprio, filtro por projeto, drill até o ticket, CSV e a linha "Como ler" em todo bloco. Novo <b>⚙️ Perfis</b>: nível (Júnior/Pleno/Sênior) e departamento por pessoa.'],
   ['2026-09-06','🎨 <b>Tema "Dexterity" — o visual do site novo dentro do painel</b>: em 🎨 (cabeçalho) agora há três temas — ☀️ Claro e 🌙 Escuro, como sempre, e 🟢 <b>Dexterity</b>: fundo grafite, títulos condensados em caixa alta, rótulos em mono, cantos retos e o cerceta como acento, igual ao site. A escolha fica salva no seu navegador; o PDF continua saindo claro.'],
@@ -220,7 +224,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-09-07.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-08.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

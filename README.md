@@ -68,6 +68,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `07-graficos-cards.js` | gráficos SVG (sparkline, área, donut, treemap, `tsChart` interativo) e cards base |
 | `08-inicio.js` | 🏠 Início (⚡ Ações de hoje, ⏱ Apontamento do time, 🧭 Radar), Visão Geral, Resumo, IA, folga |
 | `09-qualidade-auditoria-meudia.js` | ✅ Qualidade (IA), 🕵️ Auditoria, 📍 Meu dia |
+| `09b-meu-tempo.js` | ⏳ Como estou gastando meu tempo? (histórico de apontamentos com comentários, gráficos, qualidade dos dados, colaboração, análise por IA) |
 | `10-timesheet.js` · `11-ranking.js` · `12-tickets.js` | 🔎 Timesheet · 🏆 Ranking · 🎫 Tickets |
 | `13-apontar.js` | ⏱ Apontar (identidade, minhas horas, transições, reagendar, convites, reunião em grupo) |
 | `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |

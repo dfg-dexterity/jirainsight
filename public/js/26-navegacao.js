@@ -32,6 +32,7 @@ function render(){
   if(estado.vista==='relatorios') return renderRelatorios();
   if(estado.vista==='metricas') return renderMetricas();
   if(estado.vista==='rentab') return renderRentab();
+  if(estado.vista==='meutempo') return renderMeuTempo();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
@@ -103,6 +104,7 @@ const NAVCAT=[
   ['inbox','📥 Inbox','Meu trabalho','convites mencoes pendencias caixa entrada aprovacoes'],
   ['mencoes','💬 Menções','Meu trabalho','comentarios marcado responder citacoes'],
   ['meudia','📍 Meu dia','Meu trabalho','timetracking dia atividade sugestoes ia'],
+  ['meutempo','⏳ Como estou gastando meu tempo?','Meu trabalho','meu tempo historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao'],
   ['alocacao','🧑‍💼 Alocação (macro)','Planejamento','capacidade recurso utilizacao semanas travar gantt skill simulacao resource macro periodo aprovar'],
   ['planejamento','📅 Planejamento macro','Planejamento','funcao fases epicos planejado realizado'],
   ['planejar','📝 Criação de Ticket','Planejamento','criar tickets lote'],
