@@ -61,6 +61,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | --- | --- |
 | `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
 | `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha) |
+| `02b-cronograma.js` | 📅 Marcos e Cronograma (R04): Gantt em cascata dos épicos com planejado × real, marcos, previsão pelo ritmo, dependências "blocks", detalhe do épico (burn-up, horas por mês, composição) e CSV |
 | `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, `renderAgenda` |
 | `04-meu-planejamento.js` | 📋 Meu Planejamento (plano semanal, aprovação, relatórios planejado × realizado, drag-and-drop) |
 | `05-novidades-roadmap.js` | ✨ `NOVIDADES`/`NOV_VER` e 🗺️ `ROADMAP`/`ROADMAP_REV` — **os dados que toda entrega atualiza** |

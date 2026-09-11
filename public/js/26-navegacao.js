@@ -33,6 +33,7 @@ function render(){
   if(estado.vista==='metricas') return renderMetricas();
   if(estado.vista==='rentab') return renderRentab();
   if(estado.vista==='meutempo') return renderMeuTempo();
+  if(estado.vista==='cronograma') return renderCronograma();
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
@@ -110,6 +111,7 @@ const NAVCAT=[
   ['planejar','📝 Criação de Ticket','Planejamento','criar tickets lote'],
   ['ondecrio','🌳 Onde crio o ticket?','Planejamento','arvore decisao projeto duvida'],
   ['projetos','📁 Projetos','Análise','bi ficha portfolio epicos saude consolidado'],
+  ['cronograma','📅 Marcos e Cronograma','Análise','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup'],
   ['resumo','Resumo','Análise','kpis horas faturavel ia'],
   ['timesheet','Timesheet','Análise','horas planilha clockwork pessoa dia lacuna'],
   ['ranking','Ranking','Análise','engajamento cumprimento apontamento'],
