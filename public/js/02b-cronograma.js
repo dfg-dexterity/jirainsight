@@ -121,8 +121,11 @@ function crGanttHTML(rows, esc_){
 function renderCronograma(){
   const cont=document.getElementById('conteudo'); const c=estado.cronograma;
   if(!_projetosCache) garanteProjetos().then(crReRender).catch(()=>{});
-  const projs=(_projetosCache||[]).slice().sort((a,b)=>(a.nome||a.key).localeCompare(b.nome||b.key,'pt'));
+  // 📚 Vindo da Central (R04): só os projetos dos tipos onde o R04 é O/R; um projeto de fora sai da seleção.
+  const rc=relCtxAtivo('cronograma');
+  const projs=(_projetosCache||[]).filter(p=>!rc||relProjOk(p.key,p.categoria)).sort((a,b)=>(a.nome||a.key).localeCompare(b.nome||b.key,'pt'));
   if(!c.proj&&estado.projetos&&estado.projetos.sel) c.proj=estado.projetos.sel;
+  if(rc&&c.proj&&_projetosCache&&_projetosCache.length&&!projs.some(p=>p.key===c.proj)) c.proj='';
   const sel=`<select id="cr-proj"><option value="">— escolha o projeto —</option>${projs.map(p=>`<option value="${escA(p.key)}" ${c.proj===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')}</select>`;
   const filtros=`<div class="ap-filtros">
     <div class="campo"><label>Projeto</label>${sel}</div>

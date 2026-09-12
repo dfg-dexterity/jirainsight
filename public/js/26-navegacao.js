@@ -21,6 +21,7 @@ function renderIndisponivel(v){
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
+  relCtxRender();   // 📚 faixa do relatório aberto pela Central (só na tela dele)
   if(estado.vista==='acoes') return renderAcoes();
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
@@ -84,6 +85,7 @@ function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').for
   const hb=x.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-expanded','false'); }); }
 function vaiPara(v){
   if(v!=='ranking' && estado.ranking){ estado.ranking._entrou=false; estado.ranking._contou=false; }   // 🌠 anima de novo na próxima entrada
+  if(estado.relCtx&&estado.relCtx.vista!==v) relCtxSet(null);   // 📚 o contexto do relatório vale só na tela dele
   estado.vista=v;
   marcaVista(v); fechaMenusNav();
   render(); estadoParaURL();

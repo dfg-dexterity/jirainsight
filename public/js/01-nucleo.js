@@ -35,6 +35,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     proj:null, projB:false },
   // 📚 Central de Relatórios — catálogo × tipo de projeto (sigla da categoria)
   relcat:{ sigla:'', dim:'', busca:'' },
+  // 📚 Relatório aberto pela Central ("Abrir no app"): {id, nome, vista, O, R, siglas}. Enquanto
+  // ativo, as telas-alvo só oferecem projetos dos tipos onde o relatório é O ou R (ver 18).
+  relCtx:null,
   // 📈 Métricas por tipo de projeto: período próprio, sigla/projeto ativos e caches
   // (worklogs do período, consolidado, fichas por projeto, planejamentos do time).
   metricas:{ sigla:'', proj:'', de:'', ate:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
@@ -480,8 +483,10 @@ function preencheFiltros(){
   const opt = (arr, label) => `<option value="">${label}</option>` +
     [...arr].filter(Boolean).sort((x,y)=>x.localeCompare(y,'pt')).map(v=>`<option>${esc(v)}</option>`).join('');
   preserva('f-categoria', opt(cats,'Todas as categorias'));
+  // 📚 Com um relatório da Central aberto, só os projetos dos tipos onde ele é O/R.
+  const okRel=(k)=>!estado.relCtx||relProjOk(k,(projs[k]||{}).categoria);
   preserva('f-projeto', `<option value="">Todos os projetos</option>` +
-    Object.keys(projs).sort((a,b)=>projNome(a).localeCompare(projNome(b),'pt')).map(k=>`<option value="${esc(k)}">${esc(projNome(k))}${esc(projCod(k))}</option>`).join(''));
+    Object.keys(projs).filter(okRel).sort((a,b)=>projNome(a).localeCompare(projNome(b),'pt')).map(k=>`<option value="${esc(k)}">${esc(projNome(k))}${esc(projCod(k))}</option>`).join(''));
   preserva('f-tipo', opt(tipos,'Todos os tipos'));
 
   const pessoas = Object.entries(pessoasUnidas())
@@ -493,17 +498,23 @@ function preencheFiltros(){
 function preserva(id, html){ const s=document.getElementById(id); const v=s.value; s.innerHTML=html; if([...s.options].some(o=>o.value===v)) s.value=v; }
 
 function filtros(){
-  return {
+  const f={
     pessoa: document.getElementById('f-pessoa').value,
     categoria: document.getElementById('f-categoria').value,
     projeto: document.getElementById('f-projeto').value,
     tipo: document.getElementById('f-tipo').value,
   };
+  // 📚 Relatório aberto pela Central: só projetos dos tipos onde ele é O/R (memo por projeto —
+  // passa() roda por worklog/evento). Entra na chave dos caches que serializam filtros().
+  const c=estado.relCtx;
+  if(c){ const memo={}; f.rel=c.id; f.relOk=(p,projs)=>{ if(memo[p]==null) memo[p]=relProjOk(p,(projs[p]||{}).categoria); return memo[p]; }; }
+  return f;
 }
 function passa(p, t, projs, f){
   if (f.tipo && t!==f.tipo) return false;
   if (f.projeto && p!==f.projeto) return false;
   if (f.categoria){ const c=(projs[p]&&projs[p].categoria)||'Sem categoria'; if(c!==f.categoria) return false; }
+  if (f.relOk && !f.relOk(p,projs)) return false;
   return true;
 }
 
@@ -548,6 +559,7 @@ function agrega(){
   Object.keys(concPorProj).forEach(k=>{
     if(f.projeto && k!==f.projeto) return;
     if(f.categoria){ const c=(projs[k]&&projs[k].categoria)||'Sem categoria'; if(c!==f.categoria) return; }
+    if(f.relOk && !f.relOk(k,projs)) return;
     concl+=concPorProj[k];
   });
   if(f.pessoa) concl=null;   // não há atribuição individual de concluídas

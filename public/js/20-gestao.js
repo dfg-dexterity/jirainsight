@@ -38,6 +38,7 @@ function gxLista(){
   const g=estado.gestao; const hoje=hojeSP(); let l=((g.dados&&g.dados.tickets)||[]).slice();
   if(Array.isArray(g.soKeys)&&g.soKeys.length){ const ks=new Set(g.soKeys); l=l.filter(t=>ks.has(t.k)); }
   if(g.fProj) l=l.filter(t=>t.p===g.fProj);
+  if(relCtxAtivo('gestao')){ const pm=(g.dados&&g.dados.projetos)||{}; l=l.filter(t=>relProjOk(t.p,(pm[t.p]||{}).categoria)); }   // 📚 R03/R17/R18 pela Central
   if(g.fResp==='__sem__') l=l.filter(t=>!t.respId); else if(g.fResp) l=l.filter(t=>t.respId===g.fResp);
   if(g.fStatus) l=l.filter(t=>t.status===g.fStatus);
   if(g.busca){ const q=g.busca.toLowerCase(); l=l.filter(t=>(t.k+' '+t.resumo+' '+t.status+' '+(t.resp||'')).toLowerCase().includes(q)); }
@@ -657,7 +658,8 @@ function renderGestao(){
   const faixaId=id?`<div class="ap-id">🛠 Operando como <strong>${esc(id.nome||id.email)}</strong> <span class="muted small">(atribuições, status e comentários saem no seu usuário do Jira)</span><span class="spacer"></span><button class="btn" data-ap-act="trocar-id">Trocar usuário</button></div>`
     :`<div class="ap-id sem">Para as ações em massa, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
   const todos=(g.dados.tickets)||[];
-  const projetos=[...new Set(todos.map(t=>t.p))].sort();
+  const pmRel=g.dados.projetos||{};   // 📚 pela Central: o seletor de projeto só traz os tipos O/R do relatório
+  const projetos=[...new Set(todos.map(t=>t.p))].filter(k=>!relCtxAtivo('gestao')||relProjOk(k,(pmRel[k]||{}).categoria)).sort();
   const resps=[...new Map(todos.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()].sort((x,y)=>x[1].localeCompare(y[1],'pt'));
   const statuses=[...new Set(todos.map(t=>t.status))].sort();
   const lista=gxLista();

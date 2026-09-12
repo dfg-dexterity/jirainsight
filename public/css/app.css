@@ -1777,6 +1777,14 @@
   .rp-wf-l{font-size:13px} .rp-wf-t{height:14px;border-radius:7px;background:var(--linha2);overflow:hidden} .rp-wf-t i{display:block;height:100%;border-radius:7px}
   .rp-wf-v{font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
   @media (max-width:700px){ .rp-wf{grid-template-columns:120px 1fr 140px} }
+  /* 📚 Faixa do relatório aberto pela Central (restringe as telas aos tipos O/R) */
+  #rel-ctx{margin:0 0 12px}
+  .rc-ctx{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;border:1px solid var(--linha);border-left:4px solid var(--cerceta);border-radius:10px;background:var(--cartao2);font-size:13px}
+  .rc-ctx-t{white-space:nowrap} .rc-ctx-d{color:var(--texto2);flex:1 1 auto;min-width:200px} .rc-ctx-d b{color:var(--grafite)}
+  .rc-ctx-v{display:inline-block;min-width:18px;padding:0 5px;border-radius:6px;font-size:11px;font-weight:700;text-align:center;line-height:18px;vertical-align:1px}
+  .rc-ctx-v.O{background:var(--cerceta);color:#fff} .rc-ctx-v.R{background:rgba(232,163,61,.2);color:#9a6b17}
+  [data-theme="dark"] .rc-ctx-v.R{color:#F0B45C}
+  .rc-ctx-x{font-size:12px;padding:3px 9px}
   /* 📅 Marcos e Cronograma (R04) — Gantt em cascata dos épicos */
   .cr-gantt{--crl:260px;--crh:34px;border:1px solid var(--linha);border-radius:10px;overflow:hidden;background:var(--cartao)}
   .cr-row{display:grid;grid-template-columns:var(--crl) 1fr;height:var(--crh);border-top:1px solid var(--linha2)}
