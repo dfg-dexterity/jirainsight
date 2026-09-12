@@ -978,6 +978,132 @@ async function analisaPlanRel(res, b, apiKey) {
   return json(res, 200, cacheSetTTL(ck, out, 60));
 }
 
+// ---------------------------------------------------------------------------
+// ⏳ POST /api/resumo?acao=meutempo — "Como estou gastando meu tempo?": análise
+// por IA do histórico de apontamentos de UMA pessoa no período. O front manda o
+// recorte JÁ AGREGADO (horas por tipo/projeto/categoria/épico, hora do dia, dia da
+// semana, tamanho dos apontamentos, troca de contexto, top tickets, colaboração,
+// estatísticas e AMOSTRAS dos comentários dos apontamentos, e o score de qualidade
+// dos dados calculado no painel). O modelo devolve: resumo, como funciona o dia,
+// onde vai o tempo, colaboração, avaliação da qualidade dos dados e recomendações.
+// Cache por hash do payload (mesmo recorte não paga a IA de novo); body.nocache regenera.
+// ---------------------------------------------------------------------------
+const SCHEMA_MEUTEMPO = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['resumo', 'sinal', 'rotina', 'tempo', 'colaboracao', 'qualidade', 'recomendacoes'],
+  properties: {
+    resumo: { type: 'string' },
+    sinal: { type: 'string', enum: ['positivo', 'neutro', 'atencao'] },
+    rotina: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['titulo', 'texto'], properties: { titulo: { type: 'string' }, texto: { type: 'string' } } } },
+    tempo: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['titulo', 'texto', 'sinal'], properties: { titulo: { type: 'string' }, texto: { type: 'string' }, sinal: { type: 'string', enum: ['positivo', 'neutro', 'atencao'] } } } },
+    colaboracao: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['titulo', 'texto'], properties: { titulo: { type: 'string' }, texto: { type: 'string' } } } },
+    qualidade: {
+      type: 'object', additionalProperties: false, required: ['nota', 'avaliacao', 'problemas', 'recomendacoes'],
+      properties: { nota: { type: 'number' }, avaliacao: { type: 'string' }, problemas: { type: 'array', items: { type: 'string' } }, recomendacoes: { type: 'array', items: { type: 'string' } } },
+    },
+    recomendacoes: { type: 'array', items: { type: 'string' } },
+  },
+};
+const SISTEMA_MEUTEMPO = [
+  'Você é um analista de produtividade e coach de gestão do tempo de consultores de TI.',
+  'Recebe o histórico de apontamentos de horas (Clockwork/Jira) de UMA pessoa em um',
+  'período, JÁ AGREGADO pelo painel, mais amostras dos comentários que ela escreveu nos',
+  'apontamentos e estatísticas sobre a qualidade desses registros. Escreva em português',
+  'do Brasil, na segunda pessoa ("você"), como quem devolve um espelho honesto e útil.',
+  '',
+  'Regras:',
+  '- Baseie-se EXCLUSIVAMENTE nos dados fornecidos. Nunca invente números, tickets, nomes ou fatos.',
+  '- "resumo": 3 a 5 frases — o retrato geral: quantas horas, em quantos dias, onde a maior',
+  '  parte do tempo foi, e a característica mais marcante do período.',
+  '- "rotina" (2 a 4 itens): COMO O DIA FUNCIONA — em que horas o trabalho se concentra',
+  '  (use porHoraDoDia; se "horarioDisponivel" for false, diga que o horário não é registrado',
+  '  e não conclua nada sobre horas do dia), quais dias da semana pesam mais, quantas',
+  '  tarefas/projetos por dia (troca de contexto), tamanho típico dos apontamentos (blocos',
+  '  longos × muitos pequenos) e o que isso sugere sobre foco e fragmentação.',
+  '- "tempo" (3 a 5 itens, cada um com sinal): ONDE O TEMPO VAI — por tipo de ticket, projeto/',
+  '  categoria, faturável × não faturável, épicos, tickets que mais consumiram e o que os',
+  '  comentários revelam sobre a natureza do trabalho (reunião, desenvolvimento, suporte…).',
+  '  Sinal "atencao" quando algo merece olhar (ex.: muito tempo em reunião/não faturável,',
+  '  um ticket genérico absorvendo horas, fragmentação alta); "positivo" para bons padrões.',
+  '- "colaboracao" (1 a 3 itens): com quem a pessoa divide tickets, quais tickets andam juntos',
+  '  no mesmo dia (coocorrência) e o que isso indica (pares de trabalho, dependências).',
+  '- "qualidade": avalie se os DADOS permitem uma boa análise. Considere: % de apontamentos',
+  '  com comentário, riqueza e repetição dos comentários, % das horas com épico, tickets',
+  '  genéricos ("Reunião", "Diversos"…), apontamentos de 8h em bloco único, horário não',
+  '  registrado. Dê uma "nota" de 0 a 100 (pode partir do score do painel, ajustando pelo',
+  '  que as amostras mostram), uma "avaliacao" de 2 a 3 frases, "problemas" (até 5, concretos,',
+  '  citando o número que os sustenta) e "recomendacoes" (até 5, práticas: como escrever o',
+  '  comentário, como quebrar o apontamento, que campo preencher).',
+  '- "recomendacoes" (3 a 5): o que a pessoa pode mudar na semana que vem para usar melhor o',
+  '  tempo — concretas e ligadas aos dados (ex.: agrupar reuniões, reservar blocos de foco,',
+  '  reduzir tickets simultâneos por dia, separar gestão de execução).',
+  '- "sinal" geral: "positivo" (tempo bem distribuído e bem registrado), "neutro" ou',
+  '  "atencao" (padrões preocupantes ou dados fracos demais para concluir).',
+  '- Tom construtivo, direto e sem julgamento moral. Sem markdown; texto corrido em cada campo.',
+].join('\n');
+
+async function analisaMeuTempo(res, b, apiKey) {
+  const arr = (v, n) => (Array.isArray(v) ? v : []).slice(0, n);
+  const item = (o, campos) => { const out = {}; campos.forEach(([k, tipo, max]) => { out[k] = tipo === 'n' ? num(o && o[k]) : txt(o && o[k], max || 80); }); return out; };
+  const totais = b.totais && typeof b.totais === 'object' ? b.totais : {};
+  const payload = {
+    pessoa: txt(b.pessoa && b.pessoa.nome, 80),
+    periodo: { de: txt(b.periodo && b.periodo.de, 10), ate: txt(b.periodo && b.periodo.ate, 10), diasUteis: num(b.periodo && b.periodo.diasUteis) },
+    totais: {
+      horas: num(totais.horas), apontamentos: num(totais.apontamentos), diasComApontamento: num(totais.diasComApontamento),
+      mediaHorasPorDia: num(totais.mediaHorasPorDia), faturavelPct: num(totais.faturavelPct), tickets: num(totais.tickets),
+      projetos: num(totais.projetos), mediaHorasPorApontamento: num(totais.mediaHorasPorApontamento), horarioDisponivel: !!totais.horarioDisponivel,
+      horasEmFimDeSemana: num(totais.horasEmFimDeSemana), horasSemEpicoPct: num(totais.horasSemEpicoPct),
+    },
+    porTipo: arr(b.porTipo, 15).map((x) => item(x, [['nome', 't', 60], ['horas', 'n'], ['pct', 'n']])),
+    porProjeto: arr(b.porProjeto, 15).map((x) => item(x, [['nome', 't', 80], ['categoria', 't', 60], ['horas', 'n'], ['pct', 'n']])),
+    porCategoria: arr(b.porCategoria, 12).map((x) => item(x, [['nome', 't', 60], ['horas', 'n'], ['pct', 'n']])),
+    porEpico: arr(b.porEpico, 12).map((x) => item(x, [['nome', 't', 100], ['horas', 'n'], ['pct', 'n']])),
+    porHoraDoDia: arr(b.porHoraDoDia, 24).map((x) => item(x, [['hora', 'n'], ['horas', 'n']])),
+    porDiaSemana: arr(b.porDiaSemana, 7).map((x) => item(x, [['dia', 't', 12], ['horas', 'n']])),
+    tamanhos: arr(b.tamanhos, 8).map((x) => item(x, [['faixa', 't', 20], ['n', 'n'], ['horas', 'n']])),
+    contexto: {
+      ticketsPorDiaMedia: num(b.contexto && b.contexto.ticketsPorDiaMedia), ticketsPorDiaMax: num(b.contexto && b.contexto.ticketsPorDiaMax),
+      projetosPorDiaMedia: num(b.contexto && b.contexto.projetosPorDiaMedia), diasFragmentados: num(b.contexto && b.contexto.diasFragmentados),
+      inicioMedio: txt(b.contexto && b.contexto.inicioMedio, 5), fimMedio: txt(b.contexto && b.contexto.fimMedio, 5),
+    },
+    topTickets: arr(b.topTickets, 20).map((x) => item(x, [['k', 't', 20], ['resumo', 't', 120], ['tipo', 't', 40], ['projeto', 't', 40], ['horas', 'n'], ['n', 'n'], ['outrosHoras', 'n']])),
+    colaboradores: arr(b.colaboradores, 12).map((x) => item(x, [['nome', 't', 60], ['horasNosMeusTickets', 'n'], ['tickets', 'n']])),
+    coocorrencia: arr(b.coocorrencia, 10).map((x) => item(x, [['a', 't', 20], ['b', 't', 20], ['dias', 'n']])),
+    comentarios: {
+      com: num(b.comentarios && b.comentarios.com), sem: num(b.comentarios && b.comentarios.sem), pct: num(b.comentarios && b.comentarios.pct),
+      mediaChars: num(b.comentarios && b.comentarios.mediaChars), genericos: num(b.comentarios && b.comentarios.genericos), repetidos: num(b.comentarios && b.comentarios.repetidos),
+      classes: arr(b.comentarios && b.comentarios.classes, 10).map((x) => item(x, [['nome', 't', 40], ['horas', 'n'], ['pct', 'n']])),
+      amostras: arr(b.comentarios && b.comentarios.amostras, 60).map((x) => item(x, [['k', 't', 20], ['tipo', 't', 40], ['h', 'n'], ['texto', 't', 200]])),
+    },
+    qualidade: { nota: num(b.qualidade && b.qualidade.nota), problemas: arr(b.qualidade && b.qualidade.problemas, 8).map((x) => txt(x, 160)) },
+  };
+  if (!payload.totais.horas) return json(res, 200, { ok: false, erro: 'Sem horas apontadas no período — amplie o intervalo antes de analisar.' });
+  const s = JSON.stringify(payload);
+  let h = 5381; for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  const ck = `iameutempo:${h.toString(36)}:${s.length}`;
+  if (!b.nocache) { const c = cacheGet(ck); if (c) return json(res, 200, { ...c, cache: true }); }
+  const r = await chamaClaude(apiKey, payload, { system: SISTEMA_MEUTEMPO, schema: SCHEMA_MEUTEMPO });
+  const sinal = (v) => (['positivo', 'neutro', 'atencao'].includes(v) ? v : 'neutro');
+  const lista = (v, n, comSinal) => (Array.isArray(v) ? v : []).slice(0, n).map((d) => ({ titulo: String(d.titulo || ''), texto: String(d.texto || ''), ...(comSinal ? { sinal: sinal(d.sinal) } : {}) }));
+  const out = {
+    ok: true,
+    analise: {
+      resumo: String(r.resumo || ''), sinal: sinal(r.sinal),
+      rotina: lista(r.rotina, 5), tempo: lista(r.tempo, 6, true), colaboracao: lista(r.colaboracao, 4),
+      qualidade: {
+        nota: Math.max(0, Math.min(100, Math.round(num(r.qualidade && r.qualidade.nota)))),
+        avaliacao: String((r.qualidade && r.qualidade.avaliacao) || ''),
+        problemas: arr(r.qualidade && r.qualidade.problemas, 6).map((x) => String(x || '')),
+        recomendacoes: arr(r.qualidade && r.qualidade.recomendacoes, 6).map((x) => String(x || '')),
+      },
+      recomendacoes: arr(r.recomendacoes, 6).map((x) => String(x || '')),
+    },
+  };
+  return json(res, 200, cacheSetTTL(ck, out, 60));
+}
+
 export default async function handler(req, res) {
   try {
     // Sincronização de folgas aprovadas (Odoo → ticket no Jira + worklog). Aceita GET
@@ -1018,6 +1144,9 @@ export default async function handler(req, res) {
 
     // 🤖 Relatórios do planejamento — análise do planejado × realizado do recorte.
     if (acao === 'planrel') return await analisaPlanRel(res, b, apiKey);
+
+    // ⏳ Como estou gastando meu tempo? — análise do histórico de apontamentos de uma pessoa.
+    if (acao === 'meutempo') return await analisaMeuTempo(res, b, apiKey);
 
     const pessoasIn = Array.isArray(b.pessoas) ? b.pessoas : [];
     if (!pessoasIn.length) return json(res, 400, { erro: 'Sem pessoas para resumir.' });

@@ -64,6 +64,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   reuvinc:{ origem:'RDF', dados:null, carregando:false, erro:'', busca:'' },
   // 📁 Visão por Projetos: consolidado (todos) + ficha por projeto (direto do Jira).
   projetos:{ sel:'', aba:'geral', consolidado:null, fichas:{}, carregando:false, erro:'', ord:'total', dir:-1, incAberta:{} },
+  // 📅 Marcos e Cronograma (R04): projeto, filtro/ordem/escala do Gantt, épico aberto no
+  // modal e o cache das horas (12 meses) para a evolução por épico.
+  cronograma:{ proj:'', fil:'todos', ord:'auto', escala:'auto', sel:'', fichaB:{}, fichaErr:{}, tempo:{}, tempoB:{}, tempoErro:{}, tempoChave:'' },
   // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
   agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null, usuarios:null, usuCarr:false },
   // 📋 Meu Planejamento: plano semanal por atividade (data + projeto + horas), sem tickets.
@@ -109,6 +112,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   inbox:{ mencoes:null, carregando:false, carregou:false, erro:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
+  // ⏳ Como estou gastando meu tempo?: pessoa, período próprio e caches (worklogs com
+  // comentários por período; análise por IA por pessoa|período).
+  meutempo:{ a:'', de:'', ate:'', chave:'', tempo:{}, tempoB:{}, tempoErro:{}, ia:{}, iaB:{}, iaErro:{} },
   // AMS: worklogs do ciclo selecionado (apuração trimestral/mensal), buscados à parte do período da tela.
   // ref = data de referência do ciclo em exibição (vazio = ciclo vigente/hoje); guarda também
   // pessoas/projetos/resumos do intervalo para drill-down por tipo e memória de apontamentos.
@@ -593,7 +599,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };

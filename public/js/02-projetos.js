@@ -17,8 +17,10 @@ function carregaProjConsolidado(forca) {
   fetch(`/api/projetos?visao=1${forca ? '&nocache=1' : ''}`).then((r) => r.json()).then((j) => {
     p.carregando = false;
     if (j && j.erro) p.erro = j.erro; else p.consolidado = j;
-    if (estado.vista === 'projetos' && !p.sel) renderProjetos();
-  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); if (estado.vista === 'projetos' && !p.sel) renderProjetos(); });
+    // Redesenha mesmo com um projeto já escolhido (chegada direta na ficha, ex.: pelo
+    // 📅 Cronograma ou pelo catálogo): sem isso a tela ficava no esqueleto.
+    if (estado.vista === 'projetos') renderProjetos();
+  }).catch((e) => { p.carregando = false; p.erro = humanizaErro(e); if (estado.vista === 'projetos') renderProjetos(); });
 }
 function carregaProjFicha(key, forca) {
   const p = estado.projetos; p.carregando = true; p.erro = '';
@@ -303,7 +305,8 @@ function renderProjFicha(cont, key) {
     kpi('Saúde', nBR(r.saude), corSaude(r.saude || 0)),
   ].join('');
   const abas = [['geral', 'Visão Geral'], ['epicos', 'Épicos & Esforço'], ['categorias', 'Categorias'], ['evolucao', 'Evolução'], ['inconsist', `Inconsistências${r.incTotal ? ` (${nBR(r.incTotal)})` : ''}`]];
-  const tabbar = `<div class="proj-tabs">${abas.map(([k, l]) => `<button class="chip${aba === k ? ' on' : ''}" data-proj-aba="${k}" aria-pressed="${aba === k}">${esc(l)}</button>`).join('')}</div>`;
+  const tabbar = `<div class="proj-tabs">${abas.map(([k, l]) => `<button class="chip${aba === k ? ' on' : ''}" data-proj-aba="${k}" aria-pressed="${aba === k}">${esc(l)}</button>`).join('')}
+    <button class="btn" data-cr-abrir="${escA(key)}" data-tip="R04 · Cronograma em cascata dos épicos: planejado × real, marcos, previsão e dependências" style="margin-left:auto">📅 Cronograma</button></div>`;
 
   let sec = '';
   const dim = (arr, cor, tipo, limite) => projBars((arr || []).slice(0, limite || 14).map((x) => [x.nome, x.n, `${tipo}|${x.nome}`]), cor, 'data-pdrill-dim');
@@ -337,7 +340,7 @@ function renderProjFicha(cont, key) {
       <td>${esc((e.resumo || '').slice(0, 80))}</td><td>${esc(e.status || '')}</td>
       <td class="num">${nBR(e.nConcluidos)}/${nBR(e.nFilhos)}</td><td class="num">${nBR(e.pct)}%</td>
       <td class="num">${fmtHd(e.estH)}</td><td class="num">${fmtHd(e.gastoH)}</td></tr>`).join('');
-    const ep = `<div class="vg-card"><h3>Épicos <span class="muted small" style="font-weight:400">· clique numa linha para ver a composição</span></h3>
+    const ep = `<div class="vg-card"><h3>Épicos <span class="muted small" style="font-weight:400">· clique numa linha para ver a composição</span> <button class="btn rt-step" data-cr-abrir="${escA(key)}" data-tip="R04 · Cronograma em cascata dos épicos: planejado × real, marcos, previsão e dependências" style="margin-left:8px">📅 Cronograma</button></h3>
       <div class="scroll-x"><table><thead><tr><th>Épico</th><th>Resumo</th><th>Status</th><th class="num">Concl./Filhos</th><th class="num">%</th><th class="num">Est.</th><th class="num">Gasto</th></tr></thead>
       <tbody>${epRows || '<tr><td colspan="7" class="muted">Sem épicos.</td></tr>'}</tbody></table></div></div>`;
     const colsEsf = [

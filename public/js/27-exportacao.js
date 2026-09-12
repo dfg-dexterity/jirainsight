@@ -101,6 +101,7 @@ function exportaTimesheet(modo){
 }
 function exportaCSV(){
   if(estado.vista==='metricas'){ rmExportaCSV(); return; }   // 📈 Métricas por tipo: período próprio (não depende do topo)
+  if(estado.vista==='cronograma'){ crExportaCSV(); return; }   // 📅 Cronograma: ficha do projeto
   if(!estado.tempo){ return; }
   const meta=estado.tempo.meta||{}; const per=`${meta.startDate||''}_${meta.endDate||''}`;
   if(estado.vista==='timesheet'){

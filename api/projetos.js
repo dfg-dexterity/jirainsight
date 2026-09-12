@@ -170,7 +170,13 @@ function semArquivados(projetos) {
 // ---------------------------------------------------------------------------
 const CAMPOS_VISAO = ['summary', 'status', 'issuetype', 'priority', 'assignee',
   'labels', 'parent', 'created', 'resolutiondate', 'duedate', 'timespent', 'timeoriginalestimate'];
+// 📅 Cronograma (R04): "Data de início" do Jira (campo do sistema, customfield_10015 nesta
+// instância; ajustável por env) e os links entre itens (dependências épico → épico).
+// Só a FICHA pede esses campos — o consolidado continua leve.
+const CF_INICIO = (process.env.JIRA_CF_INICIO || 'customfield_10015').trim();
+const CAMPOS_FICHA_EXTRA = [CF_INICIO, 'issuelinks'];
 const RE_CANCEL = /cancel/i;
+const dia10 = (v) => (v ? String(v).slice(0, 10) : '');
 
 function hojeSP() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -256,8 +262,17 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     if (feito && f.resolutiondate) { const mr = mesDe(f.resolutiondate); if (mr) concluidosMes[mr] = (concluidosMes[mr] || 0) + 1; }
 
     if (ehEpicoTipo(f.issuetype)) {
-      const e = epicos[it.key] || (epicos[it.key] = { resumo: '', status: '', aberto: true, estSeg: 0, gastoSeg: 0, nFilhos: 0, nConcluidos: 0 });
-      e.resumo = f.summary || ''; e.status = stName; e.aberto = !done;
+      const e = epicos[it.key] || (epicos[it.key] = { resumo: '', status: '', aberto: true, estSeg: 0, gastoSeg: 0, nFilhos: 0, nConcluidos: 0,
+        // 📅 cronograma: datas do próprio épico + o que os filhos revelam (2ª passada)
+        sc: '', ini: '', fim: '', criado: '', resolvido: '', resp: '', emAnd: 0, filhosAbertos: 0, filhosVenc: 0, filhosDepois: 0,
+        iniItens: '', fimItens: '', vencFilhos: '', ultAtiv: '', porMes: {}, links: [] });
+      e.resumo = f.summary || ''; e.status = stName; e.aberto = !done; e.sc = cancel ? 'cancel' : stCat;
+      e.ini = dia10(f[CF_INICIO]); e.fim = dia10(f.duedate); e.criado = dia10(f.created); e.resolvido = feito ? dia10(f.resolutiondate) : ''; e.resp = resp;
+      (Array.isArray(f.issuelinks) ? f.issuelinks : []).forEach((l) => {
+        const t = (l && l.type) || {};
+        if (l && l.outwardIssue && l.outwardIssue.key) e.links.push({ d: 'out', n: t.name || '', rot: t.outward || t.name || '', k: l.outwardIssue.key });
+        if (l && l.inwardIssue && l.inwardIssue.key) e.links.push({ d: 'in', n: t.name || '', rot: t.inward || t.name || '', k: l.inwardIssue.key });
+      });
     }
 
     if (feito && !f.resolutiondate) inc.resolvido.push(it.key);
@@ -269,18 +284,36 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
     if (!ehEpicoTipo(f.issuetype) && !est && !cancel) inc.naoEpicSemEst.push(it.key);
   });
 
-  // 2ª passada: agrega filhos aos épicos.
+  // 2ª passada: agrega filhos aos épicos (contagens, esforço e, para o cronograma,
+  // o que os filhos revelam: 1º item criado, último resolvido, maior vencimento,
+  // itens vencidos, itens vencendo DEPOIS do marco do épico e criados/concluídos por mês).
   issues.forEach((it) => {
     const f = it.fields || {};
     if (ehEpicoTipo(f.issuetype)) return;
     const ek = epicoDe(it);
     const e = ek && epicos[ek];
     if (!e) return;
+    const cancel = RE_CANCEL.test(nomeSt(f)); const done = catDone(f); const feito = done && !cancel;
     e.nFilhos += 1;
-    if (catDone(f) && !RE_CANCEL.test(nomeSt(f))) e.nConcluidos += 1;
+    if (feito) e.nConcluidos += 1;
     e.estSeg += Number(f.timeoriginalestimate) || 0;
     e.gastoSeg += Number(f.timespent) || 0;
+    if (cancel) return;
+    const stCat = (f.status && f.status.statusCategory && f.status.statusCategory.key) || '';
+    if (stCat === 'indeterminate') e.emAnd += 1;
+    if (!done) e.filhosAbertos += 1;
+    const c = dia10(f[CF_INICIO]) || dia10(f.created); const rd = feito ? dia10(f.resolutiondate) : ''; const v = dia10(f.duedate);
+    if (c && (!e.iniItens || c < e.iniItens)) e.iniItens = c;
+    if (rd && (!e.fimItens || rd > e.fimItens)) e.fimItens = rd;
+    if (v && (!e.vencFilhos || v > e.vencFilhos)) e.vencFilhos = v;
+    if (v && v < hoje && !done) e.filhosVenc += 1;
+    if (v && e.fim && v > e.fim) e.filhosDepois += 1;
+    const ult = rd || dia10(f.created); if (ult && (!e.ultAtiv || ult > e.ultAtiv)) e.ultAtiv = ult;
+    const mc = mesDe(f.created); if (mc) { const m = e.porMes[mc] || (e.porMes[mc] = { c: 0, d: 0 }); m.c += 1; }
+    if (feito && f.resolutiondate) { const mr = mesDe(f.resolutiondate); if (mr) { const m = e.porMes[mr] || (e.porMes[mr] = { c: 0, d: 0 }); m.d += 1; } }
   });
+  // Links só entre épicos DESTE projeto (dependências do cronograma); o resto some.
+  Object.values(epicos).forEach((e) => { e.links = e.links.filter((l) => epicos[l.k]); });
 
   const naoCancel = Math.max(1, total - cancelados);
   const resumo = {
@@ -321,7 +354,9 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
   let accC = 0, accD = 0;
   const evolucao = meses.map((m) => { accC += criadosMes[m] || 0; accD += concluidosMes[m] || 0; return { mes: m, criados: criadosMes[m] || 0, concluidos: concluidosMes[m] || 0, criadosAcum: accC, concluidosAcum: accD }; });
   const epicosArr = Object.entries(epicos)
-    .map(([k, e]) => ({ k, resumo: e.resumo, status: e.status, nFilhos: e.nFilhos, nConcluidos: e.nConcluidos, pct: e.nFilhos ? Math.round((e.nConcluidos / e.nFilhos) * 1000) / 10 : 0, estH: h1(e.estSeg), gastoH: h1(e.gastoSeg) }))
+    .map(([k, e]) => ({ k, resumo: e.resumo, status: e.status, nFilhos: e.nFilhos, nConcluidos: e.nConcluidos, pct: e.nFilhos ? Math.round((e.nConcluidos / e.nFilhos) * 1000) / 10 : 0, estH: h1(e.estSeg), gastoH: h1(e.gastoSeg),
+      sc: e.sc, ini: e.ini, fim: e.fim, criado: e.criado, resolvido: e.resolvido, resp: e.resp, emAnd: e.emAnd, filhosAbertos: e.filhosAbertos, filhosVenc: e.filhosVenc, filhosDepois: e.filhosDepois,
+      iniItens: e.iniItens, fimItens: e.fimItens, vencFilhos: e.vencFilhos, ultAtiv: e.ultAtiv, porMes: e.porMes, links: e.links }))
     .sort((a, b) => b.nFilhos - a.nFilhos);
   const CAP = 300;
   const lst = (arr, rot, acao) => ({ rot, acao, qtd: arr.length, pct: Math.round((arr.length / (total || 1)) * 1000) / 10, chaves: arr.slice(0, CAP) });
@@ -347,6 +382,7 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
       pr: (f.priority && f.priority.name) || 'Sem prioridade',
       r: (f.assignee && f.assignee.displayName) || '',
       v: f.duedate || '',
+      si: dia10(f[CF_INICIO]),
       c: String(f.created || '').slice(0, 10),
       rd: f.resolutiondate ? String(f.resolutiondate).slice(0, 10) : '',
       eH: h1(Number(f.timeoriginalestimate) || 0),
@@ -365,9 +401,10 @@ function agregaProjeto(issues, { detalhe = false } = {}) {
   };
 }
 
-async function fetchIssuesProjeto(projeto, maxPages) {
-  return jiraSearchAll({ jql: `project = "${projeto}" ORDER BY created ASC`, fields: CAMPOS_VISAO, pageSize: 100, maxPages });
+async function fetchIssuesProjeto(projeto, maxPages, extra) {
+  return jiraSearchAll({ jql: `project = "${projeto}" ORDER BY created ASC`, fields: CAMPOS_VISAO.concat(extra || []), pageSize: 100, maxPages });
 }
+export { agregaProjeto };   // exposto para os testes locais da agregação (cronograma)
 
 // Executa fn sobre os itens em lotes de `tamanho` (limita concorrência no Jira).
 async function emLotes(itens, tamanho, fn) {
@@ -387,7 +424,7 @@ async function visaoPorProjetos(req, res) {
     if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
     const ck = `visao:proj:${projeto}`;
     if (!nocache) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
-    const { issues, truncado } = await fetchIssuesProjeto(projeto, 60);
+    const { issues, truncado } = await fetchIssuesProjeto(projeto, 60, CAMPOS_FICHA_EXTRA);
     const det = agregaProjeto(issues, { detalhe: true });
     const meta = (await carregaCatalogoProjetos()).find((p) => p.key === projeto) || {};
     return json(res, 200, cacheSetTTL(ck, { projeto, nome: meta.nome || '', categoria: meta.categoria || '', geradoEm: new Date().toISOString(), truncado, ...det }, 10));

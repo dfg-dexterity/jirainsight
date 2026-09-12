@@ -351,8 +351,30 @@ export async function clockworkRaw(startDate, endDate) {
   }
   return out;
 }
-// Worklogs do Clockwork enriquecidos: [{a,s,d,p,t,f,k}] + mapas pessoas/projetos/resumos.
-export async function worklogsEnriquecidos(startDate, endDate) {
+// Texto de um comentário de worklog: o Clockwork/Jira devolve string ou ADF
+// (árvore {type,content,text}); extraímos só o texto, com quebras de parágrafo.
+export function textoComentario(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'object') {
+    const partes = [];
+    const anda = (n) => {
+      if (!n) return;
+      if (Array.isArray(n)) { n.forEach(anda); return; }
+      if (typeof n.text === 'string') partes.push(n.text);
+      if (n.type === 'hardBreak') partes.push('\n');
+      if (Array.isArray(n.content)) { anda(n.content); if (n.type === 'paragraph' || n.type === 'listItem') partes.push('\n'); }
+    };
+    anda(v);
+    return partes.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
+  }
+  return String(v).trim();
+}
+// Worklogs do Clockwork enriquecidos: [{a,s,d,p,t,f,k,e}] + mapas pessoas/projetos/resumos.
+// opts.comentarios=true acrescenta `c` (texto do comentário do apontamento, até 400
+// caracteres) — usado por "⏳ Como estou gastando meu tempo?".
+export async function worklogsEnriquecidos(startDate, endDate, opts) {
+  const comComentarios = !!(opts && opts.comentarios);
   const brutos = await clockworkRaw(startDate, endDate);
   const ids = brutos.map((w) => String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '')).filter(Boolean);
   const meta = ids.length ? await jiraResolveIssues(ids) : {};
@@ -370,7 +392,9 @@ export async function worklogsEnriquecidos(startDate, endDate) {
     if (ik && !infos[ik] && (m.chamadoCliente || m.causaRaiz || m.produto || m.processo)) {
       infos[ik] = { cc: m.chamadoCliente || '', cr: m.causaRaiz || '', pr: m.produto || '', pc: m.processo || '' };
     }
-    worklogs.push({ a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik, e: m.epicoKey || '' });
+    const wl = { a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik, e: m.epicoKey || '' };
+    if (comComentarios) wl.c = textoComentario(w.comment).slice(0, 400);
+    worklogs.push(wl);
   }
   return { pessoas, projetos, resumos, infos, worklogs };
 }
