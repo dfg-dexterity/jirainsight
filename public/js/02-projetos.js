@@ -173,16 +173,32 @@ function renderProjetos() {
     cont.replaceChildren(el(`<div><div class="card full"><h2>📁 Projetos</h2><div class="estado">Não consegui carregar: ${esc(p.erro)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
     return;
   }
+  // 📚 Vindo da Central (R01/R07/R25…): um projeto de fora dos tipos O/R do relatório sai da seleção.
+  if (relCtxAtivo('projetos') && p.sel && _projetosCache && _projetosCache.length && !relProjOk(p.sel)) p.sel = '';
   if (!p.sel) return renderProjConsolidado(cont);
   return renderProjFicha(cont, p.sel);
 }
 
+// Totais do consolidado recalculados no front (quando a lista é restrita pelo relatório).
+function projTotais(rows) {
+  const t = rows.reduce((s, l) => ({ total: s.total + (l.total || 0), concluidos: s.concluidos + (l.concluidos || 0), backlog: s.backlog + (l.backlog || 0),
+    emAndamento: s.emAndamento + (l.emAndamento || 0), vencidos: s.vencidos + (l.vencidos || 0), estH: s.estH + (l.estH || 0), gastoH: s.gastoH + (l.gastoH || 0),
+    nEpicos: s.nEpicos + (l.nEpicos || 0), nEpicosAbertos: s.nEpicosAbertos + (l.nEpicosAbertos || 0) }),
+  { total: 0, concluidos: 0, backlog: 0, emAndamento: 0, vencidos: 0, estH: 0, gastoH: 0, nEpicos: 0, nEpicosAbertos: 0 });
+  t.estH = Math.round(t.estH * 10) / 10; t.gastoH = Math.round(t.gastoH * 10) / 10;
+  t.pctConcluido = t.total ? Math.round((t.concluidos / t.total) * 1000) / 10 : 0;
+  return t;
+}
 function renderProjConsolidado(cont) {
-  const p = estado.projetos; const c = p.consolidado; const t = c.totais || {};
+  const p = estado.projetos; const c = p.consolidado;
+  // 📚 Com um relatório da Central aberto, só os projetos (e categorias) dos tipos onde ele é O/R.
+  const rc = relCtxAtivo('projetos');
+  const projetosC = (c.projetos || []).filter((x) => !rc || relProjOk(x.key, x.categoria));
+  const t = rc ? projTotais(projetosC) : (c.totais || {});
   // KPIs clicáveis: abrem a composição por projeto (drill).
   const kpi = (l, v, sev, drill) => `<div class="vg-k ${sev || ''}"${drill ? ` data-pdrill-cons="${drill}" data-tipk="clique para ver por projeto"` : ''}><div class="v">${esc(String(v))}</div><div class="l">${esc(l)}</div></div>`;
   const kpis = [
-    kpi('Projetos', nBR((c.projetos || []).length)),
+    kpi('Projetos', nBR(projetosC.length)),
     kpi('Itens (total)', nBR(t.total), '', 'total'),
     kpi('% concluído', nBR(t.pctConcluido) + '%', '', 'concluidos'),
     kpi('Backlog', nBR(t.backlog), '', 'backlog'),
@@ -194,7 +210,7 @@ function renderProjConsolidado(cont) {
   ].join('');
 
   const ord = p.ord || 'total'; const dir = p.dir == null ? -1 : p.dir; const asc = dir === 1;
-  const linhas = (c.projetos || []).slice().sort((a, b) => {
+  const linhas = projetosC.slice().sort((a, b) => {
     if (ord === 'key' || ord === 'nome') return (asc ? 1 : -1) * String(a[ord] || '').localeCompare(String(b[ord] || ''), 'pt');
     return (asc ? 1 : -1) * ((Number(a[ord]) || 0) - (Number(b[ord]) || 0));
   });
@@ -220,7 +236,7 @@ function renderProjConsolidado(cont) {
   const trunc = c.truncado ? '<div class="estado" style="margin-top:8px">⚠ Alguns projetos têm muitos itens e foram truncados na leitura; abra a ficha do projeto para números exatos.</div>' : '';
 
   // ---- Seção "Por categoria" — cada categoria com o gráfico do seu foco ----
-  const cats = Object.entries(c.categorias || {}).sort((a, b) => (b[1].total || 0) - (a[1].total || 0));
+  const cats = Object.entries(c.categorias || {}).filter(([nome]) => !rc || rc.siglas.includes(relSiglaDe(nome))).sort((a, b) => (b[1].total || 0) - (a[1].total || 0));
   const catCards = cats.map(([nome, cat]) => {
     const foco = focoCategoria(nome);
     const chips = (cat.projetos || []).map((k) => `<button class="chip" data-proj-open="${escA(k)}">${esc(k)}</button>`).join(' ');
@@ -257,14 +273,14 @@ function renderProjConsolidado(cont) {
   }).join('');
 
   // 🗺 Treemap do portfólio: área = nº de itens, cor = saúde; clique → ficha.
-  const tmPort = projTreemap((c.projetos || []).filter((x) => !x.erro && x.total > 0).map((x) => ({
+  const tmPort = projTreemap(projetosC.filter((x) => !x.erro && x.total > 0).map((x) => ({
     nome: `${x.key} — ${x.nome}`, valor: x.total, cor: CORSAUDE[corSaude(x.saude || 0)], drill: { type: 'proj', key: x.key },
   })), { fmt: (v) => nBR(v) + ' itens', h: 330 });
   const legSaude = `<div class="pp-legend" style="margin-top:6px"><span><i style="background:${CORSAUDE.good}"></i>saúde ≥ 70</span><span><i style="background:${CORSAUDE.warn}"></i>40–69</span><span><i style="background:${CORSAUDE.bad}"></i>&lt; 40</span></div>`;
 
   cont.replaceChildren(el(`<div>
     ${projToolbar()}
-    <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR((c.projetos || []).length)} projetos · clique nos cards, categorias e linhas para detalhar</span></h2>
+    <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR(projetosC.length)} projetos${rc ? ` dos tipos do ${esc(rc.id)}` : ''} · clique nos cards, categorias e linhas para detalhar</span></h2>
       <div class="vg-hero">${kpis}</div>
       <div class="scroll-x" style="margin-top:14px"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>
       ${trunc}

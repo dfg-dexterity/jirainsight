@@ -79,7 +79,8 @@ function ctGarante(){
 function ctDados(){
   const ct=estado.ctrl; const t=ct.tempo; if(!t||ct.chaveT!==(ct.de+'|'+ct.ate)) return null;
   const projMeta=t.projetos||{};
-  const cats=[...new Set(Object.values(projMeta).map(x=>(x&&x.categoria)||'Sem categoria'))].sort((a,b)=>a.localeCompare(b,'pt'));
+  const rc=relCtxAtivo('controladoria');   // 📚 R13/R26 pela Central: só as categorias dos tipos O/R do relatório
+  const cats=[...new Set(Object.values(projMeta).map(x=>(x&&x.categoria)||'Sem categoria'))].filter(c=>!rc||rc.siglas.includes(relSiglaDe(c))).sort((a,b)=>a.localeCompare(b,'pt'));
   if(!ct.cat||!cats.includes(ct.cat)) ct.cat=cats[0]||'';
   const gest=ctGestoresSet(t.pessoas||{});
   const wl=(t.worklogs||[]).filter(w=>(((projMeta[w.p]||{}).categoria)||'Sem categoria')===ct.cat);
@@ -286,12 +287,53 @@ function relProjPorSigla(){
 const REL_DISP={ ok:['✅','no app','A tela que entrega este relatório já existe — clique em Abrir.'],
   parcial:['🔶','parcial','Uma tela do app cobre parte do relatório (proxy honesto); o complemento está no roadmap.'],
   falta:['🔒','exige dados novos','Depende de dados que o Jira ainda não tem (sprints, CSAT, SLA nativo…). Configurável desde já; entra no roadmap.'] };
+// ---- 📚 Contexto do relatório aberto pela Central (pedido de 2026-09-12) ----
+// "Abrir no app" leva à tela do relatório JÁ RESTRITA aos projetos dos tipos onde
+// aquele relatório é O (essencial) ou R (recomendado) na matriz. O contexto fica em
+// estado.relCtx, aparece na faixa #rel-ctx acima do conteúdo e some ao navegar para
+// outra tela (vaiPara) ou ao clicar "ver todos os projetos". As telas consultam
+// relProjOk(key, categoria); os filtros globais (filtros()/passa()) já o aplicam.
+function relCtxDe(item){
+  const O=[], R=[]; REL_SIGLAS.forEach(s=>{ const v=relVal(item,s); if(v==='O') O.push(s); else if(v==='R') R.push(s); });
+  return { id:item.id, nome:item.nome, vista:item.vista, O, R, siglas:O.concat(R) };
+}
+function relCtxAtivo(vista){ const c=estado.relCtx; return c&&(!vista||c.vista===vista)?c:null; }
+// Projeto permitido no contexto atual? Sem contexto, tudo passa. Sem categoria conhecida,
+// procura no catálogo; se o catálogo ainda não chegou, deixa passar (não esconde por engano).
+function relProjOk(key, categoria){
+  const c=estado.relCtx; if(!c) return true;
+  let cat=categoria;
+  if(!cat){ const p=(_projetosCache||[]).find(x=>x.key===key); if(!p) return !(_projetosCache&&_projetosCache.length); cat=p.categoria; }
+  return c.siglas.includes(relSiglaDe(cat));
+}
+function relCtxSet(ctx){
+  estado.relCtx=ctx||null;
+  try{ if(estado.tempo&&estado.atividade) preencheFiltros(); }catch(e){}   // o seletor global de projeto acompanha
+  relCtxRender();
+}
+function relCtxRender(){
+  const box=document.getElementById('rel-ctx'); if(!box) return;
+  const c=estado.relCtx; if(!c||c.vista!==estado.vista){ box.hidden=true; box.innerHTML=''; return; }
+  const { por }=relProjPorSigla();
+  const n=c.siglas.reduce((s,x)=>s+(por[x]||[]).length,0);
+  const rot=(arr)=>arr.map(s=>`<b data-tip="${escA(REL_SIGLA_NOME[s]||s)}">${s}</b>`).join(', ');
+  box.innerHTML=`<div class="rc-ctx"><span class="rc-ctx-t">📚 <b>${esc(c.id)} · ${esc(c.nome)}</b></span>
+    <span class="rc-ctx-d">só projetos dos tipos ${c.O.length?`${rot(c.O)} <span class="rc-ctx-v O" data-tip="Essencial para estes tipos">O</span>`:''}${c.O.length&&c.R.length?' e ':''}${c.R.length?`${rot(c.R)} <span class="rc-ctx-v R" data-tip="Recomendado para estes tipos">R</span>`:''}${_projetosCache?` · <b>${n}</b> projeto(s)`:''}</span>
+    <button class="btn rc-ctx-x" data-rel-ctx-limpar="1" data-tip="Tira a restrição e mostra todos os projetos nesta tela">✕ ver todos os projetos</button>
+    <button class="btn rc-ctx-x" data-goto="relatorios" data-tip="Volta à Central de Relatórios">📚 Central</button></div>`;
+  box.hidden=false;
+}
 function relAbre(id){
   const item=REL_CAT.find(r=>r.id===id);
   if(!item||!item.vista) return;
+  relCtxSet(relCtxDe(item));
   if(item.go) try{ item.go(); }catch(e){}
   vaiPara(item.vista);
 }
+document.addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('[data-rel-ctx-limpar]'); if(!t) return;
+  relCtxSet(null); render();
+});
 function relCardHTML(item, sigla){
   const [ic,rot,tip]=REL_DISP[item.disp]||REL_DISP.falta;
   const v=sigla?relVal(item,sigla):'';

@@ -93,7 +93,9 @@ function crEscala(rows, escala){
     for(let g=0; d<=ate&&g<48; g++){ ticks.push({x:pos(d),rot:i%every===0?labelMesAbbr(d.slice(0,7)):'',forte:d.slice(5,7)==='01'}); d=crAddDias(d.slice(0,7)+'-28',4).slice(0,7)+'-01'; i++; } }
   return { de, ate, dias, modo, pos, ticks, hoje:pos(hoje), hojeDentro:hoje>=de&&hoje<=ate };
 }
-const crKpi=(v,l,cls,s)=>`<div class="vg-k ${cls||''}"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+// KPI acionável (pedido de 2026-09-13): `acao` = filtro do cronograma ('todos', 'atrasados',
+// 'risco', 'marcos30'), 'progresso' (itens do projeto) ou 'epico:KEY' (abre o épico); `on` = filtro ativo.
+const crKpi=(v,l,cls,s,acao,on)=>`<div class="vg-k ${cls||''} ${on?'cr-on':''}"${acao?` data-cr-kpi="${escA(acao)}" role="button" tabindex="0" data-tipk="${acao==='progresso'?'clique para ver os itens por épico':acao.startsWith('epico:')?'clique para abrir o épico':(on?'clique para voltar a todos':'clique para filtrar o cronograma')}"`:''}><div class="v">${v}</div><div class="l">${esc(l)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
 const crBadge=(st)=>{ const [ic,rot,cor]=CR_ST[st]||CR_ST.nao_iniciado; return `<span class="cr-st cr-st-${st}" style="--cor:${cor}">${ic} ${rot}</span>`; };
 function crGanttHTML(rows, esc_){
   const E=esc_; const H=rows.length*CR_ROWH;
@@ -121,12 +123,15 @@ function crGanttHTML(rows, esc_){
 function renderCronograma(){
   const cont=document.getElementById('conteudo'); const c=estado.cronograma;
   if(!_projetosCache) garanteProjetos().then(crReRender).catch(()=>{});
-  const projs=(_projetosCache||[]).slice().sort((a,b)=>(a.nome||a.key).localeCompare(b.nome||b.key,'pt'));
+  // 📚 Vindo da Central (R04): só os projetos dos tipos onde o R04 é O/R; um projeto de fora sai da seleção.
+  const rc=relCtxAtivo('cronograma');
+  const projs=(_projetosCache||[]).filter(p=>!rc||relProjOk(p.key,p.categoria)).sort((a,b)=>(a.nome||a.key).localeCompare(b.nome||b.key,'pt'));
   if(!c.proj&&estado.projetos&&estado.projetos.sel) c.proj=estado.projetos.sel;
+  if(rc&&c.proj&&_projetosCache&&_projetosCache.length&&!projs.some(p=>p.key===c.proj)) c.proj='';
   const sel=`<select id="cr-proj"><option value="">— escolha o projeto —</option>${projs.map(p=>`<option value="${escA(p.key)}" ${c.proj===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')}</select>`;
   const filtros=`<div class="ap-filtros">
     <div class="campo"><label>Projeto</label>${sel}</div>
-    <div class="campo"><label>Mostrar</label><div class="ap-chips">${[['todos','Todos'],['abertos','Abertos'],['atencao','Atrasados e em risco'],['concluidos','Concluídos']].map(([v,l])=>`<button class="chip ${c.fil===v?'on':''}" data-cr-fil="${v}">${l}</button>`).join('')}</div></div>
+    <div class="campo"><label>Mostrar</label><div class="ap-chips">${[['todos','Todos'],['abertos','Abertos'],['atrasados','🔴 Atrasados'],['risco','🟠 Em risco'],['atencao','Atrasados e em risco'],['marcos30','◆ Marcos em 30 dias'],['concluidos','✅ Concluídos']].map(([v,l])=>`<button class="chip ${c.fil===v?'on':''}" data-cr-fil="${v}">${l}</button>`).join('')}</div></div>
     <div class="campo"><label>Ordem</label><select id="cr-ord"><option value="auto" ${c.ord==='auto'?'selected':''}>cascata (fase e início)</option><option value="inicio" ${c.ord==='inicio'?'selected':''}>início</option><option value="fim" ${c.ord==='fim'?'selected':''}>marco (data limite)</option><option value="status" ${c.ord==='status'?'selected':''}>status</option><option value="nome" ${c.ord==='nome'?'selected':''}>nome</option></select></div>
     <div class="campo"><label>Escala</label><select id="cr-escala"><option value="auto" ${c.escala==='auto'?'selected':''}>automática</option><option value="semanas" ${c.escala==='semanas'?'selected':''}>semanas</option><option value="meses" ${c.escala==='meses'?'selected':''}>meses</option></select></div>
     <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px">${c.proj?'<button class="btn" data-cr-refresh="1" data-tip="Rebusca a ficha do Jira ignorando o cache">⟳ Atualizar</button>':''}${c.proj?'<button class="btn" data-cr-csv="1" data-tip="Baixa o cronograma em CSV">⬇ CSV</button>':''}</div></div></div>`;
@@ -136,19 +141,21 @@ function renderCronograma(){
   crGaranteFicha(c.proj); const d=crFicha(c.proj);
   if(!d){ cont.replaceChildren(el(`<div>${cab(esc(projNome(c.proj)))}<div class="card full">${c.fichaErr[c.proj]?`<div class="erro">${esc(c.fichaErr[c.proj])} <button class="btn" data-cr-retry="1">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`)); return; }
   const todas=crLinhas(d); const hoje=hojeSP();
-  const filtradas=todas.filter(r=>c.fil==='abertos'?!r.done&&!r.cancel:c.fil==='atencao'?(r.st==='atrasado'||r.st==='risco'):c.fil==='concluidos'?r.done:true);
-  const rows=crOrdena(filtradas,c.ord); const E=crEscala(rows.length?rows:todas,c.escala);
   const n=(st)=>todas.filter(r=>r.st===st).length; const abertos=todas.filter(r=>!r.done&&!r.cancel);
   const proxMarcos=abertos.filter(r=>r.fimPlan&&r.fimPlan>=hoje&&crDias(hoje,r.fimPlan)<=30).sort((a,b)=>a.fimPlan.localeCompare(b.fimPlan));
+  const proxSet=new Set(proxMarcos.map(r=>r.k));
+  const filtradas=todas.filter(r=>c.fil==='abertos'?!r.done&&!r.cancel:c.fil==='atencao'?(r.st==='atrasado'||r.st==='risco'):c.fil==='atrasados'?r.st==='atrasado':c.fil==='risco'?r.st==='risco':c.fil==='marcos30'?proxSet.has(r.k):c.fil==='concluidos'?r.done:true);
+  const rows=crOrdena(filtradas,c.ord); const E=crEscala(rows.length?rows:todas,c.escala);
   const itensTot=todas.reduce((s,r)=>s+(r.nFilhos||0),0), itensConc=todas.reduce((s,r)=>s+(r.nConcluidos||0),0);
   const fimProj=todas.reduce((s,r)=>(r.fimRef&&r.fimRef>s?r.fimRef:s),''); const prevProj=abertos.reduce((s,r)=>(r.previsao&&r.previsao>s?r.previsao:s),'');
+  const ultimo=fimProj?todas.find(r=>r.fimRef===fimProj):null;
   const hero=`<div class="vg-hero">
-    ${crKpi(String(todas.length),'Épicos (fases)','',`${n('concluido')} concluído(s) · ${n('andamento')} em andamento · ${n('nao_iniciado')} não iniciado(s)`)}
-    ${crKpi(String(n('atrasado')),'Atrasados',n('atrasado')?'bad':'good','marco passou e o épico segue aberto')}
-    ${crKpi(String(n('risco')),'Em risco',n('risco')?'warn':'good','previsão passa do marco, marco próximo com pouco progresso ou itens vencidos')}
-    ${crKpi(String(proxMarcos.length),'Marcos nos próximos 30 dias',proxMarcos.length?'warn':'',proxMarcos.length?proxMarcos.slice(0,3).map(r=>`${esc(r.k)} ${dataBR(r.fimPlan)}`).join(' · '):'nenhum')}
-    ${crKpi(`${itensTot?Math.round(itensConc/itensTot*100):0}%`,'Progresso geral (itens)','',`${itensConc} de ${itensTot} itens concluídos`)}
-    ${crKpi(fimProj?dataBR(fimProj):'—','Último marco planejado',prevProj&&fimProj&&prevProj>fimProj?'warn':'',prevProj?`previsão pelo ritmo: ${dataBR(prevProj)}`:'sem previsão (sem ritmo recente)')}</div>`;
+    ${crKpi(String(todas.length),'Épicos (fases)','',`${n('concluido')} concluído(s) · ${n('andamento')} em andamento · ${n('nao_iniciado')} não iniciado(s)`,'todos',c.fil==='todos')}
+    ${crKpi(String(n('atrasado')),'Atrasados',n('atrasado')?'bad':'good','marco passou e o épico segue aberto','atrasados',c.fil==='atrasados')}
+    ${crKpi(String(n('risco')),'Em risco',n('risco')?'warn':'good','previsão passa do marco, marco próximo com pouco progresso ou itens vencidos','risco',c.fil==='risco')}
+    ${crKpi(String(proxMarcos.length),'Marcos nos próximos 30 dias',proxMarcos.length?'warn':'',proxMarcos.length?proxMarcos.slice(0,3).map(r=>`${esc(r.k)} ${dataBR(r.fimPlan)}`).join(' · '):'nenhum','marcos30',c.fil==='marcos30')}
+    ${crKpi(`${itensTot?Math.round(itensConc/itensTot*100):0}%`,'Progresso geral (itens)','',`${itensConc} de ${itensTot} itens concluídos`,'progresso')}
+    ${crKpi(fimProj?dataBR(fimProj):'—','Último marco planejado',prevProj&&fimProj&&prevProj>fimProj?'warn':'',`${ultimo?esc(ultimo.k)+' · ':''}${prevProj?`previsão pelo ritmo: ${dataBR(prevProj)}`:'sem previsão (sem ritmo recente)'}`,ultimo?`epico:${ultimo.k}`:'')}</div>`;
   const gantt=rows.length?crGanttHTML(rows,E):'<div class="estado">Nenhum épico neste filtro.</div>';
   const tab=`<div class="scroll-x"><table class="mp-tab-mini cr-tab"><thead><tr><th>Épico</th><th>Status</th><th class="num">Início plan.</th><th class="num">Início real</th><th class="num">Marco</th><th class="num">Fim real / previsão</th><th class="num">Atraso</th><th class="num">Itens</th><th class="num">Horas</th><th>Dependências</th><th>Alertas</th></tr></thead>
     <tbody>${rows.map(r=>`<tr class="rm-click" data-cr-ep="${escA(r.k)}"><td><b>${esc(r.k)}</b> <span class="muted small">${esc((r.resumo||'').slice(0,50))}</span></td><td>${crBadge(r.st)}</td><td class="num">${r.iniPlan?dataBR(r.iniPlan):'<span class="muted">—</span>'}</td><td class="num">${r.iniReal?dataBR(r.iniReal):'—'}</td><td class="num">${r.fimPlan?dataBR(r.fimPlan):(r.fimDerivado?`<span class="muted" data-tip="Maior vencimento dos filhos">${dataBR(r.fimRef)}*</span>`:'<span class="muted">—</span>')}</td>
@@ -199,6 +206,22 @@ function crAbreEpico(k, soHoras){
     <div class="alx-modal-acoes"><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>${abertosK.length?`<button class="btn" data-ct-gestao="${escA(abertosK.slice(0,200).join(','))}">🛠 Abrir os ${Math.min(abertosK.length,200)} abertos na Gestão</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
   if(soHoras){ /* redesenhado inteiro acima — mantém o modal aberto com as horas carregadas */ }
 }
+// KPI "Progresso geral": itens do projeto por épico (barra de progresso) + itens abertos, com ação na Gestão.
+function crAbreProgresso(){
+  const c=estado.cronograma; const d=crFicha(c.proj); if(!d) return; const rows=crOrdena(crLinhas(d),'auto');
+  const cancel=(i)=>/cancel/i.test(i.st||''); const itens=(d.itens||[]).filter(i=>!i.ep);
+  const validos=itens.filter(i=>!cancel(i)); const conc=validos.filter(i=>i.sc==='done'); const abertos=validos.filter(i=>i.sc!=='done').sort((a,b)=>(a.v||'9999').localeCompare(b.v||'9999'));
+  const hoje=hojeSP(); const vencidos=abertos.filter(i=>i.v&&i.v<hoje).length; const semEp=abertos.filter(i=>!i.e).length;
+  const pct=validos.length?Math.round(conc.length/validos.length*100):0;
+  const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+  const linhas=rows.map(r=>`<tr class="rm-click" data-cr-ep="${escA(r.k)}" data-tipk="clique para abrir o épico"><td><b>${esc(r.k)}</b> <span class="muted small">${esc((r.resumo||'').slice(0,50))}</span></td><td>${crBadge(r.st)}</td><td class="num">${r.nConcluidos}/${r.nFilhos}</td><td style="min-width:150px"><div class="rp-wf-t"><i style="width:${r.pct}%;background:${CR_ST[r.st][2]}"></i></div></td><td class="num">${r.pct}%</td><td class="num">${fmtHd(r.gastoH)} <span class="muted small">/ ${fmtHd(r.estH)}</span></td></tr>`).join('');
+  abreModal(`<h2>📊 Progresso geral · ${esc(d.nome||projNome(c.proj))} <span class="muted small" style="font-weight:400">${conc.length} de ${validos.length} itens concluídos (${pct}%)</span></h2>
+    <div class="ams-dgrid" style="margin:8px 0 10px">${dl('Concluídos',conc.length)}${dl('Abertos',abertos.length)}${dl('Vencidos',vencidos?`<span class="rp-neg">${vencidos}</span>`:'0')}${dl('Abertos sem épico',semEp)}${dl('Cancelados',itens.length-validos.length)}</div>
+    <div class="mp-h3">🧩 Por épico <span class="mp-dim">clique para abrir o épico</span></div>
+    <div class="scroll-x"><table class="mp-tab-mini cr-tab"><thead><tr><th>Épico</th><th>Status</th><th class="num">Itens</th><th>Progresso</th><th class="num">%</th><th class="num">Horas</th></tr></thead><tbody>${linhas||'<tr><td colspan="6" class="mp-dim">Sem épicos.</td></tr>'}</tbody></table></div>
+    <div class="mp-h3" style="margin-top:12px">📋 Itens abertos <span class="mp-dim">${abertos.length} · vencimento mais próximo primeiro</span></div>${projTabelaItens(abertos,200)}
+    <div class="alx-modal-acoes">${abertos.length?`<button class="btn" data-ct-gestao="${escA(abertos.slice(0,200).map(i=>i.k).join(','))}">🛠 Abrir os ${Math.min(abertos.length,200)} abertos na Gestão</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
+}
 function crExportaCSV(){
   const c=estado.cronograma; const d=crFicha(c.proj); if(!d){ toast('Aguarde a ficha carregar.','warn'); return; }
   const rows=crOrdena(crLinhas(d),c.ord); const rot={concluido:'Concluído',atrasado:'Atrasado',risco:'Em risco',andamento:'Em andamento',nao_iniciado:'Não iniciado',cancelado:'Cancelado'};
@@ -212,12 +235,22 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   else if(t.id==='cr-ord'){ c.ord=t.value; renderCronograma(); }
   else if(t.id==='cr-escala'){ c.escala=t.value; renderCronograma(); }
 });
+// KPI acionável: filtro do cronograma (clicar de novo volta a "todos"), itens do projeto ou o épico do último marco.
+function crAcaoKpi(acao){
+  const c=estado.cronograma; if(!acao) return;
+  if(acao==='progresso'){ crAbreProgresso(); return; }
+  if(acao.startsWith('epico:')){ crAbreEpico(acao.slice(6)); return; }
+  c.fil=(c.fil===acao&&acao!=='todos')?'todos':acao; if(c.fil==='marcos30') c.ord='fim';
+  renderCronograma(); const g=document.querySelector('#conteudo .cr-gantt'); if(g&&c.fil!=='todos') g.scrollIntoView({behavior:'smooth',block:'start'});
+}
 document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   if(estado.vista!=='cronograma') return; if(e.key!=='Enter'&&e.key!==' ') return;
+  const k=e.target.closest&&e.target.closest('[data-cr-kpi]'); if(k){ e.preventDefault(); crAcaoKpi(k.getAttribute('data-cr-kpi')); return; }
   const r=e.target.closest&&e.target.closest('[data-cr-ep]'); if(r){ e.preventDefault(); crAbreEpico(r.getAttribute('data-cr-ep')); }
 });
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='cronograma') return; const c=estado.cronograma;
+  const kp=e.target.closest&&e.target.closest('[data-cr-kpi]'); if(kp){ crAcaoKpi(kp.getAttribute('data-cr-kpi')); return; }
   const row=e.target.closest&&e.target.closest('[data-cr-ep]'); if(row&&!e.target.closest('a')&&!e.target.closest('button')){ crAbreEpico(row.getAttribute('data-cr-ep')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-cr-fil')){ c.fil=t.getAttribute('data-cr-fil'); renderCronograma(); return; }
@@ -226,6 +259,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-cr-csv')){ crExportaCSV(); return; }
 });
 document.getElementById('modal-body').addEventListener('click',(e)=>{
+  if(estado.vista==='cronograma'){ const r=e.target.closest&&e.target.closest('[data-cr-ep]'); if(r&&!e.target.closest('a')&&!e.target.closest('button')){ crAbreEpico(r.getAttribute('data-cr-ep')); return; } }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-cr-horas')){ crGaranteTempo(); const h=document.getElementById('cr-horas'); if(h) h.innerHTML='<div class="muted small">⏳ Lendo as horas apontadas (12 meses)…</div>'; }
 });
