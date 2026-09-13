@@ -15,12 +15,13 @@ function jiraAuthHeader() {
   return 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
 }
 
-// GET /api/projetos?epicos=KEY -> { projeto, epicos, historias }
-async function listarEpicos(projeto, res) {
+// GET /api/projetos?epicos=KEY[&nocache=1] -> { projeto, epicos, historias }
+// Cache curto (2 min) e `nocache=1` para o "↻" da tela: um épico criado direto no
+// Jira aparecia só depois de 10 min (o cache não sabia dele) — 2026-09-13.
+async function listarEpicos(projeto, res, nocache) {
   if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
   const ck = `epicos:${projeto}`;
-  const cached = cacheGet(ck);
-  if (cached) return json(res, 200, cached);
+  if (!nocache) { const cached = cacheGet(ck); if (cached) return json(res, 200, cached); }
 
   const base = jiraBase();
   const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
@@ -67,7 +68,7 @@ async function listarEpicos(projeto, res) {
     historias.forEach((h) => { if (h.epico) porEpico[h.epico] = (porEpico[h.epico] || 0) + 1; });
     epicos.forEach((e) => { e.nHistorias = porEpico[e.k] || 0; });
   }
-  return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias }, 10));
+  return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias, geradoEm: new Date().toISOString() }, 2));
 }
 
 // GET /api/projetos?consultorias=KEY -> opções do campo CASCATA "AMS | Consultoria >
@@ -486,7 +487,7 @@ export default async function handler(req, res) {
     if (String((req.query && req.query.visao) || '').trim()) return await visaoPorProjetos(req, res);
 
     const epicosDe = String((req.query && req.query.epicos) || '').trim().toUpperCase();
-    if (epicosDe) return await listarEpicos(epicosDe, res);
+    if (epicosDe) return await listarEpicos(epicosDe, res, String((req.query && req.query.nocache) || '') === '1');
 
     const consDe = String((req.query && req.query.consultorias) || '').trim().toUpperCase();
     if (consDe) return await listarConsultorias(consDe, res);

@@ -169,7 +169,9 @@ document.addEventListener('click', (e)=>{
   if(!dentro){ fechaMenusNav(); fechaDrawer(); } });
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fechaMenusNav(); fechaDrawer(); } });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
-document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; if(estado.ranking) estado.ranking.tempoPer={}; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range=''; recarrega(); });
+document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; if(estado.ranking) estado.ranking.tempoPer={}; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range='';
+  if(estado.planejar){ estado.planejar.epicosPorProj={}; estado.planejar.forcaEpicos=true; }   // 📝 Planejar: épicos/histórias voltam direto do Jira (nocache)
+  recarrega(); });
 ['f-pessoa','f-categoria','f-projeto','f-tipo'].forEach(id=>
   document.getElementById(id).addEventListener('change', ()=>{ render(); estadoParaURL(); }));
 

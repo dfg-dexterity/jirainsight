@@ -132,6 +132,21 @@ function estruRemove(i){
   pl.estru=novo.length?novo:null;
 }
 
+// Épicos e histórias abertos do projeto (/api/projetos?epicos=KEY). `forca` (ou o
+// ↻ Atualizar do topo, via estado.planejar.forcaEpicos) manda nocache=1: a lista volta
+// direto do Jira — é o caminho para um épico recém-criado lá aparecer na hora.
+function plCarregaEpicos(projeto, depois, forca){
+  const pl=estado.planejar; if(!projeto) return;
+  const nocache=!!(forca||pl.forcaEpicos); pl.forcaEpicos=false;
+  pl.carregandoEpicos=true;
+  fetch(`/api/projetos?epicos=${encodeURIComponent(projeto)}${nocache?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
+    pl.carregandoEpicos=false;
+    pl.epicosPorProj[projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
+    if(depois) depois();
+  }).catch(e=>{ pl.carregandoEpicos=false;
+    pl.epicosPorProj[projeto]={epicos:[],historias:[],erro:String(e.message||e)};
+    if(depois) depois(); });
+}
 function renderPlanejar(){
   const cont=document.getElementById('conteudo');
   const pl=estado.planejar;
@@ -398,16 +413,7 @@ function arvHTML(){
     } else {
       const pl2=estado.planejar;
       const ep=pl2.epicosPorProj[f.projeto];
-      if(!ep && !pl2.carregandoEpicos){
-        pl2.carregandoEpicos=true;
-        fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
-          pl2.carregandoEpicos=false;
-          pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
-          arvRender();
-        }).catch(e2=>{ pl2.carregandoEpicos=false;
-          pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
-          arvRender(); });
-      }
+      if(!ep && !pl2.carregandoEpicos) plCarregaEpicos(f.projeto, arvRender);
       const proj=(_projetosCache||[]).find(p=>p.key===f.projeto);
       const cab=`<div class="campo" style="margin-top:10px"><label>Projeto</label>
         <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
@@ -495,16 +501,7 @@ function arvHTML(){
       if(no.epico){
         const pl2=estado.planejar;
         const ep=f.projeto?pl2.epicosPorProj[f.projeto]:null;
-        if(f.projeto && !ep && !pl2.carregandoEpicos){
-          pl2.carregandoEpicos=true;
-          fetch(`/api/projetos?epicos=${encodeURIComponent(f.projeto)}`).then(r=>r.json()).then(j=>{
-            pl2.carregandoEpicos=false;
-            pl2.epicosPorProj[f.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
-            arvRender();
-          }).catch(e2=>{ pl2.carregandoEpicos=false;
-            pl2.epicosPorProj[f.projeto]={epicos:[],historias:[],erro:String(e2.message||e2)};
-            arvRender(); });
-        }
+        if(f.projeto && !ep && !pl2.carregandoEpicos) plCarregaEpicos(f.projeto, arvRender);
         let selEp;
         if(!f.projeto) selEp='<select disabled><option>escolha o projeto</option></select>';
         else if(!ep) selEp='<select disabled><option>carregando épicos…</option></select>';
@@ -703,16 +700,8 @@ function renderPlanejarForm(){
   if(pl.modo==='estrutura') return renderPlanejarEstruForm();
 
   // Épicos/histórias do projeto (modo épico) carregam sob demanda.
-  if(pl.modo==='epico' && pl.projeto && !pl.epicosPorProj[pl.projeto] && !pl.carregandoEpicos){
-    pl.carregandoEpicos=true;
-    fetch(`/api/projetos?epicos=${encodeURIComponent(pl.projeto)}`).then(r=>r.json()).then(j=>{
-      pl.carregandoEpicos=false;
-      pl.epicosPorProj[pl.projeto]=j.erro?{epicos:[],historias:[],erro:j.erro}:j;
-      if(estado.vista==='planejar') renderPlanejar();
-    }).catch(e=>{ pl.carregandoEpicos=false;
-      pl.epicosPorProj[pl.projeto]={epicos:[],historias:[],erro:String(e.message||e)};
-      if(estado.vista==='planejar') renderPlanejar(); });
-  }
+  if(pl.modo==='epico' && pl.projeto && !pl.epicosPorProj[pl.projeto] && !pl.carregandoEpicos)
+    plCarregaEpicos(pl.projeto, ()=>{ if(estado.vista==='planejar') renderPlanejar(); });
   ajustaTipo();
 
   const faixaId = id
@@ -744,7 +733,7 @@ function renderPlanejarForm(){
     else {
       const optEp='<option value="">— escolha o épico —</option>'+(ep.epicos||[]).map(e=>
         `<option value="${escA(e.k)}" ${pl.epicoKey===e.k?'selected':''}>${esc(e.k)} — ${esc(e.resumo.slice(0,55))}${e.nHistorias?` · ${e.nHistorias} história(s)`:''}</option>`).join('');
-      campoPai=`<div class="campo"><label>Épico</label><select id="pl-epico">${optEp}</select></div>`;
+      campoPai=`<div class="campo"><label>Épico</label><div style="display:flex;gap:6px;align-items:center"><select id="pl-epico">${optEp}</select><button class="btn" data-pl-recarrega-ep="1" data-tip="Rebusca os épicos e histórias abertos deste projeto no Jira (ignora o cache) — use depois de criar um épico direto no Jira">↻</button></div>${ep.geradoEm?`<div class="muted small" style="margin-top:3px">lista lida do Jira às ${esc(new Date(ep.geradoEm).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}))}</div>`:''}</div>`;
       if(pl.epicoKey){
         const hs=historiasDoEpico();
         const optH='<option value="">— criar direto no épico (história/tarefa) —</option>'+hs.map(h=>
@@ -1550,4 +1539,12 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
     const c=document.getElementById('pl-estr-cont');
     if(c) c.textContent=String(e.target.value.split('\n').map(l=>l.trim()).filter(Boolean).length);
   }
+});
+// ↻ ao lado do seletor de épico: rebusca épicos/histórias do projeto ignorando o cache.
+document.getElementById('conteudo').addEventListener('click', (e)=>{
+  if(estado.vista!=='planejar') return;
+  const b=e.target.closest&&e.target.closest('[data-pl-recarrega-ep]'); if(!b) return;
+  const pl=estado.planejar; const k=pl.projeto; if(!k||pl.carregandoEpicos) return;
+  delete pl.epicosPorProj[k]; b.disabled=true; b.textContent='…';
+  plCarregaEpicos(k, ()=>{ if(estado.vista==='planejar') renderPlanejar(); const ep=pl.epicosPorProj[k]; if(ep&&!ep.erro) toast(`Épicos de ${k} relidos do Jira: ${(ep.epicos||[]).length} aberto(s).`,'ok'); }, true);
 });
