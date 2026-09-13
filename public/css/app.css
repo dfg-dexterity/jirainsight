@@ -1748,6 +1748,21 @@
   .rp-marcos tr.rp-m-atr td:nth-child(2){color:var(--err)}
   .rp-marcos input[type=text],.rp-marcos input[type=date],.rp-marcos input[type=number],.rp-marcos select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .rp-form [data-rp-f-so][hidden]{display:none}
+  /* 🕓 histórico do plano · regra de alocação · períodos de faturamento × Odoo */
+  .rp-regra{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--hoverbg);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap}
+  .rp-regra.lnk{cursor:pointer;color:var(--cerceta)} .rp-regra.lnk:hover{text-decoration:underline}
+  .rp-hist td,.rp-hist th{white-space:nowrap} .rp-hist td:last-child{white-space:normal;min-width:260px}
+  .badge.rp-h{font-size:11px;padding:2px 8px;background:var(--hoverbg);color:var(--texto2)}
+  .badge.rp-h-criou{background:rgba(24,137,24,.14);color:#188918} .badge.rp-h-odoo{background:rgba(74,58,167,.14);color:var(--roxo)} .badge.rp-h-aloc{background:rgba(0,153,148,.14);color:var(--cerceta)} .badge.rp-h-editou{background:rgba(255,164,54,.18);color:#8A5200}
+  .rp-per-tab td,.rp-per-tab th{white-space:nowrap} .rp-per-tab tr.rp-per-pago td b,.rp-per-tab tr.rp-per-faturado td b{color:var(--musgo)}
+  .rp-odoo .rp-fats{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap} .rp-odoo .btn.rt-step{margin-left:6px}
+  /* 🤝 Contratos de parceria */
+  .pc-card{border-left-color:var(--cerceta)} .pc-card.pc-avencer{border-left-color:#eb6834} .pc-card.pc-encerrado{border-left-color:var(--muted);opacity:.85} .pc-card.pc-futuro{border-left-color:#2a78d6}
+  .badge.pc-st-vigente{background:rgba(24,137,24,.14);color:#188918} .badge.pc-st-avencer{background:rgba(235,104,52,.16);color:#B4400A} .badge.pc-st-encerrado{background:var(--hoverbg);color:var(--muted)} .badge.pc-st-futuro{background:rgba(42,120,214,.14);color:#2a78d6}
+  .pc-form .pc-prev{margin-top:10px} .pc-cal{margin-top:10px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px}
+  .pc-card.pc-cal-aberto{grid-column:1/-1}
+  .pc-cal-tab td,.pc-cal-tab th{white-space:nowrap} .pc-cal-tab tr.pc-fora td{color:var(--muted)}
+  .pc-cal-tab input[type=date]{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .rp-dados .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-dados .dd{font-weight:700}
   .rp-form{margin-top:12px;padding:12px 14px;border:1px dashed var(--linha);border-radius:10px}
   .rp-cen{margin-bottom:10px;align-items:center}

@@ -39,7 +39,7 @@ api/
 public/
   index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
-  js/NN-nome.js    o painel, dividido em 31 módulos por domínio — ver tabela abaixo
+  js/NN-nome.js    o painel, dividido em 32 módulos por domínio — ver tabela abaixo
   sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
   portal.html      painel somente-leitura do cliente (AMS), escopado por token
 scripts/
@@ -75,8 +75,9 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
+| `16b-parcerias.js` | 🤝 Contratos de parceria (`cfg.parcerias`): consultoria, modalidade (horas abertas · AMS · demanda fechada), validade e período de aviso, valor-hora, fechamento do período de faturamento e dia da nota **ajustáveis mês a mês** (`ajustes`), conta de recebimento, calendário dos próximos 12 períodos, histórico; helpers `pcPeriodos`/`pcStatus` usados pela Rentabilidade |
 | `17-metricas-tipo.js` | 📈 Métricas por tipo de projeto (DEA/PEA, DEF/PEF, AMS, ARQ, IMI, IPA, ITPR) + ⚙️ Perfis (nível e departamento por pessoa) |
-| `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: plano por **tipo** (horas abertas: início/fim, h/dia, valor-hora → receita mensal, receita realizada e cotação no Odoo via `/api/resumo?acao=odoo-venda`; escopo fechado: valor + marcos de faturamento ligados a épicos; interno: orçamento consumido pela alocação), planner pessoa × mês com alocação por período, cenários, simulador, realizado (`cfg.rentab`) |
+| `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: plano por **tipo** (horas abertas: 🤝 contrato de parceria, início/fim, h/dia, valor-hora → receita mensal e por **período de faturamento** do contrato, receita realizada, ordem de venda no Odoo com **um item por período** via `/api/resumo?acao=odoo-venda` e **sincronização** do faturado/pago via `?acao=odoo-venda-status`; escopo fechado: valor + marcos de faturamento ligados a épicos; interno: orçamento consumido pela alocação), planner pessoa × mês com **alocação por regra** (% do dia, h/dia, h/mês, total entre datas — dias úteis sem feriados, `al.regra`), cenários, simulador, realizado e **histórico do plano** (`p.hist`: quem/quando/o quê) — tudo em `cfg.rentab` |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
 | `18-controladoria-relatorios.js` | 🏦 Controladoria, 📚 Central de Relatórios (matriz O/R por tipo; "Abrir no app" leva o **contexto do relatório** — `estado.relCtx`, faixa `#rel-ctx` — que restringe a tela-alvo aos projetos dos tipos O/R via `relProjOk`) |
 | `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |
