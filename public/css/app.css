@@ -1741,6 +1741,13 @@
   .rp-mini{margin-top:8px} .rp-mini .ams-dl{padding:6px 9px} .rp-mini .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-mini .dd{font-weight:700}
   .badge.rp-st-planejado{background:rgba(42,120,214,.14);color:#2a78d6} .badge.rp-st-andamento{background:rgba(0,153,148,.14);color:var(--cerceta)} .badge.rp-st-encerrado{background:var(--hoverbg);color:var(--muted)}
   .rp-dados{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+  .badge.rp-tipo{background:var(--hoverbg);color:var(--texto2);font-weight:600}
+  .rp-card.rp-t-fechado{border-left-color:var(--roxo)} .rp-card.rp-t-interno{border-left-color:var(--amarelo)}
+  .rp-marcos td,.rp-marcos th,.rp-rec td,.rp-rec th{white-space:nowrap}
+  .rp-marcos tr.rp-m-fat td{color:var(--muted)} .rp-marcos tr.rp-m-fat td b{color:var(--musgo)}
+  .rp-marcos tr.rp-m-atr td:nth-child(2){color:var(--err)}
+  .rp-marcos input[type=text],.rp-marcos input[type=date],.rp-marcos input[type=number],.rp-marcos select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-form [data-rp-f-so][hidden]{display:none}
   .rp-dados .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-dados .dd{font-weight:700}
   .rp-form{margin-top:12px;padding:12px 14px;border:1px dashed var(--linha);border-radius:10px}
   .rp-cen{margin-bottom:10px;align-items:center}

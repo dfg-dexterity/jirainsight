@@ -57,6 +57,65 @@ async function odoo(url, service, method, args) {
   return j.result;
 }
 
+// ---------------------------------------------------------------------------
+// 💹 Rentabilidade → Odoo Vendas (pedido de 2026-09-13): cria uma COTAÇÃO (sale.order
+// em rascunho, nada é confirmado) com o faturamento previsto por mês de um plano de
+// horas abertas — uma linha por mês (horas previstas × valor da hora), no cliente do
+// plano. POST /api/resumo?acao=odoo-venda. A escrita é pela conta de serviço do Odoo;
+// quem pediu é confirmado pelo token do Jira (nunca persistido). Env: ODOO_URL, ODOO_DB,
+// ODOO_LOGIN, ODOO_API_KEY e, opcional, ODOO_PRODUTO_SERVICO (id ou nome do produto de
+// serviço usado nas linhas; sem ele, o 1º produto do tipo Serviço). `dry:1` só monta.
+// ---------------------------------------------------------------------------
+async function criaCotacaoOdoo(res, b) {
+  const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
+  const email = txt(b.email, 200), token = String(b.token || '');
+  const linhas = (Array.isArray(b.linhas) ? b.linhas : [])
+    .map((l) => ({ mes: txt(l && l.mes, 7), descricao: txt(l && l.descricao, 200), qtd: Math.max(0, num(l && l.qtd)), unitario: Math.max(0, num(l && l.unitario)) }))
+    .filter((l) => l.qtd > 0 && l.unitario > 0).slice(0, 60);
+  const cliente = txt(b.cliente, 120);
+  const total = Math.round(linhas.reduce((s, l) => s + l.qtd * l.unitario, 0) * 100) / 100;
+  const ref = `Jira Insights · ${txt(b.projeto, 20)} · plano ${txt(b.planoId, 30)}`;
+  if (!linhas.length) return json(res, 400, { ok: false, erro: 'Nenhuma linha com horas e valor para cotar.' });
+  if (b.dry) return json(res, 200, { ok: true, dry: true, total, linhas, ref, configurado: !!(url && db && login && key) });
+  if (!url || !db || !login || !key) return json(res, 200, { ok: false, configurado: false, erro: 'Integração com o Odoo não configurada.', dica: 'Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel (as mesmas das folgas).' });
+  if (!email || !token) return json(res, 400, { ok: false, erro: 'Identifique-se em ⏱ Apontar (e-mail + token do Jira) para criar a cotação.' });
+  const quem = await jiraMyself(email, token);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  try {
+    const uid = await odoo(url, 'common', 'authenticate', [db, login, key, {}]);
+    if (!uid) return json(res, 200, { ok: false, erro: 'Login no Odoo recusado — confira ODOO_LOGIN e ODOO_API_KEY.' });
+    const exec = (model, method, args, kw) => odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kw || {}]);
+    // Cliente (res.partner): id escolhido pela pessoa, ou busca pelo nome — várias respostas ambíguas voltam para escolher.
+    let partnerId = Math.max(0, Math.round(num(b.parceiroId)));
+    if (!partnerId) {
+      if (!cliente) return json(res, 200, { ok: false, erro: 'Informe o cliente do plano (✏️ Dados do projeto) para achar o parceiro no Odoo.' });
+      let lista = await exec('res.partner', 'search_read', [[['name', 'ilike', cliente], ['is_company', '=', true]]], { fields: ['id', 'name'], limit: 8 });
+      if (!lista.length) lista = await exec('res.partner', 'search_read', [[['name', 'ilike', cliente]]], { fields: ['id', 'name'], limit: 8 });
+      if (!lista.length) return json(res, 200, { ok: false, erro: `Nenhum cliente parecido com "${cliente}" no Odoo.`, dica: 'Cadastre o cliente em Contatos no Odoo (ou ajuste o nome do cliente no plano) e tente de novo.' });
+      const exato = lista.find((x) => String(x.name || '').trim().toLowerCase() === cliente.toLowerCase());
+      if (lista.length > 1 && !exato) return json(res, 200, { ok: false, escolher: lista.map((x) => ({ id: x.id, name: x.name })) });
+      partnerId = (exato || lista[0]).id;
+    }
+    // Produto de serviço das linhas: id/nome por env ou o 1º produto do tipo Serviço.
+    const prodCfg = env('ODOO_PRODUTO_SERVICO'); let produtoId = /^\d+$/.test(prodCfg) ? Number(prodCfg) : 0;
+    if (!produtoId) {
+      const prods = await exec('product.product', 'search_read', [prodCfg ? [['name', 'ilike', prodCfg]] : [['type', '=', 'service']]], { fields: ['id', 'name'], limit: 1 });
+      if (!prods.length) return json(res, 200, { ok: false, erro: 'Nenhum produto de serviço encontrado no Odoo para as linhas da cotação.', dica: 'Crie um produto do tipo Serviço (ex.: "Consultoria") ou defina ODOO_PRODUTO_SERVICO (id ou nome) na Vercel.' });
+      produtoId = prods[0].id;
+    }
+    const nota = `Faturamento previsto do plano "${txt(b.nome, 120)}" (${txt(b.projeto, 20)}), ${txt(b.inicio, 10)} → ${txt(b.fim, 10)}. Gerado no Jira Insights por ${quem.nome || email}.${b.obs ? ' ' + txt(b.obs, 300) : ''}`;
+    const orderId = await exec('sale.order', 'create', [{
+      partner_id: partnerId, client_order_ref: ref, origin: ref, note: nota,
+      order_line: linhas.map((l) => [0, 0, { product_id: produtoId, name: l.descricao, product_uom_qty: l.qtd, price_unit: l.unitario }]),
+    }]);
+    const lidos = await exec('sale.order', 'read', [[orderId]], { fields: ['name', 'amount_total'] });
+    const ord = (lidos && lidos[0]) || {};
+    return json(res, 200, { ok: true, id: orderId, name: ord.name || '', total: num(ord.amount_total) || total, parceiroId: partnerId, url: `${url.replace(/\/+$/, '')}/web#id=${orderId}&model=sale.order&view_type=form` });
+  } catch (e) {
+    return json(res, 200, { ok: false, erro: `Odoo: ${String((e && e.message) || e).slice(0, 300)}`, dica: 'Confira se o módulo Vendas está instalado e se a conta de serviço do Odoo pode criar cotações.' });
+  }
+}
+
 // Tipos de ausência aceitos pela árvore "Onde crio?" — cada um resolve o
 // hr.leave.type do Odoo por env (id ou nome) ou por busca de nome padrão.
 const AUS_TIPOS_SRV = {
@@ -1120,6 +1179,9 @@ export default async function handler(req, res) {
     // causa do limite de 12 funções; selecionada por ?acao=folga (ou body.acao).
     const acao = String((req.query && req.query.acao) || b.acao || '').trim();
     if (acao === 'folga') return await criaFolga(res, b);
+
+    // 💹 Rentabilidade → cotação no Odoo (Vendas) com o faturamento previsto por mês.
+    if (acao === 'odoo-venda') return await criaCotacaoOdoo(res, b);
 
     // 📍 Meu dia — ingest dos blocos da ponte (não precisa de IA; valida o token do Jira).
     if (acao === 'meudia-ingest') return await meuDiaIngest(res, b);
