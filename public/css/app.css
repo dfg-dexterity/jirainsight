@@ -235,8 +235,11 @@
   .proj-saude .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
   th[data-proj-sort]{cursor:pointer;user-select:none;white-space:nowrap}
   th[data-proj-sort].sorted{color:var(--cerceta)}
-  .vg-k[data-proj-kpi],.vg-k[data-pdrill-cons]{cursor:pointer;transition:transform .1s ease}
-  .vg-k[data-proj-kpi]:hover,.vg-k[data-pdrill-cons]:hover{outline:2px solid var(--cerceta);outline-offset:-2px;transform:translateY(-1px)}
+  .vg-k[data-proj-kpi],.vg-k[data-pdrill-cons],.vg-k[data-cr-kpi]{cursor:pointer;transition:transform .1s ease}
+  .vg-k[data-proj-kpi]:hover,.vg-k[data-pdrill-cons]:hover,.vg-k[data-cr-kpi]:hover{outline:2px solid var(--cerceta);outline-offset:-2px;transform:translateY(-1px)}
+  .vg-k[data-cr-kpi]:focus-visible{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .vg-k.cr-on{outline:2px solid var(--cerceta);outline-offset:-2px;background:var(--cartao2)}
+  .vg-k.cr-on .l::after{content:' · filtro ativo';color:var(--cerceta);font-weight:700}
   tr[data-pdrill-epico],tr[data-pdrill-mes]{cursor:pointer}
   .barrow[data-pdrill-dim],.barrow[data-pdrill-catpessoa],.barrow[data-proj-open]{cursor:pointer}
   .barrow[data-pdrill-aging],.barrow[data-pdrill-venc],.barrow[data-pdrill-resp]{cursor:pointer}
