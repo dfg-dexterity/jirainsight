@@ -59,19 +59,23 @@ async function odoo(url, service, method, args) {
 
 // ---------------------------------------------------------------------------
 // 💹 Rentabilidade → Odoo Vendas (pedido de 2026-09-13): cria uma COTAÇÃO (sale.order
-// em rascunho, nada é confirmado) com o faturamento previsto por mês de um plano de
-// horas abertas — uma linha por mês (horas previstas × valor da hora), no cliente do
-// plano. POST /api/resumo?acao=odoo-venda. A escrita é pela conta de serviço do Odoo;
-// quem pediu é confirmado pelo token do Jira (nunca persistido). Env: ODOO_URL, ODOO_DB,
-// ODOO_LOGIN, ODOO_API_KEY e, opcional, ODOO_PRODUTO_SERVICO (id ou nome do produto de
-// serviço usado nas linhas; sem ele, o 1º produto do tipo Serviço). `dry:1` só monta.
+// em rascunho, nada é confirmado) com o faturamento previsto de um plano de horas
+// abertas — UM ITEM POR PERÍODO DE FATURAMENTO (horas previstas × valor da hora; os
+// períodos vêm do 🤝 contrato de parceria ou do mês civil), no cliente do plano.
+// POST /api/resumo?acao=odoo-venda. Devolve também os ids das linhas criadas (itens[])
+// para o painel ligar cada período ao seu item e sincronizar depois. A escrita é pela
+// conta de serviço do Odoo; quem pediu é confirmado pelo token do Jira (nunca
+// persistido). Env: ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY e, opcional,
+// ODOO_PRODUTO_SERVICO (id ou nome do produto de serviço; sem ele, o 1º produto do tipo
+// Serviço). `dry:1` só monta.
 // ---------------------------------------------------------------------------
 async function criaCotacaoOdoo(res, b) {
   const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
   const email = txt(b.email, 200), token = String(b.token || '');
   const linhas = (Array.isArray(b.linhas) ? b.linhas : [])
-    .map((l) => ({ mes: txt(l && l.mes, 7), descricao: txt(l && l.descricao, 200), qtd: Math.max(0, num(l && l.qtd)), unitario: Math.max(0, num(l && l.unitario)) }))
+    .map((l) => ({ mes: txt(l && l.mes, 7), de: isoData(l && l.de), ate: isoData(l && l.ate), nota: isoData(l && l.nota), descricao: txt(l && l.descricao, 200), qtd: Math.max(0, num(l && l.qtd)), unitario: Math.max(0, num(l && l.unitario)) }))
     .filter((l) => l.qtd > 0 && l.unitario > 0).slice(0, 60);
+  const ct = b.contrato && typeof b.contrato === 'object' ? { consultoria: txt(b.contrato.consultoria, 120), conta: txt(b.contrato.conta, 120), fatFecha: Math.round(num(b.contrato.fatFecha)) || 0, fatDia: Math.round(num(b.contrato.fatDia)) || 0, modalidade: txt(b.contrato.modalidade, 60) } : null;
   const cliente = txt(b.cliente, 120);
   const total = Math.round(linhas.reduce((s, l) => s + l.qtd * l.unitario, 0) * 100) / 100;
   const ref = `Jira Insights · ${txt(b.projeto, 20)} · plano ${txt(b.planoId, 30)}`;
@@ -103,16 +107,65 @@ async function criaCotacaoOdoo(res, b) {
       if (!prods.length) return json(res, 200, { ok: false, erro: 'Nenhum produto de serviço encontrado no Odoo para as linhas da cotação.', dica: 'Crie um produto do tipo Serviço (ex.: "Consultoria") ou defina ODOO_PRODUTO_SERVICO (id ou nome) na Vercel.' });
       produtoId = prods[0].id;
     }
-    const nota = `Faturamento previsto do plano "${txt(b.nome, 120)}" (${txt(b.projeto, 20)}), ${txt(b.inicio, 10)} → ${txt(b.fim, 10)}. Gerado no Jira Insights por ${quem.nome || email}.${b.obs ? ' ' + txt(b.obs, 300) : ''}`;
+    const ctTxt = ct ? ` Contrato de parceria: ${ct.consultoria}${ct.modalidade ? ' (' + ct.modalidade + ')' : ''}${ct.fatFecha ? `, período de faturamento até o dia ${ct.fatFecha}` : ''}${ct.fatDia ? `, nota no dia ${ct.fatDia}` : ''}${ct.conta ? `, recebimento na conta ${ct.conta}` : ''}.` : '';
+    const nota = `Faturamento previsto do plano "${txt(b.nome, 120)}" (${txt(b.projeto, 20)}), ${txt(b.inicio, 10)} → ${txt(b.fim, 10)} — um item por período de faturamento (${linhas.length}).${ctTxt} Gerado no Jira Insights por ${quem.nome || email}.${b.obs ? ' ' + txt(b.obs, 300) : ''}`;
     const orderId = await exec('sale.order', 'create', [{
       partner_id: partnerId, client_order_ref: ref, origin: ref, note: nota,
       order_line: linhas.map((l) => [0, 0, { product_id: produtoId, name: l.descricao, product_uom_qty: l.qtd, price_unit: l.unitario }]),
     }]);
-    const lidos = await exec('sale.order', 'read', [[orderId]], { fields: ['name', 'amount_total'] });
+    const lidos = await exec('sale.order', 'read', [[orderId]], { fields: ['name', 'amount_total', 'order_line'] });
     const ord = (lidos && lidos[0]) || {};
-    return json(res, 200, { ok: true, id: orderId, name: ord.name || '', total: num(ord.amount_total) || total, parceiroId: partnerId, url: `${url.replace(/\/+$/, '')}/web#id=${orderId}&model=sale.order&view_type=form` });
+    // ids das linhas na ordem em que foram criadas → o painel liga cada período ao seu item (para a sincronização)
+    const ids = Array.isArray(ord.order_line) ? ord.order_line.map((x) => Number(x) || 0) : [];
+    const itens = linhas.map((l, i) => ({ id: ids[i] || 0, mes: l.mes, de: l.de, ate: l.ate, nota: l.nota, qtd: l.qtd, unitario: l.unitario }));
+    cacheSetTTL(`odoo-venda-status:${orderId}`, null, 0);   // se houver leitura antiga em cache, cai
+    return json(res, 200, { ok: true, id: orderId, name: ord.name || '', total: num(ord.amount_total) || total, parceiroId: partnerId, itens, url: `${url.replace(/\/+$/, '')}/web#id=${orderId}&model=sale.order&view_type=form` });
   } catch (e) {
     return json(res, 200, { ok: false, erro: `Odoo: ${String((e && e.message) || e).slice(0, 300)}`, dica: 'Confira se o módulo Vendas está instalado e se a conta de serviço do Odoo pode criar cotações.' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 💹 Rentabilidade ← Odoo (pedido de 2026-09-13): SOMENTE LEITURA do estado de uma ordem de
+// venda criada pelo painel — estado da ordem, quanto de cada item já foi faturado
+// (qty_invoiced) e as faturas ligadas (account.move: número, data, estado, pagamento).
+// É com isso que o período de faturamento do plano vira "faturado"/"pago" sozinho.
+// POST /api/resumo?acao=odoo-venda-status {id, forca}. Cache de 3 min por ordem (forca=1
+// ignora). Não escreve nada e nunca devolve credenciais.
+// ---------------------------------------------------------------------------
+async function statusVendaOdoo(res, b) {
+  const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
+  const id = Math.max(0, Math.round(num(b.id)));
+  if (!id) return json(res, 400, { ok: false, erro: 'Informe o id da ordem de venda no Odoo.' });
+  if (!url || !db || !login || !key) return json(res, 200, { ok: false, configurado: false, erro: 'Integração com o Odoo não configurada.', dica: 'Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel (as mesmas das folgas).' });
+  const ck = `odoo-venda-status:${id}`;
+  if (!b.forca) { const c = cacheGet(ck); if (c) return json(res, 200, { ...c, cache: true }); }
+  try {
+    const uid = await odoo(url, 'common', 'authenticate', [db, login, key, {}]);
+    if (!uid) return json(res, 200, { ok: false, erro: 'Login no Odoo recusado — confira ODOO_LOGIN e ODOO_API_KEY.' });
+    const exec = (model, method, args, kw) => odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kw || {}]);
+    const ords = await exec('sale.order', 'read', [[id]], { fields: ['name', 'state', 'invoice_status', 'amount_total', 'order_line', 'invoice_ids', 'date_order'] });
+    const o = (ords && ords[0]) || null;
+    if (!o) return json(res, 200, { ok: false, erro: `Ordem de venda #${id} não encontrada no Odoo (pode ter sido excluída).` });
+    const lineIds = (o.order_line || []).map((x) => Number(x) || 0).filter(Boolean);
+    const linhas = lineIds.length ? await exec('sale.order.line', 'read', [lineIds], { fields: ['name', 'product_uom_qty', 'price_unit', 'price_subtotal', 'qty_invoiced', 'qty_to_invoice', 'invoice_lines'] }) : [];
+    const invIds = (o.invoice_ids || []).map((x) => Number(x) || 0).filter(Boolean);
+    const movs = invIds.length ? await exec('account.move', 'read', [invIds], { fields: ['name', 'state', 'move_type', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state', 'invoice_line_ids'] }) : [];
+    const faturas = movs.filter((f) => !f.move_type || /^out_/.test(String(f.move_type))).map((f) => ({
+      id: f.id, nome: txt(f.name, 40), estado: txt(f.state, 20), tipo: txt(f.move_type, 20), data: isoData(f.invoice_date) || '', vencimento: isoData(f.invoice_date_due) || '',
+      total: num(f.amount_total), aberto: num(f.amount_residual), pagamento: txt(f.payment_state, 30), linhasIds: Array.isArray(f.invoice_line_ids) ? f.invoice_line_ids.map((x) => Number(x) || 0) : [],
+    }));
+    const out = {
+      ok: true, id, name: txt(o.name, 40), state: txt(o.state, 20), invoiceStatus: txt(o.invoice_status, 20), total: num(o.amount_total), lidoEm: new Date().toISOString(),
+      url: `${url.replace(/\/+$/, '')}/web#id=${id}&model=sale.order&view_type=form`,
+      linhas: linhas.map((l) => { const il = Array.isArray(l.invoice_lines) ? l.invoice_lines.map((x) => Number(x) || 0) : [];
+        return { id: l.id, nome: txt(l.name, 200), qtd: num(l.product_uom_qty), unitario: num(l.price_unit), subtotal: num(l.price_subtotal), qtdFat: num(l.qty_invoiced), qtdAFat: num(l.qty_to_invoice),
+          faturas: faturas.filter((f) => f.linhasIds.some((x) => il.includes(x))).map((f) => f.id) }; }),
+      faturas: faturas.map(({ linhasIds, ...f }) => f),
+    };
+    return json(res, 200, cacheSetTTL(ck, out, 3));
+  } catch (e) {
+    return json(res, 200, { ok: false, erro: `Odoo: ${String((e && e.message) || e).slice(0, 300)}`, dica: 'Confira se a conta de serviço do Odoo pode ler ordens de venda e faturas (Vendas e Faturamento).' });
   }
 }
 
@@ -1180,8 +1233,10 @@ export default async function handler(req, res) {
     const acao = String((req.query && req.query.acao) || b.acao || '').trim();
     if (acao === 'folga') return await criaFolga(res, b);
 
-    // 💹 Rentabilidade → cotação no Odoo (Vendas) com o faturamento previsto por mês.
+    // 💹 Rentabilidade → cotação no Odoo (Vendas) com um item por período de faturamento;
+    // ← leitura do que já foi faturado/pago na ordem (sincronização).
     if (acao === 'odoo-venda') return await criaCotacaoOdoo(res, b);
+    if (acao === 'odoo-venda-status') return await statusVendaOdoo(res, b);
 
     // 📍 Meu dia — ingest dos blocos da ponte (não precisa de IA; valida o token do Jira).
     if (acao === 'meudia-ingest') return await meuDiaIngest(res, b);

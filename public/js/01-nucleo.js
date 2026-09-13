@@ -45,7 +45,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     abertos:null, abertosB:false, abertosErro:'' },   // tickets abertos (só para os ARQUIVADOS, que o consolidado esconde)
   // 💹 Rentabilidade de projetos: plano selecionado, edição/novo, rascunho do formulário,
   // célula a refocar após redesenhar e o realizado (worklogs) por chave projeto|de|até.
-  rentab:{ sel:'', edit:false, novo:false, rasc:null, focoCel:'', tempo:{}, tempoB:{}, tempoErro:{} },
+  rentab:{ sel:'', edit:false, novo:false, rasc:null, focoCel:'', tempo:{}, tempoB:{}, tempoErro:{}, syncB:{}, syncErro:{} },
+  parcerias:{ editId:null, novo:false, rasc:null, cal:'' },   // 🤝 Contratos de parceria
   // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders
   qk:{ texto:'', criando:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
@@ -130,7 +131,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], parcerias:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
   relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
   perfis:{},                          // 🎓 {accountId:{nivel:'junior'|'pleno'|'senior', depto}} — 📈 Métricas por tipo
@@ -611,7 +612,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };

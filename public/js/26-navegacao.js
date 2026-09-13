@@ -58,6 +58,7 @@ function render(){
   if(estado.vista==='alocacao') return renderIndisponivel('alocacao');
   if(estado.vista==='planejamento') return renderIndisponivel('planejamento');
   if(estado.vista==='admin') return renderAdmin();
+  if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
 }
@@ -134,6 +135,7 @@ const NAVCAT=[
   ['rentab','💹 Rentabilidade de projetos','Gestão','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado'],
   ['config','⚙️ Central de configurações','Configurações','config ajustes'],
   ['admin','Contratos (Admin)','Configurações','valores contratos admin'],
+  ['parcerias','🤝 Contratos de parceria','Configurações','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario'],
   ['acao:metas','🎯 Metas & ausências','Configurações','meta horas feriados ferias ocultar'],
   ['acao:log','🗒 Histórico de ações','Configurações','auditoria log acoes'],
 ];
