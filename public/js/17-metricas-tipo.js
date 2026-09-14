@@ -239,7 +239,8 @@ function rmTab(cols, rows, foot){
   const ft=foot?`<tfoot><tr>${foot.map((c,i)=>`<td class="${cols[i]&&cols[i].num?'num':''}">${c}</td>`).join('')}</tr></tfoot>`:'';
   return `<div class="scroll-x"><table class="mp-tab-mini rm-tab"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${ft}</table></div>`;
 }
-const rmBloco=(id,html,sub)=>`<section class="rm-bloco" id="rm-${id}"><h3 class="mp-h3">${RM_BLOCO_ROT[id]||id}${sub?` <span class="mp-dim">${sub}</span>`:''}</h3>${html}</section>`;
+// Cabeçalho do bloco com o selo do(s) relatório(s) R que ele entrega (📚 Central — fase 4); `rm-foco` quando se chega pelo catálogo.
+const rmBloco=(id,html,sub)=>`<section class="rm-bloco${estado.metricas.bloco===id?' rm-foco':''}" id="rm-${id}"><h3 class="mp-h3">${RM_BLOCO_ROT[id]||id}${sub?` <span class="mp-dim">${sub}</span>`:''}${(typeof relCodigosHTML==='function')?relCodigosHTML('rm',id):''}</h3>${html}</section>`;
 const rmSem=(cls,rot)=>`<span class="ct-sem ${cls}">${esc(rot)}</span>`;
 function rmFichasStatus(d){
   const m=estado.metricas; const ks=d.alvo.map(p=>p.key).slice(0,RM_MAX_FICHAS);
@@ -594,7 +595,7 @@ function renderMetricas(){
     <div class="campo"><label>Tipo de projeto</label>${chips}</div>
     <div class="campo"><label>Projeto</label>${selProj}</div>
     ${filtrosPer}
-    <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px"><button class="btn" data-rm-perfis="1" data-tip="${escA(gestor?'Nível (júnior/pleno/sênior) e departamento de cada pessoa — vale para o time todo':'Ver os níveis e departamentos cadastrados (gestores editam)')}">⚙️ Perfis</button>
+    <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px">${m.proj?`<button class="btn" data-proj-ficha="${escA(m.proj)}" data-tip="Abrir a ficha de ${escA(rmProjRot(d,m.proj))} em 📁 Projetos (🦴 espinha)">📁 Ficha</button>`:''}<button class="btn" data-rm-perfis="1" data-tip="${escA(gestor?'Nível (júnior/pleno/sênior) e departamento de cada pessoa — vale para o time todo':'Ver os níveis e departamentos cadastrados (gestores editam)')}">⚙️ Perfis</button>
       <button class="btn" data-rm-csv="1" data-tip="Baixa as tabelas deste tipo em CSV">⬇ CSV</button></div></div></div>`;
   const mg=d.recTot-d.custoTot; const mgp=d.recTot>0?rmPct(mg,d.recTot):null; const [mgRot,mgCls]=ctSemaforo(mgp);
   const nProjH=Object.keys(d.por).length;
@@ -610,6 +611,10 @@ function renderMetricas(){
   cont.replaceChildren(el(`<div>${rmAbasHTML('metricas',d.sigla)}
     <div class="card full"><h2>📈 Métricas — ${esc(REL_SIGLA_NOME[d.sigla]||d.sigla)} <span>${d.sigla} · ${m.proj?esc(rmProjRot(d,m.proj)):`${d.projs.length} projeto(s)`} · ${dataBR(m.de)} → ${dataBR(m.ate)}</span></h2>
       ${filtros}${hero}${semHoras}${blocos}</div></div>`));
+  // 📚 vindo do catálogo da Central (chip do bloco): rola até o bloco pedido (o destaque some no próximo redesenho)
+  if(m.bloco){ const b=document.getElementById('rm-'+m.bloco); const rot=RM_BLOCO_ROT[m.bloco]||m.bloco; m.bloco='';
+    if(b) setTimeout(()=>{ try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} },80);
+    else toast(`O tipo ${d.sigla} não tem o bloco "${rot}" — escolha outro tipo de projeto.`,'warn'); }
 }
 
 // ---- drill: tickets por trás do número (com ações) ----

@@ -71,6 +71,8 @@ function renderParcerias(){
     <div class="card full"><h2>Contratos cadastrados <span>${lista.length}</span></h2>
       ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`));
   pcPreview();
+  // 🦴 vindo da espinha do projeto: o contrato da consultoria em destaque e à vista
+  if(st.destaque){ const card=cont.querySelector(`[data-pc-card="${st.destaque}"]`); if(card) setTimeout(()=>{ try{ card.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} },60); }
   ['pc-f-inicio','pc-f-fim'].forEach(id=>{ const d=document.getElementById(id); if(d) d.addEventListener('click',()=>{ try{ if(d.showPicker) d.showPicker(); }catch(e){} }); });
 }
 function pcFormHTML(c, novo){
@@ -106,7 +108,8 @@ function pcCardHTML(c, gestor, calAberto, hoje){
   const ym=hoje.slice(0,7); const atual=pcPeriodo(c, pcFechamento(c,ym)<hoje?pcYmSoma(ym,1):ym);
   const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
   const hist=Array.isArray(c.hist)?c.hist.slice().reverse():[];
-  return `<div class="ad-card pc-card pc-${s.k}${calAberto?' pc-cal-aberto':''}" data-pc-card="${escA(c.id)}">
+  const dest=(estado.parcerias&&estado.parcerias.destaque)===c.id;
+  return `<div class="ad-card pc-card pc-${s.k}${calAberto?' pc-cal-aberto':''}${dest?' pc-dest':''}" data-pc-card="${escA(c.id)}">
     <div class="ad-top"><strong>${esc(c.consultoria||'(sem nome)')}</strong> <span class="badge rp-tipo" data-tip="${escA(M[2])}">${M[0]} ${M[1]}</span> <span class="badge pc-st-${s.k}">${esc(s.rot)}</span><span class="spacer"></span>
       ${gestor?`<button class="btn" data-pc-edit="${escA(c.id)}">editar</button><button class="btn" data-pc-del="${escA(c.id)}">remover</button>`:''}</div>
     <div class="ams-dgrid">
@@ -119,7 +122,7 @@ function pcCardHTML(c, gestor, calAberto, hoje){
       ${dl('Conta de recebimento', c.conta?esc(c.conta):'—')}
       ${dl('Contato', c.contato?esc(c.contato):'—')}
     </div>
-    <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · ✎ ${Object.keys(c.ajustes).length} mês(es) com datas ajustadas`:''}</div>
+    <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>${p.projeto?` ${projChipsFicha([p.projeto])}`:''}`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · ✎ ${Object.keys(c.ajustes).length} mês(es) com datas ajustadas`:''}</div>
     ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
     <div class="ad-cons"><button class="btn rt-step" data-pc-cal="${escA(c.id)}">📅 ${calAberto?'Fechar calendário':'Calendário de faturamento'}</button> <span class="muted small">${c.atualizadoEm?`atualizado ${dataBR(c.atualizadoEm)}${c.atualizadoPor?' por '+esc(c.atualizadoPor):''}`:''}</span></div>
     ${calAberto?pcCalendarioHTML(c, gestor, hoje):''}
@@ -157,8 +160,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-pc-cal')){ const id=t.getAttribute('data-pc-cal'); st.cal=st.cal===id?'':id; renderParcerias(); return; }
   if(!gestor) return;
-  if(t.hasAttribute('data-pc-novo')){ st.novo=true; st.editId=null; st.rasc=pcNovo(); renderParcerias(); return; }
-  if(t.hasAttribute('data-pc-edit')){ st.editId=t.getAttribute('data-pc-edit'); st.novo=false; st.rasc=null; renderParcerias(); window.scrollTo({top:0,behavior:'smooth'}); return; }
+  if(t.hasAttribute('data-pc-novo')){ st.novo=true; st.editId=null; st.rasc=pcNovo(); st.destaque=''; renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-edit')){ st.editId=t.getAttribute('data-pc-edit'); st.novo=false; st.rasc=null; st.destaque=''; renderParcerias(); window.scrollTo({top:0,behavior:'smooth'}); return; }
   if(t.id==='pc-f-cancelar'){ st.novo=false; st.editId=null; st.rasc=null; renderParcerias(); return; }
   if(t.id==='pc-f-salvar'){ const fb=document.getElementById('pc-f-fb'); const diz=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
     if(st.editId){ const c=pcDe(st.editId); if(!c) return; const antes=JSON.parse(JSON.stringify(c)); const erro=pcLeForm(c); if(erro){ Object.assign(c,antes); diz(erro); return; }

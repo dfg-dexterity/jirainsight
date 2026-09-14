@@ -128,7 +128,7 @@ function amsDadosCard(c, cyc){
       ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
     </div>
     ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
-    <div class="ams-dprojs muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+    <div class="ams-dprojs muted small">Projetos: ${projChipsFicha(c.projetos)}</div>
     <div class="ams-fatura">
       <span class="ams-fat-tag ${faturado?'ok':'pend'}">${faturado?'✓ Ciclo faturado':'● Pendente de faturamento'}${faturado&&fr&&fr.em?` <span class="muted" style="font-weight:400">em ${esc(fmtBR(fr.em))}${fr.por?` · ${esc(fr.por)}`:''}</span>`:''}</span>
       <span class="spacer"></span>
@@ -333,7 +333,7 @@ function renderAdmin(){
         ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
       </div>`;
     }
-    const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':(c.projetos||[]).map(esc).join(', ')}</div>`;
+    const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
     const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
     const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
@@ -561,7 +561,7 @@ function renderAMS(){
       <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem apontamentos neste ciclo.</div>'}</div>
       ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
       ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
-      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+      <div class="rc2-meta muted small">Projetos: ${projChipsFicha(c.projetos)}</div>
     </div>`;
   };
   let amsSection='';
@@ -655,7 +655,7 @@ function renderReceita(){
         <div><div class="rc2-fv">${c.valorHora?fmtBRL(c.valorHora):'—'}</div><div class="rc2-fl">Valor-hora</div></div>
         <div><div class="rc2-fv">${fatPct}%</div><div class="rc2-fl">Faturável</div></div>
       </div>
-      <div class="rc2-meta muted small">Projetos: ${(c.projetos||[]).map(esc).join(', ')||'—'}</div>
+      <div class="rc2-meta muted small">Projetos: ${projChipsFicha(c.projetos)}</div>
     </div>`;
   };
 

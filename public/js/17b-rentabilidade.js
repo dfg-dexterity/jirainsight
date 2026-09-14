@@ -316,7 +316,7 @@ function renderRentab(){
     <div class="rp-dados">${dados}
       ${p.obs?`<div class="ams-dl" style="grid-column:span 2"><div class="dt">Obs.</div><div class="dd small">${esc(p.obs)}</div></div>`:''}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center"><button class="btn" data-rp-voltar="1">‹ Todos os planos</button>${gestor?`<button class="btn" data-rp-editar="1">✏️ Dados do projeto</button><button class="btn" data-rp-dup="1">📋 Duplicar plano</button><button class="btn" data-rp-del="1">🗑 Excluir</button>`:'<span class="muted small">🔒 Somente gestores editam — você está em modo leitura.</span>'}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center"><button class="btn" data-rp-voltar="1">‹ Todos os planos</button>${p.projeto?`<button class="btn" data-proj-ficha="${escA(p.projeto)}" data-tip="Abrir a ficha de ${escA(projNome(p.projeto))} em 📁 Projetos (🦴 espinha)">📁 Ficha do projeto</button>`:''}${gestor?`<button class="btn" data-rp-editar="1">✏️ Dados do projeto</button><button class="btn" data-rp-dup="1">📋 Duplicar plano</button><button class="btn" data-rp-del="1">🗑 Excluir</button>`:'<span class="muted small">🔒 Somente gestores editam — você está em modo leitura.</span>'}</div>
     ${r.edit&&gestor?rpFormHTML(r.rasc||p,false):''}</div>`;
   // cenários
   const chips=`<div class="ap-chips rp-cen">${(p.cenarios||[]).map(x=>`<button class="chip ${x.id===c0.id?'on':''}" data-rp-cen="${escA(x.id)}">${esc(x.nome||'Cenário')}</button>`).join('')}
