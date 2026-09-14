@@ -11,6 +11,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   **Lente, nunca permissão.** Tela nova = linha no `NAVCAT` (com a área) + botão no grupo certo;
   tela aposentada = entrada em `VISTA_ALIAS` (29-url-topo.js) para o link antigo não quebrar.
   `npm run check` confere NAVCAT × VISTAS × index.html.
+- **Grupos de abas (fases 2–3, 2026-09-14):** telas irmãs são **abas de um grupo** (`ABAS` em
+  `26-navegacao.js`): `estado.vista` continua sendo a tela da aba (links `?v=`, listeners e
+  VCHROME intactos); o grupo é só apresentação — uma entrada no menu (a tela principal) e a
+  barra `#abas`. A fase 3 fundiu Negócio/Insights (📑 Contratos, 🛡 Apuração de contratos,
+  📊 Visão Geral, 📚 Central de Relatórios) e a ficha do 📁 projeto ganhou a **🦴 espinha do
+  projeto** (`projEspinha`/`projEspinhaVai` em `02-projetos.js`: chips que abrem Contrato,
+  Plano, Execução, Apuração e Resultado já no projeto). `npm run check` confere ABAS × VISTAS × menu.
 
 - Front-end estático em `public/` (HTML/JS puro, **sem build**). Desde **2026-09-06** o
   `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **32 módulos

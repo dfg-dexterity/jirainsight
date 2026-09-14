@@ -296,6 +296,66 @@ function projTabela(titulo, arr, cols) {
   return `<div class="vg-card"><h3>${esc(titulo)}</h3><div class="scroll-x"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
+// 🦴 Espinha do projeto (Dexterity Hub, fase 3 · 2026-09-14): a ficha liga as telas que tratam DESTE projeto nas
+// outras áreas — 📑 Contrato (Admin), 💹 Plano (Rentabilidade), 🛠 Execução (Tickets do time), 🛡 Apuração
+// (AMS / Receita) e 🏦 Resultado (Controladoria) — já com o projeto selecionado do outro lado. Lente, não
+// permissão: os chips aparecem para todos; os de áreas fora do perfil ficam em cinza (e abrem do mesmo jeito).
+// As funções das outras telas (ctContratoDe, rpPlanos, pcDe…) são chamadas só em runtime — os módulos delas
+// carregam depois deste.
+function projEspinhaDados(key) {
+  const contrato = (typeof ctContratoDe === 'function') ? ctContratoDe(key) : null;
+  const plano = (typeof rpPlanos === 'function') ? (rpPlanos().find((x) => x && x.projeto === key) || null) : null;
+  const parceria = (plano && plano.contrato && typeof pcDe === 'function') ? pcDe(plano.contrato) : null;
+  return { contrato, plano, parceria };
+}
+function projEspinha(key, d) {
+  const { contrato, plano, parceria } = projEspinhaDados(key);
+  const r = d.resumo || {}; const cat = d.categoria || 'Sem categoria';
+  const fora = (a) => ((typeof areaVisivel === 'function' && !areaVisivel(a)) ? ' pesp-fora' : '');
+  const areaRot = (a) => ((typeof AREAS !== 'undefined' && AREAS[a] && AREAS[a].rot) || a);
+  const chip = (id, area, rot, sub, tip) => `<button class="pesp-chip${fora(area)}" data-proj-esp="${id}" data-tip="${escA(tip)}"><b>${rot}</b><span class="pesp-sub">${esc(sub)}</span><i class="pesp-area">${esc(areaRot(area))}</i></button>`;
+  const tipoPlano = (plano && typeof RP_TIPOS !== 'undefined' && RP_TIPOS[plano.tipo]) ? RP_TIPOS[plano.tipo][1] : '';
+  const rotTipo = (t) => ((typeof rotuloTipo === 'function') ? rotuloTipo(t) : t);
+  const ciclo = (c) => ((typeof amsLabelApur === 'function') ? amsLabelApur(c.apuracao || 'trimestral').toLowerCase() : 'ciclo');
+  const chips = [
+    chip('contrato', 'negocio', '📑 Contrato', contrato ? `${contrato.cliente || '(sem nome)'} · ${rotTipo(contrato.tipo)}` : 'nenhum cadastrado',
+      contrato ? 'Abre o contrato deste projeto em 📑 Contratos › 🏢 Clientes (valor-hora, horas, vigência)' : 'Nenhum contrato do Admin mapeia este projeto — abre 📑 Contratos › 🏢 Clientes para cadastrar'),
+    chip('plano', 'negocio', '💹 Plano', plano ? `${plano.nome || '(sem nome)'}${tipoPlano ? ' · ' + tipoPlano : ''}${parceria ? ' · 🤝 ' + (parceria.consultoria || '') : ''}` : 'sem plano de rentabilidade',
+      plano ? 'Abre o plano de rentabilidade deste projeto (cenários, períodos de faturamento, Odoo)' : 'Sem plano ainda — abre a 💹 Rentabilidade com um plano novo já apontando para este projeto'),
+    chip('execucao', 'entrega', '🛠 Execução', `${nBR(r.emAndamento)} em andamento · ${nBR(r.vencidos)} vencidos`, 'Abre 🛠 Tickets do time filtrado neste projeto — ações em massa (atribuir, status, reprogramar…)'),
+    chip('apuracao', 'negocio', '🛡 Apuração', contrato ? (contrato.tipo === 'ams' ? `AMS · ${ciclo(contrato)}` : rotTipo(contrato.tipo)) : 'sem contrato',
+      contrato ? (contrato.tipo === 'ams' ? 'Abre a apuração do ciclo AMS deste contrato (banco de horas, faturado)' : 'Abre 💰 Bolsa de horas & projetos — consumo × contratado e projeção') : 'A apuração precisa de um contrato no Admin — abre 📑 Contratos › 🏢 Clientes'),
+    chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}", com a linha deste projeto destacada (receita, custo, margem)`),
+  ].join('');
+  return `<div class="proj-espinha"><span class="pesp-rot" data-tip="A ficha é a espinha do app: cada chip abre a tela da outra área já neste projeto">🦴 Espinha do projeto</span>${chips}</div>`;
+}
+function projEspinhaVai(id, key) {
+  const { contrato, plano } = projEspinhaDados(key);
+  const ficha = (estado.projetos.fichas || {})[key] || {};
+  if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }
+  if (id === 'plano') {
+    const rr = estado.rentab;
+    if (plano) { rr.sel = plano.id; rr.edit = false; rr.novo = false; vaiPara('rentab'); return; }
+    rr.sel = ''; rr.edit = false; rr.novo = false;
+    if (typeof souAprovador === 'function' && souAprovador() && typeof rpNovoPlano === 'function') {   // gestor: plano novo já apontando para o projeto
+      const np = rpNovoPlano(); np.projeto = key; np.nome = ficha.nome || projNome(key);
+      const sig = (typeof relSiglaDe === 'function' && ficha.categoria) ? relSiglaDe(ficha.categoria) : '';   // tipo pela categoria da ficha (o cache de projetos pode não estar carregado)
+      np.tipo = sig ? (/^(DEF|PEF)$/.test(sig) ? 'fechado' : /^(IMI|IPA|ITPR)$/.test(sig) ? 'interno' : 'horas') : rpTipoSugerido(key);
+      if (contrato) { np.cliente = contrato.cliente || ''; if (Number(contrato.valorHora) > 0) np.valorHora = Number(contrato.valorHora);
+        if (Number(contrato.horasContratadas) > 0 && contrato.tipo !== 'ams') { np.modoCarga = 'total'; np.cargaTotal = Number(contrato.horasContratadas); } }
+      rr.novo = true; rr.rasc = np;
+    } else toast('Este projeto ainda não tem plano de rentabilidade — um gestor pode criar um na 💹 Rentabilidade.');
+    vaiPara('rentab'); return;
+  }
+  if (id === 'execucao') { const g = estado.gestao; g.soKeys = null; g.origem = ''; g.preset = ''; g.busca = ''; g.fProj = key; g.fResp = ''; g.fStatus = ''; g.semTrat = false; g.sel = {}; vaiPara('gestao'); return; }
+  if (id === 'apuracao') {
+    if (!contrato) { estado.admin.editId = null; vaiPara('admin'); return; }
+    if (contrato.tipo === 'ams') { estado.ams.sel = contrato.id; estado.ams.ref = ''; vaiPara('ams'); return; }
+    vaiPara('receita'); return;
+  }
+  if (id === 'resultado') { estado.ctrl.cat = ficha.categoria || 'Sem categoria'; estado.ctrl.destaque = key; vaiPara('controladoria'); }
+}
+
 function renderProjFicha(cont, key) {
   const p = estado.projetos; const d = p.fichas[key];
   if (!d) {
@@ -432,7 +492,7 @@ function renderProjFicha(cont, key) {
     ${projToolbar()}
     <div class="card full"><h2>📁 ${esc(key)} <span>${esc(d.nome || d.projeto || '')}${d.categoria ? ` · ${esc(d.categoria)}` : ''}${projEscopoFechado(d) ? ' 🔒' : ''} · ficha do projeto</span></h2>
       <div class="vg-hero">${kpis}</div>${trunc}
-      ${tabbar}${sec}
+      ${projEspinha(key, d)}${tabbar}${sec}
     </div></div>`));
 }
 
@@ -441,6 +501,8 @@ function projetosClick(e) {
   const t = e.target; const cl = (s) => t.closest && t.closest(s);
   const open = cl('[data-proj-open]');
   if (open) { const p = estado.projetos; p.sel = open.getAttribute('data-proj-open'); p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const esp = cl('[data-proj-esp]');   // 🦴 espinha do projeto → tela da outra área já neste projeto
+  if (esp) { projEspinhaVai(esp.getAttribute('data-proj-esp'), estado.projetos.sel); return; }
   const aba = cl('[data-proj-aba]');
   if (aba) { estado.projetos.aba = aba.getAttribute('data-proj-aba'); renderProjetos(); return; }
   const back = cl('[data-proj-back]');

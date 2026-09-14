@@ -54,17 +54,17 @@ function abreAjuda(){
       <li>· <b>🗂 Reuniões</b> — tela unificada: <span class="lnk" data-aj-goto="reclassificar"><b>Reclassificar</b></span> (mover reuniões do RDF para o projeto certo) e <span class="lnk" data-aj-goto="reuvinc"><b>Vincular a tickets</b></span> (registro em AMS ou 🔁 transferir QUALQUER ticket pelo número).<button class="aj-g" data-aj-guia="reclassificar">🧭 guia — reclassificar</button><button class="aj-g" data-aj-guia="reuvinc">🧭 guia — vincular</button></li>
       <li>· <span class="lnk" data-aj-goto="planrel"><b>📊 Relatórios do planejamento</b></span> — planejado × realizado do time: visão executiva, por gestor e por projetos (a "minha visão" fica em Meu trabalho).<button class="aj-g" data-aj-guia="planrel">🧭 guia</button></li>
       <li><b>Dexterity Negócio — comercial, financeiro e controladoria:</b></li>
-      <li>· <span class="lnk" data-aj-goto="admin"><b>🏢 Contratos — clientes</b></span> — cadastro de clientes/contratos (AMS, bolsa de horas, projeto; base do AMS e da Receita).<button class="aj-g" data-aj-guia="admin">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="parcerias"><b>🤝 Contratos de parceria</b></span> — as consultorias que contratam a Dexterity: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="ams"><b>🛡️ AMS</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.<button class="aj-g" data-aj-guia="ams">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="receita"><b>💰 Receita</b></span> — bolsa de horas e projetos (consumo × contratado + projeção).<button class="aj-g" data-aj-guia="receita">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="admin"><b>📑 Contratos › 🏢 Clientes</b></span> — cadastro de clientes/contratos (AMS, bolsa de horas, projeto; base do AMS e da Receita).<button class="aj-g" data-aj-guia="admin">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="parcerias"><b>📑 Contratos › 🤝 Parceiros</b></span> — as consultorias que contratam a Dexterity: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="ams"><b>🛡 Apuração de contratos › AMS (por ciclo)</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.<button class="aj-g" data-aj-guia="ams">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="receita"><b>🛡 Apuração de contratos › 💰 Bolsa de horas & projetos</b></span> — bolsa de horas e projetos (consumo × contratado + projeção).<button class="aj-g" data-aj-guia="receita">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="rentab"><b>💹 Rentabilidade de projetos</b></span> — receita por tipo de projeto: horas abertas (🤝 contrato de parceria, início, fim, horas por dia e valor da hora → receita prevista por mês e por <b>período de faturamento</b>, ordem de venda no Odoo com um item por período e a sincronização do que foi faturado/pago), escopo fechado (valor do projeto e marcos de faturamento) e internos (orçamento de custo consumido pela alocação); aloque as pessoas por <b>% do dia e período de datas</b> (feriados descontados), simule cenários, compare com o realizado e veja o <b>histórico</b> de quem mudou o quê; custo sempre = horas × custo/h de cada pessoa.<button class="aj-g" data-aj-guia="rentab">🧭 guia</button></li>
       <li><b>Dexterity Insights — diretoria e governança:</b></li>
       <li>· <span class="lnk" data-aj-goto="visao"><b>📊 Visão Geral</b></span> — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe; é a tela inicial da diretoria.<button class="aj-g" data-aj-guia="visao">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="resumo"><b>Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.<button class="aj-g" data-aj-guia="resumo">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="resumo"><b>📊 Visão Geral › 🧠 Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.<button class="aj-g" data-aj-guia="resumo">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="relatorios"><b>📚 Central de Relatórios</b></span> — o catálogo oficial (R01–R27) numa matriz relatório × tipo de projeto (O essencial · R recomendado · – não se aplica), com o link para a tela que entrega cada um; gestores ajustam a matriz.<button class="aj-g" data-aj-guia="relatorios">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.<button class="aj-g" data-aj-guia="analytics">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="metricas"><b>📈 Métricas por tipo de projeto</b></span> — para cada tipo (DEA, DEF, PEA, PEF, AMS, ARQ, IMI, IPA, ITPR) as métricas que interessam: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, custo administrativo, backlog em horas e R$, custo por épico/departamento, carga do planejamento — tudo com drill até o ticket.<button class="aj-g" data-aj-guia="metricas">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="analytics"><b>📚 Central de Relatórios › 📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.<button class="aj-g" data-aj-guia="analytics">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="metricas"><b>📚 Central de Relatórios › 📈 Métricas por tipo de projeto</b></span> — para cada tipo (DEA, DEF, PEA, PEF, AMS, ARQ, IMI, IPA, ITPR) as métricas que interessam: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, custo administrativo, backlog em horas e R$, custo por épico/departamento, carga do planejamento — tudo com drill até o ticket.<button class="aj-g" data-aj-guia="metricas">🧭 guia</button></li>
       <li><b>⋯ Mais e Administração:</b></li>
       <li>· <span class="lnk" data-aj-goto="config"><b>⚙️ Central de configurações</b></span> — todos os ajustes num lugar só, inclusive os 🧭 perfis de navegação (quem vê Dexterity Entrega, Negócio e Insights).<button class="aj-g" data-aj-guia="config">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.<button class="aj-g" data-aj-guia="roadmap">🧭 guia</button></li>
@@ -87,7 +87,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>Navegação, novidades e versão</summary><div class="help-body">
       <b>Logo</b> (canto superior esquerdo): clique para voltar ao <b>início</b>. Os controles do topo aparecem
       <b>só onde fazem sentido</b>: Período/filtros/Exportar nas telas de análise; as telas operacionais têm controles próprios.
-      Em <b>Configurações</b> ficam <b>Contratos (Admin)</b>, <b>🎯 Metas & ausências</b> e o <b>🗒 Histórico de ações</b>; em <b>⋯ Mais</b>, <b>✨ Novidades</b> e a <b>❓ Ajuda</b>; <b>🌙</b> alterna claro/escuro.
+      Em <b>⋯ Mais › Administração</b> fica a <b>⚙️ Central de configurações</b> (com as abas <b>🎯 Metas & ausências</b> e <b>🗒 Histórico de ações</b>); os contratos moram em <b>Dexterity Negócio › 📑 Contratos</b>; em <b>⋯ Mais</b>, <b>✨ Novidades</b> e a <b>❓ Ajuda</b>; <b>🌙</b> alterna claro/escuro.
       No <b>rodapé</b> fica a <b>versão em produção</b> com link para o pull request no GitHub.
       <b>↑ Topo</b>: botão flutuante que aparece ao rolar. Links são <b>compartilháveis</b>: a aba e os filtros ficam na URL.
       <b>🧭 Guia desta tela</b>: o botão flutuante do canto inferior direito (ou a tecla <b>?</b>) explica,
@@ -257,12 +257,13 @@ function abreAjuda(){
       em que apps/janelas o seu dia foi e a <b>IA sugere apontamentos</b> (ticket + duração) — revise, ajuste e
       confirme; nada é gravado sem a sua confirmação.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="meudia">🧭 ver na tela (guia interativo)</button></div></div></details>
-    <details class="help-sec"><summary>AMS, Receita e Contratos (Admin)</summary><div class="help-body">
-      <b>Gestão › AMS</b>: apuração <b>por ciclo</b> do contrato selecionado — banco de horas, excedente,
+    <details class="help-sec"><summary>Apuração de contratos (AMS, bolsa de horas) e Contratos</summary><div class="help-body">
+      <b>Dexterity Negócio › 🛡 Apuração de contratos › AMS</b>: apuração <b>por ciclo</b> do contrato selecionado — banco de horas, excedente,
       faturável × não faturável (pelo <b>tipo</b> do chamado), chamados do ciclo, labels de ciclo faturado e
-      <b>PDF da apuração</b>. <b>Gestão › 💰 Receita</b>: bolsa de horas e projetos (consumo × contratado, projeção).
-      <b>Configurações › Contratos (Admin)</b>: o cadastro de clientes/contratos que alimenta tudo isso
-      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira).
+      <b>PDF da apuração</b>. A aba <b>💰 Bolsa de horas & projetos</b>: consumo × contratado e projeção.
+      <b>Dexterity Negócio › 📑 Contratos › 🏢 Clientes</b>: o cadastro de clientes/contratos que alimenta tudo isso
+      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira); a aba <b>🤝 Parceiros</b> guarda os contratos com as consultorias.
+      Na <b>ficha do projeto</b> (📁 Projetos) a <b>🦴 espinha do projeto</b> abre cada uma dessas telas já no projeto.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="ams">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>Central de configurações</summary><div class="help-body">
       Em <b>Configurações › ⚙️ Central de configurações</b>: os ajustes num lugar só — 🎯 metas & ausências,
@@ -327,8 +328,8 @@ const TOUR=[
   {sel:'#navg-op-b',titulo:'👤 Meu trabalho (Dexterity Hub)',texto:'Tudo que é SEU dia a dia: 📋 Meu Planejamento (com a aba Planejado × realizado), 📅 Agenda (Outlook → ticket de reunião), ⏳ Meu tempo e 📝 Criar ticket (com a aba 🌳 Onde crio?). ⏱ Apontar (abas Chamados · Rateio · Sugestões do dia) e 📥 Inbox (abas Pendências · Menções) ficam fixos na barra. É a parte do app que todo perfil vê.'},
   {sel:'#navg-en-b',titulo:'Dexterity Entrega',texto:'A área dos gestores de entrega e PMs: 🚨 Alertas, 🛠 Tickets do time (abas Ações em massa · Lista do período · Qualidade IA · Regras TI-04-014), 🗂 Reuniões (Reclassificar · Vincular), 📁 Projetos (Portfólio e ficha · Marcos e Cronograma), ⏱ Horas do time (Timesheet · Ranking) e 📊 Planejamento do time (por gestor · executiva · por projetos). Aparece pelo seu perfil.', se:()=>!!document.querySelector('#navg-en-b:not([hidden])')&&!document.querySelector('.navg[data-area="entrega"][hidden]')},
   {sel:'#abas',titulo:'🗂 Abas do grupo',texto:'Telas que respondem a mesma pergunta viraram abas de um grupo: a barra acima do conteúdo troca entre elas sem sair do lugar (ex.: Inbox → Pendências e Menções; Apontar → Chamados, Rateio e Sugestões do dia). Cada aba continua com o seu link próprio.', se:()=>!document.getElementById('abas').hidden},
-  {sel:'#navg-ne-b',titulo:'Dexterity Negócio',texto:'A área comercial, financeira e de controladoria: 🏢 Contratos — clientes, 🤝 Contratos de parceria, 🛡️ AMS, 💰 Receita, 💹 Rentabilidade (com a ordem de venda no Odoo) e 🏦 Controladoria. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="negocio"][hidden]')},
-  {sel:'#navg-in-b',titulo:'Dexterity Insights',texto:'A leitura da diretoria e da governança: 📊 Visão Geral (a tela inicial da diretoria), Resumo, 📚 Central de Relatórios, 📈 Analytics e 📈 Métricas por tipo. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="insights"][hidden]')},
+  {sel:'#navg-ne-b',titulo:'Dexterity Negócio',texto:'A área comercial, financeira e de controladoria, em 4 entradas: 📑 Contratos (abas 🏢 Clientes · 🤝 Parceiros), 🛡 Apuração de contratos (abas AMS por ciclo · 💰 Bolsa de horas & projetos), 💹 Rentabilidade (com a ordem de venda no Odoo) e 🏦 Controladoria. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="negocio"][hidden]')},
+  {sel:'#navg-in-b',titulo:'Dexterity Insights',texto:'A leitura da diretoria e da governança, em 2 entradas: 📊 Visão Geral (a tela inicial da diretoria, com a aba 🧠 Resumo com IA) e 📚 Central de Relatórios — a porta única das análises (abas Catálogo R01–R27 · 📈 Analytics · 📈 Métricas por tipo). Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="insights"][hidden]')},
   {sel:'#navg-novo-b',titulo:'➕ Novo',texto:'As ações num botão só: 📝 Criar ticket (com a 🌳 árvore "Onde crio?"), ⏱ Apontar horas, ➗ ratear horas em vários tickets e 📅 transformar uma reunião do Outlook em ticket.'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
@@ -355,25 +356,25 @@ const TOUR_TELAS=[
   {vai:'meudia',titulo:'📍 Meu dia (beta)',texto:'Timetracking assistido: o registro de apps/janelas do seu computador vira sugestões de apontamento por IA — revise e confirme.'},
   {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias. No modo 📐 Colar estrutura, cole Épico → História → Task e a hierarquia nasce pronta; depois, edite data limite e responsável EM MASSA na grade.'},
   {vai:'ondecrio',titulo:'🌳 Onde crio o ticket?',texto:'A árvore de decisão da governança (TI-04-006): responda as perguntas e crie o ticket no projeto certo — AMS (com reunião/atividade NÃO FATURÁVEL), SAP, interno, administrativa, ausências e Dexterity University. Ela também vive na página inicial.'},
-  {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket — e todo drill (idade do backlog, vencimentos, responsável…) tem o 🛠 Abrir na Gestão, que leva os tickets já selecionados para agir em massa.'},
-  {vai:'resumo',titulo:'Resumo',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
+  {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket — e todo drill (idade do backlog, vencimentos, responsável…) tem o 🛠 Abrir na Gestão, que leva os tickets já selecionados para agir em massa. A ficha é a 🦴 espinha do app: os chips Contrato · Plano · Execução · Apuração · Resultado abrem a tela da outra área já neste projeto.'},
+  {vai:'resumo',titulo:'📊 Visão Geral › 🧠 Resumo (KPIs + IA)',texto:'KPIs do período: horas por pessoa/projeto, % faturável, uso do Jira, top projetos e o 🧠 resumo das atividades por IA.'},
   {vai:'timesheet',titulo:'Timesheet',texto:'Matriz pessoa × dia com as lacunas até a meta; exporta em vários recortes (detalhado, por pessoa, projeto, ticket, tipo).'},
   {vai:'ranking',titulo:'Ranking',texto:'Cumprimento de apontamento por pessoa NO TEMPO: 📅 esta semana, 🗓 este mês e 📆 este ano — com 🏆 pódio dos destaques, ⭐ estrelinhas (fechou a semana na meta = ganhou uma) e 🔥 sequências. A aba Engajamento segue com o uso do Jira.'},
   {vai:'tickets',titulo:'Tickets',texto:'Os tickets do período com horas + atividade, agrupáveis por projeto, tipo, categoria ou pessoa.'},
   {vai:'qualidade',titulo:'🔎 Qualidade (IA)',texto:'A IA lê as boas práticas TI-04-006 no Notion e audita os tickets criados no período: nota, violações e menu de ações por ticket.'},
   {vai:'audit',titulo:'🕵️ Auditoria de Tickets',texto:'Validações objetivas TI-04-014 por pessoa: conformidade dos tickets (datas, estimativas, descrição, épico…) com drill-down.'},
-  {vai:'analytics',titulo:'📈 Analytics',texto:'26 visões de governança para investigar: prazos, pessoas, horas, reuniões e qualidade — cada achado abre na Gestão para agir.'},
+  {vai:'analytics',titulo:'📚 Central de Relatórios › 📈 Analytics',texto:'26 visões de governança para investigar: prazos, pessoas, horas, reuniões e qualidade — cada achado abre na Gestão para agir.'},
   {vai:'roadmap',titulo:'🗺️ Roadmap',texto:'O rumo da ferramenta: o que está em desenvolvimento, planejado e em avaliação — e as entregas recentes. Sugestões entram por ❓ Ajuda & feedback.'},
   {vai:'gestao',titulo:'🛠 Gestão de Tickets',texto:'Ações em massa: selecione vários tickets e atribua, mude status, comente, reprograme (com motivo), mova de projeto, ajuste épicos, verifique duplicados ou exclua.'},
   {vai:'alertas',titulo:'🚨 Alertas',texto:'A central dos atrasados e críticos: reprograme com motivo padrão (data + comentário no Jira), em lote, com criticidade.'},
   {vai:'reclassificar',titulo:'🗂 Reuniões — aba Reclassificar',texto:'Gestão e reclassificação de reuniões: mova tickets de reunião do RDF para o projeto certo (tipo e status preservados) ou confirme como processo administrativo.'},
   {vai:'reuvinc',titulo:'🗂 Reuniões — aba Vincular',texto:'Transforme reuniões em registro num ticket de AMS (criar novo ou comentar num aberto, com worklog) — e 🔁 transfira QUALQUER ticket pelo número (vincula o esforço e exclui o original).'},
-  {vai:'ams',titulo:'AMS (apuração por ciclo)',texto:'Um contrato por vez, por ciclo: banco de horas, faturamento, faturável × não faturável (pelo TIPO do chamado), chamados do ciclo e PDF da apuração.'},
-  {vai:'receita',titulo:'💰 Receita',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
+  {vai:'ams',titulo:'🛡 Apuração de contratos › AMS (por ciclo)',texto:'Um contrato por vez, por ciclo: banco de horas, faturamento, faturável × não faturável (pelo TIPO do chamado), chamados do ciclo e PDF da apuração.'},
+  {vai:'receita',titulo:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
   {vai:'prioridades',titulo:'🎯 Prioridades do time',texto:'As (até) 5 prioridades da semana com dono, prazo e pedido ao time; portfólio por natureza mostrando só exceções; e o Modo reunião que conduz a pauta de 35 minutos — status é assíncrono, a reunião decide.'},
   {vai:'config',titulo:'⚙️ Central de configurações',texto:'Todos os ajustes num lugar só: metas & ausências, contratos, resumo agendado no Teams, integrações e preferências.'},
-  {vai:'admin',titulo:'⚙️ Contratos (Admin)',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento.'},
-  {vai:'parcerias',titulo:'🤝 Contratos de parceria',texto:'Os contratos com as consultorias parceiras: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento. É daqui que a Rentabilidade tira os períodos de faturamento e os itens da ordem de venda no Odoo.'},
+  {vai:'admin',titulo:'📑 Contratos › 🏢 Clientes',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento.'},
+  {vai:'parcerias',titulo:'📑 Contratos › 🤝 Parceiros (consultorias)',texto:'Os contratos com as consultorias parceiras: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento. É daqui que a Rentabilidade tira os períodos de faturamento e os itens da ordem de venda no Odoo.'},
   {vai:'acoes',sel:'#btn-guia',titulo:'É isso! 🎉',texto:'Você passou por TODAS as telas. Quer o detalhe de uma delas? Abra a tela e clique em 🧭 Guia desta tela (ou tecle ?): o guia destaca item por item ali mesmo. A lista completa dos guias está em ⋯ Mais → ❓ Ajuda, junto do canal de dúvidas/sugestões/bugs. Bom uso!'},
 ];
 let _tourI=0, _tourLista=TOUR, _tourHome=false, _tourGuia='';   // _tourGuia = vista do 🧭 guia em curso
@@ -574,9 +575,10 @@ const GUIAS={
     {s:'#conteudo .ts-fonte',ti:'Escolha o projeto',tx:'O seletor troca entre o consolidado do portfólio e a ficha de um projeto; ⟳ Atualizar rebusca do Jira ignorando o cache.'},
     {c:'📁 Projetos — Consolidado',ti:'O portfólio de uma vez',tx:'Todos os projetos com saúde, horas e prazos — clique numa linha ou categoria para abrir a ficha.'},
     {s:'#conteudo .vg-hero',ti:'A ficha do projeto',tx:'KPIs do projeto, épicos e saúde, equipe e horas, prazos, tipos e rótulos — tudo direto do Jira.',quando:'Aparece ao abrir a ficha de um projeto (escolha um no seletor).'},
+    {s:'#conteudo .proj-espinha',ti:'🦴 Espinha do projeto',tx:'Da ficha, um clique abre a tela da outra área já neste projeto: 📑 Contrato (Clientes), 💹 Plano (Rentabilidade — cria um plano novo se ainda não houver), 🛠 Execução (Tickets do time filtrados), 🛡 Apuração (AMS por ciclo ou bolsa de horas) e 🏦 Resultado (Controladoria na categoria, com a linha do projeto destacada). Chips de áreas fora do seu perfil ficam em cinza, mas abrem.',quando:'Aparece ao abrir a ficha de um projeto.'},
     {s:'#conteudo [data-pdrill],#conteudo [data-pdrill-cons]',ti:'Drill-down até o ticket',tx:'Qualquer gráfico é clicável (idade do backlog, radar de vencimentos, carga por responsável…) e abre a lista de itens por trás do número.',quando:'Aparece na ficha de um projeto, nos gráficos clicáveis.'},
     {ti:'🛠 Abrir na Gestão',tx:'Dentro de qualquer drill, este botão manda os tickets JÁ SELECIONADOS para a Gestão de Tickets — onde estão as ações em massa.',quando:'Aparece dentro do modal de drill-down de qualquer gráfico.'}]},
-  resumo:{t:'Resumo',p:[
+  resumo:{t:'📊 Visão Geral › 🧠 Resumo (KPIs + IA)',p:[
     {s:'#hdr-periodo',ti:'Período e filtros mandam',tx:'Esta tela responde ao período e aos filtros do topo (pessoa, categoria, projeto, tipo).'},
     {s:'#conteudo .kpis',ti:'Os KPIs do período',tx:'Horas apontadas, % faturável, pessoas ativas e uso do Jira — a leitura rápida do intervalo.'},
     {c:'Por pessoa',ti:'Por pessoa',tx:'Horas de cada um no período, com a meta ao lado. As folgas (chips) explicam feriados e ausências descontados.'},
@@ -605,7 +607,7 @@ const GUIAS={
     {s:'#aud-pessoa',ti:'Por pessoa',tx:'A auditoria TI-04-014 é por quem CRIA o ticket: escolha a pessoa e a janela de dias.'},
     {s:'#aud-analisar',ti:'Rodar as validações',tx:'São checagens objetivas (datas, estimativa, descrição, épico, responsável…) — sem IA, sem subjetividade.'},
     {c:'✅ O que está correto',ti:'✅ / ⚠️ / 🔧',tx:'O que passou, o que não passou e as ações sugeridas para ajustar — cada item abre o ticket.',quando:'Aparece depois de rodar as validações da pessoa escolhida.'}]},
-  analytics:{t:'📈 Analytics',p:[
+  analytics:{t:'📚 Central de Relatórios › 📈 Analytics',p:[
     {s:'#conteudo .anl-grupo',ti:'26 visões de governança',tx:'Os achados vêm agrupados por tema: prazos, pessoas, horas & estimativas, reuniões, qualidade & vínculos.',quando:'Aparece quando os dados do período terminam de carregar.'},
     {s:'#anl-dias',ti:'A janela de análise',tx:'Quantos dias entram na conta — e os filtros de projeto e responsável ao lado.'},
     {s:'#conteudo .anl-grid',ti:'Cada cartão é um achado',tx:'O número é o tamanho do problema; clicar abre a lista dos itens por trás dele.',quando:'Aparece quando os dados do período terminam de carregar.'},
@@ -617,7 +619,7 @@ const GUIAS={
     {s:'#conteudo [data-rel-abre]',ti:'Abrir no app →',tx:'Leva direto à tela que entrega aquele relatório, já restrita aos projetos dos tipos onde ele é O ou R na matriz. A faixa acima do conteúdo mostra o relatório e os tipos; "✕ ver todos os projetos" tira a restrição e sair da tela também.',quando:'Aparece nos cartões do tipo escolhido.'},
     {s:'#rc-dim',ti:'Filtrar por dimensão e busca',tx:'Escopo, tempo, custo, recursos, risco… ou busque pelo nome/pergunta do relatório.'},
     {s:'#conteudo .rc-td',ti:'A matriz completa',tx:'Relatório × tipo de projeto: O essencial · R recomendado · – não se aplica. Gestores clicam na célula para ajustar a matriz da empresa.'}]},
-  metricas:{t:'📈 Métricas por tipo de projeto',p:[
+  metricas:{t:'📚 Central de Relatórios › 📈 Métricas por tipo de projeto',p:[
     {s:'#conteudo .rc-chips',ti:'Escolha o tipo de projeto',tx:'Cada tipo (DEA, DEF, PEA, PEF, DAMS, PAMS, ARQ, IMI, IPA, ITPR) tem o seu conjunto de métricas — o número no chip é quantos projetos estão naquela categoria do Jira.'},
     {s:'#rm-proj',ti:'Todos os projetos ou um só',tx:'Por padrão soma os projetos do tipo; escolha um projeto (ex.: Parceria por nome) para ver as métricas dele.'},
     {s:'#rm-de',ti:'Período próprio',tx:'As métricas não dependem do período do topo: escolha de/até ou um atalho (este mês, 3, 6 ou 12 meses, este ano). Máximo de 1 ano.'},
@@ -680,13 +682,13 @@ const GUIAS={
     {s:'#rv-busca',ti:'A reunião de origem',tx:'Escolha a reunião aberta que deve virar registro em outro ticket.',quando:'Aparece quando houver reuniões abertas para vincular.'},
     {s:'#conteudo [data-rv-vinc]',ti:'Vincular →',tx:'Dois caminhos: ➕ criar um ticket novo de apoio funcional num projeto de AMS (tipo, resumo e duração já preenchidos) ou 🔗 comentar num ticket aberto.',quando:'Aparece em cada reunião da lista.'},
     {s:'#rv-transf-key',ti:'🔁 Transferir qualquer ticket',tx:'Informe o número do ticket destino: o esforço é vinculado lá e o original é excluído — com todos os detalhes gravados no destino.'}]},
-  ams:{t:'AMS (apuração por ciclo)',p:[
+  ams:{t:'🛡 Apuração de contratos › AMS (por ciclo)',p:[
     {s:'#ams-sel',ti:'Um contrato por vez',tx:'Escolha o cliente/contrato: a apuração é sempre de um contrato, independente do período do topo.',quando:'Aparece quando houver contrato de AMS com projetos mapeados em Contratos (Admin).'},
     {s:'#conteudo .ams-nav',ti:'O ciclo',tx:'Navegue entre os ciclos do contrato — o vigente vem selecionado.',quando:'Aparece com um contrato de AMS selecionado.'},
     {s:'#conteudo .ams-kpis',ti:'Banco de horas e excedente',tx:'Horas contratadas, consumidas, saldo e excedente. Só as horas FATURÁVEIS consomem o pacote.',quando:'Aparece com um contrato de AMS selecionado.'},
     {s:'#conteudo .ams-fat',ti:'Faturável × não faturável',tx:'A separação vem da descrição do TIPO do chamado no Jira — por isso o tipo importa tanto na criação.',quando:'Aparece com um contrato de AMS selecionado.'},
     {s:'#conteudo [data-ams-pdf]',ti:'🖨 PDF da apuração',tx:'Gera o documento do ciclo para enviar ao cliente ou anexar à fatura.',quando:'Aparece com um contrato de AMS selecionado.'}]},
-  receita:{t:'💰 Receita',p:[
+  receita:{t:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',p:[
     {s:'#conteudo .kpis',ti:'A visão do dinheiro',tx:'Bolsa de horas e projetos: consumo × contratado, com a receita estimada do período.'},
     {s:'#conteudo .rc2-grid',ti:'Projeto a projeto',tx:'Cada barra mostra quanto do contratado já foi consumido, com a projeção até o fim — e a tag de risco quando o ritmo estoura.',quando:'Aparece quando houver contratos com horas e projetos mapeados.'},
     {ti:'De onde vêm os números',tx:'Da base de Contratos (Admin): horas contratadas, valor-hora e projetos do Jira. Contrato sem projeto mapeado não aparece aqui.'}]},
@@ -705,7 +707,7 @@ const GUIAS={
     {s:'#cf-res-ativo',ti:'📣 Envios automáticos ao Teams',tx:'O resumo agendado e o aviso de ranking: ligue, escolha frequência e horário, e teste com um clique.'},
     {s:'#cf-reu-nat',ti:'🎯 Prioridades e reuniões',tx:'Naturezas de projeto, status considerados e o horário do lembrete da reunião semanal.'},
     {s:'#cf-abrir-log',ti:'🗒 Histórico de ações',tx:'A auditoria do que o time fez PELO PAINEL: quem, quando, em qual ticket e com que resultado.'}]},
-  admin:{t:'⚙️ Contratos (Admin)',p:[
+  admin:{t:'📑 Contratos › 🏢 Clientes',p:[
     {s:'#ad-cliente',ti:'O cadastro do contrato',tx:'Cliente, tipo de contrato, horas contratadas, valor-hora, vigência e mínimo/teto mensal.'},
     {s:'#ad-projs',ti:'Projetos do Jira',tx:'É este mapeamento que liga o contrato às horas apontadas — sem ele, AMS e Receita não têm o que apurar.',quando:'Aparece no formulário do contrato (ao cadastrar um novo ou editar um existente).'},
     {s:'#ad-salvar',ti:'Salvar e conferir',tx:'Depois de salvar, o consumo do contrato aparece logo abaixo, no período selecionado no topo.'},

@@ -494,7 +494,7 @@ function renderControladoria(){
     const cons=(ct.proj&&ct.proj.projetos||[]).find(x=>x.key===P.p);
     const execu=cons&&Number(cons.estH)>0?Math.round(Number(cons.gastoH)/Number(cons.estH)*100):null;
     const conc=cons&&Number(cons.total)>0?Math.round(Number(cons.concluidos)/Number(cons.total)*100):null;
-    return `<tr class="ct-click" data-ct-drill="pj=${escA(P.p)}" role="button" tabindex="0" data-tip="${escA(projNome(P.p)+' — clique para ver os tickets do realizado, com ações')}">
+    return `<tr class="ct-click${ct.destaque===P.p?' ct-dest':''}" data-ct-drill="pj=${escA(P.p)}" role="button" tabindex="0" data-tip="${escA(projNome(P.p)+' — clique para ver os tickets do realizado, com ações')}">
       <td data-tip="${escA(P.p)}">${esc(projNome(P.p))}</td>
       <td class="num">${fmtH(P.seg)}</td>
       <td class="num">${fmtBRL(P.custo)}</td>
@@ -665,7 +665,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(dr&&!e.target.closest('button')&&!e.target.closest('a')&&!e.target.closest('input')){
     ctAbreTickets(dr.getAttribute('data-ct-drill')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); renderControladoria(); return; }
+  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); ct.destaque=''; renderControladoria(); return; }   // destaque: linha do projeto vinda da 🦴 espinha (ficha)
   if(t.hasAttribute('data-ct-per')){ const p=t.getAttribute('data-ct-per'); const h=hojeSP();
     ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
     ct.ate=h; renderControladoria(); return; }

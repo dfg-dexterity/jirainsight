@@ -790,13 +790,13 @@ function renderAcoes(){
     ['hub','minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
     ['hub','apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
     ['hub','agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
-    ['entrega','projetos','📁 Projetos','BI por projeto direto do Jira, com drill-down e cronograma'],
+    ['entrega','projetos','📁 Projetos','ficha com a 🦴 espinha do projeto: contrato, plano, execução, apuração, resultado'],
     ['entrega','gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],
     ['entrega','alertas','🚨 Alertas','atrasados e críticos com reprogramação em lote'],
     ['negocio','rentab','💹 Rentabilidade','planos, cenários, períodos de faturamento e Odoo'],
-    ['negocio','parcerias','🤝 Contratos de parceria','modalidade, validade, faturamento e conta'],
-    ['insights','relatorios','📚 Central de Relatórios','o catálogo R01–R27 por tipo de projeto'],
-    ['insights','analytics','📈 Analytics','26 visões de governança para investigar'],
+    ['negocio','parcerias','📑 Contratos › 🤝 Parceiros','consultorias parceiras: modalidade, validade, faturamento e conta'],
+    ['insights','relatorios','📚 Central de Relatórios','a porta única das análises: catálogo R01–R27, Analytics e Métricas por tipo'],
+    ['insights','analytics','📚 Central › 📈 Analytics','26 visões de governança para investigar'],
     ['mais','roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
   ].filter(x=>areaVisivel(x[0]));
   const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas do seu perfil — busca completa no 🔍 (Ctrl+K)</span></h2>

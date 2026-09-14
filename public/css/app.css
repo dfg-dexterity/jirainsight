@@ -228,6 +228,20 @@
   /* 📁 Visão por Projetos */
   .proj-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
   .proj-tabs .chip{cursor:pointer}
+  /* 🦴 Espinha do projeto (ficha): chips que abrem as telas das outras áreas já neste projeto (fase 3, 2026-09-14) */
+  .proj-espinha{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:4px 0 14px;padding:10px 12px;border:1px dashed var(--linha2);border-radius:12px;background:var(--cartao2)}
+  .proj-espinha .pesp-rot{align-self:center;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-right:6px;white-space:nowrap}
+  .pesp-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:150px;max-width:260px;border:1px solid var(--linha2);background:var(--cartao);border-radius:10px;padding:7px 10px;cursor:pointer;text-align:left;font-family:var(--corpo);color:inherit;position:relative;transition:border-color .12s ease,background .12s ease}
+  .pesp-chip:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  .pesp-chip b{font-size:13px;font-weight:700;padding-right:58px}
+  .pesp-chip .pesp-sub{font-size:11.5px;color:var(--muted);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pesp-chip .pesp-area{position:absolute;top:7px;right:9px;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted);opacity:.75}
+  .pesp-chip.pesp-fora{opacity:.72}
+  .pesp-chip.pesp-fora:hover{opacity:1}
+  @media (max-width:760px){ .proj-espinha{padding:8px} .proj-espinha .pesp-rot{width:100%} .pesp-chip{min-width:calc(50% - 4px);max-width:100%} }
+  /* 🏦 Controladoria: linha do projeto vinda da espinha (estado.ctrl.destaque) */
+  tr.ct-dest td{background:rgba(0,153,148,.10)}
+  tr.ct-dest td:first-child{box-shadow:inset 3px 0 0 var(--cerceta)}
   .chip.on{background:var(--cerceta);color:#fff;border-color:var(--cerceta)}
   tr.proj-linha{cursor:pointer}
   tr.proj-linha:hover td{background:var(--hoverbg)}

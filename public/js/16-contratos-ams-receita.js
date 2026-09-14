@@ -362,7 +362,7 @@ function renderAdmin(){
   }).join('');
 
   cont.replaceChildren(el(`<div>
-    <div class="card full"><h2>⚙️ Administração — Contratos &amp; Valores</h2>
+    <div class="card full"><h2>🏢 Contratos — clientes &amp; valores <span>a base do AMS, da bolsa de horas, da Rentabilidade e da Controladoria</span></h2>
       <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
         Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
     </div>
@@ -566,14 +566,14 @@ function renderAMS(){
   };
   let amsSection='';
   if(!amsList.length){
-    amsSection=`<div class="card full"><h2>AMS &amp; Governança</h2>
+    amsSection=`<div class="card full"><h2>🛡 AMS — apuração por ciclo</h2>
       <div class="estado">Nenhum contrato <strong>AMS</strong> com projetos mapeados. Cadastre o contrato e mapeie os projetos na aba <strong>⚙️ Admin</strong>.</div></div>`;
   } else if(!amsProntos){
-    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc((cSel&&cSel.cliente)||'')}</span></h2>
+    amsSection=`<div class="card full"><h2>🛡 AMS <span>apuração por ciclo · ${esc((cSel&&cSel.cliente)||'')}</span></h2>
       ${amsNav}
       ${estado.ams.erro?`<div class="aviso">Não foi possível carregar a apuração do ciclo: ${esc(estado.ams.erro)}</div>`:'<div class="estado">Carregando apuração do ciclo (banco de horas)…</div>'}</div>`;
   } else {
-    amsSection=`<div class="card full"><h2>AMS &amp; Governança <span>apuração por ciclo · ${esc(cSel.cliente||'')}</span></h2>
+    amsSection=`<div class="card full"><h2>🛡 AMS <span>apuração por ciclo · ${esc(cSel.cliente||'')}</span></h2>
         ${amsNav}
         <div class="muted small" style="margin:8px 0 12px">Apuração do <strong>ciclo selecionado</strong> deste contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira; <strong>só as horas faturáveis consomem o pacote/excedente</strong>. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
         ${amsDadosCard(cSel, cycSel)}
@@ -590,11 +590,11 @@ function renderReceita(){
   if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
+    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
-      Cadastre clientes, valor-hora e os projetos do Jira na aba <strong>⚙️ Admin</strong> para liberar esta visão.
-      <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>AMS &amp; Governança</strong>.)</span><br><br>
-      <button class="btn primario" data-ir-admin>Ir para ⚙️ Admin</button></div></div></div>`));
+      Cadastre clientes, valor-hora e os projetos do Jira em <strong>📑 Contratos › 🏢 Clientes</strong> para liberar esta visão.
+      <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>🛡 AMS</strong>, ao lado.)</span><br><br>
+      <button class="btn primario" data-ir-admin>Ir para 🏢 Clientes</button></div></div></div>`));
     return;
   }
 
@@ -673,9 +673,9 @@ function renderReceita(){
     </div>` : '';
 
   cont.replaceChildren(el(`<div>
-    ${genericoSection || `<div class="card full"><h2>💰 Receita — bolsa de horas &amp; projetos</h2>
+    ${genericoSection || `<div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
-      Os contratos <strong>AMS</strong> têm aba própria (<strong>AMS &amp; Governança</strong>). Cadastre contratos na aba <strong>⚙️ Admin</strong>.</div></div>`}
+      Os contratos <strong>AMS</strong> têm aba própria (<strong>🛡 AMS</strong>, ao lado). Cadastre contratos em <strong>📑 Contratos › 🏢 Clientes</strong>.</div></div>`}
   </div>`));
 }
 

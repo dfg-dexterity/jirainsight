@@ -66,7 +66,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | Arquivo | O que tem |
 | --- | --- |
 | `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
-| `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha) |
+| `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha com a 🦴 **espinha do projeto** — `projEspinha`/`projEspinhaVai`: chips Contrato · Plano · Execução · Apuração · Resultado que abrem a tela da outra área já no projeto, fase 3) |
 | `02b-cronograma.js` | 📅 Marcos e Cronograma (R04): Gantt em cascata dos épicos com planejado × real, marcos, previsão pelo ritmo, dependências "blocks", detalhe do épico (burn-up, horas por mês, composição) e CSV |
 | `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, `renderAgenda` |
 | `04-meu-planejamento.js` | 📋 Meu Planejamento (plano semanal, aprovação, relatórios planejado × realizado, drag-and-drop) |
@@ -92,7 +92,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
 | `25-ajuda-guias.js` | ❓ Ajuda, feedback, tour, 🧭 guias interativos |
-| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas da fase 2: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central — `renderAbas` pinta `#abas` sem mexer nas telas), favoritos, paleta Ctrl+K |
+| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas), favoritos, paleta Ctrl+K |
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
 | `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |

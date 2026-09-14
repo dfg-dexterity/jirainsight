@@ -77,7 +77,9 @@
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
       <!-- 🧭 Navegação por perfil (2026-09-13): o que fica FIXO é o Dexterity Hub (conteúdo genérico, para
            todos); os grupos data-area="entrega|negocio|insights" são as áreas Dexterity Entrega / Negócio /
-           Insights e aparecem pela LENTE do perfil (cfg.papeis, aplicaLente) — nunca bloqueiam. -->
+           Insights e aparecem pela LENTE do perfil (cfg.papeis, aplicaLente) — nunca bloqueiam.
+           Fases 2–3 (2026-09-14): telas irmãs viraram ABAS de um grupo (ABAS em 26-navegacao.js) — só a tela
+           principal de cada grupo fica no menu; as outras abrem pela barra #abas e pelos links antigos. -->
       <button class="navtab" data-v="acoes" aria-pressed="true"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🏠 Início</button>
       <button class="navtab" data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
       <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
@@ -109,10 +111,8 @@
         <button class="navg-b" id="navg-ne-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-receita"/></svg><span class="nav-marca">Dexterity</span> Negócio <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
           <div class="navg-cab">Dexterity Negócio · comercial, financeiro e controladoria</div>
-          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>🏢 Contratos — clientes</button>
-          <button data-v="parcerias"><svg class="nav-ic"><use href="#ic-receita"/></svg>🤝 Contratos de parceria</button>
-          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>🛡️ AMS</button>
-          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
+          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>📑 Contratos</button>
+          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>🛡 Apuração de contratos</button>
           <button data-v="rentab"><svg class="nav-ic"><use href="#ic-receita"/></svg>💹 Rentabilidade</button>
           <button data-v="controladoria"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria</button>
         </div>
@@ -122,10 +122,7 @@
         <div class="navg-menu" role="menu">
           <div class="navg-cab">Dexterity Insights · diretoria e governança</div>
           <button data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>📊 Visão Geral</button>
-          <button data-v="resumo" class="nav-sub">Resumo (KPIs + IA)</button>
           <button data-v="relatorios"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios</button>
-          <button data-v="analytics" class="nav-sub">📈 Analytics</button>
-          <button data-v="metricas" class="nav-sub">📈 Métricas por tipo</button>
         </div>
       </div>
       <div class="navg navg-novo" data-area="hub">
