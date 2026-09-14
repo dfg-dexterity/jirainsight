@@ -67,6 +67,10 @@ function fechaModal(){ document.getElementById('modal').hidden=true;
 // tela principal) e a barra de abas acima do conteúdo (#abas). Abas do tipo `acao` abrem um modal (Metas,
 // Histórico). O 📊 planrel pertence a dois grupos conforme a audiência: 'minha' fica com o Meu Planejamento.
 // Uma vista pode aparecer em um único grupo por audiência; o gate (check-entrega) confere.
+// Fase 3 (2026-09-14): as fusões de Negócio e Insights — 📑 Contratos (clientes + parceiros), 🛡 Apuração de contratos
+// (AMS + Receita), 📊 Visão Geral (painel + Resumo) e a 📚 Central de Relatórios como porta única (catálogo, Analytics e
+// Métricas por tipo). A 🏦 Controladoria segue tela única (🗺️ Roadmap: blocos financeiros das Métricas). A ficha do
+// 📁 projeto liga as áreas pela "espinha do projeto" (projEspinha em 02-projetos.js).
 const ABAS=[
   { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
@@ -77,6 +81,12 @@ const ABAS=[
   { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'} ] },
   { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
   { id:'planrel',      rot:'📊 Planejamento do time',   abas:[ {v:'planrel',aud:'gestor',rot:'👥 Por gestor'}, {v:'planrel',aud:'exec',rot:'👔 Visão executiva'}, {v:'planrel',aud:'proj',rot:'📁 Por projetos'} ] },
+  // fase 3 — Dexterity Negócio
+  { id:'admin',        rot:'📑 Contratos',              abas:[ {v:'admin',rot:'🏢 Clientes'}, {v:'parcerias',rot:'🤝 Parceiros (consultorias)'} ] },
+  { id:'ams',          rot:'🛡 Apuração de contratos',  abas:[ {v:'ams',rot:'🛡 AMS (por ciclo)'}, {v:'receita',rot:'💰 Bolsa de horas & projetos'} ] },
+  // fase 3 — Dexterity Insights
+  { id:'visao',        rot:'📊 Visão Geral',            abas:[ {v:'visao',rot:'📊 Painel executivo'}, {v:'resumo',rot:'🧠 Resumo (KPIs + IA)'} ] },
+  { id:'relatorios',   rot:'📚 Central de Relatórios',  abas:[ {v:'relatorios',rot:'📚 Catálogo R01–R27'}, {v:'analytics',rot:'📈 Analytics (26 visões)'}, {v:'metricas',rot:'📈 Métricas por tipo'} ] },
   { id:'config',       rot:'⚙️ Central de configurações',abas:[ {v:'config',rot:'⚙️ Central'}, {acao:'metas',rot:'🎯 Metas & ausências'}, {acao:'log',rot:'🗒 Histórico de ações'} ] },
 ];
 function abaAud(){ return (estado.planrel&&estado.planrel.aud)||'gestor'; }
@@ -174,18 +184,18 @@ const NAVCAT=[
   ['ranking','⏱ Horas do time › 🏆 Ranking','entrega','engajamento cumprimento apontamento analise ranking'],
   ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
   // Dexterity Negócio — comercial, financeiro e controladoria
-  ['admin','🏢 Contratos — clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes'],
-  ['parcerias','🤝 Contratos de parceria','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes'],
-  ['ams','🛡️ AMS','negocio','ciclo faturado banco horas chamados gestao apuracao'],
-  ['receita','💰 Receita','negocio','bolsa horas projetos consumo contratado gestao'],
+  ['admin','📑 Contratos › 🏢 Clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes cadastro contratos clientes'],
+  ['parcerias','📑 Contratos › 🤝 Parceiros (consultorias)','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes'],
+  ['ams','🛡 Apuração de contratos › 🛡 AMS (por ciclo)','negocio','ciclo faturado banco horas chamados gestao apuracao ams governanca'],
+  ['receita','🛡 Apuração de contratos › 💰 Bolsa de horas & projetos (Receita)','negocio','bolsa horas projetos consumo contratado gestao receita apuracao'],
   ['rentab','💹 Rentabilidade de projetos','negocio','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado odoo ordem de venda faturamento periodos'],
   ['controladoria','🏦 Controladoria de Projetos','negocio','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria'],
   // Dexterity Insights — diretoria e governança
-  ['visao','📊 Visão Geral','insights','inicio home executiva kpis painel executivo diretoria'],
-  ['resumo','Resumo (KPIs + IA)','insights','kpis horas faturavel ia analise'],
-  ['relatorios','📚 Central de Relatórios','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise'],
-  ['analytics','📈 Analytics','insights','governanca 26 visoes graficos desvios analise'],
-  ['metricas','📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
+  ['visao','📊 Visão Geral › 📊 Painel executivo','insights','inicio home executiva kpis painel executivo diretoria'],
+  ['resumo','📊 Visão Geral › 🧠 Resumo (KPIs + IA)','insights','kpis horas faturavel ia analise resumo'],
+  ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R27','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise'],
+  ['analytics','📚 Central de Relatórios › 📈 Analytics (26 visões)','insights','governanca 26 visoes graficos desvios analise analytics'],
+  ['metricas','📚 Central de Relatórios › 📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
   // Administração e ⋯ Mais
   ['config','⚙️ Central de configurações › ⚙️ Central','admin','config ajustes configuracoes perfis papeis pessoas navegacao'],
   ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],

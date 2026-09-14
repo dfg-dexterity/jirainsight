@@ -146,7 +146,7 @@ function exportaCSV(){
 function exportarPDF(){
   const titulos={visao:'Visão Geral — Relatório executivo',resumo:'Resumo de uso',timesheet:'Timesheet',
     ranking:'Ranking de apontamento',tickets:'Tickets',apontar:'Apontar horas',planejar:'Planejar',
-    reclassificar:'Reuniões — gestão e reclassificação',reuvinc:'Reuniões — vincular a tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Receita & AMS',admin:'Administração — Contratos',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook',minhasemana:'Minha Semana — plano semanal',roadmap:'Roadmap de funcionalidades'};
+    reclassificar:'Reuniões — gestão e reclassificação',reuvinc:'Reuniões — vincular a tickets de AMS',gestao:'Gestão de Tickets',acoes:'Ações de hoje',alertas:'Central de Alertas',receita:'Bolsa de horas & projetos (Receita)',admin:'Contratos — clientes & valores',analytics:'Analytics de Governança',mencoes:'Menções',inbox:'Inbox — suas pendências',projetos:'Visão por Projetos',agenda:'Agenda — Outlook',minhasemana:'Minha Semana — plano semanal',roadmap:'Roadmap de funcionalidades'};
   const tit=titulos[estado.vista]||'Relatório';
   const sel=document.getElementById('f-periodo');
   const per=(sel&&sel.options[sel.selectedIndex]&&sel.options[sel.selectedIndex].text)||estado.periodo;
