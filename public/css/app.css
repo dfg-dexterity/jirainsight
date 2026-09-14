@@ -563,6 +563,13 @@
   .navg-novo>.navg-b:hover,.navg-novo>.navg-b[aria-expanded="true"]{color:#fff;background:var(--grafite)}
   .navg-novo>.navg-menu{left:auto;right:0}
   .hdrmenu-m .hdr-cab{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
+  /* 🗂 Barra de abas dos grupos (fase 2): Inbox, Apontar, Tickets do time, Reuniões, Projetos, Horas do time… */
+  .abas-tela{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;margin:10px 0 0;border-bottom:2px solid var(--linha);padding:0 4px}
+  .abas-tela .abas-rot{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding:0 10px 9px 4px;white-space:nowrap}
+  .abas-tela .aba{border:0;background:transparent;color:var(--texto2);font-family:var(--corpo);font-size:13.5px;font-weight:600;padding:8px 12px;cursor:pointer;border-radius:8px 8px 0 0;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .12s ease,border-color .12s ease}
+  .abas-tela .aba:hover{color:var(--cerceta);background:var(--hoverbg)}
+  .abas-tela .aba.on{color:var(--cerceta);border-bottom-color:var(--cerceta)}
+  @media (max-width:760px){ .abas-tela{gap:0;padding:0} .abas-tela .abas-rot{width:100%;padding:4px 8px 2px} .abas-tela .aba{font-size:13px;padding:9px 10px} }
   .brand small .brand-antes{opacity:.7;cursor:help}
   /* Telas médias: o menu encolhe (padding, fonte e ícones) para caber numa faixa
      só, em vez de quebrar linha — os grupos continuam todos visíveis. */
