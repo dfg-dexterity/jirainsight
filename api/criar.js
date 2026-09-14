@@ -143,7 +143,7 @@ async function criaFeedbackGitHub(res, b) {
     '---',
     `**Tipo:** ${t.pref}`,
     (nome || email) ? `**Reportado por:** ${nome}${email ? ` (${email})` : ''}` : '',
-    '**Origem:** painel Insights de Uso (Jira + Clockwork) — tela de Ajuda',
+    '**Origem:** Dexterity Hub (antes Insights de Uso · Jira + Clockwork) — tela de Ajuda',
   ].filter(Boolean).join('\n');
   const r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
     method: 'POST',

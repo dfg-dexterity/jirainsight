@@ -221,7 +221,7 @@ async function montaRanking(cfg, extras, removidos, hoje) {
   if (criados != null) uso.push(`Chamados criados: **${criados}**`);
   if (resolvidos != null) uso.push(`Resolvidos: **${resolvidos}**`);
   if (uso.length) blocos.push({ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'Medium', text: `Uso do Jira no dia · ${uso.join(' · ')}` });
-  blocos.push({ type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Enviado automaticamente pelo painel Insights de Uso (Jira + Clockwork).' });
+  blocos.push({ type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Enviado automaticamente pelo Dexterity Hub (antes Insights de Uso · Jira + Clockwork).' });
 
   return {
     cartao: cartaoAdaptive(blocos), dia,
@@ -326,7 +326,7 @@ async function montaResumoIA(cfg, extras, removidos, hoje, freq) {
     { type: 'TextBlock', wrap: true, spacing: 'Medium', text: String(resultado.geral || '').trim() || '_Sem resumo geral._' },
     { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', text: 'Por pessoa' },
     { type: 'TextBlock', wrap: true, text: linhas.length ? linhas.join('\n\n') : '_Sem pessoas para resumir._' },
-    { type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Gerado por IA a partir dos números do período — confira antes de decisões. Enviado pelo painel Insights de Uso.' },
+    { type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Gerado por IA a partir dos números do período — confira antes de decisões. Enviado pelo Dexterity Hub.' },
   ];
   return { cartao: cartaoAdaptive(blocos), de, ate, stats: { pessoas: pessoas.length, horas: +(horasTot / 3600).toFixed(1) } };
 }
@@ -670,7 +670,7 @@ export default async function handler(req, res) {
     const b = (corpo && typeof corpo === 'object') ? corpo : {};
     if (b.aviso || q.tipo === 'aviso') {
       const av = b.aviso || {};
-      const titulo = String(av.titulo || 'Novidades no Insights de Uso').slice(0, 150);
+      const titulo = String(av.titulo || 'Novidades no Dexterity Hub').slice(0, 150);
       const linhas = Array.isArray(av.linhas) ? av.linhas.map((x) => String(x).slice(0, 400)).slice(0, 12) : [];
       if (!linhas.length && !dry) return json(res, 400, { erro: 'Envie aviso.linhas (lista com as melhorias).' });
       const wAv = process.env.TEAMS_AVISOS_WEBHOOK_URL || webhook;

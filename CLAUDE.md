@@ -1,6 +1,16 @@
 # CLAUDE.md — Notas do projeto
 
-Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
+Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
+
+- **Navegação por perfil (2026-09-13, a pedido do usuário):** o **Dexterity Hub** é o conteúdo
+  genérico (para todos: Início, ⏱ Apontar, 📥 Inbox, 🎯 Prioridades, 👤 Meu trabalho, ➕ Novo);
+  as áreas **Dexterity Entrega** (gestores de entrega/PMs), **Dexterity Negócio** (comercial,
+  financeiro, controladoria) e **Dexterity Insights** (diretoria e governança) são grupos
+  `data-area` no `index.html` que aparecem pela **lente do perfil** (`cfg.papeis`, `AREAS`,
+  `papeisDe`/`areaVisivel`/`homePadrao` em `01-nucleo.js`, `aplicaLente` em `26-navegacao.js`).
+  **Lente, nunca permissão.** Tela nova = linha no `NAVCAT` (com a área) + botão no grupo certo;
+  tela aposentada = entrada em `VISTA_ALIAS` (29-url-topo.js) para o link antigo não quebrar.
+  `npm run check` confere NAVCAT × VISTAS × index.html.
 
 - Front-end estático em `public/` (HTML/JS puro, **sem build**). Desde **2026-09-06** o
   `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **32 módulos
@@ -52,6 +62,7 @@ Painel **"Insights de Uso (Jira + Clockwork)"** da Dexterity IT.
   | TI-14-016 | Integrações e plataforma | `3cec6937-1e17-81b6-a91a-eec25805e2e4` |
   | TI-14-017 | Ajuda, guias interativos e adoção | `3cec6937-1e17-8156-a485-ddba12cb794e` |
   | TI-14-018 | Bot do Teams para criar tickets com IA | `3cec6937-1e17-8166-afe4-f469355e2076` |
+  | TI-14-019 | Navegação por perfil e mapa do app (Dexterity Hub) | `3dbc6937-1e17-81eb-ad03-d854f090cdab` |
 
   (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
   com SharePoint, Odoo e Finder.)

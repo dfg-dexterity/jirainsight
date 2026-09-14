@@ -463,6 +463,11 @@
   .ms-filtros input[type=search]{flex:1;min-width:160px;padding:6px 9px;border:1px solid var(--linha);border-radius:8px;background:var(--inputbg,transparent);color:inherit}
   .hx-atalhos{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:8px}
   .hx-atalho{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;background:var(--cardbg)}
+  .hx-atalho .hx-area{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cerceta);opacity:.85;margin-top:2px}
+  /* 📆 Fechamento do mês (Início · perfil negócio) */
+  .fx-lista{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .fx-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--linha);border-radius:10px;background:var(--cardbg);font-size:13.5px}
+  .fx-row.aten{border-left:4px solid #E76500} .fx-row.crit{border-left:4px solid #D20A0A} .fx-row .fx-txt{min-width:0}
   .hx-atalho:hover{background:var(--hoverbg)}
   .ax-card .track{height:8px}
   .reu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
@@ -495,6 +500,9 @@
   .pal-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px}
   .pal-row:hover,.pal-row.pal-on{background:var(--hoverbg)}
   .pal-g{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+  .pal-area{padding:10px 10px 4px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--texto2);border-top:1px solid var(--linha);margin-top:4px}
+  .pal-area:first-child{border-top:0;margin-top:0}
+  .pal-area.pal-fora,.pal-row.pal-dim{color:var(--muted)} .pal-row.pal-dim{opacity:.75}
   .pal-fav{border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--muted);padding:2px 6px;border-radius:6px}
   .pal-fav:hover{background:var(--hoverbg)}
   .pal-fav.on{color:#eab308}
@@ -546,6 +554,16 @@
   .nav-ic{width:16px;height:16px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
   .seg button[aria-pressed="true"] .nav-ic{opacity:1}
   .nav-car{font-size:10px;opacity:.7;margin-left:1px}
+  /* 🧭 Navegação por perfil: áreas "Dexterity Entrega/Negócio/Insights" (a marca em caixa alta, menor),
+     cabeçalho dentro de cada menu, grupos escondidos pela lente e o botão de ações ➕ Novo */
+  .navg[hidden]{display:none!important}
+  .nav-marca{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.72;margin-right:-2px}
+  .navg-cab{padding:6px 12px 5px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--linha);margin-bottom:3px;white-space:nowrap}
+  .navg-novo>.navg-b{color:#fff;background:var(--cerceta);border-radius:999px;padding:7px 12px;margin:5px 2px 6px 6px;border-bottom:0;line-height:1}
+  .navg-novo>.navg-b:hover,.navg-novo>.navg-b[aria-expanded="true"]{color:#fff;background:var(--grafite)}
+  .navg-novo>.navg-menu{left:auto;right:0}
+  .hdrmenu-m .hdr-cab{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
+  .brand small .brand-antes{opacity:.7;cursor:help}
   /* Telas médias: o menu encolhe (padding, fonte e ícones) para caber numa faixa
      só, em vez de quebrar linha — os grupos continuam todos visíveis. */
   @media (max-width:1500px){ .seg button{padding:10px 9px;font-size:13.5px} }
@@ -2353,6 +2371,8 @@
       box-shadow:inset 3px 0 0 var(--cerceta)}
     .navg.ativo > .navg-b[aria-pressed="true"]{background:var(--hoverbg)}
     .nt-label{font-size:14px}
+    .navg-novo>.navg-b{border-radius:8px;margin:6px 0;padding:13px 12px}
+    .navg-cab{white-space:normal;padding-left:12px}
   }
   /* 📱 iPhone/iPad (PWA) — áreas seguras do iOS, toque e teclado.
      Só vale em telas de toque/instalado; o desktop não muda nada. */

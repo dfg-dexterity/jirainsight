@@ -153,7 +153,7 @@ function exportarPDF(){
   const agora=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
   const ph=document.getElementById('print-head');
   if(ph) ph.innerHTML=`<img src="/logo.svg" alt="Dexterity"><div><h1>${esc(tit)}</h1>
-    <div class="ph-sub">Dexterity IT · Insights de Uso (Jira + Clockwork)</div></div>
+    <div class="ph-sub">Dexterity IT · Dexterity Hub (Jira + Clockwork + Odoo)</div></div>
     <div class="ph-right">Período: <strong>${esc(per)}</strong><br>Gerado em ${esc(agora)}</div>`;
   const prev=document.title;
   document.title=`Dexterity — ${tit} — ${per}`;
@@ -206,7 +206,7 @@ function pdfApuracaoAMS(id){
   doc.innerHTML=`<div class="doc"><table class="doc-wrap">
     <thead><tr><td>
       <div class="doc-head"><img src="/logo.svg" alt="Dexterity">
-        <div><h1>Relatório de apuração — AMS</h1><div class="doc-sub">Dexterity IT · Insights de Uso (Jira + Clockwork)</div></div>
+        <div><h1>Relatório de apuração — AMS</h1><div class="doc-sub">Dexterity IT · Dexterity Hub (Jira + Clockwork + Odoo)</div></div>
         <div class="doc-right">${esc(c.cliente||'')}${c.cliente?'<br>':''}Gerado em ${esc(agora)}</div></div>
     </td></tr></thead>
     <tbody><tr><td>
@@ -232,7 +232,7 @@ function pdfApuracaoAMS(id){
     ${tiposOrd.length?tiposTab:'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
     <h3>Memória de apontamentos por chamado <span class="doc-h3s">${chs.length} chamado(s) · ${fmtH(pt.seg)}</span></h3>
     ${memoria||'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
-    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong>; as não faturáveis aparecem na memória apenas como registro. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo painel Insights de Uso (Jira + Clockwork) da Dexterity IT.</div>
+    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong>; as não faturáveis aparecem na memória apenas como registro. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo Dexterity Hub (Jira + Clockwork + Odoo) da Dexterity IT.</div>
     </td></tr></tbody></table></div>`;
   document.body.classList.add('doc-print');
   const prev=document.title; document.title=`Apuração AMS — ${c.cliente||''} — ${amsLabelCiclo(cyc)}`;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 📍 MEU DIA — ponte ActivityWatch → painel Insights de Uso (Jira + Clockwork).
+// 📍 MEU DIA — ponte ActivityWatch → Dexterity Hub (antes Insights de Uso · Jira + Clockwork).
 //
 // O ActivityWatch (https://activitywatch.net — gratuito, open source, roda 100%
 // local) registra qual APP e qual JANELA estão em primeiro plano no seu Mac.

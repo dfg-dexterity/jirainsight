@@ -131,7 +131,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
 
 // ---- Configuração (meta de horas e ausências) — persistida no navegador ----
 const CFG_KEY = 'dexterity_insights_cfg_v1';
-function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], parcerias:[], planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
+function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], feriadosExtra:{}, feriadosRemovidos:[], ocultos:[], contratos:[], parcerias:[], papeis:{}, planos:[], alocacoes:[], skills:{}, tratados:{}, auditoria:[], planTemplates:[], projTipos:{}, pessoasPlanejadas:[], custosPessoa:{}, alocTravas:{}, alocSemTravas:{}, planosSemana:{}, agendaTickets:{}, inboxAvisos:{}, qualidadeHist:[], teamsHora:'08:00', mencoesIgnoradas:{}, gestores:[],
   ctrl:{ custoPadrao:0, cats:{} },   // 🏦 Controladoria: custo/h padrão + blocos ativos por categoria
   relcat:{ m:{} },                    // 📚 Central de Relatórios: overrides da matriz O/R/– por relatório×sigla
   perfis:{},                          // 🎓 {accountId:{nivel:'junior'|'pleno'|'senior', depto}} — 📈 Métricas por tipo
@@ -611,7 +611,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
-  ams:{exp:1}, alocacao:{}, planejamento:{}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
+  ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
@@ -665,6 +665,35 @@ function souAprovador(){ const id=idApontar(); if(!id) return false;
   const gs=(cfg.gestores||[]).map(x=>String((x&&(x.a||x.email))||x||'').trim().toLowerCase()).filter(Boolean);
   if(gs.length) return gs.includes(String(id.accountId||'').toLowerCase())||gs.includes(String(id.email||'').toLowerCase());
   return /diego/i.test((id.nome||'')+' '+(id.email||'')); }
+// ---- 🧭 PERFIS DE NAVEGAÇÃO (pedido de 2026-09-13): o app é o "Dexterity Hub" (conteúdo genérico, para
+// todos) + áreas por perfil — Dexterity Entrega (gestores de entrega/PMs), Dexterity Negócio (comercial,
+// financeiro, controladoria) e Dexterity Insights (diretoria e governança). O papel de cada pessoa fica em
+// cfg.papeis (accountId ou e-mail → lista) e é LENTE, nunca permissão: só decide o que a barra MOSTRA e a
+// home; toda tela continua abrindo por link e pelo Ctrl+K. Sem papel cadastrado: quem está em cfg.gestores
+// (aprovadores) é gestor; o resto é consultor. ----
+const PAPEIS=[['consultor','Consultor','o núcleo: apontar, planejar a semana, criar tickets'],['gestor','Gestor de entrega','vê Dexterity Entrega'],['negocio','Negócio','vê Dexterity Negócio (contratos, AMS, receita, rentabilidade)'],['diretoria','Diretoria','vê Dexterity Insights e abre na Visão Geral'],['admin','Admin do painel','vê todas as áreas e a Administração']];
+const AREAS={ hub:{ rot:'Dexterity Hub', sub:'para todos' },
+  entrega:{ rot:'Dexterity Entrega', sub:'gestores de entrega e PMs', papeis:['gestor','admin'] },
+  negocio:{ rot:'Dexterity Negócio', sub:'comercial, financeiro e controladoria', papeis:['negocio','admin'] },
+  insights:{ rot:'Dexterity Insights', sub:'diretoria e governança', papeis:['diretoria','admin'] },
+  admin:{ rot:'Administração', sub:'configuração do painel' },
+  mais:{ rot:'⋯ Mais', sub:'sobre o app' } };
+function papeisDe(){ const id=idApontar(); if(!id) return ['consultor'];
+  const m=(cfg.papeis&&typeof cfg.papeis==='object')?cfg.papeis:{}; const chaves=[String(id.accountId||''),String(id.email||'')].map(x=>x.trim().toLowerCase()).filter(Boolean);
+  let ps=[]; Object.keys(m).forEach(k=>{ if(chaves.includes(String(k).trim().toLowerCase())) ps=ps.concat(Array.isArray(m[k])?m[k]:String(m[k]||'').split(',')); });
+  ps=ps.map(x=>String(x||'').trim().toLowerCase()).filter(x=>PAPEIS.some(p=>p[0]===x));
+  if(!ps.length) ps=[souAprovador()?'gestor':'consultor']; else if(souAprovador()&&!ps.includes('gestor')&&!ps.includes('admin')) ps.push('gestor');
+  return [...new Set(ps)]; }
+function temPapel(p){ return papeisDe().includes(p); }
+function lenteTodas(){ try{ return localStorage.getItem('jirainsight_todas_areas')==='1'; }catch(e){ return false; } }
+// A área aparece na barra? Sem papéis exigidos = sempre; senão pelo papel, pelo "ver todas as áreas" (local)
+// ou, para Insights, pelo "ligar Insights para mim" (local).
+function areaVisivel(a){ const A=AREAS[a]; if(!A||!A.papeis) return true; if(lenteTodas()) return true; const ps=papeisDe(); if(A.papeis.some(p=>ps.includes(p))) return true;
+  if(a==='insights'){ try{ if(localStorage.getItem('jirainsight_insights')==='1') return true; }catch(e){} } return false; }
+// Home: a escolha da pessoa (⋯ Mais → "usar esta tela como inicial") vence; senão diretoria abre na Visão
+// Geral e todo o resto em Ações de hoje.
+function homePadrao(){ try{ const h=localStorage.getItem('jirainsight_home'); if(h&&typeof VISTAS!=='undefined'&&VISTAS.includes(h)) return h; }catch(e){}
+  const ps=papeisDe(); if(ps.includes('diretoria')&&!ps.includes('gestor')&&!ps.includes('consultor')) return 'visao'; return 'acoes'; }
 // Custo/hora da pessoa: vaga usa o custo previsto do cadastro; pessoa real usa
 // cfg.custosPessoa (manual ou importado do Odoo). 0 = sem custo cadastrado.
 function alocCustoH(a){ const pp=ppDe(a); if(pp) return Math.max(0,Number(pp.custoH)||0);

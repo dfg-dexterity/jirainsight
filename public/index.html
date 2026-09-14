@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Insights de Uso · Jira + Clockwork</title>
+<title>Dexterity Hub · Jira + Clockwork + Odoo</title>
 <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <!-- 📱 Versão iPhone/iPad (PWA): instalável pela Tela de Início do Safari -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Insights" />
+<meta name="apple-mobile-web-app-title" content="Dexterity Hub" />
 <meta name="theme-color" content="#F5F6F7" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#0E1726" media="(prefers-color-scheme: dark)" />
 <!-- Vercel Web Analytics -->
@@ -55,7 +55,7 @@
 <div class="wrap">
   <div class="print-head" id="print-head" aria-hidden="true"></div>
   <header>
-    <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar ao início (Resumo)">
+    <div class="brand" id="brand-home" role="button" tabindex="0" title="Voltar à tela inicial">
       <svg class="mark dxlogo dx-entra" id="dx-logo" viewBox="206.8 -1.15 195.4 195.4"
         role="img" aria-label="Dexterity" focusable="false">
         <path class="dxp dxp--tl" fill="var(--grafite)" d="M306.8,41.1c0,6.7-1.3,13.1-3.8,19.1s-6.1,11.4-10.8,16.1c-4.7,4.7-10.2,8.4-16.1,10.8c-6,2.5-12.4,3.8-19.1,3.8c-0.2,0-1.8,0-3.4,0c-1.1,0-2.2,0-2.8,0.1c-0.4,0-0.7-0.2-0.9-0.5l-21.6-35.4l-21-34.4c-0.4-0.6,0.1-1.5,0.8-1.5h48.5h49.2c0.5,0,1,0.4,1,1v10V41.1z"/>
@@ -64,8 +64,8 @@
         <path class="dxp dxp--br" fill="var(--grafite)" d="M368.2,102.5c-6.7,0-13.1,1.3-19.1,3.8s-11.4,6.1-16.1,10.8c-4.7,4.7-8.3,10.1-10.8,16.1c-2.5,5.9-3.8,12.4-3.8,19c0,0,0,0.1,0,0.1s0,0.1,0,0.1c0,0,0,0,0,0c0,0,0,0,0,0v5.1v5.1v5.8v4.8c0,0.5,0.5,1,1,1c12.5-0.4,24.5-3.9,35-9.9c10.8-6.2,20.1-15.1,26.8-26.1l10.9-17.8l10-16.3c0.4-0.6-0.1-1.5-0.8-1.5h-15.7H368.2z"/>
       </svg>
       <div>
-        <h1>Insights de Uso</h1>
-        <small>Painel do time · Jira + Clockwork</small>
+        <h1>Dexterity Hub</h1>
+        <small>Jira + Clockwork + Odoo · <span class="brand-antes" title="O painel Insights de Uso virou o Dexterity Hub em 2026-09-13">antes Insights de Uso</span></small>
       </div>
     </div>
     <div class="spacer"></div>
@@ -75,73 +75,81 @@
       <span class="nt-badge" id="nt-badge" hidden></span>
     </button>
     <div class="seg" id="seg-vista" role="group" aria-label="Visão">
+      <!-- 🧭 Navegação por perfil (2026-09-13): o que fica FIXO é o Dexterity Hub (conteúdo genérico, para
+           todos); os grupos data-area="entrega|negocio|insights" são as áreas Dexterity Entrega / Negócio /
+           Insights e aparecem pela LENTE do perfil (cfg.papeis, aplicaLente) — nunca bloqueiam. -->
       <button class="navtab" data-v="acoes" aria-pressed="true"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🏠 Início</button>
-      <button class="navtab" data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>Visão Geral</button>
+      <button class="navtab" data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
+      <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
       <button class="navtab" data-v="prioridades"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🎯 Prioridades</button>
       <span id="nav-favs" style="display:contents"></span>
-      <div class="navg">
+      <div class="navg" data-area="hub">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar</button>
-          <button data-v="rateio"><svg class="nav-ic"><use href="#ic-apontar"/></svg>➗ Rateio de horas</button>
+          <div class="navg-cab">Dexterity Hub · para todos</div>
+          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
+          <button data-v="planrel" data-aud="minha" class="nav-sub">👤 Planejado × realizado (minha visão)</button>
           <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
-          <button data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
-          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
+          <button data-v="rateio"><svg class="nav-ic"><use href="#ic-apontar"/></svg>➗ Rateio de horas</button>
           <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
+          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
           <button data-v="meutempo"><svg class="nav-ic"><use href="#ic-analise"/></svg>⏳ Como estou gastando meu tempo?</button>
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
+          <button data-v="ondecrio" class="nav-sub">🌳 Onde crio o ticket?</button>
         </div>
       </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-pl-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Planejamento <span class="nav-car">▾</span></button>
+      <div class="navg" data-area="entrega">
+        <button class="navg-b" id="navg-en-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg><span class="nav-marca">Dexterity</span> Entrega <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
+          <div class="navg-cab">Dexterity Entrega · gestores de entrega e PMs</div>
+          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas</button>
+          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Gestão de Tickets</button>
+          <button data-v="tickets" class="nav-sub">Tickets do período</button>
+          <button data-v="qualidade" class="nav-sub">🔎 Qualidade (IA)</button>
+          <button data-v="audit" class="nav-sub">🕵️ Auditoria de Tickets</button>
+          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões</button>
+          <button data-v="reuvinc" class="nav-sub">🔗 Vincular reuniões a tickets</button>
+          <button data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
+          <button data-v="cronograma" class="nav-sub">📅 Marcos e Cronograma</button>
+          <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
+          <button data-v="ranking" class="nav-sub">🏆 Ranking</button>
           <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Relatórios do planejamento</button>
           <button data-v="planrel" data-aud="exec" class="nav-sub">👔 Visão executiva</button>
-          <button data-v="planrel" data-aud="minha" class="nav-sub">👤 Minha visão</button>
           <button data-v="planrel" data-aud="proj" class="nav-sub">📁 Visão por projetos</button>
-          <button data-v="alocacao"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>🧑‍💼 Alocação (macro)</button>
-          <button data-v="planejamento"><svg class="nav-ic"><use href="#ic-analise"/></svg>Planejamento macro</button>
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>Criação de Ticket</button>
-          <button data-v="ondecrio"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🌳 Onde crio o ticket?</button>
         </div>
       </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-an-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg>Análise <span class="nav-car">▾</span></button>
+      <div class="navg" data-area="negocio">
+        <button class="navg-b" id="navg-ne-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-receita"/></svg><span class="nav-marca">Dexterity</span> Negócio <span class="nav-car">▾</span></button>
         <div class="navg-menu" role="menu">
-          <button data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
-          <button data-v="cronograma"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📅 Marcos e Cronograma</button>
-          <button data-v="resumo"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Resumo</button>
-          <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
-          <button data-v="ranking"><svg class="nav-ic"><use href="#ic-ranking"/></svg>Ranking</button>
-          <button data-v="tickets"><svg class="nav-ic"><use href="#ic-tickets"/></svg>Tickets</button>
-          <button data-v="qualidade"><svg class="nav-ic"><use href="#ic-analise"/></svg>Qualidade (IA)</button>
-          <button data-v="audit"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🕵️ Auditoria de Tickets</button>
-          <button data-v="analytics"><svg class="nav-ic"><use href="#ic-analise"/></svg>📈 Analytics</button>
-          <button data-v="metricas"><svg class="nav-ic"><use href="#ic-resumo"/></svg>📈 Métricas por tipo</button>
-          <button data-v="relatorios"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios</button>
-          <button data-v="roadmap"><svg class="nav-ic"><use href="#ic-planejar"/></svg>🗺️ Roadmap</button>
-        </div>
-      </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-ge-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-operacao"/></svg>Gestão <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
-          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Gestão de Tickets</button>
-          <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas</button>
-          <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões (gestão)</button>
-          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>AMS</button>
-          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
-          <button data-v="controladoria"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria</button>
-          <button data-v="rentab"><svg class="nav-ic"><use href="#ic-receita"/></svg>💹 Rentabilidade</button>
-        </div>
-      </div>
-      <div class="navg">
-        <button class="navg-b" id="navg-cfg-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-admin"/></svg>Configurações <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
-          <button data-v="config"><svg class="nav-ic"><use href="#ic-admin"/></svg>⚙️ Central de configurações</button>
-          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>Contratos (Admin)</button>
+          <div class="navg-cab">Dexterity Negócio · comercial, financeiro e controladoria</div>
+          <button data-v="admin"><svg class="nav-ic"><use href="#ic-admin"/></svg>🏢 Contratos — clientes</button>
           <button data-v="parcerias"><svg class="nav-ic"><use href="#ic-receita"/></svg>🤝 Contratos de parceria</button>
-          <button data-acao="metas"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Metas &amp; ausências</button>
-          <button data-acao="log"><svg class="nav-ic"><use href="#ic-resumo"/></svg>Histórico de ações</button>
+          <button data-v="ams"><svg class="nav-ic"><use href="#ic-ams"/></svg>🛡️ AMS</button>
+          <button data-v="receita"><svg class="nav-ic"><use href="#ic-receita"/></svg>💰 Receita</button>
+          <button data-v="rentab"><svg class="nav-ic"><use href="#ic-receita"/></svg>💹 Rentabilidade</button>
+          <button data-v="controladoria"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria</button>
+        </div>
+      </div>
+      <div class="navg" data-area="insights">
+        <button class="navg-b" id="navg-in-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg><span class="nav-marca">Dexterity</span> Insights <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <div class="navg-cab">Dexterity Insights · diretoria e governança</div>
+          <button data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>📊 Visão Geral</button>
+          <button data-v="resumo" class="nav-sub">Resumo (KPIs + IA)</button>
+          <button data-v="relatorios"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios</button>
+          <button data-v="analytics" class="nav-sub">📈 Analytics</button>
+          <button data-v="metricas" class="nav-sub">📈 Métricas por tipo</button>
+        </div>
+      </div>
+      <div class="navg navg-novo" data-area="hub">
+        <button class="navg-b" id="navg-novo-b" type="button" aria-haspopup="true" aria-expanded="false">➕ Novo <span class="nav-car">▾</span></button>
+        <div class="navg-menu" role="menu">
+          <div class="navg-cab">Ações · criar e apontar</div>
+          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
+          <button data-v="ondecrio" class="nav-sub">🌳 Onde crio o ticket?</button>
+          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar horas</button>
+          <button data-v="rateio" class="nav-sub">➗ Ratear horas em vários tickets</button>
+          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Reunião do Outlook → ticket</button>
         </div>
       </div>
       <button class="navtab" id="btn-paleta" type="button" title="Buscar tela — Ctrl+K" aria-label="Buscar tela (Ctrl+K)">🔍</button>
@@ -182,9 +190,17 @@
         <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⋯ Mais<span class="nov-dot" id="mais-dot" hidden></span></button>
         <div class="hdrmenu-m">
           <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
+          <button id="btn-mais-roadmap" aria-label="Roadmap">🗺️ Roadmap</button>
           <button id="btn-guia-tela" aria-label="Guia interativo desta tela">🧭 Guia desta tela</button>
           <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
           <button id="btn-instalar" aria-label="Instalar no iPhone, iPad ou computador">📱 Instalar no aparelho</button>
+          <div class="hdr-cab">Minha navegação</div>
+          <button id="btn-home-atual" aria-label="Usar esta tela como inicial">🏠 Usar esta tela como inicial</button>
+          <button id="btn-todas-areas" aria-label="Ver todas as áreas">👓 Ver todas as áreas</button>
+          <div class="hdr-cab">Administração</div>
+          <button id="btn-mais-config" aria-label="Central de configurações">⚙️ Central de configurações</button>
+          <button id="btn-mais-metas" aria-label="Metas e ausências">🎯 Metas &amp; ausências</button>
+          <button id="btn-mais-log" aria-label="Histórico de ações">🗒 Histórico de ações</button>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 {
-  "name": "Insights de Uso — Jira + Clockwork",
-  "short_name": "Insights",
-  "description": "Painel Insights de Uso da Dexterity IT: prioridades, planejamento, apontamento e relatórios do Jira + Clockwork.",
+  "name": "Dexterity Hub — Jira + Clockwork + Odoo",
+  "short_name": "Dexterity Hub",
+  "description": "Dexterity Hub (antes Insights de Uso): apontamento, planejamento, entrega, negócio e insights do time — Jira + Clockwork + Odoo.",
   "lang": "pt-BR",
   "start_url": "/?fonte=pwa",
   "scope": "/",

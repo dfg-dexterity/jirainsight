@@ -8,13 +8,14 @@
 import { readFileSync } from 'node:fs';
 
 const ARQ = 'public/js/05-novidades-roadmap.js';
-const src = readFileSync(ARQ, 'utf8');
+const srcNov = readFileSync(ARQ, 'utf8');
 const erros = [];
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 // Extrai o literal de `const NOME=<literal>;` respeitando aspas, crases e escapes
 // (os textos das novidades têm HTML, aspas e parênteses à vontade).
-function literalDe(nome) {
+function literalDe(nome, fonte) {
+  const src = fonte === undefined ? srcNov : fonte;
   const i = src.indexOf(`const ${nome}=`);
   if (i < 0) return null;
   let p = i + `const ${nome}=`.length;
@@ -105,6 +106,42 @@ if (Array.isArray(ROADMAP)) {
     vistos.add(chave);
   });
 }
+
+// --- 🧭 NAVEGAÇÃO POR PERFIL: o catálogo NAVCAT é a fonte de verdade (acordo de 2026-09-13) ---
+// Toda vista de VISTAS precisa estar no NAVCAT (senão não aparece na busca nem tem área); toda linha
+// do NAVCAT precisa apontar para uma área conhecida (AREAS) e para uma vista existente; todo
+// data-v do index.html precisa ser uma vista; e slug aposentado (VISTA_ALIAS) não pode continuar
+// em VISTAS nem no menu — é assim que os links antigos param de quebrar em silêncio.
+try {
+  const srcNav = readFileSync('public/js/26-navegacao.js', 'utf8');
+  const srcUrl = readFileSync('public/js/29-url-topo.js', 'utf8');
+  const srcNuc = readFileSync('public/js/01-nucleo.js', 'utf8');
+  const html = readFileSync('public/index.html', 'utf8');
+  const NAVCAT = literalDe('NAVCAT', srcNav) || [];
+  const VISTAS = literalDe('VISTAS', srcUrl) || [];
+  const ALIAS = literalDe('VISTA_ALIAS', srcUrl) || {};
+  const AREAS = literalDe('AREAS', srcNuc) || {};
+  const slugsCat = new Set(NAVCAT.map((c) => c[0]));
+  VISTAS.forEach((v) => { if (!slugsCat.has(v)) erros.push(`🧭 NAVCAT: a vista "${v}" (VISTAS) não está no catálogo de telas — acrescente a linha [slug, rótulo, área, palavras-chave] em 26-navegacao.js.`); });
+  NAVCAT.forEach((c, i) => {
+    if (!Array.isArray(c) || c.length < 4) { erros.push(`🧭 NAVCAT[${i}]: use [slug, rótulo, área, palavras-chave].`); return; }
+    if (!AREAS[c[2]]) erros.push(`🧭 NAVCAT "${c[0]}": área "${c[2]}" desconhecida — use uma das de AREAS (${Object.keys(AREAS).join(', ')}).`);
+    if (!String(c[0]).startsWith('acao:') && !VISTAS.includes(c[0])) erros.push(`🧭 NAVCAT "${c[0]}": não é uma vista de VISTAS (29-url-topo.js).`);
+    if (ALIAS[c[0]]) erros.push(`🧭 NAVCAT "${c[0]}": slug aposentado (VISTA_ALIAS) ainda no catálogo.`);
+  });
+  Object.keys(ALIAS).forEach((v) => {
+    if (VISTAS.includes(v)) erros.push(`🧭 VISTA_ALIAS "${v}": slug aposentado ainda está em VISTAS — tire de lá (o alias já leva para "${ALIAS[v].v}").`);
+    if (!VISTAS.includes(ALIAS[v].v)) erros.push(`🧭 VISTA_ALIAS "${v}" aponta para "${ALIAS[v].v}", que não existe em VISTAS.`);
+  });
+  const menu = html.slice(html.indexOf('id="seg-vista"'), html.indexOf('id="btn-paleta"'));
+  [...menu.matchAll(/data-v="([a-z]+)"/g)].map((m) => m[1]).forEach((v) => {
+    if (!VISTAS.includes(v)) erros.push(`🧭 index.html: o menu aponta para "${v}", que não é uma vista de VISTAS.`);
+  });
+  [...menu.matchAll(/data-area="([a-z]+)"/g)].map((m) => m[1]).forEach((a) => {
+    if (!AREAS[a]) erros.push(`🧭 index.html: grupo do menu com área "${a}" desconhecida (AREAS).`);
+  });
+  if (!erros.some((e) => e.startsWith('🧭'))) console.log(`Navegação: ✓ ${VISTAS.length} vistas · ${NAVCAT.length} entradas no catálogo · ${Object.keys(ALIAS).length} alias · áreas ${Object.keys(AREAS).join('/')}`);
+} catch (e) { erros.push(`🧭 Navegação: não consegui conferir NAVCAT × VISTAS × index.html (${e.message}).`); }
 
 console.log('Entrega (Novidades + Roadmap):');
 if (erros.length) {
