@@ -1819,7 +1819,25 @@
   .pc-card{border-left-color:var(--cerceta)} .pc-card.pc-avencer{border-left-color:#eb6834} .pc-card.pc-encerrado{border-left-color:var(--muted);opacity:.85} .pc-card.pc-futuro{border-left-color:#2a78d6}
   .badge.pc-st-vigente{background:rgba(24,137,24,.14);color:#188918} .badge.pc-st-avencer{background:rgba(235,104,52,.16);color:#B4400A} .badge.pc-st-encerrado{background:var(--hoverbg);color:var(--muted)} .badge.pc-st-futuro{background:rgba(42,120,214,.14);color:#2a78d6}
   .pc-form .pc-prev{margin-top:10px} .pc-cal{margin-top:10px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px}
-  .pc-card.pc-cal-aberto{grid-column:1/-1}
+  .pc-card.pc-cal-aberto,.pc-card.pc-aberto{grid-column:1/-1}
+  /* o cartão pode encolher (as tabelas das gavetas rolam dentro do .scroll-x, não empurram a página) */
+  .pc-card{min-width:0} .pc-card .ad-top{flex-wrap:wrap} .pc-card .scroll-x{max-width:100%}
+  /* 📂 documentos do contrato (pasta do SharePoint + arquivos) e as gavetas do cartão */
+  .pc-docs-l{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 2px}
+  .pc-doc{text-decoration:none;color:var(--cerceta);border-color:var(--linha2)}
+  .pc-doc:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  .pc-gav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .pc-gav .btn.on{border-color:var(--cerceta);color:var(--cerceta);background:var(--hoverbg)}
+  .pc-doc-tab td,.pc-doc-tab th{white-space:nowrap} .pc-doc-tab input{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  /* 👥 equipe e alocação do contrato: uma caixa por recurso, com os trechos, e a grade por período */
+  .pc-eq-add{margin:2px 0 10px}
+  .pc-eq-p{margin:0 0 10px;padding:8px 10px;border:1px solid var(--linha2);border-radius:10px;background:var(--cartao);min-width:0}
+  .pc-eq-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .pc-eq-tab td,.pc-eq-tab th,.pc-eq-grade td,.pc-eq-grade th{white-space:nowrap}
+  .pc-eq-tab input[type=date],.pc-eq-tab input[type=number],.pc-eq-tab select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .pc-rg-ded{display:inline-flex;gap:4px;align-items:center}
+  .pc-eq-grade tfoot td{border-top:2px solid var(--linha);font-weight:700}
+  @media (max-width:760px){ .pc-eq-p{padding:8px} .pc-eq-h{font-size:13px} }
   .pc-cal-tab td,.pc-cal-tab th{white-space:nowrap} .pc-cal-tab tr.pc-fora td{color:var(--muted)}
   .pc-cal-tab input[type=date]{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .rp-dados .dt{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px} .rp-dados .dd{font-weight:700}
