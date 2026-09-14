@@ -209,6 +209,17 @@ function renderConfig(){
         </div>
       </div>
 
+      <div class="card cfgc cfgc-perfis">
+        <h2>🧭 Perfis de navegação <span>Dexterity Hub · Entrega · Negócio · Insights</span></h2>
+        <div class="cfgc-sec">
+          <h3>Quem vê o quê na barra</h3>
+          <div class="muted small">O <strong>Dexterity Hub</strong> (Início, Apontar, Inbox, Prioridades, Meu trabalho, ➕ Novo) é de todos. As áreas <strong>Dexterity Entrega</strong> (gestor), <strong>Dexterity Negócio</strong> (negócio) e <strong>Dexterity Insights</strong> (diretoria) aparecem pelo papel de cada pessoa — <strong>lente, não permissão</strong>: toda tela continua abrindo por link e pelo Ctrl+K. Admin vê tudo. Sem papel marcado: quem aprova planejamentos (card ao lado) é gestor; o resto é consultor. Diretoria abre na Visão Geral; os demais em Ações de hoje.
+            ${id?`<br>Você (${esc(id.nome||id.email)}) está como <strong>${esc(papeisDe().map(p=>(PAPEIS.find(x=>x[0]===p)||[p,p])[1]).join(' + '))}</strong>.`:''}</div>
+          ${cfgPerfisTabela()}
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primario" id="cf-papeis-salvar">Salvar perfis</button><span class="muted small">Só gestores/admin salvam. Quem tem papel errado pode marcar "👓 Ver todas as áreas" em ⋯ Mais enquanto isso.</span></div>
+        </div>
+      </div>
+
       <div class="card cfgc">
         <h2>🎯 Prioridades do time</h2>
         <div class="cfgc-sec">
@@ -240,27 +251,12 @@ function renderConfig(){
 
       <div class="card cfgc">
         <h2>👥 Pessoas</h2>
-        <div class="cfgc-chips">${chip(nOc,'ocultas (externas)')}${chip(nPlanejadas,'planejadas 🔮')}${chip(nCusto,'com custo/h')}</div>
-        <div class="muted small">Usuários externos ocultos das visões (em Metas &amp; ausências), pessoas ainda não contratadas (planejamento 🔮) e o custo/hora de cada um (manual ou importado do Odoo).</div>
+        <div class="cfgc-chips">${chip(nOc,'ocultas (externas)')}${chip(nPlanejadas,'planejadas 🔮')}${chip(nCusto,'com custo/h')}${chip(nCat,'projetos com categoria')}${chip(nTravas,'travas antigas')}</div>
+        <div class="muted small">Usuários externos ocultos das visões (em Metas &amp; ausências) e o custo/hora de cada pessoa (manual ou importado do Odoo, na ⚙️ da 🏦 Controladoria). Vagas planejadas 🔮, categorias por projeto e travas eram cadastros da Alocação (macro), aposentada em 2026-09-13 — voltam com a aba Capacidade (🗺️ Roadmap); os dados continuam guardados.</div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="cf-abrir-metas-oc">Ocultar/reexibir pessoas</button>
-          <button class="btn" data-cf-aloc="acontratar">Pessoas planejadas 🔮</button>
-          <button class="btn" data-cf-aloc="relatorios">Custos por pessoa (R$/h)</button>
+          <button class="btn" data-goto="controladoria">Custos por pessoa (R$/h) →</button>
         </div>
-      </div>
-
-      <div class="card cfgc">
-        <h2>🧱 Projetos &amp; categorias</h2>
-        <div class="cfgc-chips">${chip(nCat,'projetos com categoria definida')}</div>
-        <div class="muted small">A categoria de cada projeto (faturável, interno, investimento…) usada na Alocação e nos relatórios — definida <strong>por projeto</strong>, numa tela própria.</div>
-        <div style="margin-top:10px"><button class="btn" data-cf-aloc="projetos">Abrir categorias por projeto</button></div>
-      </div>
-
-      <div class="card cfgc">
-        <h2>🔒 Travas de alocação</h2>
-        <div class="cfgc-chips">${chip(nTravas,'alocações travadas')}</div>
-        <div class="muted small">Alocações travadas por pessoa aguardam a <strong>aprovação do Diego</strong> para serem alteradas. A trava é aplicada na própria tela de Alocação.</div>
-        <div style="margin-top:10px"><button class="btn" data-cf-aloc="pessoa">Abrir Alocação</button></div>
       </div>
 
       <div class="card cfgc">
@@ -296,6 +292,21 @@ function renderConfig(){
     </div>
   </div>`));
 }
+// 🧭 Tabela pessoa × papel (gestor · negócio · diretoria · admin) para a Central de configurações.
+// Consultor é o padrão implícito (não se marca). Chaves de cfg.papeis: accountId; o campo extra aceita
+// e-mail=papeis para quem ainda não aparece na lista (ex.: diretoria que não aponta horas).
+function cfgPerfisTabela(){
+  const m=(cfg.papeis&&typeof cfg.papeis==='object')?cfg.papeis:{}; const u=pessoasUnidas(); const ocultos=new Set((cfg.ocultos||[]).map(o=>o&&o.a).filter(Boolean));
+  const pessoas=Object.entries(u).filter(([a,p])=>!ocultos.has(a)&&!RE_EXCLUIR.test((p&&p.nome)||'')).map(([a,p])=>({a,nome:(p&&p.nome)||a,email:String((p&&p.email)||'').toLowerCase()})).sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
+  const tem=(a,p)=>{ const v=m[a]; const arr=Array.isArray(v)?v:String(v||'').split(','); return arr.map(x=>String(x).trim().toLowerCase()).includes(p); };
+  const aprovador=(x)=>(cfg.gestores||[]).some(g=>{ const s=String((g&&(g.a||g.email))||g||'').trim().toLowerCase(); return s&&(s===String(x.a).toLowerCase()||(x.email&&s===x.email)); });
+  const cols=[['gestor','Gestor','Dexterity Entrega'],['negocio','Negócio','Dexterity Negócio'],['diretoria','Diretoria','Dexterity Insights'],['admin','Admin','tudo + Administração']];
+  const extras=Object.keys(m).filter(k=>!u[k]).map(k=>`${k}=${(Array.isArray(m[k])?m[k]:[m[k]]).join(',')}`);
+  return `<div class="scroll-x" style="margin-top:8px;max-height:360px;overflow:auto"><table class="mp-tab-mini cf-papeis"><thead><tr><th>Pessoa</th>${cols.map(c=>`<th class="num" data-tip="${escA(c[2])}">${esc(c[1])}</th>`).join('')}</tr></thead>
+    <tbody>${pessoas.map(p=>`<tr><td>${esc(p.nome)}${aprovador(p)?' <span class="muted small" data-tip="Está na lista de aprovadores do planejamento (vale como gestor mesmo sem marcar)">· aprovador</span>':''}</td>
+      ${cols.map(c=>`<td class="num"><input type="checkbox" data-cf-papel="${escA(p.a)}|${c[0]}" ${tem(p.a,c[0])?'checked':''} aria-label="${escA(p.nome+' · '+c[1])}"></td>`).join('')}</tr>`).join('')||'<tr><td colspan="5" class="mp-dim">Carregando as pessoas do Jira…</td></tr>'}</tbody></table></div>
+    <div class="campo" style="margin-top:8px"><label>Outras pessoas (e-mail=papéis, um por linha) <span class="muted">ex.: socio@dexterityit.com.br=diretoria,negocio</span></label><textarea id="cf-papeis-extra" class="pl-texto" style="min-height:56px" placeholder="email@dexterityit.com.br=diretoria">${esc(extras.join('\n'))}</textarea></div>`;
+}
 // Prévia dos envios ao Teams (?dry=1 gera o cartão sem enviar).
 async function testaTeams(resumo){
   const fb=document.getElementById('cf-fb');
@@ -319,11 +330,15 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     estado.ranking.scGran=t.getAttribute('data-sc-gran'); escondeTip(); renderRanking(); }
   else if(t.id==='cf-abrir-metas'||t.id==='cf-abrir-metas-oc'){ abreMetas(); }
   else if(t.id==='cf-abrir-log'){ abreLogAcoes(); }
-  else if(t.hasAttribute('data-cf-aloc')){ const v=t.getAttribute('data-cf-aloc');
-    estado.alocacao=estado.alocacao||{}; estado.alocacao.visao=v;
-    try{ if(typeof alocUISave==='function') alocUISave(); }catch(err){}
-    vaiPara('alocacao'); }
   else if(t.id==='cf-teste-rank'){ testaTeams(false); }
+  else if(t.id==='cf-papeis-salvar'){
+    if(!souAprovador()&&!temPapel('admin')){ toast('Só gestores ou admin do painel salvam os perfis.','warn'); return; }
+    const novo={}; document.querySelectorAll('[data-cf-papel]').forEach(cb=>{ if(!cb.checked) return; const [a,p]=cb.getAttribute('data-cf-papel').split('|'); (novo[a]=novo[a]||[]).push(p); });
+    const extra=((document.getElementById('cf-papeis-extra')||{}).value||'').split('\n').map(x=>x.trim()).filter(Boolean).slice(0,40);
+    extra.forEach(l=>{ const i2=l.indexOf('='); if(i2<=0) return; const k=l.slice(0,i2).trim().toLowerCase(); const ps=l.slice(i2+1).split(/[,\s]+/).map(x=>x.trim().toLowerCase()).filter(p=>PAPEIS.some(x=>x[0]===p)); if(k&&ps.length) novo[k]=[...new Set((novo[k]||[]).concat(ps))]; });
+    cfg.papeis=novo; salvaCfg();
+    const n=Object.keys(novo).length; toast(n?`✓ Perfis salvos para ${n} pessoa(s) — a barra de cada um muda no próximo carregamento.`:'Perfis esvaziados — vale a regra padrão (aprovadores = gestor; o resto = consultor).','ok');
+    renderConfig(); try{ aplicaLente(); }catch(e){} }
   else if(t.id==='cf-gestores-salvar'){
     const linhas=((document.getElementById('cf-gestores')||{}).value||'').split('\n')
       .map(x=>x.trim()).filter(Boolean).slice(0,30);

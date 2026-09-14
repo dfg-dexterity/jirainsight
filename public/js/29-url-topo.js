@@ -1,7 +1,14 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','alocacao','planejamento','admin','parcerias','config'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config'];
+// 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
+// favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
+const VISTA_ALIAS={
+  alocacao:{ v:'minhasemana', aviso:'🧑‍💼 A Alocação (macro) foi aposentada — o planejamento vive no 📋 Meu Planejamento; a capacidade volta como aba (🗺️ Roadmap).' },
+  planejamento:{ v:'minhasemana', aviso:'📅 O Planejamento macro foi aposentado — use o 📋 Meu Planejamento e os 📊 Relatórios do planejamento.' },
+};
+function vistaAlias(v){ const a=VISTA_ALIAS[v]; return a?a.v:v; }
 const TKGROUPS=['projeto','tipo','categoria','pessoa'];
 const APFILTROS=['todos','semhoras','vencidos','vencehoje','semvenc'];
 let _pendentesURL=null;
@@ -18,7 +25,10 @@ function leURL(){
   if(!busca || busca==='?'){ const sav=leFiltrosLS(); if(sav) busca='?'+sav; }
   const p=new URLSearchParams(busca);
   estado.periodo = PERIODOS.includes(p.get('p')) ? p.get('p') : '7d';
-  estado.vista   = VISTAS.includes(p.get('v')) ? p.get('v') : 'acoes';
+  let vURL=p.get('v')||''; const alias=VISTA_ALIAS[vURL];
+  if(alias){ vURL=alias.v; if(alias.aviso) setTimeout(()=>{ try{ toast(alias.aviso,'warn'); }catch(e){} },900); }
+  estado.vistaExplicita = VISTAS.includes(vURL);   // veio de link/última visão salva? senão a home do perfil pode ser refeita quando a config chegar
+  estado.vista   = VISTAS.includes(vURL) ? vURL : homePadrao();   // sem ?v= válido: a home do perfil (ou a escolhida em ⋯ Mais)
   estado.tkGroup = TKGROUPS.includes(p.get('g')) ? p.get('g') : '';
   const ap=estado.apontar;
   ap.ate = /^\d{4}-\d{2}-\d{2}$/.test(p.get('ate')||'') ? p.get('ate') : '';

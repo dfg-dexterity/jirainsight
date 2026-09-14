@@ -1,9 +1,15 @@
-# Dexterity · Insights de Uso (Jira + Clockwork)
+# Dexterity Hub (antes "Insights de Uso") · Jira + Clockwork + Odoo
 
-Painel interno que dá visibilidade ao time sobre o uso do Jira: horas apontadas
-(Clockwork) e atividade (tickets tocados, alterações, transições, comentários, criações)
-por pessoa, com filtros por categoria de projeto, projeto e tipo, e recorte faturável
-vs. não-faturável. Janelas: hoje, 7 dias e 30 dias.
+Painel interno da Dexterity IT que nasceu para agilizar o **apontamento de horas** do time
+(Jira + Clockwork) e virou o workspace de gestão da empresa. Desde **2026-09-13** a navegação é
+**por perfil**: o **Dexterity Hub** é o conteúdo genérico, para todos (Início, ⏱ Apontar, 📥 Inbox,
+🎯 Prioridades, 👤 Meu trabalho, ➕ Novo); as áreas **Dexterity Entrega** (gestores de entrega/PMs),
+**Dexterity Negócio** (comercial, financeiro, controladoria) e **Dexterity Insights** (diretoria e
+governança) aparecem pela **lente do perfil** de cada pessoa (`cfg.papeis`, editado na Central de
+configurações) — lente, nunca permissão: toda tela continua abrindo por link e pelo Ctrl+K. O
+catálogo de telas (`NAVCAT` em `public/js/26-navegacao.js`) é a fonte de verdade da barra, da paleta
+e do gate `npm run check`; slugs aposentados viram alias (`VISTA_ALIAS`) para os links antigos
+não quebrarem.
 
 ## Como funciona (arquitetura)
 

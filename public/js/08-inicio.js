@@ -784,20 +784,48 @@ function renderAcoes(){
       <button class="btn" data-rad-rateio="${escA(radKeys.slice(0,100).join(','))}" data-tip="Leva esta combinação para o ➗ Rateio: divida horas ou mude o status em conjunto">➗ Enviar para o Rateio</button>
     </div>`:''}
   </div>`;
-  // ---- 🚀 atalhos descritivos ----
+  // ---- 🚀 atalhos por área (só as áreas do seu perfil, como a barra — lente, não permissão) ----
   const ATALHOS=[
-    ['prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
-    ['minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
-    ['apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
-    ['agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
-    ['projetos','📁 Projetos','BI por projeto direto do Jira, com drill-down'],
-    ['alocacao','🧑‍💼 Alocação (macro)','capacidade por período + validação e desvio semanal'],
-    ['analytics','📈 Analytics','26 visões de governança para investigar'],
-    ['gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],
-    ['roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
-  ];
-  const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas — busca completa no 🔍 (Ctrl+K)</span></h2>
-    <div class="hx-atalhos">${ATALHOS.map(([v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span></div>`).join('')}</div></div>`;
+    ['hub','prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
+    ['hub','minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
+    ['hub','apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
+    ['hub','agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
+    ['entrega','projetos','📁 Projetos','BI por projeto direto do Jira, com drill-down e cronograma'],
+    ['entrega','gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],
+    ['entrega','alertas','🚨 Alertas','atrasados e críticos com reprogramação em lote'],
+    ['negocio','rentab','💹 Rentabilidade','planos, cenários, períodos de faturamento e Odoo'],
+    ['negocio','parcerias','🤝 Contratos de parceria','modalidade, validade, faturamento e conta'],
+    ['insights','relatorios','📚 Central de Relatórios','o catálogo R01–R27 por tipo de projeto'],
+    ['insights','analytics','📈 Analytics','26 visões de governança para investigar'],
+    ['mais','roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
+  ].filter(x=>areaVisivel(x[0]));
+  const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas do seu perfil — busca completa no 🔍 (Ctrl+K)</span></h2>
+    <div class="hx-atalhos">${ATALHOS.map(([a,v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span><span class="hx-area">${esc((AREAS[a]&&AREAS[a].rot)||'')}</span></div>`).join('')}</div></div>`;
+  // ---- 📆 Fechamento do mês (Dexterity Negócio): o que pede ação de quem fatura — contratos de parceria no
+  // período de aviso, notas a emitir (períodos de faturamento dos planos de horas sem fatura no Odoo) e
+  // ciclos AMS fechando. Cards, não tela nova: vira tela só se provar uso (🗺️ Roadmap). ----
+  let cardFech='';
+  if(temPapel('negocio')||temPapel('admin')){
+    const somaDias=(s,n)=>{ const [y,m,d]=String(s).split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); };
+    const aviso=pcLista().map(c=>({c,s:pcStatus(c)})).filter(x=>x.s.k==='avencer');
+    const notas=[]; rpPlanos().filter(p=>rpTipo(p)==='horas').forEach(p=>{ let per=[]; try{ per=rpPeriodosFat(p); }catch(e){ per=[]; } const its=rpOdooItens(p,per);
+      per.forEach((P,i)=>{ if(!(P.horas>0)||P.nota<somaDias(hoje,-31)||P.nota>somaDias(hoje,15)) return; const st=rpOdooStatusItem(p,its[i]); if(st.k==='faturado'||st.k==='pago') return;
+        notas.push({ p, P, st, atrasada:P.nota<hoje }); }); });
+    notas.sort((a,b)=>a.P.nota.localeCompare(b.P.nota));
+    const ciclos=(cfg.contratos||[]).filter(c=>c&&c.tipo==='ams'&&(c.projetos||[]).length).map(c=>({c,cyc:amsCicloVigente(c,hoje)})).filter(x=>x.cyc.end>=hoje&&x.cyc.end<=somaDias(hoje,10));
+    const n=aviso.length+notas.length+ciclos.length;
+    const linha=(ic,txt,goto,extra,cls)=>`<div class="fx-row ${cls||''}"><span>${ic}</span><span class="fx-txt">${txt}</span><span class="spacer"></span><button class="btn" ${goto}>${extra||'Abrir →'}</button></div>`;
+    cardFech=`<div class="card full fx-card" style="margin-top:14px"><h2>📆 Fechamento do mês <span>Dexterity Negócio · ${n?`${n} item(ns) pedem ação`:'nada pendente agora'}</span></h2>
+      <div class="fx-lista">
+        ${aviso.map(x=>linha('🤝',`<b>${esc(x.c.consultoria||'')}</b> vence em ${dataBR(x.c.fim)} — aviso prévio ${x.s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(x.s.avisoAte)}${x.s.avisoPassou?'</span>':''}`,'data-hx-goto="parcerias"','Contratos →',x.s.avisoPassou?'crit':'aten')).join('')}
+        ${notas.slice(0,8).map(x=>linha('🧾',`<b>${esc(x.p.nome||x.p.projeto||'')}</b> · período ${dataBR(x.P.iniPlano)} → ${dataBR(x.P.fimPlano)} · nota ${dataBR(x.P.nota)} · ${fmtBRL(x.P.valor)} <span class="muted small">${esc(x.st.k==='sem'?'sem ordem de venda no Odoo':x.st.rot)}</span>`,`data-hx-plano="${escA(x.p.id)}"`,x.atrasada?'Nota atrasada →':'Ver plano →',x.atrasada?'crit':'')).join('')}
+        ${notas.length>8?`<div class="muted small">+ ${notas.length-8} período(s) — veja na 💹 Rentabilidade.</div>`:''}
+        ${ciclos.map(x=>linha('🛡️',`<b>${esc(x.c.cliente||'')}</b> · ciclo ${esc(amsLabelCiclo(x.cyc))} fecha em ${dataBR(x.cyc.end)} — apurar e marcar como faturado`,'data-hx-goto="ams"','AMS →','aten')).join('')}
+        ${n?'':'<div class="muted small">Nenhum contrato de parceria no período de aviso, nenhuma nota a emitir nos próximos 15 dias e nenhum ciclo AMS fechando em 10 dias.</div>'}
+      </div>
+      <div class="muted small" style="margin-top:8px">Notas: períodos de faturamento dos planos de horas abertas (💹 Rentabilidade) com data da nota entre 31 dias atrás e 15 dias à frente e ainda sem fatura no Odoo. Contratos: 🤝 Contratos de parceria. Ciclos: contratos AMS do Admin.</div>
+    </div>`;
+  }
   // ⏱ Apontamento do time — o card mais importante da Início: quem já lançou as
   // horas de HOJE e como está a SEMANA de cada pessoa (segunda → hoje).
   if(!ax.sem && !ax.semCarr && !ax.semErro) axCarregaSemana();
@@ -866,6 +894,7 @@ function renderAcoes(){
     ${cardTicket}
     ${cardsNovos}
     ${cardVenc}
+    ${cardFech}
     ${cardRadar}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
@@ -878,6 +907,7 @@ function renderAcoes(){
 }
 // Cliques da home (hero pessoal + atalhos)
 document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const pl=e.target.closest&&e.target.closest('[data-hx-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-hx-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }   // 📆 Fechamento do mês → plano
   const t=e.target.closest&&e.target.closest('[data-hx-goto]'); if(!t) return;
   const g=t.getAttribute('data-hx-goto');
   if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }

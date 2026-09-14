@@ -103,9 +103,9 @@ document.addEventListener('click', (e)=>{
   // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
   if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
 });
-// Logo no canto superior esquerdo volta para o início (Resumo).
-document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara('acoes'); });
-document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); dxLogoEntra(); vaiPara('acoes'); } });
+// Logo no canto superior esquerdo volta para a home do perfil (Ações de hoje; diretoria → Visão Geral; ou a tela escolhida em ⋯ Mais).
+document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara(homePadrao()); });
+document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); dxLogoEntra(); vaiPara(homePadrao()); } });
 
 // ===========================================================================
 // 🌀 MARCA DEXTERITY ANIMADA (cabeçalho) — a logo com movimento, com função:
@@ -436,6 +436,8 @@ sincronizaControlesURL();
   try{ document.getElementById('conteudo').innerHTML=skeletonPainel(); }catch(e){}
   prefetchDados(estado.periodo);
   await carregaCfgRemota();
+  // 🧭 Sem ?v= na URL, a home é a do PERFIL — e os papéis vêm da config compartilhada, que só chegou agora.
+  if(!estado.vistaExplicita){ try{ const h=homePadrao(); if(h!==estado.vista){ estado.vista=h; marcaVista(h); } }catch(e){} }
   recarrega();
 })();
 if(idApontar()) carregaInbox();   // selos já no carregamento: convites (Apontar/Operação) + pendências (📥 Inbox)

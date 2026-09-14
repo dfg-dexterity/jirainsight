@@ -234,8 +234,8 @@ function inboxPend(){
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
-  // Selo no item 📥 Inbox E no cabeçalho do grupo 👤 Meu trabalho (dropdown fechado).
-  [document.querySelector('#seg-vista [data-v="inbox"]'), document.getElementById('navg-op-b')].forEach(elx=>{
+  // Selo no item 📥 Inbox (fixo na barra desde a navegação por perfil — o único selo numérico do Hub).
+  [document.querySelector('#seg-vista [data-v="inbox"]')].forEach(elx=>{
     if(!elx) return; let b=elx.querySelector('.tab-badge');
     if(n>0){ if(!b){ b=document.createElement('span'); b.className='tab-badge'; elx.appendChild(b); }
       b.textContent=n; b.title=n+' pendência(s) aguardando você'; }
@@ -365,16 +365,17 @@ function renderInbox(){
       </div>`; }).join('')}</div>
   </div>`:'';
 
-  // 🔒 Aprovações de alocação — só aparece para o aprovador e quando há pendências.
+  // 🔒 Aprovações de alocação — só para o aprovador e quando há pendências. A tela de Alocação (macro)
+  // foi aposentada em 2026-09-13: as travas antigas ficam listadas (dados preservados) sem botão de abrir.
   const secApr=(souAprovador()&&aprs.length)?`<div class="card full">
-    <h2>🔒 Alocações aguardando sua aprovação <span>travadas até você aprovar ou recusar</span></h2>
+    <h2>🔒 Alocações travadas (Alocação macro, aposentada) <span>ficam registradas até a capacidade voltar como aba do planejamento</span></h2>
     <div class="cv-lista">${aprs.map(p=>`
       <div class="cv-row">
         <strong>${esc(p.nome)}</strong>
         <span class="badge" data-tip="Quem travou">por ${esc(p.por||'?')}</span>
         ${p.quando?`<span class="badge">${esc(alxDataBR(p.quando))}</span>`:''}
         <span class="spacer"></span>
-        <button class="btn primario" data-goto="alocacao">Abrir Alocação →</button>
+        <button class="btn" data-goto="roadmap">🗺️ Roadmap</button>
       </div>`).join('')}</div>
   </div>`:'';
 

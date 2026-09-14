@@ -27,47 +27,48 @@ function abreAjuda(){
       acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
-    <details class="help-sec"><summary>TODAS as telas (por grupo do menu — clique para abrir)</summary><div class="help-body"><ul>
-      <li><span class="lnk" data-aj-goto="acoes"><b>🏠 Início — Ações de hoje</b></span> — a página principal: SEU dia num relance (horas × meta, vencidos, plano da semana, reuniões sem ticket, Inbox), ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀.<button class="aj-g" data-aj-guia="acoes">🧭 guia</button></li>
-      <li><span class="lnk" data-aj-goto="visao"><b>📊 Visão Geral</b></span> — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe.<button class="aj-g" data-aj-guia="visao">🧭 guia</button></li>
-      <li><b>👤 Meu trabalho:</b></li>
-      <li>· <span class="lnk" data-aj-goto="minhasemana"><b>📋 Meu Planejamento</b></span> — planeje a semana por atividade (data + projeto + horas, sem tickets), envie ao gestor e compare planejado × realizado.<button class="aj-g" data-aj-guia="minhasemana">🧭 guia</button></li>
+    <details class="help-sec"><summary>TODAS as telas (por área do Dexterity Hub — clique para abrir)</summary><div class="help-body">
+      <div class="muted small">Desde 2026-09-13 o app é o <b>Dexterity Hub</b>: o conteúdo genérico (para todos) fica fixo na barra e as áreas <b>Dexterity Entrega</b>, <b>Dexterity Negócio</b> e <b>Dexterity Insights</b> aparecem pelo seu perfil (lente, não permissão — tudo abre pelo 🔍 Ctrl+K ou por link; em ⋯ Mais dá para "ver todas as áreas").</div><ul>
+      <li><b>Dexterity Hub — para todos:</b></li>
+      <li>· <span class="lnk" data-aj-goto="acoes"><b>🏠 Início — Ações de hoje</b></span> — a página principal: SEU dia num relance (horas × meta, vencidos, plano da semana, reuniões sem ticket, Inbox), ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀; perfil negócio ganha o 📆 Fechamento do mês.<button class="aj-g" data-aj-guia="acoes">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="apontar"><b>⏱ Apontar</b></span> — horas, status, vencimento, comentários, transferências, reuniões em grupo e os 🕑 recentes com reaponte de 1 clique.<button class="aj-g" data-aj-guia="apontar">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="prioridades"><b>🎯 Prioridades do time</b></span> — as prioridades da semana, o Modo reunião e a página do projeto.<button class="aj-g" data-aj-guia="prioridades">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="minhasemana"><b>📋 Meu Planejamento</b></span> — planeje a semana por atividade (data + projeto + horas, sem tickets), envie ao gestor e compare planejado × realizado.<button class="aj-g" data-aj-guia="minhasemana">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="agenda"><b>📅 Agenda</b></span> — eventos do Outlook viram ticket de reunião (projeto à escolha ou vínculo), com convites de apontamento ao time interno e o painel 🎫 Controle de tickets (quem cria, criado ou pendente — conferido no Jira — e 📨 aviso pelo Inbox).<button class="aj-g" data-aj-guia="agenda">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="inbox"><b>📥 Inbox</b></span> — convites, menções, reuniões sem ticket e aprovações que dependem de você (o selo vermelho soma tudo).<button class="aj-g" data-aj-guia="inbox">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="mencoes"><b>💬 Menções</b></span> — responda onde foi @marcado, com anexos e @marcações, sem ir ao Jira.<button class="aj-g" data-aj-guia="mencoes">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="meutempo"><b>⏳ Como estou gastando meu tempo?</b></span> — todo o seu histórico de apontamentos no período em gráficos (hora do dia, dia da semana, tipo, projeto, épico, tickets, colaboração, o que os comentários dizem), uma nota de qualidade dos dados e a análise por IA com recomendações.<button class="aj-g" data-aj-guia="meutempo">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="meudia"><b>📍 Meu dia</b></span> — timetracking assistido (beta): sugestões de apontamento por IA a partir do uso do computador.<button class="aj-g" data-aj-guia="meudia">🧭 guia</button></li>
-      <li><b>Planejamento:</b></li>
-      <li>· <span class="lnk" data-aj-goto="alocacao"><b>🧑‍💼 Alocação (macro)</b></span> — board por pessoa (função + % capacidade), Gantt, 📆 Semanas (trava semanal + aprovação dos planos), skills, vagas 🔮, relatórios com custo e simulação.<button class="aj-g" data-aj-guia="alocacao">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="planejamento"><b>📅 Planejamento macro</b></span> — esforço por função (fases = épicos) com planejado × realizado e valor.<button class="aj-g" data-aj-guia="planejamento">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="planejar"><b>📝 Criação de Ticket</b></span> — tickets em lote (ou colando do Excel), dentro de épicos, com padrões e templates; 📐 colar estrutura Épico → História → Task e edição em massa de data/responsável.<button class="aj-g" data-aj-guia="planejar">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="planejar"><b>📝 Criar ticket</b></span> (também no botão ➕ Novo) — tickets em lote (ou colando do Excel), dentro de épicos, com padrões e templates; 📐 colar estrutura Épico → História → Task e edição em massa de data/responsável.<button class="aj-g" data-aj-guia="planejar">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="ondecrio"><b>🌳 Onde crio o ticket?</b></span> — a árvore de decisão da governança cria o ticket no projeto certo (também na página inicial).<button class="aj-g" data-aj-guia="ondecrio">🧭 guia</button></li>
-      <li><b>Análise:</b></li>
+      <li><b>Dexterity Entrega — gestores de entrega e PMs:</b></li>
       <li>· <span class="lnk" data-aj-goto="projetos"><b>📁 Projetos</b></span> — BI por projeto direto do Jira, com drill-down total.<button class="aj-g" data-aj-guia="projetos">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="cronograma"><b>📅 Marcos e Cronograma</b></span> — o R04 da Central: os épicos do projeto num cronograma em cascata (Gantt) com planejado × real, marcos, previsão pelo ritmo, dependências e a evolução de cada épico.<button class="aj-g" data-aj-guia="cronograma">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="resumo"><b>Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.<button class="aj-g" data-aj-guia="resumo">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="timesheet"><b>Timesheet</b></span> — pessoa × dia com lacunas até a meta; ⬇ exporta em vários recortes.<button class="aj-g" data-aj-guia="timesheet">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="ranking"><b>Ranking</b></span> — cumprimento de apontamento por semana/mês/ano, com 🏆 pódio, ⭐ estrelinhas de meta batida e 🔥 sequências; + engajamento por pessoa.<button class="aj-g" data-aj-guia="ranking">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="tickets"><b>Tickets</b></span> — issues do período (horas + atividade), agrupáveis.<button class="aj-g" data-aj-guia="tickets">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="ranking"><b>🏆 Ranking</b></span> — cumprimento de apontamento por semana/mês/ano, com 🏆 pódio, ⭐ estrelinhas de meta batida e 🔥 sequências; + engajamento por pessoa.<button class="aj-g" data-aj-guia="ranking">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="tickets"><b>Tickets do período</b></span> — issues do período (horas + atividade), agrupáveis.<button class="aj-g" data-aj-guia="tickets">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="qualidade"><b>🔎 Qualidade (IA)</b></span> — auditoria dos tickets criados vs. boas práticas TI-04-006 (nota + ações).<button class="aj-g" data-aj-guia="qualidade">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="audit"><b>🕵️ Auditoria de Tickets</b></span> — validações TI-04-014 por pessoa, com drill-down.<button class="aj-g" data-aj-guia="audit">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.<button class="aj-g" data-aj-guia="analytics">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="relatorios"><b>📚 Central de Relatórios</b></span> — o catálogo oficial (R01–R27) numa matriz relatório × tipo de projeto (O essencial · R recomendado · – não se aplica), com o link para a tela que entrega cada um; gestores ajustam a matriz.<button class="aj-g" data-aj-guia="relatorios">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="metricas"><b>📈 Métricas por tipo de projeto</b></span> — para cada tipo (DEA, DEF, PEA, PEF, AMS, ARQ, IMI, IPA, ITPR) as métricas que interessam: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, custo administrativo, backlog em horas e R$, custo por épico/departamento, carga do planejamento — tudo com drill até o ticket.<button class="aj-g" data-aj-guia="metricas">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.<button class="aj-g" data-aj-guia="roadmap">🧭 guia</button></li>
-      <li><b>Gestão:</b></li>
       <li>· <span class="lnk" data-aj-goto="gestao"><b>🛠 Gestão de Tickets</b></span> — seleção múltipla + ações em massa (atribuir, status, comentar, reprogramar, mover, épicos, duplicados, excluir).<button class="aj-g" data-aj-guia="gestao">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="alertas"><b>🚨 Alertas</b></span> — atrasados/críticos com reprogramação justificada em lote.<button class="aj-g" data-aj-guia="alertas">🧭 guia</button></li>
       <li>· <b>🗂 Reuniões</b> — tela unificada: <span class="lnk" data-aj-goto="reclassificar"><b>Reclassificar</b></span> (mover reuniões do RDF para o projeto certo) e <span class="lnk" data-aj-goto="reuvinc"><b>Vincular a tickets</b></span> (registro em AMS ou 🔁 transferir QUALQUER ticket pelo número).<button class="aj-g" data-aj-guia="reclassificar">🧭 guia — reclassificar</button><button class="aj-g" data-aj-guia="reuvinc">🧭 guia — vincular</button></li>
-      <li>· <span class="lnk" data-aj-goto="ams"><b>AMS</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.<button class="aj-g" data-aj-guia="ams">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="planrel"><b>📊 Relatórios do planejamento</b></span> — planejado × realizado do time: visão executiva, por gestor e por projetos (a "minha visão" fica em Meu trabalho).<button class="aj-g" data-aj-guia="planrel">🧭 guia</button></li>
+      <li><b>Dexterity Negócio — comercial, financeiro e controladoria:</b></li>
+      <li>· <span class="lnk" data-aj-goto="admin"><b>🏢 Contratos — clientes</b></span> — cadastro de clientes/contratos (AMS, bolsa de horas, projeto; base do AMS e da Receita).<button class="aj-g" data-aj-guia="admin">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="parcerias"><b>🤝 Contratos de parceria</b></span> — as consultorias que contratam a Dexterity: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="ams"><b>🛡️ AMS</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.<button class="aj-g" data-aj-guia="ams">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="receita"><b>💰 Receita</b></span> — bolsa de horas e projetos (consumo × contratado + projeção).<button class="aj-g" data-aj-guia="receita">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="rentab"><b>💹 Rentabilidade de projetos</b></span> — receita por tipo de projeto: horas abertas (🤝 contrato de parceria, início, fim, horas por dia e valor da hora → receita prevista por mês e por <b>período de faturamento</b>, ordem de venda no Odoo com um item por período e a sincronização do que foi faturado/pago), escopo fechado (valor do projeto e marcos de faturamento) e internos (orçamento de custo consumido pela alocação); aloque as pessoas por <b>% do dia e período de datas</b> (feriados descontados), simule cenários, compare com o realizado e veja o <b>histórico</b> de quem mudou o quê; custo sempre = horas × custo/h de cada pessoa.<button class="aj-g" data-aj-guia="rentab">🧭 guia</button></li>
-      <li><b>Configurações:</b></li>
-      <li>· <span class="lnk" data-aj-goto="config"><b>⚙️ Central de configurações</b></span> — todos os ajustes num lugar só.<button class="aj-g" data-aj-guia="config">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="admin"><b>Contratos (Admin)</b></span> — cadastro de clientes/contratos (base do AMS/Receita).<button class="aj-g" data-aj-guia="admin">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="parcerias"><b>🤝 Contratos de parceria</b></span> — as consultorias que contratam a Dexterity: modalidade (horas abertas, AMS, demanda fechada), validade e período de aviso, valor-hora negociada, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês no calendário) e a conta de recebimento — a base dos períodos de faturamento da 💹 Rentabilidade.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
-      <li>· <b>🎯 Metas & ausências</b> e <b>🗒 Histórico de ações</b> — no menu Configurações (metas, feriados, ausências e a auditoria do que o time fez pelo painel).</li>
+      <li><b>Dexterity Insights — diretoria e governança:</b></li>
+      <li>· <span class="lnk" data-aj-goto="visao"><b>📊 Visão Geral</b></span> — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade — cada bloco leva ao detalhe; é a tela inicial da diretoria.<button class="aj-g" data-aj-guia="visao">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="resumo"><b>Resumo</b></span> — KPIs, faturável, top projetos e o resumo por IA.<button class="aj-g" data-aj-guia="resumo">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="relatorios"><b>📚 Central de Relatórios</b></span> — o catálogo oficial (R01–R27) numa matriz relatório × tipo de projeto (O essencial · R recomendado · – não se aplica), com o link para a tela que entrega cada um; gestores ajustam a matriz.<button class="aj-g" data-aj-guia="relatorios">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="analytics"><b>📈 Analytics</b></span> — 26 visões de governança; cada achado abre na Gestão para agir.<button class="aj-g" data-aj-guia="analytics">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="metricas"><b>📈 Métricas por tipo de projeto</b></span> — para cada tipo (DEA, DEF, PEA, PEF, AMS, ARQ, IMI, IPA, ITPR) as métricas que interessam: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, custo administrativo, backlog em horas e R$, custo por épico/departamento, carga do planejamento — tudo com drill até o ticket.<button class="aj-g" data-aj-guia="metricas">🧭 guia</button></li>
+      <li><b>⋯ Mais e Administração:</b></li>
+      <li>· <span class="lnk" data-aj-goto="config"><b>⚙️ Central de configurações</b></span> — todos os ajustes num lugar só, inclusive os 🧭 perfis de navegação (quem vê Dexterity Entrega, Negócio e Insights).<button class="aj-g" data-aj-guia="config">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="roadmap"><b>🗺️ Roadmap</b></span> — o que está chegando na ferramenta.<button class="aj-g" data-aj-guia="roadmap">🧭 guia</button></li>
+      <li>· <b>🎯 Metas & ausências</b>, <b>🗒 Histórico de ações</b>, <b>🏠 Usar esta tela como inicial</b> e <b>👓 Ver todas as áreas</b> — em ⋯ Mais.</li>
     </ul></div></details>
     <details class="help-sec"><summary>Apontar horas e mover status</summary><div class="help-body">
       Na aba <b>⏱ Apontar</b>: identifique-se uma vez (e-mail + token de API do Jira). Filtre pelos cards do topo
@@ -183,21 +184,12 @@ function abreAjuda(){
       do projeto. Nos dois casos dá para registrar a duração como <b>seu apontamento</b> no destino e, ao confirmar,
       a <b>reunião é excluída</b> — os detalhes (data, relator, horas por pessoa, descrição) ficam gravados no destino.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="reuvinc">🧭 ver na tela (guia interativo)</button></div></div></details>
-    <details class="help-sec"><summary>Alocação (resource planning)</summary><div class="help-body">
-      Em <b>Planejamento › 🧑‍💼 Alocação</b>: no <b>Planejamento por pessoa</b> (embaixo), adicione a pessoa,
-      os projetos dela e o <b>% da capacidade</b> em cada um — tudo inline, <b>salva sozinho</b>. Em cima, as visões:
-      <b>Por Pessoa</b> (utilização semana/mês; capacidade desconta fins de semana, feriados e ausências),
-      <b>Linha do tempo</b> (Gantt: <b>arraste para mover</b>, puxe as bordas para redimensionar, botão “→ hoje”),
-      <b>Por Projeto</b> (equipe + planejado × apontado), <b>Empresa</b> (faturável × não faturável),
-      <b>Por Skill</b> (capacidade × demanda por competência, com cadastro de skills) e <b>Simulação</b>
-      (cenários “e se…” que não tocam nos dados + busca <b>“quem cabe?”</b> por folga).
-    <div style="margin-top:8px"><button class="aj-g" data-aj-guia="alocacao">🧭 ver na tela (guia interativo)</button></div></div></details>
-    <details class="help-sec"><summary>Planejamento macro (planejado × realizado)</summary><div class="help-body">
-      Em <b>Planejamento › 📅 Planejamento macro</b>: monte o plano de esforço do projeto <b>por função</b>
-      (Implementação usa as <b>fases = épicos do Jira</b>; AMS/interno usa o projeto inteiro), com horas, período e
-      % por função (pode passar de 100%). Atribuindo <b>pessoas às funções</b> e clicando <b>Calcular realizado</b>,
-      o painel soma as tarefas dos épicos no período e mostra <b>Planejado × Realizado · Aderência · Saldo</b>.
-    <div style="margin-top:8px"><button class="aj-g" data-aj-guia="planejamento">🧭 ver na tela (guia interativo)</button></div></div></details>
+    <details class="help-sec"><summary>Onde foram parar a Alocação (macro) e o Planejamento macro?</summary><div class="help-body">
+      As duas telas foram <b>aposentadas em 2026-09-13</b> (estavam fora do ar desde 2026-08-17). O planejamento
+      do time vive no <b>📋 Meu Planejamento</b> (semana por atividade, aprovação do gestor) e nos
+      <b>📊 Relatórios do planejamento</b>; a capacidade por período volta como aba do planejamento quando for
+      reformulada — acompanhe no 🗺️ Roadmap. Links antigos (<code>?v=alocacao</code>, <code>?v=planejamento</code>)
+      continuam abrindo: levam ao Meu Planejamento com um aviso.</div></details>
     <details class="help-sec"><summary>Resumo das atividades por IA</summary><div class="help-body">
       Na aba <b>Resumo</b>, o card <b>🧠 Resumo das atividades (IA)</b> gera, sob demanda, uma análise
       em texto de <b>cada pessoa</b> no período: cadência de apontamento (horas, média por dia útil, dias sem
@@ -330,19 +322,19 @@ async function enviaFeedback(){
 
 // ---- Tour guiado (coach marks) ----
 const TOUR=[
-  {sel:'.brand',titulo:'Bem-vindo! 👋',texto:'Este é o Insights de Uso — cruza o Jira (atividade, tickets, status) com o Clockwork (horas) para análise, operação do dia a dia e planejamento do time. Clicar no logo volta ao início.'},
-  {sel:'#seg-vista [data-v="acoes"]',titulo:'🏠 Início',texto:'A página principal: SEU dia num relance (horas de hoje, vencidos, plano da semana, reuniões sem ticket, Inbox) + as ações do time — tudo clicável. A 📊 Visão Geral segue ao lado para a análise executiva completa.'},
-  {sel:'#navg-op-b',titulo:'👤 Meu trabalho',texto:'Tudo que é SEU dia a dia: 📋 Meu Planejamento (planeje a semana por atividade e envie para aprovação), ⏱ Apontar (horas, status, vencimento), 📅 Agenda (Outlook → ticket de reunião), 📥 Inbox (pendências que dependem de você), 💬 Menções e 📍 Meu dia. O selo vermelho soma suas pendências.'},
-  {sel:'#navg-pl-b',titulo:'Planejamento',texto:'🧑‍💼 Alocação (resource planning: board por pessoa, visão 📆 Semanas com trava do planejado, linha do tempo, empresa/skill e simulação "e se…"); 📅 Planejamento macro (fases = épicos do Jira, planejado × realizado por função); 📝 Criação de Ticket (tickets em lote).'},
-  {sel:'#navg-an-b',titulo:'Análise',texto:'📁 Projetos (BI por projeto), Resumo (KPIs e resumo por IA), Timesheet (pessoa × dia), Ranking, Tickets, Qualidade (IA), 🕵️ Auditoria e 📈 Analytics (26 visões de governança).'},
-  {sel:'#navg-ge-b',titulo:'Gestão',texto:'🛠 Gestão de Tickets (ações em massa), 🚨 Alertas (atrasados com reprogramação justificada), 🗂 Reuniões (gestão e reclassificação: mover de projeto ou vincular a tickets de AMS numa tela só), AMS (apuração por ciclo, com PDF) e 💰 Receita (bolsa de horas e projetos).'},
-  {sel:'#navg-cfg-b',titulo:'Configurações',texto:'⚙️ Contratos (Admin — base do AMS/Receita e do risco de faturamento), 🎯 Metas & ausências (meta de horas, feriados e usuários a ocultar) e 🗒 Histórico de ações (auditoria do que o time fez pelo painel).'},
+  {sel:'.brand',titulo:'Bem-vindo ao Dexterity Hub! 👋',texto:'O Dexterity Hub (antes "Insights de Uso") cruza o Jira (atividade, tickets, status), o Clockwork (horas) e o Odoo (vendas, faturas, folgas) para o dia a dia do time e a gestão da empresa. A barra tem o conteúdo de todos (o Hub) e as áreas do seu perfil: Dexterity Entrega, Negócio e Insights. Clicar no logo volta à sua tela inicial.'},
+  {sel:'#seg-vista [data-v="acoes"]',titulo:'🏠 Início',texto:'A página principal: SEU dia num relance (horas de hoje, vencidos, plano da semana, reuniões sem ticket, Inbox) + as ações do time — tudo clicável. ⏱ Apontar e 📥 Inbox ficam fixos ao lado, para todo mundo.'},
+  {sel:'#navg-op-b',titulo:'👤 Meu trabalho (Dexterity Hub)',texto:'Tudo que é SEU dia a dia: 📋 Meu Planejamento (planeje a semana por atividade e envie para aprovação), 📅 Agenda (Outlook → ticket de reunião), ➗ Rateio, 📍 Meu dia, 💬 Menções, ⏳ Meu tempo e 📝 Criar ticket. É a parte do app que todo perfil vê.'},
+  {sel:'#navg-en-b',titulo:'Dexterity Entrega',texto:'A área dos gestores de entrega e PMs: 🚨 Alertas, 🛠 Gestão de Tickets (com Tickets do período, Qualidade IA e Auditoria), 🗂 Reuniões, 📁 Projetos (com o 📅 Cronograma), Timesheet (com o 🏆 Ranking) e 📊 Relatórios do planejamento. Aparece pelo seu perfil.', se:()=>!!document.querySelector('#navg-en-b:not([hidden])')&&!document.querySelector('.navg[data-area="entrega"][hidden]')},
+  {sel:'#navg-ne-b',titulo:'Dexterity Negócio',texto:'A área comercial, financeira e de controladoria: 🏢 Contratos — clientes, 🤝 Contratos de parceria, 🛡️ AMS, 💰 Receita, 💹 Rentabilidade (com a ordem de venda no Odoo) e 🏦 Controladoria. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="negocio"][hidden]')},
+  {sel:'#navg-in-b',titulo:'Dexterity Insights',texto:'A leitura da diretoria e da governança: 📊 Visão Geral (a tela inicial da diretoria), Resumo, 📚 Central de Relatórios, 📈 Analytics e 📈 Métricas por tipo. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="insights"][hidden]')},
+  {sel:'#navg-novo-b',titulo:'➕ Novo',texto:'As ações num botão só: 📝 Criar ticket (com a 🌳 árvore "Onde crio?"), ⏱ Apontar horas, ➗ ratear horas em vários tickets e 📅 transformar uma reunião do Outlook em ticket.'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
   {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
   {sel:'#btn-tema',titulo:'Tema do painel',texto:'Claro, Escuro ou Dexterity (o visual do site novo) — a preferência fica salva no navegador.'},
-  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🧭 Guia desta tela (explica item por item a tela aberta — atalho: tecla ?) e ❓ Ajuda & feedback, com os guias de todas as telas e os canais de dúvida/sugestão/bug.'},
+  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🗺️ Roadmap, 🧭 Guia desta tela (atalho: tecla ?), ❓ Ajuda & feedback, a sua navegação (🏠 usar esta tela como inicial, 👓 ver todas as áreas) e a Administração (⚙️ Central de configurações, 🎯 Metas & ausências, 🗒 Histórico de ações).'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
 // 🗺 Tour COMPLETO: navega por TODAS as telas do aplicativo (uma por passo), com o
@@ -360,8 +352,6 @@ const TOUR_TELAS=[
   {vai:'inbox',titulo:'📥 Inbox',texto:'Tudo que depende de VOCÊ num lugar só: convites de apontamento coletivo, menções sem resposta, reuniões sem ticket (avisos do time) e — para o aprovador — alocações e planos aguardando decisão. O selo vermelho no menu soma as pendências.'},
   {vai:'mencoes',titulo:'💬 Menções',texto:'Onde você foi @marcado em comentários do Jira: responda (com @marcações e anexos), abra a ficha, aponte horas ou 🔕 ignore — sem sair do painel.'},
   {vai:'meudia',titulo:'📍 Meu dia (beta)',texto:'Timetracking assistido: o registro de apps/janelas do seu computador vira sugestões de apontamento por IA — revise e confirme.'},
-  {vai:'alocacao',titulo:'🧑‍💼 Alocação (macro)',texto:'Resource planning do gestor: board por pessoa (projeto + função + % capacidade), linha do tempo, visão 📆 Semanas (planejado travado × realizado, com aprovação dos planos), skills, vagas 🔮, relatórios e simulação "e se…".'},
-  {vai:'planejamento',titulo:'📅 Planejamento macro',texto:'Plano de esforço por função (Implementação usa fases = épicos do Jira) com Planejado × Realizado, aderência e saldo — inclusive valor (h × custo/h).'},
   {vai:'planejar',titulo:'📝 Criação de Ticket',texto:'Crie tickets em LOTE: um por linha ou colando do Excel, com padrões (estimativa, labels, vencimento), templates do time e criação dentro de épicos/histórias. No modo 📐 Colar estrutura, cole Épico → História → Task e a hierarquia nasce pronta; depois, edite data limite e responsável EM MASSA na grade.'},
   {vai:'ondecrio',titulo:'🌳 Onde crio o ticket?',texto:'A árvore de decisão da governança (TI-04-006): responda as perguntas e crie o ticket no projeto certo — AMS (com reunião/atividade NÃO FATURÁVEL), SAP, interno, administrativa, ausências e Dexterity University. Ela também vive na página inicial.'},
   {vai:'projetos',titulo:'📁 Projetos',texto:'BI por projeto direto do Jira: ficha completa com épicos, saúde, equipe, horas e drill-down até o ticket — e todo drill (idade do backlog, vencimentos, responsável…) tem o 🛠 Abrir na Gestão, que leva os tickets já selecionados para agir em massa.'},
@@ -707,7 +697,8 @@ const GUIAS={
     {c:'⏳ Execução do esforço',ti:'⏳ Quanto já foi executado',tx:'O andamento do esforço do projeto e a evolução mês a mês — para ver se o consumo está no ritmo certo.'},
     {s:'#ct-custopadrao',ti:'Custo padrão',tx:'O valor usado quando a pessoa não tem custo/hora cadastrado — mexer aqui muda toda a apuração.'}]},
   config:{t:'⚙️ Central de configurações',p:[
-    {s:'#conteudo .cfgc-grid',ti:'Todos os ajustes num lugar',tx:'Cada cartão é uma área: metas, pessoas, projetos, Teams, planejamento, identidade, auditoria e integrações.'},
+    {s:'#conteudo .cfgc-grid',ti:'Todos os ajustes num lugar',tx:'Cada cartão é uma área: metas, pessoas, perfis de navegação, Teams, planejamento, identidade, auditoria e integrações.'},
+    {s:'#conteudo .cfgc-perfis',ti:'🧭 Perfis de navegação',tx:'Marque, por pessoa, quem é gestor (vê Dexterity Entrega), negócio (Dexterity Negócio), diretoria (Dexterity Insights, abre na Visão Geral) e admin (vê tudo). É lente, não permissão: toda tela continua abrindo por link e pelo Ctrl+K. Sem papel, aprovadores são gestores e o resto é consultor.'},
     {s:'#cf-abrir-metas',ti:'🎯 Metas, ausências e feriados',tx:'Meta de horas (global ou por pessoa), ausências, feriados nacionais e a vigência de cada pessoa (admissão/desligamento) — sem perder o histórico.'},
     {s:'#cf-gestores',ti:'📋 Quem aprova',tx:'Os gestores que recebem as aprovações de planejamento e veem as abas de decisão e relatórios.'},
     {s:'#cf-res-ativo',ti:'📣 Envios automáticos ao Teams',tx:'O resumo agendado e o aviso de ranking: ligue, escolha frequência e horário, e teste com um clique.'},
@@ -723,14 +714,6 @@ const GUIAS={
     {s:'#conteudo .pc-grid',ti:'Os contratos',tx:'Cada cartão resume validade, aviso prévio (até quando avisar), valor-hora, fechamento, nota, o período atual e a conta. Os que estão dentro do período de aviso vêm primeiro, em laranja, e a faixa no topo avisa.',quando:'Aparece quando há ao menos um contrato.'},
     {s:'#conteudo [data-pc-cal]',ti:'📅 Calendário de faturamento',tx:'Os próximos 12 períodos com fechamento, dia da nota e dias úteis (feriados descontados). Gestores ajustam a data de um mês específico (ex.: dezembro fecha no dia 20) — o mês seguinte começa no dia seguinte ao fechamento ajustado; ↺ padrão desfaz.',quando:'Aparece em cada contrato.'},
     {s:'#conteudo [data-pc-plano]',ti:'Planos ligados',tx:'Os planos da 💹 Rentabilidade que usam este contrato — clique para abrir. É lá que os períodos viram itens da ordem de venda no Odoo.',quando:'Aparece quando um plano de horas abertas está ligado ao contrato.'}]},
-  alocacao:{t:'🧑‍💼 Alocação (macro)',p:[
-    {c:'🧑‍💼 Alocação',ti:'Temporariamente indisponível',tx:'Esta tela está fora do ar por reformulação — vai voltar integrada ao 📋 Meu Planejamento.'},
-    {s:'#conteudo [data-goto="minhasemana"]',ti:'O que usar enquanto isso',tx:'O 📋 Meu Planejamento cobre o planejamento semanal por atividade, com aprovação e comparação com o realizado.'},
-    {s:'#conteudo [data-goto="roadmap"]',ti:'Acompanhar o retorno',tx:'O 🗺️ Roadmap mostra em que fase está a reformulação.'}]},
-  planejamento:{t:'📅 Planejamento macro',p:[
-    {c:'📅 Planejamento macro',ti:'Temporariamente indisponível',tx:'O plano de esforço por função (fases = épicos) está fora do ar por reformulação.'},
-    {s:'#conteudo [data-goto="minhasemana"]',ti:'O que usar enquanto isso',tx:'Para planejar e comparar com o realizado, use o 📋 Meu Planejamento e os 📊 Relatórios do planejamento.'},
-    {s:'#conteudo [data-goto="roadmap"]',ti:'Acompanhar o retorno',tx:'O 🗺️ Roadmap mostra em que fase está a reformulação.'}]},
 };
 const GUIA_KEY='jirainsight_guias_v1';
 function guiasVistos(){ try{ return JSON.parse(localStorage.getItem(GUIA_KEY)||'{}')||{}; }catch(e){ return {}; } }
