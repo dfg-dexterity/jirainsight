@@ -88,14 +88,9 @@
         <div class="navg-menu" role="menu">
           <div class="navg-cab">Dexterity Hub · para todos</div>
           <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
-          <button data-v="planrel" data-aud="minha" class="nav-sub">👤 Planejado × realizado (minha visão)</button>
           <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
-          <button data-v="rateio"><svg class="nav-ic"><use href="#ic-apontar"/></svg>➗ Rateio de horas</button>
-          <button data-v="meudia"><svg class="nav-ic"><use href="#ic-apontar"/></svg>📍 Meu dia</button>
-          <button data-v="mencoes"><svg class="nav-ic"><use href="#ic-alertas"/></svg>💬 Menções</button>
           <button data-v="meutempo"><svg class="nav-ic"><use href="#ic-analise"/></svg>⏳ Como estou gastando meu tempo?</button>
           <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
-          <button data-v="ondecrio" class="nav-sub">🌳 Onde crio o ticket?</button>
         </div>
       </div>
       <div class="navg" data-area="entrega">
@@ -103,19 +98,11 @@
         <div class="navg-menu" role="menu">
           <div class="navg-cab">Dexterity Entrega · gestores de entrega e PMs</div>
           <button data-v="alertas"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas</button>
-          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Gestão de Tickets</button>
-          <button data-v="tickets" class="nav-sub">Tickets do período</button>
-          <button data-v="qualidade" class="nav-sub">🔎 Qualidade (IA)</button>
-          <button data-v="audit" class="nav-sub">🕵️ Auditoria de Tickets</button>
+          <button data-v="gestao"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🛠 Tickets do time</button>
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões</button>
-          <button data-v="reuvinc" class="nav-sub">🔗 Vincular reuniões a tickets</button>
           <button data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
-          <button data-v="cronograma" class="nav-sub">📅 Marcos e Cronograma</button>
-          <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>Timesheet</button>
-          <button data-v="ranking" class="nav-sub">🏆 Ranking</button>
-          <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Relatórios do planejamento</button>
-          <button data-v="planrel" data-aud="exec" class="nav-sub">👔 Visão executiva</button>
-          <button data-v="planrel" data-aud="proj" class="nav-sub">📁 Visão por projetos</button>
+          <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>⏱ Horas do time</button>
+          <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Planejamento do time</button>
         </div>
       </div>
       <div class="navg" data-area="negocio">
@@ -218,6 +205,8 @@
   </div>
 
   <div id="rel-ctx" hidden></div>
+  <!-- 🗂 Barra de abas (fase 2 da navegação): telas que respondem a mesma pergunta viram abas de um grupo (ABAS em 26-navegacao.js). -->
+  <div id="abas" class="abas-tela" hidden></div>
 
   <div id="conteudo"><div class="estado">Carregando dados…</div></div>
 

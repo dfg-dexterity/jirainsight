@@ -92,7 +92,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
 | `25-ajuda-guias.js` | ❓ Ajuda, feedback, tour, 🧭 guias interativos |
-| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, favoritos, paleta Ctrl+K |
+| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas da fase 2: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central — `renderAbas` pinta `#abas` sem mexer nas telas), favoritos, paleta Ctrl+K |
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
 | `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |

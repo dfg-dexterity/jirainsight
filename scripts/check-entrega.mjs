@@ -140,6 +140,24 @@ try {
   [...menu.matchAll(/data-area="([a-z]+)"/g)].map((m) => m[1]).forEach((a) => {
     if (!AREAS[a]) erros.push(`🧭 index.html: grupo do menu com área "${a}" desconhecida (AREAS).`);
   });
+  // 🗂 Grupos de abas (fase 2): a tela principal do grupo está no menu; cada aba é uma vista viva (ou uma
+  // ação metas/log); uma vista não pode ser aba de dois grupos para a mesma audiência.
+  const ABAS = literalDe('ABAS', srcNav) || [];
+  const vistoAba = new Map();
+  const menuVistas = new Set([...menu.matchAll(/data-v="([a-z]+)"/g)].map((m) => m[1]));
+  ABAS.forEach((g) => {
+    if (!g || !g.id || !Array.isArray(g.abas) || g.abas.length < 2) { erros.push(`🗂 ABAS: grupo inválido (${JSON.stringify(g && g.id)}) — precisa de id e ao menos 2 abas.`); return; }
+    if (!VISTAS.includes(g.id)) erros.push(`🗂 ABAS "${g.id}": a tela principal do grupo não é uma vista de VISTAS.`);
+    if (!menuVistas.has(g.id) && !html.includes(`id="btn-mais-${g.id}"`)) erros.push(`🗂 ABAS "${g.id}": a tela principal do grupo não está no menu (index.html, barra ou ⋯ Mais) — é a única entrada do grupo.`);
+    g.abas.forEach((a) => {
+      if (a.acao) { if (!['metas', 'log'].includes(a.acao)) erros.push(`🗂 ABAS "${g.id}": ação "${a.acao}" desconhecida (metas|log).`); return; }
+      if (!VISTAS.includes(a.v)) erros.push(`🗂 ABAS "${g.id}": a aba "${a.v}" não é uma vista de VISTAS.`);
+      const chave = `${a.v}|${a.aud || ''}`;
+      if (vistoAba.has(chave)) erros.push(`🗂 ABAS: a vista "${a.v}"${a.aud ? ` (aud ${a.aud})` : ''} é aba de dois grupos (${vistoAba.get(chave)} e ${g.id}).`);
+      vistoAba.set(chave, g.id);
+    });
+  });
+  if (!erros.some((e) => e.startsWith('🗂'))) console.log(`Abas: ✓ ${ABAS.length} grupo(s) · ${ABAS.reduce((s, g) => s + g.abas.length, 0)} aba(s)`);
   if (!erros.some((e) => e.startsWith('🧭'))) console.log(`Navegação: ✓ ${VISTAS.length} vistas · ${NAVCAT.length} entradas no catálogo · ${Object.keys(ALIAS).length} alias · áreas ${Object.keys(AREAS).join('/')}`);
 } catch (e) { erros.push(`🧭 Navegação: não consegui conferir NAVCAT × VISTAS × index.html (${e.message}).`); }
 

@@ -8,6 +8,7 @@ function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
   aplicaLente();    // 🧭 grupos Dexterity Entrega/Negócio/Insights conforme o perfil (lente, não permissão)
+  renderAbas();     // 🗂 barra de abas do grupo (Inbox, Apontar, Tickets do time…) quando a vista é uma aba
   relCtxRender();   // 📚 faixa do relatório aberto pela Central (só na tela dele)
   if(estado.vista==='acoes') return renderAcoes();
   if(estado.vista==='visao') return renderVisao();
@@ -60,10 +61,45 @@ function fechaModal(){ document.getElementById('modal').hidden=true;
 // Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
 // logo (voltar ao início) e por links internos.
 // Marca a aba ativa (e sublinha o grupo dono dela, quando está num dropdown).
+// ---- 🗂 GRUPOS DE ABAS (fase 2 da navegação, 2026-09-14): telas que respondem a mesma pergunta viram ABAS
+// de um grupo — SEM reescrever as telas. estado.vista continua sendo a tela de cada aba (links ?v=, listeners
+// delegados, VCHROME e estadoParaURL ficam como estavam); o grupo é só apresentação: UMA entrada no menu (a
+// tela principal) e a barra de abas acima do conteúdo (#abas). Abas do tipo `acao` abrem um modal (Metas,
+// Histórico). O 📊 planrel pertence a dois grupos conforme a audiência: 'minha' fica com o Meu Planejamento.
+// Uma vista pode aparecer em um único grupo por audiência; o gate (check-entrega) confere.
+const ABAS=[
+  { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
+  { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
+  { id:'minhasemana',  rot:'📋 Meu Planejamento',       abas:[ {v:'minhasemana',rot:'📋 Minha semana'}, {v:'planrel',aud:'minha',rot:'📈 Planejado × realizado'} ] },
+  { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'} ] },
+  { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'} ] },
+  { id:'reclassificar',rot:'🗂 Reuniões',               abas:[ {v:'reclassificar',rot:'↔ Reclassificar'}, {v:'reuvinc',rot:'🔗 Vincular a tickets'} ] },
+  { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'} ] },
+  { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
+  { id:'planrel',      rot:'📊 Planejamento do time',   abas:[ {v:'planrel',aud:'gestor',rot:'👥 Por gestor'}, {v:'planrel',aud:'exec',rot:'👔 Visão executiva'}, {v:'planrel',aud:'proj',rot:'📁 Por projetos'} ] },
+  { id:'config',       rot:'⚙️ Central de configurações',abas:[ {v:'config',rot:'⚙️ Central'}, {acao:'metas',rot:'🎯 Metas & ausências'}, {acao:'log',rot:'🗒 Histórico de ações'} ] },
+];
+function abaAud(){ return (estado.planrel&&estado.planrel.aud)||'gestor'; }
+function abaGrupoDe(v, aud){ const a=aud||abaAud(); return ABAS.find(g=>g.abas.some(x=>x.v===v&&(!x.aud||x.aud===a)))||null; }
+// A entrada do menu que representa a vista: a própria, ou a tela principal do grupo de abas.
+function abaAlvoMenu(v){ const g=abaGrupoDe(v); return g?g.id:v; }
+function renderAbas(){
+  const box=document.getElementById('abas'); if(!box) return;
+  const g=abaGrupoDe(estado.vista); if(!g){ box.hidden=true; box.innerHTML=''; return; }
+  const aud=abaAud();
+  box.hidden=false; box.innerHTML=`<span class="abas-rot">${esc(g.rot)}</span>`+g.abas.map(a=>{ const on=!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud);
+    return `<button class="aba${on?' on':''}" ${a.v?`data-aba-v="${escA(a.v)}"${a.aud?` data-aba-aud="${escA(a.aud)}"`:''}`:`data-aba-acao="${escA(a.acao)}"`} aria-pressed="${on?'true':'false'}">${esc(a.rot)}</button>`; }).join('');
+}
+document.addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('#abas [data-aba-v],#abas [data-aba-acao]'); if(!t) return;
+  const ac=t.getAttribute('data-aba-acao'); if(ac){ if(ac==='metas') abreMetas(); else if(ac==='log') abreLogAcoes(); return; }
+  const aud=t.getAttribute('data-aba-aud'); if(aud){ estado.planrel=estado.planrel||{}; estado.planrel.aud=aud; }
+  const v=t.getAttribute('data-aba-v'); if(v===estado.vista){ render(); estadoParaURL(); return; } vaiPara(v);
+});
 function marcaVista(v){
   const seg=document.getElementById('seg-vista'); if(!seg) return;
   seg.querySelectorAll('[data-v],.navg-b').forEach(b=>b.setAttribute('aria-pressed','false'));
-  const it=seg.querySelector(`[data-v="${v}"]`);
+  const it=seg.querySelector(`[data-v="${abaAlvoMenu(v)}"]`);   // aba de um grupo → marca a tela principal do grupo
   if(it){ it.setAttribute('aria-pressed','true');
     const g=it.closest('.navg'); if(g){ const hb=g.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-pressed','true'); } }
 }
@@ -73,8 +109,9 @@ function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').for
 // grupo que contém a tela ABERTA sempre aparece (quem chega por link vê onde está). Nada é bloqueado:
 // toda tela abre por ?v= e pelo Ctrl+K. Também atualiza os rótulos de ⋯ Mais (tela inicial, ver tudo).
 function aplicaLente(){
+  const alvo=abaAlvoMenu(estado.vista);
   document.querySelectorAll('#seg-vista .navg[data-area]').forEach(g=>{ const a=g.getAttribute('data-area');
-    const contemAtiva=!!g.querySelector(`[data-v="${estado.vista}"]`);
+    const contemAtiva=!!g.querySelector(`[data-v="${alvo}"]`);
     g.hidden=!(areaVisivel(a)||contemAtiva); });
   const ta=document.getElementById('btn-todas-areas'); if(ta) ta.textContent=lenteTodas()?'👓 Ver só as áreas do meu perfil':'👓 Ver todas as áreas';
   const bh=document.getElementById('btn-home-atual'); if(bh){ let h=''; try{ h=localStorage.getItem('jirainsight_home')||''; }catch(e){}
@@ -113,29 +150,29 @@ const NAVCAT=[
   // Dexterity Hub — para todos
   ['acoes','🏠 Início — Ações de hoje','hub','hoje pendencias novidades inicio home principal minhas horas vencidos fechamento do mes'],
   ['apontar','⏱ Apontar','hub','worklog horas lancar apontamento registrar tempo meu trabalho novo'],
-  ['inbox','📥 Inbox','hub','convites mencoes pendencias caixa entrada aprovacoes meu trabalho'],
+  ['inbox','📥 Inbox › 📥 Pendências','hub','convites mencoes pendencias caixa entrada aprovacoes meu trabalho'],
   ['prioridades','🎯 Prioridades do time','hub','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
-  ['minhasemana','📋 Meu Planejamento','hub','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado alocacao macro planejamento macro capacidade meu trabalho'],
+  ['minhasemana','📋 Meu Planejamento › 📋 Minha semana','hub','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado alocacao macro planejamento macro capacidade meu trabalho'],
   ['agenda','📅 Agenda','hub','outlook reuniao eventos calendario convite meu trabalho novo'],
-  ['rateio','➗ Rateio de horas','hub','rateio massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
-  ['meudia','📍 Meu dia','hub','timetracking dia atividade sugestoes ia meu trabalho'],
-  ['mencoes','💬 Menções','hub','comentarios marcado responder citacoes meu trabalho'],
+  ['rateio','⏱ Apontar › ➗ Rateio de horas','hub','rateio massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
+  ['meudia','⏱ Apontar › 📍 Sugestões do dia (Meu dia)','hub','timetracking dia atividade sugestoes ia meu trabalho meu dia'],
+  ['mencoes','📥 Inbox › 💬 Menções','hub','comentarios marcado responder citacoes meu trabalho'],
   ['meutempo','⏳ Como estou gastando meu tempo?','hub','meu tempo historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao meu trabalho'],
-  ['planejar','📝 Criar ticket','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento'],
-  ['ondecrio','🌳 Onde crio o ticket?','hub','arvore decisao projeto duvida novo planejamento'],
+  ['planejar','📝 Criar ticket › 📝 Criar (lote, IA, voz)','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento'],
+  ['ondecrio','📝 Criar ticket › 🌳 Passo 0 · Onde crio?','hub','arvore decisao projeto duvida novo planejamento onde crio o ticket'],
   // Dexterity Entrega — gestores de entrega e PMs
   ['alertas','🚨 Alertas','entrega','central atrasados vencidos reprogramar gestao'],
-  ['gestao','🛠 Gestão de Tickets','entrega','massa atribuir status transferir epico duplicados excluir gestao'],
-  ['tickets','Tickets do período','entrega','issues lista periodo analise'],
-  ['qualidade','🔎 Qualidade (IA)','entrega','auditoria ia tickets qualidade analise'],
-  ['audit','🕵️ Auditoria de Tickets','entrega','validacoes ti-04-014 conformidade analise'],
-  ['reclassificar','🗂 Reuniões — Reclassificar','entrega','mover reunioes projeto gestao reuniao'],
-  ['reuvinc','🗂 Reuniões — Vincular a tickets','entrega','teams tickets ams apoio reuniao vincular gestao'],
-  ['projetos','📁 Projetos','entrega','bi ficha portfolio epicos saude consolidado analise'],
-  ['cronograma','📅 Marcos e Cronograma','entrega','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup analise'],
-  ['timesheet','Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise'],
-  ['ranking','🏆 Ranking','entrega','engajamento cumprimento apontamento analise'],
-  ['planrel','📊 Relatórios do planejamento','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento'],
+  ['gestao','🛠 Tickets do time › 🛠 Ações em massa (Gestão)','entrega','massa atribuir status transferir epico duplicados excluir gestao de tickets'],
+  ['tickets','🛠 Tickets do time › 📋 Lista do período','entrega','issues lista periodo analise tickets'],
+  ['qualidade','🛠 Tickets do time › 🔎 Qualidade (IA)','entrega','auditoria ia tickets qualidade analise'],
+  ['audit','🛠 Tickets do time › ✅ Regras TI-04-014 (Auditoria)','entrega','validacoes ti-04-014 conformidade analise auditoria de tickets'],
+  ['reclassificar','🗂 Reuniões › ↔ Reclassificar','entrega','mover reunioes projeto gestao reuniao'],
+  ['reuvinc','🗂 Reuniões › 🔗 Vincular a tickets','entrega','teams tickets ams apoio reuniao vincular gestao'],
+  ['projetos','📁 Projetos › 📁 Portfólio e ficha','entrega','bi ficha portfolio epicos saude consolidado analise'],
+  ['cronograma','📁 Projetos › 📅 Marcos e Cronograma','entrega','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup analise'],
+  ['timesheet','⏱ Horas do time › ⏱ Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise timesheet'],
+  ['ranking','⏱ Horas do time › 🏆 Ranking','entrega','engajamento cumprimento apontamento analise ranking'],
+  ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
   // Dexterity Negócio — comercial, financeiro e controladoria
   ['admin','🏢 Contratos — clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes'],
   ['parcerias','🤝 Contratos de parceria','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes'],
@@ -150,9 +187,9 @@ const NAVCAT=[
   ['analytics','📈 Analytics','insights','governanca 26 visoes graficos desvios analise'],
   ['metricas','📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
   // Administração e ⋯ Mais
-  ['config','⚙️ Central de configurações','admin','config ajustes configuracoes perfis papeis pessoas navegacao'],
-  ['acao:metas','🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],
-  ['acao:log','🗒 Histórico de ações','admin','auditoria log acoes configuracoes'],
+  ['config','⚙️ Central de configurações › ⚙️ Central','admin','config ajustes configuracoes perfis papeis pessoas navegacao'],
+  ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],
+  ['acao:log','⚙️ Central de configurações › 🗒 Histórico de ações','admin','auditoria log acoes configuracoes'],
   ['roadmap','🗺️ Roadmap','mais','proximas funcionalidades futuro planejado novidades melhorias analise'],
 ];
 // Telas aposentadas que ainda são procuradas pelo nome antigo: a busca mostra "agora é …".
