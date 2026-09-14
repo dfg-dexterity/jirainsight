@@ -9,8 +9,14 @@
 // custo padrão de fallback), contratos do Admin (valor-hora) e o consolidado
 // do Jira (/api/projetos?visao=1 — estimado × gasto). Os blocos exibidos são
 // CONFIGURÁVEIS por categoria (cfg.ctrl, compartilhado; só gestores editam).
+// Fase 4 (2026-09-14): o 📁 RESULTADO DO PROJETO (ctResultado/ctResultadoHTML) — quando um projeto está em
+// foco (estado.ctrl.destaque, vindo da 🦴 espinha da ficha ou do 🧾 na linha): custo por nível e por pessoa,
+// vendido × realizado do contrato, plano de rentabilidade × realizado e a evolução mensal do projeto — os
+// blocos financeiros das 📈 Métricas por tipo numa tela só; e o bloco 🧭 Todas as categorias (receita, custo e
+// margem lado a lado, clique para trocar de categoria).
 // ===========================================================================
 const CT_BLOCOS=[
+  ['cats','🧭 Todas as categorias — receita, custo e margem'],
   ['kpis','💰 KPIs financeiros'],
   ['proj','📁 Projetos — margem & execução'],
   ['custopes','👥 Custo por pessoa & custo de gestão'],
@@ -21,7 +27,7 @@ const CT_BLOCOS=[
 function ctBlocosDe(cat){
   const c=(((cfg.ctrl||{}).cats)||{})[cat];
   if(!c) return Object.fromEntries(CT_BLOCOS.map(([k])=>[k,1]));   // sem config: tudo ligado
-  return c;
+  return Object.assign({cats:1}, c);   // bloco novo (fase 4) nasce ligado nas categorias já configuradas
 }
 function ctCustoDe(a){
   const ch=ctCustoBase(a);
@@ -83,6 +89,13 @@ function ctDados(){
   const cats=[...new Set(Object.values(projMeta).map(x=>(x&&x.categoria)||'Sem categoria'))].filter(c=>!rc||rc.siglas.includes(relSiglaDe(c))).sort((a,b)=>a.localeCompare(b,'pt'));
   if(!ct.cat||!cats.includes(ct.cat)) ct.cat=cats[0]||'';
   const gest=ctGestoresSet(t.pessoas||{});
+  // 🧭 todas as categorias lado a lado (fase 4): horas, receita, custo e margem de cada uma (mesmas regras)
+  const custoPad=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0); const contratoDe={}; const porCat={};
+  (t.worklogs||[]).forEach(w=>{ const cat=((projMeta[w.p]||{}).categoria)||'Sem categoria'; if(!cats.includes(cat)) return;
+    const s=Number(w.s)||0; const h=s/3600; const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPad;
+    if(!(w.p in contratoDe)) contratoDe[w.p]=ctContratoDe(w.p); const c=contratoDe[w.p]; const vh=c?(Number(c.valorHora)||0):0;
+    const C=porCat[cat]=porCat[cat]||{cat,seg:0,segFat:0,custo:0,rec:0,projetos:new Set()};
+    C.seg+=s; if(w.f) C.segFat+=s; C.custo+=h*ch; C.rec+=(w.f&&vh)?h*vh:0; C.projetos.add(w.p); });
   const wl=(t.worklogs||[]).filter(w=>(((projMeta[w.p]||{}).categoria)||'Sem categoria')===ct.cat);
   const por={}; const porPessoa={}; const porTipo={}; const porMes={}; const semCusto=new Set();
   let segTot=0,segFat=0,custoTot=0,custoGest=0,recTot=0,temContrato=false;
@@ -106,7 +119,93 @@ function ctDados(){
     if(gest.has(w.a)){ custoGest+=custo; P.custoGest+=custo; }
   });
   return { cats, wl, por, porPessoa, porTipo, porMes, semCusto, segTot, segFat,
-    custoTot, custoGest, recTot, temContrato, projMeta, pessoas:t.pessoas||{}, resumos:t.resumos||{}, gest };
+    custoTot, custoGest, recTot, temContrato, projMeta, pessoas:t.pessoas||{}, resumos:t.resumos||{}, gest, porCat };
+}
+// ---- 📁 Resultado do projeto (fase 4): o que as 📈 Métricas por tipo contam de um projeto, numa tela só ----
+function ctResultado(d, key){
+  const ct=estado.ctrl; const custoPadrao=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+  const wl=d.wl.filter(w=>w.p===key);
+  const contrato=ctContratoDe(key); const vh=contrato?(Number(contrato.valorHora)||0):0;
+  const nivel={}; ['senior','pleno','junior',''].forEach(k=>{ nivel[k]={k,seg:0,custo:0,pessoas:new Set()}; });
+  const porPessoa={}; const porMes={}; let seg=0,segFat=0,custo=0,rec=0,custoGest=0;
+  wl.forEach(w=>{ const s=Number(w.s)||0; const h=s/3600; const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPadrao; const cu=h*ch; const rc=(w.f&&vh)?h*vh:0;
+    const n=(typeof rmNivel==='function')?rmNivel(w.a):''; const N=nivel[nivel[n]?n:'']; N.seg+=s; N.custo+=cu; N.pessoas.add(w.a);
+    const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,nivel:n,gestor:d.gest.has(w.a)}; U.seg+=s; U.custo+=cu;
+    const m=(w.d||'').slice(0,7); const M=porMes[m]=porMes[m]||{seg:0,custo:0,rec:0}; M.seg+=s; M.custo+=cu; M.rec+=rc;
+    seg+=s; if(w.f) segFat+=s; custo+=cu; rec+=rc; if(d.gest.has(w.a)) custoGest+=cu; });
+  const cons=((ct.proj&&ct.proj.projetos)||[]).find(x=>x.key===key)||null;
+  const ficha=((estado.projetos&&estado.projetos.fichas)||{})[key]||null;
+  const vendidas=contrato?(contrato.tipo==='ams'?((typeof amsHorasCiclo==='function')?amsHorasCiclo(contrato):0):(Number(contrato.horasContratadas)||0)):0;
+  const gastoJira=cons?(Number(cons.gastoH)||0):null; const estJira=cons?(Number(cons.estH)||0):null;
+  const valorVendido=(contrato&&contrato.tipo!=='ams'&&vendidas&&vh)?vendidas*vh:0;
+  // custo realizado (histórico do Jira): por responsável quando a ficha já foi lida; senão ≈ horas do Jira × custo/h médio do período
+  let custoReal=null, custoRealAprox=false;
+  if(ficha&&Array.isArray(ficha.esforcoResp)) custoReal=ficha.esforcoResp.reduce((s,r)=>s+(Number(r.gastoH)||0)*ctCustoDe(r.id||''),0);
+  else if(gastoJira!=null&&seg>0){ custoReal=gastoJira*(custo/(seg/3600)); custoRealAprox=true; }
+  const plano=(typeof rpPlanos==='function')?(rpPlanos().find(x=>x&&x.projeto===key)||null):null;
+  let calc=null; if(plano&&typeof rpCalc==='function'&&typeof rpCenario==='function'){ try{ calc=rpCalc(plano,rpCenario(plano)); }catch(e){ calc=null; } }
+  const cat=((d.projMeta[key]||{}).categoria)||ct.cat||'';
+  return { key, cat, sigla:relSiglaDe(cat), wl, contrato, vh, nivel, porPessoa, porMes, seg, segFat, custo, rec, custoGest, cons, ficha, vendidas, gastoJira, estJira, valorVendido, custoReal, custoRealAprox, plano, calc };
+}
+function ctResultadoHTML(d, key){
+  const R=ctResultado(d,key); const ct=estado.ctrl; const nome=projNome(key);
+  const nomeDe=(a)=>((d.pessoas[a]&&d.pessoas[a].nome)||a);
+  const nivRot=(typeof RM_NIVEL_ROT!=='undefined')?RM_NIVEL_ROT:{senior:'Sênior',pleno:'Pleno',junior:'Júnior','':'Sem nível'};
+  const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+  const acoes=`<div class="ct-res-acoes">
+    <button class="btn" data-proj-ficha="${escA(key)}" data-tip="Abrir a ficha em 📁 Projetos (🦴 espinha)">📁 Ficha do projeto</button>
+    ${R.plano?`<button class="btn" data-ct-plano="${escA(R.plano.id)}" data-tip="Abrir o plano de rentabilidade deste projeto">💹 Plano</button>`:''}
+    ${R.sigla?`<button class="btn" data-ct-metricas="${escA(key)}" data-tip="Abrir 📚 Central › 📈 Métricas por tipo já neste projeto">📈 Métricas ${esc(R.sigla)}</button>`:''}
+    ${R.contrato?`<button class="btn" data-ct-contrato="${escA(R.contrato.id)}" data-tip="Editar o contrato em 📑 Contratos › 🏢 Clientes">📑 Contrato</button>`:''}
+    <span class="spacer"></span><button class="btn" data-ct-res-fechar="1" data-tip="Fecha o resultado do projeto (a categoria continua)">✕ fechar</button></div>`;
+  const cab=`<h2>📁 Resultado do projeto — ${esc(nome)} <span>${esc(key)} · ${esc(R.cat)} · ${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))}</span></h2>`;
+  if(!R.wl.length) return `<div class="card full ct-res" id="ct-res">${cab}${acoes}<div class="estado">Sem horas apontadas em <b>${esc(nome)}</b> entre ${esc(fmtBR(ct.de))} e ${esc(fmtBR(ct.ate))} — amplie o período nos filtros acima${R.cat!==ct.cat?` (o projeto é da categoria "${esc(R.cat)}")`:''}.</div></div>`;
+  const margem=R.rec-R.custo; const mgp=ctPct(margem,R.rec); const [mgRot,mgCls]=ctSemaforo(mgp);
+  const kpis=`<div class="kpis ts-kpis">
+    <div class="kpi t"><div class="v">${fmtH(R.seg)}</div><div class="l">Horas no período<div class="ct-kl">${ctPct(R.segFat,R.seg)==null?'—':ctPct(R.segFat,R.seg)+'%'} faturáveis</div></div></div>
+    <div class="kpi t"><div class="v">${R.rec?fmtBRL(R.rec):'—'}</div><div class="l">Receita<div class="ct-kl">${R.vh?`faturáveis × ${fmtBRL(R.vh)}/h`:'sem valor-hora no contrato'}</div></div></div>
+    <div class="kpi w"><div class="v">${fmtBRL(R.custo)}</div><div class="l">Custo<div class="ct-kl">gestão ${fmtBRL(R.custoGest)}</div></div></div>
+    <div class="kpi ${mgCls==='ok'?'t':'w'}"><div class="v">${mgp==null?'—':mgp+'%'}</div><div class="l">Margem — ${mgRot}<div class="ct-kl">${R.rec?`sobra ${fmtBRL(margem)}`:'precisa de contrato com valor-hora'}</div></div></div>
+    <div class="kpi a"><div class="v">${R.gastoJira!=null?fmtHd(R.gastoJira):'—'}</div><div class="l">Gasto no Jira (histórico)<div class="ct-kl">${R.estJira?`de ${fmtHd(R.estJira)} estimadas`:(R.cons?'sem estimativa nos tickets':'consolidado ainda não lido')}</div></div></div>
+  </div>`;
+  const nivRows=['senior','pleno','junior',''].map(k=>R.nivel[k]).filter(N=>N.seg>0).map(N=>`<tr><td><b>${esc(nivRot[N.k])}</b></td><td class="num">${N.pessoas.size}</td><td class="num">${fmtH(N.seg)}</td><td class="num">${ctPct(N.seg,R.seg)}%</td><td class="num">${fmtBRL(N.custo)}</td><td class="num">${ctPct(N.custo,R.custo)==null?'—':ctPct(N.custo,R.custo)+'%'}</td><td class="num">${fmtBRL(N.seg?N.custo/(N.seg/3600):0)}/h</td></tr>`).join('');
+  const temNivel=Object.values(R.porPessoa).some(u=>u.nivel);
+  const blNivel=`<div><div class="mp-h3">🎓 Custo por nível</div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Nível</th><th class="num">Pessoas</th><th class="num">Horas</th><th class="num">% horas</th><th class="num">Custo</th><th class="num">% custo</th><th class="num">Custo/h médio</th></tr></thead><tbody>${nivRows}</tbody></table></div>${temNivel?'':'<div class="muted small">Ninguém tem nível cadastrado ainda — em 📈 Métricas por tipo › ⚙️ Perfis (Júnior/Pleno/Sênior).</div>'}</div>`;
+  const pesAll=Object.values(R.porPessoa).sort((a,b)=>b.custo-a.custo); const pes=pesAll.slice(0,8);
+  const blPes=`<div><div class="mp-h3">👥 Custo por pessoa <span class="mp-dim">${pesAll.length} pessoa(s)${pes.length<pesAll.length?' · as 8 maiores':''} · clique para os tickets</span></div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th>Nível</th><th class="num">Horas</th><th class="num">Custo</th><th class="num">% custo</th></tr></thead><tbody>${pes.map(U=>`<tr class="ct-click" data-ct-drill="pj=${escA(key)}&a=${escA(encodeURIComponent(U.a))}" role="button" tabindex="0"><td>${esc(nomeDe(U.a))}${U.gestor?' <span class="badge" data-tip="Pessoa listada como gestora">🧑‍💼 gestão</span>':''}</td><td>${esc(nivRot[U.nivel]||'—')}</td><td class="num">${fmtH(U.seg)}</td><td class="num"><b>${fmtBRL(U.custo)}</b></td><td class="num">${ctPct(U.custo,R.custo)==null?'—':ctPct(U.custo,R.custo)+'%'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  let vr;
+  if(!R.contrato) vr='<div class="muted small">Sem contrato no Admin para este projeto — cadastre em <b>📑 Contratos › 🏢 Clientes</b> (horas contratadas e valor-hora) para comparar vendido × realizado.</div>';
+  else { const c=R.contrato; const temCons=R.gastoJira!=null; const pcH=(R.vendidas&&temCons)?ctPct(R.gastoJira,R.vendidas):null;
+    const mgV=(R.valorVendido&&R.custoReal!=null)?R.valorVendido-R.custoReal:null; const mgVp=mgV!=null?ctPct(mgV,R.valorVendido):null; const [rotV,clsV]=ctSemaforo(mgVp);
+    vr=`<div class="ams-dgrid">
+      ${dl('Contrato',`${esc(c.cliente||'')} · ${esc(rotuloTipo(c.tipo))}`)}
+      ${dl(c.tipo==='ams'?'Horas por ciclo':'Horas vendidas', R.vendidas?fmtHd(R.vendidas):'—')}
+      ${dl('Realizadas (Jira, histórico)', temCons?fmtHd(R.gastoJira):'<span class="muted">consolidado ainda não lido</span>')}
+      ${dl('Consumo', pcH==null?'—':`<span class="ct-sem ${pcH>100?'crit':(pcH>=85?'aten':'ok')}">${pcH}%</span> <span class="muted small">${pcH>100?'estourou':(pcH>=85?'em risco':'dentro')}</span>`)}
+      ${dl('Valor vendido', R.valorVendido?`${fmtBRL(R.valorVendido)} <span class="muted small">${fmtHd(R.vendidas)} × ${fmtBRL(R.vh)}</span>`:(c.tipo==='ams'?'<span class="muted">por ciclo — ver 🛡 AMS</span>':'—'))}
+      ${dl('Custo realizado (histórico)', R.custoReal==null?'—':`${fmtBRL(R.custoReal)}${R.custoRealAprox?' <span class="muted small" data-tip="Aproximado: horas gastas no Jira × custo/h médio do período. Abra a ficha do projeto para o cálculo por responsável.">≈</span>':''}`)}
+      ${dl('Margem prevista', mgVp==null?'—':`<span class="ct-sem ${clsV}">${mgVp}%</span> <span class="muted small">${rotV} · ${fmtBRL(mgV)}</span>`)}
+    </div>`; }
+  let pr;
+  if(!R.plano||!R.calc) pr=`<div class="muted small">Sem plano de rentabilidade para este projeto. ${((typeof souAprovador==='function')&&souAprovador())?`<button class="btn rt-step" data-ct-plano-novo="${escA(key)}" data-tip="Abre a 💹 Rentabilidade com um plano novo já apontando para este projeto (cliente e valor-hora do contrato)">💹 criar plano</button>`:'Um gestor pode criar um na 💹 Rentabilidade.'}</div>`;
+  else { const c=R.calc; const T=(typeof RP_TIPOS!=='undefined'&&RP_TIPOS[c.tipo])?RP_TIPOS[c.tipo]:null;
+    pr=`<div class="ams-dgrid">
+      ${dl('Plano',`<span class="lnk" data-ct-plano="${escA(R.plano.id)}">${esc(R.plano.nome||'(sem nome)')}</span>${T?` <span class="badge rp-tipo">${T[0]} ${T[1]}</span>`:''}`)}
+      ${dl('Prazo',`${dataBR(R.plano.inicio)} → ${dataBR((typeof rpFim==='function')?rpFim(R.plano):(R.plano.fim||''))}`)}
+      ${dl(c.tipo==='interno'?'Orçamento':'Receita prevista', fmtBRL(c.tipo==='interno'?c.orc:c.receita))}
+      ${dl('Custo previsto', `${fmtBRL(c.custo)} <span class="muted small">${fmtHd(c.esforco)} alocadas</span>`)}
+      ${dl(c.tipo==='interno'?'Saldo previsto':'Margem prevista', c.tipo==='interno'?fmtBRL(c.saldoOrc):(c.mgp==null?'—':`${c.mgp}% <span class="muted small">meta ${c.meta}%</span>`))}
+      ${dl('Realizado no período', `${fmtH(R.seg)} · custo ${fmtBRL(R.custo)}${R.rec?` · receita ${fmtBRL(R.rec)}`:''}`)}
+    </div>`; }
+  const meses=Object.keys(R.porMes).sort(); const maxMes=Math.max(0.01,...meses.map(m=>Math.max(R.porMes[m].custo,R.porMes[m].rec))); const mesAtual=hojeSP().slice(0,7);
+  const cols=meses.map(m=>{ const v=R.porMes[m]; const mg2=v.rec-v.custo; const mp3=ctPct(mg2,v.rec); const parcial=m===mesAtual; const rot=m.slice(5,7)+'/'+m.slice(2,4)+(parcial?'*':'');
+    return `<div class="mpg-c mpg-click" data-ct-drill="pj=${escA(key)}&mes=${escA(m)}" role="button" tabindex="0" data-tip="${escA(`${rot}${parcial?' (mês parcial)':''} · receita ${fmtBRL(v.rec)} · custo ${fmtBRL(v.custo)} · margem ${mp3==null?'—':mp3+'%'} · ${fmtH(v.seg)} — clique para os tickets do mês`)}"><div class="mpg-cb"><i class="plan" style="height:${(v.rec/maxMes*100).toFixed(1)}%"></i><i class="real" style="height:${(v.custo/maxMes*100).toFixed(1)}%"></i></div><div class="mpg-rot"><b>${esc(rot)}</b>${mp3==null?'—':mp3+'%'}</div></div>`; }).join('');
+  const evo=`<div class="mpg" role="img" aria-label="Evolução mensal do projeto">${mpgCab('📈 Evolução do projeto','receita × custo mês a mês — o número embaixo é a margem do mês; * = mês parcial; clique numa coluna para os tickets','<div class="mpg-leg"><span><i class="mpg-sw plan"></i>Receita</span><span><i class="mpg-sw real"></i>Custo</span></div>')}<div class="mpg-cols">${cols}</div></div>`;
+  return `<div class="card full ct-res" id="ct-res">${cab}${acoes}${kpis}
+    <div class="rm-2col">${blNivel}${blPes}</div>
+    <div class="rm-2col" style="margin-top:12px"><div><div class="mp-h3">🎯 Vendido × realizado</div>${vr}</div><div><div class="mp-h3">💹 Plano × realizado</div>${pr}</div></div>
+    <div style="margin-top:12px">${evo}</div>
+    ${ctExpl('o <b>resultado do projeto</b> numa tela só: as horas do período com o <b>custo por nível</b> (Júnior/Pleno/Sênior, de ⚙️ Perfis) e <b>por pessoa</b>; o <b>vendido × realizado</b> do contrato (horas contratadas × valor-hora contra o gasto no Jira e o custo realizado, todo o histórico); e o <b>plano de rentabilidade</b> (o previsto contra o que já aconteceu no período). Clique numa pessoa ou num mês para ver os tickets, com ações.')}</div>`;
 }
 // Linha "como ler" — a explicação explícita que acompanha cada bloco.
 const ctExpl=(txt)=>`<div class="ct-expl">ℹ️ <b>Como ler:</b> ${txt}</div>`;
@@ -122,6 +221,10 @@ function ctSemaforo(mgp){ return mgp==null?['—','na']:(mgp>=30?['saudável','o
 // 🔒 exige dados que o Jira ainda não tem (sprints, CSAT, SLA nativo…).
 // Defaults da matriz = planilha de governança aprovada pelo usuário (2026-08-25);
 // gestores podem ajustar célula a célula (cfg.relcat.m guarda só os desvios).
+// Fase 4 (2026-09-14) — catálogo por código R: cada relatório lista as VISÕES do 📈 Analytics
+// (`anl`: ids de ANL_CHECKS) e os BLOCOS das 📈 Métricas por tipo (`rm`: ids de RM_BLOCOS) que o
+// entregam; a Central mostra os chips (abrem a visão/o bloco) e as outras telas mostram o selo "R08"
+// (relCodigosDe) para quem quer saber a que relatório oficial aquela visão responde.
 // ===========================================================================
 const REL_SIGLAS=['DEA','DEF','PEA','PEF','DAMS','PAMS','ARQ','IMI','IPA','ITPR'];
 const REL_SIGLA_NOME={ DEA:'Dexterity - Escopo Aberto', DEF:'Dexterity - Escopo Fechado',
@@ -139,7 +242,7 @@ const REL_CAT=[
    obj:'Acompanhar o consumo do escopo comprometido dentro da sprint.',
    resp:'Vamos entregar o comprometido até o fim da sprint?',
    como:'Exige sprints e story points, que a instância ainda não usa. Proxy: evolução mensal criados × concluídos na ficha do projeto.'},
-  {id:'R03',nome:'Fluxo por status (CFD)',dim:'Entrega',freq:'Semanal',def:'RRRROO-RRR',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='status'; },
+  {id:'R03',nome:'Fluxo por status (CFD)',dim:'Entrega',freq:'Semanal',def:'RRRROO-RRR',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='status'; },anl:['parado','bloqueados'],
    obj:'Ver onde o trabalho está acumulando no fluxo.',
    resp:'Onde o trabalho está acumulando? O fluxo está estável?',
    como:'🛠 Gestão agrupada por status mostra a foto atual do fluxo. O diagrama acumulado no tempo exige histórico de transições (roadmap).'},
@@ -159,47 +262,47 @@ const REL_CAT=[
    obj:'Garantir que cada GAP tenha especificação, desenvolvimento, teste e aceite.',
    resp:'Todo requisito está coberto? Onde está cada GAP no ciclo?',
    como:'📁 Projetos — hierarquia épico → tickets na ficha. Rastreio completo exige links GAP→EF→Objeto padronizados.'},
-  {id:'R08',nome:'Saúde e Aging do Backlog',dim:'Escopo',freq:'Semanal',def:'OROROO-OOO',disp:'ok',vista:'analytics',
+  {id:'R08',nome:'Saúde e Aging do Backlog',dim:'Escopo',freq:'Semanal',def:'OROROO-OOO',disp:'ok',vista:'analytics',anl:['backlog','parado','estzero'],rm:['backlog'],
    obj:'Avaliar volume, envelhecimento e refinamento do backlog.',
    resp:'Há itens paralisados? O backlog está refinado o suficiente?',
    como:'📈 Analytics — "Backlog que já deveria andar", "Sem atualização há X dias", "Estimativa zerada".'},
-  {id:'R09',nome:'Aderência a Prazos',dim:'Tempo',freq:'Semanal',def:'OOOOOO-RRO',disp:'ok',vista:'analytics',
+  {id:'R09',nome:'Aderência a Prazos',dim:'Tempo',freq:'Semanal',def:'OOOOOO-RRO',disp:'ok',vista:'analytics',anl:['vencidos','semvenc','datas'],
    obj:'Comparar a data prometida com a entrega real de cada item.',
    resp:'Estamos cumprindo o que prometemos? Onde erramos mais?',
    como:'📈 Analytics — "Chamados vencidos" e "Sem data de vencimento"; 🚨 Alertas para agir nos atrasados.'},
-  {id:'R10',nome:'Lead Time e Cycle Time',dim:'Tempo',freq:'Mensal',def:'RRRROO-RRR',disp:'parcial',vista:'analytics',
+  {id:'R10',nome:'Lead Time e Cycle Time',dim:'Tempo',freq:'Mensal',def:'RRRROO-RRR',disp:'parcial',vista:'analytics',anl:['parado','sla'],
    obj:'Medir o tempo de ponta a ponta das demandas.',
    resp:'Quanto tempo levamos para atender uma demanda?',
    como:'Lead time aproximado por criado → resolvido (base do Analytics). Cycle time exige histórico de transições (roadmap).'},
-  {id:'R11',nome:'Apontamento de Horas (Timesheet)',dim:'Tempo',freq:'Semanal',def:'OOOOOO-OOO',disp:'ok',vista:'timesheet',
+  {id:'R11',nome:'Apontamento de Horas (Timesheet)',dim:'Tempo',freq:'Semanal',def:'OOOOOO-OOO',disp:'ok',vista:'timesheet',anl:['finsemhoras','trabsemwl'],rm:['horasMes','pessoas'],
    obj:'Consolidar as horas apontadas por projeto, pessoa e dia.',
    resp:'Onde as horas estão sendo gastas? O apontamento está completo?',
    como:'Timesheet (grade pessoa × dia com lacunas) + ⏱ Apontar + 🏅 Ranking de apontamento.'},
-  {id:'R12',nome:'Horas Planejadas vs Realizadas',dim:'Custo',freq:'Semanal',def:'ROROOO-RRR',disp:'ok',vista:'planrel',
+  {id:'R12',nome:'Horas Planejadas vs Realizadas',dim:'Custo',freq:'Semanal',def:'ROROOO-RRR',disp:'ok',vista:'planrel',anl:['acimaest','estzero'],rm:['epicos','vendidas','carga'],
    obj:'Comparar estimativa e esforço real para medir precisão e consumo.',
    resp:'Estamos consumindo mais esforço do que o previsto?',
    como:'📊 Relatórios do planejamento (semana a semana, por pessoa e projeto) + estimado × gasto na 🏦 Controladoria.'},
-  {id:'R13',nome:'Rentabilidade / Margem por Projeto',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'ok',vista:'controladoria',
+  {id:'R13',nome:'Rentabilidade / Margem por Projeto',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'ok',vista:'controladoria',rm:['rentab','valorVendido'],
    obj:'Confrontar receita contratada com custo de horas para apurar a margem.',
    resp:'O projeto é rentável? Qual a margem atual?',
    como:'🏦 Controladoria — receita (contratos) × custo (horas × custo/h), margem R$ e %, semáforo por projeto.'},
-  {id:'R14',nome:'Consumo de Bolsa de Horas e Faturamento',dim:'Custo',freq:'Mensal',def:'OROROO----',disp:'ok',vista:'receita',
+  {id:'R14',nome:'Consumo de Bolsa de Horas e Faturamento',dim:'Custo',freq:'Mensal',def:'OROROO----',disp:'ok',vista:'receita',rm:['ams','vendidas'],
    obj:'Controlar o saldo de horas contratadas e a base de faturamento.',
    resp:'Quantas horas restam? Qual o valor a faturar neste mês?',
    como:'💰 Receita — bolsa contratada × consumida por contrato; AMS traz o ciclo faturado.'},
-  {id:'R15',nome:'Forecast de Receita e Backlog Contratado',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'parcial',vista:'receita',
+  {id:'R15',nome:'Forecast de Receita e Backlog Contratado',dim:'Custo',freq:'Mensal',def:'OOOOOO----',disp:'parcial',vista:'receita',rm:['vendidas','valorVendido'],
    obj:'Projetar a receita futura a partir do contratado e do ritmo de consumo.',
    resp:'Qual a receita esperada nos próximos meses? Há risco de vazio?',
    como:'💰 Receita — saldo e ritmo de consumo permitem projeção simples; pipeline comercial fica fora do Jira.'},
-  {id:'R16',nome:'Alocação e Capacidade do Time',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'parcial',vista:'ranking',
+  {id:'R16',nome:'Alocação e Capacidade do Time',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'parcial',vista:'ranking',rm:['horasMes','carga'],
    obj:'Comparar a capacidade disponível com a demanda alocada.',
    resp:'Temos gente suficiente? Quem está sub ou sobrealocado?',
    como:'🏅 Ranking — meta de horas × apontado por pessoa (🎯 Metas & ausências). A Alocação macro está desativada.'},
-  {id:'R17',nome:'Carga por Consultor e WIP por Pessoa',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'ok',vista:'gestao',go:()=>{ estado.gestao.agrupar='resp'; },
+  {id:'R17',nome:'Carga por Consultor e WIP por Pessoa',dim:'Recursos',freq:'Semanal',def:'OOOOOO-RRR',disp:'ok',vista:'gestao',go:()=>{ estado.gestao.agrupar='resp'; },anl:['semresp'],rm:['carga','pessoas'],
    obj:'Quantos itens e horas cada pessoa tem em andamento ao mesmo tempo.',
    resp:'Alguém está sobrecarregado? O WIP individual é saudável?',
    como:'🛠 Gestão agrupada por responsável + 📈 Analytics "Sem pessoa atribuída".'},
-  {id:'R18',nome:'Registro de Riscos e Issues',dim:'Risco',freq:'Semanal',def:'OOOORR-RR-',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='risco'; },
+  {id:'R18',nome:'Registro de Riscos e Issues',dim:'Risco',freq:'Semanal',def:'OOOORR-RR-',disp:'parcial',vista:'gestao',go:()=>{ estado.gestao.agrupar='risco'; },anl:['bloqueados','prioparada'],
    obj:'Inventário de riscos e impedimentos com dono e prazo.',
    resp:'Quais riscos podem inviabilizar a entrega? Há impedimento sem dono?',
    como:'🛠 Gestão agrupada por risco (vencidos/parados/bloqueados). Registro formal de riscos com probabilidade × impacto no roadmap.'},
@@ -207,15 +310,15 @@ const REL_CAT=[
    obj:'Classificar defeitos por origem e severidade.',
    resp:'De onde vêm nossos defeitos? A qualidade está melhorando?',
    como:'Tickets agrupados por tipo (Bug × demais) com prioridade como severidade. Causa-raiz BUG.1–BUG.5 exige campo padronizado (roadmap).'},
-  {id:'R20',nome:'Retrabalho e Reabertura de Tickets',dim:'Risco',freq:'Mensal',def:'RRRROO-RR-',disp:'ok',vista:'analytics',
+  {id:'R20',nome:'Retrabalho e Reabertura de Tickets',dim:'Risco',freq:'Mensal',def:'RRRROO-RR-',disp:'ok',vista:'analytics',anl:['reabertos'],
    obj:'Medir tickets reabertos como indicador de qualidade.',
    resp:'Estamos entregando certo na primeira vez?',
    como:'📈 Analytics — visão "Retrabalho (reabertos)" com a lista do período.'},
-  {id:'R21',nome:'Volumetria de Chamados por Categoria',dim:'AMS',freq:'Mensal',def:'----OO----',disp:'ok',vista:'ams',
+  {id:'R21',nome:'Volumetria de Chamados por Categoria',dim:'AMS',freq:'Mensal',def:'----OO----',disp:'ok',vista:'ams',rm:['chamados','causa','fila'],
    obj:'Distribuir os chamados AMS nas categorias de atendimento.',
    resp:'Que tipo de demanda o cliente mais abre? Onde atuar preventivamente?',
    como:'AMS — ciclo do contrato com chamados, horas e banco de horas por categoria.'},
-  {id:'R22',nome:'Cumprimento de SLA',dim:'AMS',freq:'Mensal',def:'----OO---R',disp:'parcial',vista:'analytics',
+  {id:'R22',nome:'Cumprimento de SLA',dim:'AMS',freq:'Mensal',def:'----OO---R',disp:'parcial',vista:'analytics',anl:['sla'],rm:['fila'],
    obj:'Apurar o atendimento aos SLAs de resposta e resolução.',
    resp:'Estamos dentro do SLA contratado? Onde há violação?',
    como:'📈 Analytics — "Aguardando resposta há X dias" é o proxy. SLA nativo do Jira Service Management no roadmap.'},
@@ -223,7 +326,7 @@ const REL_CAT=[
    obj:'Capturar a percepção do cliente sobre atendimentos e entregas.',
    resp:'O cliente está satisfeito? A satisfação está caindo?',
    como:'Exige pesquisa de satisfação vinculada aos tickets — no roadmap.'},
-  {id:'R24',nome:'Recorrência e Top Ofensores',dim:'AMS',freq:'Mensal',def:'----OO-RR-',disp:'parcial',vista:'tickets',go:()=>{ estado.tkGroup='projeto'; },
+  {id:'R24',nome:'Recorrência e Top Ofensores',dim:'AMS',freq:'Mensal',def:'----OO-RR-',disp:'parcial',vista:'tickets',go:()=>{ estado.tkGroup='projeto'; },rm:['chamados','causa'],
    obj:'Identificar temas que geram chamados repetidos, candidatos a solução definitiva.',
    resp:'O que abre chamado repetidamente? O que vale automatizar ou treinar?',
    como:'Tickets do período agrupados (projeto/tipo/pessoa) mostram concentração; agrupamento por tema/texto no roadmap.'},
@@ -231,7 +334,7 @@ const REL_CAT=[
    obj:'Todos os projetos numa tela com semáforo de saúde.',
    resp:'Quais projetos precisam de atenção da diretoria agora?',
    como:'📁 Projetos — consolidado com saúde, esforço e conclusão; 🏦 Controladoria soma a dimensão financeira.'},
-  {id:'R26',nome:'Saúde do Portfólio Interno',dim:'Portfólio',freq:'Mensal',def:'-------OOO',disp:'ok',vista:'controladoria',
+  {id:'R26',nome:'Saúde do Portfólio Interno',dim:'Portfólio',freq:'Mensal',def:'-------OOO',disp:'ok',vista:'controladoria',rm:['backlog','epicosCusto','evolucao','depto'],
    obj:'Acompanhar as iniciativas internas e o investimento nelas.',
    resp:'Nossos investimentos internos estão avançando e gerando valor?',
    como:'🏦 Controladoria filtrada nas categorias internas (IMI/IPA/ITPR) — horas investidas e evolução.'},
@@ -256,6 +359,31 @@ function relSiglaDe(cat){
   if(/escopo\s+fechado/.test(t)) return /parceria/.test(t)?'PEF':'DEF';
   return '';
 }
+// Códigos R que uma visão do Analytics (tipo 'anl') ou um bloco das Métricas (tipo 'rm') entrega — o selo "R08".
+function relCodigosDe(tipo, id){ return REL_CAT.filter(r=>Array.isArray(r[tipo])&&r[tipo].includes(id)).map(r=>r.id); }
+function relCodigosHTML(tipo, id){ const cs=relCodigosDe(tipo,id); if(!cs.length) return '';
+  return `<span class="rc-cods">${cs.map(c=>{ const it=REL_CAT.find(r=>r.id===c); return `<button class="rc-cod" data-rc-abrir-rel="${escA(c)}" data-tip="${escA(`Relatório ${c} · ${it?it.nome:''} — clique para ver no catálogo da 📚 Central`)}">${esc(c)}</button>`; }).join('')}</span>`; }
+// Chips das visões do Analytics e dos blocos das Métricas que entregam o relatório (na Central).
+function relVisoesHTML(item){
+  const anl=(item.anl||[]).map(id=>{ const ch=(typeof ANL_CHECKS!=='undefined')?ANL_CHECKS.find(c=>c.id===id):null; if(!ch) return '';
+    return `<button class="rel-vis" data-rel-vis="anl:${escA(id)}" data-rel-item="${escA(item.id)}" data-tip="${escA(`📈 Analytics · visão ${ch.n} — ${ch.des}`)}">📈 ${ch.n}. ${esc(ch.tit)}</button>`; }).join('');
+  const rm=(item.rm||[]).map(id=>{ const rot=(typeof RM_BLOCO_ROT!=='undefined')?RM_BLOCO_ROT[id]:''; if(!rot) return '';
+    const tipos=(typeof RM_BLOCOS!=='undefined')?REL_SIGLAS.filter(s=>(RM_BLOCOS[s]||[]).includes(id)):[];
+    return `<button class="rel-vis rel-vis-rm" data-rel-vis="rm:${escA(id)}" data-rel-item="${escA(item.id)}" data-tip="${escA(`📈 Métricas por tipo · bloco "${rot}"${tipos.length?' — tipos '+tipos.join(', '):''}`)}">📊 ${esc(rot)}</button>`; }).join('');
+  return (anl||rm)?`<div class="rel-visoes"><span class="muted small">onde vive:</span>${anl}${rm}</div>`:'';
+}
+// Abre a visão do Analytics ou o bloco das Métricas (na sigla do filtro da Central, se o bloco existir nela; senão num tipo O/R do relatório que tenha o bloco).
+function relVisAbre(spec, itemId, sigla){
+  const [tipo,id]=String(spec||'').split(':'); if(!id) return;
+  if(tipo==='anl'){ estado.analytics.sel=id; estado.analytics.busca=''; if(estado.vista!=='analytics') vaiPara('analytics'); else renderAnalytics(); return; }
+  if(tipo==='rm'){ const m=estado.metricas; const tem=(s)=>(typeof RM_BLOCOS!=='undefined')&&(RM_BLOCOS[s]||[]).includes(id); const item=REL_CAT.find(r=>r.id===itemId);
+    let s=(sigla&&tem(sigla))?sigla:''; if(!s&&item) s=REL_SIGLAS.find(x=>relVal(item,x)!=='-'&&tem(x))||''; if(!s) s=REL_SIGLAS.find(tem)||'';
+    if(s){ m.sigla=s; m.proj=''; } m.bloco=id; if(estado.vista!=='metricas') vaiPara('metricas'); else renderMetricas(); }
+}
+document.addEventListener('click',(e)=>{
+  const rv=e.target.closest&&e.target.closest('[data-rel-vis]'); if(rv){ if(typeof escondeTip==='function') try{ escondeTip(); }catch(x){} if(!document.getElementById('modal').hidden) fechaModal(); relVisAbre(rv.getAttribute('data-rel-vis'), rv.getAttribute('data-rel-item'), estado.relcat.sigla); return; }
+  const rc=e.target.closest&&e.target.closest('[data-rc-abrir-rel]'); if(rc){ if(typeof escondeTip==='function') try{ escondeTip(); }catch(x){} estado.relcat.busca=rc.getAttribute('data-rc-abrir-rel')||''; estado.relcat.dim=''; if(!document.getElementById('modal').hidden) fechaModal(); if(estado.vista!=='relatorios') vaiPara('relatorios'); else renderRelatorios(); }
+});
 // Valor efetivo da célula: override do gestor (cfg.relcat.m) ou default do catálogo.
 function relVal(item, sigla){
   const ov=cfg.relcat&&cfg.relcat.m&&cfg.relcat.m[item.id];
@@ -345,6 +473,7 @@ function relCardHTML(item, sigla){
     <div class="rc-meta">${esc(item.dim)} · ${esc(item.freq)}</div>
     <div class="rc-obj">${esc(item.obj)} <span class="mp-dim">${esc(item.resp)}</span></div>
     <div class="rc-como">${esc(item.como)}</div>
+    ${relVisoesHTML(item)}
     ${item.vista?`<button class="btn rc-abrir" data-rel-abre="${item.id}">Abrir no app →</button>`:''}</div>`;
 }
 function renderRelatorios(){
@@ -432,6 +561,7 @@ function renderRelatorios(){
        <p><b>Responde:</b> ${esc(item.resp)}</p>
        <p><b>Dimensão:</b> ${esc(item.dim)} · <b>Frequência sugerida:</b> ${esc(item.freq)}</p>
        <p><b>Onde vive hoje:</b> ${esc(item.como)}</p>
+       ${relVisoesHTML(item)}
        <p><b>Vale para:</b> ${REL_SIGLAS.filter(s=>relVal(item,s)!=='-').map(s=>`${s} (${relVal(item,s)})`).join(' · ')||'—'}</p>
        ${item.vista?`<button class="btn primario" data-rel-abre="${item.id}">Abrir no app →</button>`:''}
        <div class="alx-modal-acoes"><button class="btn" id="gx-fechar" onclick="fechaModal()">Fechar</button></div></div>`);
@@ -495,7 +625,7 @@ function renderControladoria(){
     const execu=cons&&Number(cons.estH)>0?Math.round(Number(cons.gastoH)/Number(cons.estH)*100):null;
     const conc=cons&&Number(cons.total)>0?Math.round(Number(cons.concluidos)/Number(cons.total)*100):null;
     return `<tr class="ct-click${ct.destaque===P.p?' ct-dest':''}" data-ct-drill="pj=${escA(P.p)}" role="button" tabindex="0" data-tip="${escA(projNome(P.p)+' — clique para ver os tickets do realizado, com ações')}">
-      <td data-tip="${escA(P.p)}">${esc(projNome(P.p))}</td>
+      <td data-tip="${escA(P.p)}">${esc(projNome(P.p))} <button class="btn rt-step" data-ct-res="${escA(P.p)}" data-tip="📁 Resultado do projeto: custo por nível e por pessoa, vendido × realizado, plano × realizado e evolução">🧾</button> <button class="btn rt-step" data-proj-ficha="${escA(P.p)}" data-tip="Abrir a ficha em 📁 Projetos (🦴 espinha)">📁</button></td>
       <td class="num">${fmtH(P.seg)}</td>
       <td class="num">${fmtBRL(P.custo)}</td>
       <td class="num">${P.temC?fmtBRL(P.rec):'<span class="muted" data-tip="Projeto sem contrato com valor-hora no Admin">—</span>'}</td>
@@ -504,7 +634,18 @@ function renderControladoria(){
       <td class="num" data-tip="Tickets concluídos ÷ total do projeto no Jira">${conc==null?'—':conc+'%'}</td>
       <td class="num">${P.pessoas.size}</td></tr>`;
   }).join('');
-  const blocoProj=S.proj?`<div class="card full"><h2>📁 Projetos da categoria <span>clique numa linha para os tickets — de lá dá para agir (ficha, status, Gestão, Rateio)</span></h2>
+  // 🧭 todas as categorias lado a lado (clique para trocar de categoria)
+  const catsOrd=Object.values(d.porCat||{}).sort((a,b)=>b.custo-a.custo);
+  const catsTot=catsOrd.reduce((s,C)=>({seg:s.seg+C.seg,segFat:s.segFat+C.segFat,custo:s.custo+C.custo,rec:s.rec+C.rec}),{seg:0,segFat:0,custo:0,rec:0});
+  const [tRot,tCls]=ctSemaforo(ctPct(catsTot.rec-catsTot.custo,catsTot.rec));
+  const blocoCats=S.cats&&catsOrd.length>1?`<div class="card full"><h2>🧭 Todas as categorias <span>receita, custo e margem lado a lado — clique numa linha para abrir a categoria</span></h2>
+    <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Categoria</th><th class="num">Projetos</th><th class="num">Horas</th><th class="num">Faturáveis</th><th class="num">Receita</th><th class="num">Custo</th><th class="num">Margem</th></tr></thead>
+    <tbody>${catsOrd.map(C=>{ const mg3=C.rec-C.custo; const mp4=ctPct(mg3,C.rec); const [r3,c3]=ctSemaforo(mp4);
+      return `<tr class="ct-click${C.cat===ct.cat?' ct-dest':''}" data-ct-cat-ir="${escA(C.cat)}" role="button" tabindex="0" data-tip="${escA('Abrir a categoria '+C.cat)}"><td><b>${esc(C.cat)}</b></td><td class="num">${C.projetos.size}</td><td class="num">${fmtH(C.seg)}</td><td class="num">${ctPct(C.segFat,C.seg)==null?'—':ctPct(C.segFat,C.seg)+'%'}</td><td class="num">${C.rec?fmtBRL(C.rec):'<span class="muted">—</span>'}</td><td class="num">${fmtBRL(C.custo)}</td><td class="num"><span class="ct-sem ${c3}">${mp4==null?'—':mp4+'%'}</span> <span class="muted small">${r3}</span></td></tr>`; }).join('')}</tbody>
+    <tfoot><tr><td><b>Total</b></td><td class="num"><b>${catsOrd.reduce((s,C)=>s+C.projetos.size,0)}</b></td><td class="num"><b>${fmtH(catsTot.seg)}</b></td><td class="num"><b>${ctPct(catsTot.segFat,catsTot.seg)==null?'—':ctPct(catsTot.segFat,catsTot.seg)+'%'}</b></td><td class="num"><b>${catsTot.rec?fmtBRL(catsTot.rec):'—'}</b></td><td class="num"><b>${fmtBRL(catsTot.custo)}</b></td><td class="num"><span class="ct-sem ${tCls}">${ctPct(catsTot.rec-catsTot.custo,catsTot.rec)==null?'—':ctPct(catsTot.rec-catsTot.custo,catsTot.rec)+'%'}</span> <span class="muted small">${tRot}</span></td></tr></tfoot></table></div>
+    ${ctExpl('a <b>margem por categoria</b> no mesmo período e com as mesmas regras (receita = horas faturáveis × valor-hora do contrato; custo = horas × custo/h de cada pessoa). A linha marcada é a categoria aberta abaixo; categorias sem contrato mostram só o custo.')}</div>`:'';
+  const blocoRes=ct.destaque?ctResultadoHTML(d, ct.destaque):'';
+  const blocoProj=S.proj?`<div class="card full"><h2>📁 Projetos da categoria <span>clique numa linha para os tickets — de lá dá para agir (ficha, status, Gestão, Rateio) · 🧾 abre o resultado do projeto · 📁 a ficha</span></h2>
     <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Projeto</th><th class="num">Horas</th><th class="num">Custo</th><th class="num">Receita</th><th class="num">Margem</th><th class="num">Esforço executado</th><th class="num">Concluído</th><th class="num">Pessoas</th></tr></thead>
     <tbody>${projRows||'<tr><td colspan="8" class="mp-dim">Sem horas na categoria neste período.</td></tr>'}</tbody></table></div>
     ${ctExpl('<b>Esforço executado</b> compara as horas já gastas com a estimativa dos tickets no Jira (histórico do projeto inteiro, não só o período) — acima de 100% significa que o projeto já custou mais esforço do que o previsto. <b>Concluído</b> é a % de tickets fechados.')}</div>`:'';
@@ -592,9 +733,12 @@ function renderControladoria(){
       ${avisos.length?`<div class="aviso" style="margin-top:8px">${avisos.join('<br>')}</div>`:''}
       ${blocoCfg}
     </div>
+    ${blocoRes}
     ${kpis?`<div class="card full">${kpis}</div>`:''}
-    ${blocoProj}${blocoEvo}${blocoPes}${blocoTipo}${blocoExec}
+    ${blocoCats}${blocoProj}${blocoEvo}${blocoPes}${blocoTipo}${blocoExec}
   </div>`));
+  // vindo da 🦴 espinha ou do 🧾 da linha: o resultado do projeto à vista
+  if(ct.destaque&&ct.rolar){ const elx=document.getElementById('ct-res'); if(elx){ ct.rolar=false; setTimeout(()=>{ try{ elx.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} },80); } }
 }
 // 🔎 Drill da controladoria: tickets por trás do número, com AÇÕES.
 // qs: '' (tudo) · pj=KEY · mes=YYYY-MM · tipo=NOME · a=accountId
@@ -656,16 +800,30 @@ document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   if(estado.vista!=='controladoria') return;
   if(e.key!=='Enter'&&e.key!==' ') return;
   const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
-  if(dr){ e.preventDefault(); ctAbreTickets(dr.getAttribute('data-ct-drill')); }
+  if(dr){ e.preventDefault(); ctAbreTickets(dr.getAttribute('data-ct-drill')); return; }
+  const ci=e.target.closest&&e.target.closest('[data-ct-cat-ir]');
+  if(ci){ e.preventDefault(); estado.ctrl.cat=ci.getAttribute('data-ct-cat-ir'); estado.ctrl.destaque=''; renderControladoria(); }
 });
+// Abre a 💹 Rentabilidade num plano (do 📁 Resultado do projeto).
+function ctAbrePlano(id){ const rr=estado.rentab; rr.sel=id; rr.edit=false; rr.novo=false; vaiPara('rentab'); }
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='controladoria') return;
   const ct=estado.ctrl;
   const dr=e.target.closest&&e.target.closest('[data-ct-drill]');
-  if(dr&&!e.target.closest('button')&&!e.target.closest('a')&&!e.target.closest('input')){
+  if(dr&&!e.target.closest('button')&&!e.target.closest('a')&&!e.target.closest('input')&&!e.target.closest('.lnk')){
     ctAbreTickets(dr.getAttribute('data-ct-drill')); return; }
+  const ci=e.target.closest&&e.target.closest('[data-ct-cat-ir]');   // 🧭 todas as categorias → abre a categoria
+  if(ci&&!e.target.closest('button')){ ct.cat=ci.getAttribute('data-ct-cat-ir'); ct.destaque=''; renderControladoria(); return; }
+  const pl=e.target.closest&&e.target.closest('[data-ct-plano]'); if(pl){ ctAbrePlano(pl.getAttribute('data-ct-plano')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); ct.destaque=''; renderControladoria(); return; }   // destaque: linha do projeto vinda da 🦴 espinha (ficha)
+  if(t.hasAttribute('data-proj-ficha')) return;   // 🦴 caminho de volta: tratado no documento (02-projetos)
+  if(t.hasAttribute('data-ct-res')){ ct.destaque=t.getAttribute('data-ct-res'); ct.rolar=true; renderControladoria(); return; }   // 📁 resultado do projeto
+  if(t.hasAttribute('data-ct-res-fechar')){ ct.destaque=''; renderControladoria(); return; }
+  if(t.hasAttribute('data-ct-plano-novo')){ if(typeof projEspinhaVai==='function') projEspinhaVai('plano', t.getAttribute('data-ct-plano-novo')); return; }
+  if(t.hasAttribute('data-ct-metricas')){ const k=t.getAttribute('data-ct-metricas'); const m=estado.metricas; const s=relSiglaDe(((estado.ctrl.tempo&&estado.ctrl.tempo.projetos&&estado.ctrl.tempo.projetos[k])||{}).categoria||'');
+    if(s) m.sigla=s; m.proj=k; vaiPara('metricas'); return; }
+  if(t.hasAttribute('data-ct-contrato')){ estado.admin.editId=t.getAttribute('data-ct-contrato'); vaiPara('admin'); return; }
+  if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); ct.destaque=''; renderControladoria(); return; }   // destaque: projeto em foco vindo da 🦴 espinha (ficha) ou do 🧾
   if(t.hasAttribute('data-ct-per')){ const p=t.getAttribute('data-ct-per'); const h=hojeSP();
     ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
     ct.ate=h; renderControladoria(); return; }

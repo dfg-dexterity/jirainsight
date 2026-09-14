@@ -226,14 +226,18 @@ function inboxAvisosAgenda(){
   const id=idApontar();
   return (id&&id.accountId&&(cfg.inboxAvisos||{})[id.accountId])||[];
 }
+// Menções sem resposta (as ignoradas não contam) — alimenta o Inbox e o contador da aba 💬 Menções (fase 4).
+function mencoesPend(){
+  const ign=mnIgnoradasSet();
+  return (((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
+}
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
-  const ign=mnIgnoradasSet();
-  const men=(((estado.inbox.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m))).length;
-  return conv+men+inboxAprovacoes().length+inboxAvisosAgenda().length+((estado.inbox.planos)||[]).length;
+  return conv+mencoesPend()+inboxAprovacoes().length+inboxAvisosAgenda().length+((estado.inbox.planos)||[]).length;
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
+  if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contadores das abas 📥 Pendências / 💬 Menções (fase 4)
   // Selo no item 📥 Inbox (fixo na barra desde a navegação por perfil — o único selo numérico do Hub).
   [document.querySelector('#seg-vista [data-v="inbox"]')].forEach(elx=>{
     if(!elx) return; let b=elx.querySelector('.tab-badge');
@@ -560,6 +564,12 @@ function anlExportaCSV(res){
   a.download=`analytics-${ch.id}-${hojeSP()}.csv`; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
 }
+// Selo "R08" no card (só leitura — o card inteiro já é um botão) e clicável no cabeçalho do detalhe (📚 Central, fase 4).
+function anlCodigosR(id, clicavel){
+  const cs=(typeof relCodigosDe==='function')?relCodigosDe('anl',id):[]; if(!cs.length) return '';
+  if(clicavel&&typeof relCodigosHTML==='function') return relCodigosHTML('anl',id);
+  return `<span class="rc-cods">${cs.map(c=>{ const it=(typeof REL_CAT!=='undefined')?REL_CAT.find(r=>r.id===c):null; return `<span class="rc-cod" data-tip="${escA(`Entrega o relatório ${c}${it?' · '+it.nome:''} da 📚 Central`)}">${esc(c)}</span>`; }).join('')}</span>`;
+}
 function renderAnalytics(){
   const cont=document.getElementById('conteudo');
   const an=estado.analytics;
@@ -631,6 +641,7 @@ function renderAnalytics(){
           ${ch.n}. ${esc(ch.tit)} <span>${sel.n} ocorrência(s) · ${esc(ch.des)}</span></h2>
         <div class="ap-vis" style="margin:0 0 10px">
           <span class="anl-badge anl-${ch.modo}">${ch.modo==='auto'?'automática':ch.modo==='heur'?'heurística':'manual'}</span>
+          ${anlCodigosR(ch.id,true)}
           ${ch.notaExtra?`<span class="muted small">${esc(ch.notaExtra)}</span>`:''}
           <span class="spacer"></span>
           <input type="search" id="anl-busca" placeholder="filtrar por código, resumo, pessoa…" value="${escA(an.busca)}" style="min-width:240px">
@@ -656,6 +667,7 @@ function renderAnalytics(){
         <span class="spacer"></span><span class="anl-cnt">${cnt}</span></div>
       <div class="anl-des">${esc(ch.des)}</div>
       <div class="anl-foot"><span class="anl-badge anl-${ch.modo}">${ch.modo==='auto'?'automática':ch.modo==='heur'?'heurística':'manual'}</span>
+        ${anlCodigosR(ch.id)}
         ${n===null?'<span class="muted small">guia →</span>':(n>0?'<span class="muted small">ver lista →</span>':'<span class="muted small">✓ sem ocorrência</span>')}</div>
     </button>`;
   };

@@ -8,8 +8,12 @@ function carregaGestao(forca){
     .then(r=>r.json()).then(j=>{ g.carregando=false;
       if(j.erro){ g.erro=j.erro; } else { g.dados=j; }
       if(estado.vista==='gestao') renderGestao();
+      if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador de vencidos na aba 🛠 Ações em massa (fase 4)
     }).catch(e=>{ g.carregando=false; g.erro=String(e.message||e); if(estado.vista==='gestao') renderGestao(); });
 }
+// Vencidos entre os tickets abertos já carregados (null = a lista ainda não foi lida — a aba não busca nada por conta própria).
+function gestaoVencidos(){ const g=estado.gestao; if(!g||!g.dados) return null; const hoje=hojeSP();
+  return ((g.dados.tickets)||[]).filter(t=>t.venc&&t.venc<hoje).length; }
 // ---- Risco do ticket (0–100): atraso, falta de atualização, prioridade, estouro de estimativa, sem responsável ----
 function gxAtrasoDias(t,hoje){ return (t.venc&&t.venc<hoje)? Math.max(1,Math.round((new Date(hoje)-new Date(t.venc))/86400000)) : 0; }
 function gxDiasSemAtu(t,hoje){ const up=(t.up||'').slice(0,10); if(!up) return 999;
@@ -830,6 +834,7 @@ function renderGestao(){
         <div class="campo"><label>Status</label><select id="gx-fstatus"><option value="">todos</option>${statuses.map(x=>`<option ${g.fStatus===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
         <div class="campo"><label>Buscar</label><input type="search" id="gx-busca" placeholder="código, resumo, pessoa…" value="${escA(g.busca)}"></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-refresh">Atualizar</button></div>
+        ${g.fProj?`<div class="campo"><label>&nbsp;</label><button class="btn" data-proj-ficha="${escA(g.fProj)}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha de ${esc(projNome(g.fProj))}</button></div>`:''}
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-dup" title="Lista os tickets abertos que têm o mesmo resumo e o mesmo vencimento">🧬 Verificar duplicados</button></div>
         <div class="campo"><label>&nbsp;</label><button class="btn" id="gx-epicos" title="Tickets abertos que não estão vinculados a nenhum épico, agrupados por projeto, para vincular ao épico certo">🧩 Ajustar épicos</button></div>
       </div>

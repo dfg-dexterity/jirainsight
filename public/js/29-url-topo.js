@@ -149,8 +149,11 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
+  let v=b.dataset.v;
   if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
-  estado.vista=b.dataset.v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
+  else if(!b.closest('#nav-favs')&&typeof abaUltima==='function'){   // 🧠 a entrada do grupo volta à última aba usada (favoritos ⭐ abrem a aba exata)
+    const m=abaUltima(v); if(m){ if(m.aud) estado.planrel.aud=m.aud; v=m.v; } }
+  estado.vista=v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 });
 // Menu sanduíche (celular/tablet estreito): abre/fecha o painel de navegação.

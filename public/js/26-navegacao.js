@@ -69,8 +69,11 @@ function fechaModal(){ document.getElementById('modal').hidden=true;
 // Uma vista pode aparecer em um único grupo por audiência; o gate (check-entrega) confere.
 // Fase 3 (2026-09-14): as fusões de Negócio e Insights — 📑 Contratos (clientes + parceiros), 🛡 Apuração de contratos
 // (AMS + Receita), 📊 Visão Geral (painel + Resumo) e a 📚 Central de Relatórios como porta única (catálogo, Analytics e
-// Métricas por tipo). A 🏦 Controladoria segue tela única (🗺️ Roadmap: blocos financeiros das Métricas). A ficha do
-// 📁 projeto liga as áreas pela "espinha do projeto" (projEspinha em 02-projetos.js).
+// Métricas por tipo). A ficha do 📁 projeto liga as áreas pela "espinha do projeto" (projEspinha em 02-projetos.js).
+// Fase 4 (2026-09-14): a barra ganhou MEMÓRIA e CONTADORES — o menu abre a última aba usada em cada grupo
+// (abaLembra/abaUltima, só neste navegador; links ?v=, favoritos e Ctrl+K continuam abrindo a aba pedida) e as abas
+// que têm algo esperando ação mostram o número (ABAS_N: pendências do Inbox, menções sem resposta, vencidos entre os
+// tickets abertos). A 🏦 Controladoria segue tela única, agora com o 📁 Resultado do projeto (18-controladoria).
 const ABAS=[
   { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
@@ -93,12 +96,32 @@ function abaAud(){ return (estado.planrel&&estado.planrel.aud)||'gestor'; }
 function abaGrupoDe(v, aud){ const a=aud||abaAud(); return ABAS.find(g=>g.abas.some(x=>x.v===v&&(!x.aud||x.aud===a)))||null; }
 // A entrada do menu que representa a vista: a própria, ou a tela principal do grupo de abas.
 function abaAlvoMenu(v){ const g=abaGrupoDe(v); return g?g.id:v; }
+// ---- 🧠 Memória das abas (fase 4): a última aba aberta em cada grupo, só neste navegador. O MENU (a entrada do
+// grupo) volta para ela; links ?v=, favoritos ⭐ e o Ctrl+K abrem exatamente a aba pedida. ----
+const ABAS_MEM_KEY='jirainsight_abas_ultima_v1';
+function abaMemLe(){ try{ const m=JSON.parse(localStorage.getItem(ABAS_MEM_KEY)||'{}'); return m&&typeof m==='object'?m:{}; }catch(e){ return {}; } }
+function abaLembra(g, v, aud){ if(!g||!v) return; try{ const m=abaMemLe(); const cur=m[g.id]||{};
+  if(cur.v===v&&(cur.aud||'')===(aud||'')) return; m[g.id]={ v, aud:aud||'' }; localStorage.setItem(ABAS_MEM_KEY, JSON.stringify(m)); }catch(e){} }
+// A aba que o menu deve abrir para a entrada `gid`: a lembrada (se ainda existir no grupo), senão null (= a própria).
+function abaUltima(gid){ const g=ABAS.find(x=>x.id===gid); if(!g) return null; const m=abaMemLe()[gid]; if(!m||!m.v) return null;
+  const a=g.abas.find(x=>x.v===m.v&&(x.aud||'')===(m.aud||'')); if(!a) return null;
+  if(a.v===gid&&!a.aud) return null; return { v:a.v, aud:a.aud||'' }; }
+// ---- 🔢 Contadores das abas (fase 4): número de coisas esperando ação, só onde o dado já está carregado (barato —
+// nada é buscado por causa da aba). Cada função devolve um número ou null; o texto é o tooltip. ----
+const ABAS_N={
+  inbox:   { n:()=>(typeof inboxPend==='function'&&estado.inbox&&estado.inbox.carregou)?inboxPend():null, tip:'pendência(s) aguardando você (convites, menções, planos para aprovar)' },
+  mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
+  gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
+};
+function abaN(v){ const c=ABAS_N[v]; if(!c) return ''; let n=null; try{ n=c.n(); }catch(e){ n=null; }
+  return (typeof n==='number'&&n>0)?`<span class="aba-n" data-tip="${escA(n+' '+c.tip)}">${n>99?'99+':n}</span>`:''; }
 function renderAbas(){
   const box=document.getElementById('abas'); if(!box) return;
   const g=abaGrupoDe(estado.vista); if(!g){ box.hidden=true; box.innerHTML=''; return; }
   const aud=abaAud();
-  box.hidden=false; box.innerHTML=`<span class="abas-rot">${esc(g.rot)}</span>`+g.abas.map(a=>{ const on=!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud);
-    return `<button class="aba${on?' on':''}" ${a.v?`data-aba-v="${escA(a.v)}"${a.aud?` data-aba-aud="${escA(a.aud)}"`:''}`:`data-aba-acao="${escA(a.acao)}"`} aria-pressed="${on?'true':'false'}">${esc(a.rot)}</button>`; }).join('');
+  const ativa=g.abas.find(a=>!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud)); if(ativa) abaLembra(g, ativa.v, ativa.aud);
+  box.hidden=false; box.innerHTML=`<span class="abas-rot" data-tip="Grupo de abas — o menu lembra a última aba que você abriu aqui">${esc(g.rot)}</span>`+g.abas.map(a=>{ const on=!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud);
+    return `<button class="aba${on?' on':''}" ${a.v?`data-aba-v="${escA(a.v)}"${a.aud?` data-aba-aud="${escA(a.aud)}"`:''}`:`data-aba-acao="${escA(a.acao)}"`} aria-pressed="${on?'true':'false'}">${esc(a.rot)}${a.v?abaN(a.v):''}</button>`; }).join('');
 }
 document.addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('#abas [data-aba-v],#abas [data-aba-acao]'); if(!t) return;
@@ -189,11 +212,11 @@ const NAVCAT=[
   ['ams','🛡 Apuração de contratos › 🛡 AMS (por ciclo)','negocio','ciclo faturado banco horas chamados gestao apuracao ams governanca'],
   ['receita','🛡 Apuração de contratos › 💰 Bolsa de horas & projetos (Receita)','negocio','bolsa horas projetos consumo contratado gestao receita apuracao'],
   ['rentab','💹 Rentabilidade de projetos','negocio','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado odoo ordem de venda faturamento periodos'],
-  ['controladoria','🏦 Controladoria de Projetos','negocio','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria'],
+  ['controladoria','🏦 Controladoria de Projetos','negocio','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria resultado do projeto custo por nivel vendido realizado todas as categorias'],
   // Dexterity Insights — diretoria e governança
   ['visao','📊 Visão Geral › 📊 Painel executivo','insights','inicio home executiva kpis painel executivo diretoria'],
   ['resumo','📊 Visão Geral › 🧠 Resumo (KPIs + IA)','insights','kpis horas faturavel ia analise resumo'],
-  ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R27','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise'],
+  ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R27','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise codigo r visoes blocos'],
   ['analytics','📚 Central de Relatórios › 📈 Analytics (26 visões)','insights','governanca 26 visoes graficos desvios analise analytics'],
   ['metricas','📚 Central de Relatórios › 📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
   // Administração e ⋯ Mais

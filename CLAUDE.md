@@ -18,6 +18,16 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   📊 Visão Geral, 📚 Central de Relatórios) e a ficha do 📁 projeto ganhou a **🦴 espinha do
   projeto** (`projEspinha`/`projEspinhaVai` em `02-projetos.js`: chips que abrem Contrato,
   Plano, Execução, Apuração e Resultado já no projeto). `npm run check` confere ABAS × VISTAS × menu.
+- **Fase 4 (2026-09-14):** a espinha ficou de **ida e volta** — 7 chips (+ 🤝 Parceria e 📅
+  Cronograma) e o botão/chip `[data-proj-ficha="KEY"]` em qualquer tela volta à ficha
+  (`projAbreFicha`, handler global em `02-projetos.js`; `projChipsFicha` nas listas de projetos).
+  As abas ganharam **memória** (`abaLembra`/`abaUltima`, só no navegador: a entrada do menu abre
+  a última aba do grupo; links, favoritos e Ctrl+K abrem a aba pedida) e **contadores** (`ABAS_N`,
+  só com dado já carregado). A 🏦 Controladoria ganhou o **📁 Resultado do projeto**
+  (`estado.ctrl.destaque` → `ctResultadoHTML`) e o bloco 🧭 Todas as categorias. A 📚 Central
+  liga cada relatório às visões do Analytics (`anl`) e aos blocos das Métricas (`rm`) — chips na
+  Central, selo "R08" do outro lado (`relCodigosDe`). Tela nova que entrega um relatório oficial
+  = acrescentar o id em `anl`/`rm` do item de `REL_CAT`.
 
 - Front-end estático em `public/` (HTML/JS puro, **sem build**). Desde **2026-09-06** o
   `index.html` é só o HTML: o CSS está em `public/css/app.css` e o JS em **32 módulos

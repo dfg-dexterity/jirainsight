@@ -231,9 +231,9 @@
   /* 🦴 Espinha do projeto (ficha): chips que abrem as telas das outras áreas já neste projeto (fase 3, 2026-09-14) */
   .proj-espinha{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:4px 0 14px;padding:10px 12px;border:1px dashed var(--linha2);border-radius:12px;background:var(--cartao2)}
   .proj-espinha .pesp-rot{align-self:center;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-right:6px;white-space:nowrap}
-  .pesp-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:150px;max-width:260px;border:1px solid var(--linha2);background:var(--cartao);border-radius:10px;padding:7px 10px;cursor:pointer;text-align:left;font-family:var(--corpo);color:inherit;position:relative;transition:border-color .12s ease,background .12s ease}
+  .pesp-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:160px;max-width:260px;border:1px solid var(--linha2);background:var(--cartao);border-radius:10px;padding:7px 10px;cursor:pointer;text-align:left;font-family:var(--corpo);color:inherit;position:relative;transition:border-color .12s ease,background .12s ease}
   .pesp-chip:hover{border-color:var(--cerceta);background:var(--hoverbg)}
-  .pesp-chip b{font-size:13px;font-weight:700;padding-right:58px}
+  .pesp-chip b{font-size:13px;font-weight:700;padding-right:62px}
   .pesp-chip .pesp-sub{font-size:11.5px;color:var(--muted);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pesp-chip .pesp-area{position:absolute;top:7px;right:9px;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted);opacity:.75}
   .pesp-chip.pesp-fora{opacity:.72}
@@ -378,7 +378,9 @@
      ok nos dois temas); o par do desvio é laranja/azul pelo mesmo motivo. */
   .mp-root{--mgp:#4a3aa7;--mgr:#009994;--mga:#C2660A;--mgb:#2a78d6}
   [data-theme="dark"] .mp-root{--mgp:#8070E8;--mgr:#0FA79D;--mga:#D07E1C;--mgb:#4F94DC}
-  .mpg{margin:14px 0 6px}
+  /* as cores das barras valem em qualquer lugar (Controladoria: evolução da categoria e do 📁 Resultado do projeto) */
+  .mpg{margin:14px 0 6px;--mgp:#4a3aa7;--mgr:#009994;--mga:#C2660A;--mgb:#2a78d6}
+  [data-theme="dark"] .mpg{--mgp:#8070E8;--mgr:#0FA79D;--mga:#D07E1C;--mgb:#4F94DC}
   .mpg-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
   .mpg-t{font-size:13px;font-weight:700;color:var(--mpink)}
   .mpg-sub{font-size:11.5px;color:var(--muted)}
@@ -583,6 +585,24 @@
   .abas-tela .aba{border:0;background:transparent;color:var(--texto2);font-family:var(--corpo);font-size:13.5px;font-weight:600;padding:8px 12px;cursor:pointer;border-radius:8px 8px 0 0;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .12s ease,border-color .12s ease}
   .abas-tela .aba:hover{color:var(--cerceta);background:var(--hoverbg)}
   .abas-tela .aba.on{color:var(--cerceta);border-bottom-color:var(--cerceta)}
+  /* 🔢 contador da aba (fase 4): o que espera ação — pendências, menções sem resposta, vencidos */
+  .abas-tela .aba .aba-n{display:inline-block;min-width:17px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--err,#d20a0a);color:#fff;font-size:10.5px;font-weight:800;line-height:17px;text-align:center;vertical-align:1px}
+  /* 🦴 caminho de volta (fase 4): chip "📁 KEY" nas listas de projetos das outras telas → ficha do projeto */
+  .lnk-ficha{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--linha2);background:var(--cartao);border-radius:999px;padding:1px 8px;font-family:var(--corpo);font-size:11.5px;font-weight:600;color:var(--cerceta);cursor:pointer;line-height:18px;vertical-align:middle}
+  .lnk-ficha:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  /* 🤝 contrato de parceria em destaque (vindo da espinha do projeto) */
+  .pc-card.pc-dest{box-shadow:0 0 0 2px var(--cerceta) inset,0 6px 18px rgba(0,153,148,.14)}
+  /* 🏦 📁 Resultado do projeto na Controladoria (fase 4) */
+  .ct-res{border-left:4px solid var(--cerceta)}
+  .ct-res-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 12px}
+  /* 📚 catálogo por código R (fase 4): chips das visões/blocos na Central e selos "R08" nas outras telas */
+  .rel-visoes{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:8px 0 4px}
+  .rel-vis{border:1px solid var(--linha2);background:var(--cartao2);border-radius:999px;padding:2px 9px;font-family:var(--corpo);font-size:11.5px;font-weight:600;color:var(--cerceta);cursor:pointer;line-height:18px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rel-vis:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  .rc-cods{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
+  .rc-cod{display:inline-block;border:1px solid var(--linha2);background:var(--cartao2);border-radius:6px;padding:0 6px;font-family:var(--mono,ui-monospace,monospace);font-size:10.5px;font-weight:700;letter-spacing:.3px;line-height:17px;color:var(--texto2)}
+  button.rc-cod{cursor:pointer} button.rc-cod:hover{border-color:var(--cerceta);color:var(--cerceta)}
+  .rm-bloco.rm-foco{box-shadow:inset 3px 0 0 var(--cerceta);padding-left:10px;border-radius:6px}
   @media (max-width:760px){ .abas-tela{gap:0;padding:0} .abas-tela .abas-rot{width:100%;padding:4px 8px 2px} .abas-tela .aba{font-size:13px;padding:9px 10px} }
   .brand small .brand-antes{opacity:.7;cursor:help}
   /* Telas médias: o menu encolhe (padding, fonte e ícones) para caber numa faixa

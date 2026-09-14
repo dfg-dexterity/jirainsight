@@ -308,31 +308,70 @@ function projEspinhaDados(key) {
   const parceria = (plano && plano.contrato && typeof pcDe === 'function') ? pcDe(plano.contrato) : null;
   return { contrato, plano, parceria };
 }
+// Próximo marco (Data limite de épico aberto ≥ hoje) e contagem de épicos — alimenta o chip 📅 Cronograma.
+function projMarcos(d) {
+  const hoje = projHoje(); const eps = (d && d.epicos) || [];
+  const abertos = eps.filter((e) => e.sc !== 'done' && e.sc !== 'cancel');
+  const prox = abertos.map((e) => e.fim || '').filter((f) => f && f >= hoje).sort()[0] || '';
+  const atras = abertos.filter((e) => e.fim && e.fim < hoje).length;
+  return { n: eps.length, abertos: abertos.length, prox, atras };
+}
+// ---- 🦴 Caminho de VOLTA (fase 4): qualquer tela abre a ficha do projeto com 1 clique — botão/chip
+// [data-proj-ficha="KEY"] (opcional data-proj-aba="epicos"), tratado no documento inteiro (vale dentro de modais). ----
+function projAbreFicha(key, aba) {
+  if (!key) return;
+  const p = estado.projetos; p.sel = key; p.aba = aba || 'geral';
+  if (typeof fechaModal === 'function' && !document.getElementById('modal').hidden) fechaModal();
+  if (estado.vista === 'projetos') { renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); } else vaiPara('projetos');
+}
+// Chips "📁 KEY" para listas de projetos (Contratos, AMS, Bolsa de horas, Parcerias…): cada um abre a ficha.
+function projChipsFicha(keys) {
+  const ks = (keys || []).filter(Boolean);
+  if (!ks.length) return '—';
+  return ks.map((k) => `<button class="lnk-ficha" data-proj-ficha="${escA(k)}" data-tip="${escA(`Abrir a ficha de ${projNome(k)} em 📁 Projetos (🦴 espinha)`)}">📁 ${esc(k)}</button>`).join(' ');
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest && e.target.closest('[data-proj-ficha]'); if (!t) return;
+  if (typeof escondeTip === 'function') try { escondeTip(); } catch (x) {}
+  projAbreFicha(t.getAttribute('data-proj-ficha'), t.getAttribute('data-proj-aba') || '');
+});
 function projEspinha(key, d) {
   const { contrato, plano, parceria } = projEspinhaDados(key);
-  const r = d.resumo || {}; const cat = d.categoria || 'Sem categoria';
+  const r = d.resumo || {}; const cat = d.categoria || 'Sem categoria'; const mk = projMarcos(d);
   const fora = (a) => ((typeof areaVisivel === 'function' && !areaVisivel(a)) ? ' pesp-fora' : '');
-  const areaRot = (a) => ((typeof AREAS !== 'undefined' && AREAS[a] && AREAS[a].rot) || a);
-  const chip = (id, area, rot, sub, tip) => `<button class="pesp-chip${fora(area)}" data-proj-esp="${id}" data-tip="${escA(tip)}"><b>${rot}</b><span class="pesp-sub">${esc(sub)}</span><i class="pesp-area">${esc(areaRot(area))}</i></button>`;
+  const areaRot = (a) => (((typeof AREAS !== 'undefined' && AREAS[a] && AREAS[a].rot) || a)).replace(/^Dexterity\s+/i, '');   // "Negócio", "Entrega" — cabe no canto do chip
+  const chip = (id, area, rot, sub, tip) => `<button class="pesp-chip${fora(area)}" data-proj-esp="${id}" data-tip="${escA(tip)}"><b>${rot}</b><span class="pesp-sub">${esc(sub)}</span><i class="pesp-area" title="${escA((typeof AREAS !== 'undefined' && AREAS[area] && AREAS[area].rot) || area)}">${esc(areaRot(area))}</i></button>`;
   const tipoPlano = (plano && typeof RP_TIPOS !== 'undefined' && RP_TIPOS[plano.tipo]) ? RP_TIPOS[plano.tipo][1] : '';
   const rotTipo = (t) => ((typeof rotuloTipo === 'function') ? rotuloTipo(t) : t);
   const ciclo = (c) => ((typeof amsLabelApur === 'function') ? amsLabelApur(c.apuracao || 'trimestral').toLowerCase() : 'ciclo');
+  const odoo = plano && plano.odoo && plano.odoo.id ? ` · 🧾 ${plano.odoo.name || 'Odoo'}` : '';
   const chips = [
     chip('contrato', 'negocio', '📑 Contrato', contrato ? `${contrato.cliente || '(sem nome)'} · ${rotTipo(contrato.tipo)}` : 'nenhum cadastrado',
       contrato ? 'Abre o contrato deste projeto em 📑 Contratos › 🏢 Clientes (valor-hora, horas, vigência)' : 'Nenhum contrato do Admin mapeia este projeto — abre 📑 Contratos › 🏢 Clientes para cadastrar'),
-    chip('plano', 'negocio', '💹 Plano', plano ? `${plano.nome || '(sem nome)'}${tipoPlano ? ' · ' + tipoPlano : ''}${parceria ? ' · 🤝 ' + (parceria.consultoria || '') : ''}` : 'sem plano de rentabilidade',
-      plano ? 'Abre o plano de rentabilidade deste projeto (cenários, períodos de faturamento, Odoo)' : 'Sem plano ainda — abre a 💹 Rentabilidade com um plano novo já apontando para este projeto'),
+    chip('parceria', 'negocio', '🤝 Parceria', parceria ? `${parceria.consultoria || '(sem nome)'} · fecha dia ${parceria.fatFecha || 31}` : (plano ? 'plano sem contrato de parceria' : 'sem contrato de parceria'),
+      parceria ? 'Abre 📑 Contratos › 🤝 Parceiros com o contrato desta consultoria em destaque (validade, aviso prévio, calendário de faturamento)' : 'Nenhum contrato de parceria ligado ao plano deste projeto — abre 🤝 Parceiros (vincule pelo plano, em 💹 Rentabilidade)'),
+    chip('plano', 'negocio', '💹 Plano', plano ? `${plano.nome || '(sem nome)'}${tipoPlano ? ' · ' + tipoPlano : ''}${odoo}` : 'sem plano de rentabilidade',
+      plano ? `Abre o plano de rentabilidade deste projeto (cenários, períodos de faturamento${odoo ? ', ordem de venda ' + (plano.odoo.name || '') + ' no Odoo' : ''})` : 'Sem plano ainda — abre a 💹 Rentabilidade com um plano novo já apontando para este projeto'),
+    chip('cronograma', 'entrega', '📅 Cronograma', mk.n ? `${nBR(mk.n)} épico(s)${mk.prox ? ' · próximo marco ' + dataBR(mk.prox) : (mk.atras ? ` · ${nBR(mk.atras)} marco(s) atrasado(s)` : ' · sem marcos com data')}` : 'sem épicos',
+      'Abre 📁 Projetos › 📅 Marcos e Cronograma (R04) deste projeto: planejado × real, marcos, previsão pelo ritmo e dependências'),
     chip('execucao', 'entrega', '🛠 Execução', `${nBR(r.emAndamento)} em andamento · ${nBR(r.vencidos)} vencidos`, 'Abre 🛠 Tickets do time filtrado neste projeto — ações em massa (atribuir, status, reprogramar…)'),
     chip('apuracao', 'negocio', '🛡 Apuração', contrato ? (contrato.tipo === 'ams' ? `AMS · ${ciclo(contrato)}` : rotTipo(contrato.tipo)) : 'sem contrato',
       contrato ? (contrato.tipo === 'ams' ? 'Abre a apuração do ciclo AMS deste contrato (banco de horas, faturado)' : 'Abre 💰 Bolsa de horas & projetos — consumo × contratado e projeção') : 'A apuração precisa de um contrato no Admin — abre 📑 Contratos › 🏢 Clientes'),
-    chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}", com a linha deste projeto destacada (receita, custo, margem)`),
+    chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}" com o 📁 Resultado deste projeto aberto: receita, custo por nível e por pessoa, vendido × realizado, plano × realizado e evolução`),
   ].join('');
-  return `<div class="proj-espinha"><span class="pesp-rot" data-tip="A ficha é a espinha do app: cada chip abre a tela da outra área já neste projeto">🦴 Espinha do projeto</span>${chips}</div>`;
+  return `<div class="proj-espinha"><span class="pesp-rot" data-tip="A ficha é a espinha do app: cada chip abre a tela da outra área já neste projeto — e de lá o botão 📁 traz de volta">🦴 Espinha do projeto</span>${chips}</div>`;
 }
 function projEspinhaVai(id, key) {
-  const { contrato, plano } = projEspinhaDados(key);
+  const { contrato, plano, parceria } = projEspinhaDados(key);
   const ficha = (estado.projetos.fichas || {})[key] || {};
   if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }
+  if (id === 'parceria') {
+    const st = estado.parcerias = estado.parcerias || {}; st.novo = false; st.editId = null; st.rasc = null;
+    st.destaque = parceria ? parceria.id : ''; if (parceria) st.cal = '';
+    if (!parceria) toast(plano ? 'O plano deste projeto ainda não está ligado a um contrato de parceria — vincule em 💹 Rentabilidade › ✏️ Dados do projeto.' : 'Este projeto não tem plano nem contrato de parceria — aqui ficam as consultorias que contratam a Dexterity.');
+    vaiPara('parcerias'); return;
+  }
+  if (id === 'cronograma') { estado.cronograma.proj = key; vaiPara('cronograma'); return; }
   if (id === 'plano') {
     const rr = estado.rentab;
     if (plano) { rr.sel = plano.id; rr.edit = false; rr.novo = false; vaiPara('rentab'); return; }
@@ -353,7 +392,7 @@ function projEspinhaVai(id, key) {
     if (contrato.tipo === 'ams') { estado.ams.sel = contrato.id; estado.ams.ref = ''; vaiPara('ams'); return; }
     vaiPara('receita'); return;
   }
-  if (id === 'resultado') { estado.ctrl.cat = ficha.categoria || 'Sem categoria'; estado.ctrl.destaque = key; vaiPara('controladoria'); }
+  if (id === 'resultado') { estado.ctrl.cat = ficha.categoria || 'Sem categoria'; estado.ctrl.destaque = key; estado.ctrl.rolar = true; vaiPara('controladoria'); }
 }
 
 function renderProjFicha(cont, key) {
