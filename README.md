@@ -77,6 +77,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `09-qualidade-auditoria-meudia.js` | ✅ Qualidade (IA), 🕵️ Auditoria, 📍 Meu dia |
 | `09b-meu-tempo.js` | ⏳ Como estou gastando meu tempo? (histórico de apontamentos com comentários, gráficos, qualidade dos dados, colaboração, análise por IA) |
 | `10-timesheet.js` · `11-ranking.js` · `12-tickets.js` | 🔎 Timesheet · 🏆 Ranking · 🎫 Tickets |
+| `12b-busca-tickets.js` | 🎫 **Busca de tickets** (tecla `/`, `Ctrl+J`, botão `#btn-tkb` na barra, `#btn-mais-tkb` em ⋯ Mais e as linhas 🎫 da paleta Ctrl+K): sobreposição **projeto → ticket**. O projeto sai da memória do app (`projNomes`/`projetosUnidos` + `garanteProjetos`; recentes no `localStorage`); os tickets **abertos** do projeto vêm de `GET /api/reunioes?abertos=PROJ` (sem endpoint novo — a Vercel está no limite de 12), com **cache de 3 min no navegador** (`_tkbCache`, `↻` força), **filtro em memória** (`tkbFiltra`/`tkbOrdena`, teto de `TKB_MAX` linhas) e teclado (↑ ↓ · Enter · Backspace volta). A **chave** (`RDF-123`) abre qualquer ticket, aberto ou concluído; `🌐 Todos os projetos` aparece só quando `estado.analytics.dados` já está carregado. A ficha e as ações são as de `20-gestao.js` (`abreModalTicket(k, volta)` ganhou o `↩ Voltar à busca`) |
 | `13-apontar.js` | ⏱ Apontar (identidade, minhas horas, transições, reagendar, convites, reunião em grupo) |
 | `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |

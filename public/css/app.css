@@ -522,6 +522,18 @@
   .pal-fav{border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--muted);padding:2px 6px;border-radius:6px}
   .pal-fav:hover{background:var(--hoverbg)}
   .pal-fav.on{color:#eab308}
+  /* 🎫 Busca de tickets (tecla / ou Ctrl+J) — reaproveita as classes da paleta e só acrescenta a linha */
+  .tkb-h{padding-right:30px}   /* o × do modal não encosta no subtítulo em tela estreita */
+  .tkb-l{display:flex;align-items:center;gap:2px;min-width:0}
+  .tkb-l .pal-row{min-width:0}
+  .tkb-k{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tkb-res{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+  .tkb-lista{max-height:52vh;overflow:auto;margin-top:2px}
+  .tkb-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 2px 8px;border-bottom:1px solid var(--linha)}
+  .tkb-cab .btn{padding:3px 9px;font-size:12px}
+  .tkb-n{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+  .tkb-rod{margin-top:8px;padding-top:8px;border-top:1px solid var(--linha)}
+  @media(max-width:640px){ .tkb-lista{max-height:58vh} .tkb-l .pal-g{display:none} .tkb-n{margin-left:0} }
   /* 📅 Agenda (Outlook) */
   .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
   .ag-ev:last-child{border-bottom:0}

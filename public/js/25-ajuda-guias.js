@@ -27,6 +27,20 @@ function abreAjuda(){
       acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
+    <details class="help-sec"><summary>🎫 Achar um ticket (busca rápida)</summary><div class="help-body">
+      A tecla <b>/</b> (ou <b>Ctrl+J</b>, ou o botão <b>🎫</b> na barra; no celular, <b>⋯ Mais › 🎫 Buscar ticket</b>)
+      abre a busca em qualquer tela. O caminho é <b>projeto → ticket</b>:
+      <ul>
+        <li>· <b>Escolha o projeto</b> — a lista já está no navegador (os últimos que você usou vêm primeiro), então não custa nada.</li>
+        <li>· <b>A busca entra só nos tickets ABERTOS daquele projeto</b> — é essa escolha que a deixa rápida: uma consulta pequena, em vez da base inteira.</li>
+        <li>· <b>Digite para filtrar</b> por chave, resumo, status ou tipo. O filtro é <b>em memória</b>: nada vai à rede a cada tecla. <b>↑ ↓</b> escolhem, <b>Enter</b> abre a ficha, <b>⏱</b> aponta horas e <b>↗</b> abre no Jira.</li>
+        <li>· A lista fica <b>3 minutos</b> guardada: sair do projeto e voltar é instantâneo; o <b>↻</b> relê do Jira na hora.</li>
+        <li>· <b>Qualquer ticket, aberto ou concluído</b>: digite a <b>chave</b> (ex.: RDF-123) — aqui ou no 🔍 Ctrl+K — e a ficha abre direto.</li>
+        <li>· Quem já abriu o 📈 Analytics ganha o atalho <b>🌐 Todos os projetos</b>, que busca no que já está carregado, também sem ir à rede.</li>
+      </ul>
+      A ficha é a mesma da Gestão: descrição, horas, comentários, anexos e os botões de apontar, mudar status,
+      comentar e transformar — com <b>↩ Voltar à busca</b> para continuar procurando.
+    </div></details>
     <details class="help-sec"><summary>TODAS as telas (por área do Dexterity Hub — clique para abrir)</summary><div class="help-body">
       <div class="muted small">Desde 2026-09-13 o app é o <b>Dexterity Hub</b>: o conteúdo genérico (para todos) fica fixo na barra e as áreas <b>Dexterity Entrega</b>, <b>Dexterity Negócio</b> e <b>Dexterity Insights</b> aparecem pelo seu perfil (lente, não permissão — tudo abre pelo 🔍 Ctrl+K ou por link; em ⋯ Mais dá para "ver todas as áreas"). Desde 2026-09-14, telas que respondem a mesma pergunta são <b>abas de um grupo</b> (a barra acima do conteúdo): Inbox (Pendências · Menções), Apontar (Chamados · Rateio · Sugestões do dia), Meu Planejamento (Minha semana · Planejado × realizado), Criar ticket (Onde crio? · Criar), Tickets do time (Ações em massa · Lista · Qualidade · Regras), Reuniões, Projetos (Portfólio · Cronograma), Horas do time (Timesheet · Ranking), Planejamento do time e a Central de configurações (Central · Metas · Histórico).</div><ul>
       <li><b>Dexterity Hub — para todos:</b></li>
@@ -476,6 +490,7 @@ function posicionaTour(){
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo.'},
+    {s:'#btn-tkb',ti:'🎫 Achar um ticket em 2 cliques',tx:'A tecla / (ou Ctrl+J, ou este botão — no celular, ⋯ Mais › 🎫 Buscar ticket) abre a busca de tickets: escolha o PROJETO e ela entra só nos tickets ABERTOS dele — por isso é rápida. Digite para filtrar (não vai à rede), ↑ ↓ escolhem, Enter abre a ficha, ⏱ aponta horas. Para qualquer ticket, aberto ou concluído, digite a chave (RDF-123).'},
     {s:'#conteudo .apr-topo',ti:'⏱ Apontamento do time — o placar do dia',tx:'Quantas pessoas já lançaram horas hoje, quanto o time apontou hoje e na semana, e quantos dias úteis ficaram em branco. É o objetivo nº 1 do painel: ninguém esquecer de apontar.'},
     {s:'#conteudo .apr-lista',ti:'Pessoa a pessoa, hoje e na semana',tx:'Cada linha traz a pessoa, quanto lançou HOJE contra a meta dela, o total da SEMANA contra o esperado e a fita de dias (verde = dia fechado, amarelo = parcial, vermelho = em branco, vazado = fim de semana, feriado, ausência ou fora da vigência). Você aparece em primeiro; clique em alguém para abrir o timesheet dessa pessoa.'},
     {s:'#conteudo .apr-l.vazio',ti:'Quem ainda não apontou hoje',tx:'As linhas vermelhas sobem para o topo — é quem precisa de um empurrão hoje. O aviso logo acima do quadro já cita os primeiros nomes.',quando:'Aparece quando alguém que é cobrado hoje ainda não lançou nenhuma hora.'},
