@@ -249,6 +249,15 @@ function abrePaleta(){
   const pinta=()=>{
     const t=normPal(q.value);
     const areaRot=(k)=>(AREAS[k]&&AREAS[k].rot)||k;
+    // 🎫 Tickets (12b-busca-tickets.js): digitar a CHAVE abre a ficha na hora — por isso essa linha vem
+    // primeiro e é a do Enter. A linha fixa (no fim) leva à busca projeto → ticket, que é a rápida.
+    const bruto=String(q.value||'').trim().toUpperCase();
+    const chaveTk=/^[A-Z][A-Z0-9_]*-\d+$/.test(bruto)?bruto:'';
+    const tkTopo=chaveTk?`<div class="pal-area">🎫 Tickets</div><div style="display:flex;align-items:center">
+      <button class="pal-row pal-on" data-tkb-abrir="${escA(chaveTk)}">🎫 Abrir o ticket <b>${esc(chaveTk)}</b><span class="pal-g">ficha do ticket</span></button></div>`:'';
+    const tkFim=(!t||normPal('ticket tickets chamado issue buscar abertos por projeto chave').includes(t))
+      ?`<div class="pal-area">🎫 Tickets</div><div style="display:flex;align-items:center">
+        <button class="pal-row" data-tkb-buscar="1">🎫 Buscar um ticket <span class="muted">— escolhe o projeto e entra só nos abertos</span><span class="pal-g">tecla /</span></button></div>`:'';
     const hits=NAVCAT.filter(c=>!t||normPal(c[0]+' '+c[1]+' '+areaRot(c[2])+' '+c[3]).includes(t));
     // agrupa por área na ordem do catálogo; as áreas fora da lente vão para o fim (em cinza)
     const ordem=[]; hits.forEach(c=>{ if(!ordem.includes(c[2])) ordem.push(c[2]); });
@@ -256,16 +265,16 @@ function abrePaleta(){
     let i=0; const blocos=ordem.map(a=>{ const fora=!areaVisivel(a);
       return `<div class="pal-area${fora?' pal-fora':''}">${esc(areaRot(a))}${AREAS[a]&&AREAS[a].sub?` <span class="muted">· ${esc(AREAS[a].sub)}</span>`:''}${fora?' <span class="muted">· fora do seu perfil</span>':''}</div>`+
         hits.filter(c=>c[2]===a).map(c=>{ const n=i++; return `<div style="display:flex;align-items:center">
-      <button class="pal-row${n===0?' pal-on':''}${fora?' pal-dim':''}" data-pal-v="${escA(c[0])}">${esc(c[1])}<span class="pal-g">${esc(areaRot(c[2]))}</span></button>
+      <button class="pal-row${(n===0&&!chaveTk)?' pal-on':''}${fora?' pal-dim':''}" data-pal-v="${escA(c[0])}">${esc(c[1])}<span class="pal-g">${esc(areaRot(c[2]))}</span></button>
       ${c[0].startsWith('acao:')?'':`<button class="pal-fav${favs.includes(c[0])?' on':''}" data-pal-fav="${escA(c[0])}" data-tip="${favs.includes(c[0])?'Tirar da barra':'Fixar na barra'}">${favs.includes(c[0])?'★':'☆'}</button>`}
     </div>`; }).join(''); }).join('');
     const antigas=t?NAV_ANTIGAS.filter(x=>normPal(x[0]+' '+x[1]).includes(t)).map(x=>{ const c=NAVCAT.find(y=>y[0]===x[2]);
       return `<div style="display:flex;align-items:center"><button class="pal-row pal-dim" data-pal-v="${escA(x[2])}">${esc(x[1])} <span class="muted">→ agora é</span> ${esc(c?c[1]:x[2])}<span class="pal-g">aposentada</span></button></div>`; }).join(''):'';
-    lista.innerHTML=(blocos+antigas)||'<div class="muted small" style="padding:8px">Nada encontrado.</div>';
+    lista.innerHTML=(tkTopo+blocos+antigas+tkFim)||'<div class="muted small" style="padding:8px">Nada encontrado.</div>';
   };
   pinta();
   q.addEventListener('input',pinta);
-  q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const b=lista.querySelector('[data-pal-v]'); if(b) b.click(); } });
+  q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const b=lista.querySelector('[data-pal-v],[data-tkb-abrir]'); if(b) b.click(); } });
   setTimeout(()=>q.focus(),50);
 }
 function navPaletaVai(slug){

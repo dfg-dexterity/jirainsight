@@ -27,6 +27,20 @@ function abreAjuda(){
       acompanhar apontamentos, metas e produtividade — e ainda permite <b>apontar horas</b>, <b>mover status</b>
       e <b>criar tickets</b>. Os dados ficam em cache por alguns minutos; use <b>Atualizar</b> para forçar.
     </div></details>
+    <details class="help-sec"><summary>🎫 Achar um ticket (busca rápida)</summary><div class="help-body">
+      A tecla <b>/</b> (ou <b>Ctrl+J</b>, ou o botão <b>🎫</b> na barra; no celular, <b>⋯ Mais › 🎫 Buscar ticket</b>)
+      abre a busca em qualquer tela. O caminho é <b>projeto → ticket</b>:
+      <ul>
+        <li>· <b>Escolha o projeto</b> — a lista já está no navegador (os últimos que você usou vêm primeiro), então não custa nada.</li>
+        <li>· <b>A busca entra só nos tickets ABERTOS daquele projeto</b> — é essa escolha que a deixa rápida: uma consulta pequena, em vez da base inteira.</li>
+        <li>· <b>Digite para filtrar</b> por chave, resumo, status ou tipo. O filtro é <b>em memória</b>: nada vai à rede a cada tecla. <b>↑ ↓</b> escolhem, <b>Enter</b> abre a ficha, <b>⏱</b> aponta horas e <b>↗</b> abre no Jira.</li>
+        <li>· A lista fica <b>3 minutos</b> guardada: sair do projeto e voltar é instantâneo; o <b>↻</b> relê do Jira na hora.</li>
+        <li>· <b>Qualquer ticket, aberto ou concluído</b>: digite a <b>chave</b> (ex.: RDF-123) — aqui ou no 🔍 Ctrl+K — e a ficha abre direto.</li>
+        <li>· Quem já abriu o 📈 Analytics ganha o atalho <b>🌐 Todos os projetos</b>, que busca no que já está carregado, também sem ir à rede.</li>
+      </ul>
+      A ficha é a mesma da Gestão: descrição, horas, comentários, anexos e os botões de apontar, mudar status,
+      comentar e transformar — com <b>↩ Voltar à busca</b> para continuar procurando.
+    </div></details>
     <details class="help-sec"><summary>TODAS as telas (por área do Dexterity Hub — clique para abrir)</summary><div class="help-body">
       <div class="muted small">Desde 2026-09-13 o app é o <b>Dexterity Hub</b>: o conteúdo genérico (para todos) fica fixo na barra e as áreas <b>Dexterity Entrega</b>, <b>Dexterity Negócio</b> e <b>Dexterity Insights</b> aparecem pelo seu perfil (lente, não permissão — tudo abre pelo 🔍 Ctrl+K ou por link; em ⋯ Mais dá para "ver todas as áreas"). Desde 2026-09-14, telas que respondem a mesma pergunta são <b>abas de um grupo</b> (a barra acima do conteúdo): Inbox (Pendências · Menções), Apontar (Chamados · Rateio · Sugestões do dia), Meu Planejamento (Minha semana · Planejado × realizado), Criar ticket (Onde crio? · Criar), Tickets do time (Ações em massa · Lista · Qualidade · Regras), Reuniões, Projetos (Portfólio · Cronograma), Horas do time (Timesheet · Ranking), Planejamento do time e a Central de configurações (Central · Metas · Histórico).</div><ul>
       <li><b>Dexterity Hub — para todos:</b></li>
@@ -55,7 +69,7 @@ function abreAjuda(){
       <li>· <span class="lnk" data-aj-goto="planrel"><b>📊 Relatórios do planejamento</b></span> — planejado × realizado do time: visão executiva, por gestor e por projetos (a "minha visão" fica em Meu trabalho).<button class="aj-g" data-aj-guia="planrel">🧭 guia</button></li>
       <li><b>Dexterity Negócio — comercial, financeiro e controladoria:</b></li>
       <li>· <span class="lnk" data-aj-goto="admin"><b>📑 Contratos › 🏢 Clientes</b></span> — cadastro de clientes/contratos (AMS, bolsa de horas, projeto; base do AMS e da Receita).<button class="aj-g" data-aj-guia="admin">🧭 guia</button></li>
-      <li>· <span class="lnk" data-aj-goto="parcerias"><b>📑 Contratos › 🤝 Parceiros</b></span> — as consultorias que contratam a Dexterity: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
+      <li>· <span class="lnk" data-aj-goto="parcerias"><b>📑 Contratos › 🤝 Parceiros</b></span> — as consultorias que contratam a Dexterity: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento, a <b>📂 pasta do contrato no SharePoint</b> com os arquivos (contrato, aditivos) para abrir com 1 clique e a <b>👥 equipe</b>: cada recurso com os seus trechos (2h/dia até 25/05, 4h/dia depois) e as horas e o valor previstos de cada nota.<button class="aj-g" data-aj-guia="parcerias">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="ams"><b>🛡 Apuração de contratos › AMS (por ciclo)</b></span> — apuração por ciclo: banco de horas, faturável × não faturável e PDF.<button class="aj-g" data-aj-guia="ams">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="receita"><b>🛡 Apuração de contratos › 💰 Bolsa de horas & projetos</b></span> — bolsa de horas e projetos (consumo × contratado + projeção).<button class="aj-g" data-aj-guia="receita">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="rentab"><b>💹 Rentabilidade de projetos</b></span> — receita por tipo de projeto: horas abertas (🤝 contrato de parceria, início, fim, horas por dia e valor da hora → receita prevista por mês e por <b>período de faturamento</b>, ordem de venda no Odoo com um item por período e a sincronização do que foi faturado/pago), escopo fechado (valor do projeto e marcos de faturamento) e internos (orçamento de custo consumido pela alocação); aloque as pessoas por <b>% do dia e período de datas</b> (feriados descontados), simule cenários, compare com o realizado e veja o <b>histórico</b> de quem mudou o quê; custo sempre = horas × custo/h de cada pessoa.<button class="aj-g" data-aj-guia="rentab">🧭 guia</button></li>
@@ -262,7 +276,9 @@ function abreAjuda(){
       faturável × não faturável (pelo <b>tipo</b> do chamado), chamados do ciclo, labels de ciclo faturado e
       <b>PDF da apuração</b>. A aba <b>💰 Bolsa de horas & projetos</b>: consumo × contratado e projeção.
       <b>Dexterity Negócio › 📑 Contratos › 🏢 Clientes</b>: o cadastro de clientes/contratos que alimenta tudo isso
-      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira); a aba <b>🤝 Parceiros</b> guarda os contratos com as consultorias.
+      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira); a aba <b>🤝 Parceiros</b> guarda os contratos com as consultorias,
+      com a <b>📂 pasta do contrato no SharePoint</b> (o contrato e os aditivos abrem com 1 clique, com a sua conta) e a <b>👥 equipe e alocação</b> —
+      cada recurso com os seus trechos (<i>2h por dia útil de 15/05 a 25/05, 4h por dia depois</i>) virando horas e valor previstos em cada nota.
       Na <b>ficha do projeto</b> (📁 Projetos) a <b>🦴 espinha do projeto</b> abre cada uma dessas telas já no projeto — e os chips <b>📁</b> ao lado dos projetos de cada contrato trazem de volta à ficha.
       Na <b>🏦 Controladoria</b>, o <b>📁 Resultado do projeto</b> (🧾 na linha do projeto ou o chip 🏦 Resultado da ficha) junta custo por nível e por pessoa, vendido × realizado, plano × realizado e a evolução mensal; o bloco <b>🧭 Todas as categorias</b> compara a margem de cada categoria.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="ams">🧭 ver na tela (guia interativo)</button> <button class="aj-g" data-aj-guia="controladoria">🧭 guia da Controladoria</button></div></div></details>
@@ -474,6 +490,7 @@ function posicionaTour(){
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo.'},
+    {s:'#btn-tkb',ti:'🎫 Achar um ticket em 2 cliques',tx:'A tecla / (ou Ctrl+J, ou este botão — no celular, ⋯ Mais › 🎫 Buscar ticket) abre a busca de tickets: escolha o PROJETO e ela entra só nos tickets ABERTOS dele — por isso é rápida. Digite para filtrar (não vai à rede), ↑ ↓ escolhem, Enter abre a ficha, ⏱ aponta horas. Para qualquer ticket, aberto ou concluído, digite a chave (RDF-123).'},
     {s:'#conteudo .apr-topo',ti:'⏱ Apontamento do time — o placar do dia',tx:'Quantas pessoas já lançaram horas hoje, quanto o time apontou hoje e na semana, e quantos dias úteis ficaram em branco. É o objetivo nº 1 do painel: ninguém esquecer de apontar.'},
     {s:'#conteudo .apr-lista',ti:'Pessoa a pessoa, hoje e na semana',tx:'Cada linha traz a pessoa, quanto lançou HOJE contra a meta dela, o total da SEMANA contra o esperado e a fita de dias (verde = dia fechado, amarelo = parcial, vermelho = em branco, vazado = fim de semana, feriado, ausência ou fora da vigência). Você aparece em primeiro; clique em alguém para abrir o timesheet dessa pessoa.'},
     {s:'#conteudo .apr-l.vazio',ti:'Quem ainda não apontou hoje',tx:'As linhas vermelhas sobem para o topo — é quem precisa de um empurrão hoje. O aviso logo acima do quadro já cita os primeiros nomes.',quando:'Aparece quando alguém que é cobrado hoje ainda não lançou nenhuma hora.'},
@@ -718,6 +735,9 @@ const GUIAS={
   parcerias:{t:'🤝 Contratos de parceria',p:[
     {s:'#conteudo [data-pc-novo]',ti:'Cadastre o contrato',tx:'Consultoria parceira, modalidade (⏱ horas abertas · 🛠️ atendimento AMS · 📦 demanda com horas fechadas), validade (início/fim), valor da hora negociada, período de aviso (dias de aviso prévio), fechamento do período de faturamento ("até o dia 25"), dia da nota e a conta bancária de recebimento. A prévia mostra como ficam os períodos.',quando:'Aparece para gestores.'},
     {s:'#conteudo .pc-grid',ti:'Os contratos',tx:'Cada cartão resume validade, aviso prévio (até quando avisar), valor-hora, fechamento, nota, o período atual e a conta. Os que estão dentro do período de aviso vêm primeiro, em laranja, e a faixa no topo avisa.',quando:'Aparece quando há ao menos um contrato.'},
+    {s:'#conteudo .pc-docs-l',ti:'📂 Ver o contrato',tx:'A pasta do contrato no SharePoint e os arquivos (contrato, aditivos, proposta) abrem numa aba nova, com a sua conta — o painel guarda só o link, nunca o documento. Quem não é gestor também vê e abre.',quando:'Aparece quando a pasta ou algum documento está cadastrado.'},
+    {s:'#conteudo [data-pc-eq]',ti:'👥 Equipe e alocação',tx:'O planejamento do contrato: cada recurso (alguém do time ou um nome livre, para quem ainda vai ser contratado) com um ou mais TRECHOS — "2h por dia útil de 15/05 a 25/05" e "4h por dia depois" são dois trechos da mesma pessoa. A dedicação pode ser % do dia, h por dia útil, h por mês ou h no total, e as horas saem dos dias úteis (feriados descontados).',quando:'Aparece em cada contrato.'},
+    {s:'#conteudo .pc-eq-grade',ti:'🧾 Previsão por período de faturamento',tx:'As horas de cada recurso caem no período de faturamento em que foram trabalhadas e viram o valor previsto da nota (valor-hora do contrato). É a ponte entre o planejamento e o que vai ser cobrado.',quando:'Aparece com a gaveta 👥 Equipe aberta e ao menos um trecho.'},
     {s:'#conteudo [data-pc-cal]',ti:'📅 Calendário de faturamento',tx:'Os próximos 12 períodos com fechamento, dia da nota e dias úteis (feriados descontados). Gestores ajustam a data de um mês específico (ex.: dezembro fecha no dia 20) — o mês seguinte começa no dia seguinte ao fechamento ajustado; ↺ padrão desfaz.',quando:'Aparece em cada contrato.'},
     {s:'#conteudo [data-pc-plano]',ti:'Planos ligados',tx:'Os planos da 💹 Rentabilidade que usam este contrato — clique para abrir. É lá que os períodos viram itens da ordem de venda no Odoo.',quando:'Aparece quando um plano de horas abertas está ligado ao contrato.'}]},
 };
