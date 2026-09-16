@@ -72,17 +72,27 @@ function tkbGlobais(){
   if(!d||!Array.isArray(d.abertos)) return null;
   return d.abertos.map(t=>({ k:t.k, resumo:t.resumo||'', status:t.status||'', tipo:t.t||'', p:t.p||'' }));
 }
-// 🕘 O que o painel já tem do período (inclui CONCLUÍDOS) — memoizado pelo tamanho das listas.
+// 🕘 O que o painel já tem do período (inclui CONCLUÍDOS) — memoizado pelo período + tamanho das listas
+// (só o tamanho não bastava: trocar de período pode devolver listas do mesmo tamanho).
 let _tkbMem=null, _tkbMemSel='';
 function tkbMemoria(){
   const wl=((estado.tempo&&estado.tempo.worklogs)||[]), ev=((estado.atividade&&estado.atividade.eventos)||[]);
-  const sel=wl.length+'|'+ev.length;
+  const sel=(estado.periodo||'')+'|'+wl.length+'|'+ev.length;
   if(_tkbMem&&_tkbMemSel===sel) return _tkbMem;
   const res=(typeof resumosUnidos==='function')?resumosUnidos():{}; const m={};
   wl.forEach(w=>{ if(w.k&&!m[w.k]) m[w.k]={ k:w.k, resumo:res[w.k]||'', status:'', tipo:w.t||'', p:w.p||'' }; });
   ev.forEach(x=>{ if(x.k&&!m[x.k]) m[x.k]={ k:x.k, resumo:res[x.k]||'', status:'', tipo:x.t||'', p:x.p||'' }; });
   _tkbMem=Object.values(m); _tkbMemSel=sel;
   return _tkbMem;
+}
+
+// Erro em português: "Failed to fetch"/"Unexpected token '<'" não dizem nada a quem está buscando
+// um ticket. O texto do servidor (quando vem) é mantido, porque esse já é nosso.
+function tkbErro(e){
+  const m=String((e&&e.message)||e||'');
+  if(/failed to fetch|networkerror|load failed/i.test(m)) return 'Sem resposta do servidor — verifique a conexão e tente o ↻.';
+  if(/unexpected token|json/i.test(m)) return 'O servidor respondeu algo inesperado. Tente o ↻ em alguns segundos.';
+  return m||'Não consegui buscar os tickets abertos deste projeto.';
 }
 
 // ---- A única ida à rede: os tickets ABERTOS de um projeto ----
@@ -104,12 +114,28 @@ function tkbBusca(p, forca){
         tickets:((j&&j.tickets)||[]).map(t=>({ k:t.k, resumo:t.resumo||'', status:t.status||'', tipo:t.tipo||'', p })) };
       if(_tkb&&_tkb.proj===p){ _tkb.carregando=false; tkbPinta(); }
     })
-    .catch(e=>{ if(_tkb&&_tkb.proj===p){ _tkb.carregando=false; _tkb.erro=String((e&&e.message)||e); tkbPinta(); } });
+    .catch(e=>{ if(_tkb&&_tkb.proj===p){ _tkb.carregando=false; _tkb.erro=tkbErro(e); tkbPinta(); } });
+}
+
+// Dados de um ticket que a busca já tem em memória (usado pela ficha e pelo ⏱ apontar,
+// para o modal abrir com resumo e projeto mesmo sem passar pela Gestão).
+function tkbInfo(k){
+  const chave=String(k||'').toUpperCase();
+  const nos=Object.keys(_tkbCache).map(p=>(_tkbCache[p].tickets||[]).find(x=>x.k===chave)).find(Boolean);
+  return nos||(tkbGlobais()||[]).find(x=>x.k===chave)||null;
 }
 
 // ---- Filtro e ordenação (em memória) ----
 function tkbChave(s){ const m=String(s||'').trim().toUpperCase().match(RE_TKB_CHAVE); return m?m[1]:''; }
-function tkbPalha(x){ return normPal(`${x.k} ${x.resumo} ${x.status} ${x.tipo} ${x.p||''} ${(typeof projNome==='function'&&x.p)?projNome(x.p):''}`); }
+// O "palheiro" de cada ticket é calculado UMA vez e guardado no próprio objeto (_h): digitar
+// vira comparação de strings, sem remontar nada — importa no 🌐, onde a lista tem centenas de itens.
+// O nome do projeto entra no palheiro e é refeito se o catálogo chegar depois (_hp).
+function tkbPalha(x, nomes){
+  const nm=(nomes&&x.p&&nomes[x.p])||'';
+  if(x._h!==undefined&&x._hp===nm) return x._h;
+  x._hp=nm; x._h=normPal(`${x.k} ${x.resumo} ${x.status} ${x.tipo} ${x.p||''} ${nm}`);
+  return x._h;
+}
 // Chave exata primeiro, depois quem começa pela busca, depois o resto — sem mexer na ordem base
 // (a API devolve por "atualizado há menos tempo", que é o melhor padrão com a busca vazia).
 function tkbOrdena(arr, t){
@@ -118,15 +144,17 @@ function tkbOrdena(arr, t){
     if(normPal(x.resumo).startsWith(t)) return 2; if(k.includes(t)) return 3; return 4; };
   return arr.map((x,i)=>({x,i,n:nota(x)})).sort((a,b)=>(a.n-b.n)||(a.i-b.i)).map(o=>o.x);
 }
-function tkbFiltra(arr, t){ return t?arr.filter(x=>tkbPalha(x).includes(t)):arr; }
+function tkbFiltra(arr, t, nomes){ return t?arr.filter(x=>tkbPalha(x,nomes).includes(t)):arr; }
 
 // ---- Desenho ----
+// Idade da lista NESTE navegador (o servidor ainda guarda a dele por até 3 min — por isso "lida há",
+// e não "atualizada há": o ↻ é que garante a leitura nova no Jira).
 function tkbIdade(p){
   const c=_tkbCache[p]; if(!c) return '';
   const s=Math.round((Date.now()-c.quando)/1000);
-  if(s<15) return 'lista de agora mesmo';
-  if(s<90) return `lista de ${s}s atrás`;
-  return `lista de ${Math.round(s/60)} min atrás`;
+  if(s<15) return 'lida agora mesmo';
+  if(s<90) return `lida há ${s}s`;
+  return `lida há ${Math.round(s/60)} min`;
 }
 function tkbLinhaTicket(x, comProj){
   const url=`${jiraBase()}/browse/${encodeURIComponent(x.k)}`;
@@ -135,8 +163,10 @@ function tkbLinhaTicket(x, comProj){
     <button class="pal-row" data-tkb-ir="${escA(x.k)}" title="${escA(x.resumo||x.k)}">
       <span class="tkb-k">${esc(x.k)}</span><span class="tkb-res">${x.resumo?esc(x.resumo):'<span class="muted">(sem resumo)</span>'}</span>
       <span class="pal-g">${esc(dir)}</span></button>
-    <button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket">⏱</button>
-    <a class="pal-fav" href="${url}" target="_blank" rel="noopener" data-tip="Abrir no Jira">↗</a>
+    <button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket"
+      aria-label="Apontar horas em ${escA(x.k)}">⏱</button>
+    <a class="pal-fav" href="${url}" target="_blank" rel="noopener" data-tip="Abrir no Jira"
+      aria-label="Abrir ${escA(x.k)} no Jira">↗</a>
   </div>`;
 }
 function tkbLinhaProjeto(p){
@@ -152,6 +182,7 @@ function tkbPinta(){
   if(!cab||!lista||!rod) return;
   const t=normPal(_tkb.q), chave=tkbChave(_tkb.q);
   const glob=tkbGlobais();
+  const nomes=(typeof projNomes==='function')?projNomes():{};   // uma vez por pintura, não por ticket
   const linhaChave=(k)=>`<div class="tkb-l"><button class="pal-row" data-tkb-ir="${escA(k)}">
     🎫 Abrir a ficha de <span class="tkb-k">${esc(k)}</span><span class="pal-g">aberto ou concluído</span></button></div>`;
 
@@ -165,7 +196,8 @@ function tkbPinta(){
     const cortados=Math.max(0,resto.length-TKB_MAX);
     lista.innerHTML=(chave?linhaChave(chave):'')
       +(recs.length?tkbTitulo('⏱ Projetos recentes')+recs.map(tkbLinhaProjeto).join(''):'')
-      +(glob?tkbTitulo('🌐 Sem escolher projeto')+`<div class="tkb-l"><button class="pal-row" data-tkb-p="*">
+      +((glob&&(!t||normPal('todos os projetos global sem escolher projeto').includes(t)))
+          ?tkbTitulo('🌐 Sem escolher projeto')+`<div class="tkb-l"><button class="pal-row" data-tkb-p="*">
           <span class="tkb-k">🌐</span><span class="tkb-res">Todos os projetos — os ${glob.length} abertos que o Analytics já carregou</span>
           <span class="pal-g">em memória</span></button></div>`:'')
       +(resto.length?tkbTitulo(`📁 Projetos${t?` · ${resto.length}`:''}`)+resto.slice(0,TKB_MAX).map(tkbLinhaProjeto).join(''):'')
@@ -185,26 +217,36 @@ function tkbPinta(){
       ${global?'<span class="muted small">do 📈 Analytics, em memória</span>'
              :`<span class="muted small">${esc(tkbIdade(_tkb.proj))}</span><button class="pal-fav" data-tkb-rec="1" data-tip="Reler do Jira agora">↻</button>`}
     </div>`;
-    const achados=tkbOrdena(tkbFiltra(base,t),t);
+    const achados=tkbOrdena(tkbFiltra(base,t,nomes),t);
     const cortados=Math.max(0,achados.length-TKB_MAX);
     const vistos=new Set(achados.map(x=>x.k));
     // 🕘 Fora dos abertos: o que o painel já carregou do período (pode estar concluído).
-    const extra=(t.length>=2?tkbFiltra(tkbMemoria().filter(x=>!vistos.has(x.k)&&(global||x.p===_tkb.proj)),t):[]).slice(0,TKB_MEM_MAX);
+    const extra=(t.length>=2?tkbFiltra(tkbMemoria().filter(x=>!vistos.has(x.k)&&(global||x.p===_tkb.proj)),t,nomes):[]).slice(0,TKB_MEM_MAX);
     lista.innerHTML=(chave&&!vistos.has(chave)?linhaChave(chave):'')
       +(_tkb.erro?`<div class="erro" style="margin:8px 0">${esc(_tkb.erro)}</div>`:'')
       +(_tkb.carregando&&!base.length?'<div class="estado">Buscando os tickets abertos do projeto…</div>':'')
       +(achados.length?achados.slice(0,TKB_MAX).map(x=>tkbLinhaTicket(x,global)).join(''):'')
       +(cortados?`<div class="muted small" style="padding:6px 10px">… e mais ${cortados} — refine a busca.</div>`:'')
-      +((!achados.length&&!_tkb.carregando&&!_tkb.erro)?`<div class="muted small" style="padding:8px">Nenhum ticket <b>aberto</b> com "${esc(_tkb.q)}" ${global?'':`em ${esc(projNome(_tkb.proj))}`}.</div>`:'')
+      +((!achados.length&&!_tkb.carregando&&!_tkb.erro)
+          ?`<div class="muted small" style="padding:8px">${_tkb.q
+              ?`Nenhum ticket <b>aberto</b> com "${esc(_tkb.q)}"${global?'':` em ${esc(nome)}`}. Se ele já foi concluído, digite a <b>chave</b> (ex.: ${esc(String(_tkb.proj==='*'?'RDF':_tkb.proj))}-123).`
+              :`${global?'O Analytics não trouxe nenhum ticket aberto.':`<b>${esc(nome)}</b> não tem nenhum ticket aberto.`} Para um ticket já concluído, digite a <b>chave</b>.`}</div>`:'')
       +(extra.length?tkbTitulo('🕘 Fora dos abertos — do período carregado no painel')+extra.map(x=>tkbLinhaTicket(x,true)).join(''):'');
     rod.innerHTML=(_tkbCache[_tkb.proj]&&_tkbCache[_tkb.proj].truncado)
       ? '⚠ O projeto tem mais abertos do que cabe numa busca (300): estes são os <b>mais recentes</b> — refine ou digite a chave.'
       : 'Digitar filtra <b>em memória</b> (nada vai à rede). ↑ ↓ escolhem · Enter abre a ficha · ⏱ aponta horas · ↗ abre no Jira.';
   }
-  // Realce da linha escolhida (o teclado anda por aqui).
+  tkbRealce();
+}
+// Realce da linha escolhida. Andar com ↑ ↓ só troca a classe — repintar a lista inteira
+// a cada seta jogaria fora o HTML de dezenas de linhas por nada.
+function tkbRealce(){
+  const lista=document.getElementById('tkb-lista'); if(!lista||!_tkb) return null;
   const alvos=lista.querySelectorAll('[data-tkb-ir],[data-tkb-p]');
-  if(alvos.length){ _tkb.sel=Math.max(0,Math.min(_tkb.sel,alvos.length-1)); alvos[_tkb.sel].classList.add('pal-on'); }
-  else _tkb.sel=0;
+  if(!alvos.length){ _tkb.sel=0; return null; }
+  _tkb.sel=Math.max(0,Math.min(_tkb.sel,alvos.length-1));
+  alvos.forEach((b,i)=>{ b.classList.toggle('pal-on', i===_tkb.sel); });
+  return alvos[_tkb.sel];
 }
 
 // ---- Abertura, navegação e teclado ----
@@ -215,7 +257,7 @@ function abreBuscaTickets(proj){
     <input class="pal-q" id="tkb-q" type="text" autocomplete="off" spellcheck="false"
       placeholder="projeto, ou a chave do ticket (ex.: RDF-123)…" aria-label="Buscar projeto ou ticket">
     <div id="tkb-cab"></div>
-    <div id="tkb-lista" class="tkb-lista" role="listbox" aria-label="Resultados"></div>
+    <div id="tkb-lista" class="tkb-lista" role="group" aria-label="Resultados da busca"></div>
     <div class="muted small tkb-rod" id="tkb-rod"></div>`);
   const q=document.getElementById('tkb-q');
   if(q){
@@ -228,7 +270,9 @@ function abreBuscaTickets(proj){
 }
 function tkbVaiProjeto(p){
   if(!_tkb) return;
-  _tkb.proj=String(p||''); _tkb.q=''; _tkb.sel=0; _tkb.erro='';
+  // `carregando` precisa zerar aqui: a resposta da busca anterior só mexe no estado se ainda
+  // for o projeto dela, então sem isto o cabeçalho ficaria preso em "carregando…".
+  _tkb.proj=String(p||''); _tkb.q=''; _tkb.sel=0; _tkb.erro=''; _tkb.carregando=false;
   const q=document.getElementById('tkb-q');
   if(q){ q.value=''; q.placeholder=_tkb.proj?'filtrar por chave, resumo, status ou tipo…':'projeto, ou a chave do ticket (ex.: RDF-123)…'; q.focus(); }
   if(_tkb.proj&&_tkb.proj!=='*') tkbLembra(_tkb.proj);
@@ -247,8 +291,7 @@ function tkbTecla(e){
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){
     e.preventDefault(); if(!alvos.length) return;
     _tkb.sel=Math.max(0,Math.min(alvos.length-1,_tkb.sel+(e.key==='ArrowDown'?1:-1)));
-    tkbPinta();
-    const n=lista.querySelectorAll('[data-tkb-ir],[data-tkb-p]')[_tkb.sel];
+    const n=tkbRealce();
     if(n&&n.scrollIntoView) n.scrollIntoView({ block:'nearest' });
     return;
   }
@@ -262,7 +305,10 @@ document.addEventListener('click',(e)=>{
   const t=e.target; if(!t||!t.closest) return;
   // 🎫 na barra (computador) e em ⋯ Mais (o caminho do celular, onde a barra vira gaveta)
   if(t.closest('#btn-tkb')||t.closest('#btn-mais-tkb')){
+    // no celular a barra é uma gaveta: fecha tudo antes, senão a busca abre com o menu atrás
     if(typeof fechaMenusHdr==='function') try{ fechaMenusHdr(); }catch(e){}
+    if(typeof fechaMenusNav==='function') try{ fechaMenusNav(); }catch(e){}
+    if(typeof fechaDrawer==='function') try{ fechaDrawer(); }catch(e){}
     abreBuscaTickets(); return;
   }
   const p=t.closest('[data-tkb-p]'); if(p){ tkbVaiProjeto(p.getAttribute('data-tkb-p')); return; }
@@ -279,12 +325,23 @@ document.addEventListener('click',(e)=>{
 });
 
 // ---- Atalhos: "/" fora de campos (irmã do "?" da ajuda, e o padrão de busca da web) e Ctrl+J ----
+// Os dois respeitam um modal ABERTO: a busca não pode atropelar um formulário em preenchimento
+// (apontar horas, criar ticket, contrato…). Se o modal já é a própria busca, só devolve o foco.
+function tkbPodeAbrir(){
+  const m=document.getElementById('modal');
+  if(!m||m.hidden) return true;                       // nada aberto — abre (o corpo do modal fechado
+  const i=document.getElementById('tkb-q');           // ainda tem o HTML da última busca, por isso a
+  if(i){ i.focus(); return false; }                   // checagem do `hidden` vem ANTES)
+  return false;                                       // outro modal aberto: não atropela
+}
 document.addEventListener('keydown',(e)=>{
-  if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='j'||e.key==='J')){ e.preventDefault(); abreBuscaTickets(); return; }
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key==='j'||e.key==='J')){
+    e.preventDefault(); if(tkbPodeAbrir()) abreBuscaTickets(); return;
+  }
   if(e.key!=='/') return;
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   const a=document.activeElement, tag=a?(a.tagName||'').toLowerCase():'';
   if(tag==='input'||tag==='textarea'||tag==='select'||(a&&a.isContentEditable)) return;
-  const m=document.getElementById('modal'); if(m&&!m.hidden) return;
+  if(!tkbPodeAbrir()) return;
   e.preventDefault(); abreBuscaTickets();
 });

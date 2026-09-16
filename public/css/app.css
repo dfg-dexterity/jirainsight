@@ -533,7 +533,10 @@
   .tkb-cab .btn{padding:3px 9px;font-size:12px}
   .tkb-n{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
   .tkb-rod{margin-top:8px;padding-top:8px;border-top:1px solid var(--linha)}
-  @media(max-width:640px){ .tkb-lista{max-height:58vh} .tkb-l .pal-g{display:none} .tkb-n{margin-left:0} }
+  /* o realce do TECLADO precisa se distinguir do :hover do mouse — senão duas linhas parecem escolhidas */
+  .tkb-l .pal-row.pal-on{box-shadow:inset 3px 0 0 var(--marca,#009994)}
+  @media(max-width:640px){ .tkb-lista{max-height:58vh} .tkb-n{margin-left:0}
+    .tkb-l .pal-g{max-width:40%;overflow:hidden;text-overflow:ellipsis} }
   /* 📅 Agenda (Outlook) */
   .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
   .ag-ev:last-child{border-bottom:0}

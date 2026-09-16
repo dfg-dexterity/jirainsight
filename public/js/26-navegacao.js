@@ -252,7 +252,7 @@ function abrePaleta(){
     // 🎫 Tickets (12b-busca-tickets.js): digitar a CHAVE abre a ficha na hora — por isso essa linha vem
     // primeiro e é a do Enter. A linha fixa (no fim) leva à busca projeto → ticket, que é a rápida.
     const bruto=String(q.value||'').trim().toUpperCase();
-    const chaveTk=/^[A-Z][A-Z0-9_]*-\d+$/.test(bruto)?bruto:'';
+    const chaveTk=(typeof RE_TKB_CHAVE!=='undefined'&&RE_TKB_CHAVE.test(bruto))?bruto:'';
     const tkTopo=chaveTk?`<div class="pal-area">🎫 Tickets</div><div style="display:flex;align-items:center">
       <button class="pal-row pal-on" data-tkb-abrir="${escA(chaveTk)}">🎫 Abrir o ticket <b>${esc(chaveTk)}</b><span class="pal-g">ficha do ticket</span></button></div>`:'';
     const tkFim=(!t||normPal('ticket tickets chamado issue buscar abertos por projeto chave').includes(t))
@@ -274,7 +274,7 @@ function abrePaleta(){
   };
   pinta();
   q.addEventListener('input',pinta);
-  q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const b=lista.querySelector('[data-pal-v],[data-tkb-abrir]'); if(b) b.click(); } });
+  q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const b=lista.querySelector('[data-pal-v],[data-tkb-abrir]')||lista.querySelector('[data-tkb-buscar]'); if(b) b.click(); } });
   setTimeout(()=>q.focus(),50);
 }
 function navPaletaVai(slug){

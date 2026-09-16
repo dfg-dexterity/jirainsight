@@ -151,8 +151,11 @@ function adfTexto(node) {
 // O catálogo de campos do Jira não muda no dia a dia, e esta função rodava a CADA ficha de ticket
 // (?detalhe=) — um GET /field inteiro na frente de cada abertura. Com a 🎫 busca de tickets a ficha
 // virou caminho quente, então o id fica guardado por 6 h (2026-09-15).
+// A chave fica FORA do prefixo "venc:" de propósito: todo apontamento/criação chama
+// cacheClear('venc:') (api/apontar.js, api/criar.js…) e levaria junto este cache, que não
+// tem nada a ver com os dados do ticket — é só o id de um campo da instância.
 async function descobreCampoInicio() {
-  const ck = 'venc:campoInicio';
+  const ck = 'campo:inicio';
   const guardado = cacheGet(ck);
   if (guardado !== null && guardado !== undefined) return guardado;
   try {
