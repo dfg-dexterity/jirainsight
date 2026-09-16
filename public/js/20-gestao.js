@@ -388,16 +388,25 @@ async function gxExcluiLote(){
 }
 // ---- 🔍 Ficha completa do ticket (modal) — Analytics e Gestão, sem abrir o Jira ----
 let _gxDet=null;
-function abreModalTicket(k){
-  _gxDet={ k };
-  abreModal(`<h2>🔍 ${esc(k)}</h2><div class="estado">Carregando a ficha do ticket…</div>`);
+// `volta` (2026-09-15): quando a ficha foi aberta pela 🎫 busca de tickets, ela ganha o botão
+// "↩ Voltar à busca" com o projeto de onde veio ('' = passo de escolher o projeto). Sem o
+// parâmetro (null), a ficha continua exatamente como era nas outras telas.
+function abreModalTicket(k, volta){
+  _gxDet={ k, volta:(volta===undefined?null:volta) };
+  abreModal(`<h2>🔍 ${esc(k)}</h2><div class="estado" id="gx-det-carregando">Carregando a ficha do ticket…</div>`);
+  // A ficha demora 1–3 s. Se nesse meio-tempo a pessoa fechou o modal (Esc, ×, clique fora) ou abriu
+  // OUTRO modal (Ctrl+K, apontar…), a resposta não pode ressuscitar a ficha por cima: o marcador
+  // #gx-det-carregando só existe enquanto este modal ainda é o desta ficha.
+  const meu=()=>{ const m=document.getElementById('modal');
+    return !!(_gxDet&&_gxDet.k===k&&document.getElementById('gx-det-carregando')&&m&&!m.hidden); };
+  const volt=()=>(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:'';
   fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json()).then(j=>{
-    if(!_gxDet||_gxDet.k!==k) return;
+    if(!meu()) return;
     if(j.erro){ abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">${esc(j.erro)}</div>
-      <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+      <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
     renderModalTicket(j);
-  }).catch(e=>{ if(_gxDet&&_gxDet.k===k) abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">Erro de rede: ${esc(String(e.message||e))}</div>
-    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); });
+  }).catch(e=>{ if(meu()) abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">Erro de rede: ${esc(String(e.message||e))}</div>
+    <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); });
 }
 function renderModalTicket(d){
   const link=`${jiraBase()}/browse/${encodeURIComponent(d.k)}`;
@@ -437,6 +446,7 @@ function renderModalTicket(d){
       <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>
       <button class="btn" data-gx-conv="${escA(d.k)}" data-tip="Convida pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique e o aviso vai por chat individual do Teams">📨 Convidar para apontar</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
+      ${(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:''}
       <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
     </div>`);
 }
@@ -446,6 +456,7 @@ function gxTicketInfo(k){
   return alxTickets().find(x=>x.k===k)
     || (((estado.analytics.dados||{}).abertos)||[]).find(x=>x.k===k)
     || (((estado.analytics.dados||{}).concluidos)||[]).find(x=>x.k===k)
+    || ((typeof tkbInfo==='function'&&tkbInfo(k))||null)   // 🎫 busca de tickets (12b): resumo/projeto sem ir à rede
     || { k };
 }
 function abreModalApontarGx(k){
