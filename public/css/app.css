@@ -1852,6 +1852,20 @@
   .pc-eq-tab input[type=date],.pc-eq-tab input[type=number],.pc-eq-tab select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .pc-rg-ded{display:inline-flex;gap:4px;align-items:center}
   .pc-eq-grade tfoot td{border-top:2px solid var(--linha);font-weight:700}
+  /* ✎ previsão digitada à mão: o campo fica discreto até ter valor; o calculado acompanha embaixo */
+  .pc-prev-c{vertical-align:top}
+  .pc-prev-i{width:82px;text-align:right;font-variant-numeric:tabular-nums;padding:3px 6px;border:1px solid transparent;
+    border-radius:6px;background:transparent;color:inherit;font-family:var(--corpo);font-size:13px}
+  .pc-prev-i.pc-prev-v{width:122px}
+  .pc-prev-i:hover{border-color:var(--linha)}
+  .pc-prev-i:focus{border-color:var(--marca,#009994);background:var(--cartao);outline:none}
+  /* o campo vazio mostra o CALCULADO formatado ("168h", "R$ 33.600,00") — é o número que vale, então
+     ele é lido como texto normal; o digitado se distingue pela borda e pelo negrito (.pc-man) */
+  .pc-prev-i::placeholder{color:inherit;opacity:.92}
+  .pc-prev-i.pc-man{border-color:var(--marca,#009994);font-weight:700}
+  .pc-prev-calc{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap;margin-top:1px}
+  .pc-man-selo{color:var(--marca,#009994);font-weight:700;cursor:help}
+  .pc-eq-grade tr.pc-prev-man td:first-child{box-shadow:inset 3px 0 0 var(--marca,#009994)}
   @media (max-width:760px){ .pc-eq-p{padding:8px} .pc-eq-h{font-size:13px} }
   .pc-cal-tab td,.pc-cal-tab th{white-space:nowrap} .pc-cal-tab tr.pc-fora td{color:var(--muted)}
   .pc-cal-tab input[type=date]{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
