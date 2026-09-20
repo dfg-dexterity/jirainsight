@@ -169,6 +169,234 @@ async function statusVendaOdoo(res, b) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 🤝 Contrato de parceria ↔ Odoo Vendas (pedido de 2026-09-20). O CONTRATO passa a ser o dono da
+// ordem de venda: UM ITEM POR PERÍODO DE FATURAMENTO (produto das "horas de consultoria") + UM ITEM
+// POR HORA EXTRA lançada (produto de horas extras), cada item com o RATEIO por objeto de resultado
+// (contas analíticas → analytic_distribution). Três ações, todas com a identidade do Jira de quem
+// pede (nunca persistida) e a conta de serviço do Odoo:
+//   • ?acao=odoo-catalogo          — SOMENTE LEITURA: produtos de serviço à venda e contas analíticas
+//                                    (10 min de cache; forca=1 relê).
+//   • ?acao=odoo-contrato          — sem ordemId CRIA a ordem (cotação em rascunho); com ordemId COMPARA
+//                                    a previsão com os itens que a ordem já tem e cria/atualiza/remove o
+//                                    que mudou. `dry:1` só devolve o PLANO — é o que a tela mostra antes
+//                                    de a pessoa confirmar. Regras: item já faturado nunca muda; a
+//                                    quantidade nunca cai abaixo do já faturado; item que saiu da previsão
+//                                    é apagado na cotação e ZERADO na ordem confirmada (o Odoo não deixa
+//                                    apagar linha de ordem confirmada); item criado à mão no Odoo fica
+//                                    como está. Sem o campo analytic_distribution (módulo analítico
+//                                    ausente), grava sem rateio e avisa.
+//   • ?acao=odoo-contrato-cancela  — cancela a ordem (o contrato foi removido no painel).
+// A leitura do estado (faturado/pago por item) continua sendo ?acao=odoo-venda-status.
+// ---------------------------------------------------------------------------
+async function odooConecta() {
+  const url = env('ODOO_URL'), db = env('ODOO_DB'), login = env('ODOO_LOGIN'), key = env('ODOO_API_KEY');
+  if (!url || !db || !login || !key) return { ok: false, configurado: false, erro: 'Integração com o Odoo não configurada.', dica: 'Defina ODOO_URL, ODOO_DB, ODOO_LOGIN e ODOO_API_KEY na Vercel (as mesmas das folgas).' };
+  const uid = await odoo(url, 'common', 'authenticate', [db, login, key, {}]);
+  if (!uid) return { ok: false, erro: 'Login no Odoo recusado — confira ODOO_LOGIN e ODOO_API_KEY.' };
+  const base = url.replace(/\/+$/, '');
+  return { ok: true, base, exec: (model, method, args, kw) => odoo(url, 'object', 'execute_kw', [db, uid, key, model, method, args, kw || {}]),
+    urlOrdem: (id) => `${base}/web#id=${id}&model=sale.order&view_type=form` };
+}
+const odooMsg = (e) => String((e && e.message) || e).slice(0, 300);
+const semAnalitica = (e) => /analytic/i.test(String((e && e.message) || e));
+// {ac, pct}[] → {"<id da conta analítica>": pct} (o formato do analytic_distribution); vazio → null.
+function odooDistribuicao(rateio) {
+  const d = {};
+  (rateio || []).forEach((r) => { const ac = Math.round(num(r && r.ac)), pct = Math.round(num(r && r.pct) * 100) / 100; if (ac > 0 && pct > 0) d[String(ac)] = Math.round(((d[String(ac)] || 0) + pct) * 100) / 100; });
+  return Object.keys(d).length ? d : null;
+}
+function odooDistIgual(a, b) {
+  const A = (a && typeof a === 'object') ? a : {}, B = (b && typeof b === 'object') ? b : {};
+  const ka = Object.keys(A), kb = Object.keys(B);
+  return ka.length === kb.length && ka.every((k) => Math.abs(num(A[k]) - num(B[k])) < 0.01);
+}
+function odooLinhasCorpo(b) {
+  return (Array.isArray(b.linhas) ? b.linhas : []).map((l) => ({
+    chave: txt(l && l.chave, 40), tipo: (l && l.tipo === 'extra') ? 'extra' : 'periodo', mes: txt(l && l.mes, 7), de: isoData(l && l.de), ate: isoData(l && l.ate), nota: isoData(l && l.nota),
+    descricao: txt(l && l.descricao, 200), qtd: Math.round(Math.max(0, num(l && l.qtd)) * 100) / 100, unitario: Math.round(Math.max(0, num(l && l.unitario)) * 100) / 100,
+    rateio: (Array.isArray(l && l.rateio) ? l.rateio : []).slice(0, 12).map((r) => ({ ac: Math.round(num(r && r.ac)), pct: num(r && r.pct) })).filter((r) => r.ac > 0 && r.pct > 0),
+  })).filter((l) => l.chave && l.qtd > 0 && l.unitario > 0).slice(0, 80);
+}
+const resumoLinha = (l, extra) => ({ chave: l.chave, tipo: l.tipo, mes: l.mes, descricao: l.descricao, qtd: l.qtd, unitario: l.unitario, valor: Math.round(l.qtd * l.unitario * 100) / 100, rateio: l.rateio, ...(extra || {}) });
+// Produto de serviço: o id escolhido na tela → o env (id ou nome) → o 1º serviço à venda (se `fallback`).
+async function odooProduto(s, id, cfgEnv, fallback) {
+  const pid = Math.max(0, Math.round(num(id)));
+  if (pid) { const r = await s.exec('product.product', 'search_read', [[['id', '=', pid]]], { fields: ['id'], limit: 1 }); if (r.length) return pid; }
+  if (cfgEnv) {
+    const dom = /^\d+$/.test(cfgEnv) ? [['id', '=', Number(cfgEnv)]] : [['name', 'ilike', cfgEnv]];
+    const r = await s.exec('product.product', 'search_read', [dom], { fields: ['id'], limit: 1 }); if (r.length) return r[0].id;
+  }
+  if (!fallback) return 0;
+  const r = await s.exec('product.product', 'search_read', [[['type', '=', 'service'], ['sale_ok', '=', true]]], { fields: ['id'], limit: 1 });
+  return r.length ? r[0].id : 0;
+}
+// Cliente (res.partner) pelo nome da consultoria; várias respostas ambíguas voltam para a pessoa escolher.
+async function odooParceiro(s, nome) {
+  if (!nome) return { ok: false, erro: 'Informe o nome da consultoria no contrato para achar o cliente no Odoo.' };
+  let lista = await s.exec('res.partner', 'search_read', [[['name', 'ilike', nome], ['is_company', '=', true]]], { fields: ['id', 'name'], limit: 8 });
+  if (!lista.length) lista = await s.exec('res.partner', 'search_read', [[['name', 'ilike', nome]]], { fields: ['id', 'name'], limit: 8 });
+  if (!lista.length) return { ok: false, erro: `Nenhum cliente parecido com "${nome}" no Odoo.`, dica: 'Cadastre a consultoria em Contatos no Odoo (ou ajuste o nome no contrato) e tente de novo.' };
+  const exato = lista.find((x) => String(x.name || '').trim().toLowerCase() === nome.toLowerCase());
+  if (lista.length > 1 && !exato) return { ok: false, escolher: lista.map((x) => ({ id: x.id, name: x.name })) };
+  const p = exato || lista[0]; return { ok: true, id: p.id, nome: txt(p.name, 120) };
+}
+async function catalogoOdoo(res, b) {
+  const email = txt(b.email, 200), token = String(b.token || '');
+  if (!email || !token) return json(res, 400, { ok: false, erro: 'Identifique-se em ⏱ Apontar (e-mail + token do Jira) para ler o catálogo do Odoo.' });
+  const quem = await jiraMyself(email, token); if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const ck = 'odoo-catalogo';
+  if (!b.forca) { const c = cacheGet(ck); if (c) return json(res, 200, { ...c, cache: true }); }
+  const s = await odooConecta(); if (!s.ok) return json(res, 200, s);
+  try {
+    const prods = await s.exec('product.product', 'search_read', [[['sale_ok', '=', true], ['type', '=', 'service']]], { fields: ['id', 'name', 'default_code', 'list_price'], limit: 200, order: 'name' });
+    let anals = [], analErro = '';
+    try { anals = await s.exec('account.analytic.account', 'search_read', [[['active', '=', true]]], { fields: ['id', 'name', 'code', 'plan_id'], limit: 500, order: 'name' }); }
+    catch (e) { analErro = 'Contas analíticas indisponíveis: ' + odooMsg(e).slice(0, 160); }
+    const out = { ok: true, lidoEm: new Date().toISOString(),
+      produtos: prods.map((p) => ({ id: p.id, nome: txt(p.name, 120), ref: txt(p.default_code || '', 40), preco: num(p.list_price) })),
+      analiticas: anals.map((a) => ({ id: a.id, nome: txt(a.name, 120), codigo: txt(a.code || '', 40), plano: Array.isArray(a.plan_id) ? txt(a.plan_id[1], 80) : '' })), analErro };
+    return json(res, 200, cacheSetTTL(ck, out, 10));
+  } catch (e) {
+    return json(res, 200, { ok: false, erro: `Odoo: ${odooMsg(e)}`, dica: 'Confira se a conta de serviço do Odoo pode ler produtos (Vendas) e contas analíticas (Contabilidade).' });
+  }
+}
+async function sincronizaContratoOdoo(res, b) {
+  const email = txt(b.email, 200), token = String(b.token || '');
+  const linhas = odooLinhasCorpo(b); const ordemId = Math.max(0, Math.round(num(b.ordemId)));
+  const vinculos = (Array.isArray(b.itens) ? b.itens : []).map((x) => ({ chave: txt(x && x.chave, 40), id: Math.round(num(x && x.id)) })).filter((x) => x.chave && x.id > 0).slice(0, 200);
+  const consultoria = txt(b.consultoria, 120); const cliente = txt(b.cliente, 120) || consultoria;
+  const ref = `Jira Insights · contrato de parceria ${txt(b.contratoId, 30)}`;
+  const totalPrev = Math.round(linhas.reduce((s, l) => s + l.qtd * l.unitario, 0) * 100) / 100;
+  if (!ordemId && !linhas.length) return json(res, 400, { ok: false, erro: 'Nenhum período com horas e valor (nem hora extra) para levar ao Odoo.' });
+  if (!email || !token) return json(res, 400, { ok: false, erro: 'Identifique-se em ⏱ Apontar (e-mail + token do Jira) para mexer na ordem de venda.' });
+  const quem = await jiraMyself(email, token); if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const s = await odooConecta(); if (!s.ok) return json(res, 200, s);
+  const avisos = [];
+  try {
+    const produtoId = await odooProduto(s, b.produtoId, env('ODOO_PRODUTO_SERVICO'), true);
+    if (!produtoId) return json(res, 200, { ok: false, erro: 'Nenhum produto de serviço encontrado no Odoo para os itens da ordem.', dica: 'Escolha o produto em 🧾 Faturamentos › ⚙ Produtos no Odoo, ou crie um produto do tipo Serviço (ex.: "Horas de consultoria") lá.' });
+    const produtoExtraId = (await odooProduto(s, b.produtoExtraId, env('ODOO_PRODUTO_EXTRA'), false)) || produtoId;
+    const vals = (l, comRateio) => { const v = { product_id: l.tipo === 'extra' ? produtoExtraId : produtoId, name: l.descricao, product_uom_qty: l.qtd, price_unit: l.unitario }; const d = comRateio ? odooDistribuicao(l.rateio) : null; if (d) v.analytic_distribution = d; return v; };
+    if (!ordemId) {
+      // ---- ordem NOVA: cotação em rascunho com todos os itens ----
+      let partnerId = Math.max(0, Math.round(num(b.parceiroId))), partnerNome = '';
+      if (!partnerId) { const p = await odooParceiro(s, cliente); if (!p.ok) return json(res, 200, p); partnerId = p.id; partnerNome = p.nome; }
+      const plano = { novo: true, criar: linhas.map((l) => resumoLinha(l)), atualizar: [], remover: [], mantidas: [], manuais: [], iguais: 0, total: totalPrev, produtoId, produtoExtraId, parceiroId: partnerId, parceiroNome: partnerNome };
+      if (b.dry) return json(res, 200, { ok: true, dry: true, plano });
+      const ct = ` Contrato de parceria: ${consultoria}${b.modalidade ? ' (' + txt(b.modalidade, 60) + ')' : ''}${num(b.fatFecha) ? `, período de faturamento até o dia ${Math.round(num(b.fatFecha))}` : ''}${num(b.fatDia) ? `, nota no dia ${Math.round(num(b.fatDia))}` : ''}${b.conta ? `, recebimento na conta ${txt(b.conta, 120)}` : ''}.`;
+      const nota = `Ordem de venda do contrato de parceria "${consultoria}" — um item por período de faturamento e um por hora extra (${linhas.length} item(ns)).${ct} Gerada no Jira Insights por ${quem.nome || email}.${b.obs ? ' ' + txt(b.obs, 300) : ''}`;
+      const cabecalho = { partner_id: partnerId, client_order_ref: ref, origin: ref, note: nota };
+      let orderId;
+      try { orderId = await s.exec('sale.order', 'create', [{ ...cabecalho, order_line: linhas.map((l) => [0, 0, vals(l, true)]) }]); }
+      catch (e) { if (!semAnalitica(e)) throw e; avisos.push('objetos de resultado não aplicados (o Odoo recusou a distribuição analítica): ' + odooMsg(e).slice(0, 120)); orderId = await s.exec('sale.order', 'create', [{ ...cabecalho, order_line: linhas.map((l) => [0, 0, vals(l, false)]) }]); }
+      const ord = ((await s.exec('sale.order', 'read', [[orderId]], { fields: ['name', 'state', 'amount_total', 'order_line'] })) || [])[0] || {};
+      const ids = (ord.order_line || []).map((x) => Number(x) || 0);
+      const itens = linhas.map((l, i) => ({ chave: l.chave, id: ids[i] || 0 })).filter((x) => x.id);
+      cacheSetTTL(`odoo-venda-status:${orderId}`, null, 0);
+      return json(res, 200, { ok: true, id: orderId, name: txt(ord.name, 40), state: txt(ord.state, 20) || 'draft', total: num(ord.amount_total) || totalPrev, url: s.urlOrdem(orderId), parceiroId: partnerId, produtoId, produtoExtraId, itens, aplicado: { criadas: itens.length, atualizadas: 0, removidas: 0, zeradas: 0 }, avisos });
+    }
+    // ---- ordem EXISTENTE: comparar a previsão com os itens que ela tem ----
+    const ord = ((await s.exec('sale.order', 'read', [[ordemId]], { fields: ['name', 'state', 'order_line', 'partner_id', 'amount_total'] })) || [])[0];
+    if (!ord) return json(res, 200, { ok: false, erro: `Ordem de venda #${ordemId} não encontrada no Odoo (pode ter sido excluída) — esqueça o vínculo e crie outra.` });
+    if (ord.state === 'cancel') return json(res, 200, { ok: false, erro: `A ordem ${ord.name} está cancelada no Odoo — esqueça o vínculo para criar outra.` });
+    const lineIds = (ord.order_line || []).map((x) => Number(x) || 0).filter(Boolean);
+    const exist = lineIds.length ? await s.exec('sale.order.line', 'read', [lineIds], { fields: ['name', 'product_uom_qty', 'price_unit', 'qty_invoiced', 'analytic_distribution', 'product_id', 'display_type'] }) : [];
+    const porId = {}; exist.forEach((L) => { porId[L.id] = L; });
+    const mapa = {}; vinculos.forEach((x) => { if (porId[x.id]) mapa[x.chave] = x.id; });   // só vínculos que ainda existem na ordem
+    const rascunho = ord.state === 'draft' || ord.state === 'sent';
+    const criar = [], atualizar = [], remover = [], mantidas = [], iguais = [];
+    linhas.forEach((l) => {
+      const id = mapa[l.chave]; const L = id ? porId[id] : null;
+      if (!L) { criar.push(resumoLinha(l)); return; }
+      const fat = num(L.qty_invoiced), qAtual = num(L.product_uom_qty);
+      if (fat > 0 && fat >= qAtual - 0.01 && l.qtd <= fat + 0.01) { mantidas.push(resumoLinha(l, { id, motivo: 'já faturado' })); iguais.push({ chave: l.chave, id }); return; }
+      const v = {}; let qtd = l.qtd, travada = 0;
+      if (fat > 0 && qtd < fat) { qtd = fat; travada = fat; }   // nunca abaixo do já faturado
+      if (Math.abs(qAtual - qtd) > 0.005) v.product_uom_qty = qtd;
+      if (fat <= 0 && Math.abs(num(L.price_unit) - l.unitario) > 0.005) v.price_unit = l.unitario;   // preço só muda antes de qualquer fatura
+      if (txt(L.name, 200) !== l.descricao) v.name = l.descricao;
+      const d = odooDistribuicao(l.rateio); const atual = (L.analytic_distribution && typeof L.analytic_distribution === 'object') ? L.analytic_distribution : null;
+      if (!odooDistIgual(d, atual)) v.analytic_distribution = d || false;
+      if (Object.keys(v).length) atualizar.push(resumoLinha(l, { id, vals: v, de: { qtd: qAtual, unitario: num(L.price_unit) }, travada }));
+      else iguais.push({ chave: l.chave, id });
+    });
+    const enviadas = new Set(linhas.map((l) => l.chave));
+    Object.keys(mapa).forEach((chave) => {
+      if (enviadas.has(chave)) return;
+      const id = mapa[chave], L = porId[id], fat = num(L.qty_invoiced), qAtual = num(L.product_uom_qty);
+      const base = { chave, id, descricao: txt(L.name, 200), qtd: qAtual, unitario: num(L.price_unit), valor: Math.round(qAtual * num(L.price_unit) * 100) / 100 };
+      if (fat > 0) { mantidas.push({ ...base, motivo: 'saiu da previsão, mas já tem fatura' }); iguais.push({ chave, id }); return; }
+      if (qAtual <= 0) { iguais.push({ chave, id }); return; }   // já zerada numa sincronização anterior
+      remover.push({ ...base, modo: rascunho ? 'apagar' : 'zerar' });
+    });
+    const conhecidos = new Set(Object.values(mapa));
+    const manuais = exist.filter((L) => !conhecidos.has(L.id) && !L.display_type).map((L) => ({ id: L.id, descricao: txt(L.name, 200), qtd: num(L.product_uom_qty), unitario: num(L.price_unit), valor: Math.round(num(L.product_uom_qty) * num(L.price_unit) * 100) / 100, faturada: num(L.qty_invoiced) > 0 }));
+    const plano = { novo: false, name: txt(ord.name, 40), state: txt(ord.state, 20), criar, atualizar, remover, mantidas, manuais, iguais: iguais.length, total: totalPrev, produtoId, produtoExtraId };
+    if (b.dry) return json(res, 200, { ok: true, dry: true, plano });
+    // ---- aplicar ----
+    const itens = iguais.slice();
+    let criadas = 0, atualizadas = 0, removidas = 0, zeradas = 0;
+    if (criar.length) {
+      const novas = linhas.filter((l) => criar.some((c) => c.chave === l.chave));
+      let ids;
+      try { ids = await s.exec('sale.order.line', 'create', [novas.map((l) => ({ order_id: ordemId, ...vals(l, true) }))]); }
+      catch (e) { if (!semAnalitica(e)) throw e; avisos.push('objetos de resultado não aplicados nos itens novos: ' + odooMsg(e).slice(0, 120)); ids = await s.exec('sale.order.line', 'create', [novas.map((l) => ({ order_id: ordemId, ...vals(l, false) }))]); }
+      ids = Array.isArray(ids) ? ids : [ids];
+      novas.forEach((l, i) => { if (ids[i]) { itens.push({ chave: l.chave, id: Number(ids[i]) }); criadas += 1; } });
+    }
+    for (const a of atualizar) {
+      try { await s.exec('sale.order.line', 'write', [[a.id], a.vals]); atualizadas += 1; itens.push({ chave: a.chave, id: a.id }); }
+      catch (e) {
+        const v = { ...a.vals };
+        if ('analytic_distribution' in v && semAnalitica(e)) {
+          delete v.analytic_distribution; avisos.push(`item ${a.mes || a.chave}: objetos de resultado não aplicados`);
+          try { if (Object.keys(v).length) await s.exec('sale.order.line', 'write', [[a.id], v]); atualizadas += 1; itens.push({ chave: a.chave, id: a.id }); }
+          catch (e2) { avisos.push(`item ${a.mes || a.chave} não atualizado: ${odooMsg(e2).slice(0, 120)}`); itens.push({ chave: a.chave, id: a.id }); }
+        } else { avisos.push(`item ${a.mes || a.chave} não atualizado: ${odooMsg(e).slice(0, 120)}`); itens.push({ chave: a.chave, id: a.id }); }
+      }
+    }
+    for (const r of remover) {
+      try {
+        if (r.modo === 'apagar') { await s.exec('sale.order.line', 'unlink', [[r.id]]); removidas += 1; }
+        else { await s.exec('sale.order.line', 'write', [[r.id], { product_uom_qty: 0 }]); zeradas += 1; itens.push({ chave: r.chave, id: r.id }); }
+      } catch (e) { avisos.push(`item ${r.chave} não removido: ${odooMsg(e).slice(0, 120)}`); itens.push({ chave: r.chave, id: r.id }); }
+    }
+    cacheSetTTL(`odoo-venda-status:${ordemId}`, null, 0);
+    const dep = ((await s.exec('sale.order', 'read', [[ordemId]], { fields: ['name', 'state', 'amount_total'] })) || [])[0] || {};
+    return json(res, 200, { ok: true, id: ordemId, name: txt(dep.name || ord.name, 40), state: txt(dep.state || ord.state, 20), total: num(dep.amount_total), url: s.urlOrdem(ordemId),
+      parceiroId: Array.isArray(ord.partner_id) ? Number(ord.partner_id[0]) || 0 : 0, produtoId, produtoExtraId, itens, aplicado: { criadas, atualizadas, removidas, zeradas }, avisos });
+  } catch (e) {
+    return json(res, 200, { ok: false, erro: `Odoo: ${odooMsg(e)}`, dica: 'Confira se o módulo Vendas está instalado e se a conta de serviço do Odoo pode criar e alterar ordens de venda.' });
+  }
+}
+async function cancelaOrdemOdoo(res, b) {
+  const email = txt(b.email, 200), token = String(b.token || ''); const ordemId = Math.max(0, Math.round(num(b.ordemId)));
+  if (!ordemId) return json(res, 400, { ok: false, erro: 'Informe a ordem de venda a cancelar.' });
+  if (!email || !token) return json(res, 400, { ok: false, erro: 'Identifique-se em ⏱ Apontar (e-mail + token do Jira) para cancelar a ordem.' });
+  const quem = await jiraMyself(email, token); if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const s = await odooConecta(); if (!s.ok) return json(res, 200, s);
+  try {
+    const le = async () => ((await s.exec('sale.order', 'read', [[ordemId]], { fields: ['name', 'state'] })) || [])[0] || null;
+    let ord = await le();
+    if (!ord) return json(res, 200, { ok: true, state: 'ausente', name: '', aviso: `Ordem #${ordemId} já não existe no Odoo.` });
+    if (ord.state === 'cancel') return json(res, 200, { ok: true, state: 'cancel', name: txt(ord.name, 40) });
+    // O Odoo abre um assistente de confirmação em alguns estados; o contexto abaixo pula o aviso e, se ainda
+    // assim voltar o assistente, ele é criado e confirmado aqui mesmo.
+    try { await s.exec('sale.order', 'action_cancel', [[ordemId]], { context: { disable_cancel_warning: true } }); } catch (e) { if (!/cancel/i.test(odooMsg(e))) throw e; }
+    ord = await le();
+    if (ord && ord.state !== 'cancel') {
+      try { const wid = await s.exec('sale.order.cancel', 'create', [{ order_id: ordemId }]); await s.exec('sale.order.cancel', 'action_cancel', [[wid]]); } catch (e) { /* sem assistente nesta versão */ }
+      ord = await le();
+    }
+    cacheSetTTL(`odoo-venda-status:${ordemId}`, null, 0);
+    if (ord && ord.state === 'cancel') return json(res, 200, { ok: true, state: 'cancel', name: txt(ord.name, 40) });
+    return json(res, 200, { ok: false, state: txt(ord && ord.state, 20), name: txt(ord && ord.name, 40), erro: `O Odoo não cancelou a ordem ${txt(ord && ord.name, 40)} (há faturas lançadas?). Cancele-a no Odoo.` });
+  } catch (e) {
+    return json(res, 200, { ok: false, erro: `Odoo: ${odooMsg(e)}`, dica: 'Confira se a conta de serviço do Odoo pode cancelar ordens de venda.' });
+  }
+}
+
 // Tipos de ausência aceitos pela árvore "Onde crio?" — cada um resolve o
 // hr.leave.type do Odoo por env (id ou nome) ou por busca de nome padrão.
 const AUS_TIPOS_SRV = {
@@ -1237,6 +1465,10 @@ export default async function handler(req, res) {
     // ← leitura do que já foi faturado/pago na ordem (sincronização).
     if (acao === 'odoo-venda') return await criaCotacaoOdoo(res, b);
     if (acao === 'odoo-venda-status') return await statusVendaOdoo(res, b);
+    // 🤝 Contrato de parceria ↔ Odoo: catálogo (leitura), ordem do contrato (criar/comparar/aplicar) e cancelamento.
+    if (acao === 'odoo-catalogo') return await catalogoOdoo(res, b);
+    if (acao === 'odoo-contrato') return await sincronizaContratoOdoo(res, b);
+    if (acao === 'odoo-contrato-cancela') return await cancelaOrdemOdoo(res, b);
 
     // 📍 Meu dia — ingest dos blocos da ponte (não precisa de IA; valida o token do Jira).
     if (acao === 'meudia-ingest') return await meuDiaIngest(res, b);

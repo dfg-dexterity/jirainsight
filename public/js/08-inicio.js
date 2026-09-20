@@ -795,7 +795,7 @@ function renderAcoes(){
     ['entrega','alertas','🚨 Alertas','atrasados e críticos com reprogramação em lote'],
     ['negocio','rentab','💹 Rentabilidade','planos, cenários, períodos de faturamento e Odoo'],
     ['negocio','controladoria','🏦 Controladoria','margem por categoria e o 📁 resultado de cada projeto (nível, pessoa, vendido × realizado, plano)'],
-    ['negocio','parcerias','📑 Contratos › 🤝 Parceiros','consultorias parceiras: modalidade, validade, faturamento e conta'],
+    ['negocio','parcerias','📑 Contratos › 🤝 Parceiros','consultorias parceiras: validade, equipe, 🧾 faturamentos com a ordem de venda no Odoo, horas extras e próximas notas'],
     ['insights','relatorios','📚 Central de Relatórios','a porta única das análises: catálogo R01–R27, Analytics e Métricas por tipo'],
     ['insights','analytics','📚 Central › 📈 Analytics','26 visões de governança para investigar'],
     ['mais','roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
@@ -809,22 +809,29 @@ function renderAcoes(){
   if(temPapel('negocio')||temPapel('admin')){
     const somaDias=(s,n)=>{ const [y,m,d]=String(s).split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); };
     const aviso=pcLista().map(c=>({c,s:pcStatus(c)})).filter(x=>x.s.k==='avencer');
-    const notas=[]; rpPlanos().filter(p=>rpTipo(p)==='horas').forEach(p=>{ let per=[]; try{ per=rpPeriodosFat(p); }catch(e){ per=[]; } const its=rpOdooItens(p,per);
+    // planos de horas cuja ordem já é do 🤝 contrato (16c) entram pela lista do contrato, não duas vezes
+    const temOrdemNoContrato=(p)=>{ const ct=rpContrato(p); return !!(ct&&typeof pcOdoo==='function'&&pcOdoo(ct)); };
+    const notas=[]; rpPlanos().filter(p=>rpTipo(p)==='horas'&&!temOrdemNoContrato(p)).forEach(p=>{ let per=[]; try{ per=rpPeriodosFat(p); }catch(e){ per=[]; } const its=rpOdooItens(p,per);
       per.forEach((P,i)=>{ if(!(P.horas>0)||P.nota<somaDias(hoje,-31)||P.nota>somaDias(hoje,15)) return; const st=rpOdooStatusItem(p,its[i]); if(st.k==='faturado'||st.k==='pago') return;
         notas.push({ p, P, st, atrasada:P.nota<hoje }); }); });
     notas.sort((a,b)=>a.P.nota.localeCompare(b.P.nota));
+    // 🤝 notas dos contratos de parceria (previsão da equipe + horas extras), com o estado no Odoo — a leitura
+    // do Odoo (a cada 10 min) acontece aqui também, para a nota já faturada não aparecer como "atrasada"
+    let notasC=[]; if(typeof pcNotasPendentes==='function'){ try{ pcLista().forEach(c=>{ if(pcOdoo(c)) pcOdooGaranteLeitura(c); }); notasC=pcNotasPendentes(hoje,31,15); }catch(e){ notasC=[]; } }
     const ciclos=(cfg.contratos||[]).filter(c=>c&&c.tipo==='ams'&&(c.projetos||[]).length).map(c=>({c,cyc:amsCicloVigente(c,hoje)})).filter(x=>x.cyc.end>=hoje&&x.cyc.end<=somaDias(hoje,10));
-    const n=aviso.length+notas.length+ciclos.length;
+    const n=aviso.length+notas.length+notasC.length+ciclos.length;
     const linha=(ic,txt,goto,extra,cls)=>`<div class="fx-row ${cls||''}"><span>${ic}</span><span class="fx-txt">${txt}</span><span class="spacer"></span><button class="btn" ${goto}>${extra||'Abrir →'}</button></div>`;
     cardFech=`<div class="card full fx-card" style="margin-top:14px"><h2>📆 Fechamento do mês <span>Dexterity Negócio · ${n?`${n} item(ns) pedem ação`:'nada pendente agora'}</span></h2>
       <div class="fx-lista">
         ${aviso.map(x=>linha('🤝',`<b>${esc(x.c.consultoria||'')}</b> vence em ${dataBR(x.c.fim)} — aviso prévio ${x.s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(x.s.avisoAte)}${x.s.avisoPassou?'</span>':''}`,'data-hx-goto="parcerias"','Contratos →',x.s.avisoPassou?'crit':'aten')).join('')}
         ${notas.slice(0,8).map(x=>linha('🧾',`<b>${esc(x.p.nome||x.p.projeto||'')}</b> · período ${dataBR(x.P.iniPlano)} → ${dataBR(x.P.fimPlano)} · nota ${dataBR(x.P.nota)} · ${fmtBRL(x.P.valor)} <span class="muted small">${esc(x.st.k==='sem'?'sem ordem de venda no Odoo':x.st.rot)}</span>`,`data-hx-plano="${escA(x.p.id)}"`,x.atrasada?'Nota atrasada →':'Ver plano →',x.atrasada?'crit':'')).join('')}
         ${notas.length>8?`<div class="muted small">+ ${notas.length-8} período(s) — veja na 💹 Rentabilidade.</div>`:''}
+        ${notasC.slice(0,8).map(x=>linha('🤝',`<b>${esc(x.c.consultoria||'')}</b> · ${esc(labelMesAbbr(x.ym))} · ${dataBR(x.P.iniPlano)} → ${dataBR(x.P.fimPlano)} · nota ${dataBR(x.P.nota)} · ${fmtBRL(x.total)}${x.extras?` <span class="muted small">(+${x.extras} extra(s))</span>`:''} <span class="muted small">${esc(pcOdoo(x.c)?x.st.rot:'sem ordem de venda no Odoo')}</span>`,`data-hx-parceria="${escA(x.c.id)}"`,x.atrasada?'Nota atrasada →':'Ver contrato →',x.atrasada?'crit':'')).join('')}
+        ${notasC.length>8?`<div class="muted small">+ ${notasC.length-8} nota(s) — veja em 📑 Contratos › 🤝 Parceiros.</div>`:''}
         ${ciclos.map(x=>linha('🛡️',`<b>${esc(x.c.cliente||'')}</b> · ciclo ${esc(amsLabelCiclo(x.cyc))} fecha em ${dataBR(x.cyc.end)} — apurar e marcar como faturado`,'data-hx-goto="ams"','AMS →','aten')).join('')}
         ${n?'':'<div class="muted small">Nenhum contrato de parceria no período de aviso, nenhuma nota a emitir nos próximos 15 dias e nenhum ciclo AMS fechando em 10 dias.</div>'}
       </div>
-      <div class="muted small" style="margin-top:8px">Notas: períodos de faturamento dos planos de horas abertas (💹 Rentabilidade) com data da nota entre 31 dias atrás e 15 dias à frente e ainda sem fatura no Odoo. Contratos: 🤝 Contratos de parceria. Ciclos: contratos AMS do Admin.</div>
+      <div class="muted small" style="margin-top:8px">Notas: períodos de faturamento dos 🤝 contratos de parceria (equipe alocada + horas extras) e dos planos de horas abertas (💹 Rentabilidade) com data da nota entre 31 dias atrás e 15 dias à frente e ainda sem fatura no Odoo. Contratos: aviso prévio dos contratos de parceria. Ciclos: contratos AMS do Admin.</div>
     </div>`;
   }
   // ⏱ Apontamento do time — o card mais importante da Início: quem já lançou as
@@ -909,6 +916,7 @@ function renderAcoes(){
 // Cliques da home (hero pessoal + atalhos)
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pl=e.target.closest&&e.target.closest('[data-hx-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-hx-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }   // 📆 Fechamento do mês → plano
+  const pcx=e.target.closest&&e.target.closest('[data-hx-parceria]'); if(pcx){ const st=estado.parcerias=estado.parcerias||{}; const id=pcx.getAttribute('data-hx-parceria'); st.destaque=id; st.aba={ id, qual:'fat' }; st.novo=false; st.editId=null; st.rasc=null; vaiPara('parcerias'); return; }   // 📆 → 🧾 faturamentos do contrato
   const t=e.target.closest&&e.target.closest('[data-hx-goto]'); if(!t) return;
   const g=t.getAttribute('data-hx-goto');
   if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }

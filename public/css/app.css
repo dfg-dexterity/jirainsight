@@ -1873,6 +1873,16 @@
   .pc-eq-tab td,.pc-eq-tab th,.pc-eq-grade td,.pc-eq-grade th{white-space:nowrap}
   .pc-eq-tab input[type=date],.pc-eq-tab input[type=number],.pc-eq-tab select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .pc-rg-ded{display:inline-flex;gap:4px;align-items:center}
+  /* 🧾 faturamentos do contrato ↔ Odoo (16c): cabeçalho da ordem, plano de alterações, grade, horas extras, rateio */
+  .pc-odoo-h .btn.rt-step{margin-left:6px} .pc-odoo-h .rp-fats{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  .pc-plano ul{margin:4px 0 2px 18px;padding:0} .pc-plano li{margin:2px 0;font-size:12.5px} .pc-plano>div{margin-top:6px}
+  .pc-fat-tab td,.pc-fat-tab th,.pc-xt-tab td,.pc-xt-tab th,.pc-rt-tab td,.pc-rt-tab th{white-space:nowrap}
+  .pc-fat-tab tr.pc-xt-row td{background:var(--hoverbg);font-size:12.5px}
+  .pc-xt-tab input,.pc-xt-tab select,.pc-rt-tab input,.pc-rt-tab select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite);max-width:260px}
+  .pc-notas .pc-nt-lista{display:flex;flex-direction:column;gap:6px}
+  .pc-nt-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--linha);border-radius:10px;background:var(--cardbg);font-size:13px;min-width:0}
+  .pc-nt-row.crit{border-left:4px solid #D20A0A} .pc-nt-row .pc-nt-data{flex:0 0 auto;min-width:78px} .pc-nt-row .pc-nt-txt{min-width:0;flex:1 1 auto;overflow-wrap:anywhere}
+  .pc-nt-row .ct-sem{font-weight:600;white-space:normal}
   .pc-eq-grade tfoot td{border-top:2px solid var(--linha);font-weight:700}
   /* ✎ previsão digitada à mão: o campo fica discreto até ter valor; o calculado acompanha embaixo */
   .pc-prev-c{vertical-align:top}

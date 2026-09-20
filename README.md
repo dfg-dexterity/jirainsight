@@ -83,6 +83,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
 | `16b-parcerias.js` | 🤝 Contratos de parceria (`cfg.parcerias`): consultoria, modalidade (horas abertas · AMS · demanda fechada), validade e período de aviso, valor-hora, fechamento do período de faturamento e dia da nota **ajustáveis mês a mês** (`ajustes`), conta de recebimento, calendário dos próximos 12 períodos, histórico; **📂 pasta do contrato no SharePoint + 📄 documentos** (`c.pasta`, `c.docs[]` — só links `http(s)`, validados por `pcUrl`; todos veem e abrem, gestores cadastram) e **👥 equipe e alocação** (`c.equipe[]` = recursos com uma LISTA de trechos `{de, ate, modo, v}` — % do dia · h/dia útil · h/mês · h no total: `pcHorasRegra`/`pcPlanejamento` somam pelos dias úteis e devolvem horas e valor por **período de faturamento**); **✎ ajuste manual da previsão** (`c.prev[ym]={h,v}`, `pcPrev`/`pcPrevSet`: gestores digitam as horas e/ou o valor de um período por cima do cálculo — o calculado continua visível em `horasAuto`/`valorAuto` e o campo vazio volta ao automático); helpers `pcPeriodos`/`pcStatus` usados pela Rentabilidade |
+| `16c-parcerias-odoo.js` | 🧾 **Contrato de parceria ↔ Odoo Vendas** (2026-09-20): o contrato é o dono da ordem de venda (`c.odoo`) — um item por período de faturamento + um por **➕ hora extra** (`c.extras`), cada um com o rateio por **🎯 objeto de resultado** (contas analíticas → `analytic_distribution`; `c.rateio` padrão, `c.rateios[ym]` por período). `↻ Sincronizar` lê o faturado/pago (`?acao=odoo-venda-status`) e compara a previsão com a ordem (`?acao=odoo-contrato` com `dry:1`); a escrita só depois do "Aplicar". Remover o contrato cancela a ordem (`?acao=odoo-contrato-cancela`). Faixa **🧾 Próximas notas** (`pcNotasPendentes`, também no 📆 Fechamento do mês) e catálogo de produtos/objetos (`?acao=odoo-catalogo`) |
 | `17-metricas-tipo.js` | 📈 Métricas por tipo de projeto (DEA/PEA, DEF/PEF, AMS, ARQ, IMI, IPA, ITPR) + ⚙️ Perfis (nível e departamento por pessoa) |
 | `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: plano por **tipo** (horas abertas: 🤝 contrato de parceria, início/fim, h/dia, valor-hora → receita mensal e por **período de faturamento** do contrato, receita realizada, ordem de venda no Odoo com **um item por período** via `/api/resumo?acao=odoo-venda` e **sincronização** do faturado/pago via `?acao=odoo-venda-status`; escopo fechado: valor + marcos de faturamento ligados a épicos; interno: orçamento consumido pela alocação), planner pessoa × mês com **alocação por regra** (% do dia, h/dia, h/mês, total entre datas — dias úteis sem feriados, `al.regra`), cenários, simulador, realizado e **histórico do plano** (`p.hist`: quem/quando/o quê) — tudo em `cfg.rentab` |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
@@ -133,6 +134,8 @@ arquivo, nome global duplicado e uso antes da declaração).
 | `ODOO_LOGIN` | não | login da **conta de serviço** que cria as folgas (precisa de direitos de Time Off) |
 | `ODOO_API_KEY` | não | API Key do Odoo (Preferências → Conta → Segurança) ou a senha da conta de serviço |
 | `ODOO_FOLGA_TIPO_ID` | não | id (número) **ou** nome do *Tipo de ausência* (`hr.leave.type`) usado nas folgas, ex.: `Compensação de horas` |
+| `ODOO_PRODUTO_SERVICO` | não | id **ou** nome do produto de serviço usado nos itens das ordens de venda (as "horas de consultoria"); sem ele, vale o produto escolhido em 🧾 Faturamentos › ⚙ Produtos ou o 1º produto de serviço à venda |
+| `ODOO_PRODUTO_EXTRA` | não | id **ou** nome do produto das **horas extras** nos itens da ordem; sem ele, o das horas de consultoria |
 | `JIRA_FOLGA_PROJETO` | não | projeto Jira onde a automação **folga aprovada → ticket** cria os tickets (id ou key; padrão `10442` = TAD) |
 | `JIRA_FOLGA_TIPO` | não | id do tipo de issue dos tickets de folga (padrão `10009` = Tarefa) |
 | `JIRA_FOLGA_DEPT_FIELD` / `JIRA_FOLGA_DEPT_VALUE` | não | campo e valor do *Departamento Dexterity* nos tickets de folga (padrões `customfield_10924` / `RH - Pessoas & Cultura`). Para **não** preencher o campo, defina `JIRA_FOLGA_DEPT_FIELD=off` |
@@ -152,6 +155,34 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 `jirainsight_convites` do Supabase (colunas: grupo, issue, resumo, segundos, inicio,
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
+
+### 🧾 Contrato de parceria ↔ Odoo Vendas (ordem de venda do contrato)
+
+Desde **2026-09-20** o **🤝 contrato de parceria** (📑 Contratos › 🤝 Parceiros › gaveta **🧾 Faturamentos**) é o
+dono da ordem de venda no Odoo — o pedido foi "editar o contrato e ver a modificação refletida no Odoo, com o
+número da ordem à vista, um item por faturamento, horas extras num processo próprio e cada nota podendo ter mais
+de um objeto de resultado". Como funciona:
+
+- **Um item por período de faturamento** (produto das *horas de consultoria*: `ODOO_PRODUTO_SERVICO`, o produto
+  escolhido em ⚙ Produtos ou o 1º serviço à venda) + **um item por ➕ hora extra** (produto `ODOO_PRODUTO_EXTRA`
+  ou o mesmo). Quantidade = horas previstas (equipe + ✎ ajuste manual), preço = valor-hora; um mês com valor
+  fechado e sem horas vira `1 × valor`.
+- **🎯 Objetos de resultado** = contas analíticas do Odoo (`account.analytic.account`, lidas por
+  `POST /api/resumo?acao=odoo-catalogo`). O rateio padrão do contrato (ex.: 90% Sumitomo · 10% Hi-Mix), um rateio
+  próprio por período e um objeto por hora extra vão como `analytic_distribution` de cada item. Sem o campo
+  (módulo analítico ausente) a ordem é gravada sem rateio e o painel avisa.
+- **↻ Sincronizar** = ler (`?acao=odoo-venda-status`: estado, faturado/pago por item, faturas) + comparar
+  (`?acao=odoo-contrato` com `dry:1`): o servidor devolve o **plano** (criar · atualizar · apagar/zerar · mantidos ·
+  itens feitos à mão) e a tela mostra tudo antes do **Aplicar**. Regras (no servidor): item já faturado nunca muda;
+  a quantidade nunca cai abaixo do já faturado; preço só muda antes de qualquer fatura; o que saiu da previsão é
+  apagado na cotação e **zerado** na ordem confirmada (o Odoo não deixa apagar); item criado à mão no Odoo fica.
+- **Remover o contrato** cancela a ordem (`?acao=odoo-contrato-cancela`, `action_cancel` com
+  `disable_cancel_warning`; se o Odoo recusar — faturas lançadas —, a pessoa decide se remove mesmo assim).
+- **🧾 Próximas notas** (topo da tela) e o **📆 Fechamento do mês** (Início) listam, de todos os contratos, as notas
+  atrasadas e as dos próximos 45/15 dias com o estado no Odoo; uma nota só sai quando o item é faturado.
+- Toda escrita exige a identidade do Jira de quem clica (confirmada em `/myself`, nunca persistida) e usa a conta
+  de serviço do Odoo; só gestores criam/aplicam. O vínculo (`c.odoo.itens`: chave `p:AAAA-MM` / `x:<id>` → id da
+  linha) fica na config compartilhada.
 
 ### 🌴 Folga / compensação de horas extras (Odoo)
 

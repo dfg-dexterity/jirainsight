@@ -187,23 +187,43 @@ function renderParcerias(){
   const intro=`<div class="card full"><h2>🤝 Contratos de parceria <span>as consultorias que contratam a Dexterity: modalidade, valor-hora, validade e o calendário de faturamento</span></h2>
     <div class="muted small">Cadastre cada contrato com a <b>modalidade</b> (horas abertas, atendimento AMS ou demanda com horas fechadas), o <b>período de validade</b>, o <b>valor da hora negociada</b>, o <b>período de aviso</b> (dias de aviso prévio), o <b>período de faturamento</b> (o dia em que o período fecha — "até o dia 25") e o <b>dia da nota</b>, além da <b>conta bancária</b> em que você recebe. As datas de fechamento e de nota podem ser <b>ajustadas mês a mês</b> no 📅 calendário de cada contrato. Na 💹 Rentabilidade, o plano de horas abertas liga-se ao contrato: o cliente, o valor-hora e os <b>períodos de faturamento</b> (um item da ordem de venda no Odoo por período) vêm daqui. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor&&!st.novo&&!edit?'<button class="btn primario" data-pc-novo="1">＋ Novo contrato</button>':''}<button class="btn" data-goto="rentab">💹 Rentabilidade</button><button class="btn" data-goto="admin">⚙️ Contratos (Admin)</button></div></div>`;
-  const form=gestor&&(st.novo||edit)?pcFormHTML(st.rasc||(edit?JSON.parse(JSON.stringify(edit)):pcNovo()), !edit):'';
+  // O formulário nasce do RASCUNHO (st.rasc): no contrato novo ele já existe; na edição é a cópia do contrato.
+  // O rascunho acompanha o que a pessoa digita (pcGuardaRasc), então um render() vindo de fora — o catálogo de
+  // projetos que chega, um conflito da config compartilhada, a troca de tema — ou sair da tela e voltar não apaga
+  // nada. (Era exatamente isso que fazia parecer que o contrato "não editava": o formulário renascia vazio.)
+  if(gestor&&(st.novo||edit)&&!st.rasc) st.rasc=edit?JSON.parse(JSON.stringify(edit)):pcNovo();
+  const chaveForm=gestor&&(st.novo||edit)?(edit?edit.id:'novo'):'';
+  const form=chaveForm?pcFormHTML(st.rasc, !edit, chaveForm):'';
   const ordem={avencer:0,vigente:1,futuro:2,encerrado:3};
   const cards=lista.slice().sort((a,b)=>(ordem[pcStatus(a).k]-ordem[pcStatus(b).k])||String(a.consultoria||'').localeCompare(String(b.consultoria||''),'pt'))
     .map(c=>pcCardHTML(c, gestor, (st.aba&&st.aba.id===c.id)?st.aba.qual:'', hoje)).join('');
   const aVencer=lista.filter(c=>pcStatus(c).k==='avencer');
   const aviso=aVencer.length?`<div class="aviso">⏰ <b>${aVencer.length} contrato(s) dentro do período de aviso</b>: ${aVencer.map(c=>{ const s=pcStatus(c); return `<b>${esc(c.consultoria||'')}</b> vence em ${dataBR(c.fim)} (aviso prévio ${s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(s.avisoAte)}${s.avisoPassou?'</span>':''})`; }).join(' · ')}.</div>`:'';
-  cont.replaceChildren(el(`<div>${intro}${aviso}${form}
+  const notas=(typeof pcProximasNotasHTML==='function')?pcProximasNotasHTML(lista, hoje):'';
+  // O formulário já aberto é REAPROVEITADO (mesmo nó, com o que está digitado e o cursor onde estava) quando o
+  // redesenho é do mesmo contrato — só o resto da tela é reconstruído.
+  const formVelho=cont.querySelector('.pc-form'); const ativo=document.activeElement;
+  const arvore=el(`<div>${intro}${aviso}${notas}${form}
     <div class="card full"><h2>Contratos cadastrados <span>${lista.length}</span></h2>
-      ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`));
+      ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`);
+  const reusa=!!(formVelho&&chaveForm&&formVelho.getAttribute('data-pc-form')===chaveForm);
+  if(reusa){ const novo=arvore.querySelector('.pc-form'); if(novo) novo.replaceWith(formVelho); }
+  cont.replaceChildren(arvore);
+  if(reusa&&ativo&&formVelho.contains(ativo)){ try{ ativo.focus({preventScroll:true}); }catch(e){} }
   pcPreview();
+  if(typeof pcOdooAoAbrir==='function') try{ pcOdooAoAbrir(lista); }catch(e){}   // 16c: lê o Odoo dos contratos com ordem (a cada 10 min)
   // 🦴 vindo da espinha do projeto: o contrato da consultoria em destaque e à vista
   if(st.destaque){ const card=cont.querySelector(`[data-pc-card="${st.destaque}"]`); if(card) setTimeout(()=>{ try{ card.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} },60); }
-  ['pc-f-inicio','pc-f-fim'].forEach(id=>{ const d=document.getElementById(id); if(d) d.addEventListener('click',()=>{ try{ if(d.showPicker) d.showPicker(); }catch(e){} }); });
+  ['pc-f-inicio','pc-f-fim'].forEach(id=>{ const d=document.getElementById(id); if(d&&!d.hasAttribute('data-picker')){ d.setAttribute('data-picker','1'); d.addEventListener('click',()=>{ try{ if(d.showPicker) d.showPicker(); }catch(e){} }); } });
 }
-function pcFormHTML(c, novo){
+// O rascunho do formulário (st.rasc) acompanha cada tecla: é dele que o formulário renasce em qualquer redesenho.
+const PC_FORM_CAMPOS=[['consultoria','pc-f-consultoria'],['modalidade','pc-f-modal'],['inicio','pc-f-inicio'],['fim','pc-f-fim'],['valorHora','pc-f-vh'],['avisoDias','pc-f-aviso'],['fatFecha','pc-f-fecha'],['fatDia','pc-f-nota'],['conta','pc-f-conta'],['contato','pc-f-contato'],['obs','pc-f-obs'],['pasta','pc-f-pasta']];
+function pcGuardaRasc(){ const st=estado.parcerias; if(!st||!(st.novo||st.editId)) return;
+  if(!st.rasc) st.rasc=st.editId?JSON.parse(JSON.stringify(pcDe(st.editId)||pcNovo())):pcNovo();
+  PC_FORM_CAMPOS.forEach(([k,id])=>{ const e=document.getElementById(id); if(e) st.rasc[k]=String(e.value); }); }
+function pcFormHTML(c, novo, chave){
   const contas=pcContas();
-  return `<div class="card full pc-form"><h2>${novo?'＋ Novo contrato de parceria':'✏️ Editar contrato'} <span>${esc(c.consultoria||'')}</span></h2>
+  return `<div class="card full pc-form" data-pc-form="${escA(chave||(novo?'novo':c.id))}"><h2>${novo?'＋ Novo contrato de parceria':'✏️ Editar contrato'} <span>${esc(c.consultoria||'')}</span></h2>
     <div class="pl-grid">
       <div class="campo"><label>Consultoria parceira</label><input type="text" id="pc-f-consultoria" value="${escA(c.consultoria||'')}" placeholder="nome da consultoria (cliente)" style="min-width:240px"></div>
       <div class="campo"><label>Modalidade de contratação</label><select id="pc-f-modal">${Object.entries(PC_MODAL).map(([k,t])=>`<option value="${k}" ${pcModal(c)===k?'selected':''}>${t[0]} ${t[1]}</option>`).join('')}</select><div class="muted small" id="pc-f-modal-dica">${esc(PC_MODAL[pcModal(c)][2])}</div></div>
@@ -258,13 +278,15 @@ function pcCardHTML(c, gestor, aba, hoje){
       !pasta&&!docs.length?`<span class="muted small">📂 Nenhum documento cadastrado${gestor?' — informe a <b>pasta do contrato</b> em ✏️ editar e os arquivos em 📄 Documentos':''}.</span>`:''}</div>
     <div class="ams-dprojs muted small">👥 Equipe: ${plan.eq.length?`<b>${plan.eq.length}</b> recurso(s) · <b>${fmtHd(plan.totalH)}</b> previstas${plan.vh?` · <b>${fmtBRL(plan.totalV)}</b>`:''}${plan.de?` · ${dataBR(plan.de)} → ${dataBR(plan.ate)}`:''}`:'ninguém alocado ainda'}</div>
     <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>${p.projeto?` ${projChipsFicha([p.projeto])}`:''}`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · ✎ ${Object.keys(c.ajustes).length} mês(es) com datas ajustadas`:''}</div>
+    ${typeof pcOdooResumo==='function'?`<div class="ams-dprojs muted small pc-odoo-l">${pcOdooResumo(c, plan)}</div>`:''}
     ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
     <div class="ad-cons pc-gav">
       <button class="btn rt-step${aba==='equipe'?' on':''}" data-pc-eq="${escA(c.id)}">👥 ${aba==='equipe'?'Fechar equipe':`Equipe e alocação${plan.eq.length?` (${plan.eq.length})`:''}`}</button>
+      <button class="btn rt-step${aba==='fat'?' on':''}" data-pc-fat="${escA(c.id)}">🧾 ${aba==='fat'?'Fechar faturamentos':`Faturamentos${(typeof pcOdoo==='function'&&pcOdoo(c))?' · '+esc(pcOdoo(c).name||'Odoo'):''}`}</button>
       <button class="btn rt-step${aba==='cal'?' on':''}" data-pc-cal="${escA(c.id)}">📅 ${aba==='cal'?'Fechar calendário':'Calendário de faturamento'}</button>
       <button class="btn rt-step${aba==='docs'?' on':''}" data-pc-docs="${escA(c.id)}">📄 ${aba==='docs'?'Fechar documentos':`Documentos${docs.length?` (${docs.length})`:''}`}</button>
       <span class="muted small">${c.atualizadoEm?`atualizado ${dataBR(c.atualizadoEm)}${c.atualizadoPor?' por '+esc(c.atualizadoPor):''}`:''}</span></div>
-    ${aba==='cal'?pcCalendarioHTML(c, gestor, hoje):aba==='equipe'?pcEquipeHTML(c, gestor, plan):aba==='docs'?pcDocsHTML(c, gestor):''}
+    ${aba==='cal'?pcCalendarioHTML(c, gestor, hoje):aba==='equipe'?pcEquipeHTML(c, gestor, plan):aba==='docs'?pcDocsHTML(c, gestor):(aba==='fat'&&typeof pcFaturamentosHTML==='function')?pcFaturamentosHTML(c, gestor, plan, hoje):''}
     ${hist.length?`<details class="rm-det"><summary>🕓 Histórico (${hist.length})</summary><table class="mp-tab-mini rp-hist"><tbody>${hist.slice(0,8).map(h=>`<tr><td class="muted small">${esc(pcQuando(h.em))}</td><td>${esc(h.por||'')}</td><td class="small">${esc(h.d||'')}</td></tr>`).join('')}</tbody></table></details>`:''}
   </div>`;
 }
@@ -389,9 +411,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='parcerias') return; const st=estado.parcerias=estado.parcerias||{}; const gestor=souAprovador();
   const pl=e.target.closest&&e.target.closest('[data-pc-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-pc-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  // 🗂 gavetas do cartão (uma por vez): 👥 equipe · 📅 calendário · 📄 documentos
-  const gav=['data-pc-eq','data-pc-cal','data-pc-docs'].find(k=>t.hasAttribute(k));
-  if(gav){ const id=t.getAttribute(gav); const qual=gav==='data-pc-eq'?'equipe':gav==='data-pc-cal'?'cal':'docs';
+  // 🗂 gavetas do cartão (uma por vez): 👥 equipe · 🧾 faturamentos (16c) · 📅 calendário · 📄 documentos
+  const gav=['data-pc-eq','data-pc-fat','data-pc-cal','data-pc-docs'].find(k=>t.hasAttribute(k));
+  if(gav){ const id=t.getAttribute(gav); const qual=gav==='data-pc-eq'?'equipe':gav==='data-pc-fat'?'fat':gav==='data-pc-cal'?'cal':'docs';
     st.aba=(st.aba&&st.aba.id===id&&st.aba.qual===qual)?null:{ id, qual }; renderParcerias(); return; }
   if(!gestor) return;
   // 📄 documentos do contrato
@@ -428,12 +450,13 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.id==='pc-f-cancelar'){ st.novo=false; st.editId=null; st.rasc=null; renderParcerias(); return; }
   if(t.id==='pc-f-salvar'){ const fb=document.getElementById('pc-f-fb'); const diz=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
     if(st.editId){ const c=pcDe(st.editId); if(!c) return; const antes=JSON.parse(JSON.stringify(c)); const erro=pcLeForm(c); if(erro){ Object.assign(c,antes); diz(erro); return; }
-      const dif=pcDiff(antes,c); pcLog(c,'editou',dif.length?dif.join('; '):'salvo sem mudanças'); st.editId=null; salvaCfg(); toast('Contrato atualizado.','ok'); renderParcerias(); return; }
+      const dif=pcDiff(antes,c); pcLog(c,'editou',dif.length?dif.join('; '):'salvo sem mudanças'); st.editId=null; st.rasc=null; salvaCfg(); toast('Contrato atualizado.','ok'); renderParcerias(); return; }
     const c=st.rasc||pcNovo(); const erro=pcLeForm(c); if(erro){ diz(erro); return; }
     c.criadoEm=hojeSP(); c.criadoPor=pcQuem().nome; pcLog(c,'criou',`${PC_MODAL[pcModal(c)][1]} · ${dataBR(c.inicio)} → ${c.fim?dataBR(c.fim):'sem fim'} · ${fmtBRL(c.valorHora)}/h · fecha dia ${c.fatFecha}`);
     pcLista().push(c); st.novo=false; st.rasc=null; salvaCfg(); toast('Contrato cadastrado. Ligue os planos de horas abertas a ele na 💹 Rentabilidade.','ok'); renderParcerias(); return; }
-  if(t.hasAttribute('data-pc-del')){ const c=pcDe(t.getAttribute('data-pc-del')); if(!c) return; const n=pcPlanosDe(c.id).length;
-    if(!confirm(`Remover o contrato "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}`)) return;
+  if(t.hasAttribute('data-pc-del')){ const c=pcDe(t.getAttribute('data-pc-del')); if(!c) return;
+    if(typeof pcRemoveContrato==='function'){ pcRemoveContrato(c); return; }   // 16c: cancela a ordem no Odoo antes
+    const n=pcPlanosDe(c.id).length; if(!confirm(`Remover o contrato "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}`)) return;
     pcPlanosDe(c.id).forEach(p=>{ p.contrato=''; }); cfg.parcerias=pcLista().filter(x=>x.id!==c.id); if(st.aba&&st.aba.id===c.id) st.aba=null; salvaCfg(); renderParcerias(); return; }
   if(t.hasAttribute('data-pc-aj-rm')){ const [id,ym]=t.getAttribute('data-pc-aj-rm').split('|'); const c=pcDe(id); if(!c||!c.ajustes) return; delete c.ajustes[ym]; pcLog(c,'ajuste',`${labelMesAbbr(ym)}: datas de volta ao padrão`); salvaCfg(); renderParcerias(); return; }
   // ✎ previsão: ↺ devolve um período ao cálculo · 🗑 descarta os ajustes órfãos (meses que a alocação não cobre mais)
@@ -480,6 +503,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     else if(campo==='modo') r.modo=PC_MODO_IDS.includes(val)?val:'dia';
     else r.v=Math.max(0,Number(val)||0);
     pcLog(c,'equipe',`${pcNomeRec(p)} · ${pcRegraRot(r)}`); salvaCfg(); renderParcerias(); return; }
-  if(/^pc-f-/.test(t.id||'')) pcPreview();
+  if(/^pc-f-/.test(t.id||'')){ pcGuardaRasc(); pcPreview(); }
 });
-document.getElementById('conteudo').addEventListener('input',(e)=>{ if(estado.vista!=='parcerias') return; const t=e.target; if(t&&/^pc-f-(fecha|nota|fim|aviso)$/.test(t.id||'')) pcPreview(); });
+document.getElementById('conteudo').addEventListener('input',(e)=>{ if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!/^pc-f-/.test(t.id||'')) return;
+  pcGuardaRasc(); if(/^pc-f-(fecha|nota|fim|aviso)$/.test(t.id)) pcPreview(); });
