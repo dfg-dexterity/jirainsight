@@ -588,6 +588,93 @@ async function portal(req, res, base, headers, token) {
   return json(res, 200, out);
 }
 
+// ===========================================================================
+// 📊 USO DO PAINEL (pedido do usuário, 2026-09-19)
+// "Quem abre qual TELA, quantas vezes e por quanto tempo" — o que faltava para decidir o
+// que evoluir e o que aposentar. Quem conta é o navegador (public/js/31-uso.js), que manda
+// LOTES já agregados por (dia, tela); aqui só se grava e se devolve somado.
+//
+// Três limites, de propósito:
+//  · só id de TELA e duração — nenhum conteúdo (ticket, texto, filtro) passa por aqui;
+//  · a identidade vem DECLARADA pelo cliente: serve para entender adoção, não é auditoria
+//    (quem quisesse falsear o próprio número conseguiria — e não há o que proteger nisso);
+//  · o histórico é podado: linhas com mais de USO_DIAS dias saem na primeira gravação
+//    depois de cada partida a frio da função.
+// Sem endpoint novo: entra como sub-rota do /api/config (o limite de 12 funções da Vercel).
+// ===========================================================================
+const USO_TAB = 'jirainsight_uso';
+const USO_DIAS = 180;      // retenção do histórico
+const USO_LOTE = 200;      // linhas por envio
+const USO_JANELA = 120;    // dias por leitura
+const USO_MAX_LINHAS = 50000;
+const RE_USO_DIA = /^\d{4}-\d{2}-\d{2}$/;
+const RE_USO_V = /^[a-z0-9_:-]{1,32}$/i;   // id de tela, nunca texto livre
+let _usoPodou = false;
+
+function usoDiaMenos(dias) {
+  const d = new Date(`${spHoje()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+// POST /api/config?uso=1 — grava um lote { a, nome, disp, linhas:[{d, v, n, s}] }
+async function usoGrava(req, res, base, headers) {
+  const b = await lerBody(req);
+  const a = String((b && b.a) || '').trim().slice(0, 64);
+  const nome = String((b && b.nome) || '').trim().slice(0, 80);
+  const disp = (b && b.disp) === 'cel' ? 'cel' : 'pc';
+  if (!a) return json(res, 400, { ok: false, erro: 'Sem identificação de quem usou.' });
+  const hoje = spHoje(); const limite = usoDiaMenos(7);
+  const linhas = (Array.isArray(b && b.linhas) ? b.linhas : []).slice(0, USO_LOTE)
+    .map((x) => ({
+      dia: String((x && x.d) || ''), v: String((x && x.v) || ''),
+      n: Math.max(0, Math.min(10000, Math.round(Number(x && x.n) || 0))),
+      seg: Math.max(0, Math.min(86400, Math.round(Number(x && x.s) || 0))),
+      a, nome, disp,
+    }))
+    // dia plausível (não aceita datar o passado distante nem o futuro) e tela com cara de id
+    .filter((x) => RE_USO_DIA.test(x.dia) && x.dia <= hoje && x.dia >= limite && RE_USO_V.test(x.v) && (x.n > 0 || x.seg > 0));
+  if (!linhas.length) return json(res, 200, { ok: true, gravadas: 0 });
+
+  const r = await sbFetch(base, headers, USO_TAB, {
+    method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(linhas),
+  });
+  if (!r.ok) return json(res, 200, { ok: false, erro: `Supabase ${r.status}` });
+
+  // Poda o histórico velho uma vez por instância quente (sem segurar a resposta).
+  if (!_usoPodou) {
+    _usoPodou = true;
+    sbFetch(base, headers, `${USO_TAB}?dia=lt.${usoDiaMenos(USO_DIAS)}`, {
+      method: 'DELETE', headers: { Prefer: 'return=minimal' },
+    }).catch(() => {});
+  }
+  return json(res, 200, { ok: true, gravadas: linhas.length });
+}
+
+// GET /api/config?uso=1&de=AAAA-MM-DD&ate=AAAA-MM-DD — o período somado por (dia, pessoa, tela).
+async function usoLe(req, res, base, headers) {
+  const q = req.query || {};
+  const ate = RE_USO_DIA.test(String(q.ate || '')) ? String(q.ate) : spHoje();
+  let de = RE_USO_DIA.test(String(q.de || '')) ? String(q.de) : usoDiaMenos(29);
+  if (de > ate) de = ate;
+  if (de < usoDiaMenos(USO_JANELA)) de = usoDiaMenos(USO_JANELA);   // janela máxima de leitura
+
+  const rows = await sbRows(await sbFetch(base, headers,
+    `${USO_TAB}?dia=gte.${de}&dia=lte.${ate}&select=dia,a,nome,v,disp,n,seg&limit=${USO_MAX_LINHAS}`));
+  const mapa = new Map(); const pessoas = {};
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    const k = `${r.dia}|${r.a}|${r.v}|${r.disp}`;
+    const at = mapa.get(k) || { dia: r.dia, a: r.a, v: r.v, disp: r.disp, n: 0, seg: 0 };
+    at.n += Number(r.n) || 0; at.seg += Number(r.seg) || 0;
+    mapa.set(k, at);
+    if (r.nome && !pessoas[r.a]) pessoas[r.a] = r.nome;
+  });
+  return json(res, 200, {
+    ok: true, de, ate, pessoas, linhas: [...mapa.values()],
+    truncado: Array.isArray(rows) && rows.length >= USO_MAX_LINHAS, geradoEm: new Date().toISOString(),
+  });
+}
+
 export default async function handler(req, res) {
   // GET /api/config?versao=1 → versão do deploy (commit/PR), injetada pela Vercel no runtime.
   // O merge squash guarda o nº do PR no fim da mensagem do commit: "Título (#60)".
@@ -618,6 +705,11 @@ export default async function handler(req, res) {
     if (req.query && req.query.plan) {
       if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
       return await planejamento(req, res, base, headers);
+    }
+
+    // 📊 Uso do painel: grava o lote (POST) e devolve o período somado (GET).
+    if (req.query && req.query.uso) {
+      return req.method === 'POST' ? await usoGrava(req, res, base, headers) : await usoLe(req, res, base, headers);
     }
 
     // 🎯 Prioridades do time: log de decisões (sempre POST, com identidade do Jira).

@@ -45,7 +45,7 @@ api/
 public/
   index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
-  js/NN-nome.js    o painel, dividido em 32 módulos por domínio — ver tabela abaixo
+  js/NN-nome.js    o painel, dividido em 36 módulos por domínio — ver tabela abaixo
   sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
   portal.html      painel somente-leitura do cliente (AMS), escopado por token
 scripts/
@@ -97,6 +97,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
 | `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |
+| `31-uso.js` | 📊 **Uso do painel** — o coletor e a tela. O coletor conta **abertura** por troca de tela (gancho de uma linha no `render()`) e **tempo** num relógio de 15s que só anda com a **aba visível** e com interação nos últimos 5 min (`usoPulso`); o acumulado fica no `localStorage` por `dia|tela` e sobe em lotes (`usoEnvia`, `sendBeacon` ao fechar a aba) para `POST /api/config?uso=1` — sem endpoint novo. A tela (`renderUso`) mostra KPIs, por dia, por aparelho, ranking de telas por tempo, por pessoa e as telas sem uso; `usoPodeTudo()` decide entre o consolidado do time (gestor/negócio/diretoria/admin) e o uso pessoal. Só id de tela e duração viajam — nenhum conteúdo |
 
 **Para acrescentar um módulo:** crie `public/js/NN-nome.js`, adicione a tag `<script defer>` na
 posição certa do `index.html` e rode `npm run check` (ele acusa arquivo sem tag, tag sem

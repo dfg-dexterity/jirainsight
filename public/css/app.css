@@ -537,6 +537,28 @@
   .tkb-l .pal-row.pal-on{box-shadow:inset 3px 0 0 var(--marca,#009994)}
   @media(max-width:640px){ .tkb-lista{max-height:58vh} .tkb-n{margin-left:0}
     .tkb-l .pal-g{max-width:40%;overflow:hidden;text-overflow:ellipsis} }
+  /* 📊 Uso do painel */
+  .uso-bar{display:block;width:100%;min-width:90px;height:8px;border-radius:5px;background:var(--linha2,#e6e8ec);overflow:hidden}
+  .uso-bar i{display:block;height:100%;border-radius:5px;background:var(--marca,#009994)}
+  .uso-bar-td{width:34%;min-width:110px}
+  .uso-bar-g{margin:4px 0 2px}
+  /* cartões de grade precisam de min-width:0 para encolher — senão o gráfico de largura fixa
+     estica o cartão e a página ganha rolagem horizontal no celular */
+  .uso-card,.uso-mini>.card{min-width:0}   /* item de grade não encolhe sozinho: a tabela larga empurraria a página */
+  .uso-card .scroll-x{max-width:100%}
+  /* a lista de telas sem uso pode ter dezenas de itens: container próprio, que QUEBRA linha
+     (.rc-cods é inline-flex sem wrap, feito para 1–3 selos ao lado de um título) */
+  .uso-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .uso-mini{margin-bottom:14px}
+  .uso-mini svg{max-width:100%}
+  .uso-dias{max-height:300px;overflow:auto}
+  .uso-mini .scroll-x{max-width:100%}
+  .uso-disp{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  .uso-disp b{font-size:13px}
+  .uso-tab td,.uso-tab th{white-space:nowrap}
+  .uso-tab td:first-child{white-space:normal;min-width:160px}
+  @media(max-width:640px){ .uso-disp{grid-template-columns:1fr} .uso-bar-td{display:none} }
+
   /* 📅 Agenda (Outlook) */
   .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
   .ag-ev:last-child{border-bottom:0}

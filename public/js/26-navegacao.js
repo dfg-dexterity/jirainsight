@@ -6,6 +6,7 @@
 // o 📋 Meu Planejamento. A capacidade macro volta como aba quando for reformulada (🗺️ Roadmap).
 function render(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
+  try{ usoTela(estado.vista); }catch(e){}   // 📊 conta a abertura da tela (31-uso.js) — nunca atrapalha o desenho
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
   aplicaLente();    // 🧭 grupos Dexterity Entrega/Negócio/Insights conforme o perfil (lente, não permissão)
   renderAbas();     // 🗂 barra de abas do grupo (Inbox, Apontar, Tickets do time…) quando a vista é uma aba
@@ -45,6 +46,7 @@ function render(){
   if(estado.vista==='planrel') return renderPlanRel();
   if(estado.vista==='admin') return renderAdmin();
   if(estado.vista==='parcerias') return renderParcerias();
+  if(estado.vista==='uso') return renderUso();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
 }
@@ -219,6 +221,7 @@ const NAVCAT=[
   ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R27','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise codigo r visoes blocos'],
   ['analytics','📚 Central de Relatórios › 📈 Analytics (26 visões)','insights','governanca 26 visoes graficos desvios analise analytics'],
   ['metricas','📚 Central de Relatórios › 📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
+  ['uso','📊 Uso do painel','insights','uso adocao analytics telemetria quem usa telas tempo por tela aberturas engajamento medir podar google analytics estatistica acesso'],
   // Administração e ⋯ Mais
   ['config','⚙️ Central de configurações › ⚙️ Central','admin','config ajustes configuracoes perfis papeis pessoas navegacao'],
   ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],

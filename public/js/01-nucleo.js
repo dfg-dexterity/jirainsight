@@ -47,6 +47,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // célula a refocar após redesenhar e o realizado (worklogs) por chave projeto|de|até.
   rentab:{ sel:'', edit:false, novo:false, rasc:null, focoCel:'', tempo:{}, tempoB:{}, tempoErro:{}, syncB:{}, syncErro:{} },
   parcerias:{ editId:null, novo:false, rasc:null, cal:'' },   // 🤝 Contratos de parceria
+  // 📊 Uso do painel: período em dias, o lido do servidor e a pessoa aberta no detalhe.
+  uso:{ dias:30, dados:null, carregando:false, erro:'', pessoa:'' },
   // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders
   qk:{ texto:'', criando:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
@@ -612,7 +614,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
