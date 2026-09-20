@@ -125,21 +125,56 @@ function pcEqRange(c){
   }));
   return { de, ate, fora };
 }
+// ---- ✎ AJUSTE MANUAL DA PREVISÃO (pedido do usuário, 2026-09-18) ----
+// A previsão de cada período nasce do cálculo (trechos × dias úteis × valor-hora), mas nem todo mês fecha
+// pela conta: um mês negociado, um valor fechado, uma redução combinada com o parceiro. Por isso cada
+// período aceita um número DIGITADO para as HORAS e/ou para o VALOR, guardado em `c.prev[ym] = {h, v}`
+// (do mesmo jeito que `c.ajustes[ym]` já ajusta as datas do calendário mês a mês).
+// Campo vazio = de volta ao automático, e o valor calculado nunca é apagado: ele continua à vista, ao lado
+// do que foi digitado, para a diferença ficar sempre explícita.
+function pcPrev(c){ if(!c.prev||typeof c.prev!=='object') c.prev={}; return c.prev; }
+function pcPrevDe(c, ym){ const m=pcPrev(c)[ym]; return (m&&typeof m==='object')?m:null; }
+// '' / texto inválido / negativo => null (= automático). Aceita vírgula decimal.
+function pcPrevNum(x){ const s=String(x==null?'':x).trim().replace(',','.'); if(!s) return null;
+  const n=Number(s); return (isFinite(n)&&n>=0)?Math.round(n*100)/100:null; }
+function pcPrevSet(c, ym, campo, val){
+  const p=pcPrev(c); const m=p[ym]||{}; const n=pcPrevNum(val);
+  if(n==null) delete m[campo]; else m[campo]=n;
+  if(Object.keys(m).length) p[ym]=m; else delete p[ym];
+  return n;
+}
+// Ajustes guardados para meses que a alocação atual não cobre mais (trecho encurtado, validade mudada).
+// Não são apagados sozinhos — se o período voltar, o ajuste volta com ele —, mas ficam avisados na tela.
+function pcPrevOrfaos(c, periodos){
+  const vistos=new Set((periodos||[]).map(P=>P.ym));
+  return Object.keys(pcPrev(c)).filter(ym=>!vistos.has(ym)).sort();
+}
+
 // O planejamento: horas de cada recurso em cada período de faturamento + o valor previsto da nota.
+// Cada período leva o valor CALCULADO (horasAuto/valorAuto) e o EFETIVO (horas/valor) — iguais, a não ser
+// que haja ajuste manual; manH/manV dizem qual dos dois foi digitado.
 function pcPlanejamento(c){
   const eq=pcEquipe(c); const vh=Math.max(0,Number(c.valorHora)||0); const R=pcEqRange(c);
   const porRec={}; eq.forEach(p=>{ porRec[p.id]=0; });
-  if(!R.de||!R.ate||R.ate<R.de) return { periodos:[], eq, vh, porRec, totalH:0, totalV:0, de:R.de, ate:R.ate, fora:R.fora };
+  if(!R.de||!R.ate||R.ate<R.de) return { periodos:[], eq, vh, porRec, totalH:0, totalV:0, totalHAuto:0, totalVAuto:0,
+    nMan:0, orfaos:pcPrevOrfaos(c,[]), de:R.de, ate:R.ate, fora:R.fora };
   const periodos=pcPeriodos(c,R.de,R.ate).map(P=>{
     const porPessoa={}; let horas=0;
     eq.forEach(p=>{ const h=Math.round(pcHorasRec(p,P.iniPlano,P.fimPlano)*100)/100;
       if(h>0){ porPessoa[p.id]=h; horas+=h; porRec[p.id]+=h; } });
     horas=Math.round(horas*100)/100;
-    return { ...P, du:pcDiasUteis(P.iniPlano,P.fimPlano), porPessoa, horas, valor:horas*vh };
+    const m=pcPrevDe(c,P.ym); const hMan=(m&&m.h!=null)?m.h:null, vMan=(m&&m.v!=null)?m.v:null;
+    const hEf=hMan!=null?hMan:horas;                      // horas digitadas mandam nas calculadas…
+    const vEf=vMan!=null?vMan:Math.round(hEf*vh*100)/100;  // …e o valor acompanha, a menos que também tenha sido digitado
+    return { ...P, du:pcDiasUteis(P.iniPlano,P.fimPlano), porPessoa,
+      horasAuto:horas, valorAuto:Math.round(horas*vh*100)/100, horas:hEf, valor:vEf, manH:hMan!=null, manV:vMan!=null };
   });
-  const totalH=Math.round(periodos.reduce((s,P)=>s+P.horas,0)*100)/100;
+  const soma=(f)=>Math.round(periodos.reduce((s,P)=>s+f(P),0)*100)/100;
   Object.keys(porRec).forEach(k=>{ porRec[k]=Math.round(porRec[k]*100)/100; });
-  return { periodos, eq, vh, porRec, totalH, totalV:totalH*vh, de:R.de, ate:R.ate, fora:R.fora };
+  return { periodos, eq, vh, porRec,
+    totalH:soma(P=>P.horas), totalV:soma(P=>P.valor), totalHAuto:soma(P=>P.horasAuto), totalVAuto:soma(P=>P.valorAuto),
+    nMan:periodos.filter(P=>P.manH||P.manV).length, orfaos:pcPrevOrfaos(c,periodos),
+    de:R.de, ate:R.ate, fora:R.fora };
 }
 function pcRegraRot(r){ const v=Number(r&&r.v)||0; const m=pcModo(r); const q=m==='pct'?`${v}% do dia`:m==='dia'?`${v}h/dia útil`:m==='mes'?`${v}h/mês`:`${v}h no total`;
   return `${q} · ${pcData(r.de)?dataBR(r.de):'—'} → ${pcData(r.ate)?dataBR(r.ate):'—'}`; }
@@ -299,14 +334,37 @@ function pcEquipeHTML(c, gestor, plan){
   }).join('');
   const hoje=hojeSP();
   const curto=(n)=>{ const w=String(n||'').trim().split(/\s+/); let s=w[0]||''; if(w[1]&&(s+' '+w[1]).length<=16) s+=' '+w[1]; return s; };
+  // 🧾 A grade da previsão. As colunas Horas e Valor são EDITÁVEIS para gestores: o campo vazio mostra o
+  // cálculo como placeholder (= automático) e, quando alguém digita, o calculado continua logo abaixo
+  // ("calc. 168h") para a diferença ficar à vista. O ↺ devolve a linha ao automático.
+  const nu=(v)=>String(Math.round((Number(v)||0)*100)/100);
+  const celH=(x)=>gestor
+    ? `<input type="number" min="0" step="0.5" class="pc-prev-i${x.manH?' pc-man':''}" data-pc-prev="${escA(c.id)}|${escA(x.ym)}|h"
+         value="${x.manH?escA(nu(x.horas)):''}" placeholder="${escA(fmtHd(x.horasAuto))}" aria-label="Horas previstas em ${escA(labelMesAbbr(x.ym))}"
+         data-tip="${x.manH?'Horas digitadas — apague para voltar ao cálculo':'Horas calculadas pelos trechos: digite para substituir'}">
+       ${x.manH?`<span class="pc-prev-calc">calc. ${fmtHd(x.horasAuto)}</span>`:''}`
+    : `<b>${fmtHd(x.horas)}</b>${x.manH?` <span class="pc-man-selo" data-tip="Ajustado à mão — o cálculo dava ${escA(fmtHd(x.horasAuto))}">✎</span>`:''}`;
+  const celV=(x)=>gestor
+    ? `<input type="number" min="0" step="0.01" class="pc-prev-i pc-prev-v${x.manV?' pc-man':''}" data-pc-prev="${escA(c.id)}|${escA(x.ym)}|v"
+         value="${x.manV?escA(nu(x.valor)):''}" placeholder="${escA(fmtBRL(x.valorAuto))}" aria-label="Valor previsto em ${escA(labelMesAbbr(x.ym))}"
+         data-tip="${x.manV?'Valor digitado — apague para voltar ao cálculo':'Valor calculado (horas × valor-hora): digite para fechar um valor'}">
+       ${x.manV?`<span class="pc-prev-calc">calc. ${fmtBRL(x.valorAuto)}</span>`:''}`
+    : `${fmtBRL(x.valor)}${x.manV?` <span class="pc-man-selo" data-tip="Ajustado à mão — o cálculo dava ${escA(fmtBRL(x.valorAuto))}">✎</span>`:''}`;
   const grade=P.periodos.length?`<div class="scroll-x"><table class="mp-tab-mini pc-eq-grade"><thead><tr><th>Mês</th><th>Período</th><th class="num">Dias úteis</th>${
-      eq.map(p=>`<th class="num" data-tip="${escA(pcNomeRec(p))}">${esc(curto(pcNomeRec(p)))}</th>`).join('')}<th class="num">Horas</th>${vh?'<th class="num">Valor</th>':''}<th>Nota</th></tr></thead>
-    <tbody>${P.periodos.map(x=>`<tr class="${x.ini<=hoje&&hoje<=x.fim?'rm-destaque':''}"><td><b>${esc(labelMesAbbr(x.ym))}</b>${x.ajustado?' <span class="muted small" data-tip="datas ajustadas neste mês">✎</span>':''}</td>
+      eq.map(p=>`<th class="num" data-tip="${escA(pcNomeRec(p))}">${esc(curto(pcNomeRec(p)))}</th>`).join('')}<th class="num">Horas</th>${vh?'<th class="num">Valor</th>':''}<th>Nota</th>${gestor?'<th></th>':''}</tr></thead>
+    <tbody>${P.periodos.map(x=>`<tr class="${x.ini<=hoje&&hoje<=x.fim?'rm-destaque':''}${(x.manH||x.manV)?' pc-prev-man':''}"><td><b>${esc(labelMesAbbr(x.ym))}</b>${x.ajustado?' <span class="muted small" data-tip="datas ajustadas neste mês">✎</span>':''}</td>
       <td>${dataBR(x.iniPlano)} → ${dataBR(x.fimPlano)}${x.recortado?' <span class="muted small" data-tip="Período recortado pela alocação/validade">✂</span>':''}</td><td class="num">${x.du}</td>
       ${eq.map(p=>`<td class="num">${x.porPessoa[p.id]?fmtHd(x.porPessoa[p.id]):'<span class="muted">—</span>'}</td>`).join('')}
-      <td class="num"><b>${fmtHd(x.horas)}</b></td>${vh?`<td class="num">${fmtBRL(x.valor)}</td>`:''}<td class="muted small">${dataBR(x.nota)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td colspan="3"><b>Total</b></td>${eq.map(p=>`<td class="num"><b>${fmtHd(P.porRec[p.id]||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b></td>${vh?`<td class="num"><b>${fmtBRL(P.totalV)}</b></td>`:''}<td></td></tr></tfoot></table></div>
-    <div class="muted small" style="margin-top:6px">As horas de cada período saem dos <b>dias úteis</b> do trecho dentro dele (feriados descontados) e o valor usa o valor-hora do contrato${vh?` (${fmtBRL(vh)})`:' — ainda não informado'}. O período e o dia da nota são os do 📅 calendário de faturamento.</div>`
+      <td class="num pc-prev-c">${celH(x)}</td>${vh?`<td class="num pc-prev-c">${celV(x)}</td>`:''}<td class="muted small">${dataBR(x.nota)}</td>${
+      gestor?`<td>${(x.manH||x.manV)?`<button class="btn rt-step" data-pc-prev-rm="${escA(c.id)}|${escA(x.ym)}" data-tip="Voltar este período ao cálculo automático">↺</button>`:''}</td>`:''}</tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="3"><b>Total</b></td>${eq.map(p=>`<td class="num"><b>${fmtHd(P.porRec[p.id]||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b>${
+      P.totalH!==P.totalHAuto?`<span class="pc-prev-calc">calc. ${fmtHd(P.totalHAuto)}</span>`:''}</td>${vh?`<td class="num"><b>${fmtBRL(P.totalV)}</b>${
+      P.totalV!==P.totalVAuto?`<span class="pc-prev-calc">calc. ${fmtBRL(P.totalVAuto)}</span>`:''}</td>`:''}<td></td>${gestor?'<td></td>':''}</tr></tfoot></table></div>
+    ${P.nMan?`<div class="muted small" style="margin-top:6px">✎ <b>${P.nMan} período(s) ajustado(s) à mão</b> — o número digitado vale, e o calculado fica ao lado. As colunas de cada pessoa continuam mostrando o que os <b>trechos</b> dizem, por isso elas podem não somar o total ajustado.</div>`:''}
+    ${P.orfaos&&P.orfaos.length?`<div class="aviso" style="margin-top:6px">✎ Há ajuste manual guardado para ${P.orfaos.map(ym=>`<b>${esc(labelMesAbbr(ym))}</b>`).join(' · ')}, fora do que a alocação cobre hoje. Ele volta a valer se o período voltar.${
+      gestor?` <button class="btn rt-step" data-pc-prev-limpar="${escA(c.id)}">🗑 descartar</button>`:''}</div>`:''}
+    <div class="muted small" style="margin-top:6px">As horas de cada período saem dos <b>dias úteis</b> do trecho dentro dele (feriados descontados) e o valor usa o valor-hora do contrato${vh?` (${fmtBRL(vh)})`:' — ainda não informado'}. O período e o dia da nota são os do 📅 calendário de faturamento.${
+      gestor?' Nem todo mês fecha pela conta: <b>digite por cima</b> nas colunas Horas e Valor quando o mês for negociado; apague o campo para voltar ao cálculo.':''}</div>`
     :`<div class="estado">Nenhuma alocação ainda${eq.length?' — cadastre os trechos de cada recurso acima':''}. O planejamento aparece aqui por <b>período de faturamento</b> assim que houver um trecho com datas.</div>`;
   return `<div class="pc-cal pc-eq"><div class="mp-h3">👥 Equipe e alocação <span class="mp-dim">quem vai trabalhar no contrato, quanto e quando — e quanto isso vira em cada nota</span></div>
     ${P.fora&&P.fora.length?`<div class="aviso">⚠ Fora da validade do contrato (não entram no planejamento): ${P.fora.map(esc).join(' · ')}.</div>`:''}
@@ -378,6 +436,15 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     if(!confirm(`Remover o contrato "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}`)) return;
     pcPlanosDe(c.id).forEach(p=>{ p.contrato=''; }); cfg.parcerias=pcLista().filter(x=>x.id!==c.id); if(st.aba&&st.aba.id===c.id) st.aba=null; salvaCfg(); renderParcerias(); return; }
   if(t.hasAttribute('data-pc-aj-rm')){ const [id,ym]=t.getAttribute('data-pc-aj-rm').split('|'); const c=pcDe(id); if(!c||!c.ajustes) return; delete c.ajustes[ym]; pcLog(c,'ajuste',`${labelMesAbbr(ym)}: datas de volta ao padrão`); salvaCfg(); renderParcerias(); return; }
+  // ✎ previsão: ↺ devolve um período ao cálculo · 🗑 descarta os ajustes órfãos (meses que a alocação não cobre mais)
+  if(t.hasAttribute('data-pc-prev-rm')){ const [id,ym]=t.getAttribute('data-pc-prev-rm').split('|'); const c=pcDe(id); if(!c) return;
+    if(!pcPrevDe(c,ym)) return; delete pcPrev(c)[ym];
+    pcLog(c,'previsão',`${labelMesAbbr(ym)}: de volta ao cálculo automático`); salvaCfg(); renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-prev-limpar')){ const c=pcDe(t.getAttribute('data-pc-prev-limpar')); if(!c) return;
+    const orf=pcPrevOrfaos(c,pcPlanejamento(c).periodos); if(!orf.length) return;
+    if(!confirm(`Descartar o ajuste manual de ${orf.map(labelMesAbbr).join(', ')}? Esses meses estão fora do que a alocação cobre hoje.`)) return;
+    orf.forEach(ym=>{ delete pcPrev(c)[ym]; });
+    pcLog(c,'previsão',`ajuste manual descartado: ${orf.map(labelMesAbbr).join(', ')}`); salvaCfg(); renderParcerias(); return; }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!t.hasAttribute) return;
@@ -393,6 +460,17 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     else if(campo==='nome') d.nome=val.slice(0,120);
     else d.tipo=PC_DOC_TIPOS.some(x=>x[0]===val)?val:'outro';
     pcLog(c,'doc',`${pcDocTipo(d)[2]}${d.nome?' "'+d.nome+'"':''}: ${campo} atualizado`); salvaCfg(); renderParcerias(); return; }
+  // ✎ previsão do período digitada à mão: horas e/ou valor (vazio = volta ao cálculo automático)
+  if(t.hasAttribute('data-pc-prev')){ if(!souAprovador()) return; const [id,ym,campo]=t.getAttribute('data-pc-prev').split('|');
+    const c=pcDe(id); if(!c||(campo!=='h'&&campo!=='v')) return;
+    const bruto=String(t.value||'').trim();
+    if(bruto&&pcPrevNum(bruto)==null){ toast('Digite um número igual ou maior que zero — ou deixe em branco para voltar ao cálculo.','warn'); renderParcerias(); return; }
+    const antes=pcPrevDe(c,ym)||{}; const tinha=antes[campo];
+    const n=pcPrevSet(c,ym,campo,bruto);
+    if(n===tinha||(n==null&&tinha==null)){ renderParcerias(); return; }
+    const rot=campo==='h'?'horas':'valor';
+    pcLog(c,'previsão',`${labelMesAbbr(ym)}: ${rot} ${n==null?'de volta ao cálculo':'→ '+(campo==='h'?fmtHd(n):fmtBRL(n))}`);
+    salvaCfg(); renderParcerias(); return; }
   // 👥 trecho de alocação: datas, modo e dedicação (salva na hora; as horas do período são recalculadas)
   if(t.hasAttribute('data-pc-rg')){ if(!souAprovador()) return; const [pid,rid,campo]=t.getAttribute('data-pc-rg').split('|');
     const c=pcLista().find(x=>pcEquipe(x).some(p=>p.id===pid)); if(!c) return;
