@@ -198,6 +198,10 @@ async function carregaCfgRemota(){
     }
   }catch(e){ _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }
 }
+// O servidor RECUSOU a gravação (token do Jira inválido, config grande demais…): a pessoa precisa saber na
+// hora — antes ficava só no console e a tela dizia "salvo", mas ao recarregar a mudança sumia.
+function avisaCfgRecusada(erro){ _cfgSujo=true; console.warn('Config não salva no servidor:', erro||'');
+  try{ toast('⚠ Não foi possível gravar no servidor: '+humanizaErro(erro||'')+' A mudança ficou só neste navegador — corrija e salve de novo.','err'); }catch(e){} }
 // Salva no servidor (quando compartilhado). Dispara junto com o salvar local.
 // Exige credenciais do Jira (a gravação não é anônima); envia-as por cabeçalho.
 function salvaCfgRemota(){
@@ -219,13 +223,13 @@ function salvaCfgRemota(){
         cfgAdotaRemoto(j);
         const corpo2=Object.assign({ __rev:_cfgRev||'' }, cfg);
         fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(corpo2) })
-          .then(r=>r.json()).then(j2=>{ if(j2 && j2.ok){ _cfgRev=j2.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; } })
+          .then(r=>r.json()).then(j2=>{ if(j2 && j2.ok){ _cfgRev=j2.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; } else avisaCfgRecusada(j2&&j2.erro); })
           .catch(()=>{ _cfgSujo=true; });
         try{ toast('↻ Config atualizada por outra pessoa — suas mudanças foram mescladas por cima.','warn'); }catch(e){}
         try{ render(); }catch(e){}
         return;
       }
-      if(j && j.ok===false) console.warn('Config não salva no servidor:', j.erro||'');
+      if(j && j.ok===false) avisaCfgRecusada(j.erro);
     })
     .catch(()=>{ _cfgSujo=true; _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }); }catch(e){}
 }

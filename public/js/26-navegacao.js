@@ -210,7 +210,7 @@ const NAVCAT=[
   ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
   // Dexterity Negócio — comercial, financeiro e controladoria
   ['admin','📑 Contratos › 🏢 Clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes cadastro contratos clientes'],
-  ['parcerias','📑 Contratos › 🤝 Parceiros (consultorias)','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes'],
+  ['parcerias','📑 Contratos › 🤝 Parceiros (consultorias)','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes odoo ordem de venda faturamentos sincronizar horas extras objeto de resultado rateio conta analitica proximas notas'],
   ['ams','🛡 Apuração de contratos › 🛡 AMS (por ciclo)','negocio','ciclo faturado banco horas chamados gestao apuracao ams governanca'],
   ['receita','🛡 Apuração de contratos › 💰 Bolsa de horas & projetos (Receita)','negocio','bolsa horas projetos consumo contratado gestao receita apuracao'],
   ['rentab','💹 Rentabilidade de projetos','negocio','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado odoo ordem de venda faturamento periodos'],
