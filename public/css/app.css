@@ -1912,6 +1912,16 @@
   .rp-grade select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .rp-grade tfoot td{border-top:1px solid var(--linha);font-variant-numeric:tabular-nums}
   .rp-grade tr.rp-f-prev td{border-top:2px solid var(--linha)} .rp-grade tr.rp-f-real td{color:var(--amarelo,#eb6834);font-weight:600}
+  /* ✎ horas vendidas digitáveis: o campo parece texto até receber o cursor (a linha continua uma leitura) */
+  .rp-grade input.rp-vend-i{width:64px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;padding:3px 6px;
+    border:1px solid transparent;border-radius:6px;background:transparent;color:var(--grafite);font-weight:700}
+  .rp-grade input.rp-vend-i:hover{border-color:var(--linha)}
+  .rp-grade input.rp-vend-i:focus{border-color:var(--cerceta);background:var(--cartao);outline:none}
+  .rp-grade input.rp-vend-i::placeholder{color:inherit;opacity:.92;font-weight:700}
+  .rp-grade input.rp-vend-i.rp-man{border-color:var(--cerceta)}
+  .rp-vend-calc{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap;margin-top:1px}
+  .rp-grade td.rp-vend-c{padding-top:2px;padding-bottom:2px}
+  .rp-grade tr.rp-f-vend .rp-vend-du{font-size:10.5px}
   .rp-grade tr.rp-real-row td{font-size:12px;color:var(--muted);padding-top:1px;padding-bottom:5px;border-bottom:1px solid var(--linha2);font-variant-numeric:tabular-nums}
   .rp-grade tr.rp-real-row td.rp-neg{color:var(--err)}
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
