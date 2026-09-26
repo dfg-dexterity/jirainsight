@@ -11,6 +11,16 @@
       ]
     },
     {
+      "comment": "🔐 Área do cliente. frame-ancestors diz QUEM pode embutir a página num iframe — acrescente aqui o domínio do site que vai hospedar a área (sem isso, qualquer site poderia embuti-la e fazer clickjacking). no-referrer impede que o token do link de convite vaze no cabeçalho Referer.",
+      "source": "/portal.html",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://dexterityit.com.br https://*.dexterityit.com.br" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
       "source": "/manifest.webmanifest",
       "headers": [
         { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" },
