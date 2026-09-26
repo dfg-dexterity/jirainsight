@@ -529,14 +529,18 @@ function renderAcoes(){
     // 📅 reuniões sem ticket
     if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
     const agp=agPendentes();
+    // 🚫 ignoradas já ficaram de fora de agPendentes; agAguardando são as de colegas
+    // da Dexterity que convidaram você e não criaram o ticket — você fica sem apontar.
+    const agAg=(typeof agAguardando==='function')?agAguardando():null;
     const agIndisp=estado.agenda.erro||(estado.agenda.dados&&estado.agenda.dados.configurado===false);
+    const agLinhaCol=(agAg&&agAg.length)?`<div class="ax-det">⏳ ${agAg.length} de colega(s) sem ticket — ${fmtH(agAg.reduce((s,ev)=>s+agDuracaoSeg(ev),0))} suas sem onde apontar</div>`:'';
     const cAg=agIndisp
       ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">—</div><div class="ax-det">Agenda do Outlook indisponível</div>','agenda','Abrir Agenda →')
       :agp==null
         ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">…</div><div class="ax-det">Consultando o Outlook…</div>','agenda','Abrir Agenda →')
-        :pcard(agp.length===0?'ok':'aten','📅','Reuniões sem ticket',
-          `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'suas ou de organizador externo — crie para o time apontar':'agenda em dia ✅'}</div>`,
-          'agenda', agp.length?'Criar tickets →':'Abrir Agenda →');
+        :pcard((agp.length===0&&!(agAg&&agAg.length))?'ok':'aten','📅','Reuniões sem ticket',
+          `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'suas ou de organizador externo — crie para o time apontar':'nada depende de você ✅'}</div>${agLinhaCol}`,
+          'agenda', (agp.length||(agAg&&agAg.length))?'Resolver na Agenda →':'Abrir Agenda →');
     // 📥 inbox
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
@@ -596,6 +600,7 @@ function renderAcoes(){
     const evRow=(ev)=>{ const tk2=agTicketDe(ev.id);
       const selo=ev.privado?'<span class="badge" data-tip="Evento particular">🔒</span>'
         :(tk2?`<span class="badge com-horas" data-tip="Ticket da reunião — aponte nele">✓ ${esc(tk2.t)}</span>`
+        :agIgnorado(ev)?'<span class="badge" data-tip="Marcada como &quot;não precisa de ticket&quot; na Agenda">🚫 ignorada</span>'
         :'<span class="badge ms-b-atra" data-tip="Reunião ainda sem ticket — crie na Agenda">⚠ sem ticket</span>');
       return `<div class="hxd-row"><span class="hxd-hora">${ev.diaTodo?'dia todo':esc((ev.inicio||'').slice(11,16))}</span>
         <span class="hxd-tit" title="${escA(ev.titulo)}">${esc(ev.titulo)}</span>${selo}

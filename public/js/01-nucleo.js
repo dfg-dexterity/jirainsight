@@ -74,7 +74,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // modal e o cache das horas (12 meses) para a evolução por épico.
   cronograma:{ proj:'', fil:'todos', ord:'auto', escala:'auto', sel:'', fichaB:{}, fichaErr:{}, tempo:{}, tempoB:{}, tempoErro:{}, tempoChave:'' },
   // 📅 Agenda (Outlook → ticket de reunião): eventos da pessoa via Microsoft Graph.
-  agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null, usuarios:null, usuCarr:false },
+  // secoes = blocos recolhíveis do 🎫 Controle de tickets (só apresentação, vive na sessão).
+  agenda:{ dados:null, carregando:false, erro:'', rdfTipo:null, usuarios:null, usuCarr:false, secoes:{} },
   // 📋 Meu Planejamento: plano semanal por atividade (data + projeto + horas), sem tickets.
   // 📋 Meu Planejamento: plano semanal por atividade (Supabase) + comparativo,
   // aprovações e relatórios do gestor. rasc = itens em edição (autosave).
@@ -140,6 +141,7 @@ function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], fe
   rentab:{ planos:[] },               // 💹 Rentabilidade: planos {duração, carga vendida, valor-hora, cenários pessoa × mês}
   vigencias:{},                       // 🪪 {accountId:{ini,fim}} — admissão/desligamento (relatórios respeitam)
   agendaAuto:{},                      // 🔁 {serie:{projeto,titulo,por,quando}} — reunião recorrente vira ticket sozinha
+  agendaIgnorar:{},                   // 🚫 {'s:serie'|'e:evento':{titulo,serie,por,quando}} — reunião que NÃO precisa de ticket
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.

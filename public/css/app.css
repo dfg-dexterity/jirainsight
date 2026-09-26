@@ -1708,12 +1708,42 @@
   .hxg-vtxt{font-size:9.5px;font-weight:700;fill:var(--cerceta)}
   :root[data-theme="dark"] .hxg-ctxt.hoje,:root[data-theme="dark"] .hxg-vtxt{fill:#7cb7ff}
   /* Agenda — 🎫 controle de tickets das reuniões */
-  .ag-ct-head,.ag-ct-row{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1.2fr) minmax(160px,1.4fr) minmax(120px,auto);gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--linha)}
-  .ag-ct-head{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom-width:2px}
-  .ag-ct-row:last-child{border-bottom:0}
+  /* Cabeçalho e linhas são UM grid só (os filhos entram com display:contents) —
+     cada linha resolvendo as colunas sozinha desalinhava o cabeçalho. */
+  .ag-ct-tab{display:grid;grid-template-columns:minmax(170px,2fr) minmax(120px,1fr) minmax(150px,1.3fr) max-content;align-items:center}
+  .ag-ct-head,.ag-ct-row{display:contents}
+  .ag-ct-head>span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--linha);padding:6px 10px 6px 0}
+  .ag-ct-row>div{border-bottom:1px solid var(--linha);padding:7px 10px 7px 0;min-width:0}
+  .ag-ct-acao{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;padding-right:0!important}
   .ag-ct-ok{color:#107E3E;font-weight:600} .ag-ct-pend{color:#C77700;font-weight:600}
   :root[data-theme="dark"] .ag-ct-ok{color:#4C9F70} :root[data-theme="dark"] .ag-ct-pend{color:#F0C674}
-  @media (max-width:720px){ .ag-ct-head{display:none} .ag-ct-row{grid-template-columns:1fr;gap:2px} .ag-ct-row>div{text-align:left!important} }
+  @media (max-width:720px){
+    .ag-ct-tab{display:block} .ag-ct-head{display:none}
+    .ag-ct-row{display:block;padding:7px 0;border-bottom:1px solid var(--linha)}
+    .ag-ct-row>div{border-bottom:0;padding:0;text-align:left!important}
+    .ag-ct-acao{justify-content:flex-start;margin-top:4px}
+  }
+  /* Blocos por responsabilidade: com você · com colegas · com ticket · ignoradas */
+  .ag-ct-kpis{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+  .ag-ct-kpi{border:1px solid var(--linha);border-radius:999px;padding:3px 11px;font-size:12.5px;color:var(--muted);background:var(--fundo)}
+  .ag-ct-kpi b{color:var(--grafite);font-size:13.5px}
+  .ag-ct-kpi.w{border-color:#E8B84B;background:#FBF4E4;color:#8A5200} .ag-ct-kpi.w b{color:#8A5200}
+  .ag-ct-kpi.t{border-color:#BFE0CC;background:#EEF7F1;color:#0E6B37} .ag-ct-kpi.t b{color:#0E6B37}
+  :root[data-theme="dark"] .ag-ct-kpi.w{background:#3A2E14;border-color:#6E5A24;color:#F0C674} :root[data-theme="dark"] .ag-ct-kpi.w b{color:#F0C674}
+  :root[data-theme="dark"] .ag-ct-kpi.t{background:#16301F;border-color:#2E5C3E;color:#8FD3A8} :root[data-theme="dark"] .ag-ct-kpi.t b{color:#8FD3A8}
+  .ag-ct-bloco{margin:10px 0 14px}
+  .ag-ct-h{margin:0 0 4px;font-size:14px}
+  .ag-ct-h .muted{font-weight:400}
+  .ag-ct-atras{font-size:11px;font-weight:700;color:#B91C1C;white-space:nowrap}
+  :root[data-theme="dark"] .ag-ct-atras{color:#F09A9A}
+  .ag-sec{margin-top:8px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo)}
+  .ag-sec>summary{cursor:pointer;padding:7px 12px;font-weight:700;font-size:13.5px;list-style:none;border-radius:10px}
+  .ag-sec>summary::-webkit-details-marker{display:none}
+  .ag-sec>summary::before{content:'▸ ';color:var(--muted)}
+  .ag-sec[open]>summary::before{content:'▾ '}
+  .ag-sec>summary:hover{background:var(--cartao)}
+  .ag-sec-corpo{padding:0 12px 8px}
+  .ag-sec-acao{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0 8px}
   /* Gestão de Tickets — seleção múltipla + ações em massa */
   .gx-bar{position:sticky;bottom:10px;z-index:8;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
     border:1px solid var(--cerceta);border-radius:12px;background:var(--cartao);box-shadow:0 6px 18px rgba(0,0,0,.15);padding:9px 14px;margin-top:12px}
