@@ -107,7 +107,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
     reprog:{},     // {chave:{de,para,motivo,por,quando}} reprogramações feitas nesta sessão
     semHoras:null, shCarregando:false },  // concluídos SEM horas apontadas (30d)
   // Administração (cadastro de contratos/clientes/valor-hora).
-  admin:{ editId:null },
+  // acessos = 🔐 contas do portal do cliente, carregadas sob demanda por contrato
+  admin:{ editId:null, acessos:{}, acessosAbertos:{} },
   // Ranking: aba ativa (apontamento clássico | engajamento & uso do Jira).
   ranking:{ aba:'apontamento', faixa:'semana', tempoPer:{}, carregandoPer:'' },
   // 🕵️ Auditoria de Tickets (apontamentos × validações TI-04-014, por pessoa).

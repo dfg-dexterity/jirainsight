@@ -246,6 +246,78 @@ function amsDrillRel(cId, dim, valor){
     <div class="muted small" style="margin:2px 0 10px">Chamados do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong>. 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
     <div class="ams-chlist">${linhas||'<div class="estado">Sem chamados.</div>'}</div>`);
 }
+// ===========================================================================
+// 🔐 ACESSOS DO CLIENTE (portal com e-mail e senha) — pedido do usuário, 2026-09-26
+// O "🔗 link do cliente" continua existindo (quem tem o link entra), mas para uma ÁREA
+// no site do cliente ele não serve: vaza, não se revoga por pessoa e não diz quem entrou.
+// Aqui o gestor convida NOMINALMENTE. Não há serviço de e-mail no projeto, então o
+// convite volta como LINK para o gestor mandar por onde quiser.
+// As contas vivem no Supabase (jirainsight_portal_contas), não na config compartilhada:
+// senha é dado sensível e a config inteira vai para o navegador de todo mundo.
+// ===========================================================================
+function pcliApi(acao, opcoes){
+  const o=opcoes||{}; const id=idApontar()||{};
+  const h={ 'Content-Type':'application/json', 'X-Jira-Email':id.email||'', 'X-Jira-Token':id.token||'' };
+  return fetch(`/api/config?pcli=${encodeURIComponent(acao)}${o.qs||''}`,
+    { method:o.corpo?'POST':'GET', headers:h, body:o.corpo?JSON.stringify(o.corpo):undefined })
+    .then(r=>r.json()).catch(()=>({ ok:false, erro:'Falha de rede.' }));
+}
+function pcliCarrega(cid){
+  estado.admin.acessos[cid]='carregando';
+  pcliApi('contas',{ qs:'&ct='+encodeURIComponent(cid) }).then(j=>{
+    estado.admin.acessos[cid]=(j&&j.ok)?(j.contas||[]):{ erro:(j&&j.erro)||'Não consegui listar os acessos.' };
+    if(estado.vista==='admin') renderAdmin();
+  });
+}
+function pcliBlocoHTML(c){
+  const aberto=!!estado.admin.acessosAbertos[c.id];
+  const dados=estado.admin.acessos[c.id];
+  const n=Array.isArray(dados)?dados.length:null;
+  const cab=`<button class="btn" data-pcli-abre="${escA(c.id)}" data-tip="Contas de e-mail e senha para o cliente acompanhar os chamados dele">
+      ${aberto?'▾':'▸'} 👤 Acessos do cliente${n!=null?` (${n})`:''}</button>`;
+  if(!aberto) return `<div class="ad-portal">${cab}<span class="muted small">área com login — cada pessoa tem a sua conta, revogável</span></div>`;
+  let corpo;
+  if(dados==='carregando'||dados===undefined) corpo='<div class="muted small" style="padding:6px 0">Carregando…</div>';
+  else if(!Array.isArray(dados)) corpo=`<div class="muted small" style="padding:6px 0;color:#B45309">${esc(dados.erro)}</div>`;
+  else if(!dados.length) corpo='<div class="muted small" style="padding:6px 0">Ninguém tem acesso ainda. Convide pelo e-mail abaixo.</div>';
+  else corpo=`<table class="pcli-tab"><thead><tr><th>Pessoa</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
+    <tbody>${dados.map(x=>`<tr>
+      <td><strong>${esc(x.email)}</strong>${x.nome?`<div class="muted small">${esc(x.nome)}</div>`:''}</td>
+      <td>${!x.ativo?'<span class="badge">🚫 revogado</span>'
+        :x.pendente?'<span class="badge ms-b-atra" data-tip="Já foi convidada e ainda não criou a senha">✉ convite pendente</span>'
+        :'<span class="badge com-horas">✓ ativo</span>'}</td>
+      <td class="muted small">${x.ultimoAcesso?esc(alxDataBR(String(x.ultimoAcesso).slice(0,10))):'—'}</td>
+      <td style="text-align:right">
+        ${x.ativo?`<button class="btn" data-pcli-rev="${escA(c.id)}|${escA(x.id)}" data-tip="Corta o acesso agora — a sessão aberta para de valer na hora seguinte">revogar</button>`
+          :`<button class="btn" data-pcli-rea="${escA(c.id)}|${escA(x.id)}">reativar</button>`}
+        <button class="btn" data-pcli-conv="${escA(c.id)}|${escA(x.email)}" data-tip="Gera um novo link de convite (a pessoa define a senha de novo)">novo convite</button>
+        <button class="btn" data-pcli-del="${escA(c.id)}|${escA(x.id)}" data-tip="Apaga a conta">✕</button>
+      </td></tr>`).join('')}</tbody></table>`;
+  return `<div class="pcli-bloco">
+    <div class="ad-portal">${cab}</div>
+    ${corpo}
+    <div class="pcli-add">
+      <input type="email" placeholder="email@cliente.com" data-pcli-email="${escA(c.id)}">
+      <input type="text" placeholder="Nome (opcional)" data-pcli-nome="${escA(c.id)}">
+      <button class="btn primario" data-pcli-add="${escA(c.id)}">✉ Convidar</button>
+    </div>
+    <div class="muted small">O convite vale ${7} dias e serve uma vez só. Como o painel não envia e-mail, o link aparece aqui para você mandar.</div>
+  </div>`;
+}
+// Mostra o link do convite recém-criado para o gestor copiar.
+function pcliMostraConvite(cru, email){
+  const url=`${location.origin}/portal.html?convite=${encodeURIComponent(cru)}`;
+  abreModal(`<h2>✉ Convite criado</h2>
+    <div class="muted small">Mande este link para <strong>${esc(email)}</strong>. Ele vale <strong>7 dias</strong>, serve <strong>uma vez</strong>
+      e é onde a pessoa escolhe a própria senha.</div>
+    <div class="alx-campo" style="margin-top:10px"><input type="text" readonly id="pcli-url" value="${escA(url)}" style="width:100%"></div>
+    <div class="alx-modal-acoes">
+      <button class="btn primario" id="pcli-copia">Copiar link</button>
+      <button class="btn" id="gx-fechar">Fechar</button></div>`);
+  const i=document.getElementById('pcli-url'); if(i){ i.focus(); i.select(); }
+  const b=document.getElementById('pcli-copia');
+  if(b) b.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(url); toast('Link do convite copiado.','ok'); }catch(e){ toast('Selecione e copie o link.','warn'); } });
+}
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -342,7 +414,7 @@ function renderAdmin(){
           <button class="btn" data-ad-portal-copy="${escA(url)}">copiar</button>
           <button class="btn" data-ad-portal-novo="${escA(c.id)}" data-tip="Gera um novo link e invalida o anterior">novo</button></div>`
       : `<div class="ad-portal"><button class="btn" data-ad-portal="${escA(c.id)}">🔗 Gerar link do cliente</button>
-          <span class="muted small">painel somente-leitura para o cliente acompanhar as horas</span></div>`;
+          <span class="muted small">link único, sem senha — quem tiver o endereço entra</span></div>`;
     // AMS sem projetos não aparece na apuração da aba AMS — avisa e oferece o atalho de edição.
     const avisoSemProj = (ams && semProj)
       ? `<div class="ad-cons" style="color:#B45309">⚠ Sem projetos mapeados — este contrato <strong>não aparece</strong> na apuração da aba <strong>AMS</strong>. Clique em <strong>editar</strong> e marque os projetos da categoria AMS.</div>`
@@ -353,6 +425,7 @@ function renderAdmin(){
         <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
       ${detalhes}
+      ${pcliBlocoHTML(c)}
       ${projetos}
       ${obs}
       ${avisoSemProj}
@@ -760,5 +833,51 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(()=>{
       const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }); }
     else { const i=t.parentNode.querySelector('[data-ad-portal-input]'); if(i){ i.select(); document.execCommand('copy'); done(); } }
+  }
+  // ---- 🔐 acessos do cliente (portal com senha) ----
+  else if(t.hasAttribute('data-pcli-abre')){
+    const cid=t.getAttribute('data-pcli-abre');
+    const abrindo=!estado.admin.acessosAbertos[cid];
+    estado.admin.acessosAbertos[cid]=abrindo;
+    if(abrindo && estado.admin.acessos[cid]===undefined) pcliCarrega(cid);
+    renderAdmin();
+  }
+  else if(t.hasAttribute('data-pcli-add')){
+    const cid=t.getAttribute('data-pcli-add');
+    const iE=document.querySelector(`[data-pcli-email="${cid}"]`), iN=document.querySelector(`[data-pcli-nome="${cid}"]`);
+    const email=((iE&&iE.value)||'').trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Informe um e-mail válido.','warn'); if(iE) iE.focus(); return; }
+    t.disabled=true; t.textContent='Convidando…';
+    pcliApi('convidar',{ corpo:{ email, nome:((iN&&iN.value)||'').trim(), contrato:cid } }).then(j=>{
+      if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui convidar.','err'); t.disabled=false; t.textContent='✉ Convidar'; return; }
+      if(iE) iE.value=''; if(iN) iN.value='';
+      logAcao({acao:'portal-convidar', t:email, ok:true});
+      pcliMostraConvite(j.convite, email);
+      pcliCarrega(cid);
+    });
+  }
+  else if(t.hasAttribute('data-pcli-conv')){
+    const [cid,email]=t.getAttribute('data-pcli-conv').split('|');
+    pcliApi('convidar',{ corpo:{ email, contrato:cid } }).then(j=>{
+      if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui gerar o convite.','err'); return; }
+      pcliMostraConvite(j.convite, email); pcliCarrega(cid);
+    });
+  }
+  else if(t.hasAttribute('data-pcli-rev')||t.hasAttribute('data-pcli-rea')){
+    const rev=t.hasAttribute('data-pcli-rev');
+    const [cid,id]=t.getAttribute(rev?'data-pcli-rev':'data-pcli-rea').split('|');
+    pcliApi(rev?'revogar':'reativar',{ corpo:{ id } }).then(j=>{
+      if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui mudar o acesso.','err'); return; }
+      toast(rev?'🚫 Acesso revogado — a sessão aberta para de valer na hora seguinte.':'✓ Acesso reativado.','ok');
+      pcliCarrega(cid);
+    });
+  }
+  else if(t.hasAttribute('data-pcli-del')){
+    const [cid,id]=t.getAttribute('data-pcli-del').split('|');
+    if(!confirm('Apagar esta conta de acesso? A pessoa perde o acesso imediatamente e precisará de um novo convite.')) return;
+    pcliApi('remover',{ corpo:{ id } }).then(j=>{
+      if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui remover.','err'); return; }
+      toast('Conta removida.','ok'); pcliCarrega(cid);
+    });
   }
 });

@@ -22,7 +22,7 @@ serve `public/` na raiz e cada arquivo em `api/*.js` vira um endpoint.
 - `GET /api/atividade` — issues atualizadas no **Jira** com changelog → eventos por **autor da alteração**.
 - `GET /api/vencimentos` — issues com vencimento/sem responsável (central de alertas).
 - `GET /api/projetos`, `GET /api/usuarios` — metadados (projetos/pessoas) para filtros e formulários.
-- `GET|POST /api/config` — config compartilhada do time (metas/ausências/contratos) e o **painel do cliente** (`?portal=<token>`). A **gravação exige token do Jira** (cabeçalhos `X-Jira-Email`/`X-Jira-Token`).
+- `GET|POST /api/config` — config compartilhada do time (metas/ausências/contratos), o **painel do cliente** (`?portal=<token>`) e a **🔐 área do cliente com login** (`?pcli=<ação>`). A **gravação exige token do Jira** (cabeçalhos `X-Jira-Email`/`X-Jira-Token`).
 - `POST /api/resumo` — resumo executivo por IA (Anthropic).
 - `POST /api/teams` — relatório diário de apontamento no Teams (cron via GitHub Actions).
 
@@ -47,7 +47,7 @@ public/
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
   js/NN-nome.js    o painel, dividido em 36 módulos por domínio — ver tabela abaixo
   sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
-  portal.html      painel somente-leitura do cliente (AMS), escopado por token
+  portal.html      área do cliente (AMS): login por conta (?pcli=) ou link por contrato (?c=)
 scripts/
   check-syntax.mjs sintaxe de api/** e public/js/** + ORDEM DE CARREGAMENTO dos módulos
   check-entrega.mjs gate de entrega (Novidades + Roadmap revisado) — ver CLAUDE.md
@@ -441,9 +441,40 @@ dados **daquele cliente** — nunca de outros.
   função serverless**): lê o contrato no Supabase, busca worklogs do ciclo (Clockwork) e
   contagens do Jira **só dos projetos do cliente**.
 
-> **Atenção (deploy):** se o projeto na Vercel estiver com **Password Protection** global, o
-> cliente não consegue abrir o `/portal.html` (a senha bloqueia tudo). Para liberar o portal,
-> use um deploy/rota sem a proteção global — o **token do link** é o controle de acesso do portal.
+### 🔐 Área do cliente (conta com e-mail e senha)
+
+Desde **2026-09-26**, além do link por contrato, o `/portal.html` tem **login**: cada pessoa do
+cliente tem a **sua conta**, o que o link secreto não dá (ele vaza, não se revoga por pessoa e
+não registra quem entrou). Serve como **página própria** e **embutida num iframe** do site.
+
+- **Ninguém se cadastra sozinho.** A conta nasce de um **convite** do gestor, já amarrada a UM
+  contrato — e é esse contrato que define o escopo. Em **📑 Contratos › ⚙️ Admin**, cada contrato
+  tem **👤 Acessos do cliente**: convidar por e-mail, revogar, reativar, novo convite, remover e o
+  **último acesso** de cada pessoa. Como o painel **não envia e-mail**, o convite volta como
+  **link** (vale 7 dias, uso único) para o gestor mandar.
+- **Dados:** tabela `jirainsight_portal_contas` no Supabase — nunca a config compartilhada, que
+  vai inteira para o navegador de todo o time. Senha só em **hash scrypt** (salt por conta).
+- **Sessão sem estado:** token assinado com **HMAC-SHA256** (`PORTAL_SEGREDO`; sem a env var,
+  deriva da chave do Supabase), validade de 12 h, enviado no cabeçalho **`Authorization`** e
+  guardado no `localStorage` — **não em cookie**, que é o que faz funcionar dentro de um iframe
+  de outro domínio. A conta é **revalidada a cada pedido**: revogar corta a sessão aberta.
+- **Defesas:** login não conta se o e-mail existe (mesma resposta para senha errada e conta
+  inexistente), bloqueio após 5 erros, convite guardado só como hash e apagado no primeiro uso.
+- **O que o cliente vê:** a **lista dos chamados do ciclo** (chave, assunto, tipo, situação por
+  *categoria* de status, datas, horas e valor), com filtro por situação — mais tudo o que o portal
+  já mostrava. Nada de pessoa que apontou, custo ou margem.
+- **API:** `/api/config?pcli=<ação>` — `login`, `convite`, `definir`, `dados`, `trocar-senha` e,
+  para o gestor (headers `x-jira-*`), `contas`, `convidar`, `revogar`, `reativar`, `remover`.
+  **Sem função serverless nova** (o limite de 12 da Vercel).
+- **Iframe:** o `vercel.json` define `frame-ancestors` para `/portal.html` — **é ali que se
+  acrescenta o domínio do site** que vai hospedar a área. Também manda `Referrer-Policy:
+  no-referrer`, para o token do convite não vazar no cabeçalho `Referer`.
+
+> **Atenção (deploy):** o projeto na Vercel está com **SSO Protection** em
+> `all_except_custom_domains` e hoje só tem endereços `.vercel.app` — o cliente externo esbarra
+> no login da Vercel **antes** de chegar ao portal. Para a área funcionar é preciso um **domínio
+> customizado** (ex.: `portal.dexterityit.com.br`), que é a exceção da regra. O mesmo vale se
+> algum dia a **Password Protection** global for ligada: ela bloqueia tudo.
 
 ### 🚨 Central de Alertas
 

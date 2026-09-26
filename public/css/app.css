@@ -1179,6 +1179,17 @@
   .ad-over{color:#B91C1C;font-weight:700}
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
   .ad-portal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;border-top:1px dashed var(--linha);padding-top:8px}
+  /* 🔐 Acessos do cliente (contas do portal com senha) */
+  .pcli-bloco{margin-top:4px}
+  .pcli-tab{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+  .pcli-tab th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+    font-weight:700;border-bottom:1px solid var(--linha);padding:5px 8px 5px 0}
+  .pcli-tab td{border-bottom:1px solid var(--linha);padding:7px 8px 7px 0;vertical-align:middle}
+  .pcli-tab tr:last-child td{border-bottom:0}
+  .pcli-add{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0 4px}
+  .pcli-add input{padding:6px 9px;border:1px solid var(--linha);border-radius:7px;font:inherit;font-size:12.5px;
+    background:var(--cartao);color:var(--grafite);min-width:190px}
+  @media (max-width:600px){ .pcli-add input{min-width:0;flex:1 1 140px} }
   .ad-portal input{flex:1 1 220px;min-width:150px;font-size:12px;padding:5px 8px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao2);color:var(--grafite)}
   .ad-portal .btn{padding:4px 10px;font-size:12px}
   /* Receita / AMS por cliente */

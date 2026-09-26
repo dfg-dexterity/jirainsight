@@ -3,6 +3,13 @@
 // GET  /api/config?portal=<token>        -> painel do cliente (somente leitura, escopado ao
 //                                           contrato dono do token): horas do ciclo (banco de
 //                                           horas) + chamados abertos/fechados por período.
+//      /api/config?pcli=<ação>            -> 🔐 ÁREA DO CLIENTE (conta com e-mail e senha):
+//                                           login · convite/definir · dados · trocar-senha
+//                                           (sessão assinada, cabeçalho Authorization) e,
+//                                           para o gestor (headers x-jira-*), contas ·
+//                                           convidar · revogar · reativar · remover.
+//                                           A conta é amarrada a UM contrato: é ele que
+//                                           define o escopo — o pedido nunca escolhe.
 // POST /api/config?plan=1                -> Meu Planejamento (planejamento semanal por
 //                                           atividade, SEM tickets): CRUD + fluxo de
 //                                           aprovação + versões + histórico, nas tabelas
@@ -482,16 +489,43 @@ function segundaDaSemana(iso) { if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return '';
   const [y, m, d] = iso.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1, d));
   const wd = (dt.getUTCDay() + 6) % 7; dt.setUTCDate(dt.getUTCDate() - wd); return dt.toISOString().slice(0, 10); }
 function addDiasIso(iso, n) { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); }
+// Uma linha da lista de chamados do portal. SÓ o que o cliente pode ver: chave, assunto,
+// tipo, situação, datas e as horas gastas — nada de pessoa, comentário interno ou custo.
+function linhaChamado(it, horas) {
+  const f = it.fields || {};
+  const st = f.status || {};
+  const cat = ((st.statusCategory || {}).key) || '';
+  return {
+    k: it.key,
+    resumo: String(f.summary || '').slice(0, 160),
+    tipo: (f.issuetype && f.issuetype.name) || '',
+    status: st.name || '',
+    // aberto | andamento | concluido — o portal pinta por aqui, sem depender do nome do fluxo.
+    fase: cat === 'done' ? 'concluido' : (cat === 'indeterminate' ? 'andamento' : 'aberto'),
+    criado: String(f.created || '').slice(0, 10),
+    fechado: String(f.resolutiondate || '').slice(0, 10),
+    seg: (horas && horas.seg) || 0,
+    segFat: (horas && horas.fat) || 0,
+  };
+}
 
-async function portal(req, res, base, headers, token) {
-  // Carrega os contratos da config e localiza o dono do token (escopo de dados).
+// Contratos da config compartilhada — a fonte dos projetos e da apuração de cada cliente.
+async function contratosDaConfig(base, headers) {
   const r = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
   const rows = r.ok ? await r.json() : [];
   const data = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
-  const contratos = Array.isArray(data.contratos) ? data.contratos : [];
+  return Array.isArray(data.contratos) ? data.contratos : [];
+}
+// Link antigo (?portal=<token>): o token do contrato é o próprio controle de acesso.
+async function portal(req, res, base, headers, token) {
+  const contratos = await contratosDaConfig(base, headers);
   const c = contratos.find((x) => x && x.portalToken && x.portalToken === token);
   if (!c) return json(res, 200, { ok: false, erro: 'Link inválido ou expirado.' });
-
+  return await portalDados(req, res, c);
+}
+// Monta o painel para UM contrato JÁ RESOLVIDO — pelo link antigo ou pela conta logada.
+// O escopo dos dados é sempre este contrato: nada aqui lê nome de cliente do pedido.
+async function portalDados(req, res, c) {
   // Projetos do cliente (sanitizados para a JQL).
   const projetos = (c.projetos || []).filter((p) => /^[A-Za-z][A-Za-z0-9_]*$/.test(p));
   const ref = (req.query && /^\d{4}-\d{2}-\d{2}$/.test(req.query.ref || '')) ? req.query.ref : spHoje();
@@ -511,13 +545,16 @@ async function portal(req, res, base, headers, token) {
       consumidoSeg: 0, faturavelSeg: 0, porMes: {}, bancoSeg: 0, excedenteSeg: 0,
     },
     valor: { hora: Number(c.valorHora) || 0, parcela: 0, excedente: 0, total: 0 },
-    chamados: { abertosPorMes: {}, fechadosPorMes: {}, abertosTotal: 0, fechadosTotal: 0, porCausa: [] },
+    chamados: { abertosPorMes: {}, fechadosPorMes: {}, abertosTotal: 0, fechadosTotal: 0, porCausa: [], lista: [] },
   };
   cyc.meses.forEach((m) => { out.horas.porMes[m] = 0; out.chamados.abertosPorMes[m] = 0; out.chamados.fechadosPorMes[m] = 0; });
 
   if (!projetos.length) return json(res, 200, out);
 
   // --- Horas do ciclo (Clockwork, escopado aos projetos do cliente) ---
+  // segPorChave alimenta a LISTA de chamados: é por ela que um chamado aberto ANTES do
+  // ciclo, mas trabalhado dentro dele, também aparece para o cliente.
+  const segPorChave = {};
   try {
     const enr = await worklogsEnriquecidos(cyc.start, ateWl);
     const set = new Set(projetos);
@@ -528,6 +565,8 @@ async function portal(req, res, base, headers, token) {
       const s = Number(w.s) || 0;
       out.horas.consumidoSeg += s; out.horas.porMes[ym] += s;
       if (w.f) out.horas.faturavelSeg += s;
+      const k = w.k || '';
+      if (k) { const o = segPorChave[k] || (segPorChave[k] = { seg: 0, fat: 0 }); o.seg += s; if (w.f) o.fat += s; }
     });
   } catch (e) { out.horas.erro = String(e && e.message ? e.message : e); }
 
@@ -542,10 +581,12 @@ async function portal(req, res, base, headers, token) {
   // --- Chamados abertos/fechados no ciclo (Jira, escopado aos projetos) ---
   const projJql = projetos.join(', ');
   const semAb = {}; const semFe = {};   // contagem por semana (segunda-feira)
+  const vistos = {};                    // chave -> linha da lista de chamados
   try {
     const { issues } = await jiraSearchAll({
       jql: `project in (${projJql}) AND created >= "${cyc.start}" AND created < "${cyc.endExcl}" ORDER BY created ASC`,
-      fields: ['created', 'components', 'labels'], pageSize: 100, maxPages: 12,
+      fields: ['created', 'components', 'labels', 'summary', 'status', 'resolutiondate', 'issuetype'],
+      pageSize: 100, maxPages: 12,
     });
     const causa = {};
     issues.forEach((it) => {
@@ -556,6 +597,7 @@ async function portal(req, res, base, headers, token) {
       const wk = segundaDaSemana((f.created || '').slice(0, 10)); if (wk) semAb[wk] = (semAb[wk] || 0) + 1;
       (f.components || []).forEach((cp) => { const n = cp && cp.name; if (n) causa[n] = (causa[n] || 0) + 1; });
       (f.labels || []).forEach((lb) => { if (lb) causa[lb] = (causa[lb] || 0) + 1; });
+      vistos[it.key] = linhaChamado(it, segPorChave[it.key]);
     });
     out.chamados.porCausa = Object.entries(causa).sort((a, b) => b[1] - a[1]).slice(0, 10)
       .map(([nome, n]) => ({ nome, n }));
@@ -575,6 +617,29 @@ async function portal(req, res, base, headers, token) {
     });
   } catch (e) { out.chamados.erroFech = String(e && e.message ? e.message : e); }
 
+  // --- Lista de chamados do ciclo ---
+  // União de dois conjuntos: os ABERTOS no ciclo (já buscados acima) e os que receberam
+  // HORAS no ciclo sem terem nascido nele (chamado antigo que continua sendo trabalhado) —
+  // estes precisam de uma busca extra por chave, em lotes, senão sairiam sem assunto.
+  try {
+    const faltam = Object.keys(segPorChave)
+      .filter((k) => !vistos[k] && /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(k) && projetos.includes(k.split('-')[0]));
+    for (let i = 0; i < faltam.length && i < 300; i += 100) {
+      const lote = faltam.slice(i, i + 100);
+      const { issues } = await jiraSearchAll({
+        jql: `key in (${lote.join(', ')})`,
+        fields: ['created', 'summary', 'status', 'resolutiondate', 'issuetype'], pageSize: 100, maxPages: 1,
+      });
+      issues.forEach((it) => { vistos[it.key] = linhaChamado(it, segPorChave[it.key]); });
+    }
+  } catch (e) { out.chamados.erroLista = String(e && e.message ? e.message : e); }
+  // Em aberto primeiro (é o que o cliente quer acompanhar), depois por horas gastas.
+  const ordFase = { aberto: 0, andamento: 1, concluido: 2 };
+  out.chamados.lista = Object.values(vistos).sort((a, b) => {
+    const d = (ordFase[a.fase] ?? 3) - (ordFase[b.fase] ?? 3);
+    return d || (b.seg - a.seg) || String(a.k).localeCompare(String(b.k));
+  }).slice(0, 400);
+
   // Série semanal (abertos/fechados) + backlog acumulado (net = Σ abertos − fechados).
   out.chamados.semanas = [];
   let wkc = segundaDaSemana(cyc.start); let guard = 0; let backlog = 0;
@@ -586,6 +651,252 @@ async function portal(req, res, base, headers, token) {
   }
 
   return json(res, 200, out);
+}
+
+// ===========================================================================
+// 🔐 ÁREA DO CLIENTE — conta com e-mail e senha (pedido do usuário, 2026-09-26)
+// O portal antigo (?portal=<token>) era "quem tem o link entra": bom para mandar por
+// e-mail, ruim como área permanente no site — o link vaza, não se revoga por pessoa e
+// não diz quem entrou. Aqui cada pessoa do cliente tem a SUA conta.
+//
+// Regra central: NINGUÉM SE CADASTRA SOZINHO. A conta nasce de um convite do gestor,
+// já amarrada a UM contrato, e é esse contrato que define o escopo dos dados — o
+// pedido do cliente nunca escolhe de quem são os chamados que ele vai ver.
+//
+// Decisões de segurança:
+//  · senha só como hash scrypt (salt por conta, comparação em tempo constante);
+//  · sessão SEM ESTADO, assinada com HMAC-SHA256 e com validade — não há tabela de
+//    sessões para vazar, e revogar a conta corta o acesso na requisição seguinte;
+//  · o token viaja no cabeçalho Authorization (o portal guarda no localStorage), não
+//    em cookie: é o que faz a área funcionar dentro de um <iframe> no site do cliente
+//    sem depender de cookie de terceiros;
+//  · o login não conta se o e-mail existe, e erra devagar (bloqueio progressivo);
+//  · sem endpoint novo — sub-rota ?pcli= do /api/config (limite de 12 funções).
+// ===========================================================================
+const PC_TAB = 'jirainsight_portal_contas';
+const PC_SESSAO_H = 12;            // validade da sessão, em horas
+const PC_CONVITE_D = 7;            // validade do convite, em dias
+const PC_MAX_FALHAS = 5;           // erros de senha até bloquear
+const PC_BLOQUEIO_MIN = 15;        // minutos de bloqueio
+const PC_SENHA_MIN = 10;           // tamanho mínimo da senha
+
+// Segredo da assinatura. Usa PORTAL_SEGREDO quando definido; senão DERIVA da chave do
+// Supabase (que já é secreta e só existe no servidor) — assim a área funciona sem
+// configuração extra. Trocar a env var invalida as sessões abertas, nunca as contas.
+function pcSegredo() {
+  const s = process.env.PORTAL_SEGREDO || process.env.SUPABASE_ANON_KEY || '';
+  return crypto.createHash('sha256').update(`portal-cliente|${s}`).digest();
+}
+const b64u = (b) => Buffer.from(b).toString('base64url');
+function pcHashSenha(senha) {
+  const salt = crypto.randomBytes(16);
+  const h = crypto.scryptSync(String(senha), salt, 32, { N: 16384, r: 8, p: 1 });
+  return `scrypt$16384$8$1$${salt.toString('base64url')}$${h.toString('base64url')}`;
+}
+function pcConfereSenha(senha, guardado) {
+  try {
+    const p = String(guardado || '').split('$');
+    if (p.length !== 6 || p[0] !== 'scrypt') return false;
+    const salt = Buffer.from(p[4], 'base64url'); const esperado = Buffer.from(p[5], 'base64url');
+    const h = crypto.scryptSync(String(senha), salt, esperado.length,
+      { N: Number(p[1]) || 16384, r: Number(p[2]) || 8, p: Number(p[3]) || 1 });
+    return h.length === esperado.length && crypto.timingSafeEqual(h, esperado);
+  } catch (e) { return false; }
+}
+// Token do convite: o que viaja no link é o valor cru; no banco fica só o hash.
+const pcHashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
+
+function pcAssina(payload) {
+  const corpo = b64u(JSON.stringify(payload));
+  const mac = crypto.createHmac('sha256', pcSegredo()).update(corpo).digest('base64url');
+  return `${corpo}.${mac}`;
+}
+function pcVerifica(tok) {
+  const s = String(tok || ''); const i = s.indexOf('.');
+  if (i <= 0) return null;
+  const corpo = s.slice(0, i); const mac = s.slice(i + 1);
+  const esperado = crypto.createHmac('sha256', pcSegredo()).update(corpo).digest('base64url');
+  const a = Buffer.from(mac); const b = Buffer.from(esperado);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const p = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8'));
+    return (p && p.exp && Date.now() < p.exp) ? p : null;
+  } catch (e) { return null; }
+}
+const pcEmailOk = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || ''));
+const pcNorm = (e) => String(e || '').trim().toLowerCase();
+
+async function pcBusca(base, headers, filtro) {
+  const r = await fetch(`${base}/rest/v1/${PC_TAB}?${filtro}`, { headers });
+  if (!r.ok) return [];
+  return await r.json().catch(() => []);
+}
+async function pcAtualiza(base, headers, id, campos) {
+  await fetch(`${base}/rest/v1/${PC_TAB}?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(campos),
+  });
+}
+// Quem está logado no portal (cabeçalho Authorization: Bearer <token>).
+// Revalida a conta no banco a cada pedido: revogar surte efeito na hora seguinte.
+async function pcSessao(req, base, headers) {
+  const h = String(req.headers.authorization || '');
+  const p = pcVerifica(h.replace(/^Bearer\s+/i, ''));
+  if (!p || !p.sub) return null;
+  const linhas = await pcBusca(base, headers, `id=eq.${encodeURIComponent(p.sub)}&select=*`);
+  const conta = linhas[0];
+  if (!conta || !conta.ativo || !conta.senha_hash) return null;
+  return conta;
+}
+
+async function portalCliente(req, res, base, headers) {
+  const acao = String((req.query && req.query.pcli) || '');
+  const body = (req.method === 'POST') ? await lerBody(req) : {};
+
+  // ---- login: e-mail + senha -> token de sessão ----
+  if (acao === 'login') {
+    const email = pcNorm(body.email);
+    const senha = String(body.senha || '');
+    // Resposta única para e-mail inexistente, senha errada e conta revogada: quem tenta
+    // adivinhar não aprende quais e-mails existem na base.
+    const negar = () => json(res, 401, { ok: false, erro: 'E-mail ou senha inválidos.' });
+    if (!pcEmailOk(email) || !senha) return negar();
+    const linhas = await pcBusca(base, headers, `email=eq.${encodeURIComponent(email)}&select=*`);
+    const conta = linhas[0];
+    if (!conta || !conta.ativo || !conta.senha_hash) return negar();
+    if (conta.bloqueado_ate && new Date(conta.bloqueado_ate).getTime() > Date.now()) {
+      return json(res, 429, { ok: false, erro: 'Muitas tentativas. Tente de novo em alguns minutos.' });
+    }
+    if (!pcConfereSenha(senha, conta.senha_hash)) {
+      const falhas = (Number(conta.falhas) || 0) + 1;
+      await pcAtualiza(base, headers, conta.id, {
+        falhas,
+        bloqueado_ate: falhas >= PC_MAX_FALHAS ? new Date(Date.now() + PC_BLOQUEIO_MIN * 60000).toISOString() : null,
+      });
+      return negar();
+    }
+    await pcAtualiza(base, headers, conta.id, { falhas: 0, bloqueado_ate: null, ultimo_acesso: new Date().toISOString() });
+    const contratos = await contratosDaConfig(base, headers);
+    const c = contratos.find((x) => x && String(x.id) === String(conta.contrato_id));
+    return json(res, 200, {
+      ok: true,
+      token: pcAssina({ sub: conta.id, exp: Date.now() + PC_SESSAO_H * 3600000 }),
+      nome: conta.nome || '', email: conta.email,
+      cliente: (c && c.cliente) || 'Cliente',
+      expiraEm: PC_SESSAO_H * 3600,
+    });
+  }
+
+  // ---- convite: quem recebeu o link define a senha (e a conta passa a valer) ----
+  if (acao === 'convite') {   // GET: o portal confere o link antes de pedir a senha
+    const linhas = await pcBusca(base, headers,
+      `convite_hash=eq.${encodeURIComponent(pcHashToken(String((req.query && req.query.t) || '')))}&select=id,email,nome,convite_exp,ativo`);
+    const conta = linhas[0];
+    if (!conta || !conta.ativo || !conta.convite_exp || new Date(conta.convite_exp).getTime() < Date.now()) {
+      return json(res, 200, { ok: false, erro: 'Convite inválido ou expirado — peça um novo à Dexterity.' });
+    }
+    return json(res, 200, { ok: true, email: conta.email, nome: conta.nome || '' });
+  }
+  if (acao === 'definir') {   // POST: grava a senha e já devolve a sessão
+    const senha = String(body.senha || '');
+    if (senha.length < PC_SENHA_MIN) return json(res, 400, { ok: false, erro: `A senha precisa de pelo menos ${PC_SENHA_MIN} caracteres.` });
+    const linhas = await pcBusca(base, headers,
+      `convite_hash=eq.${encodeURIComponent(pcHashToken(String(body.convite || '')))}&select=*`);
+    const conta = linhas[0];
+    if (!conta || !conta.ativo || !conta.convite_exp || new Date(conta.convite_exp).getTime() < Date.now()) {
+      return json(res, 200, { ok: false, erro: 'Convite inválido ou expirado — peça um novo à Dexterity.' });
+    }
+    // O convite é de uso único: some assim que a senha é definida.
+    await pcAtualiza(base, headers, conta.id, {
+      senha_hash: pcHashSenha(senha), convite_hash: null, convite_exp: null,
+      falhas: 0, bloqueado_ate: null, ultimo_acesso: new Date().toISOString(),
+    });
+    const contratos = await contratosDaConfig(base, headers);
+    const c = contratos.find((x) => x && String(x.id) === String(conta.contrato_id));
+    return json(res, 200, {
+      ok: true, token: pcAssina({ sub: conta.id, exp: Date.now() + PC_SESSAO_H * 3600000 }),
+      nome: conta.nome || '', email: conta.email, cliente: (c && c.cliente) || 'Cliente',
+    });
+  }
+
+  // ---- dados: o painel do contrato DA CONTA logada ----
+  if (acao === 'dados') {
+    const conta = await pcSessao(req, base, headers);
+    if (!conta) return json(res, 401, { ok: false, erro: 'Sessão expirada — entre de novo.' });
+    const contratos = await contratosDaConfig(base, headers);
+    const c = contratos.find((x) => x && String(x.id) === String(conta.contrato_id));
+    if (!c) return json(res, 200, { ok: false, erro: 'Contrato não encontrado — fale com a Dexterity.' });
+    return await portalDados(req, res, c);
+  }
+
+  // ---- trocar a própria senha (exige a atual) ----
+  if (acao === 'trocar-senha') {
+    const conta = await pcSessao(req, base, headers);
+    if (!conta) return json(res, 401, { ok: false, erro: 'Sessão expirada — entre de novo.' });
+    const nova = String(body.nova || '');
+    if (nova.length < PC_SENHA_MIN) return json(res, 400, { ok: false, erro: `A senha precisa de pelo menos ${PC_SENHA_MIN} caracteres.` });
+    if (!pcConfereSenha(String(body.atual || ''), conta.senha_hash)) return json(res, 401, { ok: false, erro: 'Senha atual incorreta.' });
+    await pcAtualiza(base, headers, conta.id, { senha_hash: pcHashSenha(nova) });
+    return json(res, 200, { ok: true });
+  }
+
+  // ---- administração (gestor do painel, autenticado pelo Jira) ----
+  const auth = await validaJira(req);
+  if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
+
+  if (acao === 'contas') {   // lista as contas de um contrato
+    const ct = String((req.query && req.query.ct) || body.contrato || '');
+    if (!ct) return json(res, 400, { ok: false, erro: 'Informe o contrato.' });
+    const linhas = await pcBusca(base, headers,
+      `contrato_id=eq.${encodeURIComponent(ct)}&select=id,email,nome,ativo,criado_em,criado_por,ultimo_acesso,convite_exp,senha_hash&order=criado_em.desc`);
+    return json(res, 200, {
+      ok: true,
+      contas: linhas.map((x) => ({
+        id: x.id, email: x.email, nome: x.nome, ativo: x.ativo,
+        criadoEm: x.criado_em, criadoPor: x.criado_por, ultimoAcesso: x.ultimo_acesso,
+        // "pendente" = convidada e ainda sem senha definida.
+        pendente: !x.senha_hash, conviteExpira: x.convite_exp,
+      })),
+    });
+  }
+  if (acao === 'convidar') {
+    const email = pcNorm(body.email);
+    const ct = String(body.contrato || '');
+    if (!pcEmailOk(email)) return json(res, 400, { ok: false, erro: 'E-mail inválido.' });
+    if (!ct) return json(res, 400, { ok: false, erro: 'Informe o contrato.' });
+    const contratos = await contratosDaConfig(base, headers);
+    if (!contratos.some((x) => x && String(x.id) === ct)) return json(res, 400, { ok: false, erro: 'Contrato não encontrado.' });
+    const cru = crypto.randomBytes(32).toString('base64url');
+    const conv = { convite_hash: pcHashToken(cru), convite_exp: new Date(Date.now() + PC_CONVITE_D * 86400000).toISOString() };
+    const jaTem = (await pcBusca(base, headers, `email=eq.${encodeURIComponent(email)}&select=id,contrato_id`))[0];
+    if (jaTem) {
+      // Reconvidar reaproveita a conta (e pode movê-la de contrato), mas NUNCA apaga a
+      // senha já definida: o convite só vale enquanto a pessoa não entrou.
+      await pcAtualiza(base, headers, jaTem.id, { ...conv, contrato_id: ct, ativo: true, nome: String(body.nome || '').slice(0, 80) });
+    } else {
+      await fetch(`${base}/rest/v1/${PC_TAB}`, {
+        method: 'POST', headers: { ...headers, Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          email, nome: String(body.nome || '').slice(0, 80), contrato_id: ct,
+          criado_por: auth.email || auth.nome || '', ...conv,
+        }),
+      });
+    }
+    // Não há serviço de e-mail no projeto: devolvemos o link para o gestor enviar.
+    return json(res, 200, { ok: true, convite: cru, expiraEm: conv.convite_exp, reconvite: !!jaTem });
+  }
+  if (acao === 'revogar' || acao === 'reativar') {
+    const id = String(body.id || '');
+    if (!id) return json(res, 400, { ok: false, erro: 'Informe a conta.' });
+    await pcAtualiza(base, headers, id, { ativo: acao === 'reativar', falhas: 0, bloqueado_ate: null });
+    return json(res, 200, { ok: true });
+  }
+  if (acao === 'remover') {
+    const id = String(body.id || '');
+    if (!id) return json(res, 400, { ok: false, erro: 'Informe a conta.' });
+    await fetch(`${base}/rest/v1/${PC_TAB}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers });
+    return json(res, 200, { ok: true });
+  }
+  return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
 }
 
 // ===========================================================================
@@ -700,6 +1011,9 @@ export default async function handler(req, res) {
 
   try {
     if (token) return await portal(req, res, base, headers, token);
+
+    // 🔐 Área do cliente (conta com e-mail e senha) — sub-rota, sem função nova.
+    if (req.query && req.query.pcli) return await portalCliente(req, res, base, headers);
 
     // 📋 Meu Planejamento: sub-API própria (sempre POST, com identidade do Jira).
     if (req.query && req.query.plan) {

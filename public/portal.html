@@ -96,6 +96,46 @@
   .tm-svg g{transition:opacity .12s} .tm-svg:hover g{opacity:.8} .tm-svg:hover g:hover{opacity:1}
   .tm-n{fill:#fff;font-weight:700;font-size:17px} .tm-v{fill:rgba(255,255,255,.86);font-size:14px}
   @media (max-width:720px){ .kpis{grid-template-columns:repeat(2,1fr)} header .ciclo{margin-left:0;flex-basis:100%;text-align:left} }
+  /* 🔐 Entrada (login / definir senha) — centralizada e estreita, sem nada em volta. */
+  .ent{max-width:390px;margin:6vh auto 0}
+  .ent .card{padding:24px}
+  .ent h2{font-size:16px;margin:0 0 4px} .ent .ex{color:var(--muted);font-size:12.5px;margin-bottom:16px}
+  .cpo{margin-bottom:12px}
+  .cpo label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+  .cpo input{width:100%;padding:10px 12px;border:1px solid var(--linha);border-radius:8px;font:inherit;
+    background:var(--cartao);color:var(--grafite)}
+  .cpo input:focus{outline:2px solid var(--cerceta);outline-offset:-1px;border-color:var(--cerceta)}
+  .bt{width:100%;padding:11px 14px;border:0;border-radius:8px;background:var(--cerceta);color:#fff;
+    font:inherit;font-weight:700;cursor:pointer}
+  .bt:disabled{opacity:.6;cursor:progress}
+  .bt.sec{background:transparent;color:var(--cerceta);border:1px solid var(--linha);font-weight:600;width:auto;padding:6px 12px}
+  .msg{border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px}
+  .msg.err{background:var(--tinthi);color:var(--err);border:1px solid var(--err)}
+  .msg.ok{background:#EAF6EC;color:var(--musgo);border:1px solid var(--musgo)}
+  :root[data-theme="dark"] .msg.ok,@media (prefers-color-scheme:dark){ .msg.ok{background:#16301F} }
+  .dica{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}
+  /* Barra de quem está logado */
+  .eu{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);
+    border-bottom:1px solid var(--linha);padding-bottom:10px;margin-bottom:16px}
+  .eu .sp{margin-left:auto}
+  /* Lista de chamados */
+  .ch-tab{width:100%;border-collapse:collapse;font-size:13px}
+  .ch-tab th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+    border-bottom:2px solid var(--linha);padding:7px 8px 7px 0;font-weight:700;white-space:nowrap}
+  .ch-tab td{border-bottom:1px solid var(--linha);padding:8px 8px 8px 0;vertical-align:top}
+  .ch-tab td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ch-tab tr:last-child td{border-bottom:0}
+  .ch-k{font-weight:700;white-space:nowrap}
+  .fase{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+  .fase.aberto{background:#FEF2F2;color:#B91C1C} .fase.andamento{background:#FEFBEB;color:#8A5200}
+  .fase.concluido{background:#EAF6EC;color:#0E6B37}
+  @media (prefers-color-scheme:dark){ .fase.aberto{background:#3A1715;color:#F09A9A}
+    .fase.andamento{background:#33270F;color:#F0C674} .fase.concluido{background:#16301F;color:#8FD3A8} }
+  .ch-filtro{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .ch-filtro button{border:1px solid var(--linha);background:var(--cartao);color:var(--texto2);border-radius:999px;
+    padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer}
+  .ch-filtro button[aria-pressed="true"]{border-color:var(--cerceta);color:var(--cerceta);font-weight:700}
+  @media (max-width:720px){ .ch-tab .esc{display:none} }
 </style>
 </head>
 <body>
@@ -108,7 +148,7 @@
     </div>
     <div class="ciclo" id="ciclo"></div>
   </header>
-  <div id="conteudo"><div class="estado">Carregando o painel…</div></div>
+  <div id="conteudo"><div class="estado">Carregando…</div></div>
   <div class="foot">Painel somente-leitura · Dexterity IT · atualizado a cada acesso</div>
 </div>
 <script>
@@ -209,7 +249,8 @@ function erro(msg){
   document.getElementById('conteudo').innerHTML=`<div class="card"><div class="estado">${esc(msg)}</div></div>`;
 }
 
-function render(d){
+function render(d, sessao){
+  _ULT=d;
   document.getElementById('titulo').textContent=`Acompanhamento AMS — ${d.cliente||'Cliente'}`;
   document.getElementById('sub').textContent=`Apuração ${APUR[d.apuracao]||d.apuracao} · banco de horas dentro do ciclo`;
   const c=d.ciclo||{}; const meses=c.meses||[];
@@ -282,16 +323,218 @@ function render(d){
   const causaCard=causa.length?`<div class="card"><h2>Classificação dos chamados <span style="font-weight:400;color:var(--muted);font-size:12px">(componentes / labels · área = nº de chamados)</span></h2>
     ${treemap(causa.map(x=>({nome:x.nome,valor:x.n})),{fmt:(v)=>v+' chamado'+(v===1?'':'s')})}</div>`:'';
 
-  document.getElementById('conteudo').innerHTML = kpis + horasCard + chamCard + causaCard;
+  document.getElementById('conteudo').innerHTML =
+    (sessao?barraEu(sessao):'') + kpis + listaCard(d) + horasCard + chamCard + causaCard;
+  if(sessao) ligaBarra();
+  ligaFiltroChamados(d);
+}
+
+// ---- 📋 Chamados do ciclo (o que o cliente pediu para acompanhar) ----
+// Uma linha por chamado: chave, assunto, situação, datas e as horas gastas. A fase vem
+// da CATEGORIA do status no Jira, não do nome — fluxo novo não quebra a cor.
+let _ULT=null; let _FASE='';   // filtro ativo ('' = todas)
+const FASE_ROT={ aberto:'Em aberto', andamento:'Em andamento', concluido:'Concluído' };
+function listaCard(d){
+  const lista=((d.chamados||{}).lista)||[];
+  if(!lista.length) return `<div class="card"><h2>Chamados do ciclo</h2>
+    <div class="estado">Nenhum chamado no ciclo atual.</div></div>`;
+  const cont={ aberto:0, andamento:0, concluido:0 };
+  lista.forEach(x=>{ if(cont[x.fase]!=null) cont[x.fase]++; });
+  const vis=_FASE?lista.filter(x=>x.fase===_FASE):lista;
+  const mostraV=!!(d.valor&&d.valor.hora);
+  const linhas=vis.map(x=>`<tr>
+    <td class="ch-k">${esc(x.k)}</td>
+    <td>${esc(x.resumo)}${x.tipo?`<div style="color:var(--muted);font-size:11.5px">${esc(x.tipo)}</div>`:''}</td>
+    <td><span class="fase ${esc(x.fase)}">${esc(FASE_ROT[x.fase]||x.status)}</span></td>
+    <td class="esc">${esc(dataBR(x.criado))}</td>
+    <td class="esc">${x.fechado?esc(dataBR(x.fechado)):'<span style="color:var(--muted)">—</span>'}</td>
+    <td class="num">${x.segFat?esc(fmtH(x.segFat)):'<span style="color:var(--muted)">—</span>'}</td>
+    ${mostraV?`<td class="num">${x.segFat?esc(fmtBRL(x.segFat/3600*d.valor.hora)):'<span style="color:var(--muted)">—</span>'}</td>`:''}
+  </tr>`).join('');
+  const bt=(f,rot,n)=>`<button data-fase="${escA(f)}" aria-pressed="${_FASE===f?'true':'false'}">${esc(rot)}${n!=null?` (${n})`:''}</button>`;
+  return `<div class="card"><h2>Chamados do ciclo
+      <span style="font-weight:400;color:var(--muted);font-size:12px">(${lista.length} chamado${lista.length===1?'':'s'} · horas faturáveis)</span></h2>
+    <div class="ch-filtro">
+      ${bt('','Todos',lista.length)}${bt('aberto','Em aberto',cont.aberto)}${bt('andamento','Em andamento',cont.andamento)}${bt('concluido','Concluídos',cont.concluido)}
+    </div>
+    <div style="overflow-x:auto"><table class="ch-tab">
+      <thead><tr><th>Chamado</th><th>Assunto</th><th>Situação</th><th class="esc">Aberto</th><th class="esc">Fechado</th>
+        <th style="text-align:right">Horas</th>${mostraV?'<th style="text-align:right">Valor</th>':''}</tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div></div>`;
+}
+function ligaFiltroChamados(d){
+  document.querySelectorAll('.ch-filtro button').forEach(b=>b.addEventListener('click',()=>{
+    _FASE=b.getAttribute('data-fase')||'';
+    // Redesenha só o card da lista: o resto do painel não muda com o filtro.
+    const card=b.closest('.card'); if(!card) return;
+    const novo=document.createElement('div'); novo.innerHTML=listaCard(d);
+    card.replaceWith(novo.firstElementChild); ligaFiltroChamados(d);
+  }));
+}
+function dataBR(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(iso||'')?iso.split('-').reverse().join('/'):''; }
+
+// ===========================================================================
+// 🔐 ÁREA DO CLIENTE — conta com e-mail e senha
+// A sessão fica no localStorage e viaja no cabeçalho Authorization, NUNCA em cookie:
+// é isso que faz esta página funcionar tanto sozinha quanto dentro de um <iframe> no
+// site da Dexterity, sem depender de cookie de terceiros (que o navegador bloqueia).
+// Em iframe o localStorage também pode ser bloqueado — por isso todo acesso é protegido
+// e cai para memória: a pessoa continua usando, só precisa entrar de novo depois.
+// ===========================================================================
+const SKEY='dexterity_portal_sessao';
+let _memSessao=null;
+function sessaoLe(){ try{ return JSON.parse(localStorage.getItem(SKEY)||'null')||_memSessao; }catch(e){ return _memSessao; } }
+function sessaoGrava(s){ _memSessao=s; try{ localStorage.setItem(SKEY,JSON.stringify(s)); }catch(e){} }
+function sessaoLimpa(){ _memSessao=null; try{ localStorage.removeItem(SKEY); }catch(e){} }
+
+async function api(acao, opcoes){
+  const o=opcoes||{}; const s=sessaoLe();
+  const headers={};
+  if(o.corpo) headers['Content-Type']='application/json';
+  if(o.comSessao && s && s.token) headers.Authorization='Bearer '+s.token;
+  const qs='/api/config?pcli='+encodeURIComponent(acao)+(o.qs||'');
+  const r=await fetch(qs,{ method:o.corpo?'POST':'GET', headers, body:o.corpo?JSON.stringify(o.corpo):undefined });
+  let d=null; try{ d=await r.json(); }catch(e){ d=null; }
+  return { st:r.status, d:d||{} };
+}
+
+const $c=()=>document.getElementById('conteudo');
+function cabecalho(titulo, sub){
+  document.getElementById('titulo').textContent=titulo;
+  document.getElementById('sub').textContent=sub||'';
+  document.getElementById('ciclo').textContent='';
+}
+function msg(txt, tipo){ return txt?`<div class="msg ${tipo||'err'}">${esc(txt)}</div>`:''; }
+
+// ---- tela de entrada (login) ----
+function telaLogin(aviso){
+  cabecalho('Área do cliente','acompanhe os seus chamados');
+  $c().innerHTML=`<div class="ent"><div class="card">
+    <h2>Entrar</h2>
+    <div class="ex">Use o e-mail que a Dexterity cadastrou para você.</div>
+    ${msg(aviso)}
+    <form id="f-login" autocomplete="on">
+      <div class="cpo"><label for="i-email">E-mail</label>
+        <input id="i-email" name="email" type="email" autocomplete="username" required></div>
+      <div class="cpo"><label for="i-senha">Senha</label>
+        <input id="i-senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <button class="bt" type="submit">Entrar</button>
+    </form>
+    <div class="dica">Ainda não tem acesso? Fale com o seu contato na Dexterity.</div>
+  </div></div>`;
+  const f=document.getElementById('f-login');
+  f.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const bt=f.querySelector('button'); bt.disabled=true; bt.textContent='Entrando…';
+    const r=await api('login',{ corpo:{ email:document.getElementById('i-email').value, senha:document.getElementById('i-senha').value } });
+    if(!r.d.ok){ telaLogin(r.d.erro||'Não foi possível entrar.'); return; }
+    sessaoGrava({ token:r.d.token, nome:r.d.nome, email:r.d.email, cliente:r.d.cliente });
+    carregaPainel();
+  });
+  document.getElementById('i-email').focus();
+}
+
+// ---- tela do convite (definir a senha) ----
+async function telaConvite(conv){
+  cabecalho('Área do cliente','criando o seu acesso');
+  $c().innerHTML='<div class="ent"><div class="card"><div class="estado">Conferindo o convite…</div></div></div>';
+  const chk=await api('convite',{ qs:'&t='+encodeURIComponent(conv) });
+  if(!chk.d.ok){ telaLogin(chk.d.erro||'Convite inválido.'); limpaUrl(); return; }
+  const pinta=(aviso)=>{
+    $c().innerHTML=`<div class="ent"><div class="card">
+      <h2>Criar a sua senha</h2>
+      <div class="ex">Acesso de <strong>${esc(chk.d.email)}</strong>. Escolha uma senha de pelo menos 10 caracteres.</div>
+      ${msg(aviso)}
+      <form id="f-def">
+        <input type="email" value="${escA(chk.d.email)}" autocomplete="username" hidden readonly>
+        <div class="cpo"><label for="i-s1">Senha</label>
+          <input id="i-s1" type="password" autocomplete="new-password" minlength="10" required></div>
+        <div class="cpo"><label for="i-s2">Repita a senha</label>
+          <input id="i-s2" type="password" autocomplete="new-password" minlength="10" required></div>
+        <button class="bt" type="submit">Criar acesso e entrar</button>
+      </form>
+    </div></div>`;
+    const f=document.getElementById('f-def');
+    f.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const s1=document.getElementById('i-s1').value, s2=document.getElementById('i-s2').value;
+      if(s1!==s2){ pinta('As duas senhas precisam ser iguais.'); return; }
+      const bt=f.querySelector('button'); bt.disabled=true; bt.textContent='Criando…';
+      const r=await api('definir',{ corpo:{ convite:conv, senha:s1 } });
+      if(!r.d.ok){ pinta(r.d.erro||'Não foi possível criar o acesso.'); return; }
+      sessaoGrava({ token:r.d.token, nome:r.d.nome, email:r.d.email, cliente:r.d.cliente });
+      limpaUrl(); carregaPainel();
+    });
+    document.getElementById('i-s1').focus();
+  };
+  pinta('');
+}
+// Tira o convite da barra de endereços: ele é de uso único e não deve ficar no histórico.
+function limpaUrl(){ try{ history.replaceState(null,'',location.pathname); }catch(e){} }
+
+// ---- trocar a senha (dentro da área logada) ----
+function telaSenha(){
+  const s=sessaoLe()||{};
+  const pinta=(aviso,tipo)=>{
+    $c().innerHTML=`<div class="ent"><div class="card">
+      <h2>Trocar a senha</h2><div class="ex">Conta ${esc(s.email||'')}</div>
+      ${msg(aviso,tipo)}
+      <form id="f-tr">
+        <div class="cpo"><label for="i-a">Senha atual</label><input id="i-a" type="password" autocomplete="current-password" required></div>
+        <div class="cpo"><label for="i-n">Nova senha</label><input id="i-n" type="password" autocomplete="new-password" minlength="10" required></div>
+        <button class="bt" type="submit">Trocar</button>
+      </form>
+      <div class="dica"><button class="bt sec" id="b-volta">← Voltar ao painel</button></div>
+    </div></div>`;
+    document.getElementById('b-volta').addEventListener('click',carregaPainel);
+    document.getElementById('f-tr').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const r=await api('trocar-senha',{ comSessao:true, corpo:{ atual:document.getElementById('i-a').value, nova:document.getElementById('i-n').value } });
+      if(!r.d.ok){ pinta(r.d.erro||'Não foi possível trocar.','err'); return; }
+      pinta('Senha trocada.','ok');
+    });
+  };
+  pinta('');
+}
+
+// ---- painel (área logada) ----
+async function carregaPainel(){
+  const s=sessaoLe();
+  if(!s||!s.token){ telaLogin(''); return; }
+  cabecalho('Acompanhamento AMS'+(s.cliente?' — '+s.cliente:''),'carregando…');
+  $c().innerHTML='<div class="estado">Carregando o painel…</div>';
+  const r=await api('dados',{ comSessao:true });
+  if(r.st===401){ sessaoLimpa(); telaLogin('A sua sessão expirou. Entre de novo.'); return; }
+  if(!r.d || r.d.ok===false){ erro((r.d&&r.d.erro)||'Não foi possível carregar o painel.'); return; }
+  render(r.d, s);
+}
+function barraEu(s){
+  return `<div class="eu">
+    <span>Conectado como <strong>${esc(s.nome||s.email||'')}</strong></span>
+    <span class="sp"></span>
+    <button class="bt sec" id="b-senha">Trocar senha</button>
+    <button class="bt sec" id="b-sair">Sair</button>
+  </div>`;
+}
+function ligaBarra(){
+  const a=document.getElementById('b-sair'); if(a) a.addEventListener('click',()=>{ sessaoLimpa(); telaLogin('Você saiu.'); });
+  const b=document.getElementById('b-senha'); if(b) b.addEventListener('click',telaSenha);
 }
 
 (function(){
-  const tok=new URLSearchParams(location.search).get('c');
-  if(!tok){ erro('Link inválido. Solicite o link de acompanhamento à equipe Dexterity.'); return; }
-  fetch('/api/config?portal='+encodeURIComponent(tok)).then(r=>r.json()).then(d=>{
-    if(!d || d.ok===false || d.erro){ erro(d&&d.erro?d.erro:'Não foi possível carregar o painel.'); return; }
-    render(d);
-  }).catch(e=>erro('Falha ao carregar: '+(e&&e.message?e.message:e)));
+  const p=new URLSearchParams(location.search);
+  const conv=p.get('convite');
+  if(conv){ telaConvite(conv); return; }
+  const tok=p.get('c');
+  if(tok){   // link antigo (?c=<token> do contrato): continua valendo, sem login
+    fetch('/api/config?portal='+encodeURIComponent(tok)).then(r=>r.json()).then(d=>{
+      if(!d || d.ok===false || d.erro){ erro(d&&d.erro?d.erro:'Não foi possível carregar o painel.'); return; }
+      render(d, null);
+    }).catch(e=>erro('Falha ao carregar: '+(e&&e.message?e.message:e)));
+    return;
+  }
+  carregaPainel();
 })();
 </script>
 </body>
