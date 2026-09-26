@@ -161,6 +161,33 @@ try {
   if (!erros.some((e) => e.startsWith('🧭'))) console.log(`Navegação: ✓ ${VISTAS.length} vistas · ${NAVCAT.length} entradas no catálogo · ${Object.keys(ALIAS).length} alias · áreas ${Object.keys(AREAS).join('/')}`);
 } catch (e) { erros.push(`🧭 Navegação: não consegui conferir NAVCAT × VISTAS × index.html (${e.message}).`); }
 
+// ---- vercel.json: o schema da Vercel RECUSA propriedade desconhecida ----
+// Aprendido na marra em 2026-09-26: um "comment" dentro de um bloco de headers passou
+// no JSON.parse, passou no gate e só quebrou no DEPLOY DE PRODUÇÃO ("should NOT have
+// additional property"). JSON não tem comentário — a explicação vai para o README.
+try {
+  const vj = JSON.parse(readFileSync('vercel.json', 'utf8'));
+  const PERMITIDO = {
+    headers: ['source', 'headers', 'has', 'missing'],
+    redirects: ['source', 'destination', 'permanent', 'statusCode', 'has', 'missing'],
+    rewrites: ['source', 'destination', 'has', 'missing'],
+  };
+  Object.entries(PERMITIDO).forEach(([secao, chaves]) => {
+    (Array.isArray(vj[secao]) ? vj[secao] : []).forEach((regra, i) => {
+      Object.keys(regra || {}).forEach((k) => {
+        if (!chaves.includes(k)) {
+          erros.push(`🔧 vercel.json ${secao}[${i}]: a propriedade "${k}" não existe no schema da Vercel `
+            + `(o deploy de produção falha). Permitidas: ${chaves.join(', ')}.`);
+        }
+      });
+    });
+  });
+  if (!erros.some((e) => e.startsWith('🔧'))) {
+    const n = Object.keys(PERMITIDO).reduce((s, k) => s + (Array.isArray(vj[k]) ? vj[k].length : 0), 0);
+    console.log(`vercel.json: ✓ ${n} regra(s) de headers/redirects/rewrites sem propriedade fora do schema`);
+  }
+} catch (e) { erros.push(`🔧 vercel.json: não consegui conferir (${e.message}).`); }
+
 console.log('Entrega (Novidades + Roadmap):');
 if (erros.length) {
   erros.forEach((e) => console.error('  ✗ ' + e));
