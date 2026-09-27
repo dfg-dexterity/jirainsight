@@ -238,6 +238,16 @@ A cada **entrega/commit** desta ferramenta:
 
 ## 📣 Aviso no Teams — canal "Avisos Gerais" (acordo de 2026-07-28)
 
+> **AUTOMÁTICO desde 2026-09-27 (a pedido do usuário):** não é mais preciso montar o
+> `curl` à mão. `.github/workflows/novidades-teams.yml` dispara a cada push na `main` que
+> mexa em `public/js/05-novidades-roadmap.js`, e `scripts/aviso-novidades.mjs` compara as
+> NOVIDADES com as do **commit anterior** (`git show HEAD~1:…`) e publica **só o que
+> entrou** — sem estado externo. `NOV_VER` igual = sai em silêncio. Então **o aviso é
+> consequência de atualizar as Novidades**: manter o array em dia (acordo abaixo) já
+> cumpre este acordo. Disparo manual na aba Actions (padrão `dry=1`; o campo `base` aceita
+> um commit para reenviar uma leva antiga). O script trata `{enviado:false}` como ERRO,
+> para um webhook desconfigurado deixar o workflow vermelho em vez de sumir calado.
+
 A cada **melhoria publicada** (merge na main), **publicar um aviso no canal do Teams
 "Avisos Gerais"** marcando todos:
 
