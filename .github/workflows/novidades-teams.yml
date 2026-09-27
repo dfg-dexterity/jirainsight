@@ -1,0 +1,60 @@
+name: Aviso de novidades no Teams
+
+# Cumpre o acordo do CLAUDE.md ("a cada melhoria publicada, publicar um aviso no canal
+# Avisos Gerais") sem depender de alguém lembrar: a cada push na main, o script compara
+# as ✨ Novidades com as do commit anterior e publica SÓ o que entrou agora.
+#
+# Commit que não mexe nas Novidades (correção, refactor, documentação) não envia nada —
+# quem decide é o conteúdo do 05-novidades-roadmap.js, não o fato de ter havido deploy.
+#
+# Pré-requisitos (já valem hoje):
+#   · TEAMS_AVISOS_WEBHOOK_URL na Vercel  → o canal que recebe o cartão
+#   · secret CRON_SECRET no repositório   → só se a Vercel também tiver CRON_SECRET
+
+on:
+  push:
+    branches: [main]
+    # Só faz sentido rodar quando o arquivo das Novidades muda.
+    paths:
+      - 'public/js/05-novidades-roadmap.js'
+  workflow_dispatch:          # disparo manual (aba Actions → Run workflow)
+    inputs:
+      dry:
+        description: 'dry=1 apenas mostra o cartão que seria enviado (não envia)'
+        required: false
+        default: '1'
+      base:
+        description: 'Commit de comparação (padrão HEAD~1) — use para reenviar uma leva antiga'
+        required: false
+        default: ''
+
+concurrency:
+  group: novidades-teams
+  cancel-in-progress: false
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O script compara com o commit anterior (HEAD~1) e, no disparo manual, com um
+          # commit ARBITRÁRIO via `base=<sha>` (reenviar uma leva antiga). Um clone raso
+          # não teria esse commit — por isso o histórico completo. (O script recusa rodar
+          # quando o commit de base não está no clone, mas aqui ele simplesmente está.)
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Publicar as novidades novas
+        env:
+          TEAMS_URL: ${{ secrets.TEAMS_AVISOS_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_REF: ${{ github.event.inputs.base }}
+          DRY: ${{ github.event.inputs.dry }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          # No disparo manual o padrão é dry=1: ninguém publica no canal sem querer.
+          if [ "${DRY:-0}" = "1" ]; then ARGS+=(--dry); fi
+          node scripts/aviso-novidades.mjs "${ARGS[@]}"

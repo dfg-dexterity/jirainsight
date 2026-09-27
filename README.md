@@ -545,6 +545,37 @@ pessoas em dia/atrasadas + ranking de quem mais precisa apontar, com selos
 - **Testar:** aba **Actions** → *Relatório de apontamento no Teams* → **Run workflow**
   (use `dry=1` para só montar o cartão sem enviar), ou abra `/api/teams?dry=1`.
 
+### 📣 Aviso de novidades — automático no merge
+
+O acordo é anunciar cada melhoria publicada no canal **Avisos Gerais**. Isso era manual
+(alguém montava o `curl` e precisava lembrar), e por isso entregas ficaram sem anúncio.
+Desde **2026-09-27** é automático:
+
+- **Quando:** a cada push na `main` que mexa em `public/js/05-novidades-roadmap.js`
+  (`.github/workflows/novidades-teams.yml`).
+- **O que anuncia:** só as **novidades que entraram neste merge**. O
+  `scripts/aviso-novidades.mjs` compara o arquivo do commit atual com o do **commit
+  anterior** (`git show HEAD~1:…`) — **sem guardar estado em lugar nenhum**. Se `NOV_VER`
+  não mudou (correção, refactor, mexida só no roadmap), ele sai em silêncio.
+- **O cartão** leva a **primeira frase** de cada novidade (que é como elas são escritas:
+  o resumo vem primeiro), no máximo 6, com "… e mais N melhoria(s)" quando passar disso.
+- **Falha alto, nos dois sentidos:** o `/api/teams` responde `200` com `{enviado:false}`
+  quando o webhook não está configurado — o script trata como erro e o workflow fica
+  **vermelho**, em vez de o aviso sumir sem ninguém notar. E se o **commit de base não
+  estiver no clone** (checkout raso), ele **recusa rodar**: tratar isso como "não havia
+  nada antes" publicaria o histórico inteiro no canal. Por isso o workflow usa
+  `fetch-depth: 0`.
+- **Disparo manual:** aba **Actions** → *Aviso de novidades no Teams* → **Run workflow**.
+  O padrão é `dry=1` (só mostra o cartão). O campo `base` recebe um commit de comparação —
+  é como se anuncia uma leva antiga que ficou para trás (ex.: `base=5a5e163`).
+- **Pré-requisitos:** `TEAMS_AVISOS_WEBHOOK_URL` na Vercel (já configurada) e, **se** você
+  definir `CRON_SECRET` na Vercel, o mesmo valor como secret do repositório.
+
+> ⚠️ **Hoje o `/api/teams` aceita POST sem autenticação**, porque `CRON_SECRET` não está
+> definida na Vercel — quem descobrir a URL publica no canal mencionando o time inteiro.
+> O código já trata a env: basta defini-la na Vercel e criar o mesmo secret no GitHub
+> (os workflows já mandam o `Bearer` quando ele existe).
+
 ### Onde gerar os tokens
 - **Jira:** id.atlassian.com → Manage profile → Security → Create and manage API tokens.
 - **Clockwork (Pro):** no Jira, menu Apps → Clockwork → **API tokens** → Create token.
