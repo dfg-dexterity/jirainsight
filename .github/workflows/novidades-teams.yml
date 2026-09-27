@@ -38,8 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # O script compara com o commit anterior: sem os dois, não há o que comparar.
-          fetch-depth: 2
+          # O script compara com o commit anterior (HEAD~1) e, no disparo manual, com um
+          # commit ARBITRÁRIO via `base=<sha>` (reenviar uma leva antiga). Um clone raso
+          # não teria esse commit — por isso o histórico completo. (O script recusa rodar
+          # quando o commit de base não está no clone, mas aqui ele simplesmente está.)
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

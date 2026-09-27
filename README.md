@@ -559,9 +559,12 @@ Desde **2026-09-27** é automático:
   não mudou (correção, refactor, mexida só no roadmap), ele sai em silêncio.
 - **O cartão** leva a **primeira frase** de cada novidade (que é como elas são escritas:
   o resumo vem primeiro), no máximo 6, com "… e mais N melhoria(s)" quando passar disso.
-- **Falha alto:** o `/api/teams` responde `200` com `{enviado:false}` quando o webhook não
-  está configurado; o script trata isso como erro e o workflow fica **vermelho**, em vez
-  de o aviso sumir sem ninguém notar.
+- **Falha alto, nos dois sentidos:** o `/api/teams` responde `200` com `{enviado:false}`
+  quando o webhook não está configurado — o script trata como erro e o workflow fica
+  **vermelho**, em vez de o aviso sumir sem ninguém notar. E se o **commit de base não
+  estiver no clone** (checkout raso), ele **recusa rodar**: tratar isso como "não havia
+  nada antes" publicaria o histórico inteiro no canal. Por isso o workflow usa
+  `fetch-depth: 0`.
 - **Disparo manual:** aba **Actions** → *Aviso de novidades no Teams* → **Run workflow**.
   O padrão é `dry=1` (só mostra o cartão). O campo `base` recebe um commit de comparação —
   é como se anuncia uma leva antiga que ficou para trás (ex.: `base=5a5e163`).

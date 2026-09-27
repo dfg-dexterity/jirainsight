@@ -47,9 +47,19 @@ function leNovidades(src) {
   return { ver: (mVer && mVer[1]) || '', itens: Array.isArray(itens) ? itens : [] };
 }
 
+// Lê o arquivo num commit, separando DOIS casos que não podem ser confundidos:
+//  · o commit não está neste clone (checkout raso) → ERRO. Tratar isso como "não havia
+//    nada antes" publicaria o histórico INTEIRO no canal (159 novidades, na prática);
+//  · o commit existe e o arquivo ainda não existia nele → legítimo: tudo é novo.
+// Foi um review da Vercel no PR #182 que apontou o primeiro caso, com fetch-depth: 2.
 function gitShow(ref) {
-  try { return execFileSync('git', ['show', `${ref}:${ARQ}`], { encoding: 'utf8' }); }
-  catch (e) { return ''; }   // primeiro commit, arquivo novo, histórico raso: trata como "tudo é novo"
+  try { execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], { stdio: 'ignore' }); }
+  catch (e) {
+    return { erro: `o commit "${ref}" não está neste clone — um checkout raso não o tem. `
+      + 'Use fetch-depth: 0 no workflow (ou um ref que exista aqui).' };
+  }
+  try { return { src: execFileSync('git', ['show', `${ref}:${ARQ}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) }; }
+  catch (e) { return { src: '' } ; }
 }
 
 // HTML das novidades → texto do cartão. O Adaptive Card aceita markdown simples.
@@ -85,7 +95,11 @@ function resume(txt) {
 }
 
 const atual = leNovidades(readFileSync(ARQ, 'utf8'));
-const anterior = leNovidades(gitShow(process.env.BASE_REF || 'HEAD~1'));
+const base = gitShow(process.env.BASE_REF || 'HEAD~1');
+// Sem base confiável não se publica nada: o modo de falha seguro aqui é ficar calado,
+// nunca mandar o histórico todo para o canal da empresa.
+if (base.erro) { console.error(`✗ Não consigo saber o que é novo: ${base.erro}`); process.exit(1); }
+const anterior = leNovidades(base.src);
 
 if (!atual.itens.length) { console.log('Sem NOVIDADES no arquivo — nada a anunciar.'); process.exit(0); }
 if (anterior.ver && anterior.ver === atual.ver) {
