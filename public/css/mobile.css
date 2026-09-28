@@ -150,5 +150,15 @@
   /* a prévia ocupa a altura útil do celular */
   .pt-preview{height:72vh;min-height:360px}
   .pt-prev-acoes .btn{flex:1 1 calc(50% - 8px)}
+  /* alvos de toque: caixa de marcar (👁, decisão, publicado, épicos, blocos, ata) com 32px dentro de um rótulo/célula de 44px;
+     campos e seletores das células com 36px; o chip 📁 do projeto em foco e os botões das tabelas com 36px */
+  .pt-form .check,.pt-novo .check{min-height:44px;align-items:center;gap:10px}
+  .pt-form input[type=checkbox],.pt-novo input[type=checkbox],.pt-tab input[type=checkbox]{width:32px;height:32px;min-width:32px;margin:0;flex:0 0 32px}
+  .pt-itens-tab td:first-child,.pt-dec-tab td:first-child{min-width:44px;padding-top:6px;padding-bottom:6px}
+  .pt-tab input[type=text],.pt-tab input[type=url],.pt-tab input[type=date],.pt-tab input[type=datetime-local],.pt-tab input[type=number],.pt-tab select{min-height:36px;padding:6px 8px}
+  .pt-tab td .btn,.pt-tab td a.btn,.pt-reu-sug .btn,.pt-filtros .btn,.pt-novos .btn,.pt-cal-conf .btn,.pt-cal-l .btn{min-height:36px}
+  .pt-foco .lnk-ficha{min-height:36px;padding:6px 10px;display:inline-flex;align-items:center}
+  .pt-acessos .pcli-tab .btn,.pt-acessos .pcli-add .btn{min-height:36px}
+  .pt-dec-tab td a{display:inline-flex;align-items:center;min-height:32px;padding:0 4px}   /* o link do ticket da decisão também é alvo de dedo */
 }
 /* ---- fim: portal ---- */
