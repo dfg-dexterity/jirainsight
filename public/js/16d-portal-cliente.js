@@ -117,11 +117,14 @@ function ptRascunho(K){ const st=ptSt(); if(st.rasc&&st.rascKey===K) return st.r
   st.rascKey=K; return st.rasc; }
 function ptRascSujo(K){ const st=ptSt(); const r=st.rasc; const info=ptInfo(K); if(!r||!info) return false;
   const { publicado, ...config }=r; return publicado!==!!info.publicado||JSON.stringify(ptConfigNorm(config))!==JSON.stringify(ptConfigNorm(info.config)); }
-// Forma comparável (a mesma que o servidor devolve normalizada) — para saber se há o que salvar.
+// Forma comparável (a mesma que o servidor devolve normalizada) — para saber se há o que salvar, e a
+// que vai no corpo do admin-config. Os campos de texto saem SEM espaços nas pontas, como o servidor os
+// grava: um calendário colado com espaço no fim era "confirmado" na tela e recusado no servidor.
+const ptTrim=(v)=>String(v==null?'':v).trim();
 function ptConfigNorm(c){ const x=(c&&typeof c==='object')?c:{};
-  return { teamsUrl:x.teamsUrl||'', pasta:x.pasta||'', calendario:x.calendario||'', links:(x.links||[]).map(l=>({ nome:l.nome||'', url:l.url||'', tipo:l.tipo||'' })),
-    equipe:(x.equipe||[]).map(p=>({ nome:p.nome||'', papel:p.papel||'', contato:p.contato||'' })), epicosOcultos:(x.epicosOcultos||[]).slice().sort(), mostrarAta:x.mostrarAta===true,
-    blocos:Object.fromEntries(PT_BLOCOS.map(k=>[k[0],!(x.blocos&&x.blocos[k[0]]===false)])), apresentacao:x.apresentacao||'' }; }
+  return { teamsUrl:ptTrim(x.teamsUrl), pasta:ptTrim(x.pasta), calendario:ptTrim(x.calendario), links:(x.links||[]).map(l=>({ nome:ptTrim(l.nome), url:ptTrim(l.url), tipo:ptTrim(l.tipo) })),
+    equipe:(x.equipe||[]).map(p=>({ nome:ptTrim(p.nome), papel:ptTrim(p.papel), contato:ptTrim(p.contato) })), epicosOcultos:(x.epicosOcultos||[]).slice().sort(), mostrarAta:x.mostrarAta===true,
+    blocos:Object.fromEntries(PT_BLOCOS.map(k=>[k[0],!(x.blocos&&x.blocos[k[0]]===false)])), apresentacao:ptTrim(x.apresentacao) }; }
 // Valida na tela o que o servidor também valida (ele é a verdade; aqui só se evita uma ida inútil).
 function ptValidaRasc(r){
   if(r.teamsUrl&&!pcUrl(r.teamsUrl)) return 'Canal do Teams: cole um link http(s) (no Teams: ⋯ do canal → Obter link do canal).';
@@ -155,7 +158,7 @@ function ptSalvaConfig(){
   const st=ptSt(); const K=st.proj; const c=ptContratoDe(K); const r=st.rasc; const info=ptInfo(K); if(!K||!c||!r||!info||st.salvando) return;
   const erro=ptValidaRasc(r); if(erro){ ptFb(erro,'err'); return; }
   if(ptCalPendente(K,r)){ ptFb('Calendário do projeto: clique em "testar e confirmar" e confirme a prévia (as próximas reuniões) antes de salvar.','err'); return; }
-  const { publicado, ...config }=r; const antesPub=!!info.publicado;
+  const { publicado, ...bruto }=r; const config=ptConfigNorm(bruto); const antesPub=!!info.publicado;
   if(publicado!==antesPub){ const ok=confirm(publicado?`Publicar ${K} para o cliente ${c.cliente||c.id}?\n\nQuem tem conta neste contrato passa a ver o projeto no portal na hora (progresso, pendências, decisões visíveis, riscos, time, reuniões, FAQ e links).`
     :`Despublicar ${K}?\n\nO cliente deixa de ver o projeto no portal imediatamente. A configuração e o conteúdo ficam guardados.`);
     if(!ok){ r.publicado=antesPub; renderPortal(); return; } }
