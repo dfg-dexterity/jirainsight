@@ -88,11 +88,14 @@
   .hxd-grid{grid-template-columns:minmax(0,1fr)}
 }
 
-/* ================= 4. Telas (cada bloco é de uma tela/grupo) ================= */
-/* ---- 📱 grupo: hub-pessoal (Início, Inbox, Menções, Meu dia, Roadmap) ---- */
-/* ---- fim: hub-pessoal ---- */
+/* ================= 4. Telas (cada bloco é de um grupo de telas) ================= */
+/* ---- 📱 grupo: inicio (⚡ Ações de hoje — blocos abaixo dos cards) ---- */
+/* ---- fim: inicio ---- */
 
-/* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda, Meu Planejamento, Planejado × realizado) ---- */
+/* ---- 📱 grupo: pessoal (Inbox, Menções, Meu dia, Roadmap, Meu Planejamento, Planejado × realizado) ---- */
+/* ---- fim: pessoal ---- */
+
+/* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda) ---- */
 /* ---- fim: apontar ---- */
 
 /* ---- 📱 grupo: projetos (Prioridades, Visão Geral, Resumo, Projetos, Cronograma) ---- */
@@ -110,5 +113,5 @@
 /* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */
 /* ---- fim: config ---- */
 
-/* ---- 📱 grupo: global (menu, abas, modal, guias, paletas, busca de tickets, avisos) ---- */
+/* ---- 📱 grupo: global (menu, abas, modais, guias, paletas, busca de tickets, avisos, rodapé) ---- */
 /* ---- fim: global ---- */
