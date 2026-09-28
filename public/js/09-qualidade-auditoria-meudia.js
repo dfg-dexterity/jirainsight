@@ -403,7 +403,7 @@ function renderMeuDia(){
         <div class="card"><h2>🕓 Timeline do dia <span>blocos recebidos do seu Mac (app + janela)</span></h2>${timeline}</div>
       </div>`;
   }
-  cont.replaceChildren(el(`<div><div class="card full">
+  cont.replaceChildren(el(`<div class="md-tela"><div class="card full">
       <h2>📍 Meu dia <span>timetracking assistido — seus blocos de atividade + sugestões da IA de onde apontar e criar tickets</span></h2>
       <div class="ap-filtros">
         <div class="campo"><label>&nbsp;</label><button class="btn primario" id="md-analisar" ${md.carregando?'disabled':''}>${md.carregando?'Analisando…':'🤖 Analisar meu dia'}</button></div>
