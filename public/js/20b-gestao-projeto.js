@@ -4,8 +4,10 @@
 // mensagem para copiar, chat do Teams, comentário no Jira em lote (token da própria pessoa) e aviso no Inbox.
 // Os dados são os mesmos do 📈 Analytics (/api/vencimentos?analytics=1, restrito por &projetos=) e as regras
 // dos blocos são as dos ANL_CHECKS (19) — é isso que deixa o "Δ vs sexta passada" comparável com a foto do
-// 📊 Relatório semanal (?semanal=1&n=1, contrato v1). Filtros na URL: ?v=gp&proj=KEY[,KEY]&resp=<accountId>&dias=N.
-// O estado da tela nasce aqui (e não no literal de `estado` do 01) para a tela entrar sem mexer no núcleo.
+// 📊 Relatório semanal (?semanal=1&n=1, contrato v1). Filtros na URL: ?v=gp&gproj=KEY[,KEY]&resp=<accountId>&dias=N
+// (`gproj` tem nome próprio para não disputar o ?proj= do filtro global; `proj` ainda é lido quando `gproj` não vem —
+// links antigos e as DMs do servidor). O estado da tela nasce aqui (e não no literal de `estado` do 01) para a tela
+// entrar sem mexer no núcleo.
 estado.gp={ proj:'', resp:'', dias:null, meus:null, semVenc:true, dados:null, chave:'', carregando:false, erro:'',
   cache:{}, foto:null, fotoB:false, fotoOk:null, catB:false };
 const GP_LINK='https://jirainsight.vercel.app/';   // o mesmo endereço que o servidor usa nas DMs do Teams
@@ -129,7 +131,8 @@ function gpPendPessoa(c,a){
   return { a, nome:gpNomeDe(c,a), vencidos, parados, vencem, semData, keys, n, det };
 }
 // O link vai para dentro de uma mensagem: montado à mão para a vírgula e o ":" do accountId ficarem legíveis.
-function gpLinkPessoa(keys,a){ let qs='v=gp'; if(keys&&keys.length) qs+='&proj='+keys.join(','); if(a&&a!=='__sem__') qs+='&resp='+encodeURIComponent(a).replace(/%3A/gi,':');
+// O escopo viaja em `gproj` (nome próprio da tela; o `proj` é o filtro global das outras telas).
+function gpLinkPessoa(keys,a){ let qs='v=gp'; if(keys&&keys.length) qs+='&gproj='+keys.join(','); if(a&&a!=='__sem__') qs+='&resp='+encodeURIComponent(a).replace(/%3A/gi,':');
   return { qs, url:GP_LINK+'?'+qs }; }
 const gpDataCurta=(iso)=>iso?`${iso.slice(8,10)}/${iso.slice(5,7)}`:'';
 function gpListaKeys(arr, fn){ const max=6; const l=arr.slice(0,max).map(fn); if(arr.length>max) l.push(`+${arr.length-max}`); return l.join(', '); }
@@ -234,10 +237,10 @@ function gpAbreGestao(c){
   g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false; g.sel={}; keys.forEach(k=>{ g.sel[k]=true; });
   vaiPara('gestao');
 }
-// Abre a tela a partir de um link interno (aviso do Inbox): v=gp&proj=…&resp=…
+// Abre a tela a partir de um link interno (aviso do Inbox): v=gp&gproj=…&resp=… (`proj` = avisos gravados antes do gproj)
 function gpAbreLink(qs){
   const p=new URLSearchParams(String(qs||'')); const gp=estado.gp;
-  const pj=(p.get('proj')||'').toUpperCase(); gp.proj=/^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(pj)?pj:''; if(gp.proj) gp.meus=false;
+  const pj=((p.has('gproj')?p.get('gproj'):p.get('proj'))||'').toUpperCase(); gp.proj=/^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(pj)?pj:''; if(gp.proj) gp.meus=false;
   const rs=p.get('resp')||''; gp.resp=(/^[\w:-]{5,128}$/.test(rs)||rs==='__sem__')?rs:'';
   if(!document.getElementById('modal').hidden) fechaModal();
   vaiPara('gp');
