@@ -459,16 +459,19 @@ export function papeisDe(cfg, quem) {
   return [...new Set(ps)];
 }
 export function veTudo(papeis) { return (papeis || []).some((p) => VE_TUDO.includes(p)); }
-/** Projetos em que a pessoa é gerente (cfg.projGerentes) — leitor, não cria o objeto. */
-export function meusProjetos(cfg, accountId) {
+/** Projetos em que a pessoa é gerente (cfg.projGerentes, por accountId ou e-mail) — leitor, não cria o objeto. */
+export function meusProjetos(cfg, accountId, email) {
   const m = (cfg && cfg.projGerentes && typeof cfg.projGerentes === 'object') ? cfg.projGerentes : {};
-  return Object.keys(m).filter((k) => Array.isArray(m[k]) && m[k].map(String).includes(String(accountId || ''))).sort();
+  const eu = [String(accountId || ''), String(email || '').trim().toLowerCase()].filter(Boolean);
+  return Object.keys(m).filter((k) => Array.isArray(m[k]) && m[k].some((x) => eu.includes(String(x || '').trim().toLowerCase()) || eu.includes(String(x || '')))).sort();
 }
 /**
  * Recorte da foto por papel: gestor/negocio/diretoria/admin veem tudo; os demais recebem o
  * `time`, a PRÓPRIA linha em `pessoas` e só os `projetos` em que são gerentes (com o porPessoa
  * desses projetos — é a lista que o gerente cobra); nenhum outro projeto (e o porPessoa dos
- * outros) viaja. `realFechado` e `ia` seguem a mesma regra.
+ * outros) viaja. `realFechado` segue a mesma regra. O texto da IA (`ia`) NÃO viaja para quem não
+ * vê tudo: ele é escrito a partir dos maiores desvios e cita pessoas com plano e horas — o que o
+ * recorte de `pessoas` acabou de esconder.
  * Aceita `papeis` (a lista do papeisDe) ou `papel` (um só, em texto).
  */
 export function recorteParaPapel(foto, { papeis, papel, accountId } = {}) {
@@ -478,6 +481,7 @@ export function recorteParaPapel(foto, { papeis, papel, accountId } = {}) {
   const so = (obj, cond) => Object.fromEntries(Object.entries(obj || {}).filter(([k, v]) => cond(k, v)));
   const gerente = (k) => Array.isArray(((foto.projetos || {})[k] || {}).gerentes) && foto.projetos[k].gerentes.map(String).includes(a);
   const out = { ...foto, pessoas: so(foto.pessoas, (k) => k === a), projetos: so(foto.projetos, (k) => gerente(k)) };
+  delete out.ia;
   if (foto.realFechado) {
     out.realFechado = { time: foto.realFechado.time, pessoas: so(foto.realFechado.pessoas, (k) => k === a), projetos: so(foto.realFechado.projetos, (k) => gerente(k)) };
   }

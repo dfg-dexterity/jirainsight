@@ -81,6 +81,13 @@ async function validaJira(req) {
 const T_PLAN = 'jirainsight_plan_semana';
 const T_ITENS = 'jirainsight_plan_itens';
 const T_HIST = 'jirainsight_plan_hist';
+// Chaves da config que definem PAPEL (e, por isso, permissão no servidor): só gestor/admin mudam.
+const CHAVES_PAPEL = ['papeis', 'gestores', 'projGerentes'];
+// JSON canônico (chaves de objeto ordenadas) para comparar "mudou?" sem falso positivo por ordem.
+function canonJson(v) {
+  const ord = (x) => (Array.isArray(x) ? x.map(ord) : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((o, k) => { o[k] = ord(x[k]); return o; }, {}) : x);
+  return JSON.stringify(v === undefined ? null : ord(v));
+}
 const RE_DATA_P = /^\d{4}-\d{2}-\d{2}$/;
 const RE_PROJ_P = /^[A-Za-z][A-Za-z0-9_]*$/;
 
@@ -1096,6 +1103,20 @@ export default async function handler(req, res) {
           data: atual.data || {}, rev: atual.updated_at,
           erro: 'A config foi alterada por outra pessoa/aba — mesclando e tentando de novo.',
         });
+      }
+      // 🔐 Chaves de PAPEL só mudam pela mão de gestor/admin. `papeis`, `gestores` e `projGerentes`
+      // decidem no servidor o recorte do 📊 relatório semanal (?semanal=1) e quem aprova o
+      // planejamento — a mesma identidade (qualquer token válido do Jira) podia se promover a
+      // "diretoria" num POST e ler a foto inteira. O papel de quem grava é o da config ATUAL
+      // (papeisDe: cfg.papeis + cfg.gestores, com o aprovador legado quando a lista está vazia),
+      // que é a mesma regra da tela (souAprovador()||admin). O resto da config segue livre.
+      const cfgAtual = (atual && atual.data && typeof atual.data === 'object') ? atual.data : {};
+      const mudou = CHAVES_PAPEL.filter((k) => canonJson(data[k]) !== canonJson(cfgAtual[k]));
+      if (mudou.length) {
+        const ps = papeisDe(cfgAtual, auth);
+        if (!ps.includes('gestor') && !ps.includes('admin')) {
+          return json(res, 403, { configurado: true, ok: false, erro: `Só gestores ou admin do painel alteram ${mudou.join(', ')} (perfis, gestores e gerentes de projeto). A mudança não foi gravada.` });
+        }
       }
       const novoRev = new Date().toISOString();
       const payload = [{ id: ID, data, updated_at: novoRev }];
