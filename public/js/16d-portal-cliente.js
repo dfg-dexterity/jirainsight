@@ -81,8 +81,10 @@ function ptQuandoBR(v){ const l=ptLocalSP(v); return l?`${dataBR(l.slice(0,10))}
 function ptQuandoCurto(v){ const l=ptLocalSP(v); return l?`${l.slice(8,10)}/${l.slice(5,7)} ${l.slice(11,16)}`:'—'; }
 
 // ---- leituras (uma por contrato/projeto, guardadas em estado.portal; `forca` relê) ----
+// TODA leitura que chega redesenha por ptReRenderSuave: um redesenho com o foco dentro de uma tabela
+// editável recria a célula em digitação (e o Chromium dispara `change` no nó que some).
 function ptCarregaLista(ct, forca){ const st=ptSt(); if(!ct||(!forca&&st.lista[ct]!==undefined)) return; st.lista[ct]='carregando';
-  pcliApi('admin-projetos',{ qs:'&ct='+encodeURIComponent(ct) }).then(j=>{ st.lista[ct]=(j&&j.ok)?(j.projetos||[]):{ erro:(j&&j.erro)||'Não consegui ler os projetos do portal.' }; ptReRender(); }); }
+  pcliApi('admin-projetos',{ qs:'&ct='+encodeURIComponent(ct) }).then(j=>{ st.lista[ct]=(j&&j.ok)?(j.projetos||[]):{ erro:(j&&j.erro)||'Não consegui ler os projetos do portal.' }; ptReRenderSuave(); }); }
 function ptCarregaItens(K, forca){ const st=ptSt(); if(!K||(!forca&&st.itens[K]!==undefined)) return; st.itens[K]='carregando';
   pcliApi('admin-itens',{ qs:'&p='+encodeURIComponent(K) }).then(j=>{ st.itens[K]=(j&&j.ok)?(j.itens||[]):{ erro:(j&&j.erro)||'Não consegui ler o conteúdo.' }; ptReRenderSuave(); }); }
 // Decisões do projeto (🎯 Prioridades): a mesma rota ?dec=1 — o portal só liga/desliga a visibilidade.
@@ -99,7 +101,7 @@ function ptCarregaSug(K, forca){ const st=ptSt(); if(!K) return Promise.resolve(
   return _ptSugP[K]; }
 // A ficha do Jira (épicos) — o mesmo cache de 📁 Projetos / 📅 Cronograma (estado.projetos.fichas).
 function ptGaranteFicha(K){ const st=ptSt(); if(!K||crFicha(K)||st.fichaB[K]) return; st.fichaB[K]=true;
-  fetch(`/api/projetos?visao=1&projeto=${encodeURIComponent(K)}`).then(r=>r.json()).then(j=>{ st.fichaB[K]=false; if(j&&!j.erro) estado.projetos.fichas[K]=j; ptReRender(); })
+  fetch(`/api/projetos?visao=1&projeto=${encodeURIComponent(K)}`).then(r=>r.json()).then(j=>{ st.fichaB[K]=false; if(j&&!j.erro) estado.projetos.fichas[K]=j; ptReRenderSuave(); })
     .catch(()=>{ st.fichaB[K]=false; }); }
 
 // ---- rascunho da configuração (st.rasc): nasce da linha do servidor, acompanha cada tecla ----
@@ -194,8 +196,15 @@ function ptSalvaItem(K, acao, item){ const st=ptSt();
     if(acao==='criar'){ l.push(j.item); st.itens[K]=l; st.novo=null; toast(`${PT_TIPOS[j.item.tipo][1]} criada.`,'ok'); renderPortal(); }
     else if(acao==='remover'){ st.itens[K]=l.filter(x=>x.id!==j.id); toast('Item removido.','ok'); renderPortal(); }
     else { const i=l.findIndex(x=>x.id===j.item.id); if(i>=0) l[i]=j.item; ptReRenderSuave(); }
-    const c=ptContratoDe(K); if(c) ptCarregaLista(c.id,true);   // os contadores da tabela mudaram
+    ptRecontaN(K);   // os contadores da tabela 🌐 Projetos mudaram: recontados aqui, sem reler a lista (e sem redesenhar com o foco na célula)
     return true; }); }
+// Os contadores n.* da linha do projeto (a tabela 🌐 Projetos), recontados com o que já está em memória —
+// a MESMA regra do adminProjetos do servidor. Reler a lista a cada célula editada era o que redesenhava
+// a tabela com o foco dentro dela; o ↻ da lista continua relendo tudo do servidor.
+function ptRecontaN(K){ const info=ptInfo(K); const l=ptItens(K); if(!info||!l) return; const vis=l.filter(x=>x.visivel!==false);
+  const n=(tipo,sts)=>vis.filter(x=>x.tipo===tipo&&(!sts||sts.includes(x.status))).length; const decs=ptSt().decs[K];
+  info.n={ ...(info.n||{}), pendencias:n('pendencia',['aberto']), riscos:n('risco',['aberto','mitigado']), faq:n('faq'), reunioes:n('reuniao',['aberto']),
+    ...(Array.isArray(decs)?{ decisoesVisiveis:decs.filter(d=>d.visivelCliente&&['aberta','reprazada','escalada'].includes(d.status)).length }:{}) }; }
 // Redesenha — mas NUNCA enquanto a pessoa está numa linha editável: o redesenho fica adiado até o foco
 // sair da tabela, senão o Tab de uma célula à outra perderia o que estava sendo digitado (padrão do 16c).
 let _ptAdiado=false, _ptAdiaT=null;
@@ -220,7 +229,7 @@ function ptPreviewNovaAba(K){ const m=ptPreviewMsg(); if(!m){ toast('Identifique
 // =============================== A TELA ===============================
 function renderPortal(){
   const cont=document.getElementById('conteudo'); const st=ptSt(); const gestor=ptGestor(); const contratos=ptContratos();
-  if(typeof _projetosCache!=='undefined'&&!_projetosCache) garanteProjetos().then(()=>ptReRender()).catch(()=>{});   // nomes dos projetos
+  if(typeof _projetosCache!=='undefined'&&!_projetosCache) garanteProjetos().then(()=>ptReRenderSuave()).catch(()=>{});   // nomes dos projetos
   let K=String(st.proj||'').trim().toUpperCase(); let c=K?ptContratoDe(K):null; if(K&&!c){ K=''; }
   st.proj=K; st.ct=c?c.id:'';
   if(!PT_SECS.includes(st.sec)||(!K&&st.sec!=='projetos')) st.sec='projetos';
@@ -439,5 +448,5 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(t.hasAttribute('data-pt-dec')){ if(!ptGestor()){ t.checked=!t.checked; return; } const id=t.getAttribute('data-pt-dec'); const vis=!!t.checked;
     pcliApi('admin-decisao',{ corpo:{ id, visivel:vis } }).then(j=>{ if(!j||!j.ok){ toast((j&&j.erro)||'Não consegui mudar a decisão.','err'); t.checked=!vis; return; }
       const l=st.decs[K]; if(Array.isArray(l)){ const d=l.find(x=>x.id===id); if(d) d.visivelCliente=vis; }
-      toast(vis?'Decisão visível ao cliente.':'Decisão escondida do cliente.','ok'); const c=ptContratoDe(K); if(c) ptCarregaLista(c.id,true); }); return; }
+      toast(vis?'Decisão visível ao cliente.':'Decisão escondida do cliente.','ok'); ptRecontaN(K); }); return; }
 });
