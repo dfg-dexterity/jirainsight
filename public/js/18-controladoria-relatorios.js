@@ -342,6 +342,10 @@ const REL_CAT=[
    obj:'Consolidar resultados, desvios e aprendizados ao encerrar o projeto.',
    resp:'O que deu certo e o que repetir/evitar no próximo projeto?',
    como:'Exige ritual/ticket padrão de encerramento — modelo no roadmap.'},
+  {id:'R29',nome:'Pendências do projeto (gerente)',dim:'Entrega',freq:'Semanal',def:'OOOORR-RR-',disp:'ok',vista:'gp',
+   obj:'A visão do gerente: o que está vencido por pessoa, parado sem atualização, sem data ou com cadastro incompleto — com a cobrança pronta.',
+   resp:'O que cada pessoa precisa atualizar nesta semana? Quem cobrar, sobre o quê e por onde?',
+   como:'🧭 Pendências do projeto — blocos por pessoa (vencidos, parados, vencem em 7 dias, cadastro, sem apontamento, reuniões vencidas) e ações: copiar mensagem, chat do Teams, comentário no Jira em lote e aviso no Inbox. Δ vs sexta passada pela foto do 📊 Relatório semanal.'},
 ];
 // Sigla do tipo a partir da CATEGORIA do Jira: prefixo "XXX | ..." quando houver;
 // senão, heurística pelo texto do nome (cobre categorias antigas sem prefixo).

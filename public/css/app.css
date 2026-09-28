@@ -2834,3 +2834,39 @@
   [data-theme="dexterity"] .navg-menu button{border-radius:2px}
   /* Opção de tema ativa no menu 🎨 (vale para todos os temas). */
   .hdrmenu-m button[aria-pressed="true"]{color:var(--cerceta);font-weight:600}
+  /* ---- 🧭 Gerente(s) do projeto (ficha do 📁 projeto, 2026-09-28) ---- */
+  .proj-gerentes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-6px 0 14px;padding:8px 12px;border:1px dashed var(--linha2);border-radius:12px;background:var(--cartao2)}
+  .proj-gerentes .pesp-rot{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-right:4px;white-space:nowrap}
+  .pger-chip{font-weight:600}
+  .pger-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px;line-height:1}
+  .pger-x:hover{color:var(--err)}
+  .pger-sel{max-width:240px;font-size:12.5px;padding:4px 8px;border:1px solid var(--linha2);border-radius:8px;background:var(--cartao);color:inherit}
+  /* ---- 🧭 Pendências do projeto (20b, 2026-09-28): KPIs, pessoas com a cobrança pronta e os blocos por pessoa ---- */
+  .gp-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:4px 0 12px}
+  .gp-kpis .vg-k{cursor:pointer}
+  .gp-kpis .vg-k:hover{border-color:var(--cerceta)}
+  .gp-delta{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:var(--trilho);color:var(--muted);text-transform:none;letter-spacing:0;vertical-align:middle}
+  .gp-delta.up{background:#FBE4E2;color:#8A1C14} .gp-delta.down{background:#EEF7F1;color:#0E6B37}
+  :root[data-theme="dark"] .gp-delta.up{background:#3A1A18;color:#F0A19A} :root[data-theme="dark"] .gp-delta.down{background:#16301F;color:#8FD3A8}
+  .gp-acoes-topo{gap:8px}
+  .gp-pessoa-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .gp-pessoa-row:last-child{border-bottom:0}
+  .gp-pessoa-nome{font-weight:700;min-width:200px}
+  .gp-chips{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .gp-acoes{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .gp-acoes .btn{padding:5px 10px;font-size:12.5px}
+  .gp-acoes a.btn{text-decoration:none}   /* o 💬 Teams é um link (abre o chat), mas se veste de botão como os vizinhos */
+  .gp-bloco h2 .gp-n{display:inline-block;min-width:26px;text-align:center;border-radius:999px;padding:1px 8px;background:var(--trilho);color:var(--grafite);font-size:13px;font-weight:700;font-family:var(--corpo);letter-spacing:0;vertical-align:middle;margin-right:4px}
+  .gp-h3{margin:10px 0 4px;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .gp-pessoa{margin:6px 0 12px}
+  .gp-pessoa-h{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;margin:0 0 2px}
+  /* cabeçalho e linhas numa grade só (display:contents nos filhos) — cada linha resolvendo as colunas sozinha desalinha o cabeçalho */
+  .gp-tab{display:grid;grid-template-columns:minmax(110px,1fr) minmax(200px,3fr) minmax(120px,1.4fr) minmax(140px,1.5fr) max-content;align-items:center}
+  .gp-tab-h,.gp-row{display:contents}
+  .gp-tab-h>div{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:2px 10px 3px 0;border-bottom:1px solid var(--linha)}
+  .gp-row>div{border-bottom:1px solid var(--linha);padding:5px 10px 5px 0;min-width:0;font-size:12.5px}
+  .gp-row .gp-c-res{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gp-row .gp-c-m.gp-sev{color:var(--err);font-weight:700}
+  .gp-mini{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);cursor:pointer;padding:2px 8px;font-size:12px;line-height:1.4}
+  .gp-mini:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  .gp-vazio{color:var(--muted);font-size:12.5px;padding:4px 0}

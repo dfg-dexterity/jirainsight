@@ -281,19 +281,37 @@ function renderInbox(){
   const ign=mnIgnoradasSet();
   const mens=(((ib.mencoes||{}).mencoes)||[]).filter(m=>!m.respondido && !ign.has(mnChave(m)));
   const aprs=inboxAprovacoes();
-  const avs=inboxAvisosAgenda();
+  const avsTodos=inboxAvisosAgenda();
+  const avs=avsTodos.filter(a=>!(a&&a.gp));     // 📅 reuniões sem ticket (Agenda)
+  const avsGp=avsTodos.filter(a=>a&&a.gp);      // 🧭 pendências de projeto — o gerente cobrou pela tela 🧭 (20b)
   const plns=(souAprovador()&&ib.planos)||[];
-  const total=cvs.length+mens.length+aprs.length+avs.length+plns.length;
+  const total=cvs.length+mens.length+aprs.length+avs.length+avsGp.length+plns.length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
     <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
     <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
     ${avs.length?`<div class="kpi w"><div class="v">${avs.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
+    ${avsGp.length?`<div class="kpi w"><div class="v">${avsGp.length}</div><div class="l">🧭 Pendências de projeto</div></div>`:''}
     ${souAprovador()?`<div class="kpi ${plns.length?'w':'a'}"><div class="v">${plns.length}</div><div class="l">📋 Planos semanais p/ aprovar</div></div>`:''}
     ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
   </div>`;
 
+  // 🧭 Pendências de projeto — o gerente pediu atualização (tela 🧭 Pendências do projeto): abre a lista já
+  // filtrada em você; ✕ dispensa só do seu Inbox.
+  const secGp=avsGp.length?`<div class="card full">
+    <h2>🧭 Pendências de projeto <span>o gerente pediu atualização de data, status e apontamento</span></h2>
+    <div class="cv-lista">${avsGp.map(a=>`
+      <div class="cv-row">
+        <strong>${esc(a.titulo)}</strong>
+        ${a.det?`<span class="badge">${esc(a.det)}</span>`:''}
+        ${a.dia?`<span class="badge">${esc(alxDataBR(a.dia))}</span>`:''}
+        <span class="badge" data-tip="Quem cobrou pela tela 🧭 Pendências do projeto">📨 de ${esc(String(a.de||'?').split(' ')[0])}</span>
+        <span class="spacer"></span>
+        <button class="btn primario" data-ib-gp="${escA(a.link||'v=gp')}">🧭 Ver a lista →</button>
+        <button class="btn" data-ib-avdel="${escA(a.evId)}" data-tip="Dispensa este aviso do SEU Inbox (não muda o Jira)">✕</button>
+      </div>`).join('')}</div>
+  </div>`:'';
   // 📅 Reuniões sem ticket — avisos que o time enviou para VOCÊ pela Agenda
   // (você organizou e o ticket ainda não existe). Somem sozinhos ao criar/vincular.
   const secAg=avs.length?`<div class="card full">
@@ -391,7 +409,7 @@ function renderInbox(){
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
-    ${secAg}
+    ${secGp}${secAg}
     ${secPl}
     ${secConv}
     ${secMen}
