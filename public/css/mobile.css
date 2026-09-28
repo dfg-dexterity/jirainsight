@@ -105,6 +105,156 @@
 /* ---- fim: time ---- */
 
 /* ---- 📱 grupo: analises (Analytics, Central de Relatórios, Métricas, Meu tempo, Uso) ---- */
+/* Cada uma das 5 telas marca a raiz do seu conteúdo: .mob-anl (📈 Analytics) · .mob-rel (📚 Catálogo)
+   · .mob-met (📈 Métricas) · .mob-mt (⏳ Meu tempo) · .mob-uso (📊 Uso) — e as tabelas dos modais de
+   drill ganharam .mob-tk (tickets) e .mob-perfis (⚙️ Perfis). Tudo aqui vale SÓ nelas, mesmo quando a
+   classe é compartilhada (rm-2col, vg-hero, barrow, kpi também vivem em Rentabilidade/Cronograma). */
+@media (max-width:760px){
+  /* grade de 1 coluna que não encolhia: o gráfico de 18 colunas (hora do dia) e as tabelas das
+     gavetas esticavam a coluna "1fr" e o conteúdo passava da borda direita, cortado */
+  :is(.mob-met,.mob-mt) .rm-2col{grid-template-columns:minmax(0,1fr)}
+  /* os chips "📈 Métricas por tipo · 📚 Catálogo" repetem a barra de abas do grupo logo acima */
+  #abas:not([hidden])~#conteudo :is(.mob-met,.mob-rel) .rm-abas{display:none}
+}
+@media (max-width:600px){
+  /* ---- filtros: campos empilhados em largura total; o botão de ação fica à esquerda, sem a
+     linha vazia do rótulo "&nbsp;" que existe só para alinhar no computador ---- */
+  :is(.mob-anl,.mob-rel,.mob-met,.mob-mt,.mob-uso) .ap-filtros{gap:10px;margin-bottom:12px}
+  .mob-mt .card>.muted.small+.ap-filtros{margin-top:12px}   /* o texto de abertura encostava no rótulo "Pessoa" */
+  .mob-anl .campo:has(#anl-refresh)>label,.mob-anl .campo:has(>.muted)>label,
+  .mob-met .campo:has([data-rm-csv])>label{display:none}
+  .mob-anl #anl-refresh,.mob-uso #uso-atualizar{align-self:flex-start}
+  /* campos curtos lado a lado (X dias + período; De + Até); "↻ Atualizar" divide a linha com a data da base */
+  :is(.mob-anl,.mob-met,.mob-mt) .ap-filtros{flex-direction:row;flex-wrap:wrap;align-items:flex-end}
+  :is(.mob-anl,.mob-met,.mob-mt) .ap-filtros>.campo{flex:1 1 100%;width:auto;min-width:0}
+  .mob-anl .ap-filtros>.campo:is(:has(#anl-x),:has(#anl-dias)),
+  :is(.mob-met,.mob-mt) .ap-filtros>.campo:has(input[type=date]){flex:1 1 calc(50% - 5px)}
+  .mob-anl .ap-filtros>.campo:has(#anl-refresh){flex:0 0 auto}
+  .mob-anl .ap-filtros>.campo:has(>.muted){flex:1 1 0;align-self:center;justify-content:flex-start!important}
+  :is(.mob-met,.mob-mt) .ap-filtros input[type=date]{width:100%;min-width:0;box-sizing:border-box}
+  /* o "X (dias)" era um campo cru de 90px (sem o estilo dos vizinhos) */
+  .mob-anl #anl-x{width:100%!important;box-sizing:border-box;font-family:var(--corpo);padding:7px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .mob-rel #rc-busca{min-width:0!important;width:100%;box-sizing:border-box}
+  .mob-uso .hdr-sel>span{font-size:11px}
+
+  /* ---- cartões de número (KPI): 2 por linha, compactos, valor em R$ sem partir o "R$" sozinho ---- */
+  :is(.mob-met,.mob-mt) .vg-hero{gap:8px;margin-bottom:14px}
+  :is(.mob-met,.mob-mt) .vg-k{padding:10px 10px 10px 14px}
+  :is(.mob-met,.mob-mt) .vg-k .v{font-size:20px;letter-spacing:0}
+  :is(.mob-met,.mob-mt) .vg-k .l{margin-top:4px}
+  :is(.mob-met,.mob-mt) .vg-k .s{font-size:12px;line-height:1.35}
+  /* número ímpar de cartões: o último ocupa a linha (em vez de um buraco ao lado) */
+  :is(.mob-met,.mob-mt) .vg-hero>.vg-k:last-child:nth-child(odd){grid-column:1/-1}
+  :is(.mob-anl,.mob-uso) .kpis{gap:8px;margin-bottom:14px}
+  :is(.mob-anl,.mob-uso) .kpi{padding:12px}
+
+  /* ---- selos de relatório (R08…) e selos de modo: legíveis ---- */
+  :is(.mob-anl,.mob-met,.mob-mt,.mob-uso) .rc-cod{font-size:12px;line-height:20px}
+
+  /* ---- tabelas: cabem quando dá (sem o piso de 560px), rolam dentro da caixa quando não dá, e a
+     1ª coluna (quem é a linha) fica presa à esquerda enquanto o dedo rola as outras ---- */
+  :is(.mob-met,.mob-mt,.mob-uso) .scroll-x table{min-width:0}
+  .mob-met .rm-tab td:first-child,.mob-met .rm-tab th:first-child{min-width:96px;max-width:42vw}
+  :is(.mob-met,.mob-mt) .rm-det summary{padding:8px 0}
+  :is(.mob-met .rm-tab,.mob-uso .uso-tab,.mob-anl .rc-tab,.mob-rel .rc-tab,.mob-mt .rm-bloco>.scroll-x>.mp-tab-mini,.mob-tk) tr>:first-child{
+    position:sticky;left:0;z-index:1;background:var(--cartao)}
+  .mob-met .rm-tab tr.rm-destaque>td:first-child{background:linear-gradient(rgba(0,153,148,.06),rgba(0,153,148,.06)),var(--cartao)}
+
+  /* ---- 📈 Analytics ---- */
+  .mob-anl .anl-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+  .mob-anl .anl-grupo h3{font-size:15px}
+  .mob-anl .anl-card{padding:12px}
+  .mob-anl .anl-tit{font-size:14px}
+  .mob-anl .anl-des{font-size:13px;line-height:1.4}
+  .mob-anl .anl-foot{flex-wrap:wrap;row-gap:6px}
+  .mob-anl .anl-badge{font-size:12px;padding:2px 9px}
+  .mob-anl .ap-vis #anl-busca{flex:1 1 100%;min-width:0!important;box-sizing:border-box;font-family:var(--corpo);
+    padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .mob-anl .rc-tab .badge{font-size:12px}
+  .mob-anl .rc-tab .gx-acts{flex-wrap:nowrap}   /* 🔍 e ⏱ lado a lado: a tabela já rola, não precisa dobrar a linha */
+
+  /* ---- 📚 Catálogo: matriz com o nome preso à esquerda e as células O/R/– tocáveis ---- */
+  .mob-rel .rc-tab{font-size:13px}
+  .mob-rel .rc-tab th,.mob-rel .rc-tab td{padding:6px 4px}
+  /* nome: selo e texto na mesma linha (o texto quebra dentro do botão), coluna com largura de gente */
+  .mob-rel .rc-tab .rc-nome{min-width:min(46vw,200px);max-width:200px;padding-left:2px;white-space:nowrap}
+  .mob-rel .rc-tab .rc-nome .rc-badge{padding:1px 4px;margin-right:2px;vertical-align:top}
+  .mob-rel .rc-tab .rc-nome .rc-link{white-space:normal;width:calc(100% - 30px);vertical-align:top;line-height:1.35;padding:0}
+  .mob-rel .rc-dim{font-size:12.5px;color:var(--muted)}
+  .mob-rel .rc-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+  .mob-rel .rc-card-top b{min-width:0;flex:1 1 160px}
+  .mob-rel .rc-card-top .rc-cell{display:inline-flex;align-items:center;justify-content:center}
+  .mob-rel .rc-badge{font-size:12px}
+  .mob-rel .rc-meta{font-size:12px}
+  .mob-rel .rc-obj{font-size:13.5px}
+  .mob-rel .rc-como{font-size:12.5px}
+
+  /* ---- 📈 Métricas ---- */
+  .mob-met .rm-bloco{margin-top:18px;padding-top:12px}
+  /* ciclo do AMS: era flex com cada pedaço do texto virando um item solto */
+  .mob-met .rm-ciclo{display:block;line-height:1.55}
+  :is(.mob-met,.mob-mt) .tsc-legend{gap:4px 14px}
+  .mob-met :is(.mpg-rot,.mpg-sub){font-size:12px}
+  /* rótulos do eixo Y ficam sobre o começo da linha no celular: um halo da cor do cartão os mantém legíveis */
+  :is(.mob-met,.mob-mt) .tsc-yl{text-shadow:0 0 3px var(--cartao),0 0 3px var(--cartao),0 0 2px var(--cartao)}
+
+  /* ---- ⏳ Meu tempo ---- */
+  /* colunas (hora do dia, dia da semana, tamanho) cabem na largura: sem piso de 16px e com rótulo que quebra */
+  .mob-mt .mtp-cols{gap:2px;align-items:flex-start}
+  .mob-mt .mtp-col{min-width:0;flex:1 1 0}
+  .mob-mt .mtp-colb{height:90px}
+  .mob-mt .mtp-rot{white-space:normal;text-align:center;line-height:1.15}
+  /* barras "onde vai o tempo": nome inteiro (até 2 linhas) em vez de "Reuniões e alinh…" */
+  .mob-mt .barrow{grid-template-columns:minmax(0,42%) minmax(0,1fr) 56px;gap:8px}
+  .mob-mt .barrow .nome{white-space:normal;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .mob-mt .rm-2col .estado{padding:14px 10px}
+  /* tabela dos tickets que mais consumiram: só o resumo quebra (antes a chave partia em "RDF-" / "14 ↗") */
+  .mob-mt .rm-bloco>.scroll-x>.mp-tab-mini :is(td,th){white-space:nowrap}
+  .mob-mt .rm-bloco>.scroll-x>.mp-tab-mini td:nth-child(2){white-space:normal;min-width:170px}
+  .mob-mt .rp-wf{grid-template-columns:minmax(0,40%) minmax(0,1fr) 46px;gap:8px}
+
+  /* ---- 📊 Uso ---- */
+  .mob-uso .uso-tab td:first-child,.mob-uso .uso-tab th:first-child{min-width:min(46vw,190px);max-width:220px}
+  /* telas sem uso: nomes de tela (não códigos) — na fonte do texto cabem 2 por linha em vez de 1 */
+  .mob-uso .uso-chips .rc-cod{font-family:var(--corpo);letter-spacing:0;font-weight:600;font-size:12.5px;
+    line-height:1.3;padding:5px 10px;border-radius:8px;cursor:pointer}
+  /* período em cima; "↻ Atualizar" e as datas dividem a linha de baixo */
+  .mob-uso .ap-filtros{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .mob-uso .ap-filtros>.hdr-sel{flex:1 1 100%}
+
+  /* ---- modais de drill (tickets por trás do número) e ⚙️ Perfis ---- */
+  .mob-tk :is(td,th){white-space:nowrap}
+  .mob-tk td:nth-child(2),.mob-tk td.muted{white-space:normal;min-width:170px}
+  .mob-tk thead th{position:sticky;top:0;z-index:2;background:var(--cartao)}
+  .mob-tk thead th:first-child{z-index:3}
+  /* Perfis: cada pessoa vira um bloco (nome em cima, nível e departamento lado a lado) */
+  .scroll-x table.mob-perfis{min-width:0}
+  .mob-perfis thead{display:none}
+  .mob-perfis tbody{display:block}
+  .mob-perfis tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px;padding:10px 0;border-bottom:1px solid var(--mpb)}
+  .mob-perfis td{display:block;border:0;padding:0;min-width:0}
+  .mob-perfis td:first-child{grid-column:1/-1}
+  .mob-perfis td:nth-child(n+2)::before{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:3px}
+  .mob-perfis td:nth-child(2)::before{content:'Nível'}
+  .mob-perfis td:nth-child(3)::before{content:'Departamento'}
+  .mob-perfis :is(select,input){width:100%;box-sizing:border-box;min-width:0}
+}
+@media (max-width:400px){
+  /* 360px: "R$ 65.142,50" (120px a 20px) não cabia nos 112px do cartão e o "R$" ficava sozinho */
+  :is(.mob-met,.mob-mt) .vg-k{padding:10px 8px 10px 12px}
+  :is(.mob-met,.mob-mt) .vg-k .v{font-size:18px}
+}
+@media (pointer:coarse){
+  /* chips de filtro (tipo de projeto, atalhos de período) e alvos das listas */
+  :is(.mob-rel,.mob-met,.mob-mt) .ap-chips .chip{min-height:38px;padding:7px 13px;font-size:13px}
+  .mob-rel .rc-cell{width:40px;height:36px;font-size:13px}
+  .mob-rel .rel-vis{font-size:12.5px;padding:6px 11px;line-height:20px}
+  :is(.mob-anl,.mob-met,.mob-mt) button.rc-cod{padding:3px 8px}
+  .mob-anl .gx-acts button{font-size:12px;padding:6px 10px;min-height:34px}
+  :is(.mob-met,.mob-mt,.mob-tk) .btn.rt-step{min-width:36px;min-height:36px;padding:4px 9px}
+  .mob-uso .uso-chips .rc-cod{min-height:32px;display:inline-flex;align-items:center}
+}
 /* ---- fim: analises ---- */
 
 /* ---- 📱 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias) ---- */

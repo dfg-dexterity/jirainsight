@@ -582,7 +582,7 @@ function renderMetricas(){
       <button class="chip" data-rm-per="mes">Este mês</button><button class="chip" data-rm-per="3m">3 meses</button>
       <button class="chip" data-rm-per="6m">6 meses</button><button class="chip" data-rm-per="12m">12 meses</button><button class="chip" data-rm-per="ano">Este ano</button></div></div>`;
   if(!d){
-    cont.replaceChildren(el(`<div>${rmAbasHTML('metricas',m.sigla)}<div class="card full"><h2>📈 Métricas por tipo de projeto <span>as visões de cada categoria, com os dados do período</span></h2>
+    cont.replaceChildren(el(`<div class="mob-met">${rmAbasHTML('metricas',m.sigla)}<div class="card full"><h2>📈 Métricas por tipo de projeto <span>as visões de cada categoria, com os dados do período</span></h2>
       <div class="ap-filtros">${filtrosPer}</div>
       ${m.tempoErro?`<div class="erro">${esc(m.tempoErro)} <button class="btn" id="rm-retry">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`));
     return;
@@ -608,7 +608,7 @@ function renderMetricas(){
     ${rmKpi(String(d.tickets.size),'Tickets com horas','',`${d.meses.length} mês(es) · ${dataBR(m.de)} → ${dataBR(m.ate)}`)}</div>`;
   const blocos=(RM_BLOCOS[d.sigla]||['evolucao','pessoas']).map(id=>{ try{ return RM_RENDER[id](d); }catch(e){ console.error('bloco',id,e); return rmBloco(id,`<div class="erro">Não consegui montar este bloco: ${esc(e.message||e)}</div>`); } }).join('');
   const semHoras=!d.wl.length?`<div class="estado">Nenhuma hora apontada nos projetos <b>${esc(REL_SIGLA_NOME[d.sigla]||d.sigla)}</b>${m.proj?` (${esc(m.proj)})`:''} entre ${dataBR(m.de)} e ${dataBR(m.ate)}. ${d.projs.length?'Amplie o período ou escolha outro tipo.':'Nenhum projeto do Jira está nesta categoria — confira o prefixo da categoria (ex.: "DEA | …").'}</div>`:'';
-  cont.replaceChildren(el(`<div>${rmAbasHTML('metricas',d.sigla)}
+  cont.replaceChildren(el(`<div class="mob-met">${rmAbasHTML('metricas',d.sigla)}
     <div class="card full"><h2>📈 Métricas — ${esc(REL_SIGLA_NOME[d.sigla]||d.sigla)} <span>${d.sigla} · ${m.proj?esc(rmProjRot(d,m.proj)):`${d.projs.length} projeto(s)`} · ${dataBR(m.de)} → ${dataBR(m.ate)}</span></h2>
       ${filtros}${hero}${semHoras}${blocos}</div></div>`));
   // 📚 vindo do catálogo da Central (chip do bloco): rola até o bloco pedido (o destaque some no próximo redesenho)
@@ -645,7 +645,7 @@ function rmAbreTickets(qs){
     <td>${/^[A-Z]/.test(x.k)?`<button class="btn rt-step" data-gx-det="${escA(x.k)}" data-tip="Ficha completa">🔍</button>
       <button class="btn rt-step" data-gx-st="${escA(x.k)}" data-tip="Alterar o status">🔁</button>`:''}</td></tr>`).join('');
   abreModal(`<h2>🎫 Tickets — ${esc(tit)} <span class="muted small">${lista.length} ticket(s) · ${esc(dataBR(estado.metricas.de))} → ${esc(dataBR(estado.metricas.ate))}</span></h2>
-    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini"><thead><tr><th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th class="num">Horas</th><th class="num">Custo</th><th>Quem</th><th></th></tr></thead>
+    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini mob-tk"><thead><tr><th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th class="num">Horas</th><th class="num">Custo</th><th>Quem</th><th></th></tr></thead>
     <tbody>${rows||'<tr><td colspan="8" class="mp-dim">Nada aqui.</td></tr>'}</tbody></table></div>
     ${lista.length>120?`<div class="muted small" style="margin-top:4px">Mostrando os 120 maiores de ${lista.length} tickets.</div>`:''}
     <div class="alx-modal-acoes">
@@ -669,7 +669,7 @@ function rmAbrePerfis(){
   abreModal(`<h2>⚙️ Perfis do time <span class="muted small">nível e departamento — ${gestor?'vale para o time todo':'somente gestores editam'}</span></h2>
     <div class="ct-expl">ℹ️ O <b>nível</b> alimenta "horas do Sênior" e "% de tarefas concluídas por Júnior/Pleno" (escopo aberto); o <b>departamento</b> alimenta "custo por departamento" (rotinas internas). Salva sozinho ao alterar.</div>
     <datalist id="rm-deptos">${deptos.map(x=>`<option value="${escA(x)}">`).join('')}</datalist>
-    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th>Nível</th><th>Departamento</th></tr></thead>
+    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini mob-perfis"><thead><tr><th>Pessoa</th><th>Nível</th><th>Departamento</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="3" class="mp-dim">Nenhuma pessoa carregada ainda.</td></tr>'}</tbody></table></div>
     <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
