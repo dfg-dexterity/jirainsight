@@ -482,7 +482,7 @@ function renderAcoes(){
   // ---- 👋 SEU dia num relance (hero pessoal acionável) ----
   const id=idApontar();
   let heroHtml='';
-  const pcard=(cls,ic,t,corpo,goto,btn)=>`<div class="ax-card ${cls}"><div class="ax-top"><span>${ic}</span> ${esc(t)}</div>${corpo}<div class="ax-foot"><button class="btn ${(cls==='crit'||cls==='aten')?'primario':''}" data-hx-goto="${escA(goto)}">${esc(btn)}</button></div></div>`;
+  const pcard=(cls,ic,t,corpo,goto,btn)=>`<div class="ax-card ${cls}"><div class="ax-top"><span>${ic}</span> ${esc(t)}</div>${corpo}<div class="ax-foot"><button class="btn ${(cls==='crit'||cls==='aten')?'primario':''}" data-hx-goto="${escA(goto)}">${esc(btn).replace(/ →$/,'\u00a0→')}</button></div></div>`;
   if(id&&id.accountId){
     const acc=id.accountId;
     const hSP=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date()));
@@ -503,7 +503,7 @@ function renderAcoes(){
           </div>
           ${hxDonut(pc, meuSeg>=metaSeg?'#188918':'#E76500')}
         </div>
-        <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora →':'Ver apontamentos →'}</button></div></div>`; }
+        <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora\u00a0→':'Ver apontamentos\u00a0→'}</button></div></div>`; }
     // ⚠ meus tickets vencidos
     const meusVenc=tks?tks.filter(t=>t.respId===acc&&t.venc&&t.venc<hoje).length:null;
     const cVenc=meusVenc==null
@@ -648,7 +648,7 @@ function renderAcoes(){
         ${hxColunas(diasSem,metaSeg)}
         <div class="muted small" style="margin:0 0 6px">seu ritmo dia a dia · tracejado = meta/dia</div>
         ${projsCmp.map(x=>`<div class="hxd-row"><span class="hxd-tit" data-tip="${escA(x.p)}">${esc(projNome(x.p))}</span>
-            <span class="muted small" style="white-space:nowrap">${fmtH(x.real)} / ${x.plan?fmtH(x.plan):'—'}</span>
+            <span class="muted small hxd-meta">${fmtH(x.real)} / ${x.plan?fmtH(x.plan):'—'}</span>
             ${hxBullet(x.real,x.plan,86)}</div>`).join('')}
         <div class="muted small" style="margin-top:6px">planejamento: ${esc(stTxt)}</div>`
         :'<div class="muted small">Sem planejamento nem horas nesta semana ainda — comece pelo Meu Planejamento.</div>'}
@@ -687,7 +687,7 @@ function renderAcoes(){
     return `<div class="hxd-row"><a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener"><strong>${esc(r.k)}</strong> ↗</a>
       <span class="hxd-tit" title="${escA(radResumoDe(r.k))}">${esc(radResumoDe(r.k))}</span>
       ${badges}
-      <span class="muted small" style="white-space:nowrap">${esc(projNome(r.p))}${q}</span>
+      <span class="muted small hxd-meta">${esc(projNome(r.p))}${q}</span>
       <button class="btn rt-step" data-gx-det="${escA(r.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
   };
   const radKeys=rd.lista.map(r=>r.k);
@@ -700,7 +700,7 @@ function renderAcoes(){
   const linhaNov=(e2)=>`<div class="hxd-row">
     <a href="${jiraBase()}/browse/${encodeURIComponent(e2.k)}" target="_blank" rel="noopener"><strong>${esc(e2.k)}</strong> ↗</a>
     <span class="hxd-tit" title="${escA(radResumoDe(e2.k))}">${esc(radResumoDe(e2.k))}</span>
-    <span class="muted small" style="white-space:nowrap">${esc(radProjNome(e2.p))} · ${esc(quando(e2.d))}</span>
+    <span class="muted small hxd-meta">${esc(radProjNome(e2.p))} · ${esc(quando(e2.d))}</span>
     <button class="btn rt-step" data-gx-det="${escA(e2.k)}" data-tip="Ficha completa sem abrir o Jira">🔍</button></div>`;
   // por projeto e por pessoa na semana (top 4 de cada, para a leitura rápida)
   const porProjSem={}; const porPessSem={};

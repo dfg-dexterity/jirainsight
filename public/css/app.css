@@ -1708,6 +1708,7 @@
   .hxd-row:last-of-type{border-bottom:0}
   .hxd-hora{font-variant-numeric:tabular-nums;color:var(--muted);min-width:46px;flex:none}
   .hxd-tit{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hxd-meta{white-space:nowrap}
   /* 🌳 folha "SAP já planejado": épicos (nível 1) com histórias (nível 2) */
   .arv-pl-ep{border:1px solid var(--linha);border-radius:10px;padding:8px 12px;margin:8px 0;background:var(--cartao)}
   .arv-pl-ep>summary{cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}

@@ -1,0 +1,114 @@
+/* 📱 Camada mobile do Dexterity Hub (2026-09-27, a pedido do usuário: "faça todo o
+   aplicativo mais mobile friendly").
+   REGRA DESTA FOLHA: tudo aqui mora dentro de @media (max-width:…) ou (pointer:coarse).
+   O computador não muda um pixel — isso é conferido por diff de screenshot das telas.
+   Ela carrega DEPOIS do app.css, então empata especificidade e vence pela ordem.
+   Faixas: ≤760px = menu vira gaveta (celular e tablet em pé) · ≤600px = celular.
+   A causa nº 1 do "app encolhido" no iPhone é um único elemento mais largo que a tela:
+   o Safari então dá zoom-out na PÁGINA INTEIRA. Por isso a guarda abaixo existe, mas
+   ela é só rede de segurança — cada tela corrige a sua causa (linhas que quebram,
+   tabelas dentro de .scroll-x), e a auditoria (scripts/mobile-audit.mjs) aponta quem
+   passaria da borda mesmo com a guarda. */
+
+/* ================= 1. Base: guarda de largura, respiro e cabeçalho ================= */
+@media (max-width:760px){
+  /* nada empurra a página para os lados (clip não cria rolagem: o sticky segue valendo) */
+  .wrap{overflow-x:clip}
+  /* botões flutuantes viram círculos de ícone: o texto fica no aria-label/title */
+  .fl-rot{display:none}
+  #to-top,#btn-guia{width:44px;height:44px;padding:0;right:12px;font-size:18px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center}
+  #to-top[hidden],#btn-guia[hidden]{display:none}
+  #btn-guia{bottom:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  #to-top{bottom:66px;bottom:calc(66px + env(safe-area-inset-bottom,0px))}
+  #btn-guia .nov-dot{position:absolute;top:5px;right:5px;margin:0}
+  /* a barra de abas vazia (tela sem grupo) recebe hidden, mas o display:flex do app.css
+     ganhava do atributo — sobrava um fio de 2px e 10px de margem sob o cabeçalho */
+  .abas-tela[hidden]{display:none}
+}
+@media (max-width:600px){
+  .wrap{padding:10px 10px 48px}
+  #conteudo{padding:8px 6px;border-radius:12px}
+  .card{padding:12px}
+  /* Cabeçalho em 2 linhas curtas (marca + Menu · ações + hora), não 5 */
+  header{gap:6px;margin-bottom:12px}
+  .brand{gap:8px;padding-bottom:6px;min-width:0}
+  .brand .mark{width:30px;height:30px}
+  .brand h1{font-size:18px}
+  .brand small{display:none}
+  .nav-toggle{padding:8px 12px}
+  .hdr-tools{gap:6px;padding:4px 0 6px}
+  .hdr-acoes{flex:0 1 auto;gap:2px}
+  .hdr-acoes .btn{padding:7px 10px}
+  /* ↻ e ⬇ só com o ícone (o nome fica no aria-label). O texto do botão NÃO foi
+     partido em <span>: isso mexia 1px no desenho do "Atualizar" no computador. */
+  #btn-refresh,#grp-exportar>.hdrmenu-b{font-size:0}
+  #btn-refresh::before{content:'↻';font-size:17px}
+  #grp-exportar>.hdrmenu-b::before{content:'⬇';font-size:16px}
+  #grp-exportar>.hdrmenu-b .nav-car{font-size:12px;margin-left:2px}
+  .hdr-tools .atualizado{order:0;margin-left:auto;width:auto;white-space:nowrap}
+  .atu-dia{display:none}                 /* "Atualizado em 15:42:51" — a data é hoje */
+}
+
+/* ================= 2. Toque: campos que não dão zoom no iPhone ================= */
+@media (pointer:coarse){
+  /* o Safari dá zoom ao focar campo com fonte < 16px; seletores mais específicos do
+     app.css (13px em formulários compactos) ganhavam da regra antiga — daí o !important */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea{font-size:16px!important}
+}
+
+/* ================= 3. Início (⚡ Ações de hoje) ================= */
+@media (max-width:600px){
+  /* cards do "seu dia" em 2 colunas; o de horas (com o anel) ocupa a linha toda */
+  .ax-grid.ax-hero{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ax-grid.ax-hero>.ax-card:first-child{grid-column:1/-1}
+  .ax-hero .ax-card{padding:12px 12px 8px;min-height:0;gap:4px;border-radius:12px}
+  .ax-hero .ax-top{font-size:12.5px;line-height:1.3;padding-right:4px}
+  .ax-hero .ax-top>span:first-child{display:none}   /* marca d'água: em meia largura caía em cima do link */
+  .ax-hero .ax-num{font-size:30px}
+  .ax-hero .ax-det{max-width:none;font-size:12px;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ax-hero .ax-foot .btn{font-size:13px;text-align:left;white-space:normal;line-height:1.3}
+  /* o card inteiro é o alvo de toque (o botão do rodapé se estende por cima dele) */
+  .ax-hero .ax-foot .btn::before{content:'';position:absolute;inset:0;z-index:1}
+  .ax-hero .ax-card a,.ax-hero .ax-card button:not(.ax-foot .btn){position:relative;z-index:2}
+  /* linhas de ticket (Radar, Criados, Meus tickets): chave e ações em cima, título
+     inteiro embaixo — antes o projeto/data sem quebra empurrava a 🔍 para fora do card */
+  .hxd-row{flex-wrap:wrap;row-gap:3px}
+  .hxd-row>a:first-child{order:0}
+  .hxd-row>.badge{order:1}
+  .hxd-row>.rt-step{order:1;margin-left:auto}
+  .hxd-row>a:first-child~.hxd-tit{order:2;flex:1 1 100%;white-space:normal;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .hxd-row>a:first-child~.hxd-meta{order:3;white-space:normal}
+  .hxd-row>a.small{order:3}
+  /* agenda de hoje: hora + título na mesma linha, selo e "entrar" embaixo */
+  .hxd-row>.hxd-hora+.hxd-tit{flex:1 1 calc(100% - 60px);white-space:normal;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .hxd-grid{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ================= 4. Telas (cada bloco é de uma tela/grupo) ================= */
+/* ---- 📱 grupo: hub-pessoal (Início, Inbox, Menções, Meu dia, Roadmap) ---- */
+/* ---- fim: hub-pessoal ---- */
+
+/* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda, Meu Planejamento, Planejado × realizado) ---- */
+/* ---- fim: apontar ---- */
+
+/* ---- 📱 grupo: projetos (Prioridades, Visão Geral, Resumo, Projetos, Cronograma) ---- */
+/* ---- fim: projetos ---- */
+
+/* ---- 📱 grupo: time (Timesheet, Ranking, Tickets, Qualidade, Auditoria, Gestão, Alertas) ---- */
+/* ---- fim: time ---- */
+
+/* ---- 📱 grupo: analises (Analytics, Central de Relatórios, Métricas, Meu tempo, Uso) ---- */
+/* ---- fim: analises ---- */
+
+/* ---- 📱 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias) ---- */
+/* ---- fim: negocio ---- */
+
+/* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */
+/* ---- fim: config ---- */
+
+/* ---- 📱 grupo: global (menu, abas, modal, guias, paletas, busca de tickets, avisos) ---- */
+/* ---- fim: global ---- */
