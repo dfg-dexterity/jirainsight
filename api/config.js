@@ -390,6 +390,7 @@ function decPublico(d) {
     prazo: d.prazo || '', ticket: d.ticket || '', projeto: d.projeto || '',
     contexto: d.contexto || '', ataUrl: d.ata_url || '',
     decididoEm: d.decidido_em || '', atualizadoEm: d.updated_at,
+    visivelCliente: d.visivel_cliente === true,   // 🌐 portal do cliente: o interruptor fica em 16d (admin-decisao)
   };
 }
 async function decisoes(req, res, base, headers) {

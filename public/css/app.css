@@ -1192,6 +1192,29 @@
   @media (max-width:600px){ .pcli-add input{min-width:0;flex:1 1 140px} }
   .ad-portal input{flex:1 1 220px;min-width:150px;font-size:12px;padding:5px 8px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao2);color:var(--grafite)}
   .ad-portal .btn{padding:4px 10px;font-size:12px}
+  /* 🌐 Portal do cliente (16d): seções, foco, tabelas editáveis, formulário e pré-visualização */
+  .pt-secs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .pt-secs .btn{border-color:var(--linha)} .pt-secs .btn.on{background:var(--cerceta);border-color:var(--cerceta);color:#fff}
+  .pt-secs .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .pt-foco{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border:1px dashed var(--linha2);border-radius:10px;background:var(--cartao2)}
+  .pt-aviso-dom code{font-family:var(--mono,ui-monospace,monospace);font-size:12px;word-break:break-all}
+  .badge.pt-pub{background:rgba(16,185,129,.14);color:#047857;font-weight:700} .badge.pt-rasc{background:var(--trilho);color:var(--muted)}
+  .pt-tab input[type=text],.pt-tab input[type=url],.pt-tab input[type=date],.pt-tab input[type=datetime-local],.pt-tab input[type=number],.pt-tab select{font-family:var(--corpo);font-size:13px;padding:5px 7px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite);min-width:0}
+  .pt-tab select{min-width:90px} .pt-tab td.pt-acoes{white-space:nowrap} .pt-tab tr.pt-l-pub td:first-child{border-left:3px solid #047857}
+  .pt-form input[type=url],.pt-form input[type=text]{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:260px}
+  .pt-form textarea{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);width:100%;max-width:820px;box-sizing:border-box;resize:vertical}
+  .pt-form .campo{margin-bottom:8px} .pt-cal-l{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .pt-pub-l{padding:6px 0 10px} .pt-blocos .check,.pt-epicos .check{padding-bottom:2px}
+  .pt-epicos{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .pt-filtros{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px} .pt-filtros .btn.on{background:var(--hoverbg);border-color:var(--cerceta)}
+  .pt-novos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .pt-novo{border:1px dashed var(--linha2);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--cartao2)}
+  .pt-novo input[type=text],.pt-novo input[type=url],.pt-novo input[type=date],.pt-novo input[type=datetime-local]{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite)}
+  .pt-grupo{margin-top:12px}
+  .pt-acessos .pcli-bloco>.ad-portal{display:none}   /* o bloco já vem aberto; o cabeçalho "▾ Acessos" é da tela do Admin */
+  .pt-prev-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .pt-preview{width:100%;height:78vh;min-height:480px;border:1px solid var(--linha);border-radius:12px;background:#fff}
+  .pt-cal-ok,.pt-cal-erro{margin-top:6px}
   /* Receita / AMS por cliente */
   .rc2-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
   .rc2-card{border:1px solid var(--linha);border-radius:12px;padding:14px 16px;background:var(--cartao);border-left:5px solid #188918}

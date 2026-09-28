@@ -262,11 +262,14 @@ function pcliApi(acao, opcoes){
     { method:o.corpo?'POST':'GET', headers:h, body:o.corpo?JSON.stringify(o.corpo):undefined })
     .then(r=>r.json()).catch(()=>({ ok:false, erro:'Falha de rede.' }));
 }
+// O bloco de acessos vive em duas telas: 📑 Contratos › ⚙️ Admin e, desde 2026-09-28, 🌐 Portal do cliente
+// (16d, seção 👤 Acessos — o mesmo HTML e os mesmos handlers). Redesenha a que está aberta.
+function pcliReRender(){ if(estado.vista==='admin') renderAdmin(); else if(estado.vista==='portal'&&typeof renderPortal==='function') renderPortal(); }
 function pcliCarrega(cid){
   estado.admin.acessos[cid]='carregando';
   pcliApi('contas',{ qs:'&ct='+encodeURIComponent(cid) }).then(j=>{
     estado.admin.acessos[cid]=(j&&j.ok)?(j.contas||[]):{ erro:(j&&j.erro)||'Não consegui listar os acessos.' };
-    if(estado.vista==='admin') renderAdmin();
+    pcliReRender();
   });
 }
 function pcliBlocoHTML(c){
@@ -840,7 +843,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     const abrindo=!estado.admin.acessosAbertos[cid];
     estado.admin.acessosAbertos[cid]=abrindo;
     if(abrindo && estado.admin.acessos[cid]===undefined) pcliCarrega(cid);
-    renderAdmin();
+    pcliReRender();
   }
   else if(t.hasAttribute('data-pcli-add')){
     const cid=t.getAttribute('data-pcli-add');
