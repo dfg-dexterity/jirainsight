@@ -161,5 +161,10 @@
   .gp-acoes .btn,.gp-mini{min-height:44px}
   #gp-dias{min-height:44px} .gp-filtros label.small{min-height:44px}
   .pger-x{min-width:32px;min-height:32px}
+  /* alvos de dedo dos elementos novos: chip 👤 Meus projetos / ✕ do escopo, e na ficha do 📁 projeto o seletor de
+     gerente, a sugestão "usar o líder do Jira" e o botão-link 🧭 pendências → (antes: 22–29px, "graves" na auditoria) */
+  .gp-filtros .chip,.proj-gerentes .lnk-ficha,.proj-gerentes .chip,.pger-sel,[data-proj-ger-add]{min-height:44px}
+  .gp-row7 .lnk-ficha{min-height:36px}   /* 📁 e 💹 dentro da tabela do bloco 7: 36px, como o 📋 do cabeçalho da pessoa */
+  #gp-semvenc{width:32px;height:32px}    /* a caixa "incluir sem vencimento" do tamanho do dedo (o rótulo já tem 44px) */
 }
 /* ---- fim: gp ---- */
