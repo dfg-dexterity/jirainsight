@@ -546,7 +546,7 @@ function renderApontar(){
     corpoLista = barraGrupos + `<div class="ap-lista">${rows}</div>`;
   }
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="tela-apontar">
     ${faixaId}
     ${bannerConvites}
     ${htmlPainelHoras()}

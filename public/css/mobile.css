@@ -96,6 +96,170 @@
 /* ---- fim: pessoal ---- */
 
 /* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda) ---- */
+/* Escopo: .tela-apontar / .tela-rateio / .tela-agenda são as raízes que cada tela desenha
+   (ap-filtros, ap-row, ap-vis, ap-id… também aparecem em telas de outros grupos). */
+@media (max-width:600px){
+  /* ===== ⏱ Apontar ===== */
+  /* faixa "Apontando como": as ações numa linha que quebra, não uma faixa gigante por botão */
+  .tela-apontar .ap-id,.tela-rateio .ap-id{padding:8px 10px;gap:0 4px;margin-bottom:10px}
+  .tela-apontar .ap-id>.muted.small,.tela-rateio .ap-id>.muted.small{flex:1 1 100%;line-height:1.35;margin:1px 0 2px}
+  .tela-apontar .ap-id .btn,.tela-rateio .ap-id .btn{padding:6px 8px;font-size:13.5px}
+  /* KPIs (chamados · vencidos · sem horas · vencem hoje): 2 por linha, mais baixos */
+  .tela-apontar .kpis.ts-kpis{gap:8px;margin-bottom:12px}
+  .tela-apontar .kpi[data-ap-fil]{padding:10px 12px}
+  .tela-apontar .kpi[data-ap-fil] .l{margin-top:5px;line-height:1.3}
+  /* Filtros: categoria|projeto e as duas caixas lado a lado; buscar + "Atualizar lista" na
+     mesma linha. (app.css empilhava tudo — eram ~550px de filtros antes do 1º chamado) */
+  .tela-apontar .ap-filtros{flex-direction:row;align-items:flex-end;gap:8px 10px;margin-bottom:10px}
+  .tela-apontar .ap-filtros>*{flex:1 1 100%;min-width:0}
+  .tela-apontar .ap-filtros>.campo:nth-child(4),.tela-apontar .ap-filtros>.campo:nth-child(5),
+  .tela-apontar .ap-filtros>.check{flex-basis:calc(50% - 5px)}
+  .tela-apontar .ap-filtros>.check{padding-bottom:0!important;min-height:40px;line-height:1.25}
+  .tela-apontar .ap-filtros>.check input{width:20px;height:20px;flex:none;margin:0}
+  .tela-apontar .ap-filtros>.campo:nth-last-child(2){flex:1 1 120px}
+  .tela-apontar .ap-filtros>.campo:last-child{flex:0 0 auto;width:auto}
+  .tela-apontar .ap-filtros>.campo:last-child>label{display:none}   /* rótulo &nbsp; só alinhava o botão */
+  .tela-apontar .ap-filtros input,.tela-apontar .ap-filtros select{min-height:42px;box-sizing:border-box}
+  .tela-apontar .ap-vis{margin-bottom:10px}
+  /* 📥 convites de reunião: a regra .cv-lista do modal de convite (190px com rolagem
+     própria) também pega esta lista — no celular sobrava 1 convite visível numa caixinha */
+  .tela-apontar .cv-lista{max-height:none;overflow:visible;border:0;padding:0}
+  .tela-apontar .cv-row{padding:10px;gap:6px 8px}
+  .tela-apontar .cv-row .ap-resumo{flex:1 1 100%}
+  /* Cartão do chamado: menos respiro; ações do ticket com altura de dedo */
+  .tela-apontar .ap-lista{gap:10px}
+  .tela-apontar .ap-proj-head{margin-top:14px}
+  .tela-apontar .ap-proj-cont{font-size:12px}
+  .tela-apontar .ap-grp-bar{flex-wrap:wrap;row-gap:6px}
+  .tela-apontar .ap-grp-bar>*{white-space:nowrap}
+  .tela-apontar .ap-row{padding:10px 10px 12px 12px;gap:8px;border-left-width:4px}
+  .tela-apontar .ap-l1{row-gap:4px}
+  /* chave do ticket (abre o Jira): alvo de toque mais alto sem mexer na linha */
+  .tela-apontar .ap-l1>a,.tela-apontar .cv-row>a{display:inline-block;padding:6px 0;margin:-6px 0}
+  .tela-apontar .cv-row .badge{font-size:12px}
+  .tela-apontar .ap-l2{gap:6px}
+  .tela-apontar .ap-l2 .badge{font-size:12px;padding:4px 10px;min-height:32px;box-sizing:border-box}
+  /* Lançar horas: chips numa faixa só, tempo + dia lado a lado, comentário + Apontar
+     (app.css punha cada campo numa linha inteira: 5 faixas por chamado) */
+  .tela-apontar .ap-log{flex-direction:row;align-items:center;gap:8px}
+  .tela-apontar .ap-log>.ap-chips{flex:1 1 100%;flex-wrap:nowrap}
+  .tela-apontar .ap-log>.ap-chips .chip{flex:1 1 0;min-width:0;padding:6px 2px;text-align:center}
+  .tela-apontar .ap-log input{min-height:42px;box-sizing:border-box}
+  .tela-apontar .ap-log .ap-tempo{flex:0 0 88px;width:88px}
+  .tela-apontar .ap-log .ap-data{flex:1 1 120px;min-width:0;width:auto}
+  .tela-apontar .ap-log .ap-coment{flex:1 1 130px;min-width:0}
+  .tela-apontar .ap-log .btn{flex:0 0 auto}
+  .tela-apontar .ap-log .btn.primario{padding:7px 14px}
+  /* Painéis abertos na linha (status, reagendar, responsável, mover, comentar) */
+  .tela-apontar .ap-trans{padding:8px;gap:6px}
+  .tela-apontar .ap-trans-rot{flex:1 1 100%}
+  .tela-apontar .ap-resp-panel .ap-resp-sel,.tela-apontar .ap-mover-panel .ap-mover-sel,
+  .tela-apontar .ap-mover-panel .ap-mover-tipo{max-width:none;flex:1 1 100%;min-height:42px}
+  .tela-apontar .ap-reag .ap-reag-data{flex:1 1 140px;min-width:0;min-height:40px;box-sizing:border-box}
+  .tela-apontar .ap-coment-txt{min-width:0}
+  /* Tabela: a chave fica presa à esquerda ao rolar */
+  .tela-apontar table.ap-tab th:first-child,.tela-apontar table.ap-tab td:first-child{position:sticky;left:0;z-index:1;background:var(--cartao)}
+  .tela-apontar table.ap-tab th:first-child{z-index:2}
+
+  /* ===== ⏱ Meu timesheet (grade semanal) ===== */
+  #mh-card .mts-head{gap:8px 10px}
+  #mh-card .mts-nav .btn{min-width:40px;font-size:14px}
+  /* legenda: uma faixa que rola de lado em vez de 5 linhas (o nome e as horas de cada
+     projeto também estão nas linhas da grade) */
+  #mh-card .mts-leg{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px;padding-bottom:2px;scrollbar-width:none}
+  #mh-card .mts-leg::-webkit-scrollbar{display:none}
+  #mh-card .mts-lchip{flex:0 0 auto;white-space:nowrap}
+  /* grade rola dentro do card; a 1ª coluna (projeto/ticket) fica presa e estreita,
+     com o resumo do ticket numa 2ª linha — antes ela ocupava a largura toda */
+  #mh-card .ts-wrap>table.mts-tab{min-width:0;font-size:12.5px}   /* sem os 720px fixos: cada dia só o que precisa */
+  #mh-card .mts-tab th,#mh-card .mts-tab td{padding:7px 7px}
+  #mh-card .mts-tab th.mts-d{white-space:normal;line-height:1.25;min-width:40px}   /* "SEG" / "31/08" em 2 linhas */
+  #mh-card .mts-tab .mts-c1{position:sticky;left:0;z-index:1;background:var(--cartao);white-space:normal;
+    width:118px;min-width:118px;max-width:118px;box-shadow:inset -1px 0 0 var(--linha);overflow:hidden}
+  #mh-card tr.mts-proj td.mts-c1{background:var(--cartao2)}
+  #mh-card tr.mts-tk .mts-c1{padding-left:8px}
+  #mh-card .mts-c1 strong{overflow-wrap:anywhere}
+  #mh-card .mts-res{display:block;max-width:100%;margin:1px 0 0 12px}
+  #mh-card .mts-tgl{min-width:32px;min-height:32px;padding:0;margin:-8px -9px}   /* alvo 32px, ocupa ~14px na linha */
+  #mh-card .mts-c1 a{display:inline-block;padding:8px 0;margin:-8px 0}
+  /* semana vazia: o aviso quebra linha dentro da área visível (era 1 linha de 700px) */
+  #mh-card .mts-tab td[colspan]{display:block;position:sticky;left:0;white-space:normal;text-align:left;
+    width:calc(100vw - 66px);max-width:none;box-sizing:border-box}
+  /* calendário: a régua das horas fica presa ao rolar os dias */
+  #mh-card .mts-gutter{position:sticky;left:0;z-index:2;background:var(--cartao)}
+  #mh-card .mts-cal{grid-template-columns:repeat(7,minmax(104px,1fr));min-width:728px}
+
+  /* ===== 👥 Apontar reunião p/ várias pessoas (modal) ===== */
+  .mt-form:has(#rg-issue){flex-direction:row;flex-wrap:wrap}
+  .mt-form:has(#rg-issue)>.campo{width:100%}
+  .mt-form:has(#rg-issue)>.campo:nth-child(-n+2){width:auto;flex:1 1 0}
+  #rg-issue,#rg-tempo{width:100%!important;box-sizing:border-box}
+  #rg-pessoas .check{min-height:36px;padding-bottom:0}
+  /* 📨 Convidar (aberto pela linha do chamado): o campo de tempo não tem type e ficava
+     com a cara do navegador */
+  .modal #cv-tempo{font-family:var(--corpo);padding:7px 10px;border:1px solid var(--linha);border-radius:8px;
+    background:var(--cartao);color:var(--grafite);box-sizing:border-box;min-height:40px}
+
+  /* ===== ➗ Rateio ===== */
+  .tela-rateio .ap-filtros .campo input[type=text]{font-family:var(--corpo);padding:7px 10px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);box-sizing:border-box;min-height:42px}
+  .tela-rateio .ap-filtros .campo input[type=date]{min-height:42px;box-sizing:border-box}
+  .tela-rateio .ap-filtros .campo input:disabled{opacity:.7}
+  /* a divisão vira um cartão por ticket (ticket + ✕ em cima, controle + horas embaixo);
+     antes as horas ficavam fora da tela, à direita de uma tabela de 560px */
+  .tela-rateio .scroll-x table.rt-tab{min-width:0;width:100%}
+  .tela-rateio .rt-tab,.tela-rateio .rt-tab tbody{display:block}
+  .tela-rateio .rt-tab thead{display:none}
+  .tela-rateio .rt-tab tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:9px 0;border-bottom:1px solid var(--linha)}
+  .tela-rateio .rt-tab td{display:block;border:0;padding:0;white-space:normal;text-align:left}
+  .tela-rateio .rt-tab td:nth-child(2){flex:1 1 calc(100% - 80px);min-width:0}
+  .tela-rateio .rt-tab td:nth-child(6){order:1;margin-left:auto}
+  .tela-rateio .rt-tab td:nth-child(3){order:2;margin-left:21px}
+  .tela-rateio .rt-tab td:nth-child(4){order:2;flex:1 1 auto;text-align:right}
+  .tela-rateio .rt-tab td:nth-child(5){order:3;flex:1 1 100%;margin-left:21px}
+  .tela-rateio .rt-tab td:empty{display:none}
+  .tela-rateio .rt-tab td a{display:inline-block;padding:8px 0;margin:-8px 0}
+  .tela-rateio .rt-tab .badge{font-size:12px}
+  .tela-rateio .rt-tab tr:hover td{background:none}
+
+  /* ===== 📅 Agenda ===== */
+  /* faixa "N evento(s) · ⟳ Atualizar" alinhada ao título, sem a caixa vazia embaixo */
+  .tela-agenda .ts-fonte{padding:0;margin:0;gap:4px 10px!important}
+  .tela-agenda .ts-fonte [data-ag-refresh]{margin-left:auto}
+  /* 🎫 Controle de tickets: cada reunião é um cartão (título; quem/situação; ações) */
+  .tela-agenda .ag-ct-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 8px;margin:8px 0;padding:10px;
+    border:1px solid var(--linha);border-radius:10px}
+  .tela-agenda .ag-ct-row>div{padding:0}
+  .tela-agenda .ag-ct-row>div:first-child{flex:1 1 100%}
+  .tela-agenda .ag-ct-row>div:nth-child(2),.tela-agenda .ag-ct-row>div:nth-child(3){flex:0 1 auto}
+  .tela-agenda .ag-ct-acao{flex:1 1 100%;margin-top:6px!important;gap:4px 6px}
+  .tela-agenda .ag-ct-acao .btn{padding:6px 8px;font-size:13.5px}   /* "📨 cobrar" + "📝 criar assim mesmo" cabem numa linha a 360px */
+  .tela-agenda .ag-ct-bloco{margin:10px 0 12px}
+  .tela-agenda .badge,.tela-agenda .ag-ct-atras{font-size:12px}
+  /* links no meio do texto (RDF-123 ↗, entrar ↗): área de toque maior sem mexer na linha */
+  .tela-agenda .ag-ct-row a,.tela-agenda .ag-info a{display:inline-block;padding:9px 2px;margin:-9px -2px}
+  .tela-agenda .ag-sec-corpo{padding:0 8px 6px}
+  .tela-agenda .ag-sec>summary{padding:9px 10px;line-height:1.35}
+  /* eventos por dia: cartões mais enxutos e ações lado a lado */
+  .tela-agenda .vg-card{padding:12px}
+  .tela-agenda .vg-card>h3{margin:0 0 2px;font-size:15px}
+  .tela-agenda .ag-ev{padding:10px 2px;gap:3px}
+  .tela-agenda .ag-info{line-height:1.5}
+  .tela-agenda .ag-acao{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:3px}
+  /* modal "Ticket da reunião": o nome não se espreme ao lado da explicação */
+  .ag-modal .check{flex-wrap:wrap;row-gap:0;min-height:36px}
+  #rg-pessoas .check input,.ag-modal .check input,#rg-teams{width:18px;height:18px;margin:0}
+}
+@media (pointer:coarse) and (max-width:760px){
+  /* chips de filtro/atalho/visualização com altura de dedo nas telas deste grupo */
+  .tela-apontar .ap-chips .chip,.tela-apontar .ap-vis .chip,.tela-apontar .ap-grp-bar .chip,
+  .tela-apontar .ap-trans .chip,#mh-card .ap-chips .chip,
+  .tela-rateio .ap-vis .chip,[data-rg-chip],#rg-todos,#rg-nenhum,#rg-time-salvar{min-height:36px;padding-top:6px;padding-bottom:6px}
+  .tela-apontar .ap-rec-tgl{min-width:34px;min-height:34px}
+  .tela-apontar .ap-proj-head{min-height:44px}
+  .tela-rateio .rt-step{min-width:38px;min-height:38px}
+  .tela-agenda .ag-sec>summary{min-height:44px;box-sizing:border-box}
+}
 /* ---- fim: apontar ---- */
 
 /* ---- 📱 grupo: projetos (Prioridades, Visão Geral, Resumo, Projetos, Cronograma) ---- */
