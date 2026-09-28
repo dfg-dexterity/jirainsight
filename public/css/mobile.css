@@ -102,6 +102,264 @@
 /* ---- fim: projetos ---- */
 
 /* ---- 📱 grupo: time (Timesheet, Ranking, Tickets, Qualidade, Auditoria, Gestão, Alertas) ---- */
+/* Escopo: a raiz de cada tela ganhou uma classe (vtm + vtm-ts/vtm-rk/vtm-tk/vtm-qa/vtm-aud/vtm-gx/vtm-alx)
+   — só marcadores, sem regra fora daqui, então o computador não muda. Nada do que é compartilhado
+   (.ap-filtros, .ap-vis, .chip, .btn) muda nas telas de outros grupos. */
+@media (max-width:600px){
+  /* -- comum: botões "Fiori" transparentes soltos viravam texto flutuante; aqui ganham contorno -- */
+  .vtm .kpi{padding:12px}
+  .vtm .kpi .v{font-size:26px}
+  .vtm .chip{min-height:36px;padding:6px 12px;font-size:13px}
+  .vtm .card h2{font-size:16px;line-height:1.3}
+  .vtm .card h2 span{display:block;margin:3px 0 0;font-size:12.5px;line-height:1.4}
+  /* filtros com botão: o rótulo "&nbsp;" que alinhava o botão no computador vira só altura perdida */
+  .vtm-qa .ap-filtros,.vtm-aud .ap-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;align-items:end}
+  .vtm-qa .ap-filtros>.campo,.vtm-aud .ap-filtros>.campo{width:auto;min-width:0}
+  .vtm-qa .ap-filtros>.campo:nth-child(n+3)>label,.vtm-aud .ap-filtros>.campo:nth-child(n+3)>label{display:none}
+  .vtm-qa .ap-filtros>.campo:nth-child(3):last-child,.vtm-aud .ap-filtros>.campo:nth-child(3):last-child{grid-column:1/-1}
+  .vtm-qa .ap-filtros .btn,.vtm-aud .ap-filtros .btn{width:100%;min-height:44px}
+  .vtm-qa .ap-filtros .btn:not(.primario),.vtm-aud .ap-filtros .btn:not(.primario){border-color:var(--linha);background:var(--cartao2)}
+  .vtm .estado{padding:24px 12px}
+
+  /* -- ⏱ Timesheet -- */
+  .vtm-ts .ts-fonte{flex-wrap:wrap;gap:6px 10px;padding:10px 12px;font-size:13px;line-height:1.4}
+  .vtm-ts .ts-fonte>span:nth-child(2){flex:1 1 calc(100% - 34px)}
+  .vtm-ts .ts-fonte .spacer{display:none}
+  .vtm-ts .ts-fonte .btn{margin-left:auto;min-height:38px;padding:6px 12px;border-color:var(--linha);background:var(--cartao)}
+  .vtm-ts .ts-legend{gap:6px 12px;margin-bottom:8px}
+  .vtm-ts table.ts .ts-nome{max-width:118px;letter-spacing:.2px}
+
+  /* -- 🏆 Ranking -- */
+  .vtm-rk .rk-abas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .vtm-rk .rk-abas .btn{white-space:normal;line-height:1.25;min-height:48px;padding:6px 8px;font-size:13.5px;
+    border-color:var(--linha);text-align:center}
+  .vtm-rk .rk-abas .btn.primario{border-color:var(--cerceta)}
+  .vtm-rk .rk-faixas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .vtm-rk .rk-faixas .chip{width:100%;padding:6px 8px}
+  .vtm-rk .rk-faixas>.muted{grid-column:1/-1;font-size:12px}
+  /* pódio: os três lado a lado (antes o 3º caía sozinho numa linha) */
+  .vtm-rk .rk-podio{flex-wrap:nowrap;gap:6px;align-items:flex-end;padding-top:14px}
+  .vtm-rk .rk-pod{min-width:0;flex:1 1 0;max-width:none;padding:12px 4px 8px}
+  .vtm-rk .rk-pod.p1{padding-top:16px}
+  .vtm-rk .rk-pod-medal{font-size:22px}
+  .vtm-rk .rk-pod-nome{white-space:normal;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+  .vtm-rk .rk-pod-pct{font-size:22px}
+  .vtm-rk .rk-100{font-size:13px}
+  .vtm-rk .rk-pod-sub{font-size:12px;line-height:1.3}
+  .vtm-rk .rk-pod-stars{min-height:0}
+  /* linhas do ranking: o nome não some mais atrás do selo ("B…") — o selo desce */
+  .vtm-rk .rk-row{grid-template-columns:24px minmax(0,1fr) auto;gap:8px}
+  .vtm-rk .rk-top{flex-wrap:wrap;row-gap:4px}
+  .vtm-rk .rk-nome{white-space:normal;font-size:14.5px}
+  .vtm-rk .rk-rowstars{margin-left:0}
+  .vtm-rk .rk-pct{font-size:19px}
+  .vtm-rk .rk-sub{font-size:12px}
+  .vtm-rk .rk-mchip{flex-wrap:wrap;row-gap:2px}
+  /* engajamento: medalha numa coluna estreita e os indicadores legíveis */
+  .vtm-rk .rklb-row{gap:8px;padding:10px}
+  .vtm-rk .rklb-pos{flex-basis:26px;font-size:17px}
+  .vtm-rk .rklb-chips{font-size:12.5px;gap:5px}
+  .vtm-rk .rklb-chips span{padding:3px 8px}
+  .vtm-rk .rkhm-nome{flex-basis:104px}
+  .vtm-rk .rkhm-v,.vtm-rk .rkhm-h{font-size:12px}
+  /* scoreboard: data com cara de campo e nome fixo ao rolar as colunas */
+  .vtm-rk .rad-sep{display:none}
+  .vtm-rk #sc-inicio{min-height:40px;padding:6px 10px;border:1px solid var(--linha);border-radius:8px;
+    background:var(--cartao2);color:var(--grafite);font-family:var(--corpo)}
+  .vtm-rk .sc-tab td:first-child,.vtm-rk .sc-tab th:first-child{position:sticky;left:0;z-index:1;background:var(--cartao)}
+
+  /* -- 🎫 Tickets (lista do período) -- */
+  .vtm-tk .tk-bar{justify-content:stretch}
+  .vtm-tk .tk-group-sel{width:100%;white-space:nowrap}
+  .vtm-tk .tk-group-sel select{flex:1 1 auto;width:auto;min-width:0}
+  /* a lista por ticket vira cartões: código + horas, resumo inteiro, projeto · tipo, números */
+  .vtm-tk .ts-wrap:has(> .tk-tab){border:0;overflow:visible}
+  .vtm-tk .ts-wrap>table.tk-tab{min-width:0;display:block}
+  .vtm-tk .tk-tab thead{display:none}
+  .vtm-tk .tk-tab tbody{display:flex;flex-direction:column;gap:8px}
+  .vtm-tk .tk-tab tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;border:1px solid var(--linha);
+    border-radius:12px;padding:10px 12px;background:var(--cartao)}
+  .vtm-tk .tk-tab tr::before{content:'';order:4;flex:1 1 100%;height:0}
+  .vtm-tk .tk-tab td{display:block;border:0;padding:0;white-space:normal;text-align:left}
+  .vtm-tk .tk-tab td:nth-child(1){order:1;font-size:14px;font-weight:700}
+  .vtm-tk .tk-tab td:nth-child(1) a{display:inline-flex;align-items:center;min-height:36px}
+  .vtm-tk .tk-tab td:nth-child(5){order:2;margin-left:auto;font-weight:700;font-size:14px}
+  .vtm-tk .tk-tab td:nth-child(5)::before{content:'⏱ ';font-weight:400}
+  .vtm-tk .tk-tab td.tk-nome{order:3;flex:1 1 100%;max-width:none;white-space:normal;font-size:14px;line-height:1.4}
+  .vtm-tk .tk-tab td:nth-child(3),.vtm-tk .tk-tab td:nth-child(4){order:3;font-size:12.5px;color:var(--texto2)}
+  .vtm-tk .tk-tab td:nth-child(4){margin-left:-6px}
+  .vtm-tk .tk-tab td:nth-child(4)::before{content:'· '}
+  .vtm-tk .tk-tab td:nth-child(n+6){order:5;font-size:12.5px;color:var(--grafite);font-weight:600}
+  .vtm-tk .tk-tab td:nth-child(n+6)::before{font-weight:400;color:var(--muted)}
+  .vtm-tk .tk-tab td:nth-child(6)::before{content:'Pessoas '}
+  .vtm-tk .tk-tab td:nth-child(7)::before{content:'Alter. '}
+  .vtm-tk .tk-tab td:nth-child(8)::before{content:'Trans. '}
+  .vtm-tk .tk-tab td:nth-child(9)::before{content:'Coment. '}
+  .vtm-tk .tk-tab td:nth-child(10)::before{content:'Criado '}
+  .vtm-tk .tk-tab td:nth-child(11)::before{content:'Última '}
+  /* agrupado: continua tabela (números lado a lado), com o nome fixo ao rolar */
+  .vtm-tk .ts-wrap>table:not(.tk-tab){min-width:620px}
+  .vtm-tk .ts-wrap>table:not(.tk-tab) td:first-child,.vtm-tk .ts-wrap>table:not(.tk-tab) th:first-child{
+    position:sticky;left:0;z-index:1;background:var(--cartao);min-width:140px;max-width:160px;white-space:normal}
+
+  /* -- 🔎 Qualidade (IA) e 🕵️ Auditoria -- */
+  .vtm-qa .ia-geral,.vtm-aud .ia-geral{flex-wrap:wrap}
+  .vtm-qa .qa-card{padding:12px 12px 12px 14px;gap:8px}
+  .vtm-qa .qa-card .ap-l1{align-items:center;row-gap:6px}
+  .vtm-qa .qa-card .ap-resumo{flex:1 1 100%;font-size:14px;line-height:1.4}
+  .vtm-qa .qa-card .ap-l1 .spacer{display:none}
+  .vtm-qa .qa-card .badge,.vtm-qa .qa-card .aloc-badge{font-size:12px}
+  .vtm-qa .qa-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .vtm-qa .qa-acts>.muted{grid-column:1/-1}
+  .vtm-qa .qa-acts .btn,.vtm-aud .aud-acao .btn{min-height:40px;padding:6px 12px;font-size:13px;line-height:1.25;
+    white-space:normal;text-align:left;border-color:var(--linha);background:var(--cartao2)}
+  .vtm-qa .qa-acts .btn.primario{background:var(--cerceta);border-color:var(--cerceta)}
+  .vtm-aud .aud-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .vtm-aud .aud-card{padding:12px}
+  .vtm-aud .aud-acao{margin:6px 0}
+  .vtm-aud .aud-prob-t{flex-wrap:wrap}
+  .vtm-aud .aud-prob-k a{display:inline-block;padding:4px 0}
+
+  /* -- 🛠 Gestão de tickets (Ações em massa) -- */
+  .vtm-gx .ap-id{padding:10px 12px;gap:4px 10px}
+  .vtm-gx .ap-id .muted{flex:1 1 100%;font-size:12.5px;line-height:1.4}
+  .vtm-gx .ap-id .spacer{display:none}
+  .vtm-gx .ap-id .btn{min-height:38px;padding:6px 12px;border-color:var(--linha);background:var(--cartao)}
+  /* filtros em grade: 2 por linha, busca inteira, e os botões de ação 3 por linha (sem o rótulo vazio) */
+  .vtm-gx .ap-filtros{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:end}
+  .vtm-gx .ap-filtros>.campo{grid-column:span 3;width:auto;min-width:0}
+  .vtm-gx .ap-filtros>.campo:nth-child(5){grid-column:1/-1}
+  .vtm-gx .ap-filtros>.campo:nth-child(n+6){grid-column:span 2}
+  .vtm-gx .ap-filtros>.campo:nth-child(n+6)>label{display:none}
+  .vtm-gx .ap-filtros>.campo:nth-child(n+6)>.btn{width:100%;min-height:44px;padding:6px 4px;font-size:12.5px;line-height:1.2;
+    white-space:normal;border-color:var(--linha);background:var(--cartao2)}
+  .vtm-gx .ap-filtros input[type=date]{min-width:0;width:100%}
+  /* modo (lista/tabela/quadro) em segmento; agrupar e ordenar cada um com o seu rótulo na mesma linha */
+  .vtm-gx .gx-modos{gap:6px 8px}
+  .vtm-gx .gx-modos>.chip{flex:1 1 0;padding:6px 4px;white-space:nowrap}
+  .vtm-gx .gx-modos>select{flex:1 1 calc(100% - 80px);width:auto;min-width:0}
+  .vtm-gx .gx-modos>span.muted{min-width:62px}
+  .vtm-gx .gx-modos>.spacer{display:block;flex:1 1 100%;height:0}
+  .vtm-gx .gx-modos>label{min-height:36px}
+  /* prontos: uma fileira que rola de lado, em vez de 4 linhas de chips */
+  .vtm-gx .gx-prontos{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    margin-left:-12px!important;margin-right:-12px!important;padding:2px 12px}
+  .vtm-gx .gx-prontos::-webkit-scrollbar{display:none}
+  .vtm-gx .gx-prontos>*{flex:0 0 auto;white-space:nowrap}
+  .vtm-gx .gx-salvos .chip{max-width:100%}
+  /* caixas de seleção do tamanho do dedo */
+  .vtm-gx input[type=checkbox]{width:26px;height:26px;margin:0;flex:none}
+  .vtm-gx #gx-semtrat{width:22px;height:22px}
+  .vtm-gx .gx-tab td.c{width:auto;padding:0 4px 0 0!important}
+  /* tabela (padrão) → cartões: [☐ CHAVE ↗ ✓ · risco] / resumo / projeto status 👤 / números / ações */
+  .vtm-gx .ts-wrap:has(> .gx-tab){border:0;overflow:visible}
+  .vtm-gx .ts-wrap>table.gx-tab{min-width:0;display:block}
+  .vtm-gx .gx-tab thead,.vtm-gx .gx-tab tbody{display:block}
+  .vtm-gx .gx-tab thead tr{display:flex}
+  .vtm-gx .gx-tab thead th{display:none}
+  .vtm-gx .gx-tab thead th.c{display:flex;align-items:center;gap:10px;border:0;padding:2px 2px 10px}
+  .vtm-gx .gx-tab thead th.c::after{content:'selecionar todos';font-size:13px;font-weight:500;letter-spacing:0;
+    text-transform:none;color:var(--texto2)}
+  .vtm-gx .gx-tab tbody tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 0 10px;
+    border:1px solid var(--linha);border-radius:12px;padding:10px 12px;background:var(--cartao)}
+  .vtm-gx .gx-tab tbody tr::before{content:'';order:6;flex:1 1 100%;height:0}
+  .vtm-gx .gx-tab tbody tr.gx-on{border-color:var(--cerceta);box-shadow:0 0 0 2px rgba(0,112,242,.14)}
+  .vtm-gx .gx-tab tbody tr.gx-on td{background:transparent}
+  .vtm-gx .gx-tab tbody td{display:block;border:0;padding:0;white-space:normal;text-align:left;min-width:0}
+  .vtm-gx .gx-tab tbody td:nth-child(1){order:1}
+  .vtm-gx .gx-tab tbody td:nth-child(2){order:2;font-size:14.5px;font-weight:700}
+  .vtm-gx .gx-tab tbody td:nth-child(2)>a{display:inline-flex;align-items:center;min-height:36px}
+  .vtm-gx .gx-tab tbody td:nth-child(12){order:3;margin-left:auto}
+  .vtm-gx .gx-tab tbody td.rc-resumo{order:4;flex:1 1 100%;font-size:14px;line-height:1.4;color:var(--grafite)}
+  .vtm-gx .gx-tab tbody td:nth-child(4),.vtm-gx .gx-tab tbody td:nth-child(5),.vtm-gx .gx-tab tbody td:nth-child(6){order:5;font-size:12.5px}
+  .vtm-gx .gx-tab tbody td:nth-child(6)::before{content:'👤 '}
+  .vtm-gx .gx-tab tbody td:nth-child(n+7):nth-child(-n+11){order:7;font-size:12.5px;font-weight:600;margin-right:4px}
+  .vtm-gx .gx-tab tbody td:nth-child(n+7):nth-child(-n+11)::before{font-weight:400;color:var(--muted)}
+  .vtm-gx .gx-tab tbody td:nth-child(7)::before{content:'Venc. '}
+  .vtm-gx .gx-tab tbody td:nth-child(8)::before{content:'Atraso '}
+  .vtm-gx .gx-tab tbody td:nth-child(9)::before{content:'Últ. ativ. '}
+  .vtm-gx .gx-tab tbody td:nth-child(10)::before{content:'Horas '}
+  .vtm-gx .gx-tab tbody td:nth-child(11)::before{content:'Estim. '}
+  .vtm-gx .gx-tab tbody td:nth-child(13){order:8;flex:1 1 100%;margin-top:2px}
+  .vtm-gx .gx-tab .badge,.vtm-gx .gx-tab .aloc-badge,.vtm-gx .gx-tab .gx-trat{font-size:12px}
+  /* linha de grupo e "nada encontrado" (colspan) ocupam a largura toda, sem moldura de cartão */
+  .vtm-gx .gx-tab tbody tr.gx-grp-row{border:0;padding:0;background:none;box-shadow:none;margin:14px 0 8px}
+  .vtm-gx .gx-tab tbody tr:has(> td[colspan]){border:0;padding:0;background:none;box-shadow:none;margin:14px 0 8px}
+  .vtm-gx .gx-tab tbody td[colspan]{flex:1 1 100%;padding:0!important}
+  /* ações rápidas de cada ticket: uma fileira que rola de lado, 🔍 detalhes primeiro */
+  .vtm-gx .gx-acts{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;max-width:100%;padding:2px 0}
+  .vtm-gx .gx-acts::-webkit-scrollbar{display:none}
+  .vtm-gx .gx-acts button{flex:0 0 auto;min-height:36px;min-width:40px;padding:6px 12px;font-size:13px}
+  .vtm-gx .gx-acts button[data-gx-det]{order:-1}
+  /* lista (cartões operacionais) */
+  .vtm-gx .gx-lrow{display:block;position:relative;padding:10px 12px}
+  .vtm-gx .gx-lrow>.gx-chk{position:absolute;top:12px;left:12px}
+  .vtm-gx .gx-lrow .ap-l1{min-height:30px;align-items:center}
+  .vtm-gx .gx-lrow .ap-l1>a:first-child{margin-left:36px;display:inline-flex;align-items:center;min-height:36px;font-size:14.5px}
+  .vtm-gx .gx-lrow .ap-l2{flex-wrap:wrap}
+  .vtm-gx .gx-lrow .ap-l2>.gx-acts{flex:1 1 100%;min-width:0}
+  .vtm-gx .gx-lrow .ap-l1 .ap-resumo{flex:1 1 100%;font-size:14px}
+  .vtm-gx .gx-lrow .badge,.vtm-gx .gx-lrow .aloc-badge,.vtm-gx .gx-lrow .gx-trat{font-size:12px}
+  .vtm-gx .gx-lrow .badge.st-btn{min-height:32px;font-size:12px;padding:4px 10px}
+  /* quadro: a coluna quase na largura da tela e o cabeçalho do cartão quebrando */
+  .vtm-gx .kb-col{flex-basis:84%}
+  .vtm-gx .kb-top{flex-wrap:wrap}
+  .vtm-gx .kb-k{font-size:14px;display:inline-flex;align-items:center;gap:8px}
+  .vtm-gx .kb-k a{display:inline-flex;align-items:center;min-height:34px}
+  .vtm-gx .kb-card .badge,.vtm-gx .kb-card .aloc-badge,.vtm-gx .kb-head span{font-size:12px}
+  .vtm-gx .kb-res{font-size:14px}
+  .vtm-gx .kb-stbtn{min-height:34px;padding:4px 10px;font-size:12.5px}
+  /* barra das ações em massa: UMA fileira que rola de lado (antes eram 7 linhas cobrindo meia tela),
+     com o contador fixo à esquerda e sem passar por baixo dos botões flutuantes (↑ e 🧭) */
+  .vtm-gx .gx-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    gap:6px;padding:8px;margin-right:32px}
+  .vtm-gx .gx-bar::-webkit-scrollbar{display:none}
+  .vtm-gx .gx-bar .n{position:sticky;left:-8px;z-index:1;background:inherit;padding:0 6px 0 4px;align-self:stretch;
+    display:flex;align-items:center;font-size:13px}
+  .vtm-gx .gx-bar .spacer{display:none}
+  .vtm-gx .gx-bar .btn{flex:0 0 auto;white-space:nowrap;min-height:40px;padding:6px 10px;font-size:13px;
+    border-color:var(--linha);background:var(--cartao2)}
+  .vtm-gx .gx-bar .btn.perigo{border-color:rgba(210,10,10,.5);background:transparent}
+
+  /* -- 🚨 Alertas -- */
+  .vtm-alx .alx-head{align-items:center;row-gap:6px}
+  .vtm-alx .alx-filtros{gap:8px}
+  .vtm-alx .alx-filtros select{min-height:42px;padding:6px 10px}
+  .vtm-alx .alx-filtros select[data-alx-f="ord"]{flex:1 1 150px;width:auto}
+  .vtm-alx .alx-filtros label.alx-chkf{min-height:40px;font-size:13.5px}
+  .vtm-alx .alx-filtros input[type=checkbox]{width:24px;height:24px}
+  /* a caixa de seleção sai da coluna própria (que roubava ~40px de cada linha) e senta ao lado da chave */
+  .vtm-alx .alx-row{display:block;position:relative;padding:10px 12px 12px}
+  .vtm-alx .alx-chk{position:absolute;top:14px;left:12px;width:26px;height:26px;margin:0}
+  .vtm-alx .alx-l1{min-height:36px;row-gap:6px}
+  .vtm-alx .alx-key{font-size:15px;margin-left:36px}
+  .vtm-alx .alx-key a{display:inline-flex;align-items:center;min-height:36px}
+  .vtm-alx .alx-pill{font-size:12px}
+  .vtm-alx .alx-tit{white-space:normal;font-size:14px;line-height:1.4;margin-top:4px;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .vtm-alx .alx-meta{font-size:12.5px;gap:3px 12px}
+  .vtm-alx .alx-acoes{gap:6px}
+  .vtm-alx .alx-acoes .chip{display:inline-flex;align-items:center;padding:6px 11px}
+  /* seleção em lote (grudada no alto): uma fileira que rola de lado, o contador fixo */
+  .vtm-alx .alx-bulk{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px;padding:8px}
+  .vtm-alx .alx-bulk::-webkit-scrollbar{display:none}
+  .vtm-alx .alx-bulk>*{flex:0 0 auto;white-space:nowrap}
+  .vtm-alx .alx-bulk .n{position:sticky;left:-8px;z-index:1;background:inherit;padding:0 6px;font-size:13.5px;
+    align-self:stretch;display:flex;align-items:center}
+  .vtm-alx .alx-bulk .spacer{display:none}
+  .vtm-alx .al-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .vtm-alx .al-card{padding:10px 12px}
+  .vtm-alx .al-top{font-size:12px;flex-wrap:wrap}
+  .vtm-alx .al-link{display:inline-block;padding:6px 0 6px 8px}
+  .vtm-alx details.card>summary{padding:4px 0;line-height:1.4}
+  /* tema Dexterity: os cartões que nasceram das tabelas seguem os cantos retos do tema */
+  [data-theme="dexterity"] .vtm-gx .gx-tab tbody tr,[data-theme="dexterity"] .vtm-tk .tk-tab tr{border-radius:2px}
+}
+@media (max-width:400px){
+  .vtm-rk .rk-pod-pct{font-size:20px}
+  .vtm-gx .gx-modos>.muted:first-child{display:none}
+}
 /* ---- fim: time ---- */
 
 /* ---- 📱 grupo: analises (Analytics, Central de Relatórios, Métricas, Meu tempo, Uso) ---- */

@@ -88,7 +88,7 @@ function renderQualidade(){
         <td class="num">${h.bons!=null?h.bons:'—'}</td><td class="num">${h.atencao}</td><td class="num">${h.criticos}</td>
         <td class="num">${h.semVenc}</td><td class="num">${h.semResp}</td></tr>`).join('')}</tbody></table></div>`
     :'';
-  cont.replaceChildren(el(`<div><div class="card full">
+  cont.replaceChildren(el(`<div class="vtm vtm-qa"><div class="card full">
       <h2>🔎 Qualidade dos Tickets <span>auditoria por IA × boas práticas TI-04-006 · menu de ações por ticket</span></h2>
       ${controles}${corpo}${histHtml}
     </div></div>`));
@@ -251,7 +251,7 @@ function renderAudit(){
         <div class="card aud-card act"><h2>🔧 Ações para ajustar</h2>${acoesHtml}</div>
       </div>`;
   }
-  cont.replaceChildren(el(`<div><div class="card full">
+  cont.replaceChildren(el(`<div class="vtm vtm-aud"><div class="card full">
       <h2>🕵️ Auditoria de Tickets <span>validações diárias de apontamentos por pessoa · IA × TI-04-014</span></h2>
       ${controles}${corpo}
     </div></div>`));

@@ -25,7 +25,7 @@ function renderTimesheet(){
   const cont=document.getElementById('conteudo');
   const { meta, dias, hoje, linhas } = calcTimesheet();
   if(!linhas.length || !dias.length){
-    cont.replaceChildren(el(`<div>${tsFonteHtml()}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div class="vtm vtm-ts">${tsFonteHtml()}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -65,7 +65,7 @@ function renderTimesheet(){
       ${cells}</tr>`;
   }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-ts">
     ${tsFonteHtml()}
     ${cardNaoApontou()}
     <div class="kpis ts-kpis">

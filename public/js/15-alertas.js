@@ -294,7 +294,7 @@ function renderAlertas(){
     </div>`;
   }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-alx">
     ${ind}
     <div class="card full">
       ${cabLista}
