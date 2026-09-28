@@ -18,11 +18,18 @@
 //                                           x-jira-token) — o accountId é resolvido no
 //                                           servidor, nunca confiado do corpo.
 //
+// GET  /api/config?semanal=1[&semana=AAAA-MM-DD][&n=8] -> 📊 fotos do relatório semanal
+//                                           (as n mais recentes até a semana), recortadas
+//                                           pelo PAPEL da pessoa — identidade conferida no
+//                                           Jira (headers x-jira-*), papel por cfg.papeis/
+//                                           cfg.gestores no servidor. Sem identidade → 401.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
 } from './_lib/util.js';
+import { leFotos, papeisDe, recorteParaPapel, segundaDe } from './_lib/semanal.js';
 
 const TABELA = 'jirainsight_config';
 const ID = 'default';
@@ -986,6 +993,33 @@ async function usoLe(req, res, base, headers) {
   });
 }
 
+// ===========================================================================
+// 📊 RELATÓRIO SEMANAL — leitura das fotos (pedido do usuário, 2026-09-28)
+// As fotos vivem em linhas `semanal_<segunda>` desta mesma tabela (o GET normal só devolve
+// `default`, então elas nunca descem com a config para o navegador de todo o time). Aqui a
+// pessoa se identifica (token do Jira, como no planejamento) e o PAPEL é decidido no
+// servidor com a mesma regra do painel (papeisDe): gestor/negocio/diretoria/admin recebem
+// a foto inteira; os demais, o time + a própria linha + os projetos em que são gerentes.
+// O front calcula Δ, média de 4 e série de 8 a partir da lista. Nunca cacheado.
+// ===========================================================================
+async function semanalLe(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  const n = Math.max(1, Math.min(26, Number(q.n) || 8));
+  const semana = segundaDe(String(q.semana || '')) || segundaDe(spHoje());
+  const rc = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+  const rows = rc.ok ? await rc.json() : [];
+  const cfg = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+  const papeis = papeisDe(cfg, quem);
+  const fotos = await leFotos({ ate: semana, n }, { base, headers });
+  res.setHeader('Cache-Control', 'no-store');
+  return json(res, 200, {
+    ok: true, semana, n, papeis, accountId: quem.accountId,
+    semanas: fotos.map((f) => recorteParaPapel(f, { papeis, accountId: quem.accountId })),
+  });
+}
+
 export default async function handler(req, res) {
   // GET /api/config?versao=1 → versão do deploy (commit/PR), injetada pela Vercel no runtime.
   // O merge squash guarda o nº do PR no fim da mensagem do commit: "Título (#60)".
@@ -1025,6 +1059,9 @@ export default async function handler(req, res) {
     if (req.query && req.query.uso) {
       return req.method === 'POST' ? await usoGrava(req, res, base, headers) : await usoLe(req, res, base, headers);
     }
+
+    // 📊 Relatório semanal: as fotos, recortadas pelo papel de quem pede (GET, com identidade).
+    if (req.query && req.query.semanal) return await semanalLe(req, res, base, headers);
 
     // 🎯 Prioridades do time: log de decisões (sempre POST, com identidade do Jira).
     if (req.query && req.query.dec) {

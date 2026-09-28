@@ -1,7 +1,7 @@
 // Projetos e épicos para o módulo Planejar (num só endpoint, para caber no limite de
 // Serverless Functions do plano Hobby da Vercel). Leitura via conta de serviço.
 //
-// GET /api/projetos            -> projetos do Jira com seus tipos de issue
+// GET /api/projetos            -> projetos do Jira com seus tipos de issue e o líder (lead)
 // GET /api/projetos?epicos=KEY -> épicos e histórias ABERTOS do projeto KEY
 import { cacheGet, cacheSetTTL, jiraBase, jiraSearchAll, json } from './_lib/util.js';
 
@@ -112,9 +112,12 @@ async function listarConsultorias(projeto, res) {
   return json(res, 200, cacheSetTTL(ck, { projeto, campo, nome, opcoes }, 30));
 }
 
-// Catálogo de projetos (key, nome, categoria, descrição, tipos) via project/search.
-// Cacheado em 'projetos:tipos' — usado pelo catálogo default e pela Visão por Projetos.
-async function carregaCatalogoProjetos() {
+// Catálogo de projetos (key, nome, categoria, descrição, tipos, líder) via project/search.
+// Cacheado em 'projetos:tipos' — usado pelo catálogo default, pela Visão por Projetos e
+// pelo 📊 relatório semanal (nomes dos projetos da foto). Exportado para esse fim.
+// `lead` = o líder cadastrado no Jira: é só a SUGESTÃO inicial do "🧭 gerente do projeto"
+// na ficha — quem manda é cfg.projGerentes, escolhido pelos gestores no painel.
+export async function carregaCatalogoProjetos() {
   const ck = 'projetos:tipos';
   const cached = cacheGet(ck);
   if (cached) return cached.projetos;
@@ -125,7 +128,7 @@ async function carregaCatalogoProjetos() {
   let startAt = 0;
   for (let page = 0; page < 10; page += 1) {
     const r = await fetch(
-      `${base}/rest/api/3/project/search?expand=issueTypes,description&maxResults=50&startAt=${startAt}`,
+      `${base}/rest/api/3/project/search?expand=issueTypes,description,lead&maxResults=50&startAt=${startAt}`,
       { headers },
     );
     if (!r.ok) {
@@ -139,6 +142,7 @@ async function carregaCatalogoProjetos() {
         nome: p.name || p.key,
         categoria: (p.projectCategory && p.projectCategory.name) || 'Sem categoria',
         descricao: String(p.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400),
+        lead: { id: (p.lead && p.lead.accountId) || '', nome: (p.lead && p.lead.displayName) || '' },
         tipos: (p.issueTypes || []).map((t) => ({
           id: t.id,
           nome: t.name || '',
