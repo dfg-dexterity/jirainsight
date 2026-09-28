@@ -376,7 +376,10 @@ function projEspinhaVai(id, key) {
   }
   if (id === 'cronograma') { estado.cronograma.proj = key; vaiPara('cronograma'); return; }
   if (id === 'portal') {   // 🌐 abre a configuração do portal neste projeto (sem contrato, a lista explica o que falta)
-    const pt = estado.portal; pt.proj = key; pt.ct = contrato ? contrato.id : ''; pt.sec = contrato ? 'config' : 'projetos'; pt.rasc = null;
+    const pt = estado.portal;
+    if (typeof ptTrocaProjetoOk === 'function' && !ptTrocaProjetoOk(key)) return;   // rascunho sujo de OUTRO projeto: pergunta antes de descartar
+    if (pt.rascKey !== key) { pt.rasc = null; pt.rascKey = ''; }
+    pt.proj = key; pt.ct = contrato ? contrato.id : ''; pt.sec = contrato ? 'config' : 'projetos';
     if (!contrato) toast('Este projeto não está em nenhum contrato do Admin — o portal publica o projeto PARA um contrato. Cadastre-o em 📑 Contratos › 🏢 Clientes.');
     vaiPara('portal'); return;
   }

@@ -394,12 +394,17 @@ function ptPreviewHTML(K, c, info, gestor){
     <div class="muted small" style="margin-top:8px">A prévia recebe a sua identidade do Jira por <code>postMessage</code> (só nesta página, mesma origem) e chama <code>?pcli=preview</code>, que exige gestor — o cliente nunca usa esse caminho: ele entra com e-mail e senha e recebe <code>?pcli=projeto</code>, o <b>mesmo</b> conteúdo.</div></div>`;
 }
 
+// Trocar de projeto com o formulário de ⚙️ Configurar sujo descartaria o que foi digitado: pergunta antes
+// (a espinha do 📁 projeto também passa por aqui). Voltar ao MESMO projeto mantém o rascunho.
+function ptTrocaProjetoOk(k){ const st=ptSt(); const K=String(k||'').toUpperCase(); if(!st.rasc||!st.rascKey||st.rascKey===K||!ptRascSujo(st.rascKey)) return true;
+  return confirm(`Há alterações não salvas em ⚙️ Configurar de ${st.rascKey}.\n\nDescartá-las e abrir ${K}?`); }
 // ---- listeners delegados desta tela ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='portal') return; const st=ptSt(); const gestor=ptGestor(); const K=st.proj;
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-pt-sec')){ if(t.disabled) return; st.sec=t.getAttribute('data-pt-sec'); renderPortal(); estadoParaURL(); return; }
-  if(t.hasAttribute('data-pt-abrir')){ const [k,ct,sec]=t.getAttribute('data-pt-abrir').split('|'); st.proj=k; st.ct=ct; st.sec=sec||'config'; st.rasc=null; renderPortal(); estadoParaURL(); window.scrollTo({ top:0, behavior:'smooth' }); return; }
+  if(t.hasAttribute('data-pt-abrir')){ const [k,ct,sec]=t.getAttribute('data-pt-abrir').split('|'); if(!ptTrocaProjetoOk(k)) return;
+    if(st.rascKey!==k){ st.rasc=null; st.rascKey=''; } st.proj=k; st.ct=ct; st.sec=sec||'config'; renderPortal(); estadoParaURL(); window.scrollTo({ top:0, behavior:'smooth' }); return; }
   if(t.hasAttribute('data-pt-voltar')){ st.sec='projetos'; renderPortal(); estadoParaURL(); return; }
   if(t.hasAttribute('data-pt-refresh-lista')){ ptContratos().forEach(c=>ptCarregaLista(c.id,true)); renderPortal(); return; }
   if(t.hasAttribute('data-pt-tipo')){ st.fTipo=t.getAttribute('data-pt-tipo'); renderPortal(); return; }
