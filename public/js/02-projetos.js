@@ -345,6 +345,7 @@ function projEspinha(key, d) {
   const rotTipo = (t) => ((typeof rotuloTipo === 'function') ? rotuloTipo(t) : t);
   const ciclo = (c) => ((typeof amsLabelApur === 'function') ? amsLabelApur(c.apuracao || 'trimestral').toLowerCase() : 'ciclo');
   const odoo = plano && plano.odoo && plano.odoo.id ? ` · 🧾 ${plano.odoo.name || 'Odoo'}` : '';
+  const gerentes = projGerentesDe(key); const pessN = pessoasUnidas(); const nomeDe = (a) => ((pessN[a] && pessN[a].nome) || a);
   const chips = [
     chip('contrato', 'negocio', '📑 Contrato', contrato ? `${contrato.cliente || '(sem nome)'} · ${rotTipo(contrato.tipo)}` : 'nenhum cadastrado',
       contrato ? 'Abre o contrato deste projeto em 📑 Contratos › 🏢 Clientes (valor-hora, horas, vigência)' : 'Nenhum contrato do Admin mapeia este projeto — abre 📑 Contratos › 🏢 Clientes para cadastrar'),
@@ -355,15 +356,54 @@ function projEspinha(key, d) {
     chip('cronograma', 'entrega', '📅 Cronograma', mk.n ? `${nBR(mk.n)} épico(s)${mk.prox ? ' · próximo marco ' + dataBR(mk.prox) : (mk.atras ? ` · ${nBR(mk.atras)} marco(s) atrasado(s)` : ' · sem marcos com data')}` : 'sem épicos',
       'Abre 📁 Projetos › 📅 Marcos e Cronograma (R04) deste projeto: planejado × real, marcos, previsão pelo ritmo e dependências'),
     chip('execucao', 'entrega', '🛠 Execução', `${nBR(r.emAndamento)} em andamento · ${nBR(r.vencidos)} vencidos`, 'Abre 🛠 Tickets do time filtrado neste projeto — ações em massa (atribuir, status, reprogramar…)'),
+    chip('gp', 'entrega', '🧭 Pendências', `${nBR(r.vencidos)} vencidos · ${gerentes.length ? 'gerente: ' + gerentes.map((a) => nomeDe(a).split(' ')[0]).join(', ') : 'sem gerente'}`,
+      'Abre 🧭 Pendências do projeto: vencidos por pessoa, parados, sem data, cadastro incompleto — com a cobrança pronta (mensagem, Teams, comentário no Jira, Inbox)'),
     chip('apuracao', 'negocio', '🛡 Apuração', contrato ? (contrato.tipo === 'ams' ? `AMS · ${ciclo(contrato)}` : rotTipo(contrato.tipo)) : 'sem contrato',
       contrato ? (contrato.tipo === 'ams' ? 'Abre a apuração do ciclo AMS deste contrato (banco de horas, faturado)' : 'Abre 💰 Bolsa de horas & projetos — consumo × contratado e projeção') : 'A apuração precisa de um contrato no Admin — abre 📑 Contratos › 🏢 Clientes'),
     chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}" com o 📁 Resultado deste projeto aberto: receita, custo por nível e por pessoa, vendido × realizado, plano × realizado e evolução`),
   ].join('');
   return `<div class="proj-espinha"><span class="pesp-rot" data-tip="A ficha é a espinha do app: cada chip abre a tela da outra área já neste projeto — e de lá o botão 📁 traz de volta">🦴 Espinha do projeto</span>${chips}</div>`;
 }
+// ---- 🧭 Gerente(s) do projeto (2026-09-28): campo do painel (cfg.projGerentes[KEY] = [accountId,…]), editável por
+// gestores na ficha, com o LÍDER do Jira como sugestão quando está vazio. Lente, não permissão: define quem recebe
+// o resumo semanal das pendências e o que aparece em "👤 Meus projetos" da tela 🧭 Pendências. ----
+function projGerentesDe(key) { const m = cfg.projGerentes; const l = (m && typeof m === 'object') ? m[key] : null; return Array.isArray(l) ? l.filter(Boolean) : []; }   // leitor: não cria o objeto
+function projPodeEditarGerente() { return (typeof souAprovador === 'function' && souAprovador()) || (typeof temPapel === 'function' && (temPapel('gestor') || temPapel('admin'))); }
+function projGerentesHTML(key) {
+  const lst = projGerentesDe(key); const pess = pessoasUnidas(); const nome = (a) => ((pess[a] && pess[a].nome) || a);
+  const pode = projPodeEditarGerente();
+  // O líder vem do catálogo (/api/projetos, `lead:{id,nome}`); catálogo antigo sem o campo = sem sugestão, sem erro.
+  const temCat = typeof _projetosCache !== 'undefined';
+  const cat = (temCat && _projetosCache) ? _projetosCache.find((p) => p && p.key === key) : null;
+  if (temCat && !_projetosCache && !estado.projetos.gerCatB) { estado.projetos.gerCatB = true; garanteProjetos().then(() => { if (estado.vista === 'projetos') renderProjetos(); }).catch(() => {}); }
+  const lead = (cat && cat.lead && cat.lead.id) ? cat.lead : null;
+  const chips = lst.map((a) => `<span class="badge pger-chip">🧭 ${esc(nome(a))}${pode ? ` <button class="pger-x" data-proj-ger-del="${escA(a)}" data-tip="${escA(`Tirar ${nome(a)} dos gerentes deste projeto`)}" aria-label="remover">✕</button>` : ''}</span>`).join(' ');
+  let sug = '';
+  if (!lst.length && lead) sug = pode ? `<button class="chip" data-proj-ger-add="${escA(lead.id)}" data-tip="O líder cadastrado no Jira vira o gerente no painel — dá para trocar depois">usar o líder do Jira: ${esc(lead.nome || lead.id)}</button>`
+    : `<span class="muted small">líder no Jira: ${esc(lead.nome || lead.id)} · sem gerente definido no painel</span>`;
+  else if (!lst.length) sug = `<span class="muted small">${pode ? 'nenhum ainda — escolha ao lado' : 'nenhum definido (um gestor cadastra aqui)'}</span>`;
+  const opts = Object.entries(pess).filter(([a]) => !lst.includes(a)).map(([a, o]) => [a, (o && o.nome) || a]).sort((x, y) => x[1].localeCompare(y[1], 'pt'));
+  const sel = pode ? `<select class="pger-sel" data-proj-ger-sel aria-label="adicionar gerente"><option value="">+ adicionar pessoa…</option>${opts.map(([a, n]) => `<option value="${escA(a)}">${esc(n)}</option>`).join('')}</select>` : '';
+  return `<div class="proj-gerentes"><span class="pesp-rot" data-tip="Quem responde pelo projeto no painel: recebe o resumo semanal das pendências e vê o projeto em 👤 Meus projetos da tela 🧭 Pendências. Lente, não permissão.">🧭 Gerente(s) do projeto</span>${chips}${sug}${sel}<button class="lnk-ficha" data-proj-esp="gp" data-tip="Abre 🧭 Pendências do projeto já neste projeto">🧭 pendências →</button></div>`;
+}
+function projGerenteMuda(key, a, add) {
+  if (!key || !a || !projPodeEditarGerente()) return;
+  const cur = projGerentesDe(key);
+  if (add && cur.includes(a)) { toast('Já é gerente deste projeto.', 'warn'); return; }
+  if (!add && !cur.includes(a)) return;
+  const nova = add ? cur.concat(a) : cur.filter((x) => x !== a);
+  if (!cfg.projGerentes || typeof cfg.projGerentes !== 'object') cfg.projGerentes = {};   // escritor: aqui pode criar
+  if (nova.length) cfg.projGerentes[key] = nova; else delete cfg.projGerentes[key];
+  const nome = ((pessoasUnidas()[a] || {}).nome) || a;
+  logAcao({ acao: add ? 'proj-gerente-add' : 'proj-gerente-del', t: key, para: nome, ok: true }, false);
+  salvaCfg();
+  toast(add ? `✓ ${nome} agora é gerente de ${key}.` : `${nome} deixou de ser gerente de ${key}.`, 'ok');
+  renderProjetos();
+}
 function projEspinhaVai(id, key) {
   const { contrato, plano, parceria } = projEspinhaDados(key);
   const ficha = (estado.projetos.fichas || {})[key] || {};
+  if (id === 'gp') { if (estado.gp) { estado.gp.proj = key; estado.gp.meus = false; estado.gp.resp = ''; } vaiPara('gp'); return; }
   if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }
   if (id === 'parceria') {
     const st = estado.parcerias = estado.parcerias || {}; st.novo = false; st.editId = null; st.rasc = null;
@@ -531,7 +571,7 @@ function renderProjFicha(cont, key) {
     ${projToolbar()}
     <div class="card full"><h2>📁 ${esc(key)} <span>${esc(d.nome || d.projeto || '')}${d.categoria ? ` · ${esc(d.categoria)}` : ''}${projEscopoFechado(d) ? ' 🔒' : ''} · ficha do projeto</span></h2>
       <div class="vg-hero">${kpis}</div>${trunc}
-      ${projEspinha(key, d)}${tabbar}${sec}
+      ${projEspinha(key, d)}${projGerentesHTML(key)}${tabbar}${sec}
     </div></div>`));
 }
 
@@ -542,6 +582,10 @@ function projetosClick(e) {
   if (open) { const p = estado.projetos; p.sel = open.getAttribute('data-proj-open'); p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const esp = cl('[data-proj-esp]');   // 🦴 espinha do projeto → tela da outra área já neste projeto
   if (esp) { projEspinhaVai(esp.getAttribute('data-proj-esp'), estado.projetos.sel); return; }
+  const ga = cl('[data-proj-ger-add]');   // 🧭 gerente(s) do projeto
+  if (ga) { projGerenteMuda(estado.projetos.sel, ga.getAttribute('data-proj-ger-add'), true); return; }
+  const gd = cl('[data-proj-ger-del]');
+  if (gd) { projGerenteMuda(estado.projetos.sel, gd.getAttribute('data-proj-ger-del'), false); return; }
   const aba = cl('[data-proj-aba]');
   if (aba) { estado.projetos.aba = aba.getAttribute('data-proj-aba'); renderProjetos(); return; }
   const back = cl('[data-proj-back]');
@@ -554,6 +598,8 @@ function projetosClick(e) {
   if (refr) { const p = estado.projetos; if (p.sel) { delete p.fichas[p.sel]; carregaProjFicha(p.sel, true); } else { p.consolidado = null; carregaProjConsolidado(true); } renderProjetos(); return; }
 }
 function projetosChange(e) {
+  const gs = e.target.closest && e.target.closest('[data-proj-ger-sel]');   // 🧭 + adicionar gerente
+  if (gs) { if (gs.value) projGerenteMuda(estado.projetos.sel, gs.value, true); return; }
   const sel = e.target.closest && e.target.closest('[data-proj-sel]');
   if (!sel) return;
   const p = estado.projetos; p.sel = sel.value; p.aba = 'geral'; renderProjetos(); window.scrollTo({ top: 0, behavior: 'smooth' });

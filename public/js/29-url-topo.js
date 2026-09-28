@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp'];
 // 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
 // favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
 const VISTA_ALIAS={
@@ -51,7 +51,16 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   if(/^\d{4}-\d{2}-\d{2}$/.test(p.get('semana')||'')&&estado.semanal) estado.semanal.sel=p.get('semana');   // 📊 Relatório semanal: semana (segunda) aberta pelo link
-  _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
+  // 🧭 Pendências do projeto: o escopo da tela (uma chave ou várias, vindas do link/aviso) viaja em ?gproj= — nome
+  // próprio para não disputar o ?proj= do filtro global (que continua descendo para _pendentesURL e sobrevive ao
+  // reload). Compatibilidade: link antigo/externo `?v=gp&proj=KEY` SEM gproj (DMs do servidor, relatório semanal)
+  // ainda abre o escopo — e só nesse caso o proj não vira filtro global.
+  const ehGp=vURL==='gp'&&estado.gp; const gpCompat=ehGp&&!p.has('gproj');
+  if(ehGp){ const gp=estado.gp; const pj=((gpCompat?p.get('proj'):p.get('gproj'))||'').toUpperCase();
+    if(/^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(pj)){ gp.proj=pj; gp.meus=false; }
+    const rs=p.get('resp')||''; if(/^[\w:-]{5,128}$/.test(rs)||rs==='__sem__') gp.resp=rs;
+    const nd=Number(p.get('dias')); if(nd>=1&&nd<=60) gp.dias=nd; }
+  _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:gpCompat?'':(p.get('proj')||''),
     tipo:p.get('tipo')||'' };
 }
 function sincronizaControlesURL(){
@@ -101,6 +110,10 @@ function estadoParaURL(){
   if(f.categoria) p.set('cat',f.categoria);
   if(f.projeto) p.set('proj',f.projeto);
   if(f.tipo) p.set('tipo',f.tipo);
+  if(estado.vista==='gp'&&estado.gp){ const gp=estado.gp;   // 🧭 escopo da tela em ?gproj= (o ?proj= global fica como está)
+    // gproj VAZIO quando há ?proj= global e nenhum escopo: sem ele, o reload leria o proj global como escopo (compatibilidade).
+    if(gp.proj) p.set('gproj',gp.proj); else if(p.has('proj')) p.set('gproj','');
+    if(gp.resp) p.set('resp',gp.resp); if(gp.dias) p.set('dias',String(gp.dias)); }
   const qs=p.toString();
   history.replaceState(null,'', qs ? ('?'+qs) : location.pathname);
   salvaFiltrosLS(qs);   // persiste a visão atual p/ sobreviver a um reload

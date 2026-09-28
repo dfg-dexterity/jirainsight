@@ -39,6 +39,7 @@ function render(){
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='reuvinc') return renderReuVinc();
   if(estado.vista==='gestao') return renderGestao();
+  if(estado.vista==='gp') return renderGp();
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
@@ -82,7 +83,7 @@ const ABAS=[
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
   { id:'minhasemana',  rot:'📋 Meu Planejamento',       abas:[ {v:'minhasemana',rot:'📋 Minha semana'}, {v:'planrel',aud:'minha',rot:'📈 Planejado × realizado'} ] },
   { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'} ] },
-  { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'} ] },
+  { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
   { id:'reclassificar',rot:'🗂 Reuniões',               abas:[ {v:'reclassificar',rot:'↔ Reclassificar'}, {v:'reuvinc',rot:'🔗 Vincular a tickets'} ] },
   { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'} ] },
   { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
@@ -115,6 +116,7 @@ const ABAS_N={
   inbox:   { n:()=>(typeof inboxPend==='function'&&estado.inbox&&estado.inbox.carregou)?inboxPend():null, tip:'pendência(s) aguardando você (convites, menções, planos para aprovar)' },
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
+  gp:      { n:()=>(typeof gpPendN==='function')?gpPendN():null, tip:'ticket(s) vencido(s) ou parado(s) nos projetos em foco' },
 };
 function abaN(v){ const c=ABAS_N[v]; if(!c) return ''; let n=null; try{ n=c.n(); }catch(e){ n=null; }
   return (typeof n==='number'&&n>0)?`<span class="aba-n" data-tip="${escA(n+' '+c.tip)}">${n>99?'99+':n}</span>`:''; }
@@ -207,6 +209,7 @@ const NAVCAT=[
   ['tickets','🛠 Tickets do time › 📋 Lista do período','entrega','issues lista periodo analise tickets'],
   ['qualidade','🛠 Tickets do time › 🔎 Qualidade (IA)','entrega','auditoria ia tickets qualidade analise'],
   ['audit','🛠 Tickets do time › ✅ Regras TI-04-014 (Auditoria)','entrega','validacoes ti-04-014 conformidade analise auditoria de tickets'],
+  ['gp','🛠 Tickets do time › 🧭 Pendências do projeto','entrega','gerente parados vencidos por pessoa sem atualizacao cobrar cobranca pendencias do projeto gerente de projeto sem data cadastro incompleto reunioes vencidas mensagem teams inbox r29'],
   ['reclassificar','🗂 Reuniões › ↔ Reclassificar','entrega','mover reunioes projeto gestao reuniao'],
   ['reuvinc','🗂 Reuniões › 🔗 Vincular a tickets','entrega','teams tickets ams apoio reuniao vincular gestao'],
   ['projetos','📁 Projetos › 📁 Portfólio e ficha','entrega','bi ficha portfolio epicos saude consolidado analise'],
