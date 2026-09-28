@@ -45,12 +45,14 @@ api/
 public/
   index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
+  css/mobile.css   📱 a camada do celular/tablet: SÓ media queries, um bloco por grupo de telas — ver "Celular e tablet"
   js/NN-nome.js    o painel, dividido em 36 módulos por domínio — ver tabela abaixo
   sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
   portal.html      área do cliente (AMS): login por conta (?pcli=) ou link por contrato (?c=)
 scripts/
   check-syntax.mjs sintaxe de api/** e public/js/** + ORDEM DE CARREGAMENTO dos módulos
-  check-entrega.mjs gate de entrega (Novidades + Roadmap revisado) — ver CLAUDE.md
+  check-entrega.mjs gate de entrega (Novidades + Roadmap revisado, vercel.json, mobile.css) — ver CLAUDE.md
+  mobile-audit.mjs 📱 auditoria do celular (iPhone emulado) tela a tela — local, não roda na CI
 ```
 
 ### Os módulos do painel (`public/js/`)
@@ -103,6 +105,37 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 **Para acrescentar um módulo:** crie `public/js/NN-nome.js`, adicione a tag `<script defer>` na
 posição certa do `index.html` e rode `npm run check` (ele acusa arquivo sem tag, tag sem
 arquivo, nome global duplicado e uso antes da declaração).
+
+### 📱 Celular e tablet (camada mobile — 2026-09-28)
+
+O painel virou *mobile friendly* de verdade em 2026-09-28, a pedido do usuário (as capturas do
+iPhone mostravam a página inteira encolhida). O desenho tem três peças:
+
+- **`public/css/mobile.css`** carrega **depois** do `app.css` e só tem regras dentro de
+  `@media (max-width:…)` / `(pointer:coarse)`. É isso que garante que **o computador não muda
+  um pixel** — provado por diff de screenshot das 38 telas a 1360px contra a `main` (mesmo dia,
+  senão a data muda o timesheet). O arquivo tem as seções 1–3 (base: guarda `.wrap{overflow-x:clip}`,
+  cabeçalho em 2 linhas, campos com 16px no toque, botões flutuantes redondos, tablet 761–880px) e
+  depois **um bloco por grupo de telas** (`/* ---- 📱 grupo: inicio ---- */ … /* ---- fim: inicio ---- */`,
+  pessoal, apontar, projetos, time, analises, negocio, config, global). Tela nova = regras no bloco do
+  seu grupo; nunca no `app.css`, nunca fora de `@media`.
+- **A causa nº 1 do "app encolhido" no iPhone** é um único elemento mais largo que a tela: o Safari dá
+  zoom-out na página inteira. A guarda esconde a rolagem lateral, mas **não** resolve a causa — quem
+  passa da borda fica cortado. Por isso a regra é: linha que não cabe **quebra** (`flex-wrap`), tabela
+  larga **rola dentro do próprio contêiner** (`.scroll-x`), largura fixa vira `max-width:100%`.
+- **`scripts/mobile-audit.mjs <url> [larguras] [vistas] [dirShots]`** emula um iPhone (isMobile, toque,
+  DPR 3) e mede por tela: elementos cortados na borda (`ofens` — a guarda não conta como recorte;
+  meta **0**), alvos de toque < 44/32px, textos < 12px e campos < 16px (zoom do iOS). Sai com erro
+  quando há corte, então serve de gate local. Precisa de Playwright/Chromium e de um servidor com
+  dados (env `PLAYWRIGHT`, `CHROMIUM`, `IDENT`); não roda na CI.
+- **`npm run check`** reprova regra do `mobile.css` fora de `@media`, `@media` sem condição de
+  celular/toque e a ordem errada dos `<link>` no `index.html`.
+
+Resultado da entrega: 38 telas × 393/360px com **0 elementos cortados**, alvos de toque muito
+pequenos 1.758 → 437 (os que sobram são links de texto em tabelas e rótulos decorativos), campos que
+davam zoom 70 → 0, iPad em pé (768/820px) sem vazamento. Limitações conhecidas: tabelas numéricas
+largas (Catálogo, Uso, planner da Rentabilidade) rolam de lado por desenho; algumas regras usam
+`:has()` (iOS ≥ 15.4 — aparelhos antigos caem no leiaute empilhado, nada quebra).
 
 > Sem build não há bundler para pegar erros: rode **`npm run check`** (ou deixe a CI rodar)
 > para validar sintaxe, ordem de carregamento e a entrega (Novidades/Roadmap) antes de publicar.
