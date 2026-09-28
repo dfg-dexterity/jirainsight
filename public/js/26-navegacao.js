@@ -47,6 +47,7 @@ function render(){
   if(estado.vista==='admin') return renderAdmin();
   if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='uso') return renderUso();
+  if(estado.vista==='semanal') return renderSemanal();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
 }
@@ -91,7 +92,7 @@ const ABAS=[
   { id:'ams',          rot:'🛡 Apuração de contratos',  abas:[ {v:'ams',rot:'🛡 AMS (por ciclo)'}, {v:'receita',rot:'💰 Bolsa de horas & projetos'} ] },
   // fase 3 — Dexterity Insights
   { id:'visao',        rot:'📊 Visão Geral',            abas:[ {v:'visao',rot:'📊 Painel executivo'}, {v:'resumo',rot:'🧠 Resumo (KPIs + IA)'} ] },
-  { id:'relatorios',   rot:'📚 Central de Relatórios',  abas:[ {v:'relatorios',rot:'📚 Catálogo R01–R27'}, {v:'analytics',rot:'📈 Analytics (26 visões)'}, {v:'metricas',rot:'📈 Métricas por tipo'} ] },
+  { id:'relatorios',   rot:'📚 Central de Relatórios',  abas:[ {v:'relatorios',rot:'📚 Catálogo R01–R27'}, {v:'analytics',rot:'📈 Analytics (26 visões)'}, {v:'metricas',rot:'📈 Métricas por tipo'}, {v:'semanal',rot:'📊 Semanal'} ] },
   { id:'config',       rot:'⚙️ Central de configurações',abas:[ {v:'config',rot:'⚙️ Central'}, {acao:'metas',rot:'🎯 Metas & ausências'}, {acao:'log',rot:'🗒 Histórico de ações'} ] },
 ];
 function abaAud(){ return (estado.planrel&&estado.planrel.aud)||'gestor'; }
@@ -222,6 +223,7 @@ const NAVCAT=[
   ['analytics','📚 Central de Relatórios › 📈 Analytics (26 visões)','insights','governanca 26 visoes graficos desvios analise analytics'],
   ['metricas','📚 Central de Relatórios › 📈 Métricas por tipo de projeto','insights','metricas tipo projeto categoria horas mensal equipe capacidade senior junior pleno epico estimado gasto rentabilidade margem vendidas realizadas administrativo backlog custo departamento carga planejamento chamados causa raiz arquivado dea def pea pef dams pams arq imi ipa itpr perfis nivel analise'],
   ['uso','📊 Uso do painel','insights','uso adocao analytics telemetria quem usa telas tempo por tela aberturas engajamento medir podar google analytics estatistica acesso'],
+  ['semanal','📚 Central de Relatórios › 📊 Relatório semanal','insights','sexta planejado orcado realizado reunioes qualidade comparativo semana a semana foto r28 execucao aderencia consumo vencidos parados por pessoa por projeto gerente delta media'],
   // Administração e ⋯ Mais
   ['config','⚙️ Central de configurações › ⚙️ Central','admin','config ajustes configuracoes perfis papeis pessoas navegacao'],
   ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],
