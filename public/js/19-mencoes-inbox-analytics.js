@@ -91,7 +91,7 @@ function renderMencoes(){
       </div>
     </div>`; }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="mn-tela">
     <div class="card full">
       <h2>💬 Menções <span>onde <strong>${esc(id.nome||id.email)}</strong> foi marcado em comentários — responda sem abrir o Jira</span></h2>
       ${kpis}
@@ -383,7 +383,7 @@ function renderInbox(){
       </div>`).join('')}</div>
   </div>`:'';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="ib-tela">
     <div class="ap-id">📥 Inbox de <strong>${esc(id.nome||id.email)}</strong>
       <span class="muted small">convites, menções, planos semanais e aprovações que dependem de você</span>
       <span class="spacer"></span>
