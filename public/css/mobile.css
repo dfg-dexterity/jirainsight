@@ -1465,6 +1465,183 @@
 /* ---- fim: negocio ---- */
 
 /* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */
+/* Cada tela marca a raiz com .vw-<tela> (classe sem estilo no computador): .ad-top, .ams-dgrid,
+   .pl-grid, .ap-id, .rc-tab e companhia são compartilhadas com telas de outros grupos, e aqui
+   só mudam dentro destas. Tabelas de linha larga (revisão do lote, grade pós-criação, reuniões,
+   acessos do cliente) viram CARTÕES: a ação da linha deixa de ficar escondida na rolagem lateral. */
+@media (max-width:600px){
+  /* -- comuns -- */
+  :is(.vw-planejar,.vw-reclass,.vw-reuvinc) .ap-id{padding:8px 12px;gap:2px 10px}
+  :is(.vw-planejar,.vw-reclass,.vw-reuvinc) .ap-id .btn{margin-left:auto;padding:6px 10px}
+  /* campos que o app.css não estiliza (input sem type, fora do .pl-grid) nasciam com a borda
+     cinza nativa; :where() deixa o tema (cantos do Dexterity, fundo do escuro) mandar */
+  :where(.vw-planejar .pl-grid input:not([type]),.vw-admin #ad-obs,.vw-ondecrio .campo>input.arv-in[type=text],
+    .vw-reuvinc #rv-origem,.vw-config #cf-reu-thora){font-family:var(--corpo);font-size:13px;padding:8px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);
+    width:100%;box-sizing:border-box}
+  .vw-ondecrio .campo>input.arv-in[type=text]{margin-bottom:10px}
+  /* "Atualizar lista" não precisa do rótulo vazio que o alinha no computador */
+  :is(.vw-reclass,.vw-reuvinc) .ap-filtros{gap:8px}
+  :is(.vw-reclass,.vw-reuvinc) .ap-filtros .campo:last-child>label{display:none}
+  :is(.vw-reclass,.vw-reuvinc) :is(#rc-refresh,#rv-refresh){border-color:var(--linha)}
+
+  /* -- 📑 Contratos › 🏢 Clientes -- */
+  .vw-admin .ad-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .vw-admin .ad-card{padding:10px 12px;min-width:0}
+  /* nome + editar/remover na 1ª linha, o tipo embaixo (antes o "remover" saía do cartão) */
+  .vw-admin .ad-top{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px 2px;margin-bottom:8px}
+  .vw-admin .ad-top>strong{font-size:15px;overflow-wrap:anywhere}
+  .vw-admin .ad-top>.badge{grid-row:2;grid-column:1/-1;justify-self:start;white-space:normal}
+  .vw-admin .ad-top>.btn{padding:6px 10px}
+  /* dados do contrato em 2 colunas, não uma caixa gigante por número */
+  .vw-admin .ams-dgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .vw-admin .ams-dl{padding:7px 10px;min-width:0}
+  .vw-admin .ams-dl .dt{font-size:11px;letter-spacing:.2px;line-height:1.3}
+  :is(.vw-admin .ad-top,.vw-reclass .rc-tab,.vw-reuvinc .rc-tab,.vw-planejar .pl-hist-row) .badge,
+  :is(.vw-planejar,.vw-ondecrio) .pl-nv,.vw-ondecrio .arv-pcard-k{font-size:12px}
+  .vw-admin .ams-dl .dd{font-size:14.5px;overflow-wrap:anywhere}
+  .vw-admin .ad-cons{font-size:13.5px}
+  .vw-admin .ad-portal{gap:6px 8px}
+  .vw-admin .ad-portal input{flex:1 1 100%;min-width:0}
+  .vw-admin .lnk-ficha{font-size:12px}
+  /* 👤 Acessos do cliente: cada conta vira um bloco (e-mail · situação · último acesso · ações) */
+  .vw-admin .pcli-tab,.vw-admin .pcli-tab tbody{display:block}
+  .vw-admin .pcli-tab thead{display:none}
+  .vw-admin .pcli-tab tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .vw-admin .pcli-tab td{display:block;border:0;padding:0}
+  .vw-admin .pcli-tab td:first-child{flex:1 1 100%;overflow-wrap:anywhere;font-size:13.5px}
+  .vw-admin .pcli-tab td:nth-child(3)::before{content:'último acesso '}
+  .vw-admin .pcli-tab td:last-child{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:4px}
+  .vw-admin .pcli-add input{flex:1 1 100%}
+  /* formulário: parâmetros do AMS em 2 colunas; o texto do banco de horas corre em linha */
+  .vw-admin #ad-ams{padding:10px 12px}
+  .vw-admin #ad-ams .pl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .vw-admin #ad-ams .pl-grid input,.vw-admin #ad-ams .pl-grid select{min-width:0;width:100%}
+  .vw-admin #ad-ams>label.check{display:block;font-size:13.5px;line-height:1.45}
+  .vw-admin #ad-ams>label.check input{vertical-align:-3px;margin:0 6px 0 0}
+  .vw-admin .rg-pessoas{grid-template-columns:minmax(0,1fr)}
+  .vw-admin .rg-pessoas .check{font-size:14px;text-transform:none;letter-spacing:0;color:inherit;padding:5px 0}
+
+  /* -- ⚙️ Central de configurações -- */
+  .vw-config .cfgc-grid{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
+  .vw-config .cfgc{min-width:0}
+  .vw-config .cfgc code{font-size:12px;overflow-wrap:anywhere}
+  /* pessoa × papel cabe na tela (antes rolava para o lado e escondia Diretoria/Admin) */
+  .vw-config .cf-papeis{min-width:0}
+  .vw-config .cf-papeis th{font-size:10px;letter-spacing:0;padding:6px 3px}
+  .vw-config .cf-papeis td{padding:7px 3px}
+  .vw-config .cf-papeis th.num,.vw-config .cf-papeis td.num{text-align:center;width:1%}
+  /* o facilitador é um <input> com a classe da caixa de texto (150px de altura) */
+  .vw-config input.pl-texto{min-height:0}
+  .vw-config #cf-reu-thora{width:auto;margin-left:4px}
+  .vw-config .campo>label .muted{text-transform:none;letter-spacing:0}
+
+  /* -- 📝 Criar ticket (lote, épico, estrutura) -- */
+  .vw-planejar #pl-importar,.vw-planejar #pl-modelo{flex:1 1 0;min-width:0;padding:8px 6px;font-size:13px;
+    line-height:1.25;white-space:normal;border-color:var(--linha)}
+  .vw-planejar #pl-validar{flex:1 1 100%}
+  .vw-planejar .pl-hist{padding:8px 10px}
+  .vw-planejar .pl-hist-row{padding:8px 4px}
+  .vw-planejar .pl-hist-row>.pl-hist-res{order:2;flex:1 1 100%}
+  .vw-planejar .pl-hist-row>.btn{order:3}
+  .vw-planejar .pl-destino{padding:9px 12px}
+  /* revisão, estrutura e grade pós-criação: cada ticket é um cartão (campos empilhados) */
+  .vw-planejar .ts-wrap>table.pl-rev{min-width:0}
+  .vw-planejar table.pl-rev,.vw-planejar table.pl-rev tbody,.vw-planejar table.pl-rev thead{display:block}
+  .vw-planejar table.pl-rev thead{display:none}
+  .vw-planejar table.pl-rev tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:10px 10px 12px;border-bottom:1px solid var(--linha)}
+  .vw-planejar table.pl-rev tbody tr:last-child{border-bottom:0}
+  .vw-planejar table.pl-rev td{display:block;padding:0;border:0;min-width:0!important}
+  .vw-planejar table.pl-rev td .btn{padding:5px 10px;font-size:13px}
+  .vw-planejar :is(.pl-rev-lote td:nth-child(-n+5):not(:first-child),.pl-rev-grade td:nth-child(4),.pl-rev-grade td:nth-child(5))::before{
+    display:block;margin-bottom:3px;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  .vw-planejar .pl-rev-lote td:first-child::before{content:'#'}
+  .vw-planejar .pl-rev-lote td:nth-child(2)::before{content:'Resumo'}
+  .vw-planejar .pl-rev-lote td:nth-child(3)::before{content:'Descrição'}
+  .vw-planejar .pl-rev-lote td:nth-child(4)::before{content:'Tipo'}
+  .vw-planejar .pl-rev-lote td:nth-child(5)::before{content:'Responsável'}
+  .vw-planejar .pl-rev-lote td:nth-child(6){order:1}
+  .vw-planejar .pl-rev-lote td:nth-child(7){order:2;margin-left:auto}
+  .vw-planejar .pl-rev-lote td:nth-child(2){order:3;flex:1 1 100%}
+  .vw-planejar .pl-rev-lote td:nth-child(3){order:4;flex:1 1 100%}
+  .vw-planejar .pl-rev-lote td:nth-child(4){order:5;flex:1 1 0}
+  .vw-planejar .pl-rev-lote td:nth-child(5){order:6;flex:1 1 0}
+  /* o motivo do ✕ só existia no tooltip do mouse: no celular ele aparece escrito */
+  .vw-planejar :is(.pl-rev-lote,.pl-rev-estr) .pl-st.err[data-tip]{white-space:normal}
+  .vw-planejar :is(.pl-rev-lote,.pl-rev-estr) .pl-st.err[data-tip]::after{content:attr(data-tip);margin-left:6px;font-size:12.5px;line-height:1.35}
+  .vw-planejar .pl-rev-lote tr.pl-row-err td:nth-child(6){order:2;flex:1 1 100%}
+  .vw-planejar .pl-rev-lote tr.pl-row-err td:nth-child(7){order:1}
+  .vw-planejar .pl-rev-estr tr.pl-row-err td:nth-child(5){order:2;flex:1 1 100%}
+  .vw-planejar .pl-rev-estr td:nth-child(6){margin-left:auto}
+  .vw-planejar .pl-rev-estr td:nth-child(3){order:1;flex:1 1 100%}
+  .vw-planejar .pl-rev-grade thead{display:block}
+  .vw-planejar .pl-rev-grade thead th{display:none;border:0;padding:0}
+  .vw-planejar .pl-rev-grade thead th:first-child{display:flex;align-items:center;gap:8px}
+  .vw-planejar .pl-rev-grade thead th:first-child::after{content:'marcar todos';font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+  .vw-planejar .pl-rev-grade td:nth-child(6){margin-left:auto}
+  .vw-planejar .pl-rev-grade td:nth-child(3){order:1;flex:1 1 100%;font-size:13.5px}
+  .vw-planejar .pl-rev-grade td:nth-child(4){order:2;flex:1 1 0}
+  .vw-planejar .pl-rev-grade td:nth-child(5){order:3;flex:1 1 0}
+  .vw-planejar .pl-rev-grade td:nth-child(4)::before{content:'Responsável'}
+  .vw-planejar .pl-rev-grade td:nth-child(5)::before{content:'📅 Data limite'}
+  /* barra de edição em massa: cada campo com o seu botão na mesma linha */
+  .vw-planejar .pl-g-bar{flex-direction:row;align-items:center;gap:8px;padding:10px}
+  .vw-planejar .pl-g-bar>span:first-child{flex:1 1 100%}
+  .vw-planejar .pl-g-bar>.muted{display:none}
+  .vw-planejar .pl-g-bar select,.vw-planejar .pl-g-bar input[type=date]{flex:1 1 120px;min-width:0}
+  .vw-planejar .pl-g-bar .btn{flex:0 0 auto}
+  .vw-planejar #pl-g-salvar{flex:1 1 100%}
+
+  /* -- 🌳 Onde crio -- */
+  .vw-ondecrio .arv-trilha{gap:0 2px;padding:4px 6px}
+  .vw-ondecrio .arv-bc{padding:6px 5px;font-size:13px}
+  .vw-ondecrio .arv-projs{grid-template-columns:minmax(0,1fr)}
+
+  /* -- 🗂 Reuniões: ↔ Reclassificar e 🔗 Vincular (cada reunião vira um cartão) -- */
+  :is(.vw-reclass,.vw-reuvinc) .ts-wrap>table.rc-tab{min-width:0}
+  :is(.vw-reclass,.vw-reuvinc) .rc-tab,:is(.vw-reclass,.vw-reuvinc) .rc-tab :is(thead,tbody){display:block}
+  :is(.vw-reclass,.vw-reuvinc) .rc-tab tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 12px;border-bottom:1px solid var(--linha)}
+  :is(.vw-reclass,.vw-reuvinc) .rc-tab tbody tr:last-child{border-bottom:0}
+  :is(.vw-reclass,.vw-reuvinc) .rc-tab :is(th,td){display:block;padding:0;border:0}
+  :is(.vw-reclass,.vw-reuvinc) .rc-tab td.rc-resumo{order:5;flex:1 1 100%;max-width:none;white-space:normal;overflow:visible;font-size:14px;line-height:1.4}
+  .vw-reclass .rc-tab thead th:not(.c){display:none}
+  .vw-reclass .rc-tab thead th.c{display:flex;align-items:center;gap:8px;width:auto}
+  .vw-reclass .rc-tab thead th.c::after{content:'selecionar todas'}
+  .vw-reclass .rc-tab td.c{width:auto}
+  .vw-reclass .rc-tab td.rc-resumo{order:3;padding-left:32px}
+  .vw-reclass .rc-tab td:nth-child(n+4){order:4}
+  .vw-reclass .rc-tab td:nth-child(4){margin-left:32px}
+  .vw-reclass .rc-foot{gap:8px}
+  .vw-reclass .rc-foot #rc-count{flex:1 1 100%}
+  .vw-reclass .rc-foot .btn{flex:1 1 100%}
+  .vw-reuvinc .rc-tab thead{display:none}
+  /* chave + Vincular em cima, resumo, e o status por último (status longo empurrava o botão) */
+  .vw-reuvinc .rc-tab td:first-child{order:1;flex:1 1 auto}
+  .vw-reuvinc .rc-tab td.num{order:2;margin-left:auto}
+  .vw-reuvinc .rc-tab td.rc-resumo{order:3}
+  .vw-reuvinc .rc-tab td:nth-child(3){order:4}
+  .vw-reuvinc .rc-tab td.num .btn{padding:6px 12px}
+  .vw-reuvinc #rv-origem{width:100%!important}
+  .vw-reuvinc .rv-transf{padding:10px;gap:8px}
+  .vw-reuvinc #rv-transf-key{flex:1 1 120px;width:auto!important;min-width:0}
+  /* assistente (modal): o "registrar como meu apontamento" encostava na direita */
+  #modal .rv-form .campo[style*="align-items"]{align-items:flex-start!important}
+  #modal .rv-form .campo[style*="align-items"]>label{display:block!important;line-height:1.5}
+  #modal .rv-form .campo[style*="align-items"]>label input{vertical-align:-3px;margin:0 6px 0 0}
+}
+@media (pointer:coarse){
+  /* campos e botões das telas deste grupo com altura de dedo; caixas de marcar maiores */
+  :is(.vw-admin,.vw-config,.vw-planejar,.vw-ondecrio,.vw-reclass,.vw-reuvinc) :is(select,input:not([type=checkbox]):not([type=radio])){min-height:42px}
+  :is(.vw-admin,.vw-config,.vw-planejar,.vw-ondecrio,.vw-reclass,.vw-reuvinc) input:is([type=checkbox],[type=radio]){width:20px;height:20px}
+  .vw-planejar .ap-chips .chip,:is(.vw-reclass,.vw-reuvinc) .reu-tabs .chip{min-height:36px;padding:7px 12px;font-size:13px}
+  :is(.vw-planejar .pl-rev-grade,.vw-reclass .rc-tab,.vw-config .cf-papeis) input[type=checkbox]{width:24px;height:24px}
+  /* a chave do ticket é o link da linha: alvo de dedo, não só a altura da letra */
+  :is(.vw-reclass .rc-tab td,.vw-reuvinc .rc-tab td,.vw-planejar .pl-rev-grade td,.vw-planejar .pl-hist-row)>a{
+    display:inline-flex;align-items:center;min-height:32px}
+  .vw-ondecrio .arv-bc{min-height:34px}
+  .vw-ondecrio .arv-defs>summary{padding:8px 0}
+  .vw-admin .lnk-ficha{min-height:32px;padding:3px 10px}
+}
 /* ---- fim: config ---- */
 
 /* ---- 📱 grupo: global (menu, abas, modais, guias, paletas, busca de tickets, avisos, rodapé) ---- */

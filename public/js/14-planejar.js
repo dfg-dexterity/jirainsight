@@ -637,7 +637,7 @@ function arvHTML(){
 }
 function renderOndeCrio(){
   const cont=document.getElementById('conteudo');
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-ondecrio">
     <div class="card full">
       <h2>🌳 Onde crio o ticket? <span>árvore de decisão — governança de tickets (TI-04-006)</span></h2>
       <div class="pl-dica">Responda as perguntas para descobrir <strong>onde o ticket deve nascer</strong> — no fim, crie o ticket ali mesmo, já no projeto certo e <strong>atribuído a você</strong>.</div>
@@ -761,7 +761,7 @@ function renderPlanejarForm(){
   else if(pl.historiaKey) modoDica=`Os itens abaixo viram <strong>sub-tarefas</strong> dentro da história <strong>${esc(pl.historiaKey)}</strong>.`;
   else modoDica=`Os itens abaixo são criados <strong>dentro do épico ${esc(pl.epicoKey)}</strong> (como histórias/tarefas). Para detalhar uma história em sub-tarefas, selecione-a em “Criar dentro de” (ou no botão da lista).`;
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-planejar">
     ${faixaId}
     <div class="card full">
       <h2>Planejamento Jira <span>criação de tickets em lote</span></h2>
@@ -833,7 +833,7 @@ function renderPlanejarEstruForm(){
     'Task\t3.1 Configurar Processo','Task\t3.1 Teste Funcional',
     'História\t3.1 Rotinas diárias (Contabilização, Atualização da Taxa de Juros)',
     'Task\t3.1 Configurar Processo'].join('\n');
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-planejar">
     ${faixaId}
     <div class="card full">
       <h2>Planejamento Jira <span>colar estrutura — Épico → História → Task</span></h2>
@@ -908,7 +908,7 @@ function renderPlanejarEstru(){
   if(pl.venc) pads.push('📅 vence '+fmtBR(pl.venc));
   const prontos=its.length-nErros;
   const podeCriar=prontos>0 && nErros===0 && !slotSemTipo.length && !pl.criando;
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-planejar">
     <div class="card full">
       <h2>Revisão da estrutura <span>${nEp} épico(s) · ${nHi} história(s) · ${nTk} task(s)</span></h2>
       <div class="pl-destino">Projeto <strong>${esc(pl.projeto)}${pj?(' — '+esc(pj.nome)):''}</strong>
@@ -916,7 +916,7 @@ function renderPlanejarEstru(){
         ${pads.length?`<br>Padrões aplicados a <strong>todos</strong>: ${pads.join(' · ')}`:''}</div>
       ${nErros?'<div class="aviso">Corrija (ou remova) os itens marcados com ✕ para liberar a criação.</div>':''}
       <div class="pl-estr-slots">${slots}</div>
-      <div class="ts-wrap"><table class="pl-rev">
+      <div class="ts-wrap"><table class="pl-rev pl-rev-estr">
         <thead><tr><th>#</th><th>Nível</th><th>Título</th><th>Tipo</th><th></th><th></th></tr></thead>
         <tbody>${linhas}</tbody></table></div>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
@@ -1045,12 +1045,12 @@ function renderPlanejarRevisao(){
   const prontos=pl.itens.length-nErros;
   const podeCriar = prontos>0 && nErros===0 && !pl.criando;
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-planejar">
     <div class="card full">
       <h2>Revisão antes de criar <span>${prontos} pronto(s)${nErros?` · ${nErros} com erro`:''}</span></h2>
       <div class="pl-destino">${destino}</div>
       ${nErros?'<div class="aviso">Corrija (ou remova) os itens marcados com ✕ para liberar a criação.</div>':''}
-      <div class="ts-wrap"><table class="pl-rev">
+      <div class="ts-wrap"><table class="pl-rev pl-rev-lote">
         <thead><tr><th>#</th><th>Resumo</th><th>Descrição</th><th>Tipo</th><th>Responsável</th><th></th><th></th></tr></thead>
         <tbody>${linhas}</tbody></table></div>
       <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
@@ -1116,12 +1116,12 @@ function renderPlanejarResultado(){
         <button class="btn primario" id="pl-g-salvar" ${nMud&&!pl.gSalvando?'':'disabled'}>
           ${pl.gSalvando?'Salvando…':`💾 Salvar ${nMud} alteração(ões) no Jira`}</button>
       </div>
-      <div class="ts-wrap"><table class="pl-rev">
+      <div class="ts-wrap"><table class="pl-rev pl-rev-grade">
         <thead><tr><th><input type="checkbox" id="pl-g-all" ${g.length&&nSel===g.length?'checked':''} data-tip="Marcar/desmarcar todos"></th>
           <th>Ticket</th><th>Resumo</th><th>Responsável</th><th>📅 Data limite</th><th></th></tr></thead>
         <tbody>${linhas}</tbody></table></div>`
     :'<div class="muted small">Nenhum ticket criado.</div>';
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-planejar">
     <div class="card full">
       <h2>Resultado da criação</h2>
       <div class="pl-res-ok">✓ ${(r.criados||[]).length} ticket(s) criado(s)</div>

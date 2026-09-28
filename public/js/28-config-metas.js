@@ -157,7 +157,7 @@ function renderConfig(){
   const chip=(v,l)=>`<span class="cfgc-chip"><b>${esc(String(v))}</b> ${esc(l)}</span>`;
   const diasSem=[[1,'segunda-feira'],[2,'terça-feira'],[3,'quarta-feira'],[4,'quinta-feira'],[5,'sexta-feira']];
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-config">
     <div class="card full">
       <h2>⚙️ Central de configurações <span>todas as configurações da ferramenta num só lugar</span></h2>
       <div class="pl-dica">${cfgShared
