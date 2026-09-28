@@ -117,7 +117,7 @@ function crGanttHTML(rows, esc_){
     const x1=E.pos(o.fimRef||o.fimReal||hojeSP())*10, x2=E.pos(r.iniPlan||r.iniReal||r.criado)*10; const y1=j*CR_ROWH+CR_ROWH/2, y2=i*CR_ROWH+CR_ROWH/2;
     const inv=x2<x1; linhasSvg.push(`<path d="M${x1.toFixed(1)},${y1} H${(x1+6).toFixed(1)} V${y2} H${(x2-2).toFixed(1)}" class="cr-dep ${inv?'inv':''}"/><circle cx="${x2.toFixed(1)}" cy="${y2}" r="3.5" class="cr-dep-p ${inv?'inv':''}"/>`); }); });
   const deps=linhasSvg.length?`<div class="cr-deps-wrap"><svg class="cr-deps" viewBox="0 0 1000 ${H}" preserveAspectRatio="none" style="height:${H}px">${linhasSvg.join('')}</svg></div>`:'';
-  return `<div class="cr-gantt">${axis}<div class="cr-body">${linhas}${deps}</div></div>
+  return `<div class="cr-gantt" style="--crn:${E.ticks.filter(t=>t.rot).length}">${axis}<div class="cr-body">${linhas}${deps}</div></div>
     <div class="pp-legend cr-leg"><span><i class="cr-leg-plan"></i>planejado (início → marco)</span><span><i class="cr-leg-real"></i>real (1º item → último concluído / hoje) com % de itens</span><span><i class="cr-leg-marco"></i>marco (data limite)</span><span><i class="cr-leg-prev"></i>previsão pelo ritmo</span><span><i class="cr-leg-hoje"></i>hoje</span>${linhasSvg.length?'<span><i class="cr-leg-dep"></i>dependência (bloqueia)</span>':''}</div>`;
 }
 function renderCronograma(){
@@ -137,9 +137,9 @@ function renderCronograma(){
     <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px">${c.proj?`<button class="btn" data-proj-ficha="${escA(c.proj)}" data-tip="Voltar à ficha do projeto em 📁 Portfólio e ficha (🦴 espinha)">📁 Ficha</button>`:''}${c.proj?'<button class="btn" data-cr-refresh="1" data-tip="Rebusca a ficha do Jira ignorando o cache">⟳ Atualizar</button>':''}${c.proj?'<button class="btn" data-cr-csv="1" data-tip="Baixa o cronograma em CSV">⬇ CSV</button>':''}</div></div></div>`;
   const cab=(sub)=>`<div class="card full"><h2>📅 Marcos e Cronograma <span>${sub}</span></h2>
     <div class="muted small">O relatório <b>R04</b> da Central: os épicos do projeto como fases de um cronograma em cascata — o que foi <b>planejado</b> (Data de início → Data limite do épico no Jira), o que está <b>acontecendo</b> (1º item criado → último concluído, com o % de itens), os <b>marcos</b>, a <b>previsão de término pelo ritmo</b> e as <b>dependências</b>. Clique num épico para ver a evolução e a composição.</div>${filtros}</div>`;
-  if(!c.proj){ cont.replaceChildren(el(`<div>${cab('escolha um projeto')}<div class="card full"><div class="estado">Escolha o projeto para montar o cronograma dos épicos.${projs.length?'':' <br><span class="muted small">⏳ carregando o catálogo do Jira…</span>'}</div></div></div>`)); return; }
+  if(!c.proj){ cont.replaceChildren(el(`<div class="cro-tela">${cab('escolha um projeto')}<div class="card full"><div class="estado">Escolha o projeto para montar o cronograma dos épicos.${projs.length?'':' <br><span class="muted small">⏳ carregando o catálogo do Jira…</span>'}</div></div></div>`)); return; }
   crGaranteFicha(c.proj); const d=crFicha(c.proj);
-  if(!d){ cont.replaceChildren(el(`<div>${cab(esc(projNome(c.proj)))}<div class="card full">${c.fichaErr[c.proj]?`<div class="erro">${esc(c.fichaErr[c.proj])} <button class="btn" data-cr-retry="1">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`)); return; }
+  if(!d){ cont.replaceChildren(el(`<div class="cro-tela">${cab(esc(projNome(c.proj)))}<div class="card full">${c.fichaErr[c.proj]?`<div class="erro">${esc(c.fichaErr[c.proj])} <button class="btn" data-cr-retry="1">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`)); return; }
   const todas=crLinhas(d); const hoje=hojeSP();
   const n=(st)=>todas.filter(r=>r.st===st).length; const abertos=todas.filter(r=>!r.done&&!r.cancel);
   const proxMarcos=abertos.filter(r=>r.fimPlan&&r.fimPlan>=hoje&&crDias(hoje,r.fimPlan)<=30).sort((a,b)=>a.fimPlan.localeCompare(b.fimPlan));
@@ -167,7 +167,7 @@ function renderCronograma(){
   const depois=todas.filter(r=>r.filhosDepois>0); if(depois.length) qual.push(`${depois.length} épico(s) com itens vencendo depois do próprio marco (${depois.slice(0,3).map(r=>r.k).join(', ')}${depois.length>3?'…':''}).`);
   const concAb=todas.filter(r=>r.done&&r.filhosAbertos>0); if(concAb.length) qual.push(`${concAb.length} épico(s) concluído(s) com itens abertos (${concAb.slice(0,3).map(r=>r.k).join(', ')}).`);
   const inv=todas.filter(r=>r.alertas.some(a=>/invertida/.test(a))); if(inv.length) qual.push(`${inv.length} dependência(s) invertida(s): o épico começa antes de o bloqueador terminar.`);
-  cont.replaceChildren(el(`<div>${cab(`${esc(d.nome||projNome(c.proj))} (${esc(c.proj)}) · ${todas.length} épico(s) · escala ${E.modo==='semanas'?'semanal':'mensal'} · ${dataBR(E.de)} → ${dataBR(E.ate)}`)}
+  cont.replaceChildren(el(`<div class="cro-tela">${cab(`${esc(d.nome||projNome(c.proj))} (${esc(c.proj)}) · ${todas.length} épico(s) · escala ${E.modo==='semanas'?'semanal':'mensal'} · ${dataBR(E.de)} → ${dataBR(E.ate)}`)}
     <div class="card full">${hero}
       <section class="rm-bloco"><h3 class="mp-h3">🗓 Cronograma em cascata <span class="mp-dim">${rows.length} de ${todas.length} épico(s)</span></h3>${gantt}
         ${ctExpl('cada linha é um épico (fase). A barra clara é o <b>planejado</b> (Data de início → Data limite do épico no Jira; sem data limite, vai até o maior vencimento dos filhos); a barra colorida é o <b>real</b> (do 1º item criado até o último concluído — ou até hoje, se aberto), preenchida com o % de itens concluídos. ◆ é o <b>marco</b> (vermelho quando passou); ▲ é a <b>previsão de término</b> pelo ritmo das últimas 8 semanas; a linha tracejada é hoje; as setas ligam quem bloqueia a quem é bloqueado. A ordem em cascata segue o número da fase no nome do épico ("1.", "2.3"…) e o início.')}</section>

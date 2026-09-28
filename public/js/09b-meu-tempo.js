@@ -161,7 +161,7 @@ function renderMeuTempo(){
   const cont=document.getElementById('conteudo'); const m=estado.meutempo; const gestor=souAprovador();
   const eu=mtpQuem();
   if(!eu&&!m.a){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>⏳ Como estou gastando meu tempo? <span>seu histórico de apontamentos, em gráficos e com análise por IA</span></h2>
+    cont.replaceChildren(el(`<div class="mob-mt"><div class="card full"><h2>⏳ Como estou gastando meu tempo? <span>seu histórico de apontamentos, em gráficos e com análise por IA</span></h2>
       <div class="aviso">🔐 Para saber quem é você, a tela usa a sua identidade do Jira (e-mail + token de API), guardada só neste navegador. Configure em <b>⏱ Apontar → identifique-se</b> e volte aqui. <button class="btn" data-goto="apontar">⏱ Apontar</button></div></div></div>`));
     return;
   }
@@ -174,11 +174,11 @@ function renderMeuTempo(){
   const cab=`<div class="card full"><h2>⏳ Como estou gastando meu tempo? <span>${esc(mtpNome(m.a))} · ${dataBR(m.de)} → ${dataBR(m.ate)}</span></h2>
     <div class="muted small">Todos os apontamentos da pessoa no período, lidos do Clockwork com o <b>comentário</b> de cada um: como o dia funciona, onde o tempo vai, com quem você divide tickets, o que os comentários revelam — e se os registros têm detalhe suficiente para essa leitura. A <b>análise por IA</b> fecha com um retrato e recomendações.</div>${filtros}</div>`;
   if(!d){
-    cont.replaceChildren(el(`<div>${cab}<div class="card full">${m.tempoErro[m.chave]?`<div class="erro">${esc(m.tempoErro[m.chave])} <button class="btn" id="mtp-retry">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`));
+    cont.replaceChildren(el(`<div class="mob-mt">${cab}<div class="card full">${m.tempoErro[m.chave]?`<div class="erro">${esc(m.tempoErro[m.chave])} <button class="btn" id="mtp-retry">Tentar de novo</button></div>`:skeletonPainel()}</div></div>`));
     return;
   }
   if(!d.wl.length){
-    cont.replaceChildren(el(`<div>${cab}<div class="card full"><div class="estado">Nenhum apontamento de <b>${esc(mtpNome(m.a))}</b> entre ${dataBR(m.de)} e ${dataBR(m.ate)}. Amplie o período${gestor?' ou escolha outra pessoa':''}.</div></div></div>`));
+    cont.replaceChildren(el(`<div class="mob-mt">${cab}<div class="card full"><div class="estado">Nenhum apontamento de <b>${esc(mtpNome(m.a))}</b> entre ${dataBR(m.de)} e ${dataBR(m.ate)}. Amplie o período${gestor?' ou escolha outra pessoa':''}.</div></div></div>`));
     return;
   }
   const H=(s)=>mtpH(s/3600); const nDias=Object.keys(d.porDia).length; const temC=!!(t.meta&&t.meta.comentarios)||d.nCom>0;
@@ -268,7 +268,7 @@ function renderMeuTempo(){
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn" data-mtp-ia="1">↻ Gerar de novo</button><span class="muted small">Gerada por IA a partir dos números e das amostras desta tela — confira antes de decisões.</span></div></div>`;
   else iaHtml=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primario" data-mtp-ia="1">🤖 Gerar a análise por IA</button><span class="muted small">Envia os números agregados e até 60 amostras de comentários (sem dados sensíveis) e devolve o retrato do período, como o dia funciona, onde o tempo vai, colaboração, qualidade dos dados e recomendações.</span></div>`;
   const iaSec=`<section class="rm-bloco"><h3 class="mp-h3">🤖 Análise por IA</h3>${iaHtml}</section>`;
-  cont.replaceChildren(el(`<div>${cab}<div class="card full">${hero}${rotina}${tempo}${tickets}${colab}${coment}${qual}${iaSec}</div></div>`));
+  cont.replaceChildren(el(`<div class="mob-mt">${cab}<div class="card full">${hero}${rotina}${tempo}${tickets}${colab}${coment}${qual}${iaSec}</div></div>`));
 }
 // ---- drill: tickets por trás de uma barra ----
 function mtpAbreTickets(tipo, chave){
@@ -282,7 +282,7 @@ function mtpAbreTickets(tipo, chave){
     const k=w.k||'(sem ticket)'; const r=por[k]=por[k]||{k,p:w.p,t:w.t||'—',seg:0,n:0,coment:''}; r.seg+=Number(w.s)||0; r.n++; if(!r.coment&&w.c) r.coment=String(w.c).slice(0,90); });
   const lista=Object.values(por).sort((a,b)=>b.seg-a.seg);
   abreModal(`<h2>🎫 ${esc(chave)} <span class="muted small">${lista.length} ticket(s) · ${esc(dataBR(estado.meutempo.de))} → ${esc(dataBR(estado.meutempo.ate))}</span></h2>
-    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini"><thead><tr><th>Ticket</th><th>Resumo</th><th>Tipo</th><th class="num">Horas</th><th class="num">Apont.</th><th>Último comentário</th><th></th></tr></thead>
+    <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini mob-tk"><thead><tr><th>Ticket</th><th>Resumo</th><th>Tipo</th><th class="num">Horas</th><th class="num">Apont.</th><th>Último comentário</th><th></th></tr></thead>
     <tbody>${lista.slice(0,120).map(x=>`<tr><td>${/^[A-Z]/.test(x.k)?`<a href="${jiraBase()}/browse/${encodeURIComponent(x.k)}" target="_blank" rel="noopener"><strong>${esc(x.k)}</strong> ↗</a>`:esc(x.k)}</td><td>${esc((d.resumos[x.k]||'').slice(0,60))}</td><td>${esc(x.t)}</td><td class="num">${fmtH(x.seg)}</td><td class="num">${x.n}</td><td class="muted small">${esc(x.coment)}</td><td>${/^[A-Z]/.test(x.k)?`<button class="btn rt-step" data-gx-det="${escA(x.k)}" data-tip="Ficha completa">🔍</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="mp-dim">Nada aqui.</td></tr>'}</tbody></table></div>
     <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
 }

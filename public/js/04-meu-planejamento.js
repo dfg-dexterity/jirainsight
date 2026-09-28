@@ -377,7 +377,7 @@ function renderMinhaSemana(){
   } else if(mp.aba==='relatorios'){
     corpo=mpRenderRelatorios();
   }
-  cont.replaceChildren(el(`<div class="mp-root">${cab}${mpAbasHtml(mp)}${corpo}</div>`));
+  cont.replaceChildren(el(`<div class="mp-root ms-tela">${cab}${mpAbasHtml(mp)}${corpo}</div>`));
 }
 
 // ---------------- gestor: aprovações ----------------
@@ -775,7 +775,7 @@ function renderPlanRel(){
   const nav=`<div class="card full" style="margin-bottom:12px"><h2>📊 Relatórios do planejamento <span>escolha a visão pela audiência — tudo com drill até o ticket</span></h2>
     <div class="ap-vis" style="margin-top:6px">${CHIPS.map(([k,rot,d])=>
       `<button class="chip" aria-pressed="${pr.aud===k}" data-plr-aud="${k}" title="${escA(d)}">${rot}</button>`).join(' ')}</div></div>`;
-  cont.replaceChildren(el(`<div>${nav}<div class="mp-root">${mpRenderRelatorios(pr.aud)}</div></div>`));
+  cont.replaceChildren(el(`<div class="plr-tela">${nav}<div class="mp-root">${mpRenderRelatorios(pr.aud)}</div></div>`));
 }
 // Re-renderiza a tela certa dos relatórios (aba do Meu Planejamento OU vista própria).
 function mpReRender(){ if(estado.vista==='planrel') renderPlanRel(); else renderMinhaSemana(); }

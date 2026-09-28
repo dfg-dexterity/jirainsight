@@ -91,7 +91,7 @@ function renderMencoes(){
       </div>
     </div>`; }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="mn-tela">
     <div class="card full">
       <h2>💬 Menções <span>onde <strong>${esc(id.nome||id.email)}</strong> foi marcado em comentários — responda sem abrir o Jira</span></h2>
       ${kpis}
@@ -383,7 +383,7 @@ function renderInbox(){
       </div>`).join('')}</div>
   </div>`:'';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="ib-tela">
     <div class="ap-id">📥 Inbox de <strong>${esc(id.nome||id.email)}</strong>
       <span class="muted small">convites, menções, planos semanais e aprovações que dependem de você</span>
       <span class="spacer"></span>
@@ -612,7 +612,7 @@ function renderAnalytics(){
   if(sel && sel.itens===null){
     // Visão manual (ou automática indisponível): vira um GUIA com atalho.
     const { ch }=sel;
-    cont.replaceChildren(el(`<div>
+    cont.replaceChildren(el(`<div class="mob-anl">
       <div class="card full">
         <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
           ${ch.n}. ${esc(ch.tit)} <span>${esc(ch.des)}</span></h2>
@@ -635,7 +635,7 @@ function renderAnalytics(){
       <td>${esc(t.resp||'—')}</td>
       <td>${esc(t.m||'—')}</td>
       <td><span class="gx-acts"><button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button><button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button></span></td></tr>`).join('');
-    cont.replaceChildren(el(`<div>
+    cont.replaceChildren(el(`<div class="mob-anl">
       <div class="card full">
         <h2><button class="btn" id="anl-voltar" style="margin-right:10px">← Visões</button>
           ${ch.n}. ${esc(ch.tit)} <span>${sel.n} ocorrência(s) · ${esc(ch.des)}</span></h2>
@@ -678,7 +678,7 @@ function renderAnalytics(){
       <div class="anl-grid">${rs.map(cardDe).join('')}</div></div>`;
   }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="mob-anl">
     <div class="card full">
       <h2>📈 Analytics de Governança <span>26 visões de saúde do Jira — clique num card para o detalhe (lista + CSV)</span></h2>
       ${filtros}

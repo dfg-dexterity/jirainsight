@@ -267,7 +267,7 @@ function agAtualizaModal(){
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
     <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
     <div class="ap-fb" id="agm-fb" hidden></div>`;
-  const mb=document.getElementById('modal-body'); if(mb){ mb.replaceChildren(el(`<div>${corpo}</div>`)); }
+  const mb=document.getElementById('modal-body'); if(mb){ mb.replaceChildren(el(`<div class="ag-modal">${corpo}</div>`)); }
 }
 async function agConfirma(){
   const m=_agM; if(!m) return;
@@ -576,7 +576,7 @@ function renderAgenda(){
     }).join('');
     return `<div class="vg-card" style="margin-bottom:12px"><h3>${esc(agRotuloDia(dia))} <span class="muted small" style="font-weight:400">· ${porDia[dia].length} evento(s)</span></h3>${rows}</div>`;
   }).join('');
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="tela-agenda">
     <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
       <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
         <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos (menos na agenda de quem organizou)${d.nOcultos?` · ${d.nOcultos} oculto(s)`:''}</span>

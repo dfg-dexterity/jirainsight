@@ -211,7 +211,7 @@ function abreConvidarApontar(k){
         :'<div class="muted small">Nenhuma pessoa interna com e-mail na lista — clique em ↻ Atualizar no topo e tente de novo.</div>'}</div></div>
     <div class="alx-campo" style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="campo"><label>Tempo por pessoa <span class="req">*</span></label>
-        <input id="cv-tempo" placeholder="1h30" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
+        <input type="text" id="cv-tempo" placeholder="1h30" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
       <div class="campo"><label>Dia <span class="req">*</span></label><input type="date" id="cv-dia" value="${escA(hojeSP())}"></div>
       <div class="campo"><label>Apontar também para mim?</label>
         <label class="check" style="margin-top:6px"><input type="checkbox" id="cv-eu"> incluir meu apontamento agora</label></div></div>

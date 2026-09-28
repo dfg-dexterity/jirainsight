@@ -256,7 +256,7 @@ function renderRateio(){
   // não pode roubar o foco de quem está digitando a lista.
   const ativo=document.activeElement; const focoTexto=!!(ativo&&ativo.id==='rt-texto');
   const selS=focoTexto?ativo.selectionStart:0, selE=focoTexto?ativo.selectionEnd:0;
-  cont.replaceChildren(el(`<div>${faixaId}${passo1}${passo2}${passo3}</div>`));
+  cont.replaceChildren(el(`<div class="tela-rateio">${faixaId}${passo1}${passo2}${passo3}</div>`));
   if(focoTexto){ const ta=document.getElementById('rt-texto');
     if(ta){ ta.focus(); try{ ta.setSelectionRange(selS,selE); }catch(e){} } }
 }

@@ -203,7 +203,7 @@ function renderParcerias(){
   // O formulário já aberto é REAPROVEITADO (mesmo nó, com o que está digitado e o cursor onde estava) quando o
   // redesenho é do mesmo contrato — só o resto da tela é reconstruído.
   const formVelho=cont.querySelector('.pc-form'); const ativo=document.activeElement;
-  const arvore=el(`<div>${intro}${aviso}${notas}${form}
+  const arvore=el(`<div class="pc-tela">${intro}${aviso}${notas}${form}
     <div class="card full"><h2>Contratos cadastrados <span>${lista.length}</span></h2>
       ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`);
   const reusa=!!(formVelho&&chaveForm&&formVelho.getAttribute('data-pc-form')===chaveForm);

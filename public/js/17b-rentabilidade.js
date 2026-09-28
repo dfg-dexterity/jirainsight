@@ -291,7 +291,7 @@ function renderRentab(){
     <div class="muted small">A base é o <b>projeto do Jira</b> e o <b>tipo</b> define o modelo de receita: <b>⏱ horas abertas</b> (início, fim, horas por dia e valor da hora → receita prevista mês a mês, receita realizada e a cotação no Odoo), <b>📦 escopo fechado</b> (valor do projeto e <b>marcos de faturamento</b>) e <b>🏠 interno</b> (um <b>orçamento de custo</b> consumido pela alocação da equipe). Em cada <b>cenário</b> você aloca as pessoas (por período, em horas por dia útil, por mês ou no total; execução e gestão) e vê na hora o <b>esforço previsto</b>, o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> ou o <b>saldo do orçamento</b>. As <b>horas realizadas</b> do projeto (Clockwork) entram na comparação com o planejado e na rentabilidade real. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor?'<button class="btn primario" data-rp-novo="1">＋ Novo plano</button>':''}
       ${r.sel?'<button class="btn" data-rp-voltar="1">‹ Todos os planos</button>':''}</div></div>`;
-  if(r.novo&&gestor){ cont.replaceChildren(el(`<div>${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); return; }
+  if(r.novo&&gestor){ cont.replaceChildren(el(`<div class="rp-tela">${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); rpFormAjustaTipo(); return; }
   if(!r.sel){
     const cards=planos.map(p=>{ const c=rpCalc(p,rpCenario(p)); const [stc,str]=rpStatus(p); const T=RP_TIPOS[c.tipo];
       const kpi1=c.tipo==='interno'?['Orçamento',fmtBRL(c.orc)]:c.tipo==='fechado'?['Valor do projeto',fmtBRL(c.valorProj)]:['Receita prevista',fmtBRL(c.receita)];
@@ -306,7 +306,7 @@ function renderRentab(){
           <div class="ams-dl"><div class="dt">Custo</div><div class="dd">${fmtBRL(c.custo)}</div></div>
           <div class="ams-dl"><div class="dt">${kpi4[0]}</div><div class="dd">${kpi4[1]}</div></div></div>
         <div class="muted small" style="margin-top:6px">${(p.cenarios||[]).length} cenário(s) · ${(rpCenario(p).aloc||[]).length} pessoa(s) alocada(s)${rpContrato(p)?` · 🤝 ${esc(rpContrato(p).consultoria||'')}`:''}${p.odoo&&p.odoo.id?` · 🧾 ${esc(p.odoo.name||'Odoo')}`:''}${p.atualizadoEm?` · atualizado ${dataBR(p.atualizadoEm)}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}`:''}</div></div>`; }).join('');
-    cont.replaceChildren(el(`<div>${intro}<div class="card full"><h2>Planos <span>${planos.length} plano(s)</span></h2>
+    cont.replaceChildren(el(`<div class="rp-tela">${intro}<div class="card full"><h2>Planos <span>${planos.length} plano(s)</span></h2>
       ${planos.length?`<div class="ad-grid">${cards}</div>`:`<div class="estado">Nenhum plano ainda. ${gestor?'Clique em <b>＋ Novo plano</b>, escolha o projeto do Jira e informe duração, horas vendidas por dia e o valor da hora vendida para começar a simular.':'Peça a um gestor para cadastrar o primeiro plano.'}</div>`}</div></div>`));
     return;
   }
@@ -556,7 +556,7 @@ function renderRentab(){
   const histHtml=`<section class="rm-bloco"><h3 class="mp-h3">🕓 Histórico do plano <span class="mp-dim">criado ${p.criadoEm?dataBR(p.criadoEm):'—'}${p.criadoPor?' por '+esc(p.criadoPor):''} · última alteração ${p.atualizadoEm?dataBR(p.atualizadoEm):'—'}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}</span></h3>
     ${hist.length?`<div class="scroll-x"><table class="mp-tab-mini rp-hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.slice(0,12).map(rpHistRow).join('')}</tbody></table></div>${hist.length>12?`<button class="btn rt-step" data-rp-hist-tudo="1">ver todos os ${hist.length} registros</button>`:''}`:'<div class="muted small">Ainda sem registros — daqui em diante toda gravação e alteração do plano fica aqui: quem, quando e o quê (dados, cenários, alocação, marcos, simulador e Odoo).</div>'}
     ${ctExpl('cada gravação do plano registra <b>quem</b> (identidade do ⏱ Apontar), <b>quando</b> e <b>o quê</b> mudou — os dados do projeto aparecem campo a campo (antes → depois). Alterações seguidas do mesmo tipo pela mesma pessoa, em 10 minutos, viram um registro só com o contador.')}</section>`;
-  cont.replaceChildren(el(`<div>${cab}
+  cont.replaceChildren(el(`<div class="rp-tela">${cab}
     <div class="card full">
       <h3 class="mp-h3">🧪 Cenários</h3>${chips}
       ${avisos.map(a=>`<div class="aviso">${a}</div>`).join('')}
@@ -575,6 +575,7 @@ function renderRentab(){
       ${comp}
       ${histHtml}
     </div></div>`));
+  rpFormAjustaTipo();   // o formulário abre já só com os campos do tipo escolhido (antes só ao trocar o Tipo)
   if(r.focoCel){ const e=cont.querySelector(`[data-rp-cel="${r.focoCel}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoCel=''; }
   if(r.focoVend){ const e=cont.querySelector(`[data-rp-vend="${r.focoVend}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoVend=''; }
 }

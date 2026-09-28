@@ -801,7 +801,7 @@ function renderGestao(){
       <span class="spacer"></span><button class="chip" data-gx-solimpar="1">✕ limpar filtro do Analytics</button></div>`;
   }
   const vis=['lista','tabela','quadro'].includes(g.vis)?g.vis:'tabela';
-  const viewToggle=`<div class="ap-vis" style="margin:0 0 6px"><span class="muted small">Visualização:</span>
+  const viewToggle=`<div class="ap-vis gx-modos" style="margin:0 0 6px"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${vis==='lista'}" data-gx-vis="lista">▤ Lista</button>
     <button class="chip" aria-pressed="${vis==='tabela'}" data-gx-vis="tabela">▦ Tabela</button>
     <button class="chip" aria-pressed="${vis==='quadro'}" data-gx-vis="quadro">🗂 Quadro</button>
@@ -811,11 +811,11 @@ function renderGestao(){
     <span class="muted small">Ordenar:</span>
     <select id="gx-ord" class="aloc-fsel"><option value="risco" ${g.ord==='risco'?'selected':''}>risco</option><option value="venc" ${g.ord==='venc'?'selected':''}>vencimento</option><option value="atual" ${g.ord==='atual'?'selected':''}>última atividade</option></select>
     <label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="gx-semtrat" ${g.semTrat?'checked':''}> esconder tratados</label></div>`;
-  const presets=`<div class="ap-vis" style="margin:0 0 10px"><span class="muted small">Prontos:</span>
+  const presets=`<div class="ap-vis gx-prontos" style="margin:0 0 10px"><span class="muted small">Prontos:</span>
     ${GX_PRESETS.map(([k,l])=>`<button class="chip" aria-pressed="${g.preset===k}" data-gx-preset="${k}">${esc(l)}</button>`).join(' ')}
     ${g.preset?`<button class="chip" data-gx-preset="">limpar</button>`:''}</div>`;
   const fsalvos=(()=>{ const fs=gxfLista();
-    return `<div class="ap-vis" style="margin:0 0 10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">⭐ Filtros salvos:</span>
+    return `<div class="ap-vis gx-salvos" style="margin:0 0 10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">⭐ Filtros salvos:</span>
       ${fs.slice(0,12).map(f=>`<button class="chip" data-gxf-apl="${escA(f.id)}" title="${f.tipo==='estatico'?'📌 estático — lista congelada':'🔄 dinâmico — critérios'}${f.por?` · por ${escA(f.por)}`:''}">${f.tipo==='estatico'?'📌':'🔄'} ${esc(f.nome)}</button>`).join(' ')}
       ${fs.length?'':'<span class="muted small">nenhum ainda</span>'}
       <button class="chip" data-gxf-salvar="1" title="Salvar os filtros atuais (dinâmico) ou a seleção (estático) com um nome, visível para o time">💾 Salvar filtro</button>
@@ -834,7 +834,7 @@ function renderGestao(){
       <button class="btn perigo" data-gx-act="excluir">🗑 Excluir</button>
       <span class="spacer"></span><button class="btn" id="gx-limpar">limpar seleção</button></div>`
     :`<div class="muted small" style="margin-top:10px">Marque tickets na primeira coluna para habilitar as <strong>ações em massa</strong> (atribuir · alterar status · comentar · reprogramar · tratado · CSV · excluir). As <strong>ações rápidas</strong> de cada linha reprogramam ou pedem atualização em 1 clique.</div>`;
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-gx">
     ${faixaId}
     <div class="card full">
       <h2>🛠 Gestão de Tickets <span>${todos.length} aberto(s) até ${esc(alxDataBR(g.ate))} · ${lista.length} no filtro</span></h2>

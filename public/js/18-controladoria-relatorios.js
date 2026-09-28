@@ -534,7 +534,7 @@ function renderRelatorios(){
     ${ctExpl('<b>O</b> = relatório <b>essencial</b> para aquele tipo de projeto (faz parte do padrão de governança) · <b>R</b> = <b>recomendado</b> (use quando agregar) · <b>–</b> = não se aplica. O ícone diz onde o relatório vive hoje: <b>✅ no app</b> (clique e abra), <b>🔶 parcial</b> (uma tela cobre parte, o resto está no roadmap) e <b>🔒 exige dados novos</b> no Jira. O padrão vem da planilha de governança; ajustes dos gestores valem para o time todo.')}
     ${desconhecidas.length?`<div class="aviso" style="margin-top:10px">⚠ Categorias de projeto sem tipo reconhecido: ${desconhecidas.map(esc).join(' · ')} — renomeie no Jira com o prefixo da sigla (ex.: "DAMS | …") para entrarem na matriz.</div>`:''}</div>`;
 
-  cont.replaceChildren(el(`<div>${rmAbasHTML('catalogo',rc.sigla)}${filtros}${cards}${matriz}</div>`));
+  cont.replaceChildren(el(`<div class="mob-rel">${rmAbasHTML('catalogo',rc.sigla)}${filtros}${cards}${matriz}</div>`));
 
   cont.querySelectorAll('[data-rc-sig]').forEach(b=>b.addEventListener('click',()=>{
     if(estado.vista!=='relatorios') return;
@@ -590,7 +590,7 @@ function renderControladoria(){
       <button class="chip" data-ct-per="ano">Este ano</button></div></div>
   </div>`;
   if(!d){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
+    cont.replaceChildren(el(`<div class="ct-tela"><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
       ${filtros}
       ${ct.tempoErro?`<div class="erro">${esc(ct.tempoErro)} <button class="btn" id="ct-retry">Tentar de novo</button></div>`
         :'<div class="estado">Carregando as horas do período…</div>'}</div></div>`));
@@ -717,7 +717,7 @@ function renderControladoria(){
       </div></div>
     <div class="muted small" style="margin-top:8px">Cada CATEGORIA (ex.: AMS, Tarefas Avulsas) pode mostrar um conjunto diferente de blocos — desligue o que não faz sentido para aquele tipo de projeto. Tudo aqui fica salvo para o time.</div>
   </details>`:'';
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="ct-tela">
     <div class="card full"><h2>🏦 Controladoria de Projetos <span>${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))} · a saúde financeira de cada categoria, explicada</span></h2>
       ${filtros}
       <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">Categoria:</span>${chipsCat}</div>

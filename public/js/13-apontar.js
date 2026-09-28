@@ -536,7 +536,7 @@ function renderApontar(){
         <span class="ap-proj-nome">${esc(pk)}</span>
         <span class="spacer"></span>
         <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
-      return cab + (recolhido?'':grupo.map(linhaTicket).join(''));
+      return cab + (recolhido?'':grupo.map(t=>linhaTicket(t)).join(''));   // sem o índice do map: ele caía em `extras` e virava um número solto ao lado das horas
     }).join('');
     const barraGrupos = chavesProj.length>1
       ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>
@@ -546,7 +546,7 @@ function renderApontar(){
     corpoLista = barraGrupos + `<div class="ap-lista">${rows}</div>`;
   }
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="tela-apontar">
     ${faixaId}
     ${bannerConvites}
     ${htmlPainelHoras()}

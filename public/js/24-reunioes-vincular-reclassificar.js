@@ -165,7 +165,7 @@ function renderReuVinc(){
     <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
     <td><span class="badge">${esc(t.status)}</span></td>
     <td class="num"><button class="btn primario" data-rv-vinc="${escA(t.k)}">Vincular →</button></td></tr>`).join('');
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-reuvinc">
     ${faixaId}
     <div class="card full">
       <h2>🗂 Reuniões <span>gestão e reclassificação · ${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)}</span></h2>
@@ -217,7 +217,7 @@ function renderReclass(){
          <span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
 
   if(!d.tickets.length){
-    cont.replaceChildren(el(`<div>${faixaId}
+    cont.replaceChildren(el(`<div class="vw-reclass">${faixaId}
       <div class="card full"><h2>🗂 Reuniões <span>gestão e reclassificação · projeto ${esc(d.projeto)}</span></h2>
         ${reuTabsHTML('reclassificar')}
         <div class="estado">${esc(d.aviso||`Nenhuma reunião aberta em ${d.projeto}.`)}</div></div></div>`));
@@ -238,7 +238,7 @@ function renderReclass(){
 
   const podeMover = nSel>0 && rc.alvo && id && !rc.movendo;
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-reclass">
     ${faixaId}
     <div class="card full">
       <h2>🗂 Reuniões <span>gestão e reclassificação · ${d.tickets.length} reunião(ões) aberta(s) em ${esc(d.projeto)} · mover mantém tipo e status</span></h2>
@@ -273,7 +273,7 @@ function renderReclassResultado(){
   const cont=document.getElementById('conteudo');
   const rc=estado.reclass; const r=rc.resultado;
   if(r.status==='andamento'){
-    cont.replaceChildren(el(`<div><div class="card full">
+    cont.replaceChildren(el(`<div class="vw-reclass"><div class="card full">
       <h2>Movimentação em andamento</h2>
       <div class="estado">O Jira está processando a movimentação (${esc(String(r.progresso||0))}%).
         Isso pode levar alguns segundos.</div>
@@ -287,7 +287,7 @@ function renderReclassResultado(){
   const links=movidos.map(m=>`<div class="pl-res-item">
     <a href="${jiraBase()}/browse/${encodeURIComponent(m.key)}" target="_blank" rel="noopener">${esc(m.key)} ↗</a>
     <span>${esc(m.resumo||'')}</span></div>`).join('');
-  cont.replaceChildren(el(`<div><div class="card full">
+  cont.replaceChildren(el(`<div class="vw-reclass"><div class="card full">
     <h2>Resultado da reclassificação</h2>
     <div class="pl-res-ok">✓ ${movidos.length} ticket(s) movido(s) para ${esc(rc.alvo)}</div>
     ${links||'<div class="muted small">Nenhum ticket movido.</div>'}

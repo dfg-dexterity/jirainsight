@@ -24,6 +24,8 @@
 <!-- Fonte "72" do SAP Fiori (com fallback Arial/Helvetica, que é bem próximo). -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="/css/app.css">
+<!-- 📱 camada mobile: só media queries (o desktop não muda) — carrega depois para vencer pela ordem -->
+<link rel="stylesheet" href="/css/mobile.css">
 <script>
   // Aplica o tema salvo o quanto antes (evita "flash" claro ao abrir no escuro).
   try{ var _t=localStorage.getItem('jirainsight_theme');
@@ -156,9 +158,9 @@
       </select>
     </label>
     <div class="hdr-acoes">
-      <button class="btn" id="btn-refresh" title="Recarregar os dados">↻ Atualizar</button>
+      <button class="btn" id="btn-refresh" title="Recarregar os dados" aria-label="Atualizar os dados">↻ Atualizar</button>
       <div class="hdrmenu" id="grp-exportar">
-        <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⬇ Exportar <span class="nav-car">▾</span></button>
+        <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Exportar">⬇ Exportar <span class="nav-car">▾</span></button>
         <div class="hdrmenu-m">
           <button id="btn-csv">📄 Exportar CSV</button>
           <button id="btn-pdf" title="Exportar a tela atual em PDF">🖨 PDF da tela</button>
@@ -239,8 +241,8 @@
   </div>
 </div>
 
-<button id="to-top" aria-label="Voltar ao topo" title="Voltar ao topo" hidden>↑ Topo</button>
-<button id="btn-guia" aria-label="Guia interativo desta tela" title="Guia interativo desta tela (tecla ?)" hidden>🧭 Guia desta tela<span class="nov-dot" id="guia-dot" hidden></span></button>
+<button id="to-top" aria-label="Voltar ao topo" title="Voltar ao topo" hidden>↑<span class="fl-rot"> Topo</span></button>
+<button id="btn-guia" aria-label="Guia interativo desta tela" title="Guia interativo desta tela (tecla ?)" hidden>🧭<span class="fl-rot"> Guia desta tela</span><span class="nov-dot" id="guia-dot" hidden></span></button>
 
 <!-- Documento de impressão dedicado (PDF da apuração AMS por contrato). Só visível na impressão. -->
 <div id="print-doc" aria-hidden="true"></div>

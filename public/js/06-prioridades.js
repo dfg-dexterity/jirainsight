@@ -133,7 +133,7 @@ function renderPrioridades(){
   const cont=document.getElementById('conteudo'); const pr=estado.prioridades; const r=prCfg();
   prGarante(false); prGaranteVenc(false); prGaranteDecs(false); prGaranteAtiv(false);
   const d=pr.dados;
-  if(!d){ cont.replaceChildren(el(`<div class="mp-root"><div class="card full mp-card"><h2>🎯 Prioridades do time</h2>${
+  if(!d){ cont.replaceChildren(el(`<div class="mp-root pri-tela"><div class="card full mp-card"><h2>🎯 Prioridades do time</h2>${
     pr.erro?`<div class="erro">${esc(pr.erro)} <button class="btn" data-pr-rec="1">Tentar de novo</button></div>`
       :'<div class="estado">Carregando as prioridades da semana…</div>'}</div></div>`)); return; }
   const hoje=hojeSP(); const seg=semChave(hoje); const sex=mtsSoma(seg,4);
@@ -305,7 +305,7 @@ function renderPrioridades(){
         </div>
       </div></div>`;
   }
-  cont.replaceChildren(el(`<div class="mp-root">${cab}${abas}${corpo}</div>`));
+  cont.replaceChildren(el(`<div class="mp-root pri-tela">${cab}${abas}${corpo}</div>`));
   // tour de primeiro acesso (uma vez por navegador; motor de tour existente)
   try{ if(!localStorage.getItem('jirainsight_tour_prioridades')){
     localStorage.setItem('jirainsight_tour_prioridades','1');

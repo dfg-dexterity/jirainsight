@@ -263,6 +263,10 @@ const fmtH = (seg) => {
 };
 const pct = (n,d) => d ? Math.round(n/d*100) : 0;
 const el = (h) => { const t=document.createElement('template'); t.innerHTML=h.trim(); return t.content.firstChild; };
+// 🌐 Endereço público do portal do cliente: o cliente não passa pelo SSO da Vercel, então os
+// links de convite/acesso apontam para o domínio customizado (cfg.portalUrl sobrepõe o padrão).
+const PORTAL_URL_PADRAO='https://portal.dexterityit.com.br';
+function portalBase(){ const u=(typeof cfg!=='undefined'&&cfg&&cfg.portalUrl)?String(cfg.portalUrl).trim():''; return (u||PORTAL_URL_PADRAO).replace(/\/+$/,''); }
 const esc = (s) => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 // Escape para VALOR de atributo (inclui aspas). O texto é lido de volta com getAttribute
 // e renderizado via textContent, então não há injeção.
@@ -328,6 +332,16 @@ document.addEventListener('mousemove', (e)=>{
   else escondeTip();
 }, {passive:true});
 document.addEventListener('scroll', escondeTip, {passive:true, capture:true});
+// No toque não existe mousemove: um toque em [data-tip] mostra a dica por 2,5 s (e some ao tocar fora).
+let _tipTimer=0;
+document.addEventListener('click', (e)=>{
+  if(!(window.matchMedia&&matchMedia('(pointer:coarse)').matches)) return;
+  const t=e.target.closest && e.target.closest('[data-tip]');
+  clearTimeout(_tipTimer);
+  if(!t){ escondeTip(); return; }
+  mostraTip(t.getAttribute('data-tip'), t.getAttribute('data-tip2'), t.getAttribute('data-tipk'), e.clientX, e.clientY);
+  _tipTimer=setTimeout(escondeTip, 2500);
+}, {passive:true});
 
 // ---- Datas (fuso America/Sao_Paulo no cliente, aritmética em UTC nas strings) ----
 const hojeSP = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());

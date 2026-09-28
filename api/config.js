@@ -842,6 +842,10 @@ async function portalCliente(req, res, base, headers) {
   // ---- administração (gestor do painel, autenticado pelo Jira) ----
   const auth = await validaJira(req);
   if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
+  // A conta do cliente nasce de um convite do GESTOR (decisão do usuário, 2026-09-26): identidade
+  // válida no Jira não basta — qualquer consultor conseguia listar, convidar e revogar contas.
+  // Revisão de 2026-09-28: a mesma régua do planejamento (cfg.gestores, com o fallback legado).
+  if (!(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Só gestores administram os acessos do cliente.' });
 
   if (acao === 'contas') {   // lista as contas de um contrato
     const ct = String((req.query && req.query.ct) || body.contrato || '');
@@ -986,7 +990,22 @@ async function usoLe(req, res, base, headers) {
   });
 }
 
+// 🌐 Domínio público do portal (portal.dexterityit.com.br). A SSO Protection da Vercel
+// ("all_except_custom_domains") deixa o domínio customizado ABERTO para o mundo — é o que
+// faz o cliente externo chegar ao portal, e também o que exporia o painel inteiro nesse
+// host. O vercel.json já redireciona tudo que não é do portal para /portal.html; aqui fica a
+// segunda cerca: neste host esta função só responde às rotas do cliente (?pcli= e ?portal=).
+function hostEhPortal(req) {
+  const h = String((req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '').split(',')[0].trim().split(':')[0].toLowerCase();
+  const alvo = String(process.env.PORTAL_HOST || 'portal.dexterityit.com.br').toLowerCase();
+  return !!h && h === alvo;
+}
+
 export default async function handler(req, res) {
+  if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
+    res.setHeader('Cache-Control', 'no-store');
+    return json(res, 404, { ok: false, erro: 'Não encontrado.' });
+  }
   // GET /api/config?versao=1 → versão do deploy (commit/PR), injetada pela Vercel no runtime.
   // O merge squash guarda o nº do PR no fim da mensagem do commit: "Título (#60)".
   if (req.query && req.query.versao) {

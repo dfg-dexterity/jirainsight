@@ -3,6 +3,10 @@
   "functions": {
     "api/*.js": { "maxDuration": 60 }
   },
+  "redirects": [
+    { "source": "/", "has": [{ "type": "host", "value": "portal.dexterityit.com.br" }], "destination": "/portal.html", "permanent": false },
+    { "source": "/:caminho((?!portal\\.html$|logo\\.svg$|icons/|_vercel/|api/config$).*)", "has": [{ "type": "host", "value": "portal.dexterityit.com.br" }], "destination": "/portal.html", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/sw.js",

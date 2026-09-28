@@ -306,7 +306,7 @@ function pcliBlocoHTML(c){
 }
 // Mostra o link do convite recém-criado para o gestor copiar.
 function pcliMostraConvite(cru, email){
-  const url=`${location.origin}/portal.html?convite=${encodeURIComponent(cru)}`;
+  const url=`${portalBase()}/portal.html?convite=${encodeURIComponent(cru)}`;
   abreModal(`<h2>✉ Convite criado</h2>
     <div class="muted small">Mande este link para <strong>${esc(email)}</strong>. Ele vale <strong>7 dias</strong>, serve <strong>uma vez</strong>
       e é onde a pessoa escolhe a própria senha.</div>
@@ -407,7 +407,7 @@ function renderAdmin(){
     }
     const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
     const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
-    const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
+    const url = c.portalToken ? `${portalBase()}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
       ? `<div class="ad-portal"><span class="muted small">🔗 Link do cliente:</span>
           <input type="text" readonly value="${escA(url)}" data-ad-portal-input>
@@ -434,7 +434,7 @@ function renderAdmin(){
     </div>`;
   }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-admin">
     <div class="card full"><h2>🏢 Contratos — clientes &amp; valores <span>a base do AMS, da bolsa de horas, da Rentabilidade e da Controladoria</span></h2>
       <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
         Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
@@ -655,7 +655,7 @@ function renderAMS(){
         ${amsRelatoriosCard(cSel, cycSel)}
       </div>`;
   }
-  cont.replaceChildren(el(`<div>${amsSection}</div>`));
+  cont.replaceChildren(el(`<div class="ams-tela">${amsSection}</div>`));
 }
 
 function renderReceita(){
@@ -663,7 +663,7 @@ function renderReceita(){
   if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
+    cont.replaceChildren(el(`<div class="rc-tela"><div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
       Cadastre clientes, valor-hora e os projetos do Jira em <strong>📑 Contratos › 🏢 Clientes</strong> para liberar esta visão.
       <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>🛡 AMS</strong>, ao lado.)</span><br><br>
@@ -745,7 +745,7 @@ function renderReceita(){
       <div class="rc2-grid">${linhas.map(card).join('')}</div>
     </div>` : '';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="rc-tela">
     ${genericoSection || `<div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
       Os contratos <strong>AMS</strong> têm aba própria (<strong>🛡 AMS</strong>, ao lado). Cadastre contratos em <strong>📑 Contratos › 🏢 Clientes</strong>.</div></div>`}
