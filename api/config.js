@@ -842,6 +842,10 @@ async function portalCliente(req, res, base, headers) {
   // ---- administração (gestor do painel, autenticado pelo Jira) ----
   const auth = await validaJira(req);
   if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
+  // A conta do cliente nasce de um convite do GESTOR (decisão do usuário, 2026-09-26): identidade
+  // válida no Jira não basta — qualquer consultor conseguia listar, convidar e revogar contas.
+  // Revisão de 2026-09-28: a mesma régua do planejamento (cfg.gestores, com o fallback legado).
+  if (!(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Só gestores administram os acessos do cliente.' });
 
   if (acao === 'contas') {   // lista as contas de um contrato
     const ct = String((req.query && req.query.ct) || body.contrato || '');
