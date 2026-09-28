@@ -170,12 +170,12 @@ function renderUso(){
       <span class="muted small">${esc(dataBR(de))} → ${esc(dataBR(ate))}</span>
     </div></div>`;
 
-  if(st.carregando && !st.dados){ cont.replaceChildren(el(`<div>${cab}<div class="estado">⏳ Lendo o uso do painel…</div></div>`)); return; }
-  if(st.erro && !st.dados){ cont.replaceChildren(el(`<div>${cab}<div class="erro">${esc(st.erro)}</div></div>`)); return; }
+  if(st.carregando && !st.dados){ cont.replaceChildren(el(`<div class="mob-uso">${cab}<div class="estado">⏳ Lendo o uso do painel…</div></div>`)); return; }
+  if(st.erro && !st.dados){ cont.replaceChildren(el(`<div class="mob-uso">${cab}<div class="erro">${esc(st.erro)}</div></div>`)); return; }
 
   const C = usoCalc();
   if(!C.linhas.length){
-    cont.replaceChildren(el(`<div>${cab}<div class="estado">Nenhum uso registrado neste período.
+    cont.replaceChildren(el(`<div class="mob-uso">${cab}<div class="estado">Nenhum uso registrado neste período.
       A contagem começa quando esta versão entra no ar — ela não reconstrói o passado.</div></div>`));
     const s0 = document.getElementById('uso-dias'); if(s0) s0.value = String(st.dias);
     return;
@@ -218,7 +218,7 @@ function renderUso(){
     <div class="muted small">Antes de aposentar: confira se a tela é sazonal (fechamento do mês, apuração) e se quem precisa dela tem o papel para enxergá-la.</div>
     <div class="uso-chips">${C.semUso.map(v => `<span class="rc-cod" data-uso-ir="${escA(v)}" data-tip="Abrir ${escA(usoRot(v))}">${esc(usoRot(v))}</span>`).join('')}</div></div>` : '';
 
-  cont.replaceChildren(el(`<div>${cab}${kpis}<div class="grid uso-mini">${evol}${disp}</div>${ranking}${pessoas}${semUso}
+  cont.replaceChildren(el(`<div class="mob-uso">${cab}${kpis}<div class="grid uso-mini">${evol}${disp}</div>${ranking}${pessoas}${semUso}
     <div class="card full uso-card"><h2>🔒 O que fica guardado</h2>
       <div class="muted small">Cada pessoa vê o próprio uso; o consolidado do time é de gestores e diretoria. Guardamos <b>quem · qual tela · quantas aberturas · quantos segundos · que dia · celular ou computador</b> — e nada mais.
       O histórico é podado depois de 180 dias. O número é <b>declarado pelo navegador</b>: serve para entender adoção, não como auditoria.</div></div></div>`));
