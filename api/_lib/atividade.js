@@ -4,7 +4,9 @@
 // /api/teams (resumo IA agendado — que agrega por pessoa no servidor).
 import { jiraSearchAll } from './util.js';
 
-// r: { startDate:'AAAA-MM-DD', startISO, endISO } (endISO = limite superior).
+// r: { startDate:'AAAA-MM-DD', startISO, endISO[, maxPages] } (endISO = limite superior;
+// maxPages = teto de páginas de 100 issues — o 📊 relatório semanal passa um teto menor
+// para caber nos 60 s do cron e marca `truncado` quando bate nele).
 // Devolve { eventos, pessoas, projetos, resumos, concluidasTotal, concluidasPorProjeto, totalIssues, paginas, truncado }.
 export async function coletaAtividade(r) {
   const inicio = new Date(r.startISO).getTime();
@@ -23,6 +25,7 @@ export async function coletaAtividade(r) {
     fields: ['project', 'issuetype', 'created', 'reporter', 'resolutiondate', 'comment', 'summary'],
     expand: 'changelog',
     pageSize: 100,
+    ...(r.maxPages > 0 ? { maxPages: r.maxPages } : {}),
   });
 
   const eventos = [];            // {k,p,t,a,e,d}

@@ -319,6 +319,7 @@ export function ehFaturavel(tipo, descricaoTipo) {
 // ---------------------------------------------------------------------------
 // Clockwork: worklogs brutos + worklogs enriquecidos com projeto/tipo/faturável.
 const CW_BASE = 'https://api.clockwork.report/v1';
+export const CLOCKWORK_TETO = 200000;   // linhas brutas por leitura; bater aqui = lista possivelmente cortada
 export async function clockworkRaw(startDate, endDate) {
   const token = process.env.CLOCKWORK_API_TOKEN;
   if (!token) throw new Error('CLOCKWORK_API_TOKEN não configurada');
@@ -347,7 +348,7 @@ export async function clockworkRaw(startDate, endDate) {
     assinaturaAnterior = assinatura;
     out.push(...lote);
     offset += lote.length;
-    if (out.length >= 200000) break;
+    if (out.length >= CLOCKWORK_TETO) break;
   }
   return out;
 }
@@ -396,7 +397,9 @@ export async function worklogsEnriquecidos(startDate, endDate, opts) {
     if (comComentarios) wl.c = textoComentario(w.comment).slice(0, 400);
     worklogs.push(wl);
   }
-  return { pessoas, projetos, resumos, infos, worklogs };
+  // `bruto`/`truncado`: o sinal de corte é medido nas linhas BRUTAS do Clockwork (a lista
+  // enriquecida é menor — worklog sem autor sai — e não serve para comparar com o teto).
+  return { pessoas, projetos, resumos, infos, worklogs, bruto: brutos.length, truncado: brutos.length >= CLOCKWORK_TETO };
 }
 
 // ---------------------------------------------------------------------------

@@ -18,11 +18,18 @@
 //                                           x-jira-token) — o accountId é resolvido no
 //                                           servidor, nunca confiado do corpo.
 //
+// GET  /api/config?semanal=1[&semana=AAAA-MM-DD][&n=8] -> 📊 fotos do relatório semanal
+//                                           (as n mais recentes até a semana), recortadas
+//                                           pelo PAPEL da pessoa — identidade conferida no
+//                                           Jira (headers x-jira-*), papel por cfg.papeis/
+//                                           cfg.gestores no servidor. Sem identidade → 401.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
 } from './_lib/util.js';
+import { leFotos, papeisDe, recorteParaPapel, segundaDe } from './_lib/semanal.js';
 
 const TABELA = 'jirainsight_config';
 const ID = 'default';
@@ -74,6 +81,13 @@ async function validaJira(req) {
 const T_PLAN = 'jirainsight_plan_semana';
 const T_ITENS = 'jirainsight_plan_itens';
 const T_HIST = 'jirainsight_plan_hist';
+// Chaves da config que definem PAPEL (e, por isso, permissão no servidor): só gestor/admin mudam.
+const CHAVES_PAPEL = ['papeis', 'gestores', 'projGerentes'];
+// JSON canônico (chaves de objeto ordenadas) para comparar "mudou?" sem falso positivo por ordem.
+function canonJson(v) {
+  const ord = (x) => (Array.isArray(x) ? x.map(ord) : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((o, k) => { o[k] = ord(x[k]); return o; }, {}) : x);
+  return JSON.stringify(v === undefined ? null : ord(v));
+}
 const RE_DATA_P = /^\d{4}-\d{2}-\d{2}$/;
 const RE_PROJ_P = /^[A-Za-z][A-Za-z0-9_]*$/;
 
@@ -1001,6 +1015,33 @@ function hostEhPortal(req) {
   return !!h && h === alvo;
 }
 
+// ===========================================================================
+// 📊 RELATÓRIO SEMANAL — leitura das fotos (pedido do usuário, 2026-09-28)
+// As fotos vivem em linhas `semanal_<segunda>` desta mesma tabela (o GET normal só devolve
+// `default`, então elas nunca descem com a config para o navegador de todo o time). Aqui a
+// pessoa se identifica (token do Jira, como no planejamento) e o PAPEL é decidido no
+// servidor com a mesma regra do painel (papeisDe): gestor/negocio/diretoria/admin recebem
+// a foto inteira; os demais, o time + a própria linha + os projetos em que são gerentes.
+// O front calcula Δ, média de 4 e série de 8 a partir da lista. Nunca cacheado.
+// ===========================================================================
+async function semanalLe(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  const n = Math.max(1, Math.min(26, Number(q.n) || 8));
+  const semana = segundaDe(String(q.semana || '')) || segundaDe(spHoje());
+  const rc = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+  const rows = rc.ok ? await rc.json() : [];
+  const cfg = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+  const papeis = papeisDe(cfg, quem);
+  const fotos = await leFotos({ ate: semana, n }, { base, headers });
+  res.setHeader('Cache-Control', 'no-store');
+  return json(res, 200, {
+    ok: true, semana, n, papeis, accountId: quem.accountId,
+    semanas: fotos.map((f) => recorteParaPapel(f, { papeis, accountId: quem.accountId })),
+  });
+}
+
 export default async function handler(req, res) {
   if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
     res.setHeader('Cache-Control', 'no-store');
@@ -1045,6 +1086,9 @@ export default async function handler(req, res) {
       return req.method === 'POST' ? await usoGrava(req, res, base, headers) : await usoLe(req, res, base, headers);
     }
 
+    // 📊 Relatório semanal: as fotos, recortadas pelo papel de quem pede (GET, com identidade).
+    if (req.query && req.query.semanal) return await semanalLe(req, res, base, headers);
+
     // 🎯 Prioridades do time: log de decisões (sempre POST, com identidade do Jira).
     if (req.query && req.query.dec) {
       if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
@@ -1078,6 +1122,20 @@ export default async function handler(req, res) {
           data: atual.data || {}, rev: atual.updated_at,
           erro: 'A config foi alterada por outra pessoa/aba — mesclando e tentando de novo.',
         });
+      }
+      // 🔐 Chaves de PAPEL só mudam pela mão de gestor/admin. `papeis`, `gestores` e `projGerentes`
+      // decidem no servidor o recorte do 📊 relatório semanal (?semanal=1) e quem aprova o
+      // planejamento — a mesma identidade (qualquer token válido do Jira) podia se promover a
+      // "diretoria" num POST e ler a foto inteira. O papel de quem grava é o da config ATUAL
+      // (papeisDe: cfg.papeis + cfg.gestores, com o aprovador legado quando a lista está vazia),
+      // que é a mesma regra da tela (souAprovador()||admin). O resto da config segue livre.
+      const cfgAtual = (atual && atual.data && typeof atual.data === 'object') ? atual.data : {};
+      const mudou = CHAVES_PAPEL.filter((k) => canonJson(data[k]) !== canonJson(cfgAtual[k]));
+      if (mudou.length) {
+        const ps = papeisDe(cfgAtual, auth);
+        if (!ps.includes('gestor') && !ps.includes('admin')) {
+          return json(res, 403, { configurado: true, ok: false, erro: `Só gestores ou admin do painel alteram ${mudou.join(', ')} (perfis, gestores e gerentes de projeto). A mudança não foi gravada.` });
+        }
       }
       const novoRev = new Date().toISOString();
       const payload = [{ id: ID, data, updated_at: novoRev }];

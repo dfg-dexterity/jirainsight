@@ -90,8 +90,10 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: plano por **tipo** — nas horas abertas, a linha **Horas vendidas** do planner nasce da carga vendida mas aceita o número **digitado por mês** (`p.vendMan['AAAA-MM']`, 2026-09-21: entra em `rpVendPorMes`, a fonte única, e por isso vale para receita, eficiência, saldo, períodos de faturamento/Odoo, realizado × previsto e gráficos; o calculado fica ao lado e o ↺ devolve o plano) — (horas abertas: 🤝 contrato de parceria, início/fim, h/dia, valor-hora → receita mensal e por **período de faturamento** do contrato, receita realizada, ordem de venda no Odoo com **um item por período** via `/api/resumo?acao=odoo-venda` e **sincronização** do faturado/pago via `?acao=odoo-venda-status`; escopo fechado: valor + marcos de faturamento ligados a épicos; interno: orçamento consumido pela alocação), planner pessoa × mês com **alocação por regra** (% do dia, h/dia, h/mês, total entre datas — dias úteis sem feriados, `al.regra`), cenários, simulador, realizado e **histórico do plano** (`p.hist`: quem/quando/o quê) — tudo em `cfg.rentab` |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
 | `18-controladoria-relatorios.js` | 🏦 Controladoria (por categoria; bloco 🧭 Todas as categorias; **📁 Resultado do projeto** — `ctResultado`/`ctResultadoHTML` com `estado.ctrl.destaque`: custo por nível e por pessoa, vendido × realizado, plano × realizado, evolução), 📚 Central de Relatórios (matriz O/R por tipo; "Abrir no app" leva o **contexto do relatório** — `estado.relCtx`, faixa `#rel-ctx` — que restringe a tela-alvo aos projetos dos tipos O/R via `relProjOk`; **catálogo por código R**: `anl`/`rm` em `REL_CAT`, `relCodigosDe`, chips `[data-rel-vis]` e selos `[data-rc-abrir-rel]`) |
+| `18b-relatorio-semanal.js` | 📊 **Relatório semanal de sexta** (R28, `?v=semanal`, aba do grupo 📚 Central): lê as **fotos** semanais (`GET /api/config?semanal=1&n=8[&semana=]`, com identidade e **papel decidido no servidor**) e mostra esta semana, a anterior, o **Δ**, a média de 4 e a série de 8 — KPIs do time (planejado · orçado/capacidade · realizado · execução · aderência · consumo · qualidade da informação), tabelas por pessoa e por projeto (chips 🧭 Pendências e 📁 ficha), texto da IA e "📋 copiar resumo". `realFechado` (a semana anterior recontada seg→dom na sexta seguinte) aparece com selo 🔒 |
 | `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |
 | `20-gestao.js` | 🧰 Gestão de tickets (filtros salvos, ações em massa, ficha do ticket) |
+| `20b-gestao-projeto.js` | 🧭 **Pendências do projeto** (R29, `?v=gp`, aba do grupo 🛠 Tickets do time; chip 🧭 na espinha do projeto; escopo na URL em `gproj` para não disputar com o filtro global `proj`): a visão do **gerente** — meus projetos (`cfg.projGerentes`, editado na ficha do 📁 projeto com o líder do Jira como sugestão; `meusProjetos()` é leitor), N dias sem atualização, blocos por pessoa com o pior caso primeiro (⏰ vencidos · 🧊 parados · ⏳ vencem em 7 dias · 📝 cadastro incompleto · ⏱ sem apontamento · 📅 reuniões vencidas · 📊 plano × orçado × realizado da foto) e as **ações de cobrança**: 📋 copiar a mensagem da pessoa (com o link filtrado), 💬 abrir o chat do Teams, 📣 comentar no Jira em lote (token da própria pessoa, modelo "Cobrar atualização"), 📥 aviso no Inbox (um por remetente+pessoa), 🛠 abrir na Gestão. Dados: `/api/vencimentos?analytics=1&dias=N&projetos=A,B` (chaves validadas e entre aspas; nenhuma válida → 400) |
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
@@ -105,6 +107,47 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 **Para acrescentar um módulo:** crie `public/js/NN-nome.js`, adicione a tag `<script defer>` na
 posição certa do `index.html` e rode `npm run check` (ele acusa arquivo sem tag, tag sem
 arquivo, nome global duplicado e uso antes da declaração).
+
+### 📊 Relatório semanal de sexta e 🧭 Pendências do projeto (2026-09-28)
+
+Pedido: *"toda sexta-feira um relatório de planejado × orçado, reuniões, tickets criados e qualidade da
+informação, comparável com as semanas anteriores e com as atividades de cada pessoa — e uma visão para
+o gerente de projetos ver o que está parado e vencido por pessoa e cobrar com clareza".* Decisões do
+usuário: orçado = **horas vendidas da Rentabilidade (por projeto, pro rata dos dias úteis) + capacidade por
+pessoa**; destino = **canal de gestores + mensagem direta a cada gerente + tela no app por papel**; gerente
+= **campo no app** (líder do Jira como sugestão); reuniões **pelo Jira** (nada de ler agenda).
+
+**Como funciona.** No dia marcado (`cfg.relSemanal = {ativo, dia:5, hora:'16:00', parado:5}`, seção 📣
+Envios automáticos da ⚙️ Central; se a sexta é feriado, o **último dia útil** da semana) o cron de 30 min
+(`apontamento-teams.yml` → `/api/teams?cron=1`) roda o `?tipo=semanal` em **duas fases**, para caber nos
+60 s da função: **foto** (`api/_lib/semanal.js` → `montaFotoSemanal`: 8 fontes em paralelo — planos
+enviados/aprovados do Supabase, worklogs do Clockwork (seg→dom), criados/concluídos por JQL
+`created`/`resolved` (nunca `updated`), abertos com os **parados primeiro** (`buscaAbertos({ordem:'asc'})`),
+atividade, usuários, catálogo, horas vendidas — e grava `jirainsight_config` id `semanal_<segunda>`, 104
+semanas, anotando `realFechado` na foto anterior) e **envio** (IA opcional gravada na foto + cartão no canal
+de gestores `TEAMS_GESTORES_WEBHOOK_URL` + **mensagem direta a cada gerente** via `TEAMS_DM_WEBHOOK_URL`, com
+reenvio só para quem falhou; marca `teams_estado.ultimoEnvioSemanal`). Se o estado do Teams não puder ser
+lido, o tique é pulado (nada é refeito nem reenviado). Exige **`CRON_SECRET`** (503 sem ela, mesmo em
+`dry=1`, porque a foto tem dados por pessoa). Prévia manual: `?tipo=semanal&fase=foto|envio&dry=1` com o
+Bearer; sem `dry` só com `&confirmar=1`.
+
+**Indicadores** (segundos; % em 0–100): planejado = itens dos planos enviados/aprovados (maior versão);
+orçado por projeto = horas vendidas do plano da Rentabilidade rateadas pelos dias úteis da semana
+(`api/_lib/rentab.js`, porte fiel de `rpVendPorMes`/`rpVendAte`, com **gate de paridade**
+`scripts/check-rentab-paridade.mjs` no `npm run check`); capacidade por pessoa = meta/dia × dias úteis −
+ausências (com `cfg.vigencias`); execução, aderência, sem plano, não feito, consumo; reuniões pelo Jira
+(tickets de reunião criados, horas em reunião, reuniões vencidas abertas); criados/concluídos/saldo; **nota
+de qualidade** 0–100 (apontamento 40 · tickets abertos 45 · plano 15, sempre com os componentes);
+vencidos/parados/sem data/sem responsável/sem estimativa/descrição curta (as regras dos `ANL_CHECKS`);
+atividade por pessoa. Tudo em `api/_lib/semanal.js`, funções puras + orquestradora.
+
+**Quem vê.** `GET /api/config?semanal=1` confere a identidade no Jira e decide o **papel no servidor**
+(`papeisDe`): gestor/negócio/diretoria/admin veem tudo; os demais veem o time + a própria linha + os
+projetos onde são gerentes (sem `porPessoa` de outros e **sem o texto da IA**). O POST da config recusa
+(403) alteração de `papeis`/`gestores`/`projGerentes` por quem não é gestor/admin pela config atual.
+
+**Variáveis na Vercel:** `CRON_SECRET` (obrigatória para o semanal), `TEAMS_GESTORES_WEBHOOK_URL` (canal só
+de gestores), `TEAMS_DM_WEBHOOK_URL` (fluxo do Power Automate para mensagem direta — o mesmo dos convites).
 
 ### 📱 Celular e tablet (camada mobile — 2026-09-28)
 
