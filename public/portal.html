@@ -143,25 +143,27 @@
      continua com o visual que tinha. Os tokens ganham os valores da marca
      (areia #F7F3E7, verde-petróleo #009994, texto #4D4D4D) só neste modo.
      ===================================================================== */
+  /* Contraste AA (≥ 4.5:1) também nos textos pequenos: --muted2 (rodapé 11.5px) e --lnk (↻ 12.5px) sobre a areia;
+     no escuro o botão primário e o avatar levam texto escuro (branco sobre #2BB6AA dava 2.5:1). */
   body.pj{ --offwhite:#F7F3E7; --grafite:#3B3B3B; --cerceta:#00817D; --teal:#009994; --linha:#E3DCC8; --linha2:#EDE7D6;
-    --trilho:#EFE9DA; --muted:#6E6A60; --muted2:#7A7568; --texto2:#5C5850; --musgo:#1E7A46; --amarelo:#B45309; --err:#B3261E;
-    --sombra:0 0 0 1px rgba(77,77,77,.03), 0 1px 4px rgba(77,66,40,.10) }
+    --trilho:#EFE9DA; --muted:#6E6A60; --muted2:#6B665A; --texto2:#5C5850; --musgo:#1E7A46; --amarelo:#B45309; --err:#B3261E;
+    --lnk:#00706C; --pri-txt:#fff; --sombra:0 0 0 1px rgba(77,77,77,.03), 0 1px 4px rgba(77,66,40,.10) }
   @media (prefers-color-scheme:dark){ body.pj{ --offwhite:#0E1726; --grafite:#E6EDF6; --cerceta:#2BB6AA; --teal:#2BB6AA;
-    --linha:#2B3A4D; --linha2:#2B3A4D; --trilho:#22303F; --muted:#93A4BA; --muted2:#7E90A6; --texto2:#B7C3D3;
-    --musgo:#2EA043; --amarelo:#F0883E; --err:#F2555A; --sombra:0 0 0 1px rgba(0,0,0,.25), 0 2px 10px rgba(0,0,0,.5) } }
+    --linha:#2B3A4D; --linha2:#2B3A4D; --trilho:#22303F; --muted:#93A4BA; --muted2:#8E9FB5; --texto2:#B7C3D3;
+    --musgo:#2EA043; --amarelo:#F0883E; --err:#F2555A; --lnk:#2BB6AA; --pri-txt:#0E1726; --sombra:0 0 0 1px rgba(0,0,0,.25), 0 2px 10px rgba(0,0,0,.5) } }
   body.pj header{align-items:flex-start}
   body.pj header img{margin-top:2px}
   body.pj header h1{font-size:20px;line-height:1.2}
   body.pj header h1 .cli{color:var(--cerceta)}
   body.pj header h1 .sep{color:var(--muted2);font-weight:400;margin:0 2px}
   body.pj header .sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .lnk{border:0;background:none;color:var(--cerceta);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+  .lnk{border:0;background:none;color:var(--lnk,var(--cerceta));font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
   .lnk:hover{text-decoration:underline}
   /* Botões-link do cabeçalho e do rodapé: Teams em destaque, pasta como apoio. */
   .pj-acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .pjb{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px;
     text-decoration:none;white-space:nowrap;border:1px solid var(--linha);background:var(--cartao);color:var(--cerceta);cursor:pointer;font-family:inherit}
-  .pjb.pri{background:var(--cerceta);border-color:var(--cerceta);color:#fff}
+  .pjb.pri{background:var(--cerceta);border-color:var(--cerceta);color:var(--pri-txt,#fff)}
   .pjb:hover{filter:brightness(.96)}
   .pj-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   .pj-nav .sp{flex:1}
@@ -174,7 +176,7 @@
   .pj-apre{font-size:14.5px;line-height:1.6;border-left:4px solid var(--teal)}
   .card h2 .pill{margin-left:8px;vertical-align:middle}
   .card h2 .n{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
-  body.pj .kpis{margin-bottom:0}
+  body.pj #pj-corpo .kpis{margin-bottom:0}   /* só os KPIs do projeto (o card os envolve); a aba AMS mantém a folga de sempre */
   body.pj .kpi{min-width:0}   /* o texto de uma linha abaixo não pode alargar a coluna da grade (celular) */
   body.pj .kpi .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Pastilhas de situação (as mesmas cores do semáforo do Cronograma interno). */
@@ -211,7 +213,7 @@
   /* Time do projeto */
   .pj-eq{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
   .pj-pes{display:flex;gap:10px;align-items:center;border:1px solid var(--linha);border-radius:10px;padding:10px 12px;min-width:0}
-  .pj-pes .av{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--teal);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
+  .pj-pes .av{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--cerceta);color:var(--pri-txt,#fff);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}   /* --cerceta: branco sobre #00817D = 4.7:1 (sobre o --teal dava 3.5) */
   .pj-pes .n{font-weight:700;font-size:13.5px} .pj-pes .p{font-size:12px;color:var(--muted)} .pj-pes .c{font-size:12px;color:var(--cerceta);word-break:break-word}
   .pj-pes .tx{min-width:0}
   /* Links úteis em chips */
@@ -228,6 +230,11 @@
   .pj-cr-lab .r:nth-child(odd){background:color-mix(in srgb,var(--trilho) 45%,transparent)}
   .pj-cr-lab .r i{flex:0 0 auto;width:8px;height:8px;border-radius:50%}
   .pj-cr-lab .r span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pj-cr-lab .r{cursor:pointer;border-radius:6px} .pj-cr-lab .r:focus-visible{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .pj-cr-lab .r[aria-expanded="true"]{background:color-mix(in srgb,var(--cerceta) 14%,transparent)}
+  /* o nome completo da etapa tocada (as linhas ficam com 30px para casar com o SVG; o nome inteiro aparece aqui embaixo) */
+  .pj-cr-nome{font-size:12.5px;color:var(--texto2);margin-top:8px;padding:8px 10px;border:1px dashed var(--linha);border-radius:8px;white-space:pre-line}
+  .pj-cr-nome:empty{display:none}
   .pj-cr{flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .pj-cr svg{display:block;font-family:inherit}
   .pj-cr-dica{display:none;font-size:11.5px;color:var(--muted);margin-top:6px}
@@ -248,6 +255,7 @@
     body.pj header{flex-wrap:wrap} body.pj header>div:not(.ciclo){flex:1;min-width:0}
     body.pj header .ciclo .pj-acoes{justify-content:flex-start}
     body.pj .pjb,body.pj .pj-tab,body.pj .pj-sel,body.pj .chip,body.pj .bt.sec,body.pj .lnk{min-height:44px}
+    body.pj .pj-pes .c{min-height:44px;display:flex;align-items:center}   /* o contato do time (link) com altura de dedo */
     body.pj .bt.sec{padding:8px 14px}
     body.pj .lnk{padding:0 8px}
     body.pj .eu{gap:8px} body.pj .eu .sp{flex-basis:100%;margin:0;height:0}   /* Trocar senha · Sair numa linha própria */
@@ -687,10 +695,15 @@ function pjEntra(d, s){
 // Desenha o modo projeto conforme a aba; busca o payload quando ainda não está em memória.
 async function pjMostra(){
   const P=_PJ.pay[_PJ.key]||null;
-  if(_PJ.aba==='ams'){ render(_PJ.d,_PJ.s); pjCabecalho(P); pjInsereNav(); return; }
+  if(_PJ.aba==='ams'){
+    // o render() AMS de sempre escreve ciclo/apuração no cabeçalho: o modo projeto os MANTÉM e só acrescenta os botões
+    render(_PJ.d,_PJ.s);
+    pjCabecalho(P,{ sub:document.getElementById('sub').textContent, ciclo:document.getElementById('ciclo').innerHTML });
+    pjInsereNav(); return;
+  }
   pjCabecalho(P);
   $c().innerHTML=(_PJ.s?barraEu(_PJ.s):pjBanner())+pjNav()
-    +'<div id="pj-corpo">'+(P?pjCorpo(P):'<div class="card"><div class="estado">Carregando o projeto…</div></div>')+'</div>';
+    +'<div id="pj-corpo" role="tabpanel" aria-labelledby="pj-tab-projeto">'+(P?pjCorpo(P):'<div class="card"><div class="estado">Carregando o projeto…</div></div>')+'</div>';
   if(_PJ.s) ligaBarra();
   if(P) pjCrRola(); else await pjCarrega();
 }
@@ -709,16 +722,17 @@ async function pjCarrega(){
   st.pay[key]=r.d; pjCabecalho(r.d);
   if(corpo){ corpo.innerHTML=pjCorpo(r.d); pjCrRola(); }
 }
-function pjCabecalho(P){
+function pjCabecalho(P, ams){
   document.body.classList.add('pj');
   const pr=((_PJ.d&&_PJ.d.projetos)||[]).find(p=>p.key===_PJ.key)||{};
   const cliente=(P&&P.cliente)||(_PJ.s&&_PJ.s.cliente)||'';
   const nome=(P&&P.projeto&&P.projeto.nome)||pr.nome||_PJ.key;
   document.getElementById('titulo').innerHTML=`${cliente?`<span class="cli">${esc(cliente)}</span> <span class="sep">·</span> `:''}${esc(nome)}`;
   document.title=`${cliente?cliente+' · ':''}${nome} · Dexterity`;
-  document.getElementById('sub').innerHTML=`<span>Portal do projeto</span>`
-    +(P?` <span>· atualizado <span id="pj-atu">${esc(pjHaQuanto(P.atualizadoEm))}</span></span> <button class="lnk" id="pj-rec" title="Recarregar os dados">↻ atualizar</button>`:'');
-  document.getElementById('ciclo').innerHTML=P?pjAcoes(P):'';
+  // Na aba AMS o subtítulo é o da apuração (ciclo, banco de horas) e o ciclo vigente continua no canto.
+  document.getElementById('sub').innerHTML=ams?`<span>${esc(ams.sub||'')}</span>`:`<span>Portal do projeto</span>`
+    +(P?` <span>· atualizado <span id="pj-atu">${esc(pjHaQuanto(P.atualizadoEm))}</span></span> <button class="lnk" id="pj-rec" title="Recarregar os dados (o servidor renova o conteúdo a cada 10 min)">↻ atualizar</button> <span class="muted">· os dados são renovados a cada 10 min</span>`:'');
+  document.getElementById('ciclo').innerHTML=(ams?ams.ciclo||'':'')+(P?pjAcoes(P):'');
   const f=document.querySelector('.foot');
   if(f) f.innerHTML=(P?pjAcoes(P):'')+'<span>Portal somente-leitura · Dexterity IT · o progresso vem do acompanhamento do projeto</span>';
 }
@@ -737,21 +751,35 @@ function pjNav(){
   const ps=(_PJ.d&&_PJ.d.projetos)||[]; const ams=!!(_PJ.d&&_PJ.d.tipo==='ams');
   if(ps.length<2&&!ams) return '';
   const sel=ps.length>1?`<select class="pj-sel" id="pj-sel" aria-label="Projeto">${ps.map(p=>`<option value="${escA(p.key)}"${p.key===_PJ.key?' selected':''}>${esc(p.nome||p.key)}</option>`).join('')}</select>`:'';
-  const tabs=ams?`<div class="pj-tabs" role="tablist"><button class="pj-tab" role="tab" data-pj-aba="projeto" aria-selected="${_PJ.aba==='projeto'}">🌐 Projeto</button><button class="pj-tab" role="tab" data-pj-aba="ams" aria-selected="${_PJ.aba==='ams'}">📞 Chamados e horas</button></div>`:'';
+  const tabs=ams?`<div class="pj-tabs" role="tablist" aria-label="Seções do portal"><button class="pj-tab" role="tab" id="pj-tab-projeto" data-pj-aba="projeto" aria-selected="${_PJ.aba==='projeto'}" aria-controls="${_PJ.aba==='projeto'?'pj-corpo':'pj-corpo-ams'}">🌐 Projeto</button><button class="pj-tab" role="tab" id="pj-tab-ams" data-pj-aba="ams" aria-selected="${_PJ.aba==='ams'}" aria-controls="${_PJ.aba==='ams'?'pj-corpo-ams':'pj-corpo'}">📞 Chamados e horas</button></div>`:'';
   return `<div class="pj-nav" id="pj-nav">${sel}<span class="sp"></span>${tabs}</div>`;
 }
-// Na aba AMS o render() de sempre desenha o conteúdo; o seletor/abas entram logo abaixo da barra "Conectado como".
+// Na aba AMS o render() de sempre desenha o conteúdo; o seletor/abas entram logo abaixo da barra "Conectado como"
+// e o que vem depois vira o painel da aba (tabpanel), para o leitor de tela ligar aba e conteúdo.
 function pjInsereNav(){
   const d=document.createElement('div'); d.innerHTML=pjNav(); const nav=d.firstElementChild; if(!nav) return;
   const eu=document.querySelector('#conteudo .eu'); if(eu) eu.after(nav); else $c().prepend(nav);
+  const painel=document.createElement('div'); painel.id='pj-corpo-ams'; painel.setAttribute('role','tabpanel'); painel.setAttribute('aria-labelledby','pj-tab-ams');
+  while(nav.nextSibling) painel.appendChild(nav.nextSibling);
+  nav.after(painel);
 }
 function pjBanner(){ return `<div class="pj-prev">👁 <b>Pré-visualização</b> — é exatamente isto que o cliente vê. Aberta pelo Dexterity Hub com a sua identidade de gestor; nada fica guardado neste navegador.</div>`; }
 // Um listener só, delegado: ↻, abas e seletor são recriados a cada desenho.
 document.addEventListener('click',(e)=>{
   if(!_PJ||!e.target.closest) return;
   if(e.target.closest('#pj-rec')){ delete _PJ.pay[_PJ.key]; _PJ.aba='projeto'; pjMostra(); return; }
-  const tab=e.target.closest('[data-pj-aba]'); if(tab){ _PJ.aba=tab.getAttribute('data-pj-aba'); pjMostra(); }
+  const tab=e.target.closest('[data-pj-aba]'); if(tab){ _PJ.aba=tab.getAttribute('data-pj-aba'); pjMostra(); return; }
+  const et=e.target.closest('.pj-cr-lab .r[data-pj-etapa]'); if(et) pjEtapaToca(et);
 });
+document.addEventListener('keydown',(e)=>{ if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.pj-cr-lab .r[data-pj-etapa]')){ e.preventDefault(); pjEtapaToca(e.target.closest('.pj-cr-lab .r')); } });
+// Nome da etapa cortado com reticências: um toque (ou Enter) mostra o nome completo e a situação numa linha abaixo do gráfico.
+function pjEtapaToca(row){
+  const card=row.closest('#pj-cr'); const out=card&&card.querySelector('.pj-cr-nome'); if(!out) return;
+  const aberto=row.getAttribute('aria-expanded')==='true';
+  card.querySelectorAll('.pj-cr-lab .r[aria-expanded="true"]').forEach(r=>r.setAttribute('aria-expanded','false'));
+  if(aberto){ out.textContent=''; return; }
+  row.setAttribute('aria-expanded','true'); out.textContent=row.getAttribute('title')||row.textContent;
+}
 document.addEventListener('change',(e)=>{
   if(!_PJ||!e.target.closest) return; const sel=e.target.closest('#pj-sel'); if(!sel) return;
   _PJ.key=sel.value; _PJ.aba='projeto'; try{ localStorage.setItem(PJ_KEY,_PJ.key); }catch(x){} pjMostra();
@@ -781,7 +809,11 @@ function pjCorpo(P){
 function pjProgresso(p){
   const sem=PJ_SEM[p.semaforo]||PJ_SEM.ok; const it=p.itens||{}; const mk=p.marcos||{};
   const kc=p.semaforo==='atrasado'?'bad':p.semaforo==='atencao'?'warn':'ok'; const at=p.maiorAtrasoDias||0;
-  return `<div class="card"><h2>Progresso do projeto <span class="pill ${sem[1]}">${sem[0]}</span>${p.previsaoFim?` <span class="n">previsão de término ${esc(dataBR(p.previsaoFim))}</span>`:''}</h2>
+  // Término: o último marco planejado é a data combinada; a previsão pelo ritmo só aparece quando passa dele (aviso).
+  const ritmoTarde=p.previsaoRitmo&&p.ultimoMarco&&p.previsaoRitmo>p.ultimoMarco;
+  const fim=p.ultimoMarco?` <span class="n">último marco ${esc(dataBR(p.ultimoMarco))}</span>${ritmoTarde?` <span class="pill warn" title="No ritmo atual das entregas, a conclusão passa do último marco">previsão pelo ritmo ${esc(dataBR(p.previsaoRitmo))}</span>`:''}`
+    :(p.previsaoFim?` <span class="n">previsão de término ${esc(dataBR(p.previsaoFim))}</span>`:'');
+  return `<div class="card"><h2>Progresso do projeto <span class="pill ${sem[1]}">${sem[0]}</span>${fim}</h2>
     <div class="kpis">
       <div class="kpi ${kc}"><div class="v">${Number(p.pct)||0}%</div><div class="l">Progresso</div><div class="s">${it.concluidos||0} de ${it.total||0} atividades concluídas</div></div>
       <div class="kpi ${mk.total&&mk.concluidos===mk.total?'ok':''}"><div class="v">${mk.concluidos||0}/${mk.total||0}</div><div class="l">Marcos concluídos</div><div class="s">${mk.total?'marcos do projeto':'sem marcos definidos'}</div></div>
@@ -798,11 +830,12 @@ function pjCrTip(e,st,pct){ return `${e.nome||e.k||''}\n${st[0]} · ${pct}% conc
 function pjCronogramaCard(eps,hoje){
   const cont=document.getElementById('conteudo'); const larg=Math.max(280,((cont&&cont.clientWidth)||900)-38);
   const LAB=larg<600?128:Math.min(220,Math.round(larg*0.3));
-  const lab=eps.map(e=>{ const st=PJ_ST[e.status]||PJ_ST.planejado; const pct=Math.min(100,Math.max(0,Number(e.pct)||0));
-    return `<div class="r" title="${escA(pjCrTip(e,st,pct))}"><i style="background:${st[1]}"></i><span>${esc(e.nome||e.k||'')}</span></div>`; }).join('');
+  const lab=eps.map((e,i)=>{ const st=PJ_ST[e.status]||PJ_ST.planejado; const pct=Math.min(100,Math.max(0,Number(e.pct)||0));
+    return `<div class="r" data-pj-etapa="${i}" tabindex="0" role="button" aria-expanded="false" title="${escA(pjCrTip(e,st,pct))}"><i style="background:${st[1]}" aria-hidden="true"></i><span>${esc(e.nome||e.k||'')}</span></div>`; }).join('');
   return `<div class="card" id="pj-cr"><h2>Cronograma <span class="n">${eps.length} etapa${eps.length===1?'':'s'} · ◆ marco · linha tracejada = hoje</span></h2>
     <div class="pj-cr-wrap"><div class="pj-cr-lab" style="flex-basis:${LAB}px"><div class="h"></div>${lab}</div><div class="pj-cr">${pjCronogramaSVG(eps,hoje,larg-LAB-1)}</div></div>
-    <div class="pj-cr-dica">↔ deslize a linha do tempo para ver os outros meses</div>
+    <div class="pj-cr-nome" aria-live="polite"></div>
+    <div class="pj-cr-dica">↔ deslize a linha do tempo para ver os outros meses · toque no nome de uma etapa para vê-lo inteiro</div>
     <div class="pj-leg">${Object.values(PJ_ST).map(([rot,cor])=>`<span><i style="background:${cor}"></i>${rot}</span>`).join('')}<span><i class="mk"></i>marco</span></div></div>`;
 }
 function pjCronogramaSVG(eps,hoje,larg){
@@ -843,7 +876,7 @@ function pjCrRola(){
 }
 function pjPendencias(pend,hoje){
   const item=(x)=>{ const dias=Number(x.dias)||0; const venc=x.prazo&&x.prazo<hoje, hj=x.prazo===hoje;
-    return `<div class="pj-it"><div class="ico">${x.lado==='dexterity'?'🛠':'🙋'}</div><div class="tx"><div class="t">${esc(x.titulo)}${x.k?` <span class="tag">${esc(x.k)}</span>`:''}</div>
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">${x.lado==='dexterity'?'🛠':'🙋'}</div><div class="tx"><div class="t">${esc(x.titulo)}${x.k?` <span class="tag">${esc(x.k)}</span>`:''}</div>
       <div class="m"><span>${dias>0?`há ${dias} dia${dias===1?'':'s'}`:'desde hoje'}</span>${x.prazo?`<span>prazo ${esc(dataBR(x.prazo))}</span>`:''}${venc?'<span class="pill bad">prazo vencido</span>':hj?'<span class="pill warn">vence hoje</span>':''}</div></div></div>`; };
   const suas=pend.filter(x=>x.lado!=='dexterity'), nossas=pend.filter(x=>x.lado==='dexterity');
   return `<div class="card"><h2>O que a Dexterity precisa de você${suas.length?` <span class="pill warn">${suas.length}</span>`:''}</h2>
@@ -852,7 +885,7 @@ function pjPendencias(pend,hoje){
 }
 function pjDecisoes(ds,hoje){
   return `<div class="card"><h2>Decisões a tomar <span class="pill warn">${ds.length}</span></h2><div class="pj-lista">${ds.map(d=>{ const st=DEC_ST[d.status]||DEC_ST.aberta; const ata=hrefOk(d.ata);
-    return `<div class="pj-it"><div class="ico">⚖️</div><div class="tx"><div class="t">${esc(d.titulo)}</div>${d.contexto?`<div class="d">${nl(d.contexto)}</div>`:''}
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">⚖️</div><div class="tx"><div class="t">${esc(d.titulo)}</div>${d.contexto?`<div class="d">${nl(d.contexto)}</div>`:''}
       <div class="m"><span class="pill ${st[1]}">${st[0]}</span>${d.dono?`<span>com ${esc(d.dono)}</span>`:''}${d.prazo?`<span>até ${esc(dataBR(d.prazo))}</span>`:''}${d.prazo&&d.prazo<hoje?'<span class="pill bad">prazo vencido</span>':''}${ata?`<a href="${escA(ata)}" target="_blank" rel="noopener noreferrer">📄 ata</a>`:''}</div></div></div>`; }).join('')}</div></div>`;
 }
 // Severidade = probabilidade × impacto (quando falta um, vale o outro): ≥6 alto · ≥3 médio · senão baixo.
@@ -860,7 +893,7 @@ function pjSevPeso(r){ const p=NIV[r.prob]||0, i=NIV[r.impacto]||0; const a=p||i
 function pjSev(r){ const s=pjSevPeso(r); if(!s) return null; return s>=6?['alto','bad']:s>=3?['médio','warn']:['baixo','ok']; }
 function pjRiscos(rs){
   const item=(r)=>{ const sev=pjSev(r); const enc=r.status==='encerrado', mit=r.status==='mitigado';
-    return `<div class="pj-it"><div class="ico">${enc?'✅':mit?'🛡️':'⚠️'}</div><div class="tx"><div class="t">${esc(r.titulo)}</div>${r.mitigacao?`<div class="d"><b>Como estamos tratando:</b> ${nl(r.mitigacao)}</div>`:''}
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">${enc?'✅':mit?'🛡️':'⚠️'}</div><div class="tx"><div class="t">${esc(r.titulo)}</div>${r.mitigacao?`<div class="d"><b>Como estamos tratando:</b> ${nl(r.mitigacao)}</div>`:''}
       <div class="m">${sev?`<span class="pill ${enc?'mut':sev[1]}">risco ${sev[0]}</span>`:''}${r.prob?`<span>probabilidade ${NIV_ROT[r.prob]||esc(r.prob)}</span>`:''}${r.impacto?`<span>impacto ${NIV_ROT[r.impacto]||esc(r.impacto)}</span>`:''}${mit?'<span class="pill ok">mitigado</span>':''}${enc?'<span class="pill mut">encerrado</span>':''}${r.resp?`<span>acompanha: ${esc(r.resp)}</span>`:''}</div></div></div>`; };
   const abertos=rs.filter(r=>r.status!=='encerrado').sort((a,b)=>pjSevPeso(b)-pjSevPeso(a)), enc=rs.filter(r=>r.status==='encerrado');
   return `<div class="card"><h2>Riscos acompanhados${abertos.length?` <span class="n">${abertos.length} em acompanhamento</span>`:''}</h2>
@@ -884,14 +917,14 @@ function pjContato(c){
   return `<div class="c">${esc(s)}</div>`;
 }
 function pjEquipe(eq){
-  return `<div class="card"><h2>Time do projeto <span class="n">${eq.length} pessoa${eq.length===1?'':'s'}</span></h2><div class="pj-eq">${eq.map(p=>`<div class="pj-pes"><div class="av">${esc(pjIniciais(p.nome))}</div><div class="tx"><div class="n">${esc(p.nome)}</div>${p.papel?`<div class="p">${esc(p.papel)}</div>`:''}${pjContato(p.contato)}</div></div>`).join('')}</div></div>`;
+  return `<div class="card"><h2>Time do projeto <span class="n">${eq.length} pessoa${eq.length===1?'':'s'}</span></h2><div class="pj-eq">${eq.map(p=>`<div class="pj-pes"><div class="av" aria-hidden="true">${esc(pjIniciais(p.nome))}</div><div class="tx"><div class="n">${esc(p.nome)}</div>${p.papel?`<div class="p">${esc(p.papel)}</div>`:''}${pjContato(p.contato)}</div></div>`).join('')}</div></div>`;
 }
 function pjFaq(fs){
   return `<div class="card"><h2>Perguntas frequentes</h2>${fs.map(f=>`<details class="pj-faq"><summary>${esc(f.pergunta)}</summary><div class="r">${esc(f.resposta)}</div></details>`).join('')}</div>`;
 }
 function pjLinks(ls){
   const v=ls.map(l=>({ nome:l.nome, tipo:l.tipo, url:hrefOk(l.url) })).filter(l=>l.url); if(!v.length) return '';
-  return `<div class="card"><h2>Links úteis</h2><div class="pj-chips">${v.map(l=>`<a class="chip" href="${escA(l.url)}" target="_blank" rel="noopener noreferrer" title="${escA(l.url)}">${LNK_ICO[String(l.tipo||'').toLowerCase()]||'🔗'} <span>${esc(l.nome||l.url)}</span></a>`).join('')}</div></div>`;
+  return `<div class="card"><h2>Links úteis</h2><div class="pj-chips">${v.map(l=>`<a class="chip" href="${escA(l.url)}" target="_blank" rel="noopener noreferrer" title="${escA(l.url)}"><span aria-hidden="true">${LNK_ICO[String(l.tipo||'').toLowerCase()]||'🔗'}</span> <span>${esc(l.nome||l.url)}</span></a>`).join('')}</div></div>`;
 }
 
 // ---- 👁 Pré-visualização (?preview=KEY), aberta pelo Hub ----
