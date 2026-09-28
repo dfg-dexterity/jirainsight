@@ -2847,7 +2847,9 @@
   .gp-kpis .vg-k:hover{border-color:var(--cerceta)}
   .gp-delta{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:var(--trilho);color:var(--muted);text-transform:none;letter-spacing:0;vertical-align:middle}
   .gp-delta.up{background:#FBE4E2;color:#8A1C14} .gp-delta.down{background:#EEF7F1;color:#0E6B37}
-  :root[data-theme="dark"] .gp-delta.up{background:#3A1A18;color:#F0A19A} :root[data-theme="dark"] .gp-delta.down{background:#16301F;color:#8FD3A8}
+  /* nos dois temas escuros (Escuro e Dexterity, cartão #242424) o pill claro não serve — tints escuros nos dois */
+  :root[data-theme="dark"] .gp-delta.up,:root[data-theme="dexterity"] .gp-delta.up{background:#3A1A18;color:#F0A19A}
+  :root[data-theme="dark"] .gp-delta.down,:root[data-theme="dexterity"] .gp-delta.down{background:#16301F;color:#8FD3A8}
   .gp-acoes-topo{gap:8px}
   .gp-pessoa-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--linha)}
   .gp-pessoa-row:last-child{border-bottom:0}
