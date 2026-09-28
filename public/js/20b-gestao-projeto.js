@@ -271,13 +271,14 @@ function renderGp(){
   // Pessoa do link (?resp=) sem ticket no escopo: a opção existe mesmo assim — o filtro está ativo e o seletor tem que dizer.
   if(c&&gp.resp&&gp.resp!=='__sem__'&&!resps.some(([a])=>a===gp.resp)) resps.push([gp.resp,gpNomeDe(c,gp.resp)]);
   resps.sort((x,y)=>x[1].localeCompare(y[1],'pt'));
+  const buscando=!!gp.carregando;   // rebusca (↻ ou troca de escopo) em voo: o botão diz e não aceita outro clique
   const filtros=`<div class="ap-filtros gp-filtros">
     ${meus.length?`<div class="campo"><label>Escopo</label><button class="chip" data-gp-meus="1" aria-pressed="${gpMeusLigado()}" data-tip="${escA('Os projetos em que você é gerente: '+meus.join(', '))}">👤 Meus projetos (${meus.length})</button></div>`:''}
     <div class="campo"><label>Projeto</label><select id="gp-proj"><option value="">${gpMeusAtivo()?'todos os meus':'todos'}</option>${opts.map(k=>`<option value="${escA(k)}" ${projSel===k?'selected':''}>${esc(projNomeCod(k))}</option>`).join('')}</select></div>
     <div class="campo"><label>Pessoa</label><select id="gp-resp"><option value="">todas</option><option value="__sem__" ${gp.resp==='__sem__'?'selected':''}>— sem responsável —</option>${resps.map(([a,n])=>`<option value="${escA(a)}" ${gp.resp===a?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="campo"><label>Parado há ≥ (dias)</label><input type="number" id="gp-dias" min="1" max="60" value="${N}" style="width:80px"></div>
     <div class="campo"><label>&nbsp;</label><label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px"><input type="checkbox" id="gp-semvenc" ${gp.semVenc?'checked':''}> incluir sem vencimento</label></div>
-    <div class="campo"><label>&nbsp;</label><button class="btn" id="gp-refresh" data-tip="Rebuscar do Jira ignorando o cache">↻ Atualizar</button></div>
+    <div class="campo"><label>&nbsp;</label><button class="btn" id="gp-refresh" ${buscando?'disabled':''} data-tip="Rebuscar do Jira ignorando o cache">${buscando?'↻ buscando…':'↻ Atualizar'}</button></div>
     ${keys&&keys.length===1?`<div class="campo"><label>&nbsp;</label><button class="btn" data-proj-ficha="${escA(keys[0])}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha de ${esc(projNome(keys[0]))}</button></div>`:''}
     ${gp.proj&&gp.proj.includes(',')?`<div class="campo"><label>&nbsp;</label><button class="chip" data-gp-limpar-proj="1" data-tip="Tirar o filtro de projetos vindo do link">✕ ${esc(gp.proj)}</button></div>`:''}
   </div>`;
@@ -379,7 +380,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const gs=cl('[data-gp-gestao]'); if(gs){ const c=gpCalc(); if(c) gpAbreGestao(c); return; }
   const rp=cl('[data-gp-rentab]'); if(rp){ const rr=estado.rentab; rr.sel=rp.getAttribute('data-gp-rentab'); rr.edit=false; rr.novo=false; vaiPara('rentab'); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  if(t.id==='gp-refresh'){ gpCarrega(true); gp.fotoOk=null; gp.foto=null; renderGp(); }
+  if(t.id==='gp-refresh'){ if(t.disabled) return; gpCarrega(true); gp.fotoOk=null; gp.foto=null; renderGp(); }   // o render seguinte mostra "buscando…" até a resposta
   else if(t.id==='gp-retry'){ gp.erro=''; gpCarrega(true); renderGp(); }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
