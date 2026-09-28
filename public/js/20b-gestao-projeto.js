@@ -205,12 +205,14 @@ async function gpComentaLote(){
   if(bt){ bt.textContent='Fechar'; bt.disabled=false; bt.id='gx-fechar'; }
 }
 // ---- 📥 Aviso no Inbox do app (cfg.inboxAvisos[pessoa], padrão da Agenda; máx. 30; reenvio substitui) ----
-// Não grava: quem chama faz salvaCfg() uma vez por lote.
+// Não grava: quem chama faz salvaCfg() uma vez por lote. A chave é por REMETENTE (`gp:<quem cobrou>`), não por
+// escopo: cobrar a mesma pessoa em "ACME,BETA" e depois em "ACME" é uma cobrança só, atualizada — dois cards para as
+// mesmas pendências era o que a chave por escopo produzia.
 function gpGravaAviso(c,a){
   const id=idApontar()||{}; const pp=gpPendPessoa(c,a); if(!pp.n||a==='__sem__') return null;
   cfg.inboxAvisos=cfg.inboxAvisos||{};
   const lst=cfg.inboxAvisos[a]=cfg.inboxAvisos[a]||[];
-  const evId='gp:'+(c.keys?c.keys.join(','):'*');
+  const evId='gp:'+String(id.accountId||id.email||'*');
   const i=lst.findIndex(x=>x&&x.evId===evId); if(i>=0) lst.splice(i,1);
   lst.push({ evId, gp:true, titulo:`🧭 ${pp.n} pendência(s) — ${c.rotProj}`, det:pp.det, link:gpLinkPessoa(c.keys,a).qs,
     dia:c.hoje, de:id.nome||id.email||'', quando:new Date().toISOString() });
