@@ -15,7 +15,7 @@
 //    inteira para o navegador de todo o time e tem teto de 256 KB.
 // A lógica pesada fica aqui (api/_lib não conta como função serverless); as rotas
 // ?pcli=… estão em api/config.js — o limite de 12 funções da Vercel continua respeitado.
-import { cacheGet, cacheSetTTL, cacheClear, jiraSearchAll, textoComentario } from './util.js';
+import { cacheGet, cacheSetTTL, cacheClear, jiraSearchAll, jiraUsuariosAtivos, textoComentario } from './util.js';
 import { fichaProjeto, carregaCatalogoProjetos } from './projetos.js';
 import { cronogramaDoProjeto, crDias, crAddDias } from './cronograma.js';
 import { graphToken } from '../reunioes.js';
@@ -32,15 +32,21 @@ const RE_UUID = /^[0-9a-f-]{36}$/i;
 const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RE_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
-// "Aguardando cliente": tickets cujo STATUS diz que a bola está com o cliente. É a mesma
-// expressão do preset "Aguardando cliente" da 🧰 Gestão (public/js/20-gestao.js,
-// GX_RE_AGUARDA_CLIENTE) — o front não importa daqui (scripts clássicos, sem build), então
-// scripts/check-cronograma-paridade.mjs confere que as duas continuam idênticas.
-export const RE_AGUARDA_CLIENTE = /aguard|pendente.*client|waiting/i;
+// "Aguardando cliente" NO PORTAL: só status cujo NOME diz que a bola está com o cliente — precisa
+// citar cliente/customer DEPOIS de aguardando/pendente/waiting/espera. É de propósito mais ESTRITA
+// que o preset "Aguardando cliente" da 🧰 Gestão (GX_RE_AGUARDA_CLIENTE em 20-gestao.js), que
+// pode continuar larga porque quem a lê é o time: aqui, "Aguardando deploy" ou "Waiting for
+// approval" virariam cobrança ao cliente com o resumo interno exposto. O front não importa daqui
+// (scripts clássicos, sem build); scripts/check-cronograma-paridade.mjs confere, sobre uma lista
+// de nomes de status, que tudo o que esta expressão aceita a interna também aceita (subconjunto).
+export const RE_AGUARDA_CLIENTE = /(aguard|pendent|waiting)\w*.*?\b(client|customer)/i;
 
 export const PORTAL_TIPOS = ['pendencia', 'risco', 'faq', 'reuniao'];
 export const PORTAL_BLOCOS = ['progresso', 'cronograma', 'pendencias', 'decisoes', 'riscos', 'equipe', 'reunioes', 'faq', 'links'];
-export const ITEM_STATUS = ['aberto', 'feito', 'mitigado', 'encerrado'];
+// Situação por TIPO de item: pendência abre e fecha; risco é acompanhado, mitigado ou encerrado;
+// reunião manual só sai da lista quando encerrada; FAQ não tem situação (fica sempre "aberto").
+export const ITEM_STATUS_POR_TIPO = { pendencia: ['aberto', 'feito'], risco: ['aberto', 'mitigado', 'encerrado'], faq: ['aberto'], reuniao: ['aberto', 'encerrado'] };
+export const ITEM_STATUS = [...new Set(Object.values(ITEM_STATUS_POR_TIPO).flat())];
 export const ITEM_NIVEIS = ['alto', 'medio', 'baixo'];
 const DIAS_REUNIOES = 30;          // janela das próximas reuniões
 const CAL_TTL_MIN = 5;             // cache do calendário (dentro do cache do payload)
@@ -54,15 +60,15 @@ export function calendarioValido(s) { const v = String(s || '').trim(); return !
 const txt = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 
 // ---------------------------------------------------------------------------
-// Supabase (PostgREST) — leituras tolerantes (falha = vazio) e escritas que devolvem a linha.
+// Supabase (PostgREST). As leituras LANÇAM em falha (rede, 5xx): uma falha transitória não pode
+// virar "lista vazia" — o payload montado sem FAQ/riscos/pendências ficaria 10 min em cache
+// (memória + linha durável) como se fosse verdade. Quem chama responde 502 e nada é gravado.
 // `sb` = { base, headers } montado pelo api/config.js.
 // ---------------------------------------------------------------------------
 export async function sbLe(sb, caminho) {
-  try {
-    const r = await fetch(`${sb.base}/rest/v1/${caminho}`, { headers: sb.headers });
-    if (!r.ok) return [];
-    const j = await r.json(); return Array.isArray(j) ? j : [];
-  } catch (e) { return []; }
+  const r = await fetch(`${sb.base}/rest/v1/${caminho}`, { headers: sb.headers });
+  if (!r.ok) { const e = new Error(`Supabase ${r.status} ao ler ${caminho.split('?')[0]}`); e.status = r.status; throw e; }
+  const j = await r.json(); return Array.isArray(j) ? j : [];
 }
 async function sbEscreve(sb, caminho, metodo, corpo, prefer) {
   const r = await fetch(`${sb.base}/rest/v1/${caminho}`, {
@@ -128,7 +134,25 @@ export function projetoPublico(row, extra) {
 // ---------------------------------------------------------------------------
 // Itens curados (jirainsight_portal_itens): validação e forma pública (camelCase)
 // ---------------------------------------------------------------------------
-const isoData = (v) => { const s = txt(v, 40); if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? new Date(t).toISOString() : undefined; };
+// Data de calendário de verdade (não só o formato): "2026-13-45" e "2026-02-30" não passam —
+// o Postgres recusaria a coluna `date` e o erro voltaria cru para o gestor.
+export function dataValida(iso) {
+  if (!RE_DATA.test(String(iso || ''))) return false;
+  const t = Date.parse(`${iso}T12:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === iso;
+}
+// Data/hora de reunião manual → instante ISO. Um valor SEM fuso ("AAAA-MM-DDTHH:mm", o que um
+// <input type=datetime-local> manda) é horário de Brasília e ganha -03:00; só a data vira
+// meia-noite de Brasília. Sem isso, na Vercel (TZ=UTC) "14:00" chegaria ao cliente como 11:00 e
+// "AAAA-MM-DD" cairia às 21:00 do dia anterior. null = vazio; undefined = inválido.
+const RE_ISO_SEM_FUSO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/;
+const RE_ISO_COM_FUSO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+export function isoData(v) {
+  let s = txt(v, 40); if (!s) return null;
+  if (RE_DATA.test(s)) s += 'T00:00:00-03:00'; else if (RE_ISO_SEM_FUSO.test(s)) s += '-03:00';
+  if (!RE_ISO_COM_FUSO.test(s) || !dataValida(s.slice(0, 10))) return undefined;
+  const t = Date.parse(s); return Number.isFinite(t) ? new Date(t).toISOString() : undefined;
+}
 export function normalizaItem(bruto, projeto) {
   const b = (bruto && typeof bruto === 'object') ? bruto : {};
   const erro = (m) => ({ ok: false, erro: m });
@@ -141,16 +165,21 @@ export function normalizaItem(bruto, projeto) {
     prob: null, impacto: null, mitigacao: null, status: 'aberto', visivel: b.visivel !== false,
     ordem: Number.isFinite(+b.ordem) ? Math.round(+b.ordem) : 0 };
   const lado = txt(b.respLado, 20);
-  if (lado) { if (!['dexterity', 'cliente'].includes(lado)) return erro('Lado do responsável: dexterity ou cliente.'); reg.resp_lado = lado; }
+  if (lado && !['dexterity', 'cliente'].includes(lado)) return erro('Lado do responsável: dexterity ou cliente.');
+  // Pendência sem lado cairia em "O que a Dexterity precisa de você" por omissão: o lado é obrigatório.
+  if (tipo === 'pendencia' && !lado) return erro('Pendência: informe de quem ela depende (cliente ou dexterity).');
+  if (lado) reg.resp_lado = lado;
   const prazo = txt(b.prazo, 10);
-  if (prazo) { if (!RE_DATA.test(prazo)) return erro('Prazo: use a data no formato AAAA-MM-DD.'); reg.prazo = prazo; }
+  if (prazo) { if (!dataValida(prazo)) return erro('Prazo: use uma data válida no formato AAAA-MM-DD.'); reg.prazo = prazo; }
   const st = txt(b.status, 20) || 'aberto';
-  if (!ITEM_STATUS.includes(st)) return erro('Status inválido (aberto, feito, mitigado ou encerrado).');
+  const permitidos = ITEM_STATUS_POR_TIPO[tipo];
+  if (!permitidos.includes(st)) return erro(tipo === 'faq' ? 'FAQ não tem situação.' : `Situação inválida para ${tipo} (${permitidos.join(', ')}).`);
   reg.status = st;
   if (tipo === 'reuniao') {
     const ini = isoData(b.inicio); const fim = isoData(b.fim);
     if (ini === undefined || fim === undefined) return erro('Reunião: data/hora inválida.');
     if (!ini) return erro('Reunião: informe o início.');
+    if (fim && fim < ini) return erro('Reunião: o fim não pode ser antes do início.');
     reg.inicio = ini; reg.fim = fim;
     const link = txt(b.link, 900);
     if (link && !pcUrl(link)) return erro('Link da reunião: use um endereço http(s).');
@@ -181,7 +210,7 @@ const ESQUEMA = {
   v: 0, cliente: '', projeto: { key: '', nome: '' }, apresentacao: '', atualizadoEm: '',
   blocos: Object.fromEntries(PORTAL_BLOCOS.map((b) => [b, true])),
   progresso: { pct: 0, itens: { total: 0, concluidos: 0 }, marcos: { total: 0, concluidos: 0, proximo: { nome: '', data: '' } },
-    maiorAtrasoDias: 0, previsaoFim: '', semaforo: '' },
+    maiorAtrasoDias: 0, previsaoFim: '', ultimoMarco: '', previsaoRitmo: '', semaforo: '' },
   epicos: [{ k: '', nome: '', ini: '', fim: '', pct: 0, status: '', atrasoDias: 0 }],
   pendencias: [{ id: '', k: '', titulo: '', lado: '', desde: '', prazo: '', dias: 0, origem: '' }],
   decisoes: [{ titulo: '', contexto: '', dono: '', prazo: '', status: '', ata: '' }],
@@ -212,29 +241,49 @@ export function assertAllowlist(obj, esq, caminho) {
 }
 
 // ---------------------------------------------------------------------------
-// Cache do payload: memória da instância + linha 'portal_<KEY>' na jirainsight_config
-// ({em, dados}) para sobreviver à partida a frio. TTL 10 min; invalidar = em:0.
+// Cache do payload: linha 'portal_<KEY>' na jirainsight_config ({em, dados}) é a VERDADE sobre
+// qual versão vale (sobrevive à partida a frio e é uma só para todas as instâncias); a memória
+// da instância guarda {em, dados} e só serve quando o carimbo `em` bate com o da linha — lido a
+// cada pedido com `select=data->em` (uma leitura leve, sem o payload). É isso que faz uma
+// invalidação feita por OUTRA instância (o gestor escondeu uma decisão, um FAQ, um épico; trocou
+// o contrato; admin-refresh) valer em todas na hora, e não só na que gravou até o TTL vencer.
+// TTL 10 min; invalidar = em:0 + `limpo` (carimbo da limpeza, ver _jiraLido).
 // ---------------------------------------------------------------------------
 const ckPay = (key) => `portal:pay:${key}`;
+// Quando ESTA instância leu o Jira pela última vez para o portal de cada projeto: se a linha
+// durável diz que alguém pediu "atualizar" (limpo) depois disso, a próxima montagem relê o
+// Jira (ficha e pendências) em vez de usar os caches de memória visao:proj:/portal:aguarda:.
+const _jiraLido = {};
 export async function portalCacheLe(sb, key) {
-  const m = cacheGet(ckPay(key)); if (m) return m;
-  const row = (await sbLe(sb, `${T_CFG}?id=eq.portal_${enc(key)}&select=data`))[0];
+  const id = `portal_${enc(key)}`;
+  const carimbo = (await sbLe(sb, `${T_CFG}?id=eq.${id}&select=data->em,data->limpo`))[0] || null;
+  const em = Number(carimbo && carimbo.em) || 0;
+  const limpo = Number(carimbo && carimbo.limpo) || 0;
+  if (!em || Date.now() - em > ttlMin() * 60000) return { dados: null, limpo };
+  const m = cacheGet(ckPay(key));
+  if (m && m.em === em && m.dados) return { dados: m.dados, limpo };
+  const row = (await sbLe(sb, `${T_CFG}?id=eq.${id}&select=data`))[0];
   const d = row && row.data;
-  if (!d || !d.em || !d.dados || Date.now() - Number(d.em) > ttlMin() * 60000) return null;
-  return cacheSetTTL(ckPay(key), d.dados, ttlMin());
+  if (!d || Number(d.em) !== em || !d.dados) return { dados: null, limpo };
+  cacheSetTTL(ckPay(key), { em, dados: d.dados }, ttlMin());
+  return { dados: d.dados, limpo };
 }
 export async function portalCacheGrava(sb, key, dados) {
-  cacheSetTTL(ckPay(key), dados, ttlMin());
+  const em = Date.now();
   try {
-    await sbEscreve(sb, `${T_CFG}?on_conflict=id`, 'POST', [{ id: `portal_${key}`, data: { em: Date.now(), dados }, updated_at: new Date().toISOString() }],
+    await sbEscreve(sb, `${T_CFG}?on_conflict=id`, 'POST', [{ id: `portal_${key}`, data: { em, dados }, updated_at: new Date().toISOString() }],
       'resolution=merge-duplicates,return=minimal');
+    cacheSetTTL(ckPay(key), { em, dados }, ttlMin());   // só depois de a linha existir: a memória nunca vale sem carimbo igual na linha
   } catch (e) { /* sem a linha, o próximo pedido recalcula — o cache é conforto, não verdade */ }
 }
-// Invalida o payload E a ficha do Jira desta instância: "atualizar" para o gestor é ver o Jira de agora.
+// Invalida o payload em TODAS as instâncias (linha em:0) e, nesta, a ficha do Jira; o carimbo
+// `limpo` faz as outras instâncias relerem o Jira na próxima montagem: "atualizar" para o gestor
+// é ver o Jira de agora, e não só na instância em que o clique caiu.
 export async function portalCacheLimpa(sb, key) {
-  cacheClear(ckPay(key)); cacheClear(`visao:proj:${key}`); cacheClear(`portal:aguarda:${key}`);
+  cacheClear(ckPay(key)); cacheClear(`visao:proj:${key}`); cacheClear(`portal:aguarda:${key}`); cacheClear('portal:cal:');
+  delete _jiraLido[key];
   try {
-    await sbEscreve(sb, `${T_CFG}?on_conflict=id`, 'POST', [{ id: `portal_${key}`, data: { em: 0 }, updated_at: new Date().toISOString() }],
+    await sbEscreve(sb, `${T_CFG}?on_conflict=id`, 'POST', [{ id: `portal_${key}`, data: { em: 0, limpo: Date.now() }, updated_at: new Date().toISOString() }],
       'resolution=merge-duplicates,return=minimal');
   } catch (e) { /* idem */ }
 }
@@ -273,7 +322,10 @@ export async function calendarioDoProjeto(calendario, de, ate) {
     r = await fetch(url, { headers: { Authorization: `Bearer ${tok}`, Prefer: 'outlook.timezone="America/Sao_Paulo"', Accept: 'application/json' } });
     j = await r.json().catch(() => ({}));
   } catch (e) { return { erro: 'falha', eventos: [] }; }
-  if (!r.ok) return cacheSetTTL(ck, { erro: (r.status === 403 || r.status === 401) ? 'permissao' : 'falha', eventos: [] }, 1);
+  // Sem permissão: fica 1 min em cache (não adianta insistir). Falha transitória (5xx): NÃO entra em cache —
+  // o payload sai sem os eventos e também não é guardado, então a próxima leitura tenta de novo.
+  if (r.status === 403 || r.status === 401) return cacheSetTTL(ck, { erro: 'permissao', eventos: [] }, 1);
+  if (!r.ok) return { erro: 'falha', eventos: [] };
   const eventos = (j.value || [])
     .filter((e) => e && !e.isCancelled && e.sensitivity !== 'private' && e.sensitivity !== 'confidential')
     .map((e) => ({ titulo: txt(e.subject, 160) || '(sem título)', inicio: isoSP(e.start), fim: isoSP(e.end),
@@ -285,15 +337,35 @@ export async function calendarioDoProjeto(calendario, de, ate) {
 // ---------------------------------------------------------------------------
 // Pendências vindas do Jira: tickets do projeto em status "aguardando cliente" — só chave,
 // assunto e há quantos dias (desde a última movimentação). Sem responsável, sem descrição.
+// Cada uma sai com o `epico` a que pertence (pai, ou avô quando o pai é história), porque um
+// épico OCULTO pelo gestor esconde também os filhos: o filtro por ocultos é feito por quem
+// monta o payload, DEPOIS deste cache — a lista de ocultos muda sem invalidar a busca.
 // ---------------------------------------------------------------------------
-async function aguardandoCliente(key, hoje) {
+const ehEpico = (t) => !!t && (t.name === 'Epic' || t.hierarchyLevel === 1);
+async function aguardandoCliente(key, hoje, nocache) {
   const ck = `portal:aguarda:${key}`;
-  const c = cacheGet(ck); if (c) return c;
+  if (!nocache) { const c = cacheGet(ck); if (c) return c; }
   const { issues } = await jiraSearchAll({ jql: `project = "${key}" AND statusCategory != Done ORDER BY updated ASC`,
-    fields: ['summary', 'status', 'updated', 'duedate'], pageSize: 100, maxPages: 5 });
-  const out = issues.filter((it) => RE_AGUARDA_CLIENTE.test(String((it.fields && it.fields.status && it.fields.status.name) || '')))
-    .map((it) => { const f = it.fields || {}; const desde = String(f.updated || '').slice(0, 10);
-      return { k: it.key, titulo: txt(f.summary, 160), lado: 'cliente', desde, prazo: f.duedate || '', dias: desde ? Math.max(0, crDias(desde, hoje)) : 0, origem: 'jira' }; });
+    fields: ['summary', 'status', 'updated', 'duedate', 'parent', 'issuetype'], pageSize: 100, maxPages: 5 });
+  const mapa = {}; issues.forEach((it) => { mapa[it.key] = it; });
+  const aguardam = issues.filter((it) => RE_AGUARDA_CLIENTE.test(String((it.fields && it.fields.status && it.fields.status.name) || '')));
+  // Pais que não estão entre os abertos (história já concluída com filho ainda aguardando):
+  // uma busca só por chave, só com o que precisa para subir um nível.
+  const pais = [...new Set(aguardam.map((it) => it.fields && it.fields.parent && it.fields.parent.key).filter((k) => k && !mapa[k] && RE_EPICO.test(k)))];
+  if (pais.length) {
+    const r = await jiraSearchAll({ jql: `key in (${pais.slice(0, 100).join(', ')})`, fields: ['parent', 'issuetype'], pageSize: 100, maxPages: 1 });
+    r.issues.forEach((it) => { mapa[it.key] = it; });
+  }
+  const epicoDe = (it) => {
+    const f = it.fields || {};
+    if (ehEpico(f.issuetype)) return it.key;
+    const p = f.parent; if (!p) return '';
+    const pi = mapa[p.key];
+    if (!pi || ehEpico((pi.fields || {}).issuetype)) return p.key;
+    const pp = (pi.fields || {}).parent; return pp ? pp.key : p.key;
+  };
+  const out = aguardam.map((it) => { const f = it.fields || {}; const desde = String(f.updated || '').slice(0, 10);
+    return { k: it.key, titulo: txt(f.summary, 160), lado: 'cliente', desde, prazo: f.duedate || '', dias: desde ? Math.max(0, crDias(desde, hoje)) : 0, origem: 'jira', epico: epicoDe(it) }; });
   return cacheSetTTL(ck, out, 5);
 }
 
@@ -329,11 +401,15 @@ export async function portalProjetoPayload({ sb, c, key, hoje, preview, deps }) 
   const d = { ficha: fichaProjeto, aguardando: aguardandoCliente, calendario: calendarioDoProjeto, ...(deps || {}) };
   const row = await linhaDoProjeto(sb, c, key, preview);
   if (!row) return null;
-  const cache = await portalCacheLe(sb, key);
+  const { dados: cache, limpo } = await portalCacheLe(sb, key);
   if (cache) return cache;
 
   const cfg = normalizaConfig(row.config, key).config;
-  const ficha = await d.ficha(key);                     // sem Jira não há portal: o erro sobe para a rota
+  const on = (b) => cfg.blocos[b] !== false;   // bloco desligado pelo gestor: NADA dele viaja (não é só a tela que esconde)
+  // "Atualizar" pedido por outra instância depois da última leitura do Jira daqui: relê o Jira.
+  const nocache = limpo > (_jiraLido[key] || 0);
+  _jiraLido[key] = Date.now();
+  const ficha = await d.ficha(key, nocache);            // sem Jira não há portal: o erro sobe para a rota (502)
   const ocultos = new Set(cfg.epicosOcultos);
   const cr = cronogramaDoProjeto((ficha.epicos || []).filter((e) => !ocultos.has(e.k)), hoje);
   // Projeto sem épicos (ou só épicos sem filhos): o progresso cai para os itens do projeto inteiro.
@@ -343,16 +419,21 @@ export async function portalProjetoPayload({ sb, c, key, hoje, preview, deps }) 
     cr.resumo.pct = total ? Math.round((r.concluidos || 0) / total * 100) : cr.resumo.pct;
   }
 
-  const [itens, decs, pendJira] = await Promise.all([
+  // Qualquer falha aqui (Supabase, Jira) LANÇA: a rota responde 502 e nada vai para o cache —
+  // um portal "sem FAQ/riscos/pendências" por 10 min seria mentira servida com cara de verdade.
+  const [itens, decs, pendJiraTodas] = await Promise.all([
     sbLe(sb, `${T_ITENS}?projeto=eq.${enc(key)}&visivel=eq.true&select=*&order=ordem.asc,criado_em.asc&limit=400`),
-    sbLe(sb, `${T_DEC}?projeto=eq.${enc(key)}&visivel_cliente=eq.true&status=in.(aberta,reprazada,escalada)&select=decisao,contexto,dono_nome,prazo,status,ata_url&order=prazo.asc.nullslast&limit=50`),
-    d.aguardando(key, hoje).catch(() => []),
+    on('decisoes') ? sbLe(sb, `${T_DEC}?projeto=eq.${enc(key)}&visivel_cliente=eq.true&status=in.(aberta,reprazada,escalada)&select=decisao,contexto,dono_nome,prazo,status,ata_url&order=prazo.asc.nullslast&limit=50`) : [],
+    on('pendencias') ? d.aguardando(key, hoje, nocache) : [],
   ]);
   const dos = (tipo) => itens.filter((i) => i.tipo === tipo);
+  // Épico oculto esconde os filhos também: o ticket "aguardando cliente" de um épico que o cliente
+  // não vê não pode virar cobrança. O filtro é aqui (depois do cache da busca), e `epico` não sai.
+  const pendJira = pendJiraTodas.filter((p) => !ocultos.has(p.epico)).map(({ epico, ...p }) => p);
   const pendencias = [
     ...pendJira,
     ...dos('pendencia').filter((i) => i.status === 'aberto').map((i) => { const desde = String(i.criado_em || '').slice(0, 10);
-      return { id: i.id, titulo: txt(i.titulo, 200), lado: i.resp_lado || 'cliente', desde, prazo: i.prazo || '', dias: desde ? Math.max(0, crDias(desde, hoje)) : 0, origem: 'manual' }; }),
+      return { id: i.id, titulo: txt(i.titulo, 200), lado: i.resp_lado || 'dexterity', desde, prazo: i.prazo || '', dias: desde ? Math.max(0, crDias(desde, hoje)) : 0, origem: 'manual' }; }),
   ].sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999') || b.dias - a.dias).slice(0, 80);
 
   const ate = crAddDias(hoje, DIAS_REUNIOES);
@@ -361,9 +442,11 @@ export async function portalProjetoPayload({ sb, c, key, hoje, preview, deps }) 
   // no MESMO formato de data dos eventos do calendário (ISO no fuso de São Paulo).
   let reunioes = dos('reuniao').filter((i) => i.status !== 'encerrado' && i.inicio && Date.parse(i.inicio) >= agora - 3600000 && isoSPde(i.inicio).slice(0, 10) <= ate)
     .map((i) => ({ titulo: txt(i.titulo, 160), inicio: isoSPde(i.inicio), fim: isoSPde(i.fim), link: pcUrl(i.link), local: txt(i.descricao, 120), origem: 'manual' }));
-  if (cfg.calendario) {
+  let completo = true;   // falha TRANSITÓRIA do Graph: o portal sai sem os eventos, mas NÃO vai para o cache
+  if (cfg.calendario && on('reunioes')) {
     const cal = await d.calendario(cfg.calendario, hoje, ate);
-    reunioes = reunioes.concat((cal && cal.eventos) || []);   // o erro (permissão etc.) é do gestor, não do cliente
+    if (cal && cal.erro === 'falha') completo = false;
+    reunioes = reunioes.concat((cal && cal.eventos) || []);   // permissão/configuração é erro do gestor, não do cliente
   }
   reunioes.sort((a, b) => String(a.inicio).localeCompare(String(b.inicio)));
 
@@ -374,21 +457,24 @@ export async function portalProjetoPayload({ sb, c, key, hoje, preview, deps }) 
     apresentacao: cfg.apresentacao,
     atualizadoEm: new Date().toISOString(),
     blocos: cfg.blocos,
-    progresso: cr.resumo,
-    epicos: cr.epicos.slice(0, 100).map(({ k, nome, ini, fim, pct, status, atrasoDias }) => ({ k, nome, ini, fim, pct, status, atrasoDias })),
-    pendencias,
+    progresso: on('progresso') ? cr.resumo : progressoVazio(),
+    epicos: on('cronograma') ? cr.epicos.slice(0, 100).map(({ k, nome, ini, fim, pct, status, atrasoDias }) => ({ k, nome, ini, fim, pct, status, atrasoDias })) : [],
+    pendencias: on('pendencias') ? pendencias : [],
     decisoes: decs.map((x) => ({ titulo: txt(x.decisao, 300), contexto: txt(x.contexto, 500), dono: txt(x.dono_nome, 120), prazo: x.prazo || '', status: x.status || '', ata: cfg.mostrarAta ? pcUrl(x.ata_url) : '' })),
-    riscos: dos('risco').map((i) => ({ titulo: txt(i.titulo, 200), prob: i.prob || '', impacto: i.impacto || '', mitigacao: txt(i.mitigacao, 1000), resp: txt(i.resp_nome, 80), status: i.status || 'aberto' })).slice(0, 50),
-    equipe: cfg.equipe,
-    reunioes: reunioes.slice(0, 50),
-    faq: dos('faq').map((i) => ({ pergunta: txt(i.titulo, 200), resposta: txt(i.descricao, 2000) })).slice(0, 50),
-    links: cfg.links,
+    riscos: on('riscos') ? dos('risco').map((i) => ({ titulo: txt(i.titulo, 200), prob: i.prob || '', impacto: i.impacto || '', mitigacao: txt(i.mitigacao, 1000), resp: txt(i.resp_nome, 80), status: i.status || 'aberto' })).slice(0, 50) : [],
+    equipe: on('equipe') ? cfg.equipe : [],
+    reunioes: on('reunioes') ? reunioes.slice(0, 50) : [],
+    faq: on('faq') ? dos('faq').map((i) => ({ pergunta: txt(i.titulo, 200), resposta: txt(i.descricao, 2000) })).slice(0, 50) : [],
+    links: on('links') ? cfg.links : [],
     pasta: cfg.pasta,
     teamsUrl: cfg.teamsUrl,
   };
   assertAllowlist(dados);   // defesa em profundidade: chave nova fora da lista quebra aqui, nunca chega ao cliente
-  await portalCacheGrava(sb, key, dados);
+  if (completo) await portalCacheGrava(sb, key, dados);
   return dados;
+}
+function progressoVazio() {
+  return { pct: 0, itens: { total: 0, concluidos: 0 }, marcos: { total: 0, concluidos: 0, proximo: null }, maiorAtrasoDias: 0, previsaoFim: '', ultimoMarco: '', previsaoRitmo: '', semaforo: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -406,11 +492,18 @@ export async function projetosPublicados(sb, c) {
 }
 
 // admin-projetos&ct=<contratoId>: contrato × projeto com contadores, para a tabela do módulo.
-export async function adminProjetos(sb, c) {
+// Um projeto listado neste contrato mas cuja linha pertence a OUTRO sai como rascunho daqui, com
+// `outroContrato` dizendo para quem ele está publicado/configurado — trocar de contrato nunca é
+// um clique silencioso (o admin-config responde 409 sem `forcar`).
+export async function adminProjetos(sb, c, contratos) {
   const keys = projetosDoContrato(c);
-  const rows = await sbLe(sb, `${T_PROJ}?contrato_id=eq.${enc(String(c.id))}&select=*`);
-  const porK = {}; rows.forEach((r) => { porK[r.projeto] = r; });
-  const todas = [...new Set([...keys, ...rows.map((r) => r.projeto)])];
+  const lista0 = Array.isArray(contratos) ? contratos.filter(Boolean) : [];
+  const [porContrato, porChave] = await Promise.all([
+    sbLe(sb, `${T_PROJ}?contrato_id=eq.${enc(String(c.id))}&select=*`),
+    keys.length ? sbLe(sb, `${T_PROJ}?projeto=in.(${keys.join(',')})&select=*`) : [],
+  ]);
+  const porK = {}; porChave.forEach((r) => { porK[r.projeto] = r; }); porContrato.forEach((r) => { porK[r.projeto] = r; });
+  const todas = [...new Set([...keys, ...porContrato.map((r) => r.projeto)])];
   if (!todas.length) return [];
   const lista = `in.(${todas.join(',')})`;
   const [itens, decs, contas] = await Promise.all([
@@ -421,38 +514,73 @@ export async function adminProjetos(sb, c) {
   const ultimoAcesso = contas.map((x) => x.ultimo_acesso || '').filter(Boolean).sort().pop() || '';
   let cat = []; try { cat = await carregaCatalogoProjetos(); } catch (e) { cat = []; }
   return todas.map((k) => {
-    const row = porK[k] || { projeto: k, contrato_id: c.id, publicado: false, config: {} };
+    const linha = porK[k] || null;
+    const deOutro = linha && String(linha.contrato_id) !== String(c.id);
+    const row = (linha && !deOutro) ? linha : { projeto: k, contrato_id: c.id, publicado: false, config: {} };
     const meus = itens.filter((i) => i.projeto === k && i.visivel !== false);
     const n = (tipo, st) => meus.filter((i) => i.tipo === tipo && (!st || st.includes(i.status))).length;
     const p = cat.find((x) => x.key === k);
+    const outro = deOutro ? lista0.find((x) => String(x.id) === String(linha.contrato_id)) : null;
     return projetoPublico(row, { nome: (p && p.nome) || k, noContrato: keys.includes(k), ultimoAcesso,
+      outroContrato: deOutro ? { id: String(linha.contrato_id), cliente: (outro && outro.cliente) || '', publicado: !!linha.publicado } : null,
       n: { pendencias: n('pendencia', ['aberto']), riscos: n('risco', ['aberto', 'mitigado']), faq: n('faq'), reunioes: n('reuniao', ['aberto']),
         decisoesVisiveis: decs.filter((x) => x.projeto === k).length } });
   });
 }
 
-// admin-config (POST {projeto, contratoId, publicado?, config?}): upsert com validação.
-export async function adminConfig(sb, contratos, body, quem) {
+// O "calendário do projeto" NUNCA pode ser a caixa de uma PESSOA do time: a credencial de
+// aplicativo lê qualquer caixa do tenant, e a agenda pessoal inteira (reunião com outro cliente,
+// 1:1 de RH) iria para o portal. Pessoa do time = usuário ativo do Jira, gestor da config ou quem
+// está gravando. GUID (grupo do Teams) não passa por aqui. `extra.usuarios` é injetável nos testes.
+export async function calendarioDePessoa(calendario, quem, extra) {
+  const cal = String(calendario || '').trim().toLowerCase();
+  if (!cal || !RE_EMAIL.test(cal)) return false;
+  const lista = new Set([String(quem || '').trim().toLowerCase()]);
+  ((extra && extra.gestores) || []).forEach((g) => { const e = String(typeof g === 'string' ? g : (g && g.email) || '').trim().toLowerCase(); if (e.includes('@')) lista.add(e); });   // cfg.gestores: {a, email} ou o e-mail cru
+  const usuarios = await ((extra && extra.usuarios) ? extra.usuarios() : jiraUsuariosAtivos());   // falha → lança: sem conferir, não se grava
+  Object.values(usuarios || {}).forEach((u) => { const e = String((u && u.email) || '').trim().toLowerCase(); if (e) lista.add(e); });
+  lista.delete('');
+  return lista.has(cal);
+}
+
+// admin-config (POST {projeto, contratoId, publicado?, config?, forcar?, calendarioConfirmado?}): upsert com validação.
+export async function adminConfig(sb, contratos, body, quem, extra) {
   const key = txt(body.projeto, 40).toUpperCase();
   if (!RE_PROJ.test(key)) return { ok: false, status: 400, erro: 'Projeto inválido.' };
   const ct = txt(body.contratoId, 80);
   const c = contratos.find((x) => x && String(x.id) === ct);
   if (!c) return { ok: false, status: 400, erro: 'Contrato não encontrado.' };
   if (!projetosDoContrato(c).includes(key)) return { ok: false, status: 400, erro: `O projeto ${key} não está no contrato ${c.cliente || ct} — inclua-o em 📑 Contratos antes de publicar.` };
+  if (body.publicado !== undefined && typeof body.publicado !== 'boolean') return { ok: false, status: 400, erro: '"publicado" precisa ser true ou false.' };
   const atual = (await sbLe(sb, `${T_PROJ}?projeto=eq.${enc(key)}&select=*`))[0] || null;
+  // Trocar o projeto de contrato tira o acesso de quem está no contrato atual: só com `forcar`.
+  if (atual && String(atual.contrato_id) !== ct && body.forcar !== true) {
+    const outro = contratos.find((x) => x && String(x.id) === String(atual.contrato_id));
+    const nomeOutro = (outro && (outro.cliente || outro.id)) || String(atual.contrato_id);
+    return { ok: false, status: 409, erro: `${key} já está ${atual.publicado ? 'publicado' : 'configurado'} para o contrato ${nomeOutro}. Mover para ${c.cliente || ct} tira o acesso de quem está em ${nomeOutro} — confirme para mover.`,
+      contratoAtual: { id: String(atual.contrato_id), cliente: (outro && outro.cliente) || '', publicado: !!(atual && atual.publicado) } };
+  }
   let config = atual ? normalizaConfig(atual.config, key).config : configPadrao();
   if (body.config !== undefined) {
     const n = normalizaConfig(body.config, key, true);
     if (!n.ok) return { ok: false, status: 400, erro: n.erro };
     config = n.config;
+    const calAntes = String((atual && atual.config && atual.config.calendario) || '').trim();
+    if (config.calendario && config.calendario !== calAntes) {
+      // Calendário NOVO: (1) nunca a caixa de uma pessoa do time; (2) o gestor precisa ter visto a
+      // prévia (admin-sugestoes&cal=…) e confirmado ESTE valor — é o que ele acabou de ler que o cliente verá.
+      if (await calendarioDePessoa(config.calendario, quem, extra)) return { ok: false, status: 400, erro: 'Calendário do projeto: este e-mail é de uma pessoa do time — a agenda pessoal dela inteira iria para o cliente. Use a caixa compartilhada do projeto ou o GUID do grupo do Teams.', calendarioPessoa: true };
+      if (txt(body.calendarioConfirmado, 200) !== config.calendario) return { ok: false, status: 400, erro: 'Calendário do projeto: teste o calendário e confirme a prévia (as próximas reuniões) antes de salvar.', precisaConfirmar: true };
+    }
   }
-  const publicado = body.publicado === undefined ? !!(atual && atual.publicado) : body.publicado === true;
+  const publicado = body.publicado === undefined ? !!(atual && atual.publicado) : body.publicado;
   const agora = new Date().toISOString();
   const rows = await sbEscreve(sb, `${T_PROJ}?on_conflict=projeto`, 'POST',
     [{ projeto: key, contrato_id: ct, publicado, config, atualizado_em: agora, atualizado_por: quem }], 'resolution=merge-duplicates,return=representation');
   await portalCacheLimpa(sb, key);
   const row = rows[0] || { projeto: key, contrato_id: ct, publicado, config, atualizado_em: agora, atualizado_por: quem };
-  return { ok: true, projeto: projetoPublico(row), publicadoMudou: !!(atual && atual.publicado) !== publicado };
+  return { ok: true, projeto: projetoPublico(row), publicadoMudou: !!(atual && atual.publicado) !== publicado,
+    contratoMudou: !!(atual && String(atual.contrato_id) !== ct) };
 }
 
 // admin-itens&p=KEY: GET lista tudo (visível ou não); POST {acao:'criar'|'editar'|'remover', item}.
@@ -498,8 +626,10 @@ export async function adminDecisao(sb, body) {
   return { ok: true, id, visivel, projeto: atual.projeto || '' };
 }
 
-// admin-sugestoes&p=KEY: matéria-prima para o gestor montar a equipe e as reuniões — nunca vai ao cliente.
-export async function adminSugestoes(sb, key, hoje) {
+// admin-sugestoes&p=KEY[&cal=…]: matéria-prima para o gestor montar a equipe e as reuniões — nunca vai ao
+// cliente. `cal` testa um calendário AINDA NÃO SALVO (a prévia que o gestor confirma antes de gravar):
+// e-mail de pessoa do time volta como {erro:'pessoa'} sem tocar no Graph.
+export async function adminSugestoes(sb, key, hoje, calCandidato, quem, extra) {
   let equipe = []; let lead = '';
   try {
     const ficha = await fichaProjeto(key);
@@ -515,10 +645,15 @@ export async function adminSugestoes(sb, key, hoje) {
   } catch (e) { /* idem */ }
   const row = (await sbLe(sb, `${T_PROJ}?projeto=eq.${enc(key)}&select=config`))[0];
   const cfg = normalizaConfig(row && row.config, key).config;
+  const alvo = txt(calCandidato, 200) || cfg.calendario;
   let calendario = null;
-  if (cfg.calendario) {
-    const cal = await calendarioDoProjeto(cfg.calendario, hoje, crAddDias(hoje, DIAS_REUNIOES));
-    calendario = { ok: !cal.erro, erro: cal.erro || '', eventos: (cal.eventos || []).slice(0, 3) };
+  if (alvo) {
+    if (!calendarioValido(alvo)) calendario = { ok: false, erro: 'invalido', eventos: [], calendario: alvo };
+    else if (await calendarioDePessoa(alvo, quem, extra)) calendario = { ok: false, erro: 'pessoa', eventos: [], calendario: alvo };
+    else {
+      const cal = await calendarioDoProjeto(alvo, hoje, crAddDias(hoje, DIAS_REUNIOES));
+      calendario = { ok: !cal.erro, erro: cal.erro || '', eventos: (cal.eventos || []).slice(0, 3), calendario: alvo };
+    }
   }
   return { equipe, lead, reunioesJira, calendario };
 }

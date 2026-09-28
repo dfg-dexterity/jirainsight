@@ -57,6 +57,10 @@ export function projMarcos(epicos, hoje) {
 // cancelados não entram — trabalho que não vai acontecer não é notícia para o cliente) e o
 // resumo dos 4 KPIs do portal: progresso em itens (a mesma conta do KPI "Progresso geral" do
 // Cronograma), marcos concluídos/total, próximo marco, maior atraso, previsão de fim e o semáforo.
+// `previsaoFim` = o MAIOR entre o último marco planejado (KPI "Último marco planejado" do 📅
+// Cronograma interno) e a previsão pelo ritmo do épico mais lento — a previsão pelo ritmo só olha
+// os épicos com filhos e nunca pode ser ANTERIOR a um marco ainda planejado; os dois vão separados
+// (`ultimoMarco`, `previsaoRitmo`) para a página dizer qual é qual.
 const ST_CLIENTE = { concluido: 'concluido', andamento: 'andamento', atrasado: 'atrasado', risco: 'risco', nao_iniciado: 'planejado' };
 export function cronogramaDoProjeto(epicos, hoje) {
   const todas = crOrdenaCascata(crLinhas(epicos, hoje).filter((r) => !r.cancel).map((r) => ({ ...r, pfx: crPrefixo(r.resumo) })));
@@ -77,7 +81,9 @@ export function cronogramaDoProjeto(epicos, hoje) {
       itens: { total: itensTot, concluidos: itensConc },
       marcos: { total: marcos.length, concluidos: marcos.filter((r) => r.done).length, proximo: proxEp ? { nome: proxEp.resumo || '', data: mk.prox } : null },
       maiorAtrasoDias: maiorAtraso,
-      previsaoFim: prevProj || fimProj || '',
+      previsaoFim: prevProj > fimProj ? prevProj : (fimProj || prevProj || ''),
+      ultimoMarco: fimProj || '',
+      previsaoRitmo: prevProj || '',
       semaforo,
     },
   };
