@@ -11,9 +11,22 @@
    passaria da borda mesmo com a guarda. */
 
 /* ================= 1. Base: guarda de largura, respiro e cabeçalho ================= */
-@media (max-width:760px){
+/* Tablet em pé (iPad 768/820): a faixa 761–880px não tinha gaveta nem regras de celular, e
+   três telas vazavam — a linha do Radar (projeto+data sem quebra), o controle da Agenda
+   (grade de 4 colunas só virava cartão < 720px) e as 2 colunas do Planejado × realizado. */
+@media (max-width:880px){
   /* nada empurra a página para os lados (clip não cria rolagem: o sticky segue valendo) */
   .wrap{overflow-x:clip}
+  .nv-cards{grid-template-columns:minmax(0,1fr)}
+  .hxd-row>.hxd-meta{white-space:normal}
+  .hxd-row>.rt-step{flex:none}
+  .ag-ct-tab{display:block} .ag-ct-head{display:none}
+  .ag-ct-row{display:block;padding:7px 0;border-bottom:1px solid var(--linha)}
+  .ag-ct-row>div{border-bottom:0;padding:0;text-align:left!important}
+  .ag-ct-acao{justify-content:flex-start;margin-top:4px}
+  .mp-2col{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
   /* botões flutuantes viram círculos de ícone: o texto fica no aria-label/title */
   .fl-rot{display:none}
   #to-top,#btn-guia{width:44px;height:44px;padding:0;right:12px;font-size:18px;line-height:1;
