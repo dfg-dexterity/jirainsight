@@ -188,6 +188,37 @@ try {
   }
 } catch (e) { erros.push(`🔧 vercel.json: não consegui conferir (${e.message}).`); }
 
+// ---- 📱 mobile.css: a camada do celular não pode encostar no desktop ----
+// Toda regra fica dentro de @media com condição de celular/toque (max-width, pointer:coarse,
+// hover:none) — é isso que garante que o computador não muda um pixel. E ela carrega DEPOIS
+// do app.css, senão perde os empates de especificidade.
+try {
+  const css = readFileSync('public/css/mobile.css', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')                       // comentários
+    .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g, '""'); // strings (content:'{' não conta chave)
+  const MOBILE = /max-width|pointer\s*:\s*coarse|hover\s*:\s*none/;
+  let prof = 0, ini = 0, nMedia = 0;
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') {
+      if (prof === 0) {
+        const pre = css.slice(ini, i).trim();
+        if (!pre.startsWith('@media')) erros.push(`📱 mobile.css: "${pre.slice(0, 60)}" está fora de @media — toda regra desta folha fica dentro de uma media query de celular (o desktop não pode mudar).`);
+        else if (!MOBILE.test(pre)) erros.push(`📱 mobile.css: "${pre.slice(0, 60)}" não é condição de celular/toque (use max-width, pointer:coarse ou hover:none).`);
+        else nMedia++;
+      }
+      prof++;
+    } else if (ch === '}') { prof--; if (prof === 0) ini = i + 1; if (prof < 0) { erros.push('📱 mobile.css: chave "}" sobrando.'); break; } }
+  }
+  if (prof > 0) erros.push('📱 mobile.css: chave "{" sem fechar.');
+  if (css.slice(ini).trim()) erros.push(`📱 mobile.css: texto solto no fim ("${css.slice(ini).trim().slice(0, 40)}").`);
+  const html = readFileSync('public/index.html', 'utf8');
+  const pApp = html.indexOf('href="/css/app.css"'), pMob = html.indexOf('href="/css/mobile.css"');
+  if (pMob < 0) erros.push('📱 index.html não carrega /css/mobile.css.');
+  else if (pMob < pApp) erros.push('📱 index.html: /css/mobile.css precisa vir DEPOIS de /css/app.css (vence os empates pela ordem).');
+  if (!erros.some((e) => e.startsWith('📱'))) console.log(`Mobile: ✓ mobile.css com ${nMedia} bloco(s) @media, todos de celular/toque, carregado depois do app.css`);
+} catch (e) { erros.push(`📱 mobile.css: não consegui conferir (${e.message}).`); }
+
 console.log('Entrega (Novidades + Roadmap):');
 if (erros.length) {
   erros.forEach((e) => console.error('  ✗ ' + e));
