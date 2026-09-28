@@ -108,6 +108,292 @@
 /* ---- fim: analises ---- */
 
 /* ---- 📱 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias) ---- */
+/* Cada tela ganhou uma classe na raiz (.ams-tela · .rc-tela · .ct-tela · .rp-tela · .pc-tela) só
+   para escopo: fichas, tabelas e botões são componentes COMPARTILHADOS (Cronograma, Admin, Visão
+   Geral usam os mesmos), e o celular destas telas não pode mudar o das outras. */
+@media (max-width:600px){
+  /* ---- comum ---- */
+  /* fichas "rótulo + valor" (dados do contrato, planos, parcerias, resultado): 2 por linha, não 1 */
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dgrid,.rp-tela .rp-dados{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dl{padding:7px 9px;min-width:0}
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dl .dt{font-size:11px;letter-spacing:.3px;line-height:1.3}
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dl .dd{font-size:14px;line-height:1.3;margin-top:2px;overflow-wrap:anywhere}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .badge{font-size:12px}
+  /* os botões "fantasma" (só texto) viravam linhas soltas de 42px: no celular ganham contorno,
+     ficam compactos e se agrupam lado a lado */
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .btn:not(.primario):not(.rt-step){border-color:var(--linha);
+    background:var(--cartao);padding:6px 12px;font-size:13.5px;line-height:1.25;border-radius:8px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .btn.rt-step{border-color:var(--linha2);padding:4px 10px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .lnk-ficha{font-size:12.5px;padding:3px 10px}
+  /* tabelas largas: rolam dentro do quadro (na largura natural, números sem quebrar) e a 1ª coluna
+     (quem / o quê / o mês) fica presa à esquerda */
+  :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini:not(.rp-marcos){width:max-content;min-width:100%}
+  :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini td.num{white-space:nowrap}
+  :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini:not(.rp-marcos) :is(th,td):first-child:not([colspan]),
+  .pc-tela .scroll-x>table:is(.pc-cal-tab,.pc-eq-grade,.pc-fat-tab) :is(th,td):first-child:not([colspan]){
+    position:sticky;left:0;z-index:1;background-color:var(--cartao);box-shadow:inset -1px 0 0 var(--linha)}
+  /* quando a 1ª coluna é um NOME (categoria, projeto, pessoa, cenário), ela tem largura fixa e quebra em linhas */
+  .ct-tela .scroll-x>table.mp-tab-mini :is(th,td):first-child:not([colspan]),
+  .rp-tela .scroll-x>table.mp-tab-mini:not(.rp-marcos,.rp-rec,.rp-per-tab,.rp-hist):not(.rm-2col *) :is(th,td):first-child:not([colspan]){
+    width:9.5em;min-width:9.5em;max-width:9.5em;white-space:normal;overflow-wrap:break-word}
+  :is(.ct-tela,.rp-tela,.pc-tela) .scroll-x>table tr.rm-destaque>td:first-child{background-image:linear-gradient(rgba(0,153,148,.06),rgba(0,153,148,.06))}
+  .ct-tela .scroll-x>table tr.ct-dest>td:first-child{background-image:linear-gradient(rgba(0,153,148,.10),rgba(0,153,148,.10))}
+  .pc-tela .pc-fat-tab tr.pc-xt-row>td:first-child{background-color:var(--hoverbg)}
+
+  /* ---- 🛡 AMS ---- */
+  .ams-tela .ams-nav{gap:6px}
+  .ams-tela .ams-nav>.spacer{display:none}
+  .ams-tela .ams-nav>.ams-sel{order:-2;flex:1 1 100%;margin:0}
+  .ams-tela .ams-nav>.ams-sel select{flex:1 1 auto;min-width:0}
+  .ams-tela .ams-nav-l{order:-1;flex:1 1 100%;font-size:14px;line-height:1.35}
+  .ams-tela .ams-nav-cur{font-size:11px}
+  .ams-tela .ams-nav [data-ams-nav]{flex:1 1 calc(50% - 3px);white-space:nowrap}
+  .ams-tela .ams-nav [data-ams-cur]{flex:1 1 100%}
+  .ams-tela .ams-nav>.muted.small{flex:1 1 auto}
+  .ams-dados{padding:10px}
+  .ams-dados-h{gap:6px}
+  .ams-card{padding:12px 10px 12px 12px;border-left-width:4px}
+  .ams-head{gap:6px}
+  .ams-head .ciclo{margin-left:0;flex:1 1 100%;font-size:12.5px}
+  .ams-head .ams-pdf{margin-left:0}
+  .ams-k{padding:8px 10px}
+  .ams-k .l{font-size:11px}
+  .ams-months{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .ams-mc{padding:6px 4px}
+  .ams-mc .mm{font-size:12px}
+  .ams-mc .mh{font-size:14px}
+  .ams-note{font-size:12.5px}
+  .ams-tipo>summary{flex-wrap:wrap;row-gap:4px;padding:9px 10px}
+  .ams-tp-n{min-width:0}
+  .ams-tp-b{white-space:nowrap}
+  .ams-tp-h{white-space:nowrap}
+  .ams-chamados{padding:4px 10px 8px}
+  /* chamado: chave, nº do cliente e horas numa linha; o resumo (que o celular escondia) vem embaixo */
+  .ams-ch{flex-wrap:wrap;align-items:center;gap:2px 8px;padding:2px 0}
+  .ams-ch-k{min-width:0}
+  .ams-ch-k a{display:inline-block;padding:8px 0}
+  .ams-ch-cc{font-size:12px}
+  .ams-ch-b{font-size:10.5px}
+  .ams-ch-h{margin-left:auto;white-space:nowrap}
+  .ams-ch .ams-ch-r{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;order:5;flex:1 1 100%;
+    white-space:normal;font-size:12.5px;margin:-4px 0 4px}
+  .ams-ch .ams-ch-r:empty{display:none}
+  .ams-relrow{padding:6px 4px}
+  .ams-relrow .nm{font-size:13px}
+  .ams-rel-cum{font-size:12px}
+
+  /* ---- 💰 Bolsa de horas & projetos ---- */
+  .rc2-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .rc2-card{padding:12px 10px 12px 12px;border-left-width:4px;min-width:0}
+  .rc2-top{flex-wrap:wrap}
+  .rc2-fin{gap:6px;grid-template-columns:repeat(3,auto);justify-content:space-between}
+  .rc2-fv{font-size:15px;white-space:nowrap}
+  .rc2-fl{font-size:10.5px}
+  /* 5 KPIs em 2 colunas: o último não fica "número sozinho numa linha" — ocupa a linha, deitado */
+  :is(.rc-tela,.ct-tela) .kpi .v{font-size:min(24px,5.3vw)}
+  .rc-tela>.kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1;display:flex;align-items:baseline;gap:12px}
+  .rc-tela>.kpis>.kpi:last-child:nth-child(odd) .l{margin-top:0}
+
+  /* ---- 🏦 Controladoria ---- */
+  .ct-tela .ap-filtros:has(#ct-de){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}
+  .ct-tela .ap-filtros:has(#ct-de)>.campo:last-child{grid-column:1/-1}
+  .ct-tela #ct-de,.ct-tela #ct-ate{width:100%;min-width:0;box-sizing:border-box}
+  .ct-tela .ap-chips{gap:6px}
+  .ct-tela .ap-vis{gap:6px!important}
+  /* categorias: uma faixa que rola de lado (eram 10 linhas de chips); a escolhida vem primeiro, sempre à vista */
+  .ct-tela .ap-vis:has(>[data-ct-cat]){flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding:2px 0 6px;margin:4px 0 2px}
+  .ct-tela .ap-vis:has(>[data-ct-cat])::-webkit-scrollbar{display:none}
+  .ct-tela .ap-vis:has(>[data-ct-cat])>*{flex:0 0 auto;white-space:nowrap}
+  .ct-tela .ap-vis:has(>[data-ct-cat])>.muted{order:-2}
+  .ct-tela .ap-vis>.chip[aria-pressed="true"]{order:-1}
+  .ct-tela td>.rt-step{margin:2px 0}
+  .ct-tela .chip{font-size:13px;padding:6px 12px}
+  .ct-tela .kpi .l{letter-spacing:.4px}
+  .ct-tela .kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1}
+  .ct-tela .ct-kl{text-transform:none;letter-spacing:0;font-size:12px;line-height:1.3;opacity:.85}
+  .ct-tb{gap:8px;padding:7px 4px}
+  .ct-cfg input[type=number]{font-family:var(--corpo);padding:7px 10px;border:1px solid var(--linha);border-radius:8px;
+    background:var(--cartao);color:var(--grafite);box-sizing:border-box}
+  .ct-tb-l{min-width:0;flex:0 0 34%;overflow-wrap:anywhere}
+  .ct-tb-v{min-width:0}
+  .ct-res-acoes{gap:6px}
+  .ct-res-acoes>.spacer{display:none}
+  .ct-cfg{padding:8px 10px}
+  .ct-tela .rm-2col>*,.rp-tela .rm-2col>*{min-width:0}
+
+  /* ---- 💹 Rentabilidade ---- */
+  .rp-tela .ad-grid{grid-template-columns:minmax(0,1fr)}
+  .rp-card{min-width:0;padding:12px 10px 12px 12px}
+  .rp-card .ad-top{flex-wrap:wrap;row-gap:4px}
+  .rp-card .ad-top>strong{flex:1 1 100%}
+  .rp-card .ad-top>.spacer{display:none}
+  .rp-mini .dd .ct-sem{font-size:12px;white-space:nowrap;display:inline-block}
+  .rp-tela .vg-hero{gap:10px}
+  .rp-tela .vg-k{padding:10px 10px 10px 13px;min-width:0}
+  .rp-tela .vg-k .v{font-size:clamp(15px,4.4vw,19px);overflow-wrap:anywhere}
+  .rp-tela .vg-k .s{font-size:12px}
+  .rp-sim{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;padding:10px}
+  .rp-sim .campo{min-width:0}
+  .rp-sim .campo:last-child{grid-column:1/-1}
+  .rp-sim .campo:last-child>label{display:none}
+  .rp-sim input[type=number]{width:100%;box-sizing:border-box}
+  .rp-cen{gap:6px}
+  /* ações do plano (‹ Todos · Ficha · Dados · Duplicar · Excluir): 2 por linha em vez de 5 linhas soltas */
+  .rp-tela .card>div:has(>[data-rp-voltar]):has(>[data-rp-dup],>[data-proj-ficha]){display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important}
+  .rp-tela .card>div:has(>[data-rp-voltar])>.btn{white-space:normal;min-width:0}
+  .rp-tela .card>div:has(>[data-rp-voltar])>.muted{grid-column:1/-1}
+  /* cascata "da receita à margem": rótulo e valor na linha, a barra inteira embaixo */
+  .rp-wf{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:5px 0}
+  .rp-wf-t{grid-column:1/-1;grid-row:2;height:10px}
+  .rp-wf-v{white-space:nowrap}
+  /* planner: a coluna Pessoa (presa) quebra o nome e a regra em linhas; os meses rolam ao lado */
+  .rp-grade .rp-regra{white-space:normal;margin:3px 0 0;display:inline-block;line-height:1.3}
+  /* rodapés das grades: o rótulo da linha ocupa 2–5 colunas (colspan) e some ao rolar — cada número
+     ganha uma legenda miúda, para "224h" não ficar solto sem dizer o que é */
+  :is(.rp-grade,.rp-per-tab) tfoot td.num:not(:empty)::before,
+  .pc-tela :is(.pc-eq-grade,.pc-fat-tab) tfoot td.num:not(:empty)::before{display:block;font-size:10px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.3px;color:var(--muted);line-height:1.2;margin-bottom:1px}
+  .rp-grade tr.rp-f-prev td.num:not(:empty)::before{content:'previsto'}
+  .rp-grade tr.rp-f-vend td.num:not(:empty)::before{content:'vendidas'}
+  .rp-grade tr.rp-f-saldo td.num:not(:empty)::before{content:'saldo'}
+  .rp-grade tr.rp-f-real td.num:not(:empty)::before{content:'realizado'}
+  .rp-grade tr.rp-f-dif td.num:not(:empty)::before{content:'real − prev.'}
+  .rp-per-tab tfoot td.num:not(:empty)::before,.pc-tela :is(.pc-eq-grade,.pc-fat-tab) tfoot td.num:not(:empty)::before{content:'total'}
+  /* formulário "Dados do projeto": campos em largura total (os números tinham 80–140px soltos) */
+  .rp-form{padding:10px}
+  .rp-form .pl-grid :is(input,select){width:100%!important;min-width:0!important;max-width:none;box-sizing:border-box}
+  .rp-form .pl-grid .campo>div{min-width:0}
+  .rp-form .pl-grid .campo>div>:is(input,select){flex:1 1 0}
+  .rp-form>.campo{margin-top:10px}
+  .rp-form>.campo input[type=text]{font-family:var(--corpo);padding:8px 10px;border:1px solid var(--linha);border-radius:8px;
+    background:var(--cartao);color:var(--grafite);width:100%;box-sizing:border-box}
+  .rp-tela #rp-add-de,.rp-tela #rp-add-ate{flex:1 1 0;min-width:0;width:auto}
+  .rp-tela #rp-add-h{flex:0 0 38%;min-width:0}
+  .rp-tela #rp-add-modo{flex:1 1 0;min-width:0}
+
+  /* ---- 🤝 Parcerias ---- */
+  .pc-grid{grid-template-columns:minmax(0,1fr)}
+  .pc-card{padding:12px 10px 12px 12px;border-left-width:4px}
+  .pc-card .ad-top{row-gap:6px;column-gap:6px}
+  .pc-card .ad-top .btn{min-height:34px}
+  /* cabeçalho do cartão: nome + editar/remover na 1ª linha, os selos na 2ª (o ::after força a quebra) */
+  .pc-card .ad-top>strong{flex:1 1 0;min-width:7em}
+  .pc-card .ad-top>.btn{order:1}
+  .pc-card .ad-top::after{content:'';order:2;flex:1 1 100%;height:0}
+  .pc-card .ad-top>.badge{order:3}
+  /* as 4 gavetas do contrato: grade 2 × 2 de botões de verdade, não 4 linhas soltas */
+  .pc-gav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .pc-gav>.btn.rt-step{min-height:44px;white-space:normal;text-align:center;line-height:1.25;border-radius:10px;
+    font-size:13px;font-weight:700;padding:6px 8px}
+  .pc-gav>.muted{grid-column:1/-1}
+  .pc-gav>.muted:empty{display:none}
+  /* próximas notas: data e "Ver →" em cima, o texto inteiro embaixo */
+  .pc-nt-row{flex-wrap:wrap;row-gap:4px;padding:8px 10px}
+  .pc-nt-row .pc-nt-txt{order:3;flex:1 1 100%;line-height:1.45}
+  .pc-nt-row>.btn{margin-left:auto;min-height:34px;padding:4px 12px}
+  /* histórico do cartão: a tabela (que vazava da tela) vira uma lista */
+  .pc-card .rp-hist,.pc-card .rp-hist tbody{display:block}
+  .pc-card .rp-hist tr{display:flex;flex-wrap:wrap;gap:0 8px;padding:6px 0;border-bottom:1px solid var(--mpb)}
+  .pc-card .rp-hist td{border:0;padding:0;white-space:normal;min-width:0}
+  .pc-card .rp-hist td:last-child{flex:1 1 100%;min-width:0}
+  .pc-cal{padding:10px 8px}
+  .pc-eq-p{padding:8px 6px}
+  .pc-eq-add input[type=text]{font-family:var(--corpo);padding:8px 10px;border:1px solid var(--linha);border-radius:8px;
+    background:var(--cartao);color:var(--grafite);min-width:0!important;width:100%;box-sizing:border-box}
+  .pc-card>.ams-dgrid{margin-top:8px}
+  .pc-eq-h>.btn{margin-left:auto}
+  .pc-tela input[type=date]{font-family:var(--corpo)}
+  /* tabelas de EDIÇÃO (trechos da equipe, horas extras, documentos, rateio): cada linha vira um cartão
+     com os campos empilhados e rotulados — rolar de lado para digitar num campo cortado não funciona no dedo */
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab),:is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab)>tbody{display:block;width:100%;min-width:0!important}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab)>thead{display:none}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab)>tbody>tr{display:grid;gap:6px 8px;padding:8px 0;border-bottom:1px solid var(--mpb);align-items:end}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab) td,:is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab) td.num{border:0;padding:0;
+    white-space:normal;min-width:0;text-align:left}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab) td::before{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--muted);margin-bottom:2px;font-weight:600}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab) td :is(input,select){width:100%!important;min-width:0!important;max-width:none!important;box-sizing:border-box}
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab) td:last-child{justify-self:end}
+  /* trecho: De | Até · Dedicação (valor + modo) · Dias úteis | Horas | 🗑 (flex: De e Até com a mesma largura) */
+  .pc-eq-tab>tbody>tr{display:flex;flex-wrap:wrap}
+  .pc-eq-tab td:nth-child(-n+2){flex:1 1 calc(50% - 4px)}
+  .pc-eq-tab td:nth-child(1)::before{content:'De'}
+  .pc-eq-tab td:nth-child(2)::before{content:'Até'}
+  .pc-eq-tab td:nth-child(3){flex:1 1 100%}
+  .pc-eq-tab td:nth-child(3)::before{content:'Dedicação'}
+  .pc-eq-tab td:nth-child(4){flex:1 1 25%}
+  .pc-eq-tab td:nth-child(5){flex:2 1 45%}
+  .pc-eq-tab td:nth-child(6){flex:0 0 auto}
+  .pc-eq-tab td:nth-child(4)::before{content:'Dias úteis'}
+  .pc-eq-tab td:nth-child(5)::before{content:'Horas'}
+  .pc-eq-tab .pc-rg-ded{display:flex;width:100%}
+  .pc-eq-tab .pc-rg-ded>input{flex:0 0 36%}
+  .pc-eq-tab .pc-rg-ded>select{flex:1 1 auto}
+  /* hora extra: Período | Descrição · Horas | Valor/h | Valor · Projeto | Objeto · Quem | 🗑 (grade de 6) */
+  .pc-xt-tab>tbody>tr{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .pc-xt-tab td{grid-column:span 2}
+  .pc-xt-tab td:nth-child(1)::before{content:'Período'}
+  .pc-xt-tab td:nth-child(2){grid-column:span 4}
+  .pc-xt-tab td:nth-child(2)::before{content:'Descrição'}
+  .pc-xt-tab td:nth-child(3)::before{content:'Horas'}
+  .pc-xt-tab td:nth-child(4)::before{content:'Valor/h'}
+  .pc-xt-tab td:nth-child(5)::before{content:'Valor'}
+  .pc-xt-tab td:nth-child(5){align-self:center}
+  .pc-xt-tab td:nth-child(6),.pc-xt-tab td:nth-child(7){grid-column:span 3}
+  .pc-xt-tab td:nth-child(6)::before{content:'Projeto'}
+  .pc-xt-tab td:nth-child(7)::before{content:'Objeto de resultado'}
+  .pc-xt-tab td:nth-child(8){grid-column:span 4}
+  .pc-xt-tab td:nth-child(8)::before{content:'Quem'}
+  /* documento: Tipo | abrir ↗ · Nome · Link | 🗑 */
+  .pc-doc-tab>tbody>tr{grid-template-columns:minmax(0,1fr) auto}
+  .pc-doc-tab td:nth-child(1){grid-area:1/1}
+  .pc-doc-tab td:nth-child(1)::before{content:'Tipo'}
+  .pc-doc-tab td:nth-child(4){grid-area:1/2}
+  .pc-doc-tab td:nth-child(2){grid-area:2/1/3/3}
+  .pc-doc-tab td:nth-child(2)::before{content:'Nome'}
+  .pc-doc-tab td:nth-child(3){grid-area:3/1}
+  .pc-doc-tab td:nth-child(3)::before{content:'Link'}
+  .pc-doc-tab td:nth-child(5){grid-area:3/2}
+  /* rateio (no contrato e no modal do período): objeto | % | 🗑 numa linha */
+  .pc-rt-tab>tbody>tr{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--mpb)}
+  .pc-rt-tab td:first-child{flex:1 1 auto}
+  .pc-rt-tab td.num{flex:0 0 5.5em;display:flex;align-items:center;gap:3px}
+  .pc-rt-tab td.num:has(input)::after{content:'%';color:var(--muted)}
+  .pc-rt-tab td:last-child{flex:0 0 auto}
+  /* formulário do contrato: campos em largura total; os números curtos, dois por linha */
+  .pc-form .pl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}
+  .pc-form .pl-grid>.campo{min-width:0}
+  .pc-form .pl-grid>.campo:nth-child(-n+2),.pc-form .pl-grid>.campo:nth-child(n+9){grid-column:1/-1}
+  .pc-form .pl-grid :is(input,select){width:100%!important;min-width:0!important;max-width:none;box-sizing:border-box}
+  .pc-form>.campo{margin-top:10px}
+  .pc-form>.campo :is(input[type=text],input[type=url]){font-family:var(--corpo);padding:8px 10px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);width:100%;min-width:0!important;box-sizing:border-box}
+  .pc-form>.campo>span{min-width:0}
+  .pc-form>.campo>span>input{flex:1 1 auto}
+}
+@media (pointer:coarse){
+  /* o app.css dá 42px a todo .btn no toque; os botões-ícone DENTRO das linhas de tabela (🧾 📁 🗑 ↺ ✕)
+     ficam em 36×36 para a linha não dobrar de altura */
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) td>.btn.rt-step{min-height:36px;min-width:36px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .lnk-ficha{min-height:32px}
+  /* campos das tabelas editáveis (trechos, extras, documentos, rateio, calendário, previsão, planner, marcos):
+     26–30px de altura eram pouco para o dedo */
+  :is(.pc-eq-tab,.pc-xt-tab,.pc-doc-tab,.pc-rt-tab,.pc-cal-tab,.pc-eq-grade,.rp-grade,.rp-marcos) :is(input:not([type=checkbox]):not([type=radio]),select){
+    min-height:36px;box-sizing:border-box}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) .chip{min-height:36px}
+  :is(.ams-tela,.pc-tela,.rp-tela) .rm-det>summary{padding:8px 0}
+}
+@media (max-width:400px){
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dgrid,.rp-tela .rp-dados{gap:6px}
+  :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dl .dd{font-size:13.5px}
+  /* 360px: as datas do trecho não cabem lado a lado (o campo de data corta o ano) */
+  .pc-eq-tab td:nth-child(-n+2){flex-basis:100%}
+  /* "somente faturáveis" já está no título da lista: o selo repetido empurrava as horas para uma linha sozinhas */
+  .ams-chcard .ams-ch-b{display:none}
+  .pc-xt-tab td:nth-child(1),.pc-xt-tab td:nth-child(2){grid-column:span 3}
+}
 /* ---- fim: negocio ---- */
 
 /* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */

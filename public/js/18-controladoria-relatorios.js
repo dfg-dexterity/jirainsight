@@ -590,7 +590,7 @@ function renderControladoria(){
       <button class="chip" data-ct-per="ano">Este ano</button></div></div>
   </div>`;
   if(!d){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
+    cont.replaceChildren(el(`<div class="ct-tela"><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
       ${filtros}
       ${ct.tempoErro?`<div class="erro">${esc(ct.tempoErro)} <button class="btn" id="ct-retry">Tentar de novo</button></div>`
         :'<div class="estado">Carregando as horas do período…</div>'}</div></div>`));
@@ -717,7 +717,7 @@ function renderControladoria(){
       </div></div>
     <div class="muted small" style="margin-top:8px">Cada CATEGORIA (ex.: AMS, Tarefas Avulsas) pode mostrar um conjunto diferente de blocos — desligue o que não faz sentido para aquele tipo de projeto. Tudo aqui fica salvo para o time.</div>
   </details>`:'';
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="ct-tela">
     <div class="card full"><h2>🏦 Controladoria de Projetos <span>${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))} · a saúde financeira de cada categoria, explicada</span></h2>
       ${filtros}
       <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">Categoria:</span>${chipsCat}</div>
