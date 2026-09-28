@@ -50,10 +50,12 @@ function gpCarrega(forca){
     }).catch(e=>{ if(gp.carregando===chave) gp.carregando=false; gp.erro=humanizaErro(e); if(estado.vista==='gp') renderGp(); });
 }
 // A última foto de sexta (📊 Relatório semanal) só serve para o Δ: sem identidade, 401/404 ou rota ausente → segue sem ela.
+// fotoOk: null = ainda não tentou (sem identidade fica null, para a foto vir no primeiro render DEPOIS de a pessoa
+// se identificar, sem precisar do ↻) · false = tentou e não há foto · true = foto em gp.foto.
 function gpCarregaFoto(){
   const gp=estado.gp; const id=idApontar();
   if(gp.fotoB||gp.fotoOk!=null) return;
-  if(!id){ gp.fotoOk=false; return; }
+  if(!id) return;
   gp.fotoB=true;
   fetch('/api/config?semanal=1&n=1',{ headers:mpHeaders() }).then(r=>r.ok?r.json():null).then(j=>{
     gp.fotoB=false; const f=j&&Array.isArray(j.semanas)?j.semanas[0]:null;
