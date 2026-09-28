@@ -1661,4 +1661,98 @@
 /* ---- fim: config ---- */
 
 /* ---- 📱 grupo: global (menu, abas, modais, guias, paletas, busca de tickets, avisos, rodapé) ---- */
+@media (max-width:760px){
+  /* ☰ Gaveta do menu: nunca passa da tela — rola por dentro, e o "× Menu" do topo fica sempre à vista */
+  #seg-vista.nav-aberto{max-height:calc(100vh - 96px);max-height:calc(100dvh - 96px);overflow-y:auto;
+    overscroll-behavior:contain;-webkit-overflow-scrolling:touch;flex-direction:row;flex-wrap:wrap;align-content:flex-start}
+  /* cabeçalhos de grupo do mesmo tamanho dos itens soltos (o .seg button das telas médias ganhava: 13px/37px) */
+  #seg-vista .navg-b{font-size:15px;padding:13px 12px}
+  /* ⭐ favoritos (dentro de um display:contents) viram linhas iguais às outras */
+  #nav-favs>.navtab{width:100%;box-sizing:border-box;justify-content:flex-start;padding:13px 12px;margin:0;
+    border-radius:8px;border-bottom:0;font-size:15px;white-space:normal}
+  /* 🔍 e 🎫: dois botões lado a lado, com o nome (no computador são só o ícone) */
+  #seg-vista>#btn-paleta,#seg-vista>#btn-tkb{width:auto;flex:1 1 calc(50% - 3px);margin-top:4px;
+    justify-content:center;border:1px solid var(--linha);font-size:14px}
+  #seg-vista>#btn-paleta{margin-right:6px}
+  #btn-paleta::after{content:'Buscar tela'}
+  #btn-tkb::after{content:'Buscar ticket'}
+  /* 🗂 Abas do grupo: UMA linha que rola de lado (em vez de 2–3 linhas), rótulo do grupo pequeno no começo.
+     A linha de base vira sombra interna: numa caixa com rolagem, o sublinhado da aba (margin -2px) seria cortado. */
+  .abas-tela{flex-wrap:nowrap;align-items:stretch;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;scrollbar-width:none;border-bottom:0;box-shadow:inset 0 -2px 0 var(--linha);
+    /* esmaece a borda direita: a aba que sobra para o lado fica sugerida, não some sem aviso */
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent)}
+  .abas-tela::-webkit-scrollbar{display:none}
+  .abas-tela .aba:last-child{margin-right:14px}
+  .abas-tela .abas-rot{width:auto;flex:0 0 auto;align-self:center;padding:0 8px 0 2px;font-size:10px;max-width:40vw;
+    overflow:hidden;text-overflow:ellipsis}
+  .abas-tela .aba{flex:0 0 auto;margin-bottom:0}
+  /* com a gaveta aberta, os botões flutuantes (🧭 e ↑) não cobrem os itens do fim do menu */
+  body:has(#seg-vista.nav-aberto) #btn-guia,body:has(#seg-vista.nav-aberto) #to-top{display:none}
+}
+@media (max-width:600px){
+  /* ▭ Modal = folha de tela cheia: largura total, rola por dentro, sem vazar para a página de trás */
+  .modal-bg{padding:8px 0 0;padding-top:calc(8px + env(safe-area-inset-top,0px));overscroll-behavior:contain}
+  .modal{max-width:none;min-height:100%;border-radius:14px 14px 0 0;
+    padding:16px 14px 28px;padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+  /* o × acompanha a rolagem (preso no topo) e tem alvo de dedo; não ocupa altura, como o absoluto de antes */
+  .modal-x{position:sticky;top:6px;top:calc(6px + env(safe-area-inset-top,0px));z-index:5;
+    display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin:-8px -6px -32px auto;
+    padding:0;border-radius:50%;background:var(--cartao);box-shadow:0 1px 6px rgba(15,23,42,.18);font-size:28px}
+  #modal-body>h2:first-child{padding-right:34px}
+  /* linha de ações dos modais: botões em pares, com contorno (sem o espaçador empurrando o "Fechar" para longe) */
+  #modal .alx-modal-acoes{gap:8px;align-items:stretch}
+  #modal .alx-modal-acoes>.spacer{display:none}
+  #modal .alx-modal-acoes>.btn{flex:1 1 calc(50% - 4px);min-width:0;display:inline-flex;align-items:center;
+    justify-content:center;text-align:center;white-space:normal;line-height:1.25}
+  #modal .alx-modal-acoes>.btn:not(.primario){border-color:var(--linha)}
+  /* 🔍 Ficha do ticket: metadados em 2 colunas, seções com alvo de toque */
+  #modal .gx-det-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+  #modal .gx-det-m strong{font-size:13px;overflow-wrap:anywhere}
+  #modal .gx-det-grid~details>summary{padding:9px 0}
+  #modal .rv-met .badge{font-size:12px}
+  /* ✨ Novidades: a data em cima, o texto na largura toda (lado a lado sobravam 3–4 palavras por linha) */
+  #modal .nov-item{flex-direction:column;gap:2px}
+  #modal .nov-data{font-size:12px}
+  #modal .nov-txt{overflow-wrap:anywhere}
+  /* 🔍 Paleta (Ctrl+K): a área já está no título do bloco — repetida em cada linha só espremia o nome */
+  #pal-list [data-pal-v] .pal-g{display:none}
+  /* 🎫 Busca de tickets: chave + resumo (até 2 linhas) em cima, status · tipo embaixo */
+  .tkb-l .pal-row{flex-wrap:wrap;column-gap:8px;row-gap:1px}
+  .tkb-l .tkb-res{flex:1 1 0;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .tkb-l .pal-g{flex:1 1 100%;margin-left:0;max-width:none;white-space:normal;text-align:left}
+  .tkb-h{padding-right:34px}
+  /* a lista usa a altura da folha (58vh deixava um vão embaixo), e o campo de busca continua à vista */
+  .tkb-lista{max-height:max(220px,calc(100vh - 340px));max-height:max(220px,calc(100dvh - 340px))}
+  /* ⋯ Mais / 🌙 Tema / ⬇ Exportar: o menu abre sob a faixa de ações, alinhado à esquerda (ancorado no
+     botão, que no celular não fica na borda direita, ele saía pela esquerda da tela) */
+  .hdr-tools{position:relative}
+  .hdr-acoes .hdrmenu{position:static}
+  .hdr-acoes .hdrmenu-m{left:0;right:auto;max-width:calc(100vw - 20px);max-height:calc(100vh - 150px);
+    max-height:calc(100dvh - 150px);overflow-y:auto;overscroll-behavior:contain}
+  /* 🧭 Guia: o balão cabe na tela; sem alvo, vira tarja de largura toda no rodapé; botões em uma linha */
+  .tour-pop,.tour-pop.guia{max-width:calc(100vw - 16px)}
+  .tour-pop.livre{left:8px!important;right:8px;transform:none;max-width:none;
+    bottom:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .tour-nav{flex-wrap:wrap;gap:8px}
+  .tour-step{flex:1 1 100%}
+  .tour-nota{font-size:12px}
+  .tour-nav .btn{flex:1 1 0;min-width:0;justify-content:center;white-space:nowrap;padding:8px 6px}
+  /* avisos (toasts): faixa de largura toda acima da área segura do iPhone */
+  .toasts{left:10px;right:10px;max-width:none;bottom:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  /* filtros globais (Pessoa, Categoria, Projeto, Tipo): 2 por linha em vez de 4 linhas */
+  .filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-bottom:14px}
+  /* rodapé: o fim do texto não fica sob os botões flutuantes (↑ e 🧭) */
+  footer{margin-top:20px;padding-bottom:64px;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+}
+@media (pointer:coarse){
+  /* no toque o tooltip nasce do toque e fica parado; com um modal aberto por cima, ele ficava sobre o modal */
+  #modal:not([hidden])~.tip{display:none!important}
+  #modal .pal-row{min-height:44px}
+  #modal .pal-fav{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+  .gu-b{min-height:42px}
+  /* chip "🧭 guia" nos títulos da Ajuda (17px de altura) */
+  .aj-g{display:inline-flex;align-items:center;min-height:32px;padding:4px 10px;font-size:12px;vertical-align:middle}
+}
 /* ---- fim: global ---- */

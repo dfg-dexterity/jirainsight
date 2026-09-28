@@ -136,6 +136,69 @@
     padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer}
   .ch-filtro button[aria-pressed="true"]{border-color:var(--cerceta);color:var(--cerceta);font-weight:700}
   @media (max-width:720px){ .ch-tab .esc{display:none} }
+  /* 📱 Celular (2026-09-27): a área do cliente vai embutida no site, inclusive em iframe — tudo aqui
+     fica em @media, o computador não muda. */
+  @media (max-width:760px){
+    /* o cabeçalho quebra em vez de espremer o título ("Área do / cliente") ao lado de um ciclo vazio */
+    header{flex-wrap:wrap;row-gap:6px}
+    header .ciclo:empty{display:none}
+  }
+  @media (max-width:600px){
+    .wrap{padding:14px 12px 40px}
+    header{gap:10px;padding-bottom:12px;margin-bottom:14px}
+    header img{width:32px;height:32px}
+    header h1{font-size:17px;line-height:1.25}
+    header .ciclo br{display:none}
+    header .ciclo strong{margin-left:4px}
+    .ent{margin-top:3vh}
+    .ent .card{padding:20px 18px}
+    .card{padding:14px;border-radius:10px}
+    .kpis{gap:10px;margin-bottom:14px}
+    .kpi{padding:12px 13px}
+    .eu{row-gap:8px}
+    .eu .sp{display:none}
+    .eu>span:first-child{flex:1 1 100%}
+    /* 📋 Chamados: cada chamado vira um cartão (chave e situação · assunto · datas, horas e valor) —
+       a tabela de 7 colunas cortava o valor e espremia o assunto em 3 palavras por linha */
+    .ch-tab,.ch-tab tbody{display:block}
+    .ch-tab thead{display:none}
+    .ch-tab tr{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;row-gap:3px;padding:11px 0;
+      border-bottom:1px solid var(--linha)}
+    .ch-tab tr:last-child{border-bottom:0}
+    .ch-tab td{border:0;padding:0}
+    .ch-tab td.ch-k{flex:1 1 auto;font-size:14px}
+    .ch-tab td:nth-child(2){order:1;flex:1 1 100%;font-size:14px}
+    .ch-tab td:nth-child(n+4){order:2;font-size:12.5px;color:var(--muted)}
+    .ch-tab td.esc{display:block}
+    .ch-tab td:nth-child(4)::before{content:'Aberto '}
+    .ch-tab td:nth-child(5)::before{content:'Fechado '}
+    /* quebra de linha entre as datas e as horas/valor (o ::after da linha é um item do flex) */
+    .ch-tab tr::after{content:'';order:3;flex:1 1 100%;height:0}
+    .ch-tab td:nth-child(n+6){order:4}
+    .ch-tab td:nth-child(6)::before{content:'Horas '}
+    .ch-tab td:nth-child(7){margin-left:-4px}
+    .ch-tab td:nth-child(7)::before{content:'· '}
+    .ch-tab td:nth-child(2) div{font-size:12px!important}
+    .tsc-yl,.tsc-xl{font-size:12px}
+    .ch-tab td.num{color:var(--grafite);font-weight:600}
+    .ch-tab td.num::before{font-weight:400;color:var(--muted)}
+    .fase{font-size:12px}
+    /* treemap: no celular o texto de dentro das caixas fica ilegível — a legenda (em lista) mostra os números */
+    .tm-leg[hidden]{display:flex}
+    .tm-leg{flex-direction:column;gap:6px;margin:10px 0 0;padding:0;list-style:none;font-size:13px}
+    .tm-leg li{display:flex;align-items:center;gap:8px}
+    .tm-leg i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+    .tm-leg b{margin-left:auto;font-variant-numeric:tabular-nums}
+    .foot{font-size:12px}
+  }
+  @media (pointer:coarse){
+    /* 16px nos campos: o Safari não dá zoom na tela ao focar a senha */
+    .cpo input{font-size:16px;padding:11px 12px}
+    .bt{min-height:44px}
+    .bt.sec{min-height:40px;padding:8px 14px}
+    .ch-filtro{gap:8px}
+    .ch-filtro button{min-height:40px;padding:8px 14px;font-size:13px}
+  }
 </style>
 </head>
 <body>
@@ -181,7 +244,10 @@ function treemap(items, opts){
       ${showName?`<text class="tm-n" x="${px.toFixed(1)}" y="${py.toFixed(1)}">${esc(nmS)}</text>`:''}
       ${showVal?`<text class="tm-v" x="${px.toFixed(1)}" y="${(py+(showName?20:0)).toFixed(1)}">${esc(fmt(p.it.valor))}</text>`:''}</g>`;
   }).join('');
-  return `<div class="tm"><svg viewBox="0 0 ${W} ${H}" class="tm-svg" preserveAspectRatio="xMidYMid meet">${rects}</svg></div>`;
+  // Legenda em lista: fica `hidden` (o computador lê os rótulos dentro das caixas); no celular o CSS a mostra,
+  // porque lá o texto do SVG encolhe junto com o desenho e fica ilegível.
+  const leg=placed.map((p,idx)=>`<li><i style="background:${p.it.cor||PALETA[idx%PALETA.length]}"></i><span>${esc(p.it.nome||'')}</span><b>${esc(fmt(p.it.valor))}</b></li>`).join('');
+  return `<div class="tm"><svg viewBox="0 0 ${W} ${H}" class="tm-svg" preserveAspectRatio="xMidYMid meet">${rects}</svg><ul class="tm-leg" hidden>${leg}</ul></div>`;
 }
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const labelMes=(ym)=>{ const [y,m]=ym.split('-'); return `${MESES[(+m)-1]}/${y.slice(2)}`; };
