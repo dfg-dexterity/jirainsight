@@ -146,7 +146,7 @@ function renderRankingUso(){
   const eng=calcEngajamento();
   const rows=eng.rows;
   if(!rows.length){
-    cont.replaceChildren(el(`<div>${rkAbas('uso')}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div class="vtm vtm-rk">${rkAbas('uso')}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
   const nomes=pessoasUnidas();
@@ -167,7 +167,7 @@ function renderRankingUso(){
   const objTkHoras={}; rows.filter(r=>r.tkHoras>0).forEach(r=>{ objTkHoras[r.a]=r.tkHoras; });
   const objAcoes={}; rows.filter(r=>r.acoes>0).forEach(r=>{ objAcoes[r.a]=r.acoes; });
   const tocadosDe={}; rows.forEach(r=>{ tocadosDe[r.a]=r.tkTocados; });
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-rk">
     ${rkAbas('uso')}
     ${kpis}
     <div class="card full"><h2>🏅 Quem mais usa o Jira <span>score de engajamento — meta de horas, atualizações, colaboração, entregas e uso do painel</span></h2>
@@ -356,13 +356,13 @@ function renderRankingFaixa(fx){
   const rk=estado.ranking;
   rkScoreCongela();   // 🏅 fecha a foto dos dias úteis já passados (dia seguinte chegou)
   if(!rkGaranteFaixa(fx)){
-    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips(fx)}
+    cont.replaceChildren(el(`<div class="vtm vtm-rk">${rkAbas('apontamento')}${rkFaixaChips(fx)}
       <div class="estado">Carregando os apontamentos de ${esc(RK_FAIXAS[fx].rot.replace(/^\S+\s/,'').toLowerCase())}…</div></div>`));
     return;
   }
   const dados=rk.tempoPer[fx];
   if(dados.erro){
-    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips(fx)}
+    cont.replaceChildren(el(`<div class="vtm vtm-rk">${rkAbas('apontamento')}${rkFaixaChips(fx)}
       <div class="erro"><strong>Falha ao carregar o período.</strong> ${esc(dados.erro)}
         <button class="btn" data-rk-refaixa="${escA(fx)}" style="margin-left:8px">Tentar de novo</button></div></div>`));
     return;
@@ -395,7 +395,7 @@ function renderRankingFaixa(fx){
         <div class="rk-sub">${fmtH(l.tot)}${l.esperado?` / ${fmtH(l.esperado)}`:' apontadas'}</div></div>
     </div>`;
   }).join('');
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-rk">
     ${rkAbas('apontamento')}
     ${rkFaixaChips(fx)}
     <div class="kpis ts-kpis">
@@ -551,7 +551,7 @@ function renderRanking(){
   const { meta, dias, hoje, linhas } = calcRanking();
   rkScoreCongela();   // 🏅 fecha a foto dos dias úteis já passados (dia seguinte chegou)
   if(!linhas.length){
-    cont.replaceChildren(el(`<div>${rkAbas('apontamento')}${rkFaixaChips('tela')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
+    cont.replaceChildren(el(`<div class="vtm vtm-rk">${rkAbas('apontamento')}${rkFaixaChips('tela')}${cardNaoApontou()}<div class="estado">Sem dados para os filtros atuais.</div></div>`));
     return;
   }
 
@@ -591,7 +591,7 @@ function renderRanking(){
   const aviso = espTot ? '' :
     '<div class="estado" style="padding:14px">Este período ainda não tem dias úteis fechados (a meta só conta dias seg–sex já passados). Mostrando apenas as horas apontadas.</div>';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-rk">
     ${rkAbas('apontamento')}
     ${rkFaixaChips('tela')}
     ${cardNaoApontou()}

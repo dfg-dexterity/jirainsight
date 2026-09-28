@@ -140,14 +140,14 @@ function renderTickets(){
         <td>${esc(l.ultima)}</td>
       </tr>`;
     }).join('');
-    tabela=`<table><thead><tr>
+    tabela=`<table class="tk-tab"><thead><tr>
         <th>Ticket</th><th>Resumo</th><th>Projeto</th><th>Tipo</th><th class="num">Horas</th><th class="num">Pessoas</th>
         <th class="num">Alter.</th><th class="num">Transições</th><th class="num">Coment.</th>
         <th class="num">Criado</th><th>Última</th>
       </tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vtm vtm-tk">
     ${kpis}
     <div class="card full">
       <h2>Tickets do Jira <span>horas + atividade · clique no código para abrir no Jira</span></h2>
