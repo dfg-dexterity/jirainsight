@@ -24,6 +24,10 @@ function gpDiasSet(n){ n=Math.max(1,Math.min(60,Math.round(Number(n)||0)))||gpDi
 function gpMeusKeys(){ const id=idApontar(); return (id&&id.accountId)?meusProjetos(id.accountId):[]; }
 // "Meus projetos" é o padrão quando a pessoa é gerente de algum; sem projeto seu, o escopo é tudo.
 function gpMeusAtivo(){ const gp=estado.gp; if(!gpMeusKeys().length) return false; return gp.meus==null?true:!!gp.meus; }
+// O que o chip 👤 EXIBE: "Meus projetos" só está ligado quando nenhum projeto foi escolhido por cima. O clique alterna
+// em relação a isto (e não a gpMeusAtivo): com FIX1 escolhido e meus ainda nulo, o chip aparece desligado e clicar
+// nele tem que RELIGAR os meus — não abrir "todos os projetos" (a base inteira do Analytics, 8 páginas do Jira).
+function gpMeusLigado(){ return gpMeusAtivo()&&!estado.gp.proj; }
 // Escopo: lista de chaves (projeto escolhido, ou os meus) ou null (= todos os projetos).
 function gpEscopo(){ const gp=estado.gp; if(gp.proj) return gp.proj.split(',').filter(Boolean);
   if(gpMeusAtivo()) return gpMeusKeys().slice().sort(); return null; }
@@ -251,8 +255,8 @@ function renderGp(){
   const projSel=gp.proj&&!gp.proj.includes(',')?gp.proj:'';
   const resps=c?[...new Map(c.Aall.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()].sort((x,y)=>x[1].localeCompare(y[1],'pt')):[];
   const filtros=`<div class="ap-filtros gp-filtros">
-    ${meus.length?`<div class="campo"><label>Escopo</label><button class="chip" data-gp-meus="1" aria-pressed="${gpMeusAtivo()&&!gp.proj}" data-tip="${escA('Os projetos em que você é gerente: '+meus.join(', '))}">👤 Meus projetos (${meus.length})</button></div>`:''}
-    <div class="campo"><label>Projeto</label><select id="gp-proj"><option value="">${meus.length?'todos os meus':'todos'}</option>${opts.map(k=>`<option value="${escA(k)}" ${projSel===k?'selected':''}>${esc(projNomeCod(k))}</option>`).join('')}</select></div>
+    ${meus.length?`<div class="campo"><label>Escopo</label><button class="chip" data-gp-meus="1" aria-pressed="${gpMeusLigado()}" data-tip="${escA('Os projetos em que você é gerente: '+meus.join(', '))}">👤 Meus projetos (${meus.length})</button></div>`:''}
+    <div class="campo"><label>Projeto</label><select id="gp-proj"><option value="">${gpMeusAtivo()?'todos os meus':'todos'}</option>${opts.map(k=>`<option value="${escA(k)}" ${projSel===k?'selected':''}>${esc(projNomeCod(k))}</option>`).join('')}</select></div>
     <div class="campo"><label>Pessoa</label><select id="gp-resp"><option value="">todas</option><option value="__sem__" ${gp.resp==='__sem__'?'selected':''}>— sem responsável —</option>${resps.map(([a,n])=>`<option value="${escA(a)}" ${gp.resp===a?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="campo"><label>Parado há ≥ (dias)</label><input type="number" id="gp-dias" min="1" max="60" value="${N}" style="width:80px"></div>
     <div class="campo"><label>&nbsp;</label><label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px"><input type="checkbox" id="gp-semvenc" ${gp.semVenc?'checked':''}> incluir sem vencimento</label></div>
@@ -344,7 +348,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='gp') return;
   const cl=(s)=>e.target.closest&&e.target.closest(s); const gp=estado.gp;
   const ir=cl('[data-gp-ir]'); if(ir){ const b=document.getElementById('gp-'+ir.getAttribute('data-gp-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
-  const m=cl('[data-gp-meus]'); if(m){ gp.meus=!gpMeusAtivo(); gp.proj=''; renderGp(); return; }
+  const m=cl('[data-gp-meus]'); if(m){ gp.meus=!gpMeusLigado(); gp.proj=''; renderGp(); return; }   // alterna o estado EXIBIDO
   const lp=cl('[data-gp-limpar-proj]'); if(lp){ gp.proj=''; renderGp(); return; }
   const msg=cl('[data-gp-msg]'); if(msg){ const c=gpCalc(); if(c) gpCopia(gpMensagem(c,msg.getAttribute('data-gp-msg')),'📋 Mensagem copiada — cole no chat da pessoa.'); return; }
   const com=cl('[data-gp-com]'); if(com){ gpAbreComentar(com.getAttribute('data-gp-com')); return; }
