@@ -434,7 +434,7 @@ function renderAdmin(){
     </div>`;
   }).join('');
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vw-admin">
     <div class="card full"><h2>🏢 Contratos — clientes &amp; valores <span>a base do AMS, da bolsa de horas, da Rentabilidade e da Controladoria</span></h2>
       <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
         Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
