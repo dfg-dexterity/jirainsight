@@ -70,7 +70,7 @@ const gpRespKey=(t)=>t.respId||'__sem__';
 // ---- Cálculo (uma passada por render; ≤ 800 tickets) ----
 function gpCalc(){
   const gp=estado.gp; const d=gp.dados; if(!d) return null;
-  const hoje=(d.meta&&d.meta.hoje)||hojeSP(); const N=gpDias(); const keys=gpEscopo();
+  const hoje=(d.meta&&d.meta.hoje)||hojeSP(); const N=gpDias(); const nFoto=gpDiasPadrao(); const keys=gpEscopo();
   const ks=keys?new Set(keys):null; const rc=relCtxAtivo('gp');
   const passa=(t)=>(!ks||ks.has(t.p))&&(!rc||relProjOk(t.p));
   const porResp=(t)=>!gp.resp||(gp.resp==='__sem__'?!t.respId:t.respId===gp.resp);
@@ -101,9 +101,12 @@ function gpCalc(){
     if(fk.length){ ant={ vencidos:0, parados:0, semVenc:0, semResp:0, estZero:0, semDesc:0, reunioes:0 }; const ap=gp.resp&&gp.resp!=='__sem__';
       fk.forEach(k=>{ const P=F.projetos[k]||{}; if(ap){ const pp=(P.porPessoa||{})[gp.resp]||{}; ant.vencidos+=pp.vencidos||0; ant.parados+=pp.parados||0; }
         else { ant.vencidos+=P.vencidos||0; ant.parados+=P.parados||0; ant.semVenc+=P.semVenc||0; ant.semResp+=P.semResp||0; ant.estZero+=P.estZero||0; ant.semDesc+=P.semDesc||0; ant.reunioes+=P.reunioesVencidas||0; } });
-      if(ap){ ant.semVenc=null; ant.semResp=null; ant.estZero=null; ant.semDesc=null; ant.reunioes=null; } }
+      if(ap){ ant.semVenc=null; ant.semResp=null; ant.estZero=null; ant.semDesc=null; ant.reunioes=null; }
+      // A foto conta "parado" com o N da config (cfg.relSemanal.parado, padrão 5): com outro N na tela os dois números
+      // não são comparáveis — o Δ de parados só existe quando o N é o mesmo (a tela avisa no lugar do Δ).
+      if(N!==nFoto) ant.parados=null; }
   }
-  return { hoje, N, keys, ks, A, Aall, C, b, cad, projs, rotProj, ant, up, foto:F };
+  return { hoje, N, nFoto, keys, ks, A, Aall, C, b, cad, projs, rotProj, ant, up, foto:F };
 }
 // Agrupa por responsável, pior caso primeiro (o pior item de cada pessoa, depois a quantidade).
 function gpPorPessoa(lista, peso){
@@ -245,6 +248,10 @@ function gpPendN(){ const gp=estado.gp; if(!gp.dados||gp.chave!==gpChave()) retu
 // ---- Tela ----
 function gpDelta(atual, ant){ if(ant==null) return '';
   const d=atual-ant; return `<span class="gp-delta ${d>0?'up':(d<0?'down':'')}" data-tip="${escA(`sexta passada: ${ant} · agora: ${atual}`)}">Δ ${d>0?'+':''}${d} vs sexta</span>`; }
+// Δ dos parados: só com o mesmo N da foto; senão, no lugar do Δ, o motivo (a foto usa o N da config).
+function gpDeltaParados(c, atual){ if(c.ant&&c.ant.parados!=null) return gpDelta(atual,c.ant.parados);
+  if(c.ant&&c.N!==c.nFoto) return `<span class="gp-delta" data-tip="${escA(`A foto de sexta conta "parado" com N=${c.nFoto} dias (config do relatório semanal); com N=${c.N} os dois números não são comparáveis — volte a ${c.nFoto} para ver o Δ.`)}">sem Δ · a foto de sexta usa N=${c.nFoto}</span>`;
+  return ''; }
 function renderGp(){
   const cont=document.getElementById('conteudo'); const gp=estado.gp; const id=idApontar();
   if(typeof _projetosCache!=='undefined'&&!_projetosCache&&!gp.catB){ gp.catB=true; garanteProjetos().then(()=>{ if(estado.vista==='gp') renderGp(); }).catch(()=>{}); }
@@ -276,10 +283,12 @@ function renderGp(){
   // Cabeçalho: escopo, quantos abertos (e de quem, quando o filtro de pessoa está ativo — mesmo sem ticket), hoje e a foto.
   const quem=gp.resp?(gp.resp==='__sem__'?' sem responsável':` de ${esc(gpNomeDe(c,gp.resp))}`):'';
   const sub=`${esc(c.rotProj)} · ${c.A.length} aberto(s)${quem} · hoje ${esc(dataBR(c.hoje))}${F?` · foto de sexta ${esc(dataBR(F.ate))}`:(gp.fotoOk===false?' · sem foto semanal para comparar':'')}${rc?` · relatório ${esc(rc.id)}`:''}`;
-  const kpi=(id2,rot,v,antV,sev)=>`<div class="vg-k ${sev||''}" data-gp-ir="${id2}" data-tip="clique para ir ao bloco"><div class="v">${v}</div><div class="l">${rot}</div>${gpDelta(v,antV)?`<div class="s">${gpDelta(v,antV)}</div>`:''}</div>`;
+  // KPI: o Δ padrão vem de gpDelta(v, antV); `dh` troca por um Δ já montado (os parados têm regra própria).
+  const kpi=(id2,rot,v,antV,sev,dh)=>{ const d=dh!=null?dh:gpDelta(v,antV);
+    return `<div class="vg-k ${sev||''}" data-gp-ir="${id2}" data-tip="clique para ir ao bloco"><div class="v">${v}</div><div class="l">${rot}</div>${d?`<div class="s">${d}</div>`:''}</div>`; };
   const kpis=`<div class="gp-kpis">
     ${kpi('b1','⏰ vencidos',c.b.vencidos.length,ant.vencidos,c.b.vencidos.length?'bad':'good')}
-    ${kpi('b2',`🧊 parados ≥ ${c.N}d`,c.b.parados.length,ant.parados,c.b.parados.length?'warn':'good')}
+    ${kpi('b2',`🧊 parados ≥ ${c.N}d`,c.b.parados.length,null,c.b.parados.length?'warn':'good',gpDeltaParados(c,c.b.parados.length))}
     ${kpi('b3','⏳ vencem em 7d',c.b.vencem.length,null,c.b.vencem.length?'warn':'')}
     ${kpi('b4','📝 cadastro incompleto',c.cad.size,null,'')}
     ${kpi('b5','⏱ sem apontamento',c.b.mexidos.length+c.b.conclSem.length,null,'')}
@@ -315,7 +324,7 @@ function renderGp(){
   const porPessoa=(lista,peso,col,fn)=>gpPorPessoa(lista,peso).map(g=>grupo(g,col,fn)).join('');
   const b1=bloco('b1','⏰ Vencidos por pessoa','vencimento no passado, ainda aberto',c.b.vencidos.length,gpDelta(c.b.vencidos.length,ant.vencidos),
     porPessoa(c.b.vencidos,(t)=>gpDiasDesde(c.hoje,t.venc)||0,'Atraso',(t)=>linha(t,`${gpDiasDesde(c.hoje,t.venc)}d · venceu ${esc(alxDataBR(t.venc))}`,'gp-sev')));
-  const b2=bloco('b2',`🧊 Parados há ≥ ${c.N} dias`,'em andamento/aguardando sem nenhuma movimentação no Jira',c.b.parados.length,gpDelta(c.b.parados.length,ant.parados),
+  const b2=bloco('b2',`🧊 Parados há ≥ ${c.N} dias`,'em andamento/aguardando sem nenhuma movimentação no Jira',c.b.parados.length,gpDeltaParados(c,c.b.parados.length),
     porPessoa(c.b.parados,(t)=>c.up(t),'Parado há',(t)=>linha(t,`${c.up(t)>=999?'?':c.up(t)+'d'} sem atualização`,'')));
   const b3=bloco('b3','⏳ Vencem em até 7 dias sem movimento',`vencimento até ${esc(dataBR(somaDias(c.hoje,7)))} e ≥ ${c.N} dias sem atualização`,c.b.vencem.length,'',
     porPessoa(c.b.vencem,(t)=>7-(gpDiasDesde(t.venc,c.hoje)||0),'Vence',(t)=>linha(t,`${esc(alxDataBR(t.venc))} · parado há ${c.up(t)}d`,'')));
