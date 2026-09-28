@@ -201,19 +201,20 @@ export async function avisaTeamsDM(pendentes, mensagemDe) {
   }
 
   const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  let enviados = 0; const semEmail = []; const falhas = [];
+  let enviados = 0; const semEmail = []; const falhas = []; const falhasIds = [];
   const enviaUm = async (p) => {
     if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); return; }
     const corpo = { email: p.email, nome: p.nome || '', ...(mensagemDe(p) || {}) };
     try {
       const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
       if (r.status >= 200 && r.status < 300) enviados += 1;
-      else falhas.push(`${p.nome || p.email}: HTTP ${r.status}`);
-    } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); }
+      else { falhas.push(`${p.nome || p.email}: HTTP ${r.status}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
+    } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
   };
   // 5 avisos por vez (eram um a um em série: uma reunião grande segurava a resposta por vários segundos)
   for (let i = 0; i < pendentes.length; i += 5) await Promise.allSettled(pendentes.slice(i, i + 5).map(enviaUm));
-  return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5) };
+  // `falhasIds`: os accountIds que NÃO receberam (o relatório semanal reenvia só para eles no tique seguinte).
+  return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5), falhasIds };
 }
 // Convite de reunião no chat de cada convidado (o texto é o mesmo para todos).
 async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pendentes, criadoPor }) {

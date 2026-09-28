@@ -512,12 +512,24 @@ export async function lePlanos(seg, sb) {
   }
   return { planos, itens };
 }
-/** Grava (upsert) a foto em `semanal_<seg>` e poda o histórico a SEMANAL_MAX. */
+/**
+ * Grava (upsert) a foto em `semanal_<seg>` e poda o histórico a SEMANAL_MAX. O upsert troca o
+ * `data` inteiro; por isso, quando já existe uma foto da semana, o que foi ANOTADO depois dela
+ * (`ia` da fase de envio, `realFechado` da sexta seguinte) é preservado — refazer uma foto não
+ * pode apagar o que ninguém volta a escrever.
+ */
 export async function gravaFoto(foto, sb) {
   const S = sbDe(sb); if (!S) throw new Error('Supabase não configurado — a foto semanal precisa dele.');
+  const dado = { ...foto };
+  const rows = await sbRows(await fetch(`${S.base}/rest/v1/${TABELA}?id=eq.${idFoto(foto.semana)}&select=data`, { headers: S.headers }), 'ler foto existente');
+  const antes = Array.isArray(rows) && rows[0] && rows[0].data;
+  if (antes && typeof antes === 'object') {
+    if (dado.ia === undefined && antes.ia) dado.ia = antes.ia;
+    if (dado.realFechado === undefined && antes.realFechado) dado.realFechado = antes.realFechado;
+  }
   const r = await fetch(`${S.base}/rest/v1/${TABELA}?on_conflict=id`, {
     method: 'POST', headers: { ...S.headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([{ id: idFoto(foto.semana), data: foto, updated_at: new Date().toISOString() }]),
+    body: JSON.stringify([{ id: idFoto(foto.semana), data: dado, updated_at: new Date().toISOString() }]),
   });
   if (!r.ok) throw new Error(`Supabase ${r.status} (gravar foto): ${(await r.text()).slice(0, 200)}`);
   const poda = await podaFotos(S);

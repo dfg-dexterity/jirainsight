@@ -22,7 +22,7 @@ import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 import { magicoCore } from './criar.js';
 import { avisaTeamsDM } from './apontar.js';
-import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe } from './_lib/semanal.js';
+import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana } from './_lib/semanal.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -51,6 +51,10 @@ function configCompartilhada() {
 // Estado do agendamento (último envio de CADA tipo) — linha própria na tabela de
 // config do Supabase (id='teams_estado'), para o cron de 30 em 30 min não enviar 2×.
 // Sem Supabase, devolve null e o gate usa uma janela de 25 min como dedupe.
+// Supabase configurado mas ILEGÍVEL (HTTP 500, rede): devolve `false` — NUNCA `{}`, porque
+// "{}" é indistinguível de "nunca enviei nada" e fazia o tique refazer a foto, reenviar o
+// ranking/cartão/DMs e sobrescrever o estado inteiro; o ?cron=1 pula o tique nesse caso.
+const ESTADO_ILEGIVEL = false;
 async function teamsEstado() {
   const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_ANON_KEY || '';
@@ -58,15 +62,17 @@ async function teamsEstado() {
   try {
     const r = await fetch(`${base}/rest/v1/jirainsight_config?id=eq.teams_estado&select=data`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    if (!r.ok) return {};
+    if (!r.ok) return ESTADO_ILEGIVEL;
     const rows = await r.json();
-    return (rows && rows[0] && rows[0].data) || {};
-  } catch (e) { return {}; }
+    if (!Array.isArray(rows)) return ESTADO_ILEGIVEL;
+    return (rows[0] && rows[0].data) || {};
+  } catch (e) { return ESTADO_ILEGIVEL; }
 }
 async function gravaTeamsEstado(patch, atual) {
   const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_ANON_KEY || '';
   if (!base || !key) return;
+  if (atual === ESTADO_ILEGIVEL) return;   // não se sabe o que há lá: gravar "{} + patch" apagaria os outros envios
   try {
     // merge-duplicates substitui a coluna "data" inteira: grava o objeto COMPLETO
     // (estado atual + patch) para não apagar o último envio do outro tipo.
@@ -482,6 +488,9 @@ function mensagensGerentes(foto) {
   Object.entries(foto.projetos || {}).forEach(([k, p]) => (p.gerentes || []).forEach((g) => { (por[g] = por[g] || []).push(k); }));
   const nomeDe = (a) => ((foto.pessoas || {})[a] || {}).nome || 'pessoa fora do elenco';
   const titulo = `🧭 Pendências dos seus projetos — semana de ${ddmmDe(foto.semana)} a ${ddmmDe(foto.ate)}`;
+  // Teto dos abertos batido: a lista veio com os mais parados primeiro, mas está INCOMPLETA — o
+  // gerente precisa saber antes de cobrar "N parados" (o cartão dos gestores já avisa; a DM também).
+  const teto = (foto.truncado || {}).abertos ? '⚠ Lista parcial: o teto de tickets abertos foi batido nesta foto — os mais parados vieram primeiro, mas confira a lista completa no app.' : '';
   return Object.keys(por).sort().map((a) => {
     const linhas = []; let pend = 0;
     por[a].sort().forEach((k) => {
@@ -502,7 +511,7 @@ function mensagensGerentes(foto) {
           linhas.push(`↳ ${nomeDe(pa)}: ${it.join(', ')}`);
         });
     });
-    const texto = `${linhas.join('\n\n')}\n\n${pend ? 'Vale pedir data, status e apontamento até segunda.' : 'Nada pendente nos seus projetos esta semana.'} [Relatório completo](${APP_URL}/?v=semanal)`;
+    const texto = `${linhas.join('\n\n')}\n\n${teto ? `${teto}\n\n` : ''}${pend ? 'Vale pedir data, status e apontamento até segunda.' : 'Nada pendente nos seus projetos esta semana.'} [Relatório completo](${APP_URL}/?v=semanal)`;
     const pessoa = (foto.pessoas || {})[a] || {};
     return { accountId: a, nome: pessoa.nome || '', email: pessoa.email || '', projetos: por[a].slice(), pendencias: pend, titulo, texto };
   });
@@ -546,34 +555,42 @@ async function semanalFoto({ cfg, seg, dry }) {
   return { fase: 'foto', gravada: true, ...resumo, fotosGuardadas: g.total, podadas: g.apagadas, realFechadoAnterior: fechou ? anterior.semana : '' };
 }
 // Fase ENVIO: lê a foto (e a anterior), IA, cartão dos gestores, mensagem a cada gerente.
-// `marcar` diz ao chamador se pode carimbar `ultimoEnvioSemanal`: entregou em algum canal,
-// ou não há canal nenhum configurado (nada a tentar de novo — a resposta explica).
-async function semanalEnvio({ cfg, seg, dry }) {
+// `marcar` diz ao chamador se pode carimbar `ultimoEnvioSemanal`: entregou em algum canal, ou
+// não há o que tentar de novo — sem canal dos gestores E (sem fluxo de DM OU sem nenhum gerente
+// cadastrado). `dmFalhas` são os accountIds cuja mensagem direta falhou: o cron guarda a lista e
+// reenvia SÓ para eles no tique seguinte (`soDM`), sem repetir o cartão nem a IA.
+async function semanalEnvio({ cfg, seg, dry, soDM }) {
   const fotos = await leFotos({ ate: seg, n: 2 });
   const foto = fotos[0] && fotos[0].semana === seg ? fotos[0] : null;
   if (!foto) throw new Error(`Sem foto da semana ${seg} — a fase foto ainda não rodou (?tipo=semanal&fase=foto).`);
   const anterior = fotos[1] || null;
   const cmp = comparaFotos(foto, anterior);
+  const reenvioDM = Array.isArray(soDM);
   // O texto da IA é gravado na foto: uma reexecução (tique repetido, falha de envio) não paga de novo.
   let ia = { texto: String(foto.ia || '').trim() };
-  if (!ia.texto) { try { ia = await iaSemanal(foto, anterior, cmp); } catch (e) { ia = { texto: '', erro: String(e && e.message ? e.message : e).slice(0, 200) }; } }
+  if (!ia.texto && !reenvioDM) { try { ia = await iaSemanal(foto, anterior, cmp); } catch (e) { ia = { texto: '', erro: String(e && e.message ? e.message : e).slice(0, 200) }; } }
   const cartao = cartaoSemanal(foto, anterior, cmp, ia.texto);
-  const dms = mensagensGerentes(foto);
-  const base = { fase: 'envio', semana: seg, anterior: anterior ? anterior.semana : '', ia: !!ia.texto, ...(ia.motivo ? { iaMotivo: ia.motivo } : {}), ...(ia.erro ? { iaErro: ia.erro } : {}) };
+  const todas = mensagensGerentes(foto);
+  const dms = reenvioDM ? todas.filter((m) => soDM.map(String).includes(String(m.accountId))) : todas;
+  const base = { fase: 'envio', semana: seg, anterior: anterior ? anterior.semana : '', ia: !!ia.texto, ...(ia.motivo ? { iaMotivo: ia.motivo } : {}), ...(ia.erro ? { iaErro: ia.erro } : {}), ...(reenvioDM ? { reenvioDM: true } : {}) };
   if (dry) return { dry: true, ...base, iaTexto: ia.texto, cartao, gerentes: dms.map((m) => ({ ...m, cartao: cartaoDM(m) })) };
   if (ia.texto && ia.texto !== foto.ia) await anotaFoto(seg, { ia: ia.texto });
-  const wG = process.env.TEAMS_GESTORES_WEBHOOK_URL || '';
-  const canal = wG ? await enviaCartao(wG, cartao) : { ok: false, motivo: 'TEAMS_GESTORES_WEBHOOK_URL não configurada — o cartão dos gestores não foi enviado.' };
+  const wG = reenvioDM ? '' : (process.env.TEAMS_GESTORES_WEBHOOK_URL || '');
+  const canal = reenvioDM ? { ok: false, motivo: 'reenvio só das mensagens diretas que falharam — o cartão dos gestores já foi enviado.' }
+    : wG ? await enviaCartao(wG, cartao) : { ok: false, motivo: 'TEAMS_GESTORES_WEBHOOK_URL não configurada — o cartão dos gestores não foi enviado.' };
   const dm = dms.length ? await avisaTeamsDM(dms.map((m) => ({ accountId: m.accountId, nome: m.nome, email: m.email })), (p) => {
     const m = dms.find((x) => x.accountId === p.accountId);
     return { semana: foto.semana, titulo: m.titulo, texto: m.texto, cartao: cartaoDM(m), projetos: m.projetos };
-  }) : { enviados: 0, total: 0, semEmail: [], falhas: [] };
+  }) : { enviados: 0, total: 0, semEmail: [], falhas: [], falhasIds: [] };
   const entregue = !!(canal.ok || (dm && dm.enviados > 0));
-  const semCanal = !wG && dm === null;
+  // Nada a tentar de novo: sem canal dos gestores e (sem fluxo de DM, ou fluxo com zero destinatários).
+  const nadaATentar = !wG && (dm === null || dm.total === 0);
+  const dmFalhas = (dm && Array.isArray(dm.falhasIds)) ? dm.falhasIds.slice() : [];
   return {
-    ...base, entregue, marcar: entregue || semCanal,
+    ...base, entregue, marcar: entregue || nadaATentar, dmFalhas,
     canal: canal.ok ? { enviado: true, status: canal.status } : { enviado: false, ...(canal.motivo ? { motivo: canal.motivo } : { status: canal.status, erro: canal.erro }) },
-    gerentes: dm === null ? { total: dms.length, enviados: 0, motivo: 'TEAMS_DM_WEBHOOK_URL não configurada — nenhum gerente recebeu a mensagem.' } : dm,
+    gerentes: dm === null ? { total: dms.length, enviados: 0, motivo: 'TEAMS_DM_WEBHOOK_URL não configurada — nenhum gerente recebeu a mensagem.' }
+      : (dm.total === 0 && !reenvioDM ? { ...dm, motivo: 'nenhum gerente de projeto cadastrado (cfg.projGerentes) — nada a enviar.' } : dm),
   };
 }
 
@@ -827,7 +844,7 @@ function lerCorpo(req) {
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
-    const dry = q.dry === '1';
+    const dry = q.dry === '1' || q.dry === 'true';   // "dry=true" também é prévia (antes gravava/enviava)
     const { raw, body: corpo } = await lerCorpo(req);
     const auth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
     const segredo = process.env.CRON_SECRET || '';
@@ -886,20 +903,33 @@ export default async function handler(req, res) {
     // ---- 📊 Relatório semanal, chamada manual: ?tipo=semanal&fase=foto|envio[&dry=1][&semana=AAAA-MM-DD] ----
     // Não depende do TEAMS_WEBHOOK_URL (tem canais próprios), mas EXIGE o CRON_SECRET: sem a env
     // é 503 mesmo com dry=1 — a foto traz dados por pessoa. Com a env, o gate acima já deu 401.
+    // Sem dry=1 a chamada GRAVA (foto) ou ENVIA (cartão + DMs): exige &confirmar=1 — quem
+    // esquecia o dry refazia a foto e adiantava o envio da sexta sem querer.
     if (String(q.tipo || '') === 'semanal') {
       if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — o relatório semanal tem dados por pessoa e só roda com o segredo do cron (defina a env na Vercel).' });
-      const cfgS = await configCompartilhada();
       const hojeS = spDate(new Date());
-      const segS = segundaDe(String(q.semana || '')) || segundaDe(hojeS);
+      const segHoje = segundaDe(hojeS);
+      const semanaQ = String(q.semana || '').trim();
+      if (semanaQ && !segundaDe(semanaQ)) return json(res, 400, { erro: `semana inválida: "${semanaQ}" — use AAAA-MM-DD (uma data que exista).` });
+      const segS = segundaDe(semanaQ) || segHoje;
       const fase = String(q.fase || '') === 'envio' ? 'envio' : 'foto';
+      if (!dry && q.confirmar !== '1') {
+        return json(res, 400, { erro: `Sem dry=1 esta chamada ${fase === 'envio' ? 'ENVIA o cartão e as mensagens ao Teams' : 'GRAVA a foto da semana'} — repita com &confirmar=1, ou use &dry=1 para a prévia.` });
+      }
+      if (!dry && segS > segHoje) return json(res, 400, { erro: `semana futura (${segS}) — a foto só pode ser gravada até a semana corrente (${segHoje}).` });
+      const cfgS = await configCompartilhada();
+      const estadoS = dry ? null : await teamsEstado();
       const out = fase === 'envio' ? await semanalEnvio({ cfg: cfgS, seg: segS, dry }) : await semanalFoto({ cfg: cfgS, seg: segS, dry });
+      if (!dry && fase === 'envio' && estadoS && estadoS.ultimoEnvioSemanal === segS) {
+        out.reenvio = true; out.aviso = `a semana ${segS} já tinha sido enviada — cartão e mensagens foram REENVIADOS de propósito (confirmar=1).`;
+      }
       // O estado do agendador só muda para a semana CORRENTE: refazer uma semana passada à mão
-      // não pode confundir o cron desta sexta.
-      if (!dry && segS === segundaDe(hojeS)) {
-        const estadoS = await teamsEstado();
-        if (estadoS !== null) {
+      // não pode confundir o cron desta sexta. Estado ilegível → não grava (a resposta avisa).
+      if (!dry && segS === segHoje) {
+        if (estadoS === ESTADO_ILEGIVEL) out.estadoAviso = 'teams_estado ilegível (Supabase) — o agendador não foi carimbado; o cron pode repetir esta fase.';
+        else if (estadoS !== null) {
           if (fase === 'foto') await gravaTeamsEstado({ ultimaFotoSemanal: segS }, estadoS);
-          else if (out.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segS }, estadoS);
+          else if (out.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segS, semanalDm: null }, estadoS);
         }
       }
       return json(res, 200, out);
@@ -921,10 +951,16 @@ export default async function handler(req, res) {
       if (!ehUtilBR(hoje, extras, removidos)) {
         return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.` });
       }
-      const estado = await teamsEstado();                       // null = sem Supabase
+      const estado = await teamsEstado();                       // null = sem Supabase · false = ilegível
+      if (estado === ESTADO_ILEGIVEL) {
+        // Sem saber o que já foi enviado, qualquer decisão repete envios e sobrescreve o estado:
+        // o tique inteiro é pulado; o próximo (30 min) tenta de novo.
+        return json(res, 200, { enviado: false, motivo: 'teams_estado ilegível (Supabase indisponível) — tique pulado para não repetir envios; o próximo tenta de novo.' });
+      }
       const semSupabase = (estado === null);
       const ult = (k) => (semSupabase ? undefined : String((estado || {})[k] || ''));
       const out = {};
+      const t0 = Date.now(); let pesado = false;                // orçamento do tique (60 s na Vercel)
 
       const gr = gateHorario(horaRank, agora, hoje, ult('ultimoEnvio'));
       if (gr.pronto) {
@@ -940,6 +976,7 @@ export default async function handler(req, res) {
       else {
         const gs = gateHorario(horaRes, agora, hoje, ult('ultimoEnvioResumo'));
         if (gs.pronto) {
+          pesado = true;   // coletaAtividade + a chamada da IA já consumiram boa parte dos 60 s
           try {
             const m = await montaResumoIA(cfg, extras, removidos, hoje, rcfg.freq);
             const env = await enviaCartao(webhook, m.cartao);
@@ -966,27 +1003,57 @@ export default async function handler(req, res) {
         } else out.prioridades = { enviado: false, motivo: gp.motivo, hora: horaPrio };
       }
       // 📊 Relatório semanal de sexta (cfg.relSemanal: {ativo, dia, hora, parado}) — a foto no
-      // primeiro tique ≥ hora no dia marcado, o envio no tique seguinte. As duas chaves do
-      // teams_estado guardam a SEGUNDA da semana; sem Supabase não há onde gravar a foto.
+      // primeiro tique ≥ hora no DIA DA FOTO (o último dia útil até o dia marcado: quinta quando a
+      // sexta é feriado), o envio no tique seguinte. As duas chaves do teams_estado guardam a
+      // SEGUNDA da semana; sem Supabase não há onde gravar a foto. Se mesmo assim uma semana ficou
+      // sem foto (cron parado), o primeiro tique útil da semana seguinte recupera a que faltou.
       const scfg = Object.assign({}, REL_SEMANAL_PADRAO, cfg.relSemanal || {});
       const horaSem = /^\d{2}:\d{2}$/.test(String(scfg.hora || '')) ? scfg.hora : REL_SEMANAL_PADRAO.hora;
+      const segSem = segundaDe(hoje);
+      const diaFoto = diaFotoSemana(segSem, scfg.dia, cfg);
+      const diaMarcado = addDias(segSem, Math.min(5, Math.max(1, Number(scfg.dia) || 5)) - 1);
+      const fotoDe = ult('ultimaFotoSemanal'); const envioDe = ult('ultimoEnvioSemanal');
+      const pendDm = (estado && estado.semanalDm && typeof estado.semanalDm === 'object') ? estado.semanalDm : null;
+      const gastoMs = Date.now() - t0;
       if (!segredo) out.semanal = { enviado: false, motivo: 'CRON_SECRET não configurado (a foto tem dados por pessoa)' };
       else if (!scfg.ativo) out.semanal = { enviado: false, motivo: 'desativado no painel' };
-      else if (diaSemana(hoje) !== Number(scfg.dia || 5)) out.semanal = { enviado: false, motivo: `só no dia ${scfg.dia} da semana` };
       else if (semSupabase) out.semanal = { enviado: false, motivo: 'Supabase não configurado (a foto precisa dele)' };
+      else if (pesado || gastoMs > 25000) out.semanal = { enviado: false, motivo: `adiado para o próximo tique: este já rodou ${pesado ? 'o resumo IA' : `${Math.round(gastoMs / 1000)} s`} (orçamento de 60 s)` };
       else {
-        const segSem = segundaDe(hoje);
         try {
-          if (ult('ultimaFotoSemanal') !== segSem) {
-            const gf = gateHorario(horaSem, agora, hoje, '');
-            if (gf.pronto) {
-              const m = await semanalFoto({ cfg, seg: segSem });
-              await gravaTeamsEstado({ ultimaFotoSemanal: segSem }, estado);
-              out.semanal = { enviado: false, ...m, proximo: 'envio no próximo tique do cron' };
-            } else out.semanal = { enviado: false, motivo: gf.motivo, hora: horaSem };
-          } else if (ult('ultimoEnvioSemanal') !== segSem) {
-            const m = await semanalEnvio({ cfg, seg: segSem });
-            if (m.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segSem }, estado);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(fotoDe) && fotoDe <= addDias(segSem, -14)) {
+            // A semana passada ficou sem foto (cron parado, feriado na semana toda): recupera-a agora —
+            // worklogs/criados/concluídos são os dela, abertos os de hoje — e fecha a série.
+            const segRec = addDias(segSem, -7);
+            const m = await semanalFoto({ cfg, seg: segRec });
+            await gravaTeamsEstado({ ultimaFotoSemanal: segRec }, estado);
+            out.semanal = { enviado: false, recuperada: true, ...m, motivo: `a semana de ${segRec} estava sem foto (última: ${fotoDe}) — recuperada agora; a desta semana sai em ${diaFoto || '(sem dia útil)'}` };
+          } else if (fotoDe !== segSem) {
+            if (!diaFoto) out.semanal = { enviado: false, motivo: 'semana sem dia útil' };
+            else if (hoje !== diaFoto) out.semanal = { enviado: false, motivo: `só no dia ${scfg.dia} da semana${diaFoto === diaMarcado ? '' : ' — como ele é feriado, no último dia útil antes'} (${diaFoto})` };
+            else {
+              const gf = gateHorario(horaSem, agora, hoje, '');
+              if (gf.pronto) {
+                const m = await semanalFoto({ cfg, seg: segSem });
+                await gravaTeamsEstado({ ultimaFotoSemanal: segSem }, estado);
+                out.semanal = { enviado: false, ...m, proximo: 'envio no próximo tique do cron' };
+              } else out.semanal = { enviado: false, motivo: gf.motivo, hora: horaSem };
+            }
+          } else if (envioDe !== segSem) {
+            // Foto já tirada (pelo cron ou à mão): o envio respeita o dia e a hora marcados — uma foto
+            // manual de segunda não pode virar cartão às 09:05 de sexta. Nos dias úteis SEGUINTES da
+            // mesma semana (envio que falhou no dia da foto), sai no primeiro tique.
+            const ge = hoje < diaFoto ? { pronto: false, motivo: `aguardando o dia da foto (${diaFoto}) às ${horaSem}` }
+              : hoje === diaFoto ? gateHorario(horaSem, agora, hoje, '') : { pronto: true };
+            if (ge.pronto) {
+              const m = await semanalEnvio({ cfg, seg: segSem });
+              if (m.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segSem, semanalDm: m.dmFalhas.length ? { semana: segSem, ids: m.dmFalhas, n: 1 } : null }, estado);
+              out.semanal = { enviado: !!m.entregue, ...m, ...(m.dmFalhas.length ? { proximo: `reenvio da mensagem direta para ${m.dmFalhas.length} gerente(s) no próximo tique` } : {}) };
+            } else out.semanal = { enviado: false, motivo: ge.motivo, hora: horaSem };
+          } else if (pendDm && pendDm.semana === segSem && Array.isArray(pendDm.ids) && pendDm.ids.length && (Number(pendDm.n) || 0) < 6) {
+            // Mensagens diretas que falharam no envio: só elas, sem repetir o cartão nem a IA (até 6 tentativas).
+            const m = await semanalEnvio({ cfg, seg: segSem, soDM: pendDm.ids });
+            await gravaTeamsEstado({ semanalDm: m.dmFalhas.length ? { semana: segSem, ids: m.dmFalhas, n: (Number(pendDm.n) || 0) + 1 } : null }, estado);
             out.semanal = { enviado: !!m.entregue, ...m };
           } else out.semanal = { enviado: false, motivo: `já enviado nesta semana (${segSem})` };
         } catch (e) { out.semanal = { enviado: false, erro: String(e && e.message ? e.message : e) }; }
