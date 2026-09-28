@@ -166,11 +166,11 @@ function renderProjetos() {
   const cont = document.getElementById('conteudo'); const p = estado.projetos;
   if (!p.consolidado && !p.erro) {
     if (!p.carregando) carregaProjConsolidado(false);
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📁 Projetos <span>visão consolidada + ficha por projeto (direto do Jira)</span></h2>${skeletonPainel()}</div></div>`));
+    cont.replaceChildren(el(`<div class="pj-tela"><div class="card full"><h2>📁 Projetos <span>visão consolidada + ficha por projeto (direto do Jira)</span></h2>${skeletonPainel()}</div></div>`));
     return;
   }
   if (p.erro && !p.consolidado) {
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📁 Projetos</h2><div class="estado">Não consegui carregar: ${esc(p.erro)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
+    cont.replaceChildren(el(`<div class="pj-tela"><div class="card full"><h2>📁 Projetos</h2><div class="estado">Não consegui carregar: ${esc(p.erro)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
     return;
   }
   // 📚 Vindo da Central (R01/R07/R25…): um projeto de fora dos tipos O/R do relatório sai da seleção.
@@ -278,7 +278,7 @@ function renderProjConsolidado(cont) {
   })), { fmt: (v) => nBR(v) + ' itens', h: 330 });
   const legSaude = `<div class="pp-legend" style="margin-top:6px"><span><i style="background:${CORSAUDE.good}"></i>saúde ≥ 70</span><span><i style="background:${CORSAUDE.warn}"></i>40–69</span><span><i style="background:${CORSAUDE.bad}"></i>&lt; 40</span></div>`;
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="pj-tela">
     ${projToolbar()}
     <div class="card full"><h2>📁 Projetos — Consolidado <span>${nBR(projetosC.length)} projetos${rc ? ` dos tipos do ${esc(rc.id)}` : ''} · clique nos cards, categorias e linhas para detalhar</span></h2>
       <div class="vg-hero">${kpis}</div>
@@ -400,11 +400,11 @@ function renderProjFicha(cont, key) {
   if (!d) {
     const erroF = p.erroFicha && p.erroFicha[key];
     if (erroF) {   // falhou: mostra o erro e espera o clique — sem isso cada render rebuscava a ficha em laço
-      cont.replaceChildren(el(`<div>${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2><div class="estado">Não consegui carregar: ${esc(erroF)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
+      cont.replaceChildren(el(`<div class="pj-tela">${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2><div class="estado">Não consegui carregar: ${esc(erroF)} <button class="btn" data-proj-refresh style="margin-left:8px">Tentar de novo</button></div></div></div>`));
       return;
     }
     if (!p.carregando) carregaProjFicha(key, false);
-    cont.replaceChildren(el(`<div>${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2>${skeletonPainel()}</div></div>`));
+    cont.replaceChildren(el(`<div class="pj-tela">${projToolbar()}<div class="card full"><h2>📁 ${esc(key)}</h2>${skeletonPainel()}</div></div>`));
     return;
   }
   const r = d.resumo || {}; const aba = p.aba || 'geral';
@@ -527,7 +527,7 @@ function renderProjFicha(cont, key) {
   }
 
   const trunc = d.truncado ? '<div class="estado" style="margin-top:8px">⚠ Projeto com muitos itens: a leitura foi truncada; alguns números podem estar subestimados.</div>' : '';
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="pj-tela pj-ficha">
     ${projToolbar()}
     <div class="card full"><h2>📁 ${esc(key)} <span>${esc(d.nome || d.projeto || '')}${d.categoria ? ` · ${esc(d.categoria)}` : ''}${projEscopoFechado(d) ? ' 🔒' : ''} · ficha do projeto</span></h2>
       <div class="vg-hero">${kpis}</div>${trunc}

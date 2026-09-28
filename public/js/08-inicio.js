@@ -1114,7 +1114,7 @@ function renderVisao(){
         <span class="fx-txt">${e.l?`<a href="${escA(e.l)}" target="_blank" rel="noopener">${esc(e.t)}</a>`:esc(e.t)}</span>
       </div>`).join('')}</div>`:'<div class="muted small">Nenhuma atividade recente no stream.</div>'}
   </div>`;
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="vis-tela">
     ${hero}
     ${scoreCard}
     ${health}
@@ -1191,7 +1191,7 @@ function renderResumo(){
         {fmt:fmtH,yfmt:(v)=>Math.round(v/3600)+'h',readX:(x)=>fmtBR(x),drillType:'dia',altura:'230px'})
     : '<div class="estado">Sem horas no período.</div>';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="res-tela">
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtH(k.segTot)}</div><div class="l">Horas apontadas</div></div>
       <div class="kpi t"><div class="v">${k.fatPct}%</div><div class="l">Horas faturáveis</div></div>
