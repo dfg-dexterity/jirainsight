@@ -1,6 +1,11 @@
 // Jira Insights · 20 · 🧰 GESTÃO DE TICKETS — lista/quadro, filtros salvos, agrupar, ações em massa
 // (comentar, status, excluir, apontar, épicos, duplicados), ficha do ticket (modal) e renderGestao.
 // ============== GESTÃO DE TICKETS (Operação): seleção múltipla + ações em massa ==============
+// "Aguardando cliente" = o STATUS diz que a bola está com o cliente. A mesma expressão vive no
+// servidor (api/_lib/portal.js, RE_AGUARDA_CLIENTE): é ela que vira "pendências do cliente" no
+// 🌐 portal do projeto. Sem build, o front não importa de lá — scripts/check-cronograma-paridade.mjs
+// (npm run check) reprova se as duas deixarem de ser idênticas.
+const GX_RE_AGUARDA_CLIENTE=/aguard|pendente.*client|waiting/i;
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
   g.carregando=true; g.erro='';
@@ -51,7 +56,7 @@ function gxLista(){
   else if(g.preset==='sematu') l=l.filter(t=>(!t.venc||t.venc<=hoje) && gxDiasSemAtu(t,hoje)>5);
   else if(g.preset==='semresp') l=l.filter(t=>!t.respId);
   else if(g.preset==='semvenc') l=l.filter(t=>!t.venc);
-  else if(g.preset==='cliente') l=l.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||''));
+  else if(g.preset==='cliente') l=l.filter(t=>GX_RE_AGUARDA_CLIENTE.test(t.status||''));
   else if(g.preset==='risco') l=l.filter(t=>gxRiscoM(t,hoje).s>=45);
   if(g.semTrat) l=l.filter(t=>!(cfg.tratados||{})[t.k]);
   const ord=g.ord||'risco';

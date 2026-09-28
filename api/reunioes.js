@@ -71,7 +71,9 @@ function agendaDiaSP(offsetDias) {
   const d = new Date(Date.now() + offsetDias * 86400000);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
 }
-async function graphToken() {
+// Exportada (2026-09-28) para o 🌐 portal do projeto (api/_lib/portal.js) ler o calendário
+// do projeto com as MESMAS credenciais de aplicativo — sem duplicar a autenticação.
+export async function graphToken() {
   const c = cacheGet('graph:token');
   if (c) return c;
   const r = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
