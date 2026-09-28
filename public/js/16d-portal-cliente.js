@@ -349,7 +349,7 @@ function ptConteudoHTML(K, c, gestor){
   if(!lista) blocos=li&&li.erro?`<div class="estado" style="color:#B45309">${esc(li.erro)}</div>`:'<div class="estado">Carregando o conteúdo…</div>';
   else blocos=tipos.map(t=>{ const its=lista.filter(x=>x.tipo===t&&(!st.fSt||x.status===st.fSt)).sort((a,b)=>(Number(a.ordem)||0)-(Number(b.ordem)||0)||String(a.criadoEm||'').localeCompare(String(b.criadoEm||'')));
     return `<div class="pt-grupo"><div class="mp-h3">${PT_TIPOS[t][0]} ${esc(PT_TIPOS[t][2])} <span class="mp-dim">${its.length}</span></div>
-      ${its.length?`<div class="scroll-x"><table class="mp-tab-mini pt-tab pt-itens-tab" data-pt-tipo-tab="${t}"><thead><tr>${cab[t]}</tr></thead><tbody>${its.map(linha).join('')}</tbody></table></div>`:`<div class="muted small">Nada aqui${st.fSt?' com esta situação':''}.</div>`}</div>`; }).join('');
+      ${its.length?`<div class="scroll-x"><table class="mp-tab-mini pt-tab pt-itens-tab" data-pt-tipo-tab="${t}"><thead><tr>${cab[t]}</tr></thead><tbody>${its.map(linha).join('')}</tbody></table></div>`:`<div class="muted small">Nada aqui${st.fSt?' com esta situação':''}.</div>`}${t==='reuniao'?ptReuSugHTML(K,gestor):''}</div>`; }).join('');
   // 🎯 decisões: as abertas do projeto, com o interruptor "visível ao cliente"
   const decs=st.decs[K]; const dl=Array.isArray(decs)?decs:null;
   const decHTML=!dl?(decs&&decs.erro?`<div class="muted small" style="color:#B45309">${esc(decs.erro)}</div>`:'<div class="muted small">Carregando as decisões…</div>')
@@ -363,8 +363,18 @@ function ptConteudoHTML(K, c, gestor){
     ${decHTML}
     <div class="muted small" style="margin-top:8px">A decisão em si (texto, dono, prazo, situação, ata) continua sendo editada em 🎯 Prioridades. <button class="btn rt-step" data-goto="prioridades">🎯 abrir Prioridades</button> · O link da ata só vai ao cliente com <b>mostrar ata</b> ligado em ⚙️ Configurar.</div></div>`;
 }
+// ✨ Reuniões do Jira (tickets do projeto com a etiqueta agenda-outlook e data futura, de admin-sugestoes — a
+// mesma leitura que sugere o time): cada sugestão só PREENCHE o formulário de reunião manual com título,
+// data (às 9h, para o gestor acertar a hora) e link; nada é gravado antes do Salvar. Reuniões que já estão
+// na tabela (mesmo link ou mesmo título) não são sugeridas de novo.
+function ptReuSugHTML(K, gestor){ if(!gestor) return ''; const s=ptSt().sug[K]; const lista=ptItens(K)||[];
+  const jaTem=(r)=>lista.some(x=>x.tipo==='reuniao'&&((r.link&&x.link===r.link)||String(x.titulo||'').trim().toLowerCase()===String(r.titulo||'').trim().toLowerCase()));
+  const reus=(s&&s!=='carregando'&&!s.erro)?(s.reunioesJira||[]).filter(r=>r&&r.k&&!jaTem(r)):[];
+  return `<div class="pt-reu-sug"><button class="btn rt-step" data-pt-reu-sug="1" data-tip="Traz os tickets de reunião do projeto (etiqueta agenda-outlook, data futura) para preencher o formulário — você acerta a hora e salva">✨ sugerir do Jira</button>
+    ${s==='carregando'?'<span class="muted small">lendo o Jira…</span>':(s&&s.erro)?`<span class="muted small">${esc(s.erro)}</span>`:s?(reus.length?reus.map(r=>`<button class="btn rt-step" data-pt-reu-usa="${escA(r.k)}" data-tip="Preenche uma reunião manual com este ticket (${escA(r.k)})">📅 ${esc(r.titulo||r.k)}${r.data?' · '+esc(dataBR(r.data)):''}</button>`).join(''):'<span class="muted small">nenhuma reunião nova no Jira</span>'):''}</div>`; }
 function ptNovoHTML(n){ const t=n.tipo; const T=PT_TIPOS[t]||PT_TIPOS.pendencia;
-  const f=(campo,rot,tipo,attrs)=>`<div class="campo"><label>${rot}</label><input type="${tipo||'text'}" data-pt-novo="${campo}" value="${escA(n[campo]||'')}" ${attrs||''}></div>`;
+  // início/fim vivem no rascunho como instante ISO (o que o servidor grava); o <input datetime-local> só aceita AAAA-MM-DDTHH:mm
+  const f=(campo,rot,tipo,attrs)=>`<div class="campo"><label>${rot}</label><input type="${tipo||'text'}" data-pt-novo="${campo}" value="${escA(tipo==='datetime-local'?ptLocalSP(n[campo]):(n[campo]||''))}" ${attrs||''}></div>`;
   const s=(campo,rot,ops)=>`<div class="campo"><label>${rot}</label><select data-pt-novo="${campo}">${ops.map(o=>`<option value="${escA(o[0])}" ${String(n[campo]||'')===o[0]?'selected':''}>${esc(o[1])}</option>`).join('')}</select></div>`;
   let campos='';
   if(t==='pendencia') campos=f('titulo','Título','text','style="min-width:260px" placeholder="ex.: Enviar a planilha de materiais"')+f('descricao','Detalhe (opcional)','text','style="min-width:220px"')+s('respLado','Quem deve',[['cliente','o cliente'],['dexterity','a Dexterity']])+f('respNome','Responsável (nome)','text','')+f('prazo','Prazo','date','');
@@ -427,6 +437,11 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
       toast(novos.length?`${novos.length} nome(s) trazidos do Jira — preencha o papel e salve.`:'Todo mundo que tem esforço no Jira já está no time.',novos.length?'ok':'warn'); renderPortal(); }); return; }
   // 📋 conteúdo
   if(t.hasAttribute('data-pt-novo-tipo')){ st.novo=ptItemNovo(t.getAttribute('data-pt-novo-tipo')); renderPortal(); setTimeout(()=>{ const i=document.querySelector('[data-pt-novo="titulo"]'); if(i) i.focus(); },0); return; }
+  if(t.hasAttribute('data-pt-reu-sug')){ ptCarregaSug(K,true).then(()=>renderPortal()); renderPortal(); return; }   // relê o Jira: a lista de reuniões muda
+  if(t.hasAttribute('data-pt-reu-usa')){ const s=st.sug[K]; const r=(s&&Array.isArray(s.reunioesJira))?s.reunioesJira.find(x=>x&&x.k===t.getAttribute('data-pt-reu-usa')):null; if(!r) return;
+    const dia=/^\d{4}-\d{2}-\d{2}$/.test(String(r.data||''))?r.data:'';
+    st.novo={ ...ptItemNovo('reuniao'), titulo:String(r.titulo||r.k||''), inicio:dia?`${dia}T09:00:00-03:00`:'', link:pcUrl(r.link)||'', descricao:'Teams' };   // só o início: um fim pré-preenchido viraria "fim antes do início" ao acertar a hora
+    renderPortal(); setTimeout(()=>{ const i=document.querySelector('[data-pt-novo="inicio"]'); if(i){ i.focus(); i.scrollIntoView({ block:'center' }); } },0); return; }
   if(t.id==='pt-novo-cancelar'){ st.novo=null; renderPortal(); return; }
   if(t.id==='pt-novo-salvar'){ const n=st.novo; if(!n) return; const fb=document.getElementById('pt-novo-fb'); const diz=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
     if(!String(n.titulo||'').trim()) { diz(n.tipo==='faq'?'Escreva a pergunta.':'Escreva o título.'); return; }

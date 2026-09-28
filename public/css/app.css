@@ -1214,6 +1214,7 @@
   .pt-novo{border:1px dashed var(--linha2);border-radius:10px;padding:10px 12px;margin-bottom:12px;background:var(--cartao2)}
   .pt-novo input[type=text],.pt-novo input[type=url],.pt-novo input[type=date],.pt-novo input[type=datetime-local]{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite)}
   .pt-grupo{margin-top:12px}
+  .pt-reu-sug{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}   /* ✨ reuniões do Jira que preenchem o formulário */
   .pt-acessos .pcli-bloco>.ad-portal{display:none}   /* o bloco já vem aberto; o cabeçalho "▾ Acessos" é da tela do Admin */
   .pt-prev-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
   .pt-preview{width:100%;height:78vh;min-height:480px;border:1px solid var(--linha);border-radius:12px;background:#fff}
