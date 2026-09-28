@@ -1,14 +1,18 @@
 // GET /api/teams — envios agendados ao Microsoft Teams via webhook:
 //   · RANKING DIÁRIO de apontamento (último dia útil)          — como sempre
 //   · RESUMO DE ATIVIDADES gerado por IA (diário ou semanal)   — ?tipo=resumo
+//   · 📊 RELATÓRIO SEMANAL DE SEXTA (foto + cartão dos gestores + mensagem a cada gerente) — ?tipo=semanal
 //
 // Configuração:
 //   TEAMS_WEBHOOK_URL  (obrigatória)  URL do webhook do canal
 //   CRON_SECRET        (opcional)     se definida, exige Authorization: Bearer <segredo>
-//   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude
+//                                     (OBRIGATÓRIA para o ?tipo=semanal — a foto tem dados por pessoa)
+//   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude (opcional no relatório semanal)
+//   TEAMS_GESTORES_WEBHOOK_URL        canal dos gestores (cartão do relatório semanal; sem ela, não envia)
+//   TEAMS_DM_WEBHOOK_URL              fluxo de mensagem direta (pendências para cada gerente de projeto)
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
-// pelos horários configurados no painel (cfg.teamsHora e cfg.teamsResumo).
+// pelos horários configurados no painel (cfg.teamsHora, cfg.teamsResumo e cfg.relSemanal).
 //
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
@@ -17,6 +21,8 @@ import { jiraBase, jiraUsuariosAtivos, jiraSearchAll, json, configCompartilhada 
 import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 import { magicoCore } from './criar.js';
+import { avisaTeamsDM } from './apontar.js';
+import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe } from './_lib/semanal.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -69,6 +75,9 @@ async function gravaTeamsEstado(patch, atual) {
       headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
       body: JSON.stringify({ id: 'teams_estado', data: Object.assign({}, atual || {}, patch) }),
     });
+    // O mesmo tique pode gravar mais de uma vez (ranking e depois a foto semanal): o objeto
+    // em memória acompanha o que já foi gravado, senão a 2ª gravação apagaria a 1ª.
+    if (atual && typeof atual === 'object') Object.assign(atual, patch);
   } catch (e) { /* pior caso: um envio duplicado amanhã — preferível a não enviar */ }
 }
 
@@ -380,6 +389,194 @@ async function montaPrioridades(cfg, hoje) {
   return { cartao, stats: { prioridades: prios.length, vencidos: (rv.issues || []).length, aguardandoDecisao: (rd.issues || []).length } };
 }
 
+// ===========================================================================
+// 📊 RELATÓRIO SEMANAL DE SEXTA (pedido do usuário, 2026-09-28) — ?tipo=semanal
+// ---------------------------------------------------------------------------
+// "Toda sexta: planejado × orçado × realizado, reuniões, tickets criados, qualidade
+// da informação, comparável com as semanas anteriores, e a visão do gerente de
+// projeto — o que está parado e vencido por pessoa, para ele cobrar."
+// O cálculo mora em api/_lib/semanal.js (fonte única, também da tela ?v=semanal);
+// aqui ficam o agendamento, a apresentação e o envio. Duas fases, em tiques
+// diferentes do cron de 30 min (cada execução tem 60 s):
+//   fase=foto   busca as fontes em paralelo, monta a foto da semana, grava
+//               `semanal_<segunda>`, anota o realizado FECHADO na foto da semana
+//               anterior e marca `ultimaFotoSemanal` no teams_estado;
+//   fase=envio  no tique seguinte: IA (3–5 frases sobre o que mudou; sem chave,
+//               sem IA), grava `ia` na foto, cartão no CANAL DOS GESTORES
+//               (TEAMS_GESTORES_WEBHOOK_URL; sem a env → não envia e diz na resposta),
+//               MENSAGEM DIRETA a cada gerente de projeto (cfg.projGerentes) com as
+//               pendências dos projetos dele (avisaTeamsDM — o mesmo caminho dos
+//               convites, TEAMS_DM_WEBHOOK_URL) e marca `ultimoEnvioSemanal`.
+// A foto tem dados por pessoa: EXIGE CRON_SECRET definido (503 se não houver, mesmo
+// com dry=1) e correto (401 — o gate comum). Manual: ?tipo=semanal&fase=foto|envio
+// &dry=1[&semana=AAAA-MM-DD] devolve a foto / o cartão e as mensagens sem gravar nem
+// enviar. Horas e contagens apenas: valores em R$ e custos NUNCA saem do painel.
+// ===========================================================================
+const APP_URL = 'https://jirainsight.vercel.app';
+const REL_SEMANAL_PADRAO = { ativo: false, dia: 5, hora: '16:00', parado: 5 };
+const hDe = (s) => fmtH(Math.max(0, Math.round(Number(s) || 0)));
+const pctDe = (v) => (v == null ? '—' : `${v}%`);
+const nDe = (v) => String(v == null ? '—' : v);
+// Δ vs a semana anterior já formatado: vazio quando não há anterior ou nada mudou.
+const deltaTxt = (d, f) => (d == null || d === 0 ? '' : ` (${d > 0 ? '+' : '−'}${f(Math.abs(d))})`);
+const pp = (x) => `${x} p.p.`;
+
+// Os 5 maiores desvios da semana: pessoa = realizado − planejado (só quem tem plano),
+// projeto = realizado − orçado (só quem tem Rentabilidade). Vêm prontos do comparaFotos.
+function desviosSemanal(cmp) {
+  const D = (cmp && cmp.desvios) || {};
+  const sinal = (x) => `${x > 0 ? '+' : '−'}${hDe(Math.abs(x))}`;
+  const linhas = [
+    ...(D.pessoas || []).map((x) => ({ abs: Math.abs(x.desvio), txt: `👤 **${x.nome}** — realizou ${hDe(x.real)} de ${hDe(x.plan)} planejadas (${sinal(x.desvio)})` })),
+    ...(D.projetos || []).map((x) => ({ abs: Math.abs(x.desvio), txt: `📁 **${x.nome}** — realizou ${hDe(x.real)} de ${hDe(x.orc)} orçadas (${sinal(x.desvio)})` })),
+  ];
+  return linhas.sort((a, b) => b.abs - a.abs).slice(0, 5).map((l) => l.txt);
+}
+
+// Cartão do canal dos gestores: números do time com Δ vs a semana anterior, reuniões,
+// pendências, os 5 maiores desvios, o texto da IA e o link da tela.
+function cartaoSemanal(foto, anterior, cmp, ia) {
+  const T = foto.time || {}; const C = (cmp && cmp.time) || {};
+  const d = (k) => (C[k] ? C[k].delta : null);
+  const R = T.reunioes || {}; const Q = T.qualidade || {};
+  const quando = new Date(foto.fotoEm || Date.now());
+  const hora = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(quando);
+  const tetos = Object.entries(foto.truncado || {}).filter(([, v]) => v).map(([k]) => k);
+  const desvios = desviosSemanal(cmp);
+  const blocos = [
+    { type: 'TextBlock', size: 'Large', weight: 'Bolder', wrap: true, text: `📊 Relatório semanal — ${ddmmDe(foto.semana)} a ${ddmmDe(foto.ate)}` },
+    { type: 'TextBlock', isSubtle: true, wrap: true, spacing: 'None', text: `Foto de ${ddmmDe(spDate(quando))} às ${hora} · ${nDe(T.pessoas)} pessoas (${nDe(T.pessoasComPlano)} com plano enviado)`
+      + (anterior ? ` · Δ vs semana de ${ddmmDe(anterior.semana)}` : ' · sem semana anterior para comparar')
+      + (tetos.length ? ` · ⚠ teto batido em: ${tetos.join(', ')}` : '') },
+    { type: 'ColumnSet', spacing: 'Medium', columns: [
+      kpiCol(hDe(T.plan), `planejado${deltaTxt(d('plan'), hDe)}`),
+      kpiCol(hDe(T.orc), `orçado (vendido)${deltaTxt(d('orc'), hDe)}`),
+      kpiCol(hDe(T.real), `realizado${deltaTxt(d('real'), hDe)}`),
+      kpiCol(pctDe(T.exec), `execução do plano${deltaTxt(d('exec'), pp)}`),
+    ] },
+    { type: 'ColumnSet', columns: [
+      kpiCol(pctDe(T.ader), `aderência${deltaTxt(d('ader'), pp)}`),
+      kpiCol(pctDe(T.consumo), `consumo do orçado${deltaTxt(d('consumo'), pp)}`),
+      kpiCol(`${nDe(T.criados)}/${nDe(T.concluidos)}`, `criados/concluídos · saldo ${T.saldo > 0 ? '+' : ''}${nDe(T.saldo)}${deltaTxt(d('saldo'), nDe)}`),
+      kpiCol(nDe(Q.nota), `qualidade (0–100)${deltaTxt(C.nota ? C.nota.delta : null, nDe)}`),
+    ] },
+    { type: 'TextBlock', wrap: true, spacing: 'Medium', text: `📅 Reuniões: **${nDe(R.criadas)}** criadas${deltaTxt(C['reunioes.criadas'] && C['reunioes.criadas'].delta, nDe)} · **${hDe(R.horas)}** apontadas${deltaTxt(C['reunioes.horas'] && C['reunioes.horas'].delta, hDe)} · **${nDe(R.vencidasAbertas)}** vencidas em aberto` },
+    { type: 'TextBlock', wrap: true, text: `🧭 Pendências nos abertos: **${nDe(T.vencidos)}** vencidos${deltaTxt(d('vencidos'), nDe)} · **${nDe(T.parados)}** parados há ≥ ${nDe(foto.parado)} dias${deltaTxt(d('parados'), nDe)} · **${nDe(T.semVenc)}** sem data · **${nDe(T.semResp)}** sem responsável · **${nDe(T.diasVazios)}** dias úteis sem apontamento${deltaTxt(d('diasVazios'), nDe)}` },
+    { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', text: '🔺 Maiores desvios da semana' },
+    { type: 'TextBlock', wrap: true, text: desvios.length ? desvios.join('\n\n') : '_Sem desvios a destacar: ninguém com plano enviado e nenhum projeto com horas vendidas — ou tudo bateu._' },
+    ...(ia ? [
+      { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', text: '🧠 O que mudou (IA)' },
+      { type: 'TextBlock', wrap: true, text: ia },
+    ] : []),
+    { type: 'TextBlock', wrap: true, spacing: 'Medium', text: `[Abrir o relatório no app](${APP_URL}/?v=semanal) · cada gerente recebeu as pendências dos seus projetos no chat.` },
+    { type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, text: 'Enviado automaticamente pelo Dexterity Hub — horas e contagens; valores ficam só no painel.' },
+  ];
+  return cartaoAdaptive(blocos);
+}
+
+// Uma mensagem por gerente de projeto (cfg.projGerentes, já carimbado em
+// foto.projetos[K].gerentes pela foto): as pendências de CADA projeto dele, por pessoa —
+// é a lista que ele cobra — e o link da tela 🧭 Pendências do projeto já filtrada.
+function mensagensGerentes(foto) {
+  const por = {};   // accountId → [KEY]
+  Object.entries(foto.projetos || {}).forEach(([k, p]) => (p.gerentes || []).forEach((g) => { (por[g] = por[g] || []).push(k); }));
+  const nomeDe = (a) => ((foto.pessoas || {})[a] || {}).nome || 'pessoa fora do elenco';
+  const titulo = `🧭 Pendências dos seus projetos — semana de ${ddmmDe(foto.semana)} a ${ddmmDe(foto.ate)}`;
+  return Object.keys(por).sort().map((a) => {
+    const linhas = []; let pend = 0;
+    por[a].sort().forEach((k) => {
+      const p = foto.projetos[k];
+      const n = (p.vencidos || 0) + (p.parados || 0) + (p.semVenc || 0) + (p.semResp || 0) + (p.reunioesVencidas || 0);
+      pend += n;
+      const partes = [];
+      if (p.vencidos) partes.push(`**${p.vencidos}** vencido(s)`);
+      if (p.parados) partes.push(`**${p.parados}** parado(s) há ≥ ${foto.parado} dias`);
+      if (p.semVenc) partes.push(`**${p.semVenc}** sem data`);
+      if (p.semResp) partes.push(`**${p.semResp}** sem responsável`);
+      if (p.reunioesVencidas) partes.push(`**${p.reunioesVencidas}** reunião(ões) vencida(s)`);
+      linhas.push(`${n ? '⚠' : '✓'} **${p.nome}** (${k}) — ${partes.length ? partes.join(' · ') : 'sem pendências'} · [ver e cobrar](${APP_URL}/?v=gp&proj=${encodeURIComponent(k)})`);
+      Object.entries(p.porPessoa || {}).filter(([, x]) => x.vencidos || x.parados)
+        .sort((x, y) => ((y[1].vencidos || 0) + (y[1].parados || 0)) - ((x[1].vencidos || 0) + (x[1].parados || 0))).slice(0, 8)
+        .forEach(([pa, x]) => {
+          const it = []; if (x.vencidos) it.push(`${x.vencidos} vencido(s)`); if (x.parados) it.push(`${x.parados} parado(s)`);
+          linhas.push(`↳ ${nomeDe(pa)}: ${it.join(', ')}`);
+        });
+    });
+    const texto = `${linhas.join('\n\n')}\n\n${pend ? 'Vale pedir data, status e apontamento até segunda.' : 'Nada pendente nos seus projetos esta semana.'} [Relatório completo](${APP_URL}/?v=semanal)`;
+    const pessoa = (foto.pessoas || {})[a] || {};
+    return { accountId: a, nome: pessoa.nome || '', email: pessoa.email || '', projetos: por[a].slice(), pendencias: pend, titulo, texto };
+  });
+}
+const cartaoDM = (m) => cartaoAdaptive([
+  { type: 'TextBlock', size: 'Medium', weight: 'Bolder', wrap: true, text: m.titulo },
+  { type: 'TextBlock', wrap: true, text: m.texto },
+]);
+
+// IA: 3–5 frases sobre o que mudou vs a semana anterior (só com ANTHROPIC_API_KEY).
+const IA_SCHEMA_SEMANAL = { type: 'object', additionalProperties: false, required: ['texto'], properties: { texto: { type: 'string' } } };
+const IA_SISTEMA_SEMANAL = [
+  'Você é analista de um time de consultoria de TI. Recebe os NÚMEROS agregados da semana (horas planejadas,',
+  'orçadas/vendidas e realizadas, execução, aderência, tickets criados/concluídos, reuniões, qualidade da',
+  'informação e pendências) e os da semana anterior, mais os maiores desvios por pessoa e por projeto.',
+  'Horas vêm em SEGUNDOS: converta para horas ao escrever. Escreva de 3 a 5 frases, em português do Brasil,',
+  'dizendo O QUE MUDOU em relação à semana anterior e o que merece a atenção dos gestores. Use só os números',
+  'fornecidos (não invente nada), cite nomes só quando vierem nos desvios, seja factual e sem juízo de valor',
+  'pessoal. Texto corrido, sem markdown e sem listas.',
+].join('\n');
+async function iaSemanal(foto, anterior, cmp) {
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+  if (!apiKey) return { texto: '', motivo: 'ANTHROPIC_API_KEY não configurada — cartão sem o texto da IA.' };
+  const pega = (t) => (t ? {
+    plan: t.plan, orc: t.orc, real: t.real, exec: t.exec, ader: t.ader, consumo: t.consumo, criados: t.criados, concluidos: t.concluidos, saldo: t.saldo,
+    reunioes: t.reunioes, qualidade: t.qualidade && t.qualidade.nota, vencidos: t.vencidos, parados: t.parados, semVenc: t.semVenc, diasVazios: t.diasVazios,
+    pessoas: t.pessoas, pessoasComPlano: t.pessoasComPlano,
+  } : null);
+  const payload = { semana: foto.semana, semanaAnterior: anterior ? anterior.semana : null, horasEm: 'segundos', atual: pega(foto.time), anterior: pega(anterior && anterior.time), desvios: (cmp && cmp.desvios) || {} };
+  const r = await chamaClaude(apiKey, payload, { system: IA_SISTEMA_SEMANAL, schema: IA_SCHEMA_SEMANAL, prompt: `Números da semana (JSON):\n\n${JSON.stringify(payload)}` });
+  return { texto: String((r && r.texto) || '').trim().slice(0, 1500) };
+}
+
+// Fase FOTO: monta e grava a foto da semana `seg` (segunda) e anota o realizado fechado na anterior.
+async function semanalFoto({ cfg, seg, dry }) {
+  const { foto, anterior } = await montaFotoSemanal({ seg, cfg });
+  const resumo = { semana: foto.semana, pessoas: foto.time.pessoas, projetos: Object.keys(foto.projetos).length, truncado: foto.truncado };
+  if (dry) return { dry: true, fase: 'foto', ...resumo, foto, anterior };
+  const g = await gravaFoto(foto);
+  const fechou = await marcaRealFechado(anterior.semana, anterior.realFechado);
+  return { fase: 'foto', gravada: true, ...resumo, fotosGuardadas: g.total, podadas: g.apagadas, realFechadoAnterior: fechou ? anterior.semana : '' };
+}
+// Fase ENVIO: lê a foto (e a anterior), IA, cartão dos gestores, mensagem a cada gerente.
+// `marcar` diz ao chamador se pode carimbar `ultimoEnvioSemanal`: entregou em algum canal,
+// ou não há canal nenhum configurado (nada a tentar de novo — a resposta explica).
+async function semanalEnvio({ cfg, seg, dry }) {
+  const fotos = await leFotos({ ate: seg, n: 2 });
+  const foto = fotos[0] && fotos[0].semana === seg ? fotos[0] : null;
+  if (!foto) throw new Error(`Sem foto da semana ${seg} — a fase foto ainda não rodou (?tipo=semanal&fase=foto).`);
+  const anterior = fotos[1] || null;
+  const cmp = comparaFotos(foto, anterior);
+  // O texto da IA é gravado na foto: uma reexecução (tique repetido, falha de envio) não paga de novo.
+  let ia = { texto: String(foto.ia || '').trim() };
+  if (!ia.texto) { try { ia = await iaSemanal(foto, anterior, cmp); } catch (e) { ia = { texto: '', erro: String(e && e.message ? e.message : e).slice(0, 200) }; } }
+  const cartao = cartaoSemanal(foto, anterior, cmp, ia.texto);
+  const dms = mensagensGerentes(foto);
+  const base = { fase: 'envio', semana: seg, anterior: anterior ? anterior.semana : '', ia: !!ia.texto, ...(ia.motivo ? { iaMotivo: ia.motivo } : {}), ...(ia.erro ? { iaErro: ia.erro } : {}) };
+  if (dry) return { dry: true, ...base, iaTexto: ia.texto, cartao, gerentes: dms.map((m) => ({ ...m, cartao: cartaoDM(m) })) };
+  if (ia.texto && ia.texto !== foto.ia) await anotaFoto(seg, { ia: ia.texto });
+  const wG = process.env.TEAMS_GESTORES_WEBHOOK_URL || '';
+  const canal = wG ? await enviaCartao(wG, cartao) : { ok: false, motivo: 'TEAMS_GESTORES_WEBHOOK_URL não configurada — o cartão dos gestores não foi enviado.' };
+  const dm = dms.length ? await avisaTeamsDM(dms.map((m) => ({ accountId: m.accountId, nome: m.nome, email: m.email })), (p) => {
+    const m = dms.find((x) => x.accountId === p.accountId);
+    return { semana: foto.semana, titulo: m.titulo, texto: m.texto, cartao: cartaoDM(m), projetos: m.projetos };
+  }) : { enviados: 0, total: 0, semEmail: [], falhas: [] };
+  const entregue = !!(canal.ok || (dm && dm.enviados > 0));
+  const semCanal = !wG && dm === null;
+  return {
+    ...base, entregue, marcar: entregue || semCanal,
+    canal: canal.ok ? { enviado: true, status: canal.status } : { enviado: false, ...(canal.motivo ? { motivo: canal.motivo } : { status: canal.status, erro: canal.erro }) },
+    gerentes: dm === null ? { total: dms.length, enviados: 0, motivo: 'TEAMS_DM_WEBHOOK_URL não configurada — nenhum gerente recebeu a mensagem.' } : dm,
+  };
+}
+
 // ---- 📣 Aviso de melhorias no canal "Avisos Gerais" (acordo de 2026-07-28) ----
 // Adaptive Card com as melhorias entregues + MENÇÃO a todos os usuários ativos do
 // Jira (webhook/fluxo de canal não expõe a lista de membros; a equipe ativa do Jira
@@ -686,6 +883,28 @@ export default async function handler(req, res) {
       return json(res, 200, { enviado: env.ok, status: env.status, mencionados: mencoes.length, ...(env.ok ? {} : { erro: env.erro }) });
     }
 
+    // ---- 📊 Relatório semanal, chamada manual: ?tipo=semanal&fase=foto|envio[&dry=1][&semana=AAAA-MM-DD] ----
+    // Não depende do TEAMS_WEBHOOK_URL (tem canais próprios), mas EXIGE o CRON_SECRET: sem a env
+    // é 503 mesmo com dry=1 — a foto traz dados por pessoa. Com a env, o gate acima já deu 401.
+    if (String(q.tipo || '') === 'semanal') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — o relatório semanal tem dados por pessoa e só roda com o segredo do cron (defina a env na Vercel).' });
+      const cfgS = await configCompartilhada();
+      const hojeS = spDate(new Date());
+      const segS = segundaDe(String(q.semana || '')) || segundaDe(hojeS);
+      const fase = String(q.fase || '') === 'envio' ? 'envio' : 'foto';
+      const out = fase === 'envio' ? await semanalEnvio({ cfg: cfgS, seg: segS, dry }) : await semanalFoto({ cfg: cfgS, seg: segS, dry });
+      // O estado do agendador só muda para a semana CORRENTE: refazer uma semana passada à mão
+      // não pode confundir o cron desta sexta.
+      if (!dry && segS === segundaDe(hojeS)) {
+        const estadoS = await teamsEstado();
+        if (estadoS !== null) {
+          if (fase === 'foto') await gravaTeamsEstado({ ultimaFotoSemanal: segS }, estadoS);
+          else if (out.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segS }, estadoS);
+        }
+      }
+      return json(res, 200, out);
+    }
+
     if (!webhook && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
 
     const cfg = await configCompartilhada();
@@ -745,6 +964,32 @@ export default async function handler(req, res) {
             out.prioridades = { enviado: env.ok, status: env.status, ...m.stats, ...(env.ok ? {} : { erro: env.erro }) };
           } catch (e) { out.prioridades = { enviado: false, erro: String(e.message || e) }; }
         } else out.prioridades = { enviado: false, motivo: gp.motivo, hora: horaPrio };
+      }
+      // 📊 Relatório semanal de sexta (cfg.relSemanal: {ativo, dia, hora, parado}) — a foto no
+      // primeiro tique ≥ hora no dia marcado, o envio no tique seguinte. As duas chaves do
+      // teams_estado guardam a SEGUNDA da semana; sem Supabase não há onde gravar a foto.
+      const scfg = Object.assign({}, REL_SEMANAL_PADRAO, cfg.relSemanal || {});
+      const horaSem = /^\d{2}:\d{2}$/.test(String(scfg.hora || '')) ? scfg.hora : REL_SEMANAL_PADRAO.hora;
+      if (!segredo) out.semanal = { enviado: false, motivo: 'CRON_SECRET não configurado (a foto tem dados por pessoa)' };
+      else if (!scfg.ativo) out.semanal = { enviado: false, motivo: 'desativado no painel' };
+      else if (diaSemana(hoje) !== Number(scfg.dia || 5)) out.semanal = { enviado: false, motivo: `só no dia ${scfg.dia} da semana` };
+      else if (semSupabase) out.semanal = { enviado: false, motivo: 'Supabase não configurado (a foto precisa dele)' };
+      else {
+        const segSem = segundaDe(hoje);
+        try {
+          if (ult('ultimaFotoSemanal') !== segSem) {
+            const gf = gateHorario(horaSem, agora, hoje, '');
+            if (gf.pronto) {
+              const m = await semanalFoto({ cfg, seg: segSem });
+              await gravaTeamsEstado({ ultimaFotoSemanal: segSem }, estado);
+              out.semanal = { enviado: false, ...m, proximo: 'envio no próximo tique do cron' };
+            } else out.semanal = { enviado: false, motivo: gf.motivo, hora: horaSem };
+          } else if (ult('ultimoEnvioSemanal') !== segSem) {
+            const m = await semanalEnvio({ cfg, seg: segSem });
+            if (m.marcar) await gravaTeamsEstado({ ultimoEnvioSemanal: segSem }, estado);
+            out.semanal = { enviado: !!m.entregue, ...m };
+          } else out.semanal = { enviado: false, motivo: `já enviado nesta semana (${segSem})` };
+        } catch (e) { out.semanal = { enviado: false, erro: String(e && e.message ? e.message : e) }; }
       }
       return json(res, 200, out);
     }

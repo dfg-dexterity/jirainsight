@@ -507,19 +507,25 @@ export async function leFotos({ ate, n } = {}, sb) {
   const rows = await sbRows(await fetch(`${S.base}/rest/v1/${TABELA}?id=like.semanal_*${teto}&select=id,data&order=id.desc&limit=${lim}`, { headers: S.headers }), 'ler fotos');
   return (Array.isArray(rows) ? rows : []).map((x) => x.data).filter((f) => f && f.v === SEMANAL_V && f.semana);
 }
-/** Anota o realizado FECHADO na foto da semana `seg` (a execução seguinte chama isto). false = não havia foto. */
-export async function marcaRealFechado(seg, realFechado, sb) {
+/**
+ * Anota campos na foto já gravada da semana `seg` (merge raso sobre `data`: `realFechado`, `ia`).
+ * Lê-modifica-grava a linha inteira porque o PostgREST não faz merge de JSON; o resto da foto
+ * fica como está. false = não havia foto (nunca cria uma).
+ */
+export async function anotaFoto(seg, patch, sb) {
   const S = sbDe(sb); if (!S) return false;
   const rows = await sbRows(await fetch(`${S.base}/rest/v1/${TABELA}?id=eq.${idFoto(seg)}&select=data`, { headers: S.headers }), 'ler foto');
   const atual = Array.isArray(rows) && rows[0] && rows[0].data;
   if (!atual) return false;
   const r = await fetch(`${S.base}/rest/v1/${TABELA}?id=eq.${idFoto(seg)}`, {
     method: 'PATCH', headers: { ...S.headers, Prefer: 'return=minimal' },
-    body: JSON.stringify({ data: { ...atual, realFechado }, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ data: { ...atual, ...(patch || {}) }, updated_at: new Date().toISOString() }),
   });
-  if (!r.ok) throw new Error(`Supabase ${r.status} (realFechado)`);
+  if (!r.ok) throw new Error(`Supabase ${r.status} (anotar foto: ${Object.keys(patch || {}).join(',')})`);
   return true;
 }
+/** Anota o realizado FECHADO na foto da semana `seg` (a execução seguinte chama isto). false = não havia foto. */
+export function marcaRealFechado(seg, realFechado, sb) { return anotaFoto(seg, { realFechado }, sb); }
 
 // ---- orquestrador: busca as fontes em paralelo (com tetos) e monta a foto ----
 const depsPadrao = () => ({ jiraSearchAll, worklogsEnriquecidos, coletaAtividade, jiraUsuariosAtivos, buscaAbertos, carregaCatalogoProjetos, lePlanos });
