@@ -199,6 +199,135 @@
     .ch-filtro{gap:8px}
     .ch-filtro button{min-height:40px;padding:8px 14px;font-size:13px}
   }
+
+  /* =====================================================================
+     🌐 PORTAL DO PROJETO (modo projeto, 2026-09-28) — visual Dexterity.
+     Tudo aqui é escopado em body.pj: o AMS de sempre (e o link ?c= antigo)
+     continua com o visual que tinha. Os tokens ganham os valores da marca
+     (areia #F7F3E7, verde-petróleo #009994, texto #4D4D4D) só neste modo.
+     ===================================================================== */
+  /* Contraste AA (≥ 4.5:1) também nos textos pequenos: --muted2 (rodapé 11.5px) e --lnk (↻ 12.5px) sobre a areia;
+     no escuro o botão primário e o avatar levam texto escuro (branco sobre #2BB6AA dava 2.5:1). */
+  body.pj{ --offwhite:#F7F3E7; --grafite:#3B3B3B; --cerceta:#00817D; --teal:#009994; --linha:#E3DCC8; --linha2:#EDE7D6;
+    --trilho:#EFE9DA; --muted:#6E6A60; --muted2:#6B665A; --texto2:#5C5850; --musgo:#1E7A46; --amarelo:#B45309; --err:#B3261E;
+    --lnk:#00706C; --pri-txt:#fff; --sombra:0 0 0 1px rgba(77,77,77,.03), 0 1px 4px rgba(77,66,40,.10) }
+  @media (prefers-color-scheme:dark){ body.pj{ --offwhite:#0E1726; --grafite:#E6EDF6; --cerceta:#2BB6AA; --teal:#2BB6AA;
+    --linha:#2B3A4D; --linha2:#2B3A4D; --trilho:#22303F; --muted:#93A4BA; --muted2:#8E9FB5; --texto2:#B7C3D3;
+    --musgo:#2EA043; --amarelo:#F0883E; --err:#F2555A; --lnk:#2BB6AA; --pri-txt:#0E1726; --sombra:0 0 0 1px rgba(0,0,0,.25), 0 2px 10px rgba(0,0,0,.5) } }
+  body.pj header{align-items:flex-start}
+  body.pj header img{margin-top:2px}
+  body.pj header h1{font-size:20px;line-height:1.2}
+  body.pj header h1 .cli{color:var(--cerceta)}
+  body.pj header h1 .sep{color:var(--muted2);font-weight:400;margin:0 2px}
+  body.pj header .sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .lnk{border:0;background:none;color:var(--lnk,var(--cerceta));font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+  .lnk:hover{text-decoration:underline}
+  /* Botões-link do cabeçalho e do rodapé: Teams em destaque, pasta como apoio. */
+  .pj-acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .pjb{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px;
+    text-decoration:none;white-space:nowrap;border:1px solid var(--linha);background:var(--cartao);color:var(--cerceta);cursor:pointer;font-family:inherit}
+  .pjb.pri{background:var(--cerceta);border-color:var(--cerceta);color:var(--pri-txt,#fff)}
+  .pjb:hover{filter:brightness(.96)}
+  .pj-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .pj-nav .sp{flex:1}
+  .pj-sel{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);max-width:100%}
+  .pj-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .pj-tab{border:1px solid var(--linha);background:var(--cartao);color:var(--texto2);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
+  .pj-tab[aria-selected="true"]{border-color:var(--cerceta);color:var(--cerceta);font-weight:700}
+  .pj-prev{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px dashed var(--cerceta);border-radius:10px;padding:9px 12px;
+    font-size:12.5px;color:var(--texto2);margin-bottom:16px;background:var(--cartao)}
+  .pj-apre{font-size:14.5px;line-height:1.6;border-left:4px solid var(--teal)}
+  .card h2 .pill{margin-left:8px;vertical-align:middle}
+  .card h2 .n{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+  body.pj #pj-corpo .kpis{margin-bottom:0}   /* só os KPIs do projeto (o card os envolve); a aba AMS mantém a folga de sempre */
+  body.pj .kpi{min-width:0}   /* o texto de uma linha abaixo não pode alargar a coluna da grade (celular) */
+  body.pj .kpi .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Pastilhas de situação (as mesmas cores do semáforo do Cronograma interno). */
+  .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap;line-height:1.6}
+  .pill.ok{background:#EAF6EC;color:#0E6B37} .pill.warn{background:#FEFBEB;color:#8A5200}
+  .pill.bad{background:#FEF2F2;color:#B91C1C} .pill.info{background:#E6F4F3;color:#00615E} .pill.mut{background:var(--trilho);color:var(--muted)}
+  @media (prefers-color-scheme:dark){ .pill.ok{background:#16301F;color:#8FD3A8} .pill.warn{background:#33270F;color:#F0C674}
+    .pill.bad{background:#3A1715;color:#F09A9A} .pill.info{background:#0F2E2C;color:#7ED8CF} }
+  /* Listas dos blocos (pendências, decisões, riscos, reuniões) */
+  .pj-lista{display:flex;flex-direction:column}
+  .pj-it{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--linha2)}
+  .pj-it:first-child{border-top:0;padding-top:0} .pj-it:last-child{padding-bottom:0}
+  .pj-it .ico{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--trilho);font-size:15px}
+  .pj-it .tx{flex:1;min-width:0}
+  .pj-it .t{font-weight:600;font-size:13.5px}
+  .pj-it .t .tag{font-weight:600;font-size:11px;color:var(--muted);background:var(--trilho);border-radius:6px;padding:1px 6px;margin-left:2px;vertical-align:middle;white-space:nowrap}
+  .pj-it .d{font-size:12.5px;color:var(--texto2);margin-top:3px;line-height:1.5}
+  .pj-it .m{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:6px 12px;flex-wrap:wrap;align-items:center}
+  .pj-it .ac{flex:0 0 auto}
+  .pj-reu .dt{flex:0 0 76px;text-align:center;border:1px solid var(--linha);border-radius:8px;padding:5px 4px;line-height:1.25}
+  .pj-reu .dt b{display:block;font-size:15px} .pj-reu .dt span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+  details.pj-mais{margin-top:12px;border-top:1px solid var(--linha2);padding-top:10px}
+  details.pj-mais>summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600;list-style:none;display:flex;align-items:center;gap:6px;min-height:28px}
+  details.pj-mais>summary::-webkit-details-marker{display:none}
+  details.pj-mais>summary::before{content:'▸';display:inline-block;transition:transform .15s} details.pj-mais[open]>summary::before{transform:rotate(90deg)}
+  details.pj-mais>.pj-lista{margin-top:8px;opacity:.85}
+  /* FAQ em acordeão */
+  .pj-faq{border-top:1px solid var(--linha2)} .pj-faq:first-of-type{border-top:0}
+  .pj-faq>summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:11px 0;list-style:none;display:flex;gap:10px;align-items:center;min-height:44px}
+  .pj-faq>summary::-webkit-details-marker{display:none}
+  .pj-faq>summary::after{content:'+';margin-left:auto;color:var(--cerceta);font-size:18px;font-weight:400;flex:0 0 auto}
+  .pj-faq[open]>summary::after{content:'−'}
+  .pj-faq>.r{font-size:13.5px;color:var(--texto2);line-height:1.6;padding:0 0 12px 0;white-space:pre-line}
+  /* Time do projeto */
+  .pj-eq{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .pj-pes{display:flex;gap:10px;align-items:center;border:1px solid var(--linha);border-radius:10px;padding:10px 12px;min-width:0}
+  .pj-pes .av{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--cerceta);color:var(--pri-txt,#fff);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}   /* --cerceta: branco sobre #00817D = 4.7:1 (sobre o --teal dava 3.5) */
+  .pj-pes .n{font-weight:700;font-size:13.5px} .pj-pes .p{font-size:12px;color:var(--muted)} .pj-pes .c{font-size:12px;color:var(--cerceta);word-break:break-word}
+  .pj-pes .tx{min-width:0}
+  /* Links úteis em chips */
+  .pj-chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--linha);border-radius:999px;padding:7px 13px;font-size:12.5px;font-weight:600;
+    color:var(--cerceta);background:var(--cartao);text-decoration:none;max-width:100%}
+  .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip:hover{border-color:var(--cerceta)}
+  /* Cronograma: SVG simples, rola na horizontal dentro do bloco quando não cabe. */
+  .pj-cr-wrap{display:flex;align-items:flex-start}
+  .pj-cr-lab{flex:0 0 220px;min-width:0;border-right:1px solid var(--linha2)}
+  .pj-cr-lab .h{height:34px}
+  .pj-cr-lab .r{height:30px;display:flex;align-items:center;gap:7px;padding:0 8px 0 2px;font-size:12px;min-width:0}
+  .pj-cr-lab .r:nth-child(odd){background:color-mix(in srgb,var(--trilho) 45%,transparent)}
+  .pj-cr-lab .r i{flex:0 0 auto;width:8px;height:8px;border-radius:50%}
+  .pj-cr-lab .r span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pj-cr-lab .r{cursor:pointer;border-radius:6px} .pj-cr-lab .r:focus-visible{outline:2px solid var(--cerceta);outline-offset:-2px}
+  .pj-cr-lab .r[aria-expanded="true"]{background:color-mix(in srgb,var(--cerceta) 14%,transparent)}
+  /* o nome completo da etapa tocada (as linhas ficam com 30px para casar com o SVG; o nome inteiro aparece aqui embaixo) */
+  .pj-cr-nome{font-size:12.5px;color:var(--texto2);margin-top:8px;padding:8px 10px;border:1px dashed var(--linha);border-radius:8px;white-space:pre-line}
+  .pj-cr-nome:empty{display:none}
+  .pj-cr{flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pj-cr svg{display:block;font-family:inherit}
+  .pj-cr-dica{display:none;font-size:11.5px;color:var(--muted);margin-top:6px}
+  #pj-cr.rola .pj-cr-dica{display:block}
+  .pj-cr .mes{font-size:11px;fill:var(--muted)} .pj-cr .sem{font-size:11px;fill:var(--muted2);font-style:italic}
+  .pj-cr .pc{font-size:10.5px;fill:var(--texto2);font-weight:700}
+  .pj-cr .hoje{font-size:10.5px;fill:var(--err);font-weight:700}
+  .pj-leg{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+  .pj-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+  .pj-leg .mk{display:inline-block;transform:rotate(45deg);width:8px;height:8px;background:var(--grafite);margin-right:6px;vertical-align:middle;border-radius:1px}
+  .pj-vazio{text-align:center;color:var(--muted);padding:36px 12px}
+  .pj-vazio b{display:block;font-size:15px;color:var(--grafite);margin-bottom:6px}
+  body.pj .foot{display:flex;flex-direction:column;align-items:center;gap:10px}
+  body.pj .foot .pj-acoes{justify-content:center}
+  /* 📱 Celular: KPIs 2 por linha (regra geral acima), botões com altura de dedo, cabeçalho empilhado. */
+  @media (max-width:720px){
+    .ent .cpo input{font-size:16px} .ent .bt{min-height:44px}
+    body.pj header{flex-wrap:wrap} body.pj header>div:not(.ciclo){flex:1;min-width:0}
+    body.pj header .ciclo .pj-acoes{justify-content:flex-start}
+    body.pj .pjb,body.pj .pj-tab,body.pj .pj-sel,body.pj .chip,body.pj .bt.sec,body.pj .lnk{min-height:44px}
+    body.pj .pj-pes .c{min-height:44px;display:flex;align-items:center}   /* o contato do time (link) com altura de dedo */
+    body.pj .bt.sec{padding:8px 14px}
+    body.pj .lnk{padding:0 8px}
+    body.pj .eu{gap:8px} body.pj .eu .sp{flex-basis:100%;margin:0;height:0}   /* Trocar senha · Sair numa linha própria */
+    body.pj .kpi .s{white-space:normal}
+    .pj-nav .pj-sel{flex-basis:100%}
+    .pj-it{gap:10px} .pj-it .ac{flex-basis:100%} .pj-it .ac .pjb{width:100%;justify-content:center} .pj-reu{flex-wrap:wrap}
+    .pj-reu .dt{flex-basis:64px}
+    .pj-eq{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
@@ -459,6 +588,9 @@ async function api(acao, opcoes){
   const headers={};
   if(o.corpo) headers['Content-Type']='application/json';
   if(o.comSessao && s && s.token) headers.Authorization='Bearer '+s.token;
+  // Só a pré-visualização do gestor (aberta pelo Hub) manda a identidade do Jira — e ela
+  // vive na memória desta página, nunca no localStorage. O cliente não passa por aqui.
+  if(o.jira && o.jira.email && o.jira.token){ headers['x-jira-email']=o.jira.email; headers['x-jira-token']=o.jira.token; }
   const qs='/api/config?pcli='+encodeURIComponent(acao)+(o.qs||'');
   const r=await fetch(qs,{ method:o.corpo?'POST':'GET', headers, body:o.corpo?JSON.stringify(o.corpo):undefined });
   let d=null; try{ d=await r.json(); }catch(e){ d=null; }
@@ -467,9 +599,12 @@ async function api(acao, opcoes){
 
 const $c=()=>document.getElementById('conteudo');
 function cabecalho(titulo, sub){
+  document.body.classList.remove('pj'); _PJ=null;   // as telas de entrada e o AMS ficam com o visual de sempre
+  document.title='Acompanhamento AMS · Dexterity';
   document.getElementById('titulo').textContent=titulo;
   document.getElementById('sub').textContent=sub||'';
   document.getElementById('ciclo').textContent='';
+  const f=document.querySelector('.foot'); if(f) f.textContent='Painel somente-leitura · Dexterity IT · atualizado a cada acesso';
 }
 function msg(txt, tipo){ return txt?`<div class="msg ${tipo||'err'}">${esc(txt)}</div>`:''; }
 
@@ -573,6 +708,8 @@ async function carregaPainel(){
   const r=await api('dados',{ comSessao:true });
   if(r.st===401){ sessaoLimpa(); telaLogin('A sua sessão expirou. Entre de novo.'); return; }
   if(!r.d || r.d.ok===false){ erro((r.d&&r.d.erro)||'Não foi possível carregar o painel.'); return; }
+  // 🌐 Com projeto publicado para o contrato, a área abre no modo projeto; sem, é o AMS de sempre.
+  if(Array.isArray(r.d.projetos) && r.d.projetos.length){ pjEntra(r.d, s); return; }
   render(r.d, s);
 }
 function barraEu(s){
@@ -588,6 +725,294 @@ function ligaBarra(){
   const b=document.getElementById('b-senha'); if(b) b.addEventListener('click',telaSenha);
 }
 
+// ===========================================================================
+// 🌐 PORTAL DO PROJETO — o que o cliente vê de um projeto publicado (2026-09-28)
+// A mesma página, outro modo: quando `pcli=dados` lista projetos publicados para o contrato
+// da conta, a área abre aqui (seletor quando há mais de um; a aba "📞 Chamados e horas" só
+// para contrato AMS, com o render() de sempre). Tudo o que aparece vem de UM pedido,
+// `pcli=projeto&p=KEY`, cujo conteúdo o servidor monta por allowlist — esta tela só desenha:
+// nada é calculado nem filtrado aqui que o servidor já não tenha decidido. Links externos
+// só abrem se forem http(s) (hrefOk), sempre em nova aba. A pré-visualização do gestor
+// (?preview=KEY) usa o MESMO desenho com a identidade recebida por postMessage do Hub.
+// ===========================================================================
+let _PJ=null;   // { d: resposta de pcli=dados, s: sessão, key, aba:'projeto'|'ams', pay:{KEY: payload}, preview:{email,token}|null }
+const PJ_KEY='dexterity_portal_projeto';   // último projeto aberto (conforto; o escopo é sempre do servidor)
+const hrefOk=(u)=>/^https?:\/\/[^\s<>"']+$/i.test(String(u||''))?String(u).slice(0,900):'';
+const dmBR=(iso)=>/^\d{4}-\d{2}-\d{2}/.test(iso||'')?iso.slice(8,10)+'/'+iso.slice(5,7):'';
+const hojeISO=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
+const diasEntre=(a,b)=>Math.round((Date.parse(String(b).slice(0,10)+'T12:00:00Z')-Date.parse(String(a).slice(0,10)+'T12:00:00Z'))/86400000);
+const DIAS_SEM=['dom','seg','ter','qua','qui','sex','sáb'];
+const diaSem=(iso)=>DIAS_SEM[new Date(String(iso).slice(0,10)+'T12:00:00Z').getUTCDay()]||'';
+const nl=(s)=>esc(s).replace(/\n/g,'<br>');
+// Rótulos em português claro (a mesma escala de cores do 📅 Cronograma interno).
+const PJ_ST={ concluido:['Concluída','var(--musgo)'], andamento:['Em andamento','var(--cerceta)'], risco:['Atenção','var(--amarelo)'],
+  atrasado:['Atrasada','var(--err)'], planejado:['Planejada','var(--muted2)'] };
+const PJ_SEM={ ok:['No prazo','ok'], atencao:['Atenção','warn'], atrasado:['Com atraso','bad'] };
+const DEC_ST={ aberta:['Em aberto','warn'], reprazada:['Prazo revisado','info'], escalada:['Escalada','bad'] };
+const NIV={ alto:3, medio:2, baixo:1 }; const NIV_ROT={ alto:'alto', medio:'médio', baixo:'baixo' };
+const LNK_ICO={ planilha:'📊', documento:'📄', pasta:'📂', site:'🌐', video:'🎬', apresentacao:'📽️' };
+
+function pjEntra(d, s){
+  let lembrado=''; try{ lembrado=localStorage.getItem(PJ_KEY)||''; }catch(e){}
+  const key=d.projetos.some(p=>p.key===lembrado)?lembrado:d.projetos[0].key;
+  _PJ={ d, s, key, aba:'projeto', pay:{}, preview:null };
+  pjMostra();
+}
+// Desenha o modo projeto conforme a aba; busca o payload quando ainda não está em memória.
+async function pjMostra(){
+  const P=_PJ.pay[_PJ.key]||null;
+  if(_PJ.aba==='ams'){
+    // o render() AMS de sempre escreve ciclo/apuração no cabeçalho: o modo projeto os MANTÉM e só acrescenta os botões
+    render(_PJ.d,_PJ.s);
+    pjCabecalho(P,{ sub:document.getElementById('sub').textContent, ciclo:document.getElementById('ciclo').innerHTML });
+    pjInsereNav(); return;
+  }
+  pjCabecalho(P);
+  $c().innerHTML=(_PJ.s?barraEu(_PJ.s):pjBanner())+pjNav()
+    +'<div id="pj-corpo" role="tabpanel" aria-labelledby="pj-tab-projeto">'+(P?pjCorpo(P):'<div class="card"><div class="estado">Carregando o projeto…</div></div>')+'</div>';
+  if(_PJ.s) ligaBarra();
+  if(P) pjCrRola(); else await pjCarrega();
+}
+async function pjCarrega(){
+  const st=_PJ, key=st.key;
+  const r=st.preview ? await api('preview',{ qs:'&p='+encodeURIComponent(key), jira:st.preview })
+                     : await api('projeto',{ qs:'&p='+encodeURIComponent(key), comSessao:true });
+  if(_PJ!==st||st.key!==key||st.aba!=='projeto') return;   // trocou de projeto/aba (ou saiu) enquanto carregava
+  if(r.st===401&&!st.preview){ sessaoLimpa(); telaLogin('A sua sessão expirou. Entre de novo.'); return; }
+  const corpo=document.getElementById('pj-corpo');
+  if(r.st!==200||!r.d||r.d.ok===false||r.d.v!==1){
+    const m=(r.st===401||r.st===403)?'A pré-visualização precisa de um gestor conectado no Hub.':((r.d&&r.d.erro)||'Não foi possível carregar o projeto agora. Tente de novo em instantes.');
+    if(corpo) corpo.innerHTML=`<div class="card"><div class="estado">${esc(m)}</div></div>`;
+    return;
+  }
+  st.pay[key]=r.d; pjCabecalho(r.d);
+  if(corpo){ corpo.innerHTML=pjCorpo(r.d); pjCrRola(); }
+}
+function pjCabecalho(P, ams){
+  document.body.classList.add('pj');
+  const pr=((_PJ.d&&_PJ.d.projetos)||[]).find(p=>p.key===_PJ.key)||{};
+  const cliente=(P&&P.cliente)||(_PJ.s&&_PJ.s.cliente)||'';
+  const nome=(P&&P.projeto&&P.projeto.nome)||pr.nome||_PJ.key;
+  document.getElementById('titulo').innerHTML=`${cliente?`<span class="cli">${esc(cliente)}</span> <span class="sep">·</span> `:''}${esc(nome)}`;
+  document.title=`${cliente?cliente+' · ':''}${nome} · Dexterity`;
+  // Na aba AMS o subtítulo é o da apuração (ciclo, banco de horas) e o ciclo vigente continua no canto.
+  document.getElementById('sub').innerHTML=ams?`<span>${esc(ams.sub||'')}</span>`:`<span>Portal do projeto</span>`
+    +(P?` <span>· atualizado <span id="pj-atu">${esc(pjHaQuanto(P.atualizadoEm))}</span></span> <button class="lnk" id="pj-rec" title="Recarregar os dados (o servidor renova o conteúdo a cada 10 min)">↻ atualizar</button> <span class="muted">· os dados são renovados a cada 10 min</span>`:'');
+  document.getElementById('ciclo').innerHTML=(ams?ams.ciclo||'':'')+(P?pjAcoes(P):'');
+  const f=document.querySelector('.foot');
+  if(f) f.innerHTML=(P?pjAcoes(P):'')+'<span>Portal somente-leitura · Dexterity IT · o progresso vem do acompanhamento do projeto</span>';
+}
+// Teams em destaque e a pasta do projeto — no cabeçalho e repetidos no rodapé.
+function pjAcoes(P){
+  const t=hrefOk(P.teamsUrl), p=hrefOk(P.pasta); if(!t&&!p) return '';
+  return `<div class="pj-acoes">${t?`<a class="pjb pri" href="${escA(t)}" target="_blank" rel="noopener noreferrer">💬 Canal do Teams</a>`:''}${p?`<a class="pjb" href="${escA(p)}" target="_blank" rel="noopener noreferrer">📂 Pasta do projeto</a>`:''}</div>`;
+}
+function pjHaQuanto(iso){
+  const t=Date.parse(iso||''); if(!Number.isFinite(t)) return '';
+  const m=Math.max(0,Math.round((Date.now()-t)/60000));
+  return m<1?'agora mesmo':m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`em ${dataBR(String(iso).slice(0,10))}`;
+}
+setInterval(()=>{ const P=_PJ&&_PJ.pay[_PJ.key]; const el=document.getElementById('pj-atu'); if(P&&el) el.textContent=pjHaQuanto(P.atualizadoEm); },60000);
+function pjNav(){
+  const ps=(_PJ.d&&_PJ.d.projetos)||[]; const ams=!!(_PJ.d&&_PJ.d.tipo==='ams');
+  if(ps.length<2&&!ams) return '';
+  const sel=ps.length>1?`<select class="pj-sel" id="pj-sel" aria-label="Projeto">${ps.map(p=>`<option value="${escA(p.key)}"${p.key===_PJ.key?' selected':''}>${esc(p.nome||p.key)}</option>`).join('')}</select>`:'';
+  const tabs=ams?`<div class="pj-tabs" role="tablist" aria-label="Seções do portal"><button class="pj-tab" role="tab" id="pj-tab-projeto" data-pj-aba="projeto" aria-selected="${_PJ.aba==='projeto'}" aria-controls="${_PJ.aba==='projeto'?'pj-corpo':'pj-corpo-ams'}">🌐 Projeto</button><button class="pj-tab" role="tab" id="pj-tab-ams" data-pj-aba="ams" aria-selected="${_PJ.aba==='ams'}" aria-controls="${_PJ.aba==='ams'?'pj-corpo-ams':'pj-corpo'}">📞 Chamados e horas</button></div>`:'';
+  return `<div class="pj-nav" id="pj-nav">${sel}<span class="sp"></span>${tabs}</div>`;
+}
+// Na aba AMS o render() de sempre desenha o conteúdo; o seletor/abas entram logo abaixo da barra "Conectado como"
+// e o que vem depois vira o painel da aba (tabpanel), para o leitor de tela ligar aba e conteúdo.
+function pjInsereNav(){
+  const d=document.createElement('div'); d.innerHTML=pjNav(); const nav=d.firstElementChild; if(!nav) return;
+  const eu=document.querySelector('#conteudo .eu'); if(eu) eu.after(nav); else $c().prepend(nav);
+  const painel=document.createElement('div'); painel.id='pj-corpo-ams'; painel.setAttribute('role','tabpanel'); painel.setAttribute('aria-labelledby','pj-tab-ams');
+  while(nav.nextSibling) painel.appendChild(nav.nextSibling);
+  nav.after(painel);
+}
+function pjBanner(){ return `<div class="pj-prev">👁 <b>Pré-visualização</b> — é exatamente isto que o cliente vê. Aberta pelo Dexterity Hub com a sua identidade de gestor; nada fica guardado neste navegador.</div>`; }
+// Um listener só, delegado: ↻, abas e seletor são recriados a cada desenho.
+document.addEventListener('click',(e)=>{
+  if(!_PJ||!e.target.closest) return;
+  if(e.target.closest('#pj-rec')){ delete _PJ.pay[_PJ.key]; _PJ.aba='projeto'; pjMostra(); return; }
+  const tab=e.target.closest('[data-pj-aba]'); if(tab){ _PJ.aba=tab.getAttribute('data-pj-aba'); pjMostra(); return; }
+  const et=e.target.closest('.pj-cr-lab .r[data-pj-etapa]'); if(et) pjEtapaToca(et);
+});
+document.addEventListener('keydown',(e)=>{ if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.pj-cr-lab .r[data-pj-etapa]')){ e.preventDefault(); pjEtapaToca(e.target.closest('.pj-cr-lab .r')); } });
+// Nome da etapa cortado com reticências: um toque (ou Enter) mostra o nome completo e a situação numa linha abaixo do gráfico.
+function pjEtapaToca(row){
+  const card=row.closest('#pj-cr'); const out=card&&card.querySelector('.pj-cr-nome'); if(!out) return;
+  const aberto=row.getAttribute('aria-expanded')==='true';
+  card.querySelectorAll('.pj-cr-lab .r[aria-expanded="true"]').forEach(r=>r.setAttribute('aria-expanded','false'));
+  if(aberto){ out.textContent=''; return; }
+  row.setAttribute('aria-expanded','true'); out.textContent=row.getAttribute('title')||row.textContent;
+}
+document.addEventListener('change',(e)=>{
+  if(!_PJ||!e.target.closest) return; const sel=e.target.closest('#pj-sel'); if(!sel) return;
+  _PJ.key=sel.value; _PJ.aba='projeto'; try{ localStorage.setItem(PJ_KEY,_PJ.key); }catch(x){} pjMostra();
+});
+// O cronograma é desenhado na largura disponível: ao redimensionar, só ele é refeito.
+let _pjRs=null;
+window.addEventListener('resize',()=>{ if(!_PJ||_PJ.aba!=='projeto') return; clearTimeout(_pjRs); _pjRs=setTimeout(()=>{
+  const P=_PJ&&_PJ.pay[_PJ.key]; const c=document.getElementById('pj-cr'); if(!P||!c) return;
+  const d=document.createElement('div'); d.innerHTML=pjCronogramaCard(P.epicos,hojeISO()); c.replaceWith(d.firstElementChild); pjCrRola(); },200); });
+
+// ---- os blocos, na ordem do desenho: cada um só quando o gestor o ligou E há conteúdo ----
+function pjCorpo(P){
+  const B=P.blocos||{}; const on=(k)=>B[k]!==false; const hoje=hojeISO(); const eps=P.epicos||[]; const out=[];
+  if(P.apresentacao) out.push(`<div class="card pj-apre">${nl(P.apresentacao)}</div>`);
+  if(on('progresso')&&P.progresso&&(eps.length||(P.progresso.itens&&P.progresso.itens.total))) out.push(pjProgresso(P.progresso));
+  if(on('cronograma')&&eps.length) out.push(pjCronogramaCard(eps,hoje));
+  if(on('pendencias')&&(P.pendencias||[]).length) out.push(pjPendencias(P.pendencias,hoje));
+  if(on('decisoes')&&(P.decisoes||[]).length) out.push(pjDecisoes(P.decisoes,hoje));
+  if(on('riscos')&&(P.riscos||[]).length) out.push(pjRiscos(P.riscos));
+  if(on('reunioes')&&(P.reunioes||[]).length) out.push(pjReunioes(P.reunioes));
+  if(on('equipe')&&(P.equipe||[]).length) out.push(pjEquipe(P.equipe));
+  if(on('faq')&&(P.faq||[]).length) out.push(pjFaq(P.faq));
+  if(on('links')&&(P.links||[]).length) out.push(pjLinks(P.links));
+  if(!out.length) return `<div class="card"><div class="pj-vazio"><b>O portal deste projeto está sendo preparado.</b>Em breve você acompanha aqui o progresso, as pendências e as próximas reuniões.</div></div>`;
+  return out.join('');
+}
+function pjProgresso(p){
+  const sem=PJ_SEM[p.semaforo]||PJ_SEM.ok; const it=p.itens||{}; const mk=p.marcos||{};
+  const kc=p.semaforo==='atrasado'?'bad':p.semaforo==='atencao'?'warn':'ok'; const at=p.maiorAtrasoDias||0;
+  // Término: o último marco planejado é a data combinada; a previsão pelo ritmo só aparece quando passa dele (aviso).
+  const ritmoTarde=p.previsaoRitmo&&p.ultimoMarco&&p.previsaoRitmo>p.ultimoMarco;
+  const fim=p.ultimoMarco?` <span class="n">último marco ${esc(dataBR(p.ultimoMarco))}</span>${ritmoTarde?` <span class="pill warn" title="No ritmo atual das entregas, a conclusão passa do último marco">previsão pelo ritmo ${esc(dataBR(p.previsaoRitmo))}</span>`:''}`
+    :(p.previsaoFim?` <span class="n">previsão de término ${esc(dataBR(p.previsaoFim))}</span>`:'');
+  return `<div class="card"><h2>Progresso do projeto <span class="pill ${sem[1]}">${sem[0]}</span>${fim}</h2>
+    <div class="kpis">
+      <div class="kpi ${kc}"><div class="v">${Number(p.pct)||0}%</div><div class="l">Progresso</div><div class="s">${it.concluidos||0} de ${it.total||0} atividades concluídas</div></div>
+      <div class="kpi ${mk.total&&mk.concluidos===mk.total?'ok':''}"><div class="v">${mk.concluidos||0}/${mk.total||0}</div><div class="l">Marcos concluídos</div><div class="s">${mk.total?'marcos do projeto':'sem marcos definidos'}</div></div>
+      <div class="kpi"><div class="v">${mk.proximo?esc(dmBR(mk.proximo.data)):'—'}</div><div class="l">Próximo marco</div><div class="s" title="${escA(mk.proximo?mk.proximo.nome:'')}">${mk.proximo?esc(mk.proximo.nome):'nenhum marco à frente'}</div></div>
+      <div class="kpi ${at>0?'bad':'ok'}"><div class="v">${at} dia${at===1?'':'s'}</div><div class="l">Maior atraso</div><div class="s">${at>0?'em uma etapa com marco vencido':'nenhuma etapa atrasada'}</div></div>
+    </div></div>`;
+}
+// Cronograma simples, sem biblioteca: os nomes das etapas ficam numa coluna HTML fixa (com
+// reticências) e só a linha do tempo é SVG — uma barra do início ao marco (preenchida pelo %
+// concluído), ◆ no marco, linha tracejada em "hoje", meses como colunas. No celular só a linha
+// do tempo rola, já aberta em "hoje"; a coluna dos nomes fica parada.
+const CR_ROW=30, CR_TOP=34, CR_BOT=6;
+function pjCrTip(e,st,pct){ return `${e.nome||e.k||''}\n${st[0]} · ${pct}% concluído${e.ini?`\nInício ${dataBR(e.ini)}`:''}${e.fim?`\nMarco ${dataBR(e.fim)}`:''}${e.atrasoDias?`\n${e.status==='concluido'?`concluída ${e.atrasoDias} dia(s) depois do marco`:`${e.atrasoDias} dia(s) de atraso`}`:''}`; }
+function pjCronogramaCard(eps,hoje){
+  const cont=document.getElementById('conteudo'); const larg=Math.max(280,((cont&&cont.clientWidth)||900)-38);
+  const LAB=larg<600?128:Math.min(220,Math.round(larg*0.3));
+  const lab=eps.map((e,i)=>{ const st=PJ_ST[e.status]||PJ_ST.planejado; const pct=Math.min(100,Math.max(0,Number(e.pct)||0));
+    return `<div class="r" data-pj-etapa="${i}" tabindex="0" role="button" aria-expanded="false" title="${escA(pjCrTip(e,st,pct))}"><i style="background:${st[1]}" aria-hidden="true"></i><span>${esc(e.nome||e.k||'')}</span></div>`; }).join('');
+  return `<div class="card" id="pj-cr"><h2>Cronograma <span class="n">${eps.length} etapa${eps.length===1?'':'s'} · ◆ marco · linha tracejada = hoje</span></h2>
+    <div class="pj-cr-wrap"><div class="pj-cr-lab" style="flex-basis:${LAB}px"><div class="h"></div>${lab}</div><div class="pj-cr">${pjCronogramaSVG(eps,hoje,larg-LAB-1)}</div></div>
+    <div class="pj-cr-nome" aria-live="polite"></div>
+    <div class="pj-cr-dica">↔ deslize a linha do tempo para ver os outros meses · toque no nome de uma etapa para vê-lo inteiro</div>
+    <div class="pj-leg">${Object.values(PJ_ST).map(([rot,cor])=>`<span><i style="background:${cor}"></i>${rot}</span>`).join('')}<span><i class="mk"></i>marco</span></div></div>`;
+}
+function pjCronogramaSVG(eps,hoje,larg){
+  const ROW=CR_ROW, TOP=CR_TOP, BOT=CR_BOT;
+  const datas=[hoje]; eps.forEach(e=>{ if(e.ini) datas.push(e.ini); if(e.fim) datas.push(e.fim); });
+  const min=datas.reduce((a,b)=>b<a?b:a), max=datas.reduce((a,b)=>b>a?b:a);
+  const m0=min.slice(0,7)+'-01';
+  const dFim=new Date(max.slice(0,7)+'-01T12:00:00Z'); dFim.setUTCMonth(dFim.getUTCMonth()+1); const mf=dFim.toISOString().slice(0,10);
+  const meses=[]; for(const d=new Date(m0+'T12:00:00Z'); d.toISOString().slice(0,10)<mf; d.setUTCMonth(d.getUTCMonth()+1)) meses.push(d.toISOString().slice(0,7));
+  const n=meses.length; const MW=Math.max(56,Math.floor((larg-16)/n)); const W=MW*n; const H=TOP+ROW*eps.length+BOT;
+  const total=diasEntre(m0,mf)||1; const X=(iso)=>diasEntre(m0,iso)/total*W;
+  // viewBox com 8px de folga dos dois lados: o ◆ de um marco no 1º/último dia não fica cortado
+  let g=`<svg viewBox="-8 0 ${W+16} ${H}" width="${W+16}" height="${H}" role="img" aria-label="Linha do tempo por etapa">`;
+  meses.forEach((ym,i)=>{ const x=i*MW; g+=`<line x1="${x}" y1="${TOP-4}" x2="${x}" y2="${H-BOT}" stroke="var(--linha2)"/><text class="mes" x="${x+4}" y="13">${esc(labelMes(ym))}</text>`; });
+  eps.forEach((e,i)=>{
+    const y=TOP+i*ROW; const st=PJ_ST[e.status]||PJ_ST.planejado; const cor=st[1]; const pct=Math.min(100,Math.max(0,Number(e.pct)||0));
+    if(i%2) g+=`<rect x="-8" y="${y}" width="${W+16}" height="${ROW}" fill="var(--trilho)" opacity=".45"/>`;
+    const tip=pjCrTip(e,st,pct); const ini=e.ini||'', fim=e.fim||'';
+    if(ini||fim){
+      const a=ini||fim, b=fim||(hoje>ini?hoje:ini); const x1=X(a), x2=Math.max(X(b),x1+4), w=x2-x1;
+      g+=`<g><title>${esc(tip)}</title><rect x="${x1.toFixed(1)}" y="${y+8}" width="${w.toFixed(1)}" height="14" rx="4" fill="${cor}" opacity=".22"${!fim?` stroke="${cor}" stroke-dasharray="4 3"`:''}/>`;
+      const wp=w*pct/100; if(wp>0) g+=`<rect x="${x1.toFixed(1)}" y="${y+8}" width="${wp.toFixed(1)}" height="14" rx="4" fill="${cor}"/>`;
+      if(fim){ const mx=X(fim), my=y+15; g+=`<polygon points="${mx.toFixed(1)},${my-7} ${(mx+7).toFixed(1)},${my} ${mx.toFixed(1)},${my+7} ${(mx-7).toFixed(1)},${my}" fill="${cor}" stroke="var(--cartao)" stroke-width="1.5"/>`; }
+      // o % fica depois do marco (legível fora da barra); sem espaço à direita, antes da barra
+      if(x2+44<W) g+=`<text class="pc" x="${(x2+12).toFixed(1)}" y="${y+19}">${pct}%</text>`;
+      else if(x1>40) g+=`<text class="pc" x="${(x1-8).toFixed(1)}" y="${y+19}" text-anchor="end">${pct}%</text>`;
+      g+='</g>';
+    } else g+=`<text class="sem" x="8" y="${y+ROW/2+4}">sem datas definidas</text>`;
+  });
+  const xh=X(hoje);
+  g+=`<line x1="${xh.toFixed(1)}" y1="${TOP-4}" x2="${xh.toFixed(1)}" y2="${H-BOT}" stroke="var(--err)" stroke-width="1.5" stroke-dasharray="4 3"/><text class="hoje" x="${(xh+4).toFixed(1)}" y="${TOP-8}">hoje</text>`;
+  return g.replace('<svg ',`<svg data-hoje="${(xh+8).toFixed(0)}" `)+'</svg>';
+}
+// Linha do tempo maior que o espaço (celular): abre já mostrando "hoje" e liga a dica de deslizar.
+function pjCrRola(){
+  const card=document.getElementById('pj-cr'); const c=card&&card.querySelector('.pj-cr'); const svg=c&&c.querySelector('svg'); if(!c||!svg) return;
+  if(c.scrollWidth>c.clientWidth+1){ c.scrollLeft=Math.max(0,(+svg.getAttribute('data-hoje')||0)-c.clientWidth*0.6); card.classList.add('rola'); }
+}
+function pjPendencias(pend,hoje){
+  const item=(x)=>{ const dias=Number(x.dias)||0; const venc=x.prazo&&x.prazo<hoje, hj=x.prazo===hoje;
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">${x.lado==='dexterity'?'🛠':'🙋'}</div><div class="tx"><div class="t">${esc(x.titulo)}${x.k?` <span class="tag">${esc(x.k)}</span>`:''}</div>
+      <div class="m"><span>${dias>0?`há ${dias} dia${dias===1?'':'s'}`:'desde hoje'}</span>${x.prazo?`<span>prazo ${esc(dataBR(x.prazo))}</span>`:''}${venc?'<span class="pill bad">prazo vencido</span>':hj?'<span class="pill warn">vence hoje</span>':''}</div></div></div>`; };
+  const suas=pend.filter(x=>x.lado!=='dexterity'), nossas=pend.filter(x=>x.lado==='dexterity');
+  return `<div class="card"><h2>O que a Dexterity precisa de você${suas.length?` <span class="pill warn">${suas.length}</span>`:''}</h2>
+    ${suas.length?`<div class="pj-lista">${suas.map(item).join('')}</div>`:'<div class="note">Nada pendente com você neste momento.</div>'}
+    ${nossas.length?`<details class="pj-mais"><summary>Com a Dexterity (${nossas.length})</summary><div class="pj-lista">${nossas.map(item).join('')}</div></details>`:''}</div>`;
+}
+function pjDecisoes(ds,hoje){
+  return `<div class="card"><h2>Decisões a tomar <span class="pill warn">${ds.length}</span></h2><div class="pj-lista">${ds.map(d=>{ const st=DEC_ST[d.status]||DEC_ST.aberta; const ata=hrefOk(d.ata);
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">⚖️</div><div class="tx"><div class="t">${esc(d.titulo)}</div>${d.contexto?`<div class="d">${nl(d.contexto)}</div>`:''}
+      <div class="m"><span class="pill ${st[1]}">${st[0]}</span>${d.dono?`<span>com ${esc(d.dono)}</span>`:''}${d.prazo?`<span>até ${esc(dataBR(d.prazo))}</span>`:''}${d.prazo&&d.prazo<hoje?'<span class="pill bad">prazo vencido</span>':''}${ata?`<a href="${escA(ata)}" target="_blank" rel="noopener noreferrer">📄 ata</a>`:''}</div></div></div>`; }).join('')}</div></div>`;
+}
+// Severidade = probabilidade × impacto (quando falta um, vale o outro): ≥6 alto · ≥3 médio · senão baixo.
+function pjSevPeso(r){ const p=NIV[r.prob]||0, i=NIV[r.impacto]||0; const a=p||i, b=i||p; return a*b; }
+function pjSev(r){ const s=pjSevPeso(r); if(!s) return null; return s>=6?['alto','bad']:s>=3?['médio','warn']:['baixo','ok']; }
+function pjRiscos(rs){
+  const item=(r)=>{ const sev=pjSev(r); const enc=r.status==='encerrado', mit=r.status==='mitigado';
+    return `<div class="pj-it"><div class="ico" aria-hidden="true">${enc?'✅':mit?'🛡️':'⚠️'}</div><div class="tx"><div class="t">${esc(r.titulo)}</div>${r.mitigacao?`<div class="d"><b>Como estamos tratando:</b> ${nl(r.mitigacao)}</div>`:''}
+      <div class="m">${sev?`<span class="pill ${enc?'mut':sev[1]}">risco ${sev[0]}</span>`:''}${r.prob?`<span>probabilidade ${NIV_ROT[r.prob]||esc(r.prob)}</span>`:''}${r.impacto?`<span>impacto ${NIV_ROT[r.impacto]||esc(r.impacto)}</span>`:''}${mit?'<span class="pill ok">mitigado</span>':''}${enc?'<span class="pill mut">encerrado</span>':''}${r.resp?`<span>acompanha: ${esc(r.resp)}</span>`:''}</div></div></div>`; };
+  const abertos=rs.filter(r=>r.status!=='encerrado').sort((a,b)=>pjSevPeso(b)-pjSevPeso(a)), enc=rs.filter(r=>r.status==='encerrado');
+  return `<div class="card"><h2>Riscos acompanhados${abertos.length?` <span class="n">${abertos.length} em acompanhamento</span>`:''}</h2>
+    ${abertos.length?`<div class="pj-lista">${abertos.map(item).join('')}</div>`:'<div class="note">Nenhum risco em aberto.</div>'}
+    ${enc.length?`<details class="pj-mais"><summary>Encerrados (${enc.length})</summary><div class="pj-lista">${enc.map(item).join('')}</div></details>`:''}</div>`;
+}
+// As datas chegam em ISO com o fuso de São Paulo: a hora é lida do texto, não convertida pelo navegador.
+function pjHora(iso){ const m=String(iso||'').match(/T(\d{2}):(\d{2})/); return m?`${m[1]}:${m[2]}`:''; }
+function pjReunioes(rs){
+  return `<div class="card"><h2>Próximas reuniões <span class="n">próximos 30 dias · horário de Brasília</span></h2><div class="pj-lista">${rs.map(r=>{
+    const d=String(r.inicio||'').slice(0,10); const hi=pjHora(r.inicio), hf=pjHora(r.fim); const diaTodo=hi==='00:00'&&(!hf||hf==='00:00'); const link=hrefOk(r.link);
+    return `<div class="pj-it pj-reu"><div class="dt"><span>${esc(diaSem(d))}</span><b>${esc(dmBR(d))}</b><span>${diaTodo?'dia todo':esc(hi)}</span></div>
+      <div class="tx"><div class="t">${esc(r.titulo)}</div><div class="m">${diaTodo?'<span>dia inteiro</span>':`<span>${esc(hi)}${hf?' – '+esc(hf):''}</span>`}${r.local?`<span>📍 ${esc(r.local)}</span>`:''}</div></div>
+      ${link?`<div class="ac"><a class="pjb pri" href="${escA(link)}" target="_blank" rel="noopener noreferrer">Entrar na reunião</a></div>`:''}</div>`; }).join('')}</div></div>`;
+}
+function pjIniciais(n){ const p=String(n||'').trim().split(/\s+/); return (((p[0]||'')[0]||'')+((p.length>1?p[p.length-1]:'')[0]||'')).toUpperCase(); }
+function pjContato(c){
+  const s=String(c||'').trim(); if(!s) return '';
+  if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return `<a class="c" href="mailto:${escA(s)}">${esc(s)}</a>`;
+  const u=hrefOk(s); if(u) return `<a class="c" href="${escA(u)}" target="_blank" rel="noopener noreferrer">${esc(u.replace(/^https?:\/\//,'').slice(0,40))}</a>`;
+  return `<div class="c">${esc(s)}</div>`;
+}
+function pjEquipe(eq){
+  return `<div class="card"><h2>Time do projeto <span class="n">${eq.length} pessoa${eq.length===1?'':'s'}</span></h2><div class="pj-eq">${eq.map(p=>`<div class="pj-pes"><div class="av" aria-hidden="true">${esc(pjIniciais(p.nome))}</div><div class="tx"><div class="n">${esc(p.nome)}</div>${p.papel?`<div class="p">${esc(p.papel)}</div>`:''}${pjContato(p.contato)}</div></div>`).join('')}</div></div>`;
+}
+function pjFaq(fs){
+  return `<div class="card"><h2>Perguntas frequentes</h2>${fs.map(f=>`<details class="pj-faq"><summary>${esc(f.pergunta)}</summary><div class="r">${esc(f.resposta)}</div></details>`).join('')}</div>`;
+}
+function pjLinks(ls){
+  const v=ls.map(l=>({ nome:l.nome, tipo:l.tipo, url:hrefOk(l.url) })).filter(l=>l.url); if(!v.length) return '';
+  return `<div class="card"><h2>Links úteis</h2><div class="pj-chips">${v.map(l=>`<a class="chip" href="${escA(l.url)}" target="_blank" rel="noopener noreferrer" title="${escA(l.url)}"><span aria-hidden="true">${LNK_ICO[String(l.tipo||'').toLowerCase()]||'🔗'}</span> <span>${esc(l.nome||l.url)}</span></a>`).join('')}</div></div>`;
+}
+
+// ---- 👁 Pré-visualização (?preview=KEY), aberta pelo Hub ----
+// O Hub (mesma origem) manda {tipo:'preview', email, token} por postMessage; esta página avisa
+// {tipo:'portal-preview-pronto', projeto} a quem a abriu (iframe ou nova aba) assim que está
+// ouvindo. Mensagem de outra origem é ignorada; a identidade fica só na memória.
+function pjPreview(key){
+  const k=String(key||'').trim().toUpperCase();
+  cabecalho('Pré-visualização do portal','aguardando o Hub…');
+  $c().innerHTML='<div class="card"><div class="estado">Aguardando a identidade do gestor…<br><span style="font-size:12px">Esta pré-visualização só funciona aberta a partir do Dexterity Hub.</span></div></div>';
+  const origem=location.origin;
+  window.addEventListener('message',(e)=>{
+    if(e.origin!==origem) return;
+    const m=e.data||{}; if(m.tipo!=='preview'||!m.email||!m.token) return;
+    _PJ={ d:null, s:null, key:k, aba:'projeto', pay:{}, preview:{ email:String(m.email), token:String(m.token) } };
+    pjMostra();
+  });
+  const aviso={ tipo:'portal-preview-pronto', projeto:k };
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage(aviso,origem); }catch(e){}
+  try{ if(window.opener) window.opener.postMessage(aviso,origem); }catch(e){}
+}
+
 (function(){
   const p=new URLSearchParams(location.search);
   const conv=p.get('convite');
@@ -600,6 +1025,8 @@ function ligaBarra(){
     }).catch(e=>erro('Falha ao carregar: '+(e&&e.message?e.message:e)));
     return;
   }
+  const prev=p.get('preview');
+  if(prev){ pjPreview(prev); return; }   // 👁 aberta pelo Hub: identidade do gestor por postMessage
   carregaPainel();
 })();
 </script>

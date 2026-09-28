@@ -1,6 +1,12 @@
 // Jira Insights · 20 · 🧰 GESTÃO DE TICKETS — lista/quadro, filtros salvos, agrupar, ações em massa
 // (comentar, status, excluir, apontar, épicos, duplicados), ficha do ticket (modal) e renderGestao.
 // ============== GESTÃO DE TICKETS (Operação): seleção múltipla + ações em massa ==============
+// "Aguardando cliente" = o STATUS diz que a bola está com o cliente. Este preset é LARGO de
+// propósito (quem o lê é o time: "Aguardando deploy" também interessa aqui). O 🌐 portal do projeto
+// usa uma expressão ESTRITA (api/_lib/portal.js, RE_AGUARDA_CLIENTE: precisa citar cliente/customer),
+// subconjunto desta — scripts/check-cronograma-paridade.mjs (npm run check) reprova se algum status
+// que o portal cobra do cliente deixar de aparecer neste preset.
+const GX_RE_AGUARDA_CLIENTE=/aguard|pendente.*client|waiting/i;
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
   g.carregando=true; g.erro='';
@@ -51,7 +57,7 @@ function gxLista(){
   else if(g.preset==='sematu') l=l.filter(t=>(!t.venc||t.venc<=hoje) && gxDiasSemAtu(t,hoje)>5);
   else if(g.preset==='semresp') l=l.filter(t=>!t.respId);
   else if(g.preset==='semvenc') l=l.filter(t=>!t.venc);
-  else if(g.preset==='cliente') l=l.filter(t=>/aguard|pendente.*client|waiting/i.test(t.status||''));
+  else if(g.preset==='cliente') l=l.filter(t=>GX_RE_AGUARDA_CLIENTE.test(t.status||''));
   else if(g.preset==='risco') l=l.filter(t=>gxRiscoM(t,hoje).s>=45);
   if(g.semTrat) l=l.filter(t=>!(cfg.tratados||{})[t.k]);
   const ord=g.ord||'risco';
