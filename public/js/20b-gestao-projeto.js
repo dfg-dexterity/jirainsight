@@ -255,7 +255,10 @@ function renderGp(){
   const cat=(typeof _projetosCache!=='undefined'&&_projetosCache)||[];
   const opts=[...new Set([...meus,...((c&&c.projs)||[]),...cat.map(p=>p.key)])].filter(k=>!rc||relProjOk(k)).sort((a,b)=>projNome(a).localeCompare(projNome(b),'pt'));
   const projSel=gp.proj&&!gp.proj.includes(',')?gp.proj:'';
-  const resps=c?[...new Map(c.Aall.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()].sort((x,y)=>x[1].localeCompare(y[1],'pt')):[];
+  const resps=c?[...new Map(c.Aall.filter(t=>t.respId).map(t=>[t.respId,t.resp])).entries()]:[];
+  // Pessoa do link (?resp=) sem ticket no escopo: a opção existe mesmo assim — o filtro está ativo e o seletor tem que dizer.
+  if(c&&gp.resp&&gp.resp!=='__sem__'&&!resps.some(([a])=>a===gp.resp)) resps.push([gp.resp,gpNomeDe(c,gp.resp)]);
+  resps.sort((x,y)=>x[1].localeCompare(y[1],'pt'));
   const filtros=`<div class="ap-filtros gp-filtros">
     ${meus.length?`<div class="campo"><label>Escopo</label><button class="chip" data-gp-meus="1" aria-pressed="${gpMeusLigado()}" data-tip="${escA('Os projetos em que você é gerente: '+meus.join(', '))}">👤 Meus projetos (${meus.length})</button></div>`:''}
     <div class="campo"><label>Projeto</label><select id="gp-proj"><option value="">${gpMeusAtivo()?'todos os meus':'todos'}</option>${opts.map(k=>`<option value="${escA(k)}" ${projSel===k?'selected':''}>${esc(projNomeCod(k))}</option>`).join('')}</select></div>
@@ -270,7 +273,9 @@ function renderGp(){
   if(gp.erro&&!chaveOk){ cont.replaceChildren(el(`<div>${cab('a visão do gerente')}<div class="erro"><strong>Falha ao carregar.</strong> ${esc(gp.erro)} <button class="btn" id="gp-retry" style="margin-left:10px">Tentar de novo</button></div></div></div>`)); return; }
   if(!c||!chaveOk){ cont.replaceChildren(el(`<div>${cab('a visão do gerente')}<div class="estado">Buscando os tickets abertos${keys?` de ${esc(keys.join(', '))}`:''}…</div></div></div>`)); return; }
   const F=c.foto; const ant=c.ant||{};
-  const sub=`${esc(c.rotProj)} · ${c.A.length} aberto(s) · hoje ${esc(dataBR(c.hoje))}${F?` · foto de sexta ${esc(dataBR(F.ate))}`:(gp.fotoOk===false?' · sem foto semanal para comparar':'')}${rc?` · relatório ${esc(rc.id)}`:''}`;
+  // Cabeçalho: escopo, quantos abertos (e de quem, quando o filtro de pessoa está ativo — mesmo sem ticket), hoje e a foto.
+  const quem=gp.resp?(gp.resp==='__sem__'?' sem responsável':` de ${esc(gpNomeDe(c,gp.resp))}`):'';
+  const sub=`${esc(c.rotProj)} · ${c.A.length} aberto(s)${quem} · hoje ${esc(dataBR(c.hoje))}${F?` · foto de sexta ${esc(dataBR(F.ate))}`:(gp.fotoOk===false?' · sem foto semanal para comparar':'')}${rc?` · relatório ${esc(rc.id)}`:''}`;
   const kpi=(id2,rot,v,antV,sev)=>`<div class="vg-k ${sev||''}" data-gp-ir="${id2}" data-tip="clique para ir ao bloco"><div class="v">${v}</div><div class="l">${rot}</div>${gpDelta(v,antV)?`<div class="s">${gpDelta(v,antV)}</div>`:''}</div>`;
   const kpis=`<div class="gp-kpis">
     ${kpi('b1','⏰ vencidos',c.b.vencidos.length,ant.vencidos,c.b.vencidos.length?'bad':'good')}
