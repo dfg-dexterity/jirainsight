@@ -900,12 +900,16 @@ async function portalCliente(req, res, base, headers) {
   const auth = await validaJira(req);
   if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
 
-  // 🌐 Portal do projeto — rotas do GESTOR: além do token do Jira, exigem o papel de gestor
-  // (cfg.gestores, como no planejamento). O cliente nunca chega aqui: não tem token do Jira.
-  if (acao.startsWith('admin-') || acao === 'preview') {
-    if (!(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Ação restrita aos gestores (configure em ⚙️ Configurações).' });
-    return await portalAdmin(req, res, base, headers, auth, acao, body);
-  }
+  // 🌐 Portal do projeto e 🔐 contas do cliente — o papel de GESTOR (cfg.gestores, como no planejamento)
+  // é exigido para ESCREVER (admin-* por POST, preview, admin-refresh) e para tudo que mexe nas contas
+  // do cliente (contas|convidar|revogar|reativar|remover: "a conta nasce de um convite do gestor" vale
+  // no servidor, não só na tela). LER admin-projetos/admin-itens/admin-sugestoes por GET é de qualquer
+  // usuário validado no Jira — é o modo leitura do consultor no módulo. O cliente nunca chega aqui:
+  // não tem token do Jira.
+  const rotaGestor = acao.startsWith('admin-') || acao === 'preview' || ['contas', 'convidar', 'revogar', 'reativar', 'remover'].includes(acao);
+  const soLeitura = req.method !== 'POST' && ['admin-projetos', 'admin-itens', 'admin-sugestoes'].includes(acao);
+  if (rotaGestor && !soLeitura && !(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Ação restrita aos gestores (configure em ⚙️ Configurações).' });
+  if (acao.startsWith('admin-') || acao === 'preview') return await portalAdmin(req, res, base, headers, auth, acao, body);
 
   if (acao === 'contas') {   // lista as contas de um contrato
     const ct = String((req.query && req.query.ct) || body.contrato || '');

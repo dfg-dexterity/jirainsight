@@ -272,13 +272,16 @@ function pcliCarrega(cid){
     pcliReRender();
   });
 }
+// Só GESTORES veem e mexem nas contas (o servidor exige gestor em contas|convidar|revogar|reativar|remover):
+// para quem não é, o bloco abre só com a explicação — nem a lista é pedida, nem botão é oferecido.
 function pcliBlocoHTML(c){
-  const aberto=!!estado.admin.acessosAbertos[c.id];
+  const aberto=!!estado.admin.acessosAbertos[c.id]; const gestor=souAprovador();
   const dados=estado.admin.acessos[c.id];
   const n=Array.isArray(dados)?dados.length:null;
   const cab=`<button class="btn" data-pcli-abre="${escA(c.id)}" data-tip="Contas de e-mail e senha para o cliente acompanhar os chamados dele">
       ${aberto?'▾':'▸'} 👤 Acessos do cliente${n!=null?` (${n})`:''}</button>`;
   if(!aberto) return `<div class="ad-portal">${cab}<span class="muted small">área com login — cada pessoa tem a sua conta, revogável</span></div>`;
+  if(!gestor) return `<div class="pcli-bloco"><div class="ad-portal">${cab}</div><div class="muted small pcli-ro" style="padding:6px 0">🔒 Só gestores veem e gerenciam as contas do cliente (convidar, revogar, reativar).</div></div>`;
   let corpo;
   if(dados==='carregando'||dados===undefined) corpo='<div class="muted small" style="padding:6px 0">Carregando…</div>';
   else if(!Array.isArray(dados)) corpo=`<div class="muted small" style="padding:6px 0;color:#B45309">${esc(dados.erro)}</div>`;
@@ -842,7 +845,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     const cid=t.getAttribute('data-pcli-abre');
     const abrindo=!estado.admin.acessosAbertos[cid];
     estado.admin.acessosAbertos[cid]=abrindo;
-    if(abrindo && estado.admin.acessos[cid]===undefined) pcliCarrega(cid);
+    if(abrindo && estado.admin.acessos[cid]===undefined && souAprovador()) pcliCarrega(cid);   // quem não é gestor não lista (o servidor recusaria)
     pcliReRender();
   }
   else if(t.hasAttribute('data-pcli-add')){

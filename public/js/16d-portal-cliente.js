@@ -261,7 +261,7 @@ function ptProjetosHTML(contratos, gestor){
         <td><b>${esc(K)}</b><div class="muted small">${esc((p&&p.nome)||((typeof projNome==='function')?projNome(K):K))}${p&&p.noContrato===false?' · <span style="color:#B45309">fora do contrato</span>':''}</div></td>
         <td>${sit}</td>${num(n.pendencias,'pendências abertas (manuais) visíveis')}${num(n.decisoesVisiveis,'decisões abertas marcadas como visíveis')}${num(n.riscos,'riscos abertos/mitigados visíveis')}${num(n.faq,'perguntas do FAQ visíveis')}${num(n.reunioes,'reuniões manuais visíveis')}
         <td class="muted small">${p&&p.ultimoAcesso?esc(ptQuandoBR(p.ultimoAcesso)):'—'}</td>
-        <td class="pt-acoes"><button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|config">⚙️ configurar</button><button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|conteudo">📋 conteúdo</button><button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|preview" data-tip="Abre a pré-visualização: a página como o cliente vê">👁 como o cliente</button></td></tr>`); }); });
+        <td class="pt-acoes"><button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|config">${gestor?'⚙️ configurar':'⚙️ ver configuração'}</button><button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|conteudo">${gestor?'📋 conteúdo':'📋 ver conteúdo'}</button>${gestor?`<button class="btn rt-step" data-pt-abrir="${escA(K)}|${escA(c.id)}|preview" data-tip="Abre a pré-visualização: a página como o cliente vê">👁 como o cliente</button>`:''}</td></tr>`); }); });
   return aviso+`<div class="card full"><h2>Contratos × projetos <span>${contratos.length} contrato(s) com projetos mapeados${gestor?' · publique, configure e pré-visualize por projeto':''}</span>
       <button class="btn rt-step" data-pt-refresh-lista="1" data-tip="Reler os contadores e a situação de cada projeto" style="float:right">↻</button></h2>
     <div class="scroll-x"><table class="mp-tab-mini pt-tab"><thead><tr><th>Cliente</th><th>Projeto</th><th>Situação</th><th class="num">⚠</th><th class="num">🎯</th><th class="num">🛡</th><th class="num">❓</th><th class="num">📅</th><th>Último acesso</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
@@ -363,12 +363,14 @@ function ptNovoHTML(n){ const t=n.tipo; const T=PT_TIPOS[t]||PT_TIPOS.pendencia;
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primario" id="pt-novo-salvar">Salvar</button><button class="btn" id="pt-novo-cancelar">Cancelar</button><label class="check" style="padding:0"><input type="checkbox" data-pt-novo="visivel" ${n.visivel!==false?'checked':''}> visível ao cliente</label></div><div class="ap-fb" id="pt-novo-fb" hidden></div></div>`; }
 
 // ---- 4. 👤 Acessos: o bloco de contas do contrato, reaproveitado de 16-contratos-ams-receita.js ----
+// Só o GESTOR vê e mexe nas contas (o servidor exige gestor em contas|convidar|revogar|reativar|remover):
+// para quem não é, nem a lista é pedida — a seção explica quem cuida disso.
 function ptAcessosHTML(K, c, gestor){
-  estado.admin.acessosAbertos[c.id]=true; if(estado.admin.acessos[c.id]===undefined) pcliCarrega(c.id);
-  const pub=ptLista(c.id)?ptLista(c.id).filter(p=>p.publicado).map(p=>p.projeto):null;
+  if(gestor){ estado.admin.acessosAbertos[c.id]=true; if(estado.admin.acessos[c.id]===undefined) pcliCarrega(c.id); }
+  const pub=ptLista(c.id)?ptLista(c.id).filter(p=>p.publicado&&!p.outroContrato).map(p=>p.projeto):null;
   return `<div class="card full pt-acessos"><h2>👤 Acessos do cliente <span>contas de e-mail e senha do contrato <b>${esc(c.cliente||c.id)}</b> — valem para todos os projetos publicados nele${pub?` (${pub.length?pub.map(esc).join(', '):'nenhum publicado ainda'})`:''}</span></h2>
-    <div class="muted small">Ninguém se cadastra sozinho: a conta nasce de um <b>convite</b> seu, já amarrada a este contrato — é o contrato que define o que a pessoa vê. O convite vale 7 dias e uma vez só; como o painel não envia e-mail, o link aparece aqui para você mandar. Revogar corta a sessão aberta na hora seguinte. ${gestor?'':'<b>Só gestores convidam e revogam.</b>'}</div>
-    ${pcliBlocoHTML(c)}</div>`;
+    <div class="muted small">Ninguém se cadastra sozinho: a conta nasce de um <b>convite</b> de um gestor, já amarrada a este contrato — é o contrato que define o que a pessoa vê. O convite vale 7 dias e uma vez só; como o painel não envia e-mail, o link aparece aqui para mandar. Revogar corta a sessão aberta na hora seguinte.</div>
+    ${gestor?pcliBlocoHTML(c):'<div class="estado pt-acessos-ro">🔒 Só gestores veem e gerenciam as contas do cliente (convidar, revogar, reativar). Peça a um gestor de entrega.</div>'}</div>`;
 }
 
 // ---- 5. 👁 Pré-visualizar: a página do cliente num iframe, com a identidade do gestor por postMessage ----
