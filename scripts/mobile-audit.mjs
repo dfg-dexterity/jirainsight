@@ -105,7 +105,7 @@ for (const largura of LARGURAS) {
     viewport: { width: largura, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
   });
-  await ctx.addInitScript((id) => { try { localStorage.setItem('dexterity_apontar_id_v1', JSON.stringify(id)); localStorage.removeItem('dexterity_insights_cfg_v1'); } catch (e) {} }, ID);
+  await ctx.addInitScript((id) => { try { localStorage.setItem('dexterity_apontar_id_v1', JSON.stringify(id)); localStorage.removeItem('dexterity_insights_cfg_v1'); localStorage.setItem('jirainsight_tour_prioridades','1'); /* o tour de 1º acesso das Prioridades não entra na medida */ } catch (e) {} }, ID);
   for (const v of VISTAS) {
     const p = await ctx.newPage(); const erros = [];
     p.on('pageerror', (e) => erros.push(String(e.message || e).slice(0, 160)));
