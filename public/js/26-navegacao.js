@@ -124,6 +124,11 @@ function renderAbas(){
   const ativa=g.abas.find(a=>!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud)); if(ativa) abaLembra(g, ativa.v, ativa.aud);
   box.hidden=false; box.innerHTML=`<span class="abas-rot" data-tip="Grupo de abas — o menu lembra a última aba que você abriu aqui">${esc(g.rot)}</span>`+g.abas.map(a=>{ const on=!!a.v&&a.v===estado.vista&&(!a.aud||a.aud===aud);
     return `<button class="aba${on?' on':''}" ${a.v?`data-aba-v="${escA(a.v)}"${a.aud?` data-aba-aud="${escA(a.aud)}"`:''}`:`data-aba-acao="${escA(a.acao)}"`} aria-pressed="${on?'true':'false'}">${esc(a.rot)}${a.v?abaN(a.v):''}</button>`; }).join('');
+  // 📱 No celular a barra vira UMA linha que rola de lado (mobile.css): a aba ativa precisa ficar à vista.
+  // No computador a barra não rola (scrollWidth = clientWidth), então isto não faz nada.
+  const on=box.querySelector('.aba.on');
+  if(on&&box.scrollWidth>box.clientWidth+1){ const b=box.getBoundingClientRect(), r=on.getBoundingClientRect();
+    if(r.left<b.left||r.right>b.right) box.scrollLeft+=r.left-b.left-24; }
 }
 document.addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('#abas [data-aba-v],#abas [data-aba-acao]'); if(!t) return;
