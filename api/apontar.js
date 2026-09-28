@@ -174,20 +174,19 @@ async function avisaTeams(req, { issue, resumo, segundos, inicio, nomes, criadoP
   } catch (e) { return `erro Teams: ${String(e && e.message ? e.message : e).slice(0, 150)}`; }
 }
 
-// Aviso INDIVIDUAL no Teams (chat privado, em vez do canal): um POST por convidado
-// para o fluxo do Power Automate configurado em TEAMS_DM_WEBHOOK_URL, com o E-MAIL
-// da pessoa no corpo — o fluxo envia a mensagem 1:1 via Flow bot ("Postar mensagem
-// em um chat", destinatário = triggerBody()?['email']; a mensagem pode usar 'texto'
-// ou o 'cartao' adaptativo). Quem estiver sem e-mail é completado pelo cadastro do
-// Jira (conta de serviço); se ainda faltar, fica de fora e a resposta informa.
+// Aviso INDIVIDUAL no Teams (chat privado, em vez do canal): um POST por pessoa para o
+// fluxo do Power Automate configurado em TEAMS_DM_WEBHOOK_URL, com o E-MAIL da pessoa no
+// corpo — o fluxo envia a mensagem 1:1 via Flow bot ("Postar mensagem em um chat",
+// destinatário = triggerBody()?['email']; a mensagem pode usar 'texto' ou o 'cartao'
+// adaptativo). `mensagemDe(p)` devolve o corpo daquela pessoa ({titulo, texto, cartao, …}).
+// Quem estiver sem e-mail é completado pelo cadastro do Jira (conta de serviço); se ainda
+// faltar, fica de fora e a resposta informa. É o ÚNICO caminho de mensagem direta do
+// painel: os convites de reunião (abaixo) e o 📊 relatório semanal (api/teams.js, a
+// mensagem de cada gerente de projeto) passam por aqui — por isso é exportado.
 // Devolve null quando TEAMS_DM_WEBHOOK_URL não está configurada (usa-se o canal).
-async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pendentes, criadoPor }) {
+export async function avisaTeamsDM(pendentes, mensagemDe) {
   const webhook = process.env.TEAMS_DM_WEBHOOK_URL || '';
   if (!webhook) return null;
-  const h = Math.floor(segundos / 3600), m = Math.round((segundos % 3600) / 60);
-  const tempo = h && m ? `${h}h${String(m).padStart(2, '0')}` : (h ? `${h}h` : `${m}m`);
-  const dia = `${inicio.slice(8, 10)}/${inicio.slice(5, 7)}`;
-  const painel = `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}/?v=apontar`;
 
   // Completa e-mails que faltarem pelo cadastro de usuários do Jira.
   if (pendentes.some((p) => !p.email)) {
@@ -202,38 +201,46 @@ async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pend
   }
 
   const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  let enviados = 0; const semEmail = []; const falhas = [];
+  let enviados = 0; const semEmail = []; const falhas = []; const falhasIds = [];
   const enviaUm = async (p) => {
     if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); return; }
-    const texto = `**${criadoPor}** convidou você a apontar **${tempo}** (${dia}) na reunião **${issue}**${resumo ? ` — ${resumo}` : ''}.\n\n[Abrir o painel e confirmar com 1 clique](${painel})`;
-    const corpo = {
-      email: p.email, nome: p.nome || '', issue,
-      titulo: `👥 Convite de apontamento — ${issue}`,
-      texto,
-      cartao: {
-        type: 'message',
-        attachments: [{
-          contentType: 'application/vnd.microsoft.card.adaptive',
-          content: {
-            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-            type: 'AdaptiveCard', version: '1.4',
-            body: [
-              { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: `👥 Convite de apontamento — ${issue}` },
-              { type: 'TextBlock', wrap: true, text: texto },
-            ],
-          },
-        }],
-      },
-    };
+    const corpo = { email: p.email, nome: p.nome || '', ...(mensagemDe(p) || {}) };
     try {
       const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
       if (r.status >= 200 && r.status < 300) enviados += 1;
-      else falhas.push(`${p.nome || p.email}: HTTP ${r.status}`);
-    } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); }
+      else { falhas.push(`${p.nome || p.email}: HTTP ${r.status}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
+    } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
   };
   // 5 avisos por vez (eram um a um em série: uma reunião grande segurava a resposta por vários segundos)
   for (let i = 0; i < pendentes.length; i += 5) await Promise.allSettled(pendentes.slice(i, i + 5).map(enviaUm));
-  return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5) };
+  // `falhasIds`: os accountIds que NÃO receberam (o relatório semanal reenvia só para eles no tique seguinte).
+  return { enviados, total: pendentes.length, semEmail, falhas: falhas.slice(0, 5), falhasIds };
+}
+// Convite de reunião no chat de cada convidado (o texto é o mesmo para todos).
+async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pendentes, criadoPor }) {
+  const h = Math.floor(segundos / 3600), m = Math.round((segundos % 3600) / 60);
+  const tempo = h && m ? `${h}h${String(m).padStart(2, '0')}` : (h ? `${h}h` : `${m}m`);
+  const dia = `${inicio.slice(8, 10)}/${inicio.slice(5, 7)}`;
+  const painel = `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}/?v=apontar`;
+  const texto = `**${criadoPor}** convidou você a apontar **${tempo}** (${dia}) na reunião **${issue}**${resumo ? ` — ${resumo}` : ''}.\n\n[Abrir o painel e confirmar com 1 clique](${painel})`;
+  const titulo = `👥 Convite de apontamento — ${issue}`;
+  return avisaTeamsDM(pendentes, () => ({
+    issue, titulo, texto,
+    cartao: {
+      type: 'message',
+      attachments: [{
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        content: {
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          type: 'AdaptiveCard', version: '1.4',
+          body: [
+            { type: 'TextBlock', size: 'Medium', weight: 'Bolder', text: titulo },
+            { type: 'TextBlock', wrap: true, text: texto },
+          ],
+        },
+      }],
+    },
+  }));
 }
 
 // ---------------- GET: convites pendentes da pessoa ----------------

@@ -140,6 +140,8 @@ function abreMetas(){
 // (ranking + resumo IA), metas/ausências/feriados, pessoas, projetos, custos,
 // travas, identidade, auditoria. Tudo salvo na config compartilhada (salvaCfg).
 function cfgResumoTeams(){ return Object.assign({ ativo:false, freq:'semanal', dia:5, hora:'17:00' }, cfg.teamsResumo||{}); }
+// 📊 Relatório semanal de sexta (cfg.relSemanal) — só LÊ; o objeto só nasce em cfg quando alguém salva.
+function cfgRelSemanal(){ return Object.assign({ ativo:false, dia:5, hora:'16:00', parado:5 }, cfg.relSemanal||{}); }
 function optsHora(cur){ const ops=[];
   for(let h=6;h<=20;h++) for(const m of ['00','30']){ const v=String(h).padStart(2,'0')+':'+m;
     ops.push(`<option value="${v}" ${v===cur?'selected':''}>${v}</option>`); }
@@ -147,7 +149,7 @@ function optsHora(cur){ const ops=[];
 function renderConfig(){
   const cont=document.getElementById('conteudo');
   const id=idApontar();
-  const r=cfgResumoTeams();
+  const r=cfgResumoTeams(); const s=cfgRelSemanal();
   const horaRank=/^\d{2}:\d{2}$/.test(cfg.teamsHora||'')?cfg.teamsHora:'08:00';
   const nMetas=Object.keys(cfg.metasPessoa||{}).length, nAus=(cfg.ausencias||[]).length,
     nOc=(cfg.ocultos||[]).length, nFer=Object.keys(cfg.feriadosExtra||{}).length+(cfg.feriadosRemovidos||[]).length,
@@ -192,6 +194,22 @@ function renderConfig(){
             <div class="campo" style="max-width:140px"><label>Enviar às</label>
               <select id="cf-res-hora" ${r.ativo?'':'disabled'}>${optsHora(/^\d{2}:\d{2}$/.test(r.hora||'')?r.hora:'17:00')}</select></div>
             <button class="btn" id="cf-teste-res" data-tip="Gera o resumo por IA sem enviar — pode levar ~1 min">🧪 Testar (sem enviar)</button>
+          </div>
+        </div>
+        <div class="cfgc-sec">
+          <h3>📊 Relatório semanal de sexta</h3>
+          <div class="muted small">A <strong>foto da semana</strong> — planejado × orçado × realizado, reuniões, tickets criados/concluídos e qualidade da informação, com Δ vs a semana anterior — vai para <strong>3 lugares</strong>:
+            o <strong>canal dos gestores</strong> (<code>TEAMS_GESTORES_WEBHOOK_URL</code>), uma <strong>mensagem direta a cada gerente de projeto</strong> com o que está vencido e parado por pessoa nos projetos dele
+            (<code>TEAMS_DM_WEBHOOK_URL</code>, o mesmo caminho dos convites; os gerentes ficam na ficha do 📁 projeto) e a tela <strong>📊 Relatório semanal</strong> do app (cada um vê pelo seu papel).
+            No Teams vão só horas e contagens — nunca valores em R$. O robô tira a foto no dia e hora marcados e envia no tique seguinte (~30 min); exige <code>CRON_SECRET</code> na Vercel.</div>
+          <label class="cfgc-tog"><input type="checkbox" id="cf-sem-ativo" ${s.ativo?'checked':''}> <strong>Enviar automaticamente</strong></label>
+          <div class="mt-form">
+            <div class="campo"><label>Dia da foto</label>
+              <select id="cf-sem-dia" ${s.ativo?'':'disabled'}>${diasSem.map(([v,l])=>`<option value="${v}" ${Number(s.dia||5)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+            <div class="campo" style="max-width:140px"><label>A partir das</label>
+              <select id="cf-sem-hora" ${s.ativo?'':'disabled'}>${optsHora(/^\d{2}:\d{2}$/.test(s.hora||'')?s.hora:'16:00')}</select></div>
+            <div class="campo" style="max-width:200px"><label>Parado = dias sem atualização</label>
+              <input id="cf-sem-parado" type="number" min="1" max="60" step="1" value="${escA(String(s.parado||5))}" data-tip="Ticket em andamento sem nenhuma atualização há N dias conta como parado — na foto e na tela 🧭 Pendências do projeto"></div>
           </div>
         </div>
         <div class="ap-fb" id="cf-fb" hidden style="margin-top:10px"></div>
@@ -282,7 +300,8 @@ function renderConfig(){
         <div class="muted small">Configuradas por variáveis de ambiente na <strong>Vercel</strong> (um administrador):<br>
           · <code>ANTHROPIC_API_KEY</code> — resumo de atividades e Qualidade (IA)<br>
           · <code>TEAMS_WEBHOOK_URL</code> — envios ao canal do Teams<br>
-          · <code>TEAMS_DM_WEBHOOK_URL</code> — aviso <strong>individual</strong> (chat privado) dos convites de reunião; fluxo do Power Automate que lê <code>email</code>/<code>texto</code> do corpo<br>
+          · <code>TEAMS_DM_WEBHOOK_URL</code> — aviso <strong>individual</strong> (chat privado) dos convites de reunião e das pendências de cada gerente no 📊 relatório semanal; fluxo do Power Automate que lê <code>email</code>/<code>texto</code> do corpo<br>
+          · <code>TEAMS_GESTORES_WEBHOOK_URL</code> — canal dos gestores (cartão do 📊 relatório semanal de sexta; exige <code>CRON_SECRET</code>)<br>
           · <code>JIRA_EMAIL/JIRA_API_TOKEN</code> e <code>CLOCKWORK_API_TOKEN</code> — leituras (conta de serviço)<br>
           · <code>SUPABASE_URL/SUPABASE_ANON_KEY</code> — config compartilhada<br>
           · <code>ODOO_URL/ODOO_DB/ODOO_LOGIN/ODOO_API_KEY</code> — custos e folgas<br>
@@ -372,5 +391,13 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   else if(t.id==='cf-res-freq'){ const r=cfgResumoTeams(); r.freq=(t.value==='diario'?'diario':'semanal'); cfg.teamsResumo=r; salvaCfg(); renderConfig(); }
   else if(t.id==='cf-res-dia'){ const r=cfgResumoTeams(); r.dia=Math.min(5,Math.max(1,Number(t.value)||5)); cfg.teamsResumo=r; salvaCfg(); }
   else if(t.id==='cf-res-hora'){ if(/^\d{2}:\d{2}$/.test(t.value)){ const r=cfgResumoTeams(); r.hora=t.value; cfg.teamsResumo=r; salvaCfg(); } }
+  // 📊 Relatório semanal de sexta — grava só quando a pessoa mexe (cfgRelSemanal nunca cria o objeto no render).
+  else if(t.id==='cf-sem-ativo'){ const s=cfgRelSemanal(); s.ativo=!!t.checked; cfg.relSemanal=s; salvaCfg();
+    toast(s.ativo?`📊 Relatório semanal no Teams: ATIVADO — foto no dia ${s.dia} da semana a partir das ${s.hora}, envio no tique seguinte.`:'Relatório semanal no Teams: desativado.','ok'); renderConfig(); }
+  else if(t.id==='cf-sem-dia'){ const s=cfgRelSemanal(); s.dia=Math.min(5,Math.max(1,Number(t.value)||5)); cfg.relSemanal=s; salvaCfg(); }
+  else if(t.id==='cf-sem-hora'){ if(/^\d{2}:\d{2}$/.test(t.value)){ const s=cfgRelSemanal(); s.hora=t.value; cfg.relSemanal=s; salvaCfg(); } }
+  else if(t.id==='cf-sem-parado'){ const n=Math.round(Number(t.value)); const s=cfgRelSemanal();
+    if(n>=1&&n<=60){ s.parado=n; cfg.relSemanal=s; salvaCfg(); toast(`🧊 "Parado" = ${n} dia(s) sem atualização — vale para a próxima foto e para as Pendências do projeto.`,'ok'); }
+    else { t.value=String(s.parado||5); toast('Informe de 1 a 60 dias.','warn'); } }
 });
 

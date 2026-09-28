@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso'];
+const VISTAS=['visao','acoes','inbox','projetos','agenda','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal'];
 // 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
 // favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
 const VISTA_ALIAS={
@@ -50,6 +50,7 @@ function leURL(){
   if(/^rp[a-z0-9]+$/.test(p.get('rpid')||'')) estado.rentab.sel=p.get('rpid');   // 💹 Rentabilidade: plano aberto
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(p.get('semana')||'')&&estado.semanal) estado.semanal.sel=p.get('semana');   // 📊 Relatório semanal: semana (segunda) aberta pelo link
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:p.get('proj')||'',
     tipo:p.get('tipo')||'' };
 }
@@ -83,6 +84,7 @@ function estadoParaURL(){
   if(estado.vista==='metricas'){ const mt=estado.metricas; if(mt.sigla) p.set('rsig',mt.sigla); if(mt.proj) p.set('mproj',mt.proj); }
   if(estado.vista==='rentab' && estado.rentab.sel) p.set('rpid',estado.rentab.sel);
   if(estado.vista==='cronograma' && estado.cronograma.proj) p.set('cproj',estado.cronograma.proj);
+  if(estado.vista==='semanal' && estado.semanal && estado.semanal.sel) p.set('semana',estado.semanal.sel);
   if(estado.vista==='rateio'){ const ks=rtParse(estado.rateio.texto);
     if(ks.length&&ks.length<=30) p.set('rtk',ks.join(','));   // link compartilhável (listas curtas)
   }

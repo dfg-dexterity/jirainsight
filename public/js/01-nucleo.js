@@ -145,6 +145,7 @@ function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], fe
   agendaIgnorar:{},                   // 🚫 {'s:serie'|'e:evento':{titulo,serie,por,quando}} — reunião que NÃO precisa de ticket
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
+  relSemanal:{ ativo:false, dia:5, hora:'16:00', parado:5 },   // 📊 Relatório semanal de sexta: dia/hora da foto + "parado" = N dias sem atualização
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
   reuniao:{ facilitador:'Jéssica Cavalheiro', ultimaReuniao:'', ataUltimaUrl:'', prioridades:{},
     statusDecisao:['Proposta de Solução','Aguardando Aprovação do Cliente','Aguardando Validação','Em Validação','📆 Reunião Agendada'],

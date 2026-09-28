@@ -559,6 +559,35 @@
   .uso-tab td:first-child{white-space:normal;min-width:160px}
   @media(max-width:640px){ .uso-disp{grid-template-columns:1fr} .uso-bar-td{display:none} }
 
+  /* 📊 Relatório semanal de sexta (18b) — só classes novas (sm-*); nada aqui toca o desenho de outra tela */
+  .sm-card{min-width:0} .sm-card .scroll-x{max-width:100%}
+  .sm-top{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .sm-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .sm-meta{margin:-6px 0 12px}
+  .sm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+  .sm-kpis.sm-minis{grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}
+  .sm-kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:8px;padding:12px 14px 10px;min-width:0;box-shadow:var(--sombra)}
+  .sm-kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+  .sm-kpi .v{font-family:var(--titulo);font-size:clamp(22px,2vw,30px);font-weight:700;line-height:1.1;margin-top:4px;letter-spacing:.3px}
+  .sm-kpi.sm-mini .v{font-size:20px}
+  .sm-kpi .sm-sub{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.3}
+  .sm-spark{margin-top:6px} .sm-spark svg{height:34px!important;display:block}
+  .sm-d{font-variant-numeric:tabular-nums;font-weight:600;color:var(--muted);white-space:nowrap}
+  .sm-d.sm-bom{color:var(--musgo)} .sm-d.sm-ruim{color:var(--err)}
+  .sm-fech{display:inline-block;border-radius:6px;padding:0 6px;font-size:10px;font-weight:700;letter-spacing:0;text-transform:none;background:rgba(0,153,148,.12);color:var(--cerceta);line-height:17px}
+  .sm-tab td small{display:block;font-size:10.5px;line-height:1.25;font-weight:600}
+  .sm-tab td small.muted{font-weight:400}
+  .sm-tab th[data-sm-sort]{cursor:pointer;user-select:none;white-space:nowrap} .sm-tab th.sorted{color:var(--cerceta)}
+  .sm-tab td{white-space:nowrap;vertical-align:top} .sm-tab td:first-child{white-space:normal;min-width:160px}
+  .sm-tab td.sm-ger{white-space:normal;min-width:120px;font-size:12px}
+  .sm-tab .sm-acoes-td{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px} .sm-tab .sm-acoes-td .lnk-ficha{text-decoration:none}
+  .sm-st{display:inline-block;border-radius:999px;padding:0 7px;font-size:10.5px;font-weight:600;line-height:16px;margin-left:5px;background:var(--trilho);color:var(--muted);vertical-align:middle}
+  .sm-st.aprovado{background:rgba(30,122,70,.12);color:var(--musgo)} .sm-st.enviado{background:rgba(180,83,9,.12);color:var(--amarelo)} .sm-st.devolvido{background:rgba(179,38,30,.1);color:var(--err)}
+  .sm-ia{white-space:pre-wrap;line-height:1.55;font-size:13.5px}
+  .sm-desvios{display:flex;flex-wrap:wrap;gap:8px}
+  .sm-dv{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;border:1px solid var(--linha);border-radius:999px;padding:3px 11px;font-size:12.5px;background:var(--cartao)}
+  .sm-vazio{line-height:1.6}
+
   /* 📅 Agenda (Outlook) */
   .ag-ev{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px dashed var(--linha)}
   .ag-ev:last-child{border-bottom:0}

@@ -1756,3 +1756,28 @@
   .aj-g{display:inline-flex;align-items:center;min-height:32px;padding:4px 10px;font-size:12px;vertical-align:middle}
 }
 /* ---- fim: global ---- */
+
+/* ---- 📱 grupo: semanal ---- */
+/* 📊 Relatório semanal: KPIs 2 por linha, ações com altura de dedo e o seletor de semana na largura
+   toda; as tabelas já rolam dentro do .scroll-x (nada empurra a página). */
+@media (max-width:600px){
+  .sm-kpis,.sm-kpis.sm-minis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .sm-kpi{padding:10px 10px 8px}
+  .sm-kpi .v{font-size:22px} .sm-kpi.sm-mini .v{font-size:18px}
+  .sm-kpi .l,.sm-kpi .sm-sub{font-size:12px}   /* rótulo do KPI, Δ e "média 4": legíveis no celular */
+  .sm-kpi .sm-sub{gap:6px}
+  .sm-top{flex-direction:column;align-items:stretch;gap:8px}
+  .sm-top .hdr-sel>span{font-size:12px}
+  .sm-top .hdr-sel select{width:100%}
+  .sm-acoes{margin-left:0}
+  .sm-acoes .btn{min-height:44px;flex:1 1 auto}
+  .sm-meta{margin:0 0 10px}
+  .sm-tab td:first-child{min-width:130px}
+  .sm-dv{flex:1 1 100%}
+}
+@media (pointer:coarse){
+  .sm-tab th[data-sm-sort]{padding-top:10px;padding-bottom:10px}
+  .sm-tab .sm-acoes-td .lnk-ficha{line-height:30px;padding:0 10px}
+  .sm-card h2 .rc-cods .rc-cod{display:inline-flex;align-items:center;min-height:32px;padding:0 10px;font-size:12px}   /* selo R28 com altura de dedo */
+}
+/* ---- fim: semanal ---- */
