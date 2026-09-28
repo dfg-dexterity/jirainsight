@@ -269,7 +269,7 @@ function renderGp(){
   if(!c||!chaveOk){ cont.replaceChildren(el(`<div>${cab('a visão do gerente')}<div class="estado">Buscando os tickets abertos${keys?` de ${esc(keys.join(', '))}`:''}…</div></div></div>`)); return; }
   const F=c.foto; const ant=c.ant||{};
   const sub=`${esc(c.rotProj)} · ${c.A.length} aberto(s) · hoje ${esc(dataBR(c.hoje))}${F?` · foto de sexta ${esc(dataBR(F.ate))}`:(gp.fotoOk===false?' · sem foto semanal para comparar':'')}${rc?` · relatório ${esc(rc.id)}`:''}`;
-  const kpi=(id2,rot,v,antV,sev)=>`<div class="vg-k ${sev||''}" data-gp-ir="${id2}" data-tipk="clique para ir ao bloco"><div class="v">${v}</div><div class="l">${rot}</div>${gpDelta(v,antV)?`<div class="s">${gpDelta(v,antV)}</div>`:''}</div>`;
+  const kpi=(id2,rot,v,antV,sev)=>`<div class="vg-k ${sev||''}" data-gp-ir="${id2}" data-tip="clique para ir ao bloco"><div class="v">${v}</div><div class="l">${rot}</div>${gpDelta(v,antV)?`<div class="s">${gpDelta(v,antV)}</div>`:''}</div>`;
   const kpis=`<div class="gp-kpis">
     ${kpi('b1','⏰ vencidos',c.b.vencidos.length,ant.vencidos,c.b.vencidos.length?'bad':'good')}
     ${kpi('b2',`🧊 parados ≥ ${c.N}d`,c.b.parados.length,ant.parados,c.b.parados.length?'warn':'good')}
