@@ -901,7 +901,7 @@ function renderAcoes(){
     <h2>🌳 Onde crio meu ticket? <span>responda e crie no lugar certo — sem sair daqui</span></h2>
     <div id="arv-home">${arvHTML()}</div>
   </div>`;
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="ax-home">
     ${heroHtml}
     <div style="margin-top:14px">${cardApont}</div>
     ${cardTicket}

@@ -103,6 +103,120 @@
 
 /* ================= 4. Telas (cada bloco é de um grupo de telas) ================= */
 /* ---- 📱 grupo: inicio (⚡ Ações de hoje — blocos abaixo dos cards) ---- */
+/* .ax-home é a raiz da tela (renderAcoes): tudo aqui vale só na Início. */
+@media (max-width:760px){
+  /* ⏰ Vencidos por projeto: nome · barra · número na MESMA linha, detalhe embaixo.
+     O app.css mandava a barra para a linha toda e o número caía sozinho numa terceira. */
+  .ax-home .vp-row{grid-template-columns:minmax(0,1fr) 64px 28px;column-gap:8px;row-gap:3px;padding:8px}
+  .ax-home .vp-row>.vp-nome{grid-column:1;grid-row:1;white-space:normal;overflow-wrap:anywhere}
+  .ax-home .vp-row>.vp-bar{grid-column:2;grid-row:1}
+  .ax-home .vp-row>.vp-n{grid-column:3;grid-row:1}
+  .ax-home .vp-row>.vp-det{grid-column:1/-1;grid-row:2}
+  /* ⏱ Apontamento do time: cada pessoa em 3 linhas curtas, não 5 —
+     nome · hoje (barra) / semana · fita de dias / situação */
+  .ax-home .apr-l{grid-template-columns:10px minmax(0,1fr) auto;column-gap:8px;row-gap:3px;padding:7px 8px}
+  .ax-home .apr-l>.apr-dot{grid-column:1;grid-row:1}
+  .ax-home .apr-l>.apr-nome{grid-column:2;grid-row:1}
+  .ax-home .apr-l>.apr-hoje{grid-column:3;grid-row:1;justify-self:end;gap:6px}
+  .ax-home .apr-l>.apr-sem{grid-column:2;grid-row:2}
+  .ax-home .apr-l>.apr-fita{grid-column:3;grid-row:2;justify-self:end}
+  .ax-home .apr-l>.apr-st{grid-column:2/-1;grid-row:3;font-size:12px;white-space:normal}
+  .ax-home .apr-bar{flex-basis:40px}
+  .ax-home .apr-pct{font-size:12px}
+  /* os 4 números do time em 2×2 (no tablet sobrava 3 + 1 órfão) */
+  .ax-home .apr-topo{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  /* 📆 Fechamento: o botão não se espreme em 3 linhas ("Nota / atrasada / →") e a
+     lista não rola por dentro — no toque a rolagem aninhada cortava um item pela metade */
+  .ax-home .fx-row>.btn{flex:none;white-space:nowrap}
+  .ax-home .fx-card .fx-lista{max-height:none;overflow:visible}
+}
+@media (max-width:600px){
+  /* títulos dos cards: o subtítulo desce inteiro para a linha de baixo, em vez de
+     quebrar no meio da linha do título (com a entrelinha do título) */
+  .ax-home .card>h2{margin-bottom:10px;line-height:1.3}
+  .ax-home .card>h2>span:not(.nov-dot){display:block;margin:3px 0 0;line-height:1.4}
+
+  /* ações em linha (abrir na Gestão, criar mais, Timesheet, Ranking…): um grupo de
+     botões compactos com contorno, que se esticam para fechar a linha — não botões
+     soltos de 42px espalhados pela tela */
+  .ax-home .ap-vis{gap:6px!important}
+  .ax-home .ap-vis>.btn,.ax-home .hxd-col>div>.btn,.ax-home .ax-fontes>.btn,
+  .ax-home [data-nov-todas],.ax-home #apr-todos{flex:1 1 auto;min-height:40px;padding:8px 12px;
+    font-size:13.5px;line-height:1.2;border-radius:8px}
+  .ax-home .ap-vis>.btn:not(.primario),.ax-home .hxd-col>div>.btn,.ax-home .ax-fontes>.btn,
+  .ax-home [data-nov-todas],.ax-home #apr-todos{border-color:var(--linha);background:var(--cartao2)}
+  .ax-home .hxd-col>div>.btn,.ax-home [data-nov-todas],.ax-home #apr-todos{width:100%}
+  .ax-home .ap-vis>.muted.small{flex:1 1 100%}        /* "9 criado(s) por você…" acima dos botões */
+  .ax-home .ax-fontes{gap:4px 12px;font-size:12px}
+
+  /* ⏱ Apontamento do time: os 4 números 2 por linha e baixos (eram 4 caixas empilhadas) */
+  .ax-home .apr-kpi{padding:7px 10px}
+  .ax-home .apr-kpi b{font-size:19px}
+  .ax-home .apr-kpi span{font-size:12px;line-height:1.3}
+  .ax-home .apr-lista{gap:2px;margin-top:8px}
+
+  /* 📆 Fechamento do mês: o botão desce para baixo do texto (a coluna do botão
+     espremia o texto em 2–3 palavras por linha) */
+  .ax-home .fx-row{flex-wrap:wrap;align-items:flex-start;gap:6px 8px;padding:9px 10px;font-size:13px;line-height:1.45}
+  .ax-home .fx-row>span:first-child{flex:0 0 20px;text-align:center}
+  .ax-home .fx-row>.fx-txt{flex:1 1 calc(100% - 28px)}
+  .ax-home .fx-row>.btn{margin-left:28px;min-height:36px;padding:6px 12px;font-size:13px;
+    border-color:var(--linha);background:var(--cartao2);border-radius:8px}
+
+  /* 🏢 Time — ações de hoje: 2 cards por linha, como os do "seu dia" */
+  .ax-home .ax-grid:not(.ax-hero){grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ax-home .ax-grid:not(.ax-hero)>.ax-card{padding:12px 12px 8px;min-height:0;gap:4px;border-radius:12px}
+  .ax-home .ax-grid:not(.ax-hero) .ax-top{font-size:12.5px;line-height:1.3;gap:6px}
+  .ax-home .ax-grid:not(.ax-hero) .ax-top>span:first-child{display:none}   /* marca d'água: em meia largura caía no texto */
+  .ax-home .ax-grid:not(.ax-hero) .ax-num{font-size:30px}
+  .ax-home .ax-grid:not(.ax-hero) .ax-det{max-width:none;font-size:12px;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ax-home .ax-grid:not(.ax-hero) .ax-foot .btn{font-size:13px;text-align:left}
+  .ax-home .ax-grid:not(.ax-hero) .ax-foot .btn::before{content:'';position:absolute;inset:0;z-index:1}  /* o card todo é o alvo */
+  .ax-home .ax-var{font-size:12px}
+
+  /* 🆕 / 📅 Criados: número menor; selos das linhas legíveis */
+  .ax-home .nv-cards{gap:12px}
+  .ax-home .nv-cards .ax-num{font-size:30px}
+  .ax-home .hxd-row .badge{font-size:12px}
+  /* chave do ticket e "entrar ↗": área de toque maior sem mexer na altura da linha */
+  .ax-home .hxd-row>a:first-child,.ax-home .hxd-row>a.small{padding:9px 0;margin:-9px 0}
+  /* 🔍 da ficha: 36×36 (o min-height de 42px do toque abria um vão em cada linha) */
+  .ax-home .hxd-row>.rt-step{min-height:36px;min-width:36px;padding:0 6px}
+  /* Radar: com 2+ selos a 🔍 caía sozinha numa linha — chave + 🔍 em cima, título,
+     e os selos descem para a linha do projeto/data */
+  .ax-home .hxd-row:has(>.rt-step)>.badge{order:3}
+  .ax-home .nv-cards .ax-det{max-width:none}
+
+  /* 🧭 Radar: chips quebram em linhas, mas compactos e tocáveis */
+  .ax-home .ap-vis>.chip{min-height:32px;padding:5px 10px;font-size:12.5px}
+  .ax-home .rad-sep{margin:0 2px}
+
+  /* 🎫 Criar ticket rápido: o exemplo aparece em 3 linhas, não cortado em 2 */
+  .ax-home #qk-texto{min-height:96px!important}
+
+  /* 🌳 Onde crio: "Conceitos-chave" com alvo de toque de gente */
+  .ax-home .arv-defs>summary{padding:10px 0}
+
+  /* 🚀 Ir para: 2 atalhos por linha (eram 13 cartões empilhados) */
+  .ax-home .hx-atalhos{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .ax-home .hx-atalho{padding:10px;gap:3px}
+  .ax-home .hx-atalho b{font-size:13px;line-height:1.3}
+  .ax-home .hx-atalho .muted.small{font-size:12px;line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ax-home .hx-atalho .hx-area{margin-top:auto;padding-top:2px}
+
+  /* ✨ Novidades: a data em cima do texto (a coluna da data espremia o texto) e cada
+     novidade em até 6 linhas — o texto inteiro está em "Ver todas as novidades" */
+  .ax-home .nov-item{flex-direction:column;align-items:stretch;gap:2px}
+  .ax-home .nov-data{font-size:12px}
+  .ax-home .nov-txt{display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+}
+@media (max-width:400px){
+  /* "DEXTERITY ENTREGA" cabendo numa linha no meio-cartão de um celular de 360px */
+  .ax-home .hx-atalho{padding:9px}
+  .ax-home .hx-atalho .hx-area{letter-spacing:.2px}
+}
 /* ---- fim: inicio ---- */
 
 /* ---- 📱 grupo: pessoal (Inbox, Menções, Meu dia, Roadmap, Meu Planejamento, Planejado × realizado) ---- */
