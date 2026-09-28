@@ -50,7 +50,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // 🌐 Portal do cliente (16d): seção aberta, projeto/contrato em foco, o que veio do servidor (lista por
   // contrato; itens, decisões, sugestões e teste do calendário por projeto), o rascunho da configuração
   // (rasc/rascKey) e o item novo em edição. Nada disso vai para a config compartilhada.
-  portal:{ sec:'projetos', proj:'', ct:'', lista:{}, itens:{}, decs:{}, sug:{}, cal:{}, fichaB:{}, rasc:null, rascKey:'', novo:null, fTipo:'', fSt:'', salvando:false },
+  portal:{ sec:'projetos', proj:'', ct:'', lista:{}, itens:{}, decs:{}, sug:{}, cal:{}, calConf:{}, fichaB:{}, rasc:null, rascKey:'', novo:null, fTipo:'', fSt:'', salvando:false },
   // 📊 Uso do painel: período em dias, o lido do servidor e a pessoa aberta no detalhe.
   uso:{ dias:30, dados:null, carregando:false, erro:'', pessoa:'' },
   // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders

@@ -39,11 +39,26 @@ const PT_BLOCOS=[['progresso','📈 Progresso'],['cronograma','📅 Cronograma']
 const PT_RE_PROJ=/^[A-Z][A-Z0-9_]*$/;
 const PT_RE_EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PT_RE_GUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Erros do teste do calendário (api/_lib/portal.js → calendarioDoProjeto) em português para o gestor.
+// Erros do teste do calendário (api/_lib/portal.js → calendarioDoProjeto / calendarioDePessoa) em português para o gestor.
 const PT_CAL_ERROS={ permissao:'O aplicativo não tem permissão para ler este calendário: um grupo do Teams exige Group.Read.All no registro do aplicativo, e uma caixa compartilhada precisa existir no tenant.',
   'nao-configurado':'As credenciais do Microsoft 365 (MS_TENANT_ID / MS_CLIENT_ID / MS_CLIENT_SECRET) não estão configuradas na Vercel.',
   invalido:'Informe o e-mail da caixa compartilhada ou o GUID do grupo do Teams.', falha:'Não consegui falar com o Microsoft Graph agora — tente de novo em instantes.',
-  'sem-calendario':'Nenhum calendário salvo para este projeto.' };
+  pessoa:'Este e-mail é de uma pessoa do time (usuário do Jira ou gestor): a agenda pessoal dela INTEIRA iria para o cliente — reuniões com outros clientes, RH, tudo. Use a caixa compartilhada do projeto ou o GUID do grupo do Teams.',
+  'sem-calendario':'Informe o calendário (e-mail da caixa ou GUID do grupo) para testar.' };
+// O calendário só é gravado depois que o gestor TESTA o valor digitado e CONFIRMA a prévia (as próximas
+// reuniões que o cliente verá): a tela guarda o valor confirmado em estado.portal.calConf[K] e manda
+// `calendarioConfirmado` ao servidor, que recusa um calendário novo sem essa confirmação.
+function ptCalSalvo(K){ const i=ptInfo(K); return String((i&&i.config&&i.config.calendario)||'').trim(); }
+// Prévia do calendário: só vale para o valor que está no campo (calV); confirmar é o que libera o salvar.
+// É trocada em tempo real pelo `input` (sem redesenhar a tela — um redesenho no blur engoliria o clique seguinte).
+function ptCalResHTML(K, calV, gestor){ const st=ptSt(); const cal=st.cal[K]; const calAtual=cal&&cal!=='carregando'&&String(cal.calendario||'')===calV;
+  const calNovo=!!calV&&calV!==ptCalSalvo(K); const calConf=calNovo&&st.calConf[K]===calV;
+  if(cal==='carregando') return '<div class="muted small">Lendo o calendário…</div>';
+  if(calAtual&&cal.ok) return `<div class="aviso ok pt-cal-ok">✓ Calendário lido — <b>é isto que o cliente verá</b> em 📆 Próximas reuniões. ${cal.eventos.length?`Próximas: ${cal.eventos.map(e=>`<b>${esc(e.titulo)}</b> (${esc(ptQuandoCurto(e.inicio))}${e.link?' · <a href="'+escA(e.link)+'" target="_blank" rel="noopener noreferrer">entrar ↗</a>':''})`).join(' · ')}`:'Nenhuma reunião nos próximos 30 dias — o bloco aparece vazio para o cliente.'}
+    ${calNovo&&gestor?(calConf?'<div class="pt-cal-conf">✓ Calendário confirmado — clique em 💾 Salvar para gravar.</div>':'<div class="pt-cal-conf"><button class="btn primario rt-step" id="pt-cal-confirmar" type="button">✓ Confirmar este calendário</button> <span class="muted small">só depois disso o 💾 Salvar grava o calendário novo</span></div>'):''}</div>`;
+  if(calAtual) return `<div class="aviso pt-cal-erro">⚠ ${esc(PT_CAL_ERROS[cal.erro]||cal.erro||'Falha ao ler o calendário.')} <span class="muted small">${cal.erro==='pessoa'?'Este calendário não pode ser salvo.':'O cliente não vê este erro: para ele o bloco de reuniões só fica sem os eventos do calendário.'}</span></div>`;
+  return calNovo&&gestor?'<div class="muted small pt-cal-pend">Calendário alterado: teste e confirme a prévia antes de salvar.</div>':''; }
+function ptCalPendente(K, r){ const v=String((r&&r.calendario)||'').trim(); return !!v&&v!==ptCalSalvo(K)&&ptSt().calConf[K]!==v; }
 const ptSt=()=>estado.portal;
 function ptGestor(){ return souAprovador(); }
 function ptContratos(){ return (cfg.contratos||[]).filter(c=>c&&Array.isArray(c.projetos)&&c.projetos.length); }   // leitor: não cria nada em cfg
@@ -124,25 +139,38 @@ function ptGuardaCampo(t){ const st=ptSt(); const r=st.rasc; if(!r||!t||!t.getAt
   return false; }
 // Salva a configuração (upsert validado no servidor). Publicar/despublicar pede confirmação e vai para o
 // 🗒 Histórico de ações — a tabela é a fonte da verdade (atualizado_por); o log é o rastro no painel.
-function ptSalvaConfig(depois){
+// Um calendário novo só sai daqui depois de testado e confirmado (ptCalPendente). Se o projeto já está
+// publicado/configurado para OUTRO contrato, o servidor responde 409 e a troca só acontece com confirmação
+// explícita (forcar) — mover um projeto de contrato tira o acesso de quem está no contrato atual.
+function ptSalvaConfig(){
   const st=ptSt(); const K=st.proj; const c=ptContratoDe(K); const r=st.rasc; const info=ptInfo(K); if(!K||!c||!r||!info||st.salvando) return;
   const erro=ptValidaRasc(r); if(erro){ ptFb(erro,'err'); return; }
+  if(ptCalPendente(K,r)){ ptFb('Calendário do projeto: clique em "testar e confirmar" e confirme a prévia (as próximas reuniões) antes de salvar.','err'); return; }
   const { publicado, ...config }=r; const antesPub=!!info.publicado;
   if(publicado!==antesPub){ const ok=confirm(publicado?`Publicar ${K} para o cliente ${c.cliente||c.id}?\n\nQuem tem conta neste contrato passa a ver o projeto no portal na hora (progresso, pendências, decisões visíveis, riscos, time, reuniões, FAQ e links).`
     :`Despublicar ${K}?\n\nO cliente deixa de ver o projeto no portal imediatamente. A configuração e o conteúdo ficam guardados.`);
     if(!ok){ r.publicado=antesPub; renderPortal(); return; } }
-  st.salvando=true; ptFb('Salvando…','warn');
-  pcliApi('admin-config',{ corpo:{ projeto:K, contratoId:c.id, publicado, config } }).then(j=>{ st.salvando=false;
-    if(!j||!j.ok){ ptFb((j&&j.erro)||'Não consegui salvar.','err'); return; }
-    const l=ptLista(c.id); if(l){ const i=l.findIndex(p=>p.projeto===K); const novo={ ...(i>=0?l[i]:{ projeto:K, nome:ptNomeProj(K), n:{} }), ...(j.projeto||{}) }; if(i>=0) l[i]=novo; else l.push(novo); }
-    if(j.publicadoMudou) logAcao({ acao:publicado?'portal-publicar':'portal-despublicar', t:'', de:K, para:c.cliente||c.id, ok:true });
-    st.rasc=null; toast(publicado&&j.publicadoMudou?`🌐 ${K} publicado para ${c.cliente||'o cliente'}.`:(!publicado&&j.publicadoMudou?`${K} despublicado — o cliente não vê mais o projeto.`:'Configuração do portal salva.'),'ok');
-    if(depois==='testar') ptTestaCalendario(K); else renderPortal();
-  });
+  const corpo={ projeto:K, contratoId:c.id, publicado, config }; if(config.calendario&&st.calConf[K]===config.calendario) corpo.calendarioConfirmado=config.calendario;
+  const envia=(b)=>{ st.salvando=true; ptFb('Salvando…','warn');
+    pcliApi('admin-config',{ corpo:b }).then(j=>{ st.salvando=false;
+      if(j&&j.status===409&&j.contratoAtual&&!b.forcar){ const de=j.contratoAtual.cliente||j.contratoAtual.id;
+        const ok=confirm(`${K} já está ${j.contratoAtual.publicado?'publicado':'configurado'} para o contrato ${de}.\n\nMover para ${c.cliente||c.id}? Quem tem conta em ${de} deixa de ver o projeto na hora.`);
+        if(!ok){ ptFb(j.erro||'Não movido.','err'); return; } envia({ ...b, forcar:true }); return; }
+      if(!j||!j.ok){ ptFb((j&&j.erro)||'Não consegui salvar.','err'); return; }
+      const l=ptLista(c.id); if(l){ const i=l.findIndex(p=>p.projeto===K); const novo={ ...(i>=0?l[i]:{ projeto:K, nome:ptNomeProj(K), n:{} }), ...(j.projeto||{}), outroContrato:null }; if(i>=0) l[i]=novo; else l.push(novo); }
+      if(j.publicadoMudou) logAcao({ acao:publicado?'portal-publicar':'portal-despublicar', t:'', de:K, para:c.cliente||c.id, ok:true });
+      if(j.contratoMudou){ logAcao({ acao:'portal-mover-contrato', t:'', de:K, para:c.cliente||c.id, ok:true }); ptContratos().forEach(x=>{ if(x.id!==c.id) ptCarregaLista(x.id,true); }); }
+      st.rasc=null; delete st.calConf[K];
+      toast(publicado&&j.publicadoMudou?`🌐 ${K} publicado para ${c.cliente||'o cliente'}.`:(!publicado&&j.publicadoMudou?`${K} despublicado — o cliente não vê mais o projeto.`:(j.contratoMudou?`${K} movido para o contrato ${c.cliente||c.id}.`:'Configuração do portal salva.')),'ok');
+      renderPortal(); }); };
+  envia(corpo);
 }
-// Testa o calendário SALVO (o servidor lê a linha do projeto): mostra as próximas 3 reuniões ou o erro.
-function ptTestaCalendario(K){ const st=ptSt(); st.cal[K]='carregando'; renderPortal();
-  ptCarregaSug(K,true).then(s=>{ st.cal[K]=(s&&!s.erro)?(s.calendario||{ ok:false, erro:'sem-calendario', eventos:[] }):{ ok:false, erro:'falha', eventos:[] }; renderPortal(); }); }
+// Testa o calendário DIGITADO (admin-sugestoes&cal=…, sem gravar): mostra as próximas 3 reuniões — a prévia
+// do que o cliente verá — ou o erro (permissão, pessoa do time…). Quem confirma a prévia libera o salvar.
+function ptTestaCalendario(K, cal){ const st=ptSt(); const v=String(cal||'').trim(); st.cal[K]='carregando'; renderPortal();
+  pcliApi('admin-sugestoes',{ qs:'&p='+encodeURIComponent(K)+'&cal='+encodeURIComponent(v) }).then(j=>{
+    st.cal[K]=(j&&j.ok)?(j.calendario||{ ok:false, erro:'sem-calendario', eventos:[], calendario:v }):{ ok:false, erro:(j&&j.erro)||'falha', eventos:[], calendario:v };
+    if(j&&j.ok) st.sug[K]=j; renderPortal(); }); }
 
 // ---- conteúdo curado (jirainsight_portal_itens): cada mudança vai na hora para o servidor ----
 function ptItens(K){ const l=ptSt().itens[K]; return Array.isArray(l)?l:null; }
@@ -206,6 +234,7 @@ function ptSeletorFoco(a){ if(!a||!a.getAttribute) return '';
   for(const at of ['data-pt-cfg','data-pt-link','data-pt-eq','data-pt-novo','data-pt-item','data-pt-oculto','data-pt-bloco','data-pt-dec']){ const v=a.getAttribute(at); if(v!=null) return `[${at}="${v.replace(/"/g,'\\"')}"]`; }
   return a.id?'#'+a.id:''; }
 function ptBadgePub(info){ if(!info) return '<span class="badge pt-rasc" data-tip="Ainda sem linha no portal (ou a lista ainda não chegou)">rascunho</span>';
+  const o=info.outroContrato; if(o) return `<span class="badge pt-outro" data-tip="A linha deste projeto pertence a outro contrato: salvar aqui pede confirmação para mover (quem está lá deixa de ver)">${o.publicado?'publicado':'configurado'} para ${esc(o.cliente||o.id)}</span>`;
   return info.publicado?'<span class="badge pt-pub" data-tip="O cliente vê este projeto no portal">✓ publicado</span>':'<span class="badge pt-rasc" data-tip="Só você vê (pré-visualização); o cliente ainda não">rascunho</span>'; }
 
 // ---- 1. 🌐 Projetos: contrato × projeto ----
@@ -235,9 +264,9 @@ function ptConfigHTML(K, c, info, gestor){
   if(!info){ if(l&&l.erro) return `<div class="card full"><div class="estado" style="color:#B45309">${esc(l.erro)}</div></div>`; return '<div class="card full"><div class="estado">Carregando a configuração do portal…</div></div>'; }
   const r=ptRascunho(K); const ro=gestor?'':' disabled'; const sujo=ptRascSujo(K);
   const ficha=crFicha(K); if(!ficha) ptGaranteFicha(K);
-  const cal=st.cal[K]; const calHTML=cal==='carregando'?'<div class="muted small">Lendo o calendário…</div>'
-    :cal&&cal.ok?`<div class="aviso ok pt-cal-ok">✓ Calendário lido. ${cal.eventos.length?`Próximas reuniões: ${cal.eventos.map(e=>`<b>${esc(e.titulo)}</b> (${esc(ptQuandoCurto(e.inicio))}${e.link?' · <a href="'+escA(e.link)+'" target="_blank" rel="noopener noreferrer">entrar ↗</a>':''})`).join(' · ')}`:'Nenhuma reunião nos próximos 30 dias — o bloco aparece vazio para o cliente.'}</div>`
-    :cal?`<div class="aviso pt-cal-erro">⚠ ${esc(PT_CAL_ERROS[cal.erro]||cal.erro||'Falha ao ler o calendário.')} <span class="muted small">O cliente não vê este erro: para ele o bloco de reuniões só fica sem os eventos do calendário.</span></div>`:'';
+  const calV=String(r.calendario||'').trim(); const calNovo=!!calV&&calV!==ptCalSalvo(K);
+  const calHTML=`<div id="pt-cal-res">${ptCalResHTML(K,calV,gestor)}</div>`;
+  const outro=info.outroContrato; const avisoOutro=outro?`<div class="aviso pt-aviso-outro">⚠ <b>${esc(K)}</b> está ${outro.publicado?'<b>publicado</b>':'configurado'} para o contrato <b>${esc(outro.cliente||outro.id)}</b>. Salvar aqui <b>move</b> o projeto para ${esc(c.cliente||c.id)} (pede confirmação) — quem tem conta em ${esc(outro.cliente||outro.id)} deixa de ver o projeto na hora.</div>`:'';
   const links=r.links.map((x,i)=>`<tr><td><input type="text" data-pt-link="${i}|nome" value="${escA(x.nome)}" placeholder="nome do link"${ro}></td><td><input type="url" data-pt-link="${i}|url" value="${escA(x.url)}" placeholder="https://…" style="min-width:230px"${ro}></td><td><input type="text" data-pt-link="${i}|tipo" value="${escA(x.tipo)}" placeholder="ex.: planilha, ata, manual" style="min-width:110px"${ro}></td><td>${pcUrl(x.url)?`<a class="btn rt-step" href="${escA(pcUrl(x.url))}" target="_blank" rel="noopener noreferrer">abrir ↗</a>`:''}</td><td>${gestor?`<button class="btn rt-step" data-pt-link-rm="${i}" data-tip="Tirar este link">🗑</button>`:''}</td></tr>`).join('');
   const equipe=r.equipe.map((p,i)=>`<tr><td><input type="text" data-pt-eq="${i}|nome" value="${escA(p.nome)}" placeholder="nome"${ro}></td><td><input type="text" data-pt-eq="${i}|papel" value="${escA(p.papel)}" placeholder="ex.: gerente do projeto, consultor SAP FI"${ro}></td><td><input type="text" data-pt-eq="${i}|contato" value="${escA(p.contato)}" placeholder="e-mail ou Teams (opcional)"${ro}></td><td>${gestor?`<button class="btn rt-step" data-pt-eq-rm="${i}" data-tip="Tirar esta pessoa">🗑</button>`:''}</td></tr>`).join('');
   const sug=st.sug[K]; const sugNomes=(sug&&!sug.erro&&sug!=='carregando')?(sug.equipe||[]).map(x=>x.nome).filter(n=>n&&!r.equipe.some(p=>p.nome===n)):[];
@@ -247,13 +276,13 @@ function ptConfigHTML(K, c, info, gestor){
     :(st.fichaB[K]?'<div class="muted small">Carregando os épicos do Jira…</div>':'<div class="muted small">Não consegui ler os épicos agora.</div>');
   const orfaos=r.epicosOcultos.filter(k=>ficha&&eps.length&&!eps.some(e=>e.k===k));
   return `<div class="card full pt-form" data-pt-form="${escA(K)}"><h2>⚙️ Configurar <span>${esc(K)} · ${esc(ptNomeProj(K))} · cliente ${esc(c.cliente||c.id)}</span></h2>
-    <label class="check pt-pub-l"><input type="checkbox" id="pt-f-publicado" data-pt-cfg="publicado" ${r.publicado?'checked':''}${ro}> <b>Publicado para o cliente</b> <span class="muted small">— desmarcado, só você vê (👁 Pré-visualizar); marcado, quem tem conta no contrato vê o projeto no portal. Publicar e despublicar vão para o 🗒 Histórico de ações.</span></label>
+    ${avisoOutro}<label class="check pt-pub-l"><input type="checkbox" id="pt-f-publicado" data-pt-cfg="publicado" ${r.publicado?'checked':''}${ro}> <b>Publicado para o cliente</b> <span class="muted small">— desmarcado, só você vê (👁 Pré-visualizar); marcado, quem tem conta no contrato vê o projeto no portal. Publicar e despublicar vão para o 🗒 Histórico de ações.</span></label>
     <div class="campo"><label>Apresentação (texto curto de boas-vindas, até 600 caracteres)</label><textarea id="pt-f-apresentacao" data-pt-cfg="apresentacao" maxlength="600" rows="2" placeholder="ex.: Bem-vindo ao acompanhamento do rollout SAP. Aqui você vê o andamento, o que precisamos de você e as próximas reuniões."${ro}>${esc(r.apresentacao)}</textarea></div>
     <div class="pl-grid pt-links3">
       <div class="campo"><label>💬 Canal do Teams (link)</label><input type="url" id="pt-f-teams" data-pt-cfg="teamsUrl" value="${escA(r.teamsUrl)}" placeholder="https://teams.microsoft.com/l/channel/…" data-tip="No Teams: ⋯ do canal → Obter link do canal. Vira o botão 💬 em destaque no portal."${ro}></div>
       <div class="campo"><label>📂 Pasta do SharePoint (link)</label><input type="url" id="pt-f-pasta" data-pt-cfg="pasta" value="${escA(r.pasta)}" placeholder="https://dexterityit.sharepoint.com/sites/…" data-tip="Abrir → ⋯ → Copiar link. O painel guarda só o endereço; quem clica abre com a própria conta."${ro}></div>
-      <div class="campo pt-cal"><label>📅 Calendário do projeto</label><span class="pt-cal-l"><input type="text" id="pt-f-calendario" data-pt-cfg="calendario" value="${escA(r.calendario)}" placeholder="projeto-x@dexterityit.com.br ou GUID do grupo" style="min-width:250px"${ro}>${gestor?`<button class="btn rt-step" id="pt-cal-testar" type="button" data-tip="Lê as próximas reuniões deste calendário com as credenciais do aplicativo (só campos públicos)">${sujo?'💾 salvar e testar':'testar'}</button>`:''}</span>
-        <div class="muted small">A caixa compartilhada do projeto ou o calendário da equipe do Teams (GUID do grupo). O servidor lê <b>só este calendário</b> e só título, horário, local e link — nunca convidados nem pauta. As reuniões dos próximos 30 dias entram no bloco 📆 do cliente.</div>${calHTML}</div>
+      <div class="campo pt-cal"><label>📅 Calendário do projeto</label><span class="pt-cal-l"><input type="text" id="pt-f-calendario" data-pt-cfg="calendario" value="${escA(r.calendario)}" placeholder="projeto-x@dexterityit.com.br ou GUID do grupo" style="min-width:250px"${ro}>${gestor?`<button class="btn rt-step" id="pt-cal-testar" type="button" data-tip="Lê as próximas reuniões deste calendário com as credenciais do aplicativo (só campos públicos) — a prévia do que o cliente verá">${calNovo?'🔍 testar e confirmar':'testar'}</button>`:''}</span>
+        <div class="muted small">A caixa compartilhada do projeto ou o calendário da equipe do Teams (GUID do grupo) — <b>nunca o e-mail de uma pessoa</b> (a agenda pessoal inteira iria para o cliente; o servidor recusa). O servidor lê <b>só este calendário</b> e só título, horário, local e link — nunca convidados nem pauta. As reuniões dos próximos 30 dias entram no bloco 📆 do cliente. Um calendário novo só é gravado depois de <b>testado e confirmado</b>.</div>${calHTML}</div>
     </div>
     <div class="mp-h3" style="margin-top:10px">🔗 Links úteis <span class="mp-dim">chips no portal — cronograma detalhado, manuais, atas</span></div>
     ${r.links.length?`<div class="scroll-x"><table class="mp-tab-mini pt-tab"><thead><tr><th>Nome</th><th>Link</th><th>Tipo</th><th></th><th></th></tr></thead><tbody>${links}</tbody></table></div>`:'<div class="muted small">Nenhum link ainda.</div>'}
@@ -356,8 +385,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   // ⚙️ configurar
   const r=st.rasc;
   if(t.id==='pt-f-salvar'){ ptSalvaConfig(); return; }
-  if(t.id==='pt-f-desfazer'){ st.rasc=null; ptFb(''); renderPortal(); return; }
-  if(t.id==='pt-cal-testar'){ if(ptRascSujo(K)) ptSalvaConfig('testar'); else if(!String((r&&r.calendario)||'').trim()){ ptFb('Informe o calendário (e-mail da caixa ou GUID do grupo) e salve.','err'); } else ptTestaCalendario(K); return; }
+  if(t.id==='pt-f-desfazer'){ st.rasc=null; delete st.calConf[K]; ptFb(''); renderPortal(); return; }
+  if(t.id==='pt-cal-testar'){ const v=String((r&&r.calendario)||'').trim(); if(!v){ ptFb(PT_CAL_ERROS['sem-calendario'],'err'); return; } ptFb(''); ptTestaCalendario(K,v); return; }
+  if(t.id==='pt-cal-confirmar'){ const cal=st.cal[K]; const v=String((r&&r.calendario)||'').trim(); if(!cal||cal==='carregando'||!cal.ok||String(cal.calendario||'')!==v) return; st.calConf[K]=v; ptFb(''); renderPortal(); return; }
   if(t.hasAttribute('data-pt-link-add')){ if(r){ r.links.push({ nome:'', url:'', tipo:'' }); renderPortal(); setTimeout(()=>{ const i=document.querySelector(`[data-pt-link="${r.links.length-1}|nome"]`); if(i) i.focus(); },0); } return; }
   if(t.hasAttribute('data-pt-link-rm')){ if(r){ r.links.splice(+t.getAttribute('data-pt-link-rm'),1); renderPortal(); } return; }
   if(t.hasAttribute('data-pt-eq-add')){ if(r){ r.equipe.push({ nome:'', papel:'', contato:'' }); renderPortal(); setTimeout(()=>{ const i=document.querySelector(`[data-pt-eq="${r.equipe.length-1}|nome"]`); if(i) i.focus(); },0); } return; }
@@ -380,12 +410,13 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
       toast('Cache do portal descartado — a prévia foi recarregada com o Jira de agora.','ok'); const f=document.getElementById('pt-preview'); if(f) f.setAttribute('src',f.getAttribute('src')); }); return; }
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{ if(estado.vista!=='portal') return; const t=e.target; if(!t||!t.getAttribute) return;
-  if(ptGuardaCampo(t)){ const b=document.getElementById('pt-cal-testar'); if(b) b.textContent=ptRascSujo(ptSt().proj)?'💾 salvar e testar':'testar'; return; }
+  if(ptGuardaCampo(t)){ if(t.getAttribute('data-pt-cfg')==='calendario'){ const K=ptSt().proj; const v=String((ptSt().rasc||{}).calendario||'').trim(); const b=document.getElementById('pt-cal-testar'); if(b) b.textContent=(v&&v!==ptCalSalvo(K))?'🔍 testar e confirmar':'testar';
+      const res=document.getElementById('pt-cal-res'); if(res) res.innerHTML=ptCalResHTML(K,v,ptGestor()); } return; }
   const nv=t.getAttribute('data-pt-novo'); if(nv&&ptSt().novo){ ptSt().novo[nv]=t.type==='checkbox'?!!t.checked:((nv==='inicio'||nv==='fim')?ptIsoSP(t.value):String(t.value||'')); } });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='portal') return; const st=ptSt(); const K=st.proj; const t=e.target; if(!t||!t.getAttribute) return;
   if(t.id==='pt-f-st'){ st.fSt=String(t.value||''); renderPortal(); return; }
-  if(ptGuardaCampo(t)){ if(t.getAttribute('data-pt-cfg')==='publicado'&&!ptGestor()) t.checked=!t.checked; const b=document.getElementById('pt-cal-testar'); if(b) b.textContent=ptRascSujo(K)?'💾 salvar e testar':'testar'; return; }
+  if(ptGuardaCampo(t)){ if(t.getAttribute('data-pt-cfg')==='publicado'&&!ptGestor()) t.checked=!t.checked; return; }
   const nv=t.getAttribute('data-pt-novo'); if(nv&&st.novo){ st.novo[nv]=t.type==='checkbox'?!!t.checked:((nv==='inicio'||nv==='fim')?ptIsoSP(t.value):String(t.value||'')); return; }
   // uma célula da tabela de conteúdo mudou: salva o item inteiro (o servidor valida; erro = volta ao que estava)
   if(t.hasAttribute('data-pt-item')){ if(!ptGestor()) return; const [id,campo]=t.getAttribute('data-pt-item').split('|'); const it=(ptItens(K)||[]).find(x=>x.id===id); if(!it) return;

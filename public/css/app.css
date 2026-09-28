@@ -1199,6 +1199,9 @@
   .pt-foco{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border:1px dashed var(--linha2);border-radius:10px;background:var(--cartao2)}
   .pt-aviso-dom code{font-family:var(--mono,ui-monospace,monospace);font-size:12px;word-break:break-all}
   .badge.pt-pub{background:rgba(16,185,129,.14);color:#047857;font-weight:700} .badge.pt-rasc{background:var(--trilho);color:var(--muted)}
+  .badge.pt-outro{background:rgba(180,83,9,.14);color:#B45309;font-weight:700}   /* a linha do projeto é de OUTRO contrato */
+  .pt-aviso-outro{margin-bottom:10px}
+  .pt-cal-conf{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .pt-tab input[type=text],.pt-tab input[type=url],.pt-tab input[type=date],.pt-tab input[type=datetime-local],.pt-tab input[type=number],.pt-tab select{font-family:var(--corpo);font-size:13px;padding:5px 7px;border:1px solid var(--linha);border-radius:7px;background:var(--cartao);color:var(--grafite);min-width:0}
   .pt-tab select{min-width:90px} .pt-tab td.pt-acoes{white-space:nowrap} .pt-tab tr.pt-l-pub td:first-child{border-left:3px solid #047857}
   .pt-form input[type=url],.pt-form input[type=text]{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:260px}
