@@ -291,7 +291,7 @@ function renderRentab(){
     <div class="muted small">A base é o <b>projeto do Jira</b> e o <b>tipo</b> define o modelo de receita: <b>⏱ horas abertas</b> (início, fim, horas por dia e valor da hora → receita prevista mês a mês, receita realizada e a cotação no Odoo), <b>📦 escopo fechado</b> (valor do projeto e <b>marcos de faturamento</b>) e <b>🏠 interno</b> (um <b>orçamento de custo</b> consumido pela alocação da equipe). Em cada <b>cenário</b> você aloca as pessoas (por período, em horas por dia útil, por mês ou no total; execução e gestão) e vê na hora o <b>esforço previsto</b>, o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> ou o <b>saldo do orçamento</b>. As <b>horas realizadas</b> do projeto (Clockwork) entram na comparação com o planejado e na rentabilidade real. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor?'<button class="btn primario" data-rp-novo="1">＋ Novo plano</button>':''}
       ${r.sel?'<button class="btn" data-rp-voltar="1">‹ Todos os planos</button>':''}</div></div>`;
-  if(r.novo&&gestor){ cont.replaceChildren(el(`<div class="rp-tela">${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); return; }
+  if(r.novo&&gestor){ cont.replaceChildren(el(`<div class="rp-tela">${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); rpFormAjustaTipo(); return; }
   if(!r.sel){
     const cards=planos.map(p=>{ const c=rpCalc(p,rpCenario(p)); const [stc,str]=rpStatus(p); const T=RP_TIPOS[c.tipo];
       const kpi1=c.tipo==='interno'?['Orçamento',fmtBRL(c.orc)]:c.tipo==='fechado'?['Valor do projeto',fmtBRL(c.valorProj)]:['Receita prevista',fmtBRL(c.receita)];
@@ -575,6 +575,7 @@ function renderRentab(){
       ${comp}
       ${histHtml}
     </div></div>`));
+  rpFormAjustaTipo();   // o formulário abre já só com os campos do tipo escolhido (antes só ao trocar o Tipo)
   if(r.focoCel){ const e=cont.querySelector(`[data-rp-cel="${r.focoCel}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoCel=''; }
   if(r.focoVend){ const e=cont.querySelector(`[data-rp-vend="${r.focoVend}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoVend=''; }
 }

@@ -35,6 +35,8 @@
   #btn-guia{bottom:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
   #to-top{bottom:66px;bottom:calc(66px + env(safe-area-inset-bottom,0px))}
   #btn-guia .nov-dot{position:absolute;top:5px;right:5px;margin:0}
+  /* rodapé "Fontes": documentação longa em toda tela — no celular fica curto (clamp), inteiro no computador */
+  footer{font-size:11.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   /* a barra de abas vazia (tela sem grupo) recebe hidden, mas o display:flex do app.css
      ganhava do atributo — sobrava um fio de 2px e 10px de margem sob o cabeçalho */
   .abas-tela[hidden]{display:none}
@@ -61,6 +63,17 @@
   #grp-exportar>.hdrmenu-b .nav-car{font-size:12px;margin-left:2px}
   .hdr-tools .atualizado{order:0;margin-left:auto;width:auto;white-space:nowrap}
   .atu-dia{display:none}                 /* "Atualizado em 15:42:51" — a data é hoje */
+  /* filtros do topo (Pessoa · Categoria · Projeto · Tipo) tomavam meia tela em coluna: 2 por linha */
+  .filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-bottom:14px;align-items:end}
+  .filtros .campo{width:auto;min-width:0}
+  .filtros select{width:100%;min-width:0}
+  /* os botões flutuantes cobriam números e a 🔍 no canto direito: no celular saem daqui —
+     o guia continua em ⋯ Mais › 🧭 Guia desta tela (e na tecla ?), e o iPhone volta ao topo tocando na hora */
+  #to-top,#btn-guia{display:none}
+}
+@media (max-width:380px){
+  .atu-rot{display:none}                 /* iPhone SE/mini: só a hora, senão cai de linha */
+  .atualizado::before{content:'↻ '}
 }
 
 /* ================= 2. Toque: campos que não dão zoom no iPhone ================= */
@@ -68,6 +81,9 @@
   /* o Safari dá zoom ao focar campo com fonte < 16px; seletores mais específicos do
      app.css (13px em formulários compactos) ganhavam da regra antiga — daí o !important */
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea{font-size:16px!important}
+  /* .btn{min-height:42px} do app.css vencia .rt-step{min-height:0} e toda pílula pequena virava 42px:
+     36px basta para o dedo e não estica as linhas das tabelas */
+  .btn.rt-step{min-height:36px;padding:4px 10px}
 }
 
 /* ================= 3. Início (⚡ Ações de hoje) ================= */

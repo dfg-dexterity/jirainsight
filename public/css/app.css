@@ -2171,6 +2171,7 @@
   td.ts-click{cursor:pointer}
   td.ts-click:hover{outline:2px solid var(--cerceta);outline-offset:-2px}
   .ts-drill{display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow:auto}
+  .ts-drill>*{flex-shrink:0}   /* com muitos chamados as linhas se esmagavam em vez de rolar */
   .ts-dproj{border:1px solid var(--linha);border-radius:9px;background:var(--cartao2);overflow:hidden}
   .ts-dproj>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px}
   .ts-dproj>summary::-webkit-details-marker{display:none}

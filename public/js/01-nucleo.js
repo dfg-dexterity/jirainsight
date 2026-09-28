@@ -332,6 +332,16 @@ document.addEventListener('mousemove', (e)=>{
   else escondeTip();
 }, {passive:true});
 document.addEventListener('scroll', escondeTip, {passive:true, capture:true});
+// No toque não existe mousemove: um toque em [data-tip] mostra a dica por 2,5 s (e some ao tocar fora).
+let _tipTimer=0;
+document.addEventListener('click', (e)=>{
+  if(!(window.matchMedia&&matchMedia('(pointer:coarse)').matches)) return;
+  const t=e.target.closest && e.target.closest('[data-tip]');
+  clearTimeout(_tipTimer);
+  if(!t){ escondeTip(); return; }
+  mostraTip(t.getAttribute('data-tip'), t.getAttribute('data-tip2'), t.getAttribute('data-tipk'), e.clientX, e.clientY);
+  _tipTimer=setTimeout(escondeTip, 2500);
+}, {passive:true});
 
 // ---- Datas (fuso America/Sao_Paulo no cliente, aritmética em UTC nas strings) ----
 const hojeSP = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());

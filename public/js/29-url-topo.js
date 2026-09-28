@@ -112,7 +112,7 @@ async function recarrega(forca){
     await carrega(estado.periodo, forca===true);
     // A data fica num <span> para o celular mostrar só a hora (o cabeçalho cabe numa linha).
     const quando=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}); const qi=quando.indexOf(', ');
-    document.getElementById('atualizado').innerHTML='Atualizado em '+(qi>0
+    document.getElementById('atualizado').innerHTML='<span class="atu-rot">Atualizado em </span>'+(qi>0
       ?`<span class="atu-dia">${esc(quando.slice(0,qi+2))}</span>${esc(quando.slice(qi+2))}`:esc(quando));
     preencheFiltros(); aplicaPendentes(); render(); estadoParaURL();
     if(estado.avisoAtiv){
