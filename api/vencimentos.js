@@ -176,7 +176,9 @@ async function descobreCampoInicio() {
 const RE_PROJ_V = /^[A-Za-z][A-Za-z0-9_]*$/;
 function filtroProjetosJql(projetos) {
   const lista = [...new Set((projetos || []).map((p) => String(p || '').trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)))];
-  return lista.length ? `project in (${lista.join(', ')}) AND ` : '';
+  // Chaves entre aspas (`project in ("ACME", "BETA")`): uma chave igual a palavra reservada da JQL (AND, OR…) vira
+  // "projeto inexistente" no Jira, não JQL inválida. A regex já não deixa passar aspas.
+  return lista.length ? `project in (${lista.map((p) => `"${p}"`).join(', ')}) AND ` : '';
 }
 export async function buscaAbertos({ projetos, inicioId, maxPages } = {}) {
   const fieldsA = ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority',
@@ -218,7 +220,11 @@ async function baseAnalytics(q, res) {
   const dias = Math.min(90, Math.max(7, Number(q.dias) || 30));
   // &projetos=A,B — recorte por projeto (a 🧭 Pendências do projeto lê só os do gerente).
   // Entra na chave do cache e nas três buscas; a resposta tem a mesma forma de sempre.
-  const projetos = String(q.projetos || '').split(',').map((p) => p.trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)).sort();
+  const projBruto = String(q.projetos || '').trim();
+  const projetos = projBruto.split(',').map((p) => p.trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)).sort();
+  // Pediu projetos e nenhuma chave passou na validação → 400. Sem isto o filtro sumia e a resposta era a base
+  // INTEIRA (8 páginas do Jira) por engano — nunca cair na busca completa por causa de uma chave malformada.
+  if (projBruto && !projetos.length) return json(res, 400, { erro: 'projetos: nenhuma chave válida (ex.: ACME,BETA).' });
   const ck = `venc:analytics:${dias}:${projetos.join(',')}`;
   if (q.nocache !== '1') {
     const cached = cacheGet(ck);
