@@ -655,7 +655,7 @@ function renderAMS(){
         ${amsRelatoriosCard(cSel, cycSel)}
       </div>`;
   }
-  cont.replaceChildren(el(`<div>${amsSection}</div>`));
+  cont.replaceChildren(el(`<div class="ams-tela">${amsSection}</div>`));
 }
 
 function renderReceita(){
@@ -663,7 +663,7 @@ function renderReceita(){
   if(!estado.tempo){ cont.replaceChildren(el(skeletonPainel())); return; }
   const contratos=(cfg.contratos||[]);
   if(!contratos.length){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
+    cont.replaceChildren(el(`<div class="rc-tela"><div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato cadastrado ainda.<br><br>
       Cadastre clientes, valor-hora e os projetos do Jira em <strong>📑 Contratos › 🏢 Clientes</strong> para liberar esta visão.
       <span class="muted">(Os contratos <strong>AMS</strong> aparecem na aba <strong>🛡 AMS</strong>, ao lado.)</span><br><br>
@@ -745,7 +745,7 @@ function renderReceita(){
       <div class="rc2-grid">${linhas.map(card).join('')}</div>
     </div>` : '';
 
-  cont.replaceChildren(el(`<div>
+  cont.replaceChildren(el(`<div class="rc-tela">
     ${genericoSection || `<div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
       <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
       Os contratos <strong>AMS</strong> têm aba própria (<strong>🛡 AMS</strong>, ao lado). Cadastre contratos em <strong>📑 Contratos › 🏢 Clientes</strong>.</div></div>`}
