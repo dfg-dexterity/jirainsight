@@ -39,7 +39,11 @@
 //               pelos dias úteis, como o rpVendAte). time.orc = Σ projetos.
 //   cap         capacidade = meta/dia (cfg.metasPessoa/metaGlobalH, zerada por ausência e fora da
 //               🪪 vigência) × dias úteis da semana — o critério do mpCapSem.
-//   real/realFat  worklogs da semana (realFat = faturáveis). Sempre por worklogsEnriquecidos.
+//   real/realFat  worklogs da semana de SEGUNDA A DOMINGO (realFat = faturáveis) — o plano aceita item
+//               de sábado/domingo (04-meu-planejamento: dias 0..6) e o 📋 Planejado × realizado conta o
+//               real até domingo; contar só até sexta daria exec < 100% numa semana cumprida. Na foto
+//               viva (sexta) o fim de semana ainda não aconteceu; no realFechado ele entra.
+//               Sempre por worklogsEnriquecidos.
 //   exec        real ÷ plan — no time, só o real de quem tem plano (senão as horas de quem não
 //               planejou inflam a execução). ader = Σ min(real, plan) por chave pessoa|dia|projeto ÷ real
 //               (mesma base); semPlano = real em chaves sem plano; naoFeito = plan em chaves sem real.
@@ -92,14 +96,34 @@ const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 // Tetos por execução (o cron tem 60 s): páginas de 100 issues.
 const TETO_ATIVIDADE = 25;
 const TETO_TICKETS = 15;
-// worklogsEnriquecidos não avisa quando corta; o único sinal observável é bater no teto duro
-// do clockworkRaw (200 000 linhas). Em duas semanas isso não acontece, mas fica registrado.
-const TETO_WORKLOGS = 200000;
+// O teto dos worklogs é o do clockworkRaw (200 000 linhas BRUTAS): worklogsEnriquecidos devolve
+// `truncado` comparando o BRUTO com o teto — a lista enriquecida é menor (linhas sem autor saem)
+// e por isso não serve de medida.
 
 // ---- datas ----
 function spDate(d) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d); }
-/** Segunda-feira (AAAA-MM-DD) da semana de uma data; '' se a data for inválida. */
-export function segundaDe(iso) { if (!RE_DATA.test(iso || '')) return ''; return addDias(iso, -((diaSemana(iso) + 6) % 7)); }
+/**
+ * Data válida de verdade (AAAA-MM-DD que existe no calendário, entre 2000 e 2099): a ida-e-volta
+ * pelo Date.UTC recusa 2026-02-30, 2026-13-45 e 0000-01-01 — antes `addDias` transbordava e uma
+ * `?semana=` errada virava linha-lixo (semanal_1900-01-01) e JQL com data absurda.
+ */
+export function dataValida(iso) {
+  if (!RE_DATA.test(iso || '')) return false;
+  const [y, m, d] = iso.split('-').map(Number);
+  if (y < 2000 || y > 2099) return false;
+  return new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) === iso;
+}
+/** Segunda-feira (AAAA-MM-DD) da semana de uma data; '' se a data for inválida ou impossível. */
+export function segundaDe(iso) { if (!dataValida(iso)) return ''; return addDias(iso, -((diaSemana(iso) + 6) % 7)); }
+/**
+ * Dia da FOTO da semana `seg`: o último dia útil até o dia marcado (1=seg … 5=sex) — quinta quando
+ * a sexta é feriado (20/11, 25/12, 01/01, Sexta-feira Santa…). '' se a semana não tem dia útil.
+ */
+export function diaFotoSemana(seg, dia, cfg) {
+  const n = Math.min(5, Math.max(1, Number(dia) || 5));
+  for (let i = n - 1; i >= 0; i -= 1) { const d = addDias(seg, i); if (ehUtilBR(d, cfg)) return d; }
+  return '';
+}
 /** Dias úteis (seg–sex sem feriado BR + cfg.feriadosExtra − cfg.feriadosRemovidos) entre a segunda e `ate` (padrão: a sexta). */
 export function uteisSemana(seg, cfg, ate) {
   const fim = ate || addDias(seg, 4); const out = [];
@@ -193,6 +217,12 @@ export function calculaFoto(inp) {
   const cat = inp.projetosCat || {};
   const usuarios = inp.usuarios || {};
   const nomeDe = (a) => (usuarios[a] && usuarios[a].nome) || a;
+  // cfg.projGerentes aceita e-mail além do accountId (como cfg.gestores): normaliza pelo elenco,
+  // senão a DM do gerente cadastrado por e-mail some em silêncio (cai em "sem e-mail").
+  const idPorEmail = {};
+  Object.entries(usuarios).forEach(([a, u]) => { const e = String((u && u.email) || '').trim().toLowerCase(); if (e) idPorEmail[e] = a; });
+  const gerenteId = (x) => { const s = String(x || '').trim(); const e = s.toLowerCase(); return (e.includes('@') && idPorEmail[e]) ? idPorEmail[e] : s; };
+  const fimSem = addDias(seg, 6);                                 // domingo: plano e realizado cobrem seg→dom
 
   // ---- planos vigentes → planejado por chave pessoa|dia|projeto ----
   const vig = {};
@@ -209,7 +239,7 @@ export function calculaFoto(inp) {
     if (!['enviado', 'aprovado'].includes(p.status)) return;
     (itensPorPlano[p.id] || []).forEach((i) => {
       const d = String(i.data || '').slice(0, 10);
-      if (d < seg || d > addDias(seg, 6)) return;
+      if (d < seg || d > fimSem) return;
       const pj = String(i.projeto || '').toUpperCase() || '—';
       const s = Math.round((Number(i.horas) || 0) * 3600);
       if (!(s > 0)) return;
@@ -220,8 +250,8 @@ export function calculaFoto(inp) {
   });
   const temPlano = (a) => ['enviado', 'aprovado'].includes(statusPessoa[a] || '');
 
-  // ---- worklogs da semana → realizado por chave, pessoa, projeto; dias com apontamento; comentários ----
-  const wl = (inp.worklogs || []).filter((w) => { const d = String((w && w.d) || '').slice(0, 10); return w && w.a && d >= seg && d <= ate && !ocultos.has(w.a); });
+  // ---- worklogs da semana (seg→dom, a mesma janela do plano) → realizado por chave, pessoa, projeto; dias com apontamento; comentários ----
+  const wl = (inp.worklogs || []).filter((w) => { const d = String((w && w.d) || '').slice(0, 10); return w && w.a && d >= seg && d <= fimSem && !ocultos.has(w.a); });
   const realChave = {}; const realPessoa = {}; const realFatPessoa = {}; const realProj = {}; const realFatProj = {};
   const realPessoaProj = {}; const diasPessoa = {}; const reuHorasPessoa = {}; const wlPessoa = {};
   let realTot = 0; let realFatTot = 0; let reuHoras = 0;
@@ -313,7 +343,7 @@ export function calculaFoto(inp) {
       if (t.venc && t.venc < hoje) P.vencidos += 1;
       if (t.statCat === 'indeterminate' && (diasDesde(hoje, t.up) == null ? 999 : diasDesde(hoje, t.up)) >= N) P.parados += 1; });
     const criados = criProj[k] || 0; const concluidos = concProj[k] || 0;
-    const ger = Array.isArray(projGer[k]) ? projGer[k].map(String).filter(Boolean) : [];
+    const ger = Array.isArray(projGer[k]) ? [...new Set(projGer[k].map(gerenteId).filter(Boolean))] : [];
     projetos[k] = {
       nome: meta.nome || k, gerentes: ger, plan: planProj[k] || 0, orc, real, realFat: realFatProj[k] || 0,
       consumo: pct(real, orc), criados, concluidos, saldo: criados - concluidos,
@@ -346,9 +376,12 @@ export function calculaFoto(inp) {
   };
 }
 
-/** Realizado FECHADO de uma semana (calculado na execução seguinte, quando ninguém mais aponta nela). */
+/**
+ * Realizado FECHADO de uma semana (calculado na execução seguinte, quando ninguém mais aponta nela).
+ * Cobre segunda a DOMINGO (`ate` padrão = seg+6), como o plano e o 📋 Meu Planejamento.
+ */
 export function calculaRealFechado({ worklogs, seg, ate, cfg }) {
-  const fim = ate || addDias(seg, 4);
+  const fim = ate || addDias(seg, 6);
   const ocultos = new Set((((cfg || {}).ocultos) || []).map((o) => o && o.a).filter(Boolean));
   const out = { time: { real: 0, realFat: 0 }, pessoas: {}, projetos: {} };
   (worklogs || []).forEach((w) => {
@@ -547,7 +580,9 @@ export async function montaFotoSemanal({ seg, cfg, deps, agora } = {}) {
   const now = agora ? new Date(agora) : new Date();
   const segunda = segundaDe(seg || spDate(now));
   if (!segunda) throw new Error('Semana inválida.');
-  const ate = addDias(segunda, 4); const segAnt = addDias(segunda, -7); const ateAnt = addDias(segunda, -3);
+  // `ate` (sexta) é o fim da janela dos TICKETS e o rótulo da foto; os WORKLOGS vão até o domingo
+  // (fimSem), como o plano — e o realizado FECHADO da semana anterior vai até o domingo dela (ateAnt).
+  const ate = addDias(segunda, 4); const fimSem = addDias(segunda, 6); const segAnt = addDias(segunda, -7); const ateAnt = addDias(segunda, -1);
   const fotoEm = now.toISOString(); const diaFoto = spDate(now);
   // Janela dos tickets: da segunda 00:00 (SP) até o momento da foto — ou até a sexta 23:59, quando
   // a foto é de uma semana passada. A JQL compara datas no FUSO DO PERFIL da conta de serviço, e
@@ -561,10 +596,12 @@ export async function montaFotoSemanal({ seg, cfg, deps, agora } = {}) {
   const C = cfg || {};
 
   const [wlTudo, criRaw, concRaw, ab, atv, usuarios, planos, catalogo] = await Promise.all([
-    D.worklogsEnriquecidos(segAnt, ate, { comentarios: true }),
+    D.worklogsEnriquecidos(segAnt, fimSem, { comentarios: true }),
     D.jiraSearchAll({ jql: `created >= "${jqlDe}" AND created < "${jqlAte}" ORDER BY created ASC`, fields: ['project', 'issuetype', 'reporter', 'created'], pageSize: 100, maxPages: TETO_TICKETS }),
     D.jiraSearchAll({ jql: `resolved >= "${jqlDe}" AND resolved < "${jqlAte}" ORDER BY resolved ASC`, fields: ['project', 'issuetype', 'assignee', 'resolutiondate'], pageSize: 100, maxPages: TETO_TICKETS }),
-    D.buscaAbertos({}),
+    // Os abertos vêm com os PARADOS primeiro (updated ASC): se o teto de páginas for batido, o que
+    // sobra é justamente a lista que o gerente cobra — com updated DESC o corte apagava os mais parados.
+    D.buscaAbertos({ ordem: 'asc' }),
     D.coletaAtividade({ startDate: segunda, startISO: iniISO, endISO: fimISO, maxPages: TETO_ATIVIDADE }),
     D.jiraUsuariosAtivos(),
     D.lePlanos(segunda),
@@ -580,7 +617,7 @@ export async function montaFotoSemanal({ seg, cfg, deps, agora } = {}) {
     criados: (criRaw.issues || []).map((it) => linhaTicket(it, 'reporter', 'created')).filter(naJanela),
     concluidos: (concRaw.issues || []).map((it) => linhaTicket(it, 'assignee', 'resolutiondate')).filter(naJanela),
     usuarios, projetosCat, parado: (C.relSemanal || {}).parado,
-    truncado: { atividade: !!atv.truncado, abertos: !!ab.truncado, worklogs: worklogs.length >= TETO_WORKLOGS, tickets: !!(criRaw.truncado || concRaw.truncado) },
+    truncado: { atividade: !!atv.truncado, abertos: !!ab.truncado, worklogs: !!(wlTudo && wlTudo.truncado), tickets: !!(criRaw.truncado || concRaw.truncado) },
   });
   const anterior = { semana: segAnt, realFechado: calculaRealFechado({ worklogs, seg: segAnt, ate: ateAnt, cfg: C }) };
   return { foto, anterior };

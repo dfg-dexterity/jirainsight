@@ -178,12 +178,14 @@ function filtroProjetosJql(projetos) {
   const lista = [...new Set((projetos || []).map((p) => String(p || '').trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)))];
   return lista.length ? `project in (${lista.join(', ')}) AND ` : '';
 }
-export async function buscaAbertos({ projetos, inicioId, maxPages } = {}) {
+// `ordem`: 'desc' (padrão, o Analytics quer os recém-mexidos) ou 'asc' — os PARADOS primeiro, que é
+// o que o relatório semanal precisa quando o teto de páginas corta a lista.
+export async function buscaAbertos({ projetos, inicioId, maxPages, ordem } = {}) {
   const fieldsA = ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority',
     'timespent', 'updated', 'created', 'timeoriginalestimate', 'parent', 'labels', 'description'];
   if (inicioId) fieldsA.push(inicioId);
   const rA = await jiraSearchAll({
-    jql: `${filtroProjetosJql(projetos)}statusCategory != Done ORDER BY updated DESC`,
+    jql: `${filtroProjetosJql(projetos)}statusCategory != Done ORDER BY updated ${ordem === 'asc' ? 'ASC' : 'DESC'}`,
     fields: fieldsA, pageSize: 100, maxPages: maxPages || 8,
   });
   const abertos = rA.issues.map((it) => {
