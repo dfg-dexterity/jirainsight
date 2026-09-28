@@ -103,6 +103,8 @@ function ptGaranteFicha(K){ const st=ptSt(); if(!K||crFicha(K)||st.fichaB[K]) re
     .catch(()=>{ st.fichaB[K]=false; }); }
 
 // ---- rascunho da configuração (st.rasc): nasce da linha do servidor, acompanha cada tecla ----
+// A linha vem com a config e o "publicado" REAIS mesmo quando pertence a outro contrato (outroContrato):
+// o formulário mostra o que existe, e mover o projeto de contrato parte disso — nunca de um vazio.
 function ptRascunho(K){ const st=ptSt(); if(st.rasc&&st.rascKey===K) return st.rasc; const info=ptInfo(K); if(!info) return null;
   const base=ptConfigPadrao(); const c=(info.config&&typeof info.config==='object')?JSON.parse(JSON.stringify(info.config)):{};
   const blocos={ ...base.blocos, ...((c.blocos&&typeof c.blocos==='object')?c.blocos:{}) };
@@ -141,7 +143,12 @@ function ptGuardaCampo(t){ const st=ptSt(); const r=st.rasc; if(!r||!t||!t.getAt
 // 🗒 Histórico de ações — a tabela é a fonte da verdade (atualizado_por); o log é o rastro no painel.
 // Um calendário novo só sai daqui depois de testado e confirmado (ptCalPendente). Se o projeto já está
 // publicado/configurado para OUTRO contrato, o servidor responde 409 e a troca só acontece com confirmação
-// explícita (forcar) — mover um projeto de contrato tira o acesso de quem está no contrato atual.
+// explícita — e MOVER É SÓ MOVER: o corpo vai com {projeto, contratoId, forcar} e nada mais, porque o
+// servidor preserva config e publicado quando não vêm (o projeto continua publicado e configurado como
+// estava; só troca de dono). O que mais tiver sido digitado no formulário vai numa segunda gravação, já
+// no contrato certo — assim "mover" nunca apaga a curadoria nem registra um "despublicar" que ninguém pediu.
+function ptConfirmaMover(K, de, para, publicadoLa){
+  return `${K} já está ${publicadoLa?'publicado':'configurado'} para o contrato ${de}.\n\nMover para ${para}?\n\n• Quem tem conta em ${de} deixa de ver o projeto na hora.\n• ${publicadoLa?`O projeto continua PUBLICADO: quem tem conta em ${para} passa a vê-lo na hora.`:`O projeto continua em rascunho: quem tem conta em ${para} só o vê quando você publicar.`}\n• A configuração (Teams, pasta, calendário, links, time, épicos ocultos) e o conteúdo (pendências, riscos, FAQ, reuniões) são mantidos — nada é apagado nem despublicado.`; }
 function ptSalvaConfig(){
   const st=ptSt(); const K=st.proj; const c=ptContratoDe(K); const r=st.rasc; const info=ptInfo(K); if(!K||!c||!r||!info||st.salvando) return;
   const erro=ptValidaRasc(r); if(erro){ ptFb(erro,'err'); return; }
@@ -154,14 +161,17 @@ function ptSalvaConfig(){
   const envia=(b)=>{ st.salvando=true; ptFb('Salvando…','warn');
     pcliApi('admin-config',{ corpo:b }).then(j=>{ st.salvando=false;
       if(j&&j.status===409&&j.contratoAtual&&!b.forcar){ const de=j.contratoAtual.cliente||j.contratoAtual.id;
-        const ok=confirm(`${K} já está ${j.contratoAtual.publicado?'publicado':'configurado'} para o contrato ${de}.\n\nMover para ${c.cliente||c.id}? Quem tem conta em ${de} deixa de ver o projeto na hora.`);
-        if(!ok){ ptFb(j.erro||'Não movido.','err'); return; } envia({ ...b, forcar:true }); return; }
+        if(!confirm(ptConfirmaMover(K, de, c.cliente||c.id, !!j.contratoAtual.publicado))){ ptFb(j.erro||'Não movido.','err'); return; }
+        envia({ projeto:K, contratoId:c.id, forcar:true }); return; }   // só o contrato: config e publicado ficam como estão
       if(!j||!j.ok){ ptFb((j&&j.erro)||'Não consegui salvar.','err'); return; }
       const l=ptLista(c.id); if(l){ const i=l.findIndex(p=>p.projeto===K); const novo={ ...(i>=0?l[i]:{ projeto:K, nome:ptNomeProj(K), n:{} }), ...(j.projeto||{}), outroContrato:null }; if(i>=0) l[i]=novo; else l.push(novo); }
-      if(j.publicadoMudou) logAcao({ acao:publicado?'portal-publicar':'portal-despublicar', t:'', de:K, para:c.cliente||c.id, ok:true });
-      if(j.contratoMudou){ logAcao({ acao:'portal-mover-contrato', t:'', de:K, para:c.cliente||c.id, ok:true }); ptContratos().forEach(x=>{ if(x.id!==c.id) ptCarregaLista(x.id,true); }); }
+      if(j.publicadoMudou) logAcao({ acao:b.publicado?'portal-publicar':'portal-despublicar', t:'', de:K, para:c.cliente||c.id, ok:true });
+      if(j.contratoMudou){ logAcao({ acao:'portal-mover-contrato', t:'', de:K, para:c.cliente||c.id, ok:true }); ptContratos().forEach(x=>{ if(x.id!==c.id) ptCarregaLista(x.id,true); });
+        toast(`${K} movido para o contrato ${c.cliente||c.id} — publicação e configuração mantidas.`,'ok');
+        if(ptRascSujo(K)){ envia(corpo); return; }   // o que foi digitado além da troca de contrato: grava agora, já no contrato certo (sem 409)
+      }
       st.rasc=null; delete st.calConf[K];
-      toast(publicado&&j.publicadoMudou?`🌐 ${K} publicado para ${c.cliente||'o cliente'}.`:(!publicado&&j.publicadoMudou?`${K} despublicado — o cliente não vê mais o projeto.`:(j.contratoMudou?`${K} movido para o contrato ${c.cliente||c.id}.`:'Configuração do portal salva.')),'ok');
+      if(!j.contratoMudou) toast(b.publicado&&j.publicadoMudou?`🌐 ${K} publicado para ${c.cliente||'o cliente'}.`:(b.publicado===false&&j.publicadoMudou?`${K} despublicado — o cliente não vê mais o projeto.`:'Configuração do portal salva.'),'ok');
       renderPortal(); }); };
   envia(corpo);
 }
@@ -247,7 +257,7 @@ function ptProjetosHTML(contratos, gestor){
     todas.forEach((K,i)=>{ const p=lista?lista.find(x=>x.projeto===K):null; const n=(p&&p.n)||{};
       const num=(v,tip)=>p?`<td class="num" data-tip="${escA(tip)}">${v||'<span class="muted">—</span>'}</td>`:'<td class="num muted">…</td>';
       const sit=!lista?(l&&l.erro?`<span class="muted small" style="color:#B45309">${esc(l.erro)}</span>`:'<span class="muted small">carregando…</span>'):ptBadgePub(p);
-      rows.push(`<tr class="${p&&p.publicado?'pt-l-pub':''}">${i===0?`<td rowspan="${todas.length}"><b>${esc(c.cliente||c.id)}</b><div class="muted small">${esc((typeof rotuloTipo==='function')?rotuloTipo(c.tipo):(c.tipo||''))}</div></td>`:''}
+      rows.push(`<tr class="${p&&p.publicado&&!p.outroContrato?'pt-l-pub':''}">${i===0?`<td rowspan="${todas.length}"><b>${esc(c.cliente||c.id)}</b><div class="muted small">${esc((typeof rotuloTipo==='function')?rotuloTipo(c.tipo):(c.tipo||''))}</div></td>`:''}
         <td><b>${esc(K)}</b><div class="muted small">${esc((p&&p.nome)||((typeof projNome==='function')?projNome(K):K))}${p&&p.noContrato===false?' · <span style="color:#B45309">fora do contrato</span>':''}</div></td>
         <td>${sit}</td>${num(n.pendencias,'pendências abertas (manuais) visíveis')}${num(n.decisoesVisiveis,'decisões abertas marcadas como visíveis')}${num(n.riscos,'riscos abertos/mitigados visíveis')}${num(n.faq,'perguntas do FAQ visíveis')}${num(n.reunioes,'reuniões manuais visíveis')}
         <td class="muted small">${p&&p.ultimoAcesso?esc(ptQuandoBR(p.ultimoAcesso)):'—'}</td>
@@ -266,7 +276,7 @@ function ptConfigHTML(K, c, info, gestor){
   const ficha=crFicha(K); if(!ficha) ptGaranteFicha(K);
   const calV=String(r.calendario||'').trim(); const calNovo=!!calV&&calV!==ptCalSalvo(K);
   const calHTML=`<div id="pt-cal-res">${ptCalResHTML(K,calV,gestor)}</div>`;
-  const outro=info.outroContrato; const avisoOutro=outro?`<div class="aviso pt-aviso-outro">⚠ <b>${esc(K)}</b> está ${outro.publicado?'<b>publicado</b>':'configurado'} para o contrato <b>${esc(outro.cliente||outro.id)}</b>. Salvar aqui <b>move</b> o projeto para ${esc(c.cliente||c.id)} (pede confirmação) — quem tem conta em ${esc(outro.cliente||outro.id)} deixa de ver o projeto na hora.</div>`:'';
+  const outro=info.outroContrato; const avisoOutro=outro?`<div class="aviso pt-aviso-outro">⚠ <b>${esc(K)}</b> está ${outro.publicado?'<b>publicado</b>':'configurado'} para o contrato <b>${esc(outro.cliente||outro.id)}</b> — o formulário mostra essa configuração. Salvar aqui <b>move</b> o projeto para ${esc(c.cliente||c.id)} (pede confirmação): quem tem conta em ${esc(outro.cliente||outro.id)} deixa de ver o projeto na hora; a publicação, a configuração e o conteúdo são <b>mantidos</b>.</div>`:'';
   const links=r.links.map((x,i)=>`<tr><td><input type="text" data-pt-link="${i}|nome" value="${escA(x.nome)}" placeholder="nome do link"${ro}></td><td><input type="url" data-pt-link="${i}|url" value="${escA(x.url)}" placeholder="https://…" style="min-width:230px"${ro}></td><td><input type="text" data-pt-link="${i}|tipo" value="${escA(x.tipo)}" placeholder="ex.: planilha, ata, manual" style="min-width:110px"${ro}></td><td>${pcUrl(x.url)?`<a class="btn rt-step" href="${escA(pcUrl(x.url))}" target="_blank" rel="noopener noreferrer">abrir ↗</a>`:''}</td><td>${gestor?`<button class="btn rt-step" data-pt-link-rm="${i}" data-tip="Tirar este link">🗑</button>`:''}</td></tr>`).join('');
   const equipe=r.equipe.map((p,i)=>`<tr><td><input type="text" data-pt-eq="${i}|nome" value="${escA(p.nome)}" placeholder="nome"${ro}></td><td><input type="text" data-pt-eq="${i}|papel" value="${escA(p.papel)}" placeholder="ex.: gerente do projeto, consultor SAP FI"${ro}></td><td><input type="text" data-pt-eq="${i}|contato" value="${escA(p.contato)}" placeholder="e-mail ou Teams (opcional)"${ro}></td><td>${gestor?`<button class="btn rt-step" data-pt-eq-rm="${i}" data-tip="Tirar esta pessoa">🗑</button>`:''}</td></tr>`).join('');
   const sug=st.sug[K]; const sugNomes=(sug&&!sug.erro&&sug!=='carregando')?(sug.equipe||[]).map(x=>x.nome).filter(n=>n&&!r.equipe.some(p=>p.nome===n)):[];
@@ -365,7 +375,7 @@ function ptAcessosHTML(K, c, gestor){
 function ptPreviewHTML(K, c, info, gestor){
   const id=idApontar(); const url=`/portal.html?preview=${encodeURIComponent(K)}`;
   return `<div class="card full pt-prev"><h2>👁 Pré-visualizar <span>${esc(K)} · a página como o cliente vê — mesmo dado, mesmo cache (10 min)</span></h2>
-    <div class="pt-prev-acoes"><button class="btn" id="pt-prev-nova" data-tip="Abre o portal numa aba nova, já com a sua identidade de gestor">↗ abrir em nova aba</button>${gestor?`<button class="btn" id="pt-prev-refresh" data-tip="Descarta o cache do portal e lê o Jira de novo (o cliente também passa a ver o dado novo)">↻ atualizar do Jira</button>`:''}<button class="btn" id="pt-prev-reload">⟳ recarregar</button>${ptBadgePub(info)}${info&&!info.publicado?'<span class="muted small">só você vê — o cliente recebe "projeto não encontrado" até publicar</span>':''}</div>
+    <div class="pt-prev-acoes"><button class="btn" id="pt-prev-nova" data-tip="Abre o portal numa aba nova, já com a sua identidade de gestor">↗ abrir em nova aba</button>${gestor?`<button class="btn" id="pt-prev-refresh" data-tip="Descarta o cache do portal e lê o Jira de novo (o cliente também passa a ver o dado novo)">↻ atualizar do Jira</button>`:''}<button class="btn" id="pt-prev-reload">⟳ recarregar</button>${ptBadgePub(info)}${info&&info.outroContrato?`<span class="muted small">a prévia mostra o portal do contrato ${esc(info.outroContrato.cliente||info.outroContrato.id)} (o dono do projeto hoje)</span>`:info&&!info.publicado?'<span class="muted small">só você vê — o cliente recebe "projeto não encontrado" até publicar</span>':''}</div>
     ${id?`<iframe id="pt-preview" class="pt-preview" src="${escA(url)}" title="Pré-visualização do portal do cliente — ${escA(K)}"></iframe>`:'<div class="estado">Identifique-se em ⏱ Apontar (e-mail + token do Jira) para pré-visualizar: a prévia usa a sua identidade de gestor.</div>'}
     <div class="muted small" style="margin-top:8px">A prévia recebe a sua identidade do Jira por <code>postMessage</code> (só nesta página, mesma origem) e chama <code>?pcli=preview</code>, que exige gestor — o cliente nunca usa esse caminho: ele entra com e-mail e senha e recebe <code>?pcli=projeto</code>, o <b>mesmo</b> conteúdo.</div></div>`;
 }

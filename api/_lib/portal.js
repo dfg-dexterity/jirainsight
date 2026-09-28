@@ -492,9 +492,11 @@ export async function projetosPublicados(sb, c) {
 }
 
 // admin-projetos&ct=<contratoId>: contrato × projeto com contadores, para a tabela do módulo.
-// Um projeto listado neste contrato mas cuja linha pertence a OUTRO sai como rascunho daqui, com
-// `outroContrato` dizendo para quem ele está publicado/configurado — trocar de contrato nunca é
-// um clique silencioso (o admin-config responde 409 sem `forcar`).
+// Um projeto listado neste contrato mas cuja linha pertence a OUTRO sai com `outroContrato` dizendo
+// para quem ele está publicado/configurado — trocar de contrato nunca é um clique silencioso (o
+// admin-config responde 409 sem `forcar`). A linha devolvida é sempre a REAL (config e publicado,
+// mesmo quando é do outro contrato): é dela que o formulário do módulo nasce, e mover um projeto
+// de contrato não pode apagar a curadoria nem despublicar em silêncio.
 export async function adminProjetos(sb, c, contratos) {
   const keys = projetosDoContrato(c);
   const lista0 = Array.isArray(contratos) ? contratos.filter(Boolean) : [];
@@ -515,8 +517,8 @@ export async function adminProjetos(sb, c, contratos) {
   let cat = []; try { cat = await carregaCatalogoProjetos(); } catch (e) { cat = []; }
   return todas.map((k) => {
     const linha = porK[k] || null;
-    const deOutro = linha && String(linha.contrato_id) !== String(c.id);
-    const row = (linha && !deOutro) ? linha : { projeto: k, contrato_id: c.id, publicado: false, config: {} };
+    const deOutro = !!(linha && String(linha.contrato_id) !== String(c.id));
+    const row = linha || { projeto: k, contrato_id: c.id, publicado: false, config: {} };
     const meus = itens.filter((i) => i.projeto === k && i.visivel !== false);
     const n = (tipo, st) => meus.filter((i) => i.tipo === tipo && (!st || st.includes(i.status))).length;
     const p = cat.find((x) => x.key === k);
