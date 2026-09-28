@@ -306,7 +306,7 @@ function pcliBlocoHTML(c){
 }
 // Mostra o link do convite recém-criado para o gestor copiar.
 function pcliMostraConvite(cru, email){
-  const url=`${location.origin}/portal.html?convite=${encodeURIComponent(cru)}`;
+  const url=`${portalBase()}/portal.html?convite=${encodeURIComponent(cru)}`;
   abreModal(`<h2>✉ Convite criado</h2>
     <div class="muted small">Mande este link para <strong>${esc(email)}</strong>. Ele vale <strong>7 dias</strong>, serve <strong>uma vez</strong>
       e é onde a pessoa escolhe a própria senha.</div>
@@ -407,7 +407,7 @@ function renderAdmin(){
     }
     const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
     const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
-    const url = c.portalToken ? `${location.origin}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
+    const url = c.portalToken ? `${portalBase()}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
       ? `<div class="ad-portal"><span class="muted small">🔗 Link do cliente:</span>
           <input type="text" readonly value="${escA(url)}" data-ad-portal-input>

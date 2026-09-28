@@ -986,7 +986,22 @@ async function usoLe(req, res, base, headers) {
   });
 }
 
+// 🌐 Domínio público do portal (portal.dexterityit.com.br). A SSO Protection da Vercel
+// ("all_except_custom_domains") deixa o domínio customizado ABERTO para o mundo — é o que
+// faz o cliente externo chegar ao portal, e também o que exporia o painel inteiro nesse
+// host. O vercel.json já redireciona tudo que não é do portal para /portal.html; aqui fica a
+// segunda cerca: neste host esta função só responde às rotas do cliente (?pcli= e ?portal=).
+function hostEhPortal(req) {
+  const h = String((req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '').split(',')[0].trim().split(':')[0].toLowerCase();
+  const alvo = String(process.env.PORTAL_HOST || 'portal.dexterityit.com.br').toLowerCase();
+  return !!h && h === alvo;
+}
+
 export default async function handler(req, res) {
+  if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
+    res.setHeader('Cache-Control', 'no-store');
+    return json(res, 404, { ok: false, erro: 'Não encontrado.' });
+  }
   // GET /api/config?versao=1 → versão do deploy (commit/PR), injetada pela Vercel no runtime.
   // O merge squash guarda o nº do PR no fim da mensagem do commit: "Título (#60)".
   if (req.query && req.query.versao) {
