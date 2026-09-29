@@ -145,11 +145,14 @@ function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], fe
   agendaIgnorar:{},                   // 🚫 {'s:serie'|'e:evento':{titulo,serie,por,quando}} — reunião que NÃO precisa de ticket
   scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
+  relSemanal:{ ativo:false, dia:5, hora:'16:00', parado:5 },   // 📊 Relatório semanal de sexta: dia/hora da foto + "parado" = N dias sem atualização
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
   reuniao:{ facilitador:'Jéssica Cavalheiro', ultimaReuniao:'', ataUltimaUrl:'', prioridades:{},
     statusDecisao:['Proposta de Solução','Aguardando Aprovação do Cliente','Aguardando Validação','Em Validação','📆 Reunião Agendada'],
     mapaNatureza:{ DAMS:'operacao', DEF:'entrega', PEA:'entrega', PEF:'entrega', IPA:'produtos', IMI:'produtos', ITPR:'rotinas', ARQ:'outros' },
-    notionPorProjeto:{}, envioTeams:{ ativo:false, dias:[1], hora:'09:00' } } }; }
+    notionPorProjeto:{}, envioTeams:{ ativo:false, dias:[1], hora:'09:00' } },
+  projGerentes:{},                    // 🧭 {KEY:[accountId,…]} — gerente(s) do projeto (ficha do 📁 projeto; 🧭 Pendências e relatório semanal)
+  }; }
 function carregaCfg(){
   try{ const c=JSON.parse(localStorage.getItem(CFG_KEY)); if(c&&typeof c==='object')
     return Object.assign(cfgDefaults(), c); }catch(e){}
@@ -635,7 +638,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
@@ -708,6 +711,10 @@ function papeisDe(){ const id=idApontar(); if(!id) return ['consultor'];
   if(!ps.length) ps=[souAprovador()?'gestor':'consultor']; else if(souAprovador()&&!ps.includes('gestor')&&!ps.includes('admin')) ps.push('gestor');
   return [...new Set(ps)]; }
 function temPapel(p){ return papeisDe().includes(p); }
+// 🧭 Projetos em que a pessoa é gerente (cfg.projGerentes) — leitor: NÃO cria o objeto (criar {} no render
+// marcaria a chave como alterada por esta sessão e ela venceria o remoto no merge da config).
+function meusProjetos(accountId){ const m=cfg.projGerentes; const a=String(accountId||''); if(!a||!m||typeof m!=='object') return [];
+  return Object.keys(m).filter(k=>Array.isArray(m[k])&&m[k].includes(a)).sort(); }
 function lenteTodas(){ try{ return localStorage.getItem('jirainsight_todas_areas')==='1'; }catch(e){ return false; } }
 // A área aparece na barra? Sem papéis exigidos = sempre; senão pelo papel, pelo "ver todas as áreas" (local)
 // ou, para Insights, pelo "ligar Insights para mim" (local).

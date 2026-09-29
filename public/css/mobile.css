@@ -1756,3 +1756,67 @@
   .aj-g{display:inline-flex;align-items:center;min-height:32px;padding:4px 10px;font-size:12px;vertical-align:middle}
 }
 /* ---- fim: global ---- */
+
+/* ---- 📱 grupo: semanal ---- */
+/* 📊 Relatório semanal: KPIs 2 por linha, ações com altura de dedo e o seletor de semana na largura
+   toda; as tabelas já rolam dentro do .scroll-x (nada empurra a página). */
+@media (max-width:600px){
+  .sm-kpis,.sm-kpis.sm-minis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .sm-kpi{padding:10px 10px 8px}
+  .sm-kpi .v{font-size:22px} .sm-kpi.sm-mini .v{font-size:18px}
+  .sm-kpi .l,.sm-kpi .sm-sub{font-size:12px}   /* rótulo do KPI, Δ e "média 4": legíveis no celular */
+  .sm-kpi .sm-sub{gap:6px}
+  .sm-top{flex-direction:column;align-items:stretch;gap:8px}
+  .sm-top .hdr-sel>span{font-size:12px}
+  .sm-top .hdr-sel select{width:100%}
+  .sm-acoes{margin-left:0}
+  .sm-acoes .btn{min-height:44px;flex:1 1 auto}
+  .sm-meta{margin:0 0 10px}
+  .sm-tab td:first-child{min-width:130px}
+  .sm-dv{flex:1 1 100%}
+}
+@media (pointer:coarse){
+  .sm-tab th[data-sm-sort]{padding-top:10px;padding-bottom:10px}
+  .sm-tab .sm-acoes-td .lnk-ficha{line-height:30px;padding:0 10px}
+  .sm-card h2 .rc-cods .rc-cod{display:inline-flex;align-items:center;min-height:32px;padding:0 10px;font-size:12px}   /* selo R28 com altura de dedo */
+}
+/* ---- fim: semanal ---- */
+/* ---- 📱 grupo: gp (🧭 Pendências do projeto) ---- */
+@media (max-width:880px){
+  .gp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  /* cada ticket vira um cartão: a grade de 5 colunas não cabe no celular e, com display:contents,
+     a linha não tem largura própria para recortar o resumo — o cartão resolve as duas coisas */
+  .gp-tab{display:block} .gp-tab-h{display:none}
+  /* chave e 🔍 na mesma linha (o 🔍 sozinho numa linha de 44px dobrava a altura do cartão); resumo, status e medida embaixo */
+  .gp-row{display:flex;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .gp-row>div{border-bottom:0;padding:1px 0;flex:0 0 100%;order:2}
+  .gp-row .gp-c-k{flex:1 1 auto;order:0} .gp-row .gp-c-k a{display:inline-flex;align-items:center;min-height:44px}
+  .gp-row .gp-c-acao{flex:0 0 auto;margin-left:auto;order:1}   /* o 🔍 vem por último no DOM (5ª coluna da grade): o order o traz para a linha da chave */
+  .gp-row .gp-c-res{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .gp-pessoa-h .lnk-ficha{min-height:36px}
+  /* a linha da pessoa empilha: nome, contadores e as 4 ações com altura de dedo, 2 por linha */
+  .gp-pessoa-row{align-items:flex-start;flex-direction:column;gap:6px}
+  .gp-pessoa-nome{min-width:0}
+  .gp-acoes{margin-left:0;width:100%}
+  .gp-acoes .btn{flex:1 1 calc(50% - 6px);min-height:44px;justify-content:center;text-align:center}
+}
+@media (max-width:600px){
+  .gp-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .gp-filtros .campo{width:100%}
+  .gp-acoes-topo .btn{min-height:44px;flex:1 1 100%}
+  .gp-mini{min-height:44px;min-width:44px}
+  .gp-delta{font-size:12px}
+}
+@media (pointer:coarse){
+  .gp-acoes .btn,.gp-mini{min-height:44px}
+  #gp-dias{min-height:44px} .gp-filtros label.small{min-height:44px}
+  .pger-x{min-width:32px;min-height:32px}
+  /* alvos de dedo dos elementos novos: chip 👤 Meus projetos / ✕ do escopo, e na ficha do 📁 projeto o seletor de
+     gerente, a sugestão "usar o líder do Jira" e o botão-link 🧭 pendências → (antes: 22–29px, "graves" na auditoria) */
+  .gp-filtros .chip,.proj-gerentes .lnk-ficha,.proj-gerentes .chip,.pger-sel,[data-proj-ger-add]{min-height:44px}
+  .gp-row7 .lnk-ficha{min-height:36px}   /* 📁 e 💹 dentro da tabela do bloco 7: 36px, como o 📋 do cabeçalho da pessoa */
+  #gp-semvenc{width:32px;height:32px}    /* a caixa "incluir sem vencimento" do tamanho do dedo (o rótulo já tem 44px) */
+}
+/* ---- fim: gp ---- */

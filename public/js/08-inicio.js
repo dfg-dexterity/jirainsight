@@ -801,7 +801,7 @@ function renderAcoes(){
     ['negocio','rentab','💹 Rentabilidade','planos, cenários, períodos de faturamento e Odoo'],
     ['negocio','controladoria','🏦 Controladoria','margem por categoria e o 📁 resultado de cada projeto (nível, pessoa, vendido × realizado, plano)'],
     ['negocio','parcerias','📑 Contratos › 🤝 Parceiros','consultorias parceiras: validade, equipe, 🧾 faturamentos com a ordem de venda no Odoo, horas extras e próximas notas'],
-    ['insights','relatorios','📚 Central de Relatórios','a porta única das análises: catálogo R01–R27, Analytics e Métricas por tipo'],
+    ['insights','relatorios','📚 Central de Relatórios','a porta única das análises: catálogo R01–R29, Analytics e Métricas por tipo'],
     ['insights','analytics','📚 Central › 📈 Analytics','26 visões de governança para investigar'],
     ['mais','roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
   ].filter(x=>areaVisivel(x[0]));

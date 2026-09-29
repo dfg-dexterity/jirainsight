@@ -342,6 +342,15 @@ const REL_CAT=[
    obj:'Consolidar resultados, desvios e aprendizados ao encerrar o projeto.',
    resp:'O que deu certo e o que repetir/evitar no próximo projeto?',
    como:'Exige ritual/ticket padrão de encerramento — modelo no roadmap.'},
+  // 2026-09-28 — 📊 Relatório semanal de sexta (foto do servidor: canal dos gestores, mensagem a cada gerente e esta tela)
+  {id:'R28',nome:'Relatório semanal de sexta',dim:'Entrega',freq:'Semanal',def:'OOOOOO-RRR',disp:'ok',vista:'semanal',
+   obj:'Toda sexta, uma foto do time e de cada projeto: planejado × orçado × realizado, reuniões, tickets criados/concluídos, pendências e qualidade da informação — comparável com as semanas anteriores.',
+   resp:'Fizemos o que planejamos e o que vendemos? O que mudou desde a semana passada? Quem e qual projeto precisam de atenção agora?',
+   como:'📊 Relatório semanal — a mesma foto que vai ao canal dos gestores e à mensagem de cada gerente, com Δ vs a semana anterior, média das últimas 4 e a série das 8; por pessoa e por projeto (🧭 abre as pendências para cobrar).'},
+  {id:'R29',nome:'Pendências do projeto (gerente)',dim:'Entrega',freq:'Semanal',def:'OOOORR-RR-',disp:'ok',vista:'gp',
+   obj:'A visão do gerente: o que está vencido por pessoa, parado sem atualização, sem data ou com cadastro incompleto — com a cobrança pronta.',
+   resp:'O que cada pessoa precisa atualizar nesta semana? Quem cobrar, sobre o quê e por onde?',
+   como:'🧭 Pendências do projeto — blocos por pessoa (vencidos, parados, vencem em 7 dias, cadastro, sem apontamento, reuniões vencidas) e ações: copiar mensagem, chat do Teams, comentário no Jira em lote e aviso no Inbox. Δ vs sexta passada pela foto do 📊 Relatório semanal.'},
 ];
 // Sigla do tipo a partir da CATEGORIA do Jira: prefixo "XXX | ..." quando houver;
 // senão, heurística pelo texto do nome (cobre categorias antigas sem prefixo).

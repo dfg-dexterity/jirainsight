@@ -133,7 +133,8 @@ async function baseReuniao(q, res) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/vencimentos?analytics=1[&dias=30] — BASE DE DADOS do módulo 📈 Analytics.
+// GET /api/vencimentos?analytics=1[&dias=30][&projetos=A,B] — BASE DE DADOS do módulo 📈 Analytics
+// (e da 🧭 Pendências do projeto, que passa `projetos` para ler só os do gerente).
 // Devolve três conjuntos brutos (as regras/checks rodam no front, numa passada):
 //   abertos     — todos os chamados não concluídos, com descrição (tamanho), estimativa,
 //                 pai/épico, prioridade, datas (criação/vencimento/início) e labels;
@@ -169,21 +170,25 @@ async function descobreCampoInicio() {
   } catch (e) { return ''; }
 }
 
-async function baseAnalytics(q, res) {
-  const dias = Math.min(90, Math.max(7, Number(q.dias) || 30));
-  const ck = `venc:analytics:${dias}`;
-  if (q.nocache !== '1') {
-    const cached = cacheGet(ck);
-    if (cached) return json(res, 200, cached);
-  }
-  const inicioId = await descobreCampoInicio();
-
+// Os chamados ABERTOS na forma que o Analytics (e agora o 📊 relatório semanal, em
+// api/_lib/semanal.js) consomem — uma única definição de "aberto" para as duas leituras,
+// com o mesmo teto de páginas (→ `truncado`). `projetos` restringe a JQL (`project in (…)`).
+const RE_PROJ_V = /^[A-Za-z][A-Za-z0-9_]*$/;
+function filtroProjetosJql(projetos) {
+  const lista = [...new Set((projetos || []).map((p) => String(p || '').trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)))];
+  // Chaves entre aspas (`project in ("ACME", "BETA")`): uma chave igual a palavra reservada da JQL (AND, OR…) vira
+  // "projeto inexistente" no Jira, não JQL inválida. A regex já não deixa passar aspas.
+  return lista.length ? `project in (${lista.map((p) => `"${p}"`).join(', ')}) AND ` : '';
+}
+// `ordem`: 'desc' (padrão, o Analytics quer os recém-mexidos) ou 'asc' — os PARADOS primeiro, que é
+// o que o relatório semanal precisa quando o teto de páginas corta a lista.
+export async function buscaAbertos({ projetos, inicioId, maxPages, ordem } = {}) {
   const fieldsA = ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority',
     'timespent', 'updated', 'created', 'timeoriginalestimate', 'parent', 'labels', 'description'];
   if (inicioId) fieldsA.push(inicioId);
   const rA = await jiraSearchAll({
-    jql: 'statusCategory != Done ORDER BY updated DESC',
-    fields: fieldsA, pageSize: 100, maxPages: 8,
+    jql: `${filtroProjetosJql(projetos)}statusCategory != Done ORDER BY updated ${ordem === 'asc' ? 'ASC' : 'DESC'}`,
+    fields: fieldsA, pageSize: 100, maxPages: maxPages || 8,
   });
   const abertos = rA.issues.map((it) => {
     const f = it.fields || {};
@@ -210,9 +215,31 @@ async function baseAnalytics(q, res) {
       inicio: inicioId ? String(f[inicioId] || '').slice(0, 10) : '',
     };
   });
+  return { abertos, truncado: !!rA.truncado };
+}
+
+async function baseAnalytics(q, res) {
+  const dias = Math.min(90, Math.max(7, Number(q.dias) || 30));
+  // &projetos=A,B — recorte por projeto (a 🧭 Pendências do projeto lê só os do gerente).
+  // Entra na chave do cache e nas três buscas; a resposta tem a mesma forma de sempre.
+  const projBruto = String(q.projetos || '').trim();
+  const projetos = projBruto.split(',').map((p) => p.trim().toUpperCase()).filter((p) => RE_PROJ_V.test(p)).sort();
+  // Pediu projetos e nenhuma chave passou na validação → 400. Sem isto o filtro sumia e a resposta era a base
+  // INTEIRA (8 páginas do Jira) por engano — nunca cair na busca completa por causa de uma chave malformada.
+  if (projBruto && !projetos.length) return json(res, 400, { erro: 'projetos: nenhuma chave válida (ex.: ACME,BETA).' });
+  const ck = `venc:analytics:${dias}:${projetos.join(',')}`;
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  const inicioId = await descobreCampoInicio();
+  const projJql = filtroProjetosJql(projetos);
+
+  const rA = await buscaAbertos({ projetos, inicioId });
+  const abertos = rA.abertos;
 
   const rC = await jiraSearchAll({
-    jql: `statusCategory = Done AND resolved >= -${dias}d ORDER BY resolved DESC`,
+    jql: `${projJql}statusCategory = Done AND resolved >= -${dias}d ORDER BY resolved DESC`,
     fields: ['summary', 'issuetype', 'assignee', 'resolution', 'resolutiondate', 'project', 'timespent', 'attachment'],
     pageSize: 100, maxPages: 3,
   });
@@ -235,7 +262,7 @@ async function baseAnalytics(q, res) {
   });
 
   const rR = await jiraSearchAll({
-    jql: 'statusCategory != Done AND resolution IS NOT EMPTY ORDER BY updated DESC',
+    jql: `${projJql}statusCategory != Done AND resolution IS NOT EMPTY ORDER BY updated DESC`,
     fields: ['summary', 'status', 'assignee', 'project', 'resolution'],
     pageSize: 100, maxPages: 1,
   });
@@ -254,7 +281,7 @@ async function baseAnalytics(q, res) {
   const payload = {
     meta: {
       dias, hoje: hojeSP(), geradoEm: new Date().toISOString(), temInicio: !!inicioId,
-      truncado: { abertos: !!rA.truncado, concluidos: !!rC.truncado, reabertos: !!rR.truncado },
+      truncado: { abertos: rA.truncado, concluidos: !!rC.truncado, reabertos: !!rR.truncado },
     },
     abertos, concluidos, reabertos,
   };
