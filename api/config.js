@@ -913,17 +913,15 @@ async function portalCliente(req, res, base, headers) {
   // ---- administração (gestor do painel, autenticado pelo Jira) ----
   const auth = await validaJira(req);
   if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
-  // A conta do cliente nasce de um convite do GESTOR (decisão do usuário, 2026-09-26): identidade
-  // válida no Jira não basta — qualquer consultor conseguia listar, convidar e revogar contas.
-  // Revisão de 2026-09-28: a mesma régua do planejamento (cfg.gestores, com o fallback legado).
-  if (!(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Só gestores administram os acessos do cliente.' });
 
-  // 🌐 Portal do projeto e 🔐 contas do cliente — o papel de GESTOR (cfg.gestores, como no planejamento)
-  // é exigido para ESCREVER (admin-* por POST, preview, admin-refresh) e para tudo que mexe nas contas
-  // do cliente (contas|convidar|revogar|reativar|remover: "a conta nasce de um convite do gestor" vale
-  // no servidor, não só na tela). LER admin-projetos/admin-itens/admin-sugestoes por GET é de qualquer
-  // usuário validado no Jira — é o modo leitura do consultor no módulo. O cliente nunca chega aqui:
-  // não tem token do Jira.
+  // 🌐 Portal do projeto e 🔐 contas do cliente — o papel de GESTOR (cfg.gestores, como no planejamento,
+  // com o fallback legado) é exigido para ESCREVER (admin-* por POST, preview, admin-refresh) e para tudo
+  // que mexe nas contas do cliente (contas|convidar|revogar|reativar|remover: "a conta nasce de um convite
+  // do gestor" — decisão do usuário de 2026-09-26 — vale no servidor, não só na tela; antes qualquer
+  // consultor com Jira válido conseguia listar, convidar e revogar contas). LER admin-projetos/admin-itens/
+  // admin-sugestoes por GET é de qualquer usuário validado no Jira — é o modo leitura do consultor no
+  // módulo. É UM gate só: uma checagem geral de gestor antes desta linha tornaria o modo leitura código
+  // morto (achado da revisão do PR #185). O cliente nunca chega aqui: não tem token do Jira.
   const rotaGestor = acao.startsWith('admin-') || acao === 'preview' || ['contas', 'convidar', 'revogar', 'reativar', 'remover'].includes(acao);
   const soLeitura = req.method !== 'POST' && ['admin-projetos', 'admin-itens', 'admin-sugestoes'].includes(acao);
   if (rotaGestor && !soLeitura && !(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Ação restrita aos gestores (configure em ⚙️ Configurações).' });
