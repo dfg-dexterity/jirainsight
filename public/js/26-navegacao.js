@@ -49,6 +49,7 @@ function render(){
   if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='uso') return renderUso();
   if(estado.vista==='semanal') return renderSemanal();
+  if(estado.vista==='portal') return renderPortal();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
 }
@@ -217,6 +218,7 @@ const NAVCAT=[
   ['timesheet','⏱ Horas do time › ⏱ Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise timesheet'],
   ['ranking','⏱ Horas do time › 🏆 Ranking','entrega','engajamento cumprimento apontamento analise ranking'],
   ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
+  ['portal','🌐 Portal do cliente','entrega','portal cliente publicar riscos faq decisoes reunioes sharepoint teams visao externa pendencias time do projeto equipe links pre-visualizar convidar acessos area do cliente progresso epicos marcos'],
   // Dexterity Negócio — comercial, financeiro e controladoria
   ['admin','📑 Contratos › 🏢 Clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes cadastro contratos clientes'],
   ['parcerias','📑 Contratos › 🤝 Parceiros (consultorias)','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes odoo ordem de venda faturamentos sincronizar horas extras objeto de resultado rateio conta analitica proximas notas'],

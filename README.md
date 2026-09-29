@@ -86,6 +86,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
 | `16b-parcerias.js` | 🤝 Contratos de parceria (`cfg.parcerias`): consultoria, modalidade (horas abertas · AMS · demanda fechada), validade e período de aviso, valor-hora, fechamento do período de faturamento e dia da nota **ajustáveis mês a mês** (`ajustes`), conta de recebimento, calendário dos próximos 12 períodos, histórico; **📂 pasta do contrato no SharePoint + 📄 documentos** (`c.pasta`, `c.docs[]` — só links `http(s)`, validados por `pcUrl`; todos veem e abrem, gestores cadastram) e **👥 equipe e alocação** (`c.equipe[]` = recursos com uma LISTA de trechos `{de, ate, modo, v}` — % do dia · h/dia útil · h/mês · h no total: `pcHorasRegra`/`pcPlanejamento` somam pelos dias úteis e devolvem horas e valor por **período de faturamento**); **✎ ajuste manual da previsão** (`c.prev[ym]={h,v}`, `pcPrev`/`pcPrevSet`: gestores digitam as horas e/ou o valor de um período por cima do cálculo — o calculado continua visível em `horasAuto`/`valorAuto` e o campo vazio volta ao automático); helpers `pcPeriodos`/`pcStatus` usados pela Rentabilidade |
 | `16c-parcerias-odoo.js` | 🧾 **Contrato de parceria ↔ Odoo Vendas** (2026-09-20): o contrato é o dono da ordem de venda (`c.odoo`) — um item por período de faturamento + um por **➕ hora extra** (`c.extras`), cada um com o rateio por **🎯 objeto de resultado** (contas analíticas → `analytic_distribution`; `c.rateio` padrão, `c.rateios[ym]` por período). `↻ Sincronizar` lê o faturado/pago (`?acao=odoo-venda-status`) e compara a previsão com a ordem (`?acao=odoo-contrato` com `dry:1`); a escrita só depois do "Aplicar". Remover o contrato cancela a ordem (`?acao=odoo-contrato-cancela`). Faixa **🧾 Próximas notas** (`pcNotasPendentes`, também no 📆 Fechamento do mês) e catálogo de produtos/objetos (`?acao=odoo-catalogo`) |
+| `16d-portal-cliente.js` | 🌐 **Portal do cliente** (2026-09-28, `?v=portal`, Dexterity Entrega; chip 🌐 na espinha do projeto): o gerente escolhe o projeto e, em 5 seções (`?v=portal&pproj=KEY&psec=…`), **publica** o portal, **configura** (apresentação, canal do Teams, pasta do SharePoint, **calendário do projeto** com "salvar e testar", links, time, épicos ocultos, blocos), **cura o conteúdo** (pendências · riscos · FAQ · reuniões numa tabela editável por tipo; decisões da 🎯 Prioridades ganham o interruptor "visível ao cliente"), gerencia os **acessos** (`pcliBlocoHTML`) e **pré-visualiza** como o cliente (iframe `/portal.html?preview=KEY` + `postMessage` com a identidade do gestor). Tudo pelas rotas `?pcli=admin-*` (gestor validado no Jira); a tabela é a fonte da verdade (`atualizado_por`), publicar/despublicar vai ao 🗒 Histórico |
 | `17-metricas-tipo.js` | 📈 Métricas por tipo de projeto (DEA/PEA, DEF/PEF, AMS, ARQ, IMI, IPA, ITPR) + ⚙️ Perfis (nível e departamento por pessoa) |
 | `17b-rentabilidade.js` | 💹 Rentabilidade de projetos: plano por **tipo** — nas horas abertas, a linha **Horas vendidas** do planner nasce da carga vendida mas aceita o número **digitado por mês** (`p.vendMan['AAAA-MM']`, 2026-09-21: entra em `rpVendPorMes`, a fonte única, e por isso vale para receita, eficiência, saldo, períodos de faturamento/Odoo, realizado × previsto e gráficos; o calculado fica ao lado e o ↺ devolve o plano) — (horas abertas: 🤝 contrato de parceria, início/fim, h/dia, valor-hora → receita mensal e por **período de faturamento** do contrato, receita realizada, ordem de venda no Odoo com **um item por período** via `/api/resumo?acao=odoo-venda` e **sincronização** do faturado/pago via `?acao=odoo-venda-status`; escopo fechado: valor + marcos de faturamento ligados a épicos; interno: orçamento consumido pela alocação), planner pessoa × mês com **alocação por regra** (% do dia, h/dia, h/mês, total entre datas — dias úteis sem feriados, `al.regra`), cenários, simulador, realizado e **histórico do plano** (`p.hist`: quem/quando/o quê) — tudo em `cfg.rentab` |
 | `_arquivado-planejamento-alocacao.js` | 🧮 Planejamento macro e 👥 Alocação — **arquivado** (telas em reformulação desde 2026-08-17): fica no repositório, **não carrega**; arquivos que começam com `_` ficam fora da lista e do gate. O topo do arquivo diz como reativar |
@@ -551,6 +552,57 @@ não registra quem entrou). Serve como **página própria** e **embutida num ifr
 > no login da Vercel **antes** de chegar ao portal. Para a área funcionar é preciso um **domínio
 > customizado** (ex.: `portal.dexterityit.com.br`), que é a exceção da regra. O mesmo vale se
 > algum dia a **Password Protection** global for ligada: ela bloqueia tudo.
+
+### 🌐 Portal do projeto — o cliente acompanha o projeto sem entrar no Jira (2026-09-28)
+
+Pedido: *"um portal onde meu cliente vê o progresso do projeto, decisões a serem tomadas, pendências,
+riscos, atraso, time, FAQ, canal do Teams, próximas reuniões, links úteis, pasta do SharePoint — sem dar
+acesso ao Jira — e um módulo no Hub exclusivo para isso".* Decisões do usuário: acesso **amarrado ao
+contrato** (a conta da área do cliente continua a mesma; várias pessoas do cliente = várias contas), reuniões
+do **calendário do projeto no Microsoft 365**, progresso pelos **épicos e marcos** (a mesma conta do 📅
+Cronograma), visual **padrão Dexterity**.
+
+**O que o cliente vê** (`/portal.html`, modo projeto quando o contrato tem projeto publicado; a aba
+📞 Chamados e horas continua para contratos AMS; `?c=` legado inalterado): cabeçalho *cliente · projeto*,
+💬 Canal do Teams e 📂 Pasta em destaque, **Progresso** (%, marcos, próximo marco, maior atraso, semáforo,
+previsão), **Cronograma** (barras por épico, ◆ marcos, linha de hoje), **O que a Dexterity precisa de você**
+(tickets em status que citam o cliente + pendências cadastradas), **Decisões a tomar** (as da 🎯 Prioridades
+marcadas como visíveis), **Riscos**, **Próximas reuniões** (30 dias, botão Entrar), **Time do projeto**, **FAQ**
+e **Links úteis**. Cada bloco só aparece se estiver ligado e tiver conteúdo.
+
+**De onde vem.** `api/_lib/portal.js` monta o payload por **allowlist** (`ESQUEMA` + `assertAllowlist` nos
+testes): o cliente nunca recebe responsável por ticket, horas por pessoa, custos/valores, comentários,
+descrições, e-mails, `saude`/`inconsistencias`, nem nada de outro cliente; bloco desligado é **zerado no
+servidor**, não só escondido. Progresso/atraso: `api/_lib/cronograma.js` (porte de `crLinhas`/`projMarcos`
+com **gate de paridade** `scripts/check-cronograma-paridade.mjs` no `npm run check`; a ficha do projeto passou
+para `api/_lib/projetos.js`). Calendário: `calendarioDoProjeto` lê **só a caixa/grupo configurado pelo gestor**
+pelo Graph (`Calendars.Read` de aplicativo; grupo do Teams exige `Group.Read.All`), só campos públicos (nunca
+participantes/organizador/corpo), fuso de São Paulo, sem eventos privados/cancelados; e-mails de pessoas do
+time são recusados e a caixa só vale depois de confirmada pela prévia. Cache do payload em `jirainsight_config`
+id `portal_<KEY>` (10 min, sobrevive à partida a frio; ↻ do gestor invalida em todas as instâncias; falha do
+banco/Jira → 502 e nada em cache).
+
+**Onde mora o conteúdo.** Tabelas próprias (migração `supabase/migrations/20260928_portal_projetos.sql`):
+`jirainsight_portal_projetos` (contrato, projeto, publicado, `config` jsonb) e `jirainsight_portal_itens`
+(pendência · risco · faq · reunião, com responsável/lado, prazo, status por tipo, visível, ordem, quem/quando)
++ `visivel_cliente` em `jirainsight_decisoes`. Não vai para a config compartilhada (ela desce inteira para
+o navegador de todo o time e tem teto de 256 KB).
+
+**Módulo interno 🌐 Portal do cliente** (`16d-portal-cliente.js`, Dexterity Entrega, `?v=portal&pproj=KEY&psec=…`,
+chip 🌐 na espinha do projeto): 🌐 Projetos (contrato × projeto, publicado/rascunho), ⚙️ Configurar (apresentação,
+canal, pasta, calendário com "salvar e testar", links, time sugerido do Jira, épicos ocultos, blocos), 📋 Conteúdo
+(tabela editável por tipo; decisões da 🎯 Prioridades ganham o interruptor "visível ao cliente"), 👤 Acessos
+(o mesmo bloco dos contratos) e 👁 Pré-visualizar (iframe `/portal.html?preview=KEY` + `postMessage` com a
+identidade do gestor). Só gestores editam; publicar/despublicar vai ao 🗒 Histórico.
+
+**Rotas** (tudo em `api/config.js?pcli=`, sem função nova): cliente — `dados` (+ `tipo`, `projetos[]`),
+`projeto&p=KEY`; gestor (`validaJira` + `planEhGestor`) — `admin-projetos&ct`, `admin-config` (trocar o
+contrato de um projeto publicado exige confirmação: 409), `admin-itens&p`, `admin-decisao`, `admin-sugestoes&p`
+(time sugerido, reuniões do Jira, líder, teste do calendário), `admin-refresh&p`, `preview&p`. Projeto fora do
+contrato ou não publicado → 404 idêntico ao inexistente.
+
+**Pré-requisito de rede:** domínio customizado `portal.dexterityit.com.br` (a SSO Protection da Vercel
+bloqueia visitantes externos nos `.vercel.app`) — a cerca do host já está no código.
 
 ### 🚨 Central de Alertas
 
