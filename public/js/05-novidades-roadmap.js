@@ -12,8 +12,9 @@
 // aqui. `npm run check` (scripts/check-entrega.mjs, também na CI a cada PR)
 // REPROVA quando ROADMAP_REV ficar para trás da última entrada de NOVIDADES:
 // é a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-09-28';
+const ROADMAP_REV='2026-09-30';
 const ROADMAP=[
+  { s:'planejado', t:'🤝 Contratos de parceria — voltar a restringir a gestão aos gestores', d:'Em 2026-09-30 a gestão dos contratos de parceria foi aberta a todo mundo identificado ("dê acesso para todo mundo; depois bloqueamos"). Quando chegar a hora, PC_SO_GESTORES=true no 16b-parcerias.js religa a restrição a cfg.gestores — e vale pensar num papel intermediário (quem cadastra sem poder remover ou mexer no Odoo).' },
   { s:'planejado', t:'📊 Relatório semanal — tickets criados/concluídos também até domingo e recuperar semanas sem foto', d:'A foto de sexta conta horas e plano de segunda a domingo (a semana anterior é recontada na sexta seguinte), mas os tickets criados/concluídos param na sexta; e uma semana sem foto (cron parado) só recupera a imediatamente anterior, sem cartão. Fechar essas duas pontas.' },
   { s:'planejado', t:'📊 Relatório semanal — o gerente recebe também por e-mail e escolhe o dia/hora por projeto', d:'Hoje o relatório vai ao canal de gestores e à mensagem direta no Teams (sem serviço de e-mail no projeto). Com o Graph (Mail.Send) ou Resend, mandar por e-mail e deixar cada gerente escolher o dia e a hora.' },
   { s:'avaliacao', t:'🧭 Pendências do projeto — cobrança automática programada', d:'A tela deixa a mensagem pronta (copiar, Teams, comentário no Jira, Inbox). O passo seguinte é o gerente agendar: "toda quarta, cobrar quem tem vencido há mais de 3 dias" — pelo mesmo cron do relatório semanal.' },
@@ -127,6 +128,7 @@ function renderRoadmap(){
 // entrada aqui e subir NOV_VER (reacende o indicador). O card da tela inicial
 // (⚡ Ações de hoje) mostra as mais recentes automaticamente.
 const NOVIDADES=[
+  ['2026-09-30','🤝 <b>Contratos de parceria: todo mundo pode editar, excluir e gerenciar</b>. A tela 🤝 Parcerias (e o 🧾 Odoo do contrato) deixou de ser só de gestores: qualquer pessoa <b>identificada</b> no painel (⏱ Apontar, e-mail + token do Jira) cadastra, edita, remove, cuida da equipe, dos documentos, da previsão e da ordem no Odoo — tudo continua no histórico do contrato. Sem identidade, a tela explica o que falta e leva ao ⏱ Apontar. A restrição aos gestores pode ser religada no futuro com uma chave só.'],
   ['2026-09-28','🌐 <b>Portal do projeto: o cliente acompanha o projeto sem entrar no Jira</b>. A área do cliente ganhou o <b>modo projeto</b>: progresso e atraso pelos épicos e marcos (a mesma conta do 📅 Cronograma), <b>o que a Dexterity precisa de você</b>, decisões a tomar, riscos, time, próximas reuniões (calendário do projeto no Microsoft 365), FAQ, links úteis, pasta do SharePoint e canal do Teams — e nada além do que você publicar (o servidor monta a página por lista fechada: nunca responsável, horas por pessoa, custo ou outro cliente). No Hub, o módulo novo <b>Dexterity Entrega › 🌐 Portal do cliente</b> (também pelo chip 🌐 na ficha do projeto): publicar, configurar, curar o conteúdo, convidar pessoas do cliente e <b>pré-visualizar como o cliente vê</b>. Precisa do domínio <b>portal.dexterityit.com.br</b> ligado e da migração do banco aplicada.'],
   ['2026-09-28','📊 <b>Relatório semanal de sexta — planejado × orçado × realizado, reuniões, tickets criados e qualidade da informação, comparável semana a semana</b>. Toda sexta (ou no último dia útil da semana) o servidor tira uma <b>foto</b> da semana: plano enviado, horas vendidas/capacidade, realizado, reuniões pelo Jira, criados/concluídos, <b>nota de qualidade da informação</b> e a atividade de cada pessoa — guarda 104 semanas, manda o <b>cartão ao canal de gestores</b> e uma <b>mensagem direta a cada gerente</b> com as pendências dos seus projetos. A tela <b>📚 Central › 📊 Semanal</b> (R28) mostra esta semana, a anterior, o Δ, a média de 4 e a série de 8, por pessoa e por projeto; cada um vê conforme o papel. Liga em ⚙️ Central › 📣 Envios automáticos (precisa de <b>CRON_SECRET</b> e dos webhooks na Vercel).'],
   ['2026-09-28','🧭 <b>Pendências do projeto — a visão do gerente com a cobrança pronta</b>. Em <b>🛠 Tickets do time › 🧭 Pendências</b> (ou pelo chip 🧭 na ficha do projeto): <b>meus projetos</b>, vencidos por pessoa, parados há N dias, vencem em 7 dias, cadastro incompleto, sem apontamento e reuniões vencidas — cada bloco por pessoa, pior caso primeiro, com o Δ desde a sexta passada. E as ações: <b>📋 copiar a mensagem da pessoa</b> com o link filtrado, <b>💬 abrir o chat do Teams</b>, <b>📣 comentar no Jira em lote</b> e <b>📥 avisar no Inbox</b>. O <b>gerente de cada projeto</b> agora é um campo na ficha do 📁 projeto (sugestão: líder do Jira).'],
@@ -291,7 +293,7 @@ const NOVIDADES=[
   ['2026-06-13','📝 Planejar: <b>planejamento de épico em dois níveis</b> (histórias dentro do épico).'],
   ['2026-06-12','⏱ Apontar: <b>reuniões em grupo</b> — convide várias pessoas e cada uma confirma com 1 clique.'],
 ];
-const NOV_VER='2026-09-28.3';   // marca da última leva de novidades (reacende o indicador quando muda)
+const NOV_VER='2026-09-30.1';   // marca da última leva de novidades (reacende o indicador quando muda)
 function abreNovidades(){
   try{ localStorage.setItem('jirainsight_nov_visto', NOV_VER); }catch(e){}
   const dot=document.getElementById('nov-dot'); if(dot) dot.hidden=true;

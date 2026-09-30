@@ -258,7 +258,8 @@ de um objeto de resultado". Como funciona:
 - **🧾 Próximas notas** (topo da tela) e o **📆 Fechamento do mês** (Início) listam, de todos os contratos, as notas
   atrasadas e as dos próximos 45/15 dias com o estado no Odoo; uma nota só sai quando o item é faturado.
 - Toda escrita exige a identidade do Jira de quem clica (confirmada em `/myself`, nunca persistida) e usa a conta
-  de serviço do Odoo; só gestores criam/aplicam. O vínculo (`c.odoo.itens`: chave `p:AAAA-MM` / `x:<id>` → id da
+  de serviço do Odoo. Desde **2026-09-30** (pedido do usuário) **qualquer pessoa identificada** edita os contratos de
+  parceria e cria/aplica a ordem — `PC_SO_GESTORES` em `16b-parcerias.js` religa a restrição aos gestores. O vínculo (`c.odoo.itens`: chave `p:AAAA-MM` / `x:<id>` → id da
   linha) fica na config compartilhada.
 
 ### 🌴 Folga / compensação de horas extras (Odoo)

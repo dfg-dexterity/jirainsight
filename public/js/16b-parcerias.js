@@ -5,7 +5,8 @@
 // horas fechadas), a VALIDADE (início/fim), o VALOR DA HORA negociada, o PERÍODO DE AVISO (dias de aviso
 // prévio para encerrar/renovar), o PERÍODO DE FATURAMENTO — o dia em que o período fecha ("até o dia 25")
 // e o DIA DA NOTA — ambos AJUSTÁVEIS MÊS A MÊS (cfg.parcerias[].ajustes['AAAA-MM']) — e a CONTA BANCÁRIA de
-// recebimento. Tudo mora em cfg.parcerias (config compartilhada); gestores editam, os demais leem.
+// recebimento. Tudo mora em cfg.parcerias (config compartilhada); quem se identificou no painel edita
+// (PC_SO_GESTORES religa a restrição aos gestores).
 // A 💹 Rentabilidade liga cada plano de horas abertas a um contrato: cliente e valor-hora vêm dele e a receita
 // prevista é quebrada nos PERÍODOS DE FATURAMENTO do contrato — um item da ordem de venda no Odoo por período.
 // Regra do período: o período do mês M vai do dia seguinte ao fechamento de M−1 até o fechamento de M; a nota
@@ -18,6 +19,13 @@ const PC_MODAL={ horas:['⏱','Horas abertas','o cliente paga as horas trabalhad
 function pcLista(){ if(!Array.isArray(cfg.parcerias)) cfg.parcerias=[]; return cfg.parcerias; }
 function pcDe(id){ return id?pcLista().find(c=>c&&c.id===id)||null:null; }
 function pcModal(c){ return PC_MODAL[c&&c.modalidade]?c.modalidade:'horas'; }
+// 🔓 Quem pode GERIR os contratos (pedido do usuário, 2026-09-30: "dê acesso para todo mundo; depois bloqueamos no
+// futuro"): TODO MUNDO identificado no painel (⏱ Apontar: e-mail + token do Jira) edita, exclui e gerencia. O servidor já
+// exige essa identidade para gravar a config compartilhada, então sem ela não há o que abrir — a tela explica e leva ao
+// ⏱ Apontar. Para voltar a restringir aos gestores (cfg.gestores), basta PC_SO_GESTORES=true: todos os pontos da
+// 🤝 Parcerias (16b) e do 🧾 Odoo do contrato (16c) passam por pcPodeEditar().
+const PC_SO_GESTORES=false;
+function pcPodeEditar(){ return PC_SO_GESTORES ? souAprovador() : !!idApontar(); }
 // Quem está mexendo (identidade do ⏱ Apontar) — só o nome/e-mail, para o histórico.
 function pcQuem(){ const id=idApontar()||{}; return { nome:String(id.nome||id.email||'alguém').trim(), email:String(id.email||'') }; }
 function pcNovo(){ const h=hojeSP(); return { id:'pc'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), consultoria:'', modalidade:'horas', inicio:h.slice(0,7)+'-01', fim:'', valorHora:0, avisoDias:30, fatFecha:25, fatDia:30, conta:'', contato:'', obs:'', pasta:'', docs:[], equipe:[], ajustes:{}, hist:[] }; }
@@ -181,11 +189,11 @@ function pcRegraRot(r){ const v=Number(r&&r.v)||0; const m=pcModo(r); const q=m=
 
 // ---- tela ----
 function renderParcerias(){
-  const cont=document.getElementById('conteudo'); const st=estado.parcerias=estado.parcerias||{}; const gestor=souAprovador(); const lista=pcLista();
+  const cont=document.getElementById('conteudo'); const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar(); const lista=pcLista();
   const edit=st.editId?pcDe(st.editId):null; if(st.editId&&!edit) st.editId=null;
   const hoje=hojeSP();
   const intro=`<div class="card full"><h2>🤝 Contratos de parceria <span>as consultorias que contratam a Dexterity: modalidade, valor-hora, validade e o calendário de faturamento</span></h2>
-    <div class="muted small">Cadastre cada contrato com a <b>modalidade</b> (horas abertas, atendimento AMS ou demanda com horas fechadas), o <b>período de validade</b>, o <b>valor da hora negociada</b>, o <b>período de aviso</b> (dias de aviso prévio), o <b>período de faturamento</b> (o dia em que o período fecha — "até o dia 25") e o <b>dia da nota</b>, além da <b>conta bancária</b> em que você recebe. As datas de fechamento e de nota podem ser <b>ajustadas mês a mês</b> no 📅 calendário de cada contrato. Na 💹 Rentabilidade, o plano de horas abertas liga-se ao contrato: o cliente, o valor-hora e os <b>períodos de faturamento</b> (um item da ordem de venda no Odoo por período) vêm daqui. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
+    <div class="muted small">Cadastre cada contrato com a <b>modalidade</b> (horas abertas, atendimento AMS ou demanda com horas fechadas), o <b>período de validade</b>, o <b>valor da hora negociada</b>, o <b>período de aviso</b> (dias de aviso prévio), o <b>período de faturamento</b> (o dia em que o período fecha — "até o dia 25") e o <b>dia da nota</b>, além da <b>conta bancária</b> em que você recebe. As datas de fechamento e de nota podem ser <b>ajustadas mês a mês</b> no 📅 calendário de cada contrato. Na 💹 Rentabilidade, o plano de horas abertas liga-se ao contrato: o cliente, o valor-hora e os <b>períodos de faturamento</b> (um item da ordem de venda no Odoo por período) vêm daqui. ${gestor?'':(PC_SO_GESTORES?'<b>Somente gestores editam</b>; você está vendo em modo leitura.':'🔐 <b>Para editar, identifique-se</b> em ⏱ Apontar (e-mail + token do Jira): a gravação da config compartilhada exige a identidade. <button class="btn" data-goto="apontar">⏱ Apontar</button>')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor&&!st.novo&&!edit?'<button class="btn primario" data-pc-novo="1">＋ Novo contrato</button>':''}<button class="btn" data-goto="rentab">💹 Rentabilidade</button><button class="btn" data-goto="admin">⚙️ Contratos (Admin)</button></div></div>`;
   // O formulário nasce do RASCUNHO (st.rasc): no contrato novo ele já existe; na edição é a cópia do contrato.
   // O rascunho acompanha o que a pessoa digita (pcGuardaRasc), então um render() vindo de fora — o catálogo de
@@ -408,7 +416,7 @@ function pcLeForm(c){
 
 // ---- listeners delegados desta tela ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
-  if(estado.vista!=='parcerias') return; const st=estado.parcerias=estado.parcerias||{}; const gestor=souAprovador();
+  if(estado.vista!=='parcerias') return; const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar();
   const pl=e.target.closest&&e.target.closest('[data-pc-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-pc-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   // 🗂 gavetas do cartão (uma por vez): 👥 equipe · 🧾 faturamentos (16c) · 📅 calendário · 📄 documentos
@@ -471,20 +479,20 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!t.hasAttribute) return;
-  if(t.hasAttribute('data-pc-aj')){ if(!souAprovador()) return; const [id,ym,campo]=t.getAttribute('data-pc-aj').split('|'); const c=pcDe(id); if(!c) return; if(!c.ajustes||typeof c.ajustes!=='object') c.ajustes={};
+  if(t.hasAttribute('data-pc-aj')){ if(!pcPodeEditar()) return; const [id,ym,campo]=t.getAttribute('data-pc-aj').split('|'); const c=pcDe(id); if(!c) return; if(!c.ajustes||typeof c.ajustes!=='object') c.ajustes={};
     const val=String(t.value||''); if(!pcData(val)){ renderParcerias(); return; }
     const padrao=campo==='fecha'?pcDiaNoMes(ym,c.fatFecha||31):pcNota({ ...c, ajustes:{ ...c.ajustes, [ym]:{ ...(c.ajustes[ym]||{}), nota:'' } } },ym);
     const a=c.ajustes[ym]||{}; if(val===padrao) delete a[campo]; else a[campo]=val; if(Object.keys(a).length) c.ajustes[ym]=a; else delete c.ajustes[ym];
     pcLog(c,'ajuste',`${labelMesAbbr(ym)}: ${campo==='fecha'?'fechamento':'nota'} → ${dataBR(val)}`); salvaCfg(); renderParcerias(); return; }
   // 📄 documento: tipo, nome e link (só http(s) — um endereço inválido é recusado e o campo volta ao que estava)
-  if(t.hasAttribute('data-pc-doc')){ if(!souAprovador()) return; const [id,did,campo]=t.getAttribute('data-pc-doc').split('|'); const c=pcDe(id); if(!c) return;
+  if(t.hasAttribute('data-pc-doc')){ if(!pcPodeEditar()) return; const [id,did,campo]=t.getAttribute('data-pc-doc').split('|'); const c=pcDe(id); if(!c) return;
     const d=pcDocs(c).find(x=>x.id===did); if(!d) return; const val=String(t.value||'').trim();
     if(campo==='url'){ const u=pcUrl(val); if(val&&!u){ toast('O link precisa começar com http:// ou https:// — copie o link do arquivo no SharePoint.','warn'); renderParcerias(); return; } d.url=u; }
     else if(campo==='nome') d.nome=val.slice(0,120);
     else d.tipo=PC_DOC_TIPOS.some(x=>x[0]===val)?val:'outro';
     pcLog(c,'doc',`${pcDocTipo(d)[2]}${d.nome?' "'+d.nome+'"':''}: ${campo} atualizado`); salvaCfg(); renderParcerias(); return; }
   // ✎ previsão do período digitada à mão: horas e/ou valor (vazio = volta ao cálculo automático)
-  if(t.hasAttribute('data-pc-prev')){ if(!souAprovador()) return; const [id,ym,campo]=t.getAttribute('data-pc-prev').split('|');
+  if(t.hasAttribute('data-pc-prev')){ if(!pcPodeEditar()) return; const [id,ym,campo]=t.getAttribute('data-pc-prev').split('|');
     const c=pcDe(id); if(!c||(campo!=='h'&&campo!=='v')) return;
     const bruto=String(t.value||'').trim();
     if(bruto&&pcPrevNum(bruto)==null){ toast('Digite um número igual ou maior que zero — ou deixe em branco para voltar ao cálculo.','warn'); renderParcerias(); return; }
@@ -495,7 +503,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     pcLog(c,'previsão',`${labelMesAbbr(ym)}: ${rot} ${n==null?'de volta ao cálculo':'→ '+(campo==='h'?fmtHd(n):fmtBRL(n))}`);
     salvaCfg(); renderParcerias(); return; }
   // 👥 trecho de alocação: datas, modo e dedicação (salva na hora; as horas do período são recalculadas)
-  if(t.hasAttribute('data-pc-rg')){ if(!souAprovador()) return; const [pid,rid,campo]=t.getAttribute('data-pc-rg').split('|');
+  if(t.hasAttribute('data-pc-rg')){ if(!pcPodeEditar()) return; const [pid,rid,campo]=t.getAttribute('data-pc-rg').split('|');
     const c=pcLista().find(x=>pcEquipe(x).some(p=>p.id===pid)); if(!c) return;
     const p=pcEquipe(c).find(x=>x.id===pid); const r=pcRegras(p).find(x=>x.id===rid); if(!r) return;
     const val=String(t.value||'').trim();
