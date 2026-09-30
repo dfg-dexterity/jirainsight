@@ -135,7 +135,7 @@ function pcCatCarrega(forca){ const st=estado.parcerias=estado.parcerias||{}; co
     pcReRender(); }).catch(e=>{ st.catCarregando=false; st.cat={ em:Date.now(), produtos:[], analiticas:[], erro:humanizaErro(e) }; pcReRender(); }); }
 // Chamado pelo renderParcerias: lê o Odoo dos contratos com ordem (a cada 10 min) e o catálogo quando a gaveta 🧾 está aberta.
 function pcOdooAoAbrir(lista){ (lista||[]).forEach(c=>{ if(pcOdoo(c)) pcOdooGaranteLeitura(c); });
-  const st=estado.parcerias||{}; if(st.aba&&st.aba.qual==='fat'&&!st.cat&&souAprovador()) pcCatCarrega(false); }
+  const st=estado.parcerias||{}; if(st.aba&&st.aba.qual==='fat'&&!st.cat&&pcPodeEditar()) pcCatCarrega(false); }
 
 // ---- ler o Odoo: estado da ordem, faturado/pago por item, faturas ----
 function pcOdooLe(c, forca){ const o=pcOdoo(c); if(!o) return; const E=pcOdooEstado(c); if(E.lendo) return; E.lendo=true; E.erro='';
@@ -148,7 +148,7 @@ function pcOdooLe(c, forca){ const o=pcOdoo(c); if(!o) return; const E=pcOdooEst
     const mud=[]; if(antes){ if(antes.state!==sync.state) mud.push(`ordem ${PC_ODOO_ST[sync.state]||sync.state}`);
       sync.faturas.forEach(f=>{ const a=(antes.faturas||[]).find(x=>x.id===f.id); if(!a) mud.push(`fatura ${f.nome} emitida${f.data?' em '+dataBR(f.data):''} (${fmtBRL(f.total)})`); else if(a.pagamento!==f.pagamento&&(f.pagamento==='paid'||f.pagamento==='in_payment')) mud.push(`fatura ${f.nome} paga`); }); }
     if(mud.length){ pcLog(c,'odoo','Odoo: '+mud.join(' · ')); toast('Odoo: '+mud.join(' · '),'ok'); }
-    if(souAprovador()) salvaCfg();   // a leitura fica na config para todos verem; sem gestor, fica só nesta sessão
+    if(pcPodeEditar()) salvaCfg();   // a leitura fica na config para todos verem; sem identidade, fica só nesta sessão
     pcReRender(); }).catch(e=>{ E.lendo=false; E.erro=humanizaErro(e); pcReRender(); }); }
 function pcOdooGaranteLeitura(c){ const o=pcOdoo(c); if(!o) return; const E=pcOdooEstado(c); const s=o.sync; const velho=!s||!s.em||(Date.now()-Date.parse(s.em))>PC_ODOO_SYNC_TTL; if(velho&&!E.lendo&&!E.erro) pcOdooLe(c,false); }
 // ---- comparar a previsão com a ordem (dry) e aplicar ----
@@ -303,7 +303,7 @@ function pcRateioLeModal(){ const m=estado.parcerias&&estado.parcerias.rtModal; 
 
 // ---- listeners delegados desta gaveta ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
-  if(estado.vista!=='parcerias') return; const st=estado.parcerias=estado.parcerias||{}; const gestor=souAprovador();
+  if(estado.vista!=='parcerias') return; const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar();
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-pc-ir')){ const id=t.getAttribute('data-pc-ir'); st.aba={ id, qual:'fat' }; st.destaque=id; renderParcerias(); return; }
   if(t.hasAttribute('data-pc-odoo-sync')){ const c=pcDe(t.getAttribute('data-pc-odoo-sync')); if(!c) return; if(!pcOdoo(c)&&!gestor) return; pcOdooSincroniza(c); return; }
@@ -329,7 +329,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-pc-rt-per')){ const [id,ym]=t.getAttribute('data-pc-rt-per').split('|'); const c=pcDe(id); if(!c) return; if(!pcCat()) pcCatCarrega(false); pcAbreRateioPeriodo(c,ym); return; }
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
-  if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!t.hasAttribute||!souAprovador()) return;
+  if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!t.hasAttribute||!pcPodeEditar()) return;
   // ➕ hora extra: período, descrição, horas, valor-hora, projeto, objeto de resultado, quem
   if(t.hasAttribute('data-pc-xt')){ const [id,xid,campo]=t.getAttribute('data-pc-xt').split('|'); const c=pcDe(id); if(!c) return; const x=pcExtras(c).find(y=>y.id===xid); if(!x) return; const val=String(t.value||'').trim();
     if(campo==='ym'){ if(!/^\d{4}-\d{2}$/.test(val)){ renderParcerias(); return; } x.ym=val; }
@@ -352,7 +352,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 });
 // Modal do rateio por período.
 document.getElementById('modal-body').addEventListener('click',(e)=>{
-  if(estado.vista!=='parcerias') return; const st=estado.parcerias||{}; const m=st.rtModal; if(!m) return; const t=e.target.closest&&e.target.closest('button'); if(!t) return; const c=pcDe(m.id); if(!c||!souAprovador()) return;
+  if(estado.vista!=='parcerias') return; const st=estado.parcerias||{}; const m=st.rtModal; if(!m) return; const t=e.target.closest&&e.target.closest('button'); if(!t) return; const c=pcDe(m.id); if(!c||!pcPodeEditar()) return;
   if(t.hasAttribute('data-pc-rtm-fechar')){ st.rtModal=null; fechaModal(); return; }
   if(t.hasAttribute('data-pc-rtm-add')){ pcRateioLeModal(); const resto=Math.max(0,Math.round((100-pcRateioSoma(m.r))*100)/100); m.r.push({ ac:0, nome:'', pct:m.r.length?resto:100 }); pcPintaRateioModal(); return; }
   if(t.hasAttribute('data-pc-rtm-rm')){ pcRateioLeModal(); m.r.splice(+t.getAttribute('data-pc-rtm-rm'),1); pcPintaRateioModal(); return; }
