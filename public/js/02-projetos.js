@@ -361,6 +361,9 @@ function projEspinha(key, d) {
     chip('apuracao', 'negocio', '🛡 Apuração', contrato ? (contrato.tipo === 'ams' ? `AMS · ${ciclo(contrato)}` : rotTipo(contrato.tipo)) : 'sem contrato',
       contrato ? (contrato.tipo === 'ams' ? 'Abre a apuração do ciclo AMS deste contrato (banco de horas, faturado)' : 'Abre 💰 Bolsa de horas & projetos — consumo × contratado e projeção') : 'A apuração precisa de um contrato no Admin — abre 📑 Contratos › 🏢 Clientes'),
     chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}" com o 📁 Resultado deste projeto aberto: receita, custo por nível e por pessoa, vendido × realizado, plano × realizado e evolução`),
+    // 🌐 Portal do cliente (16d, carrega depois): a situação só é conhecida depois que a tela do portal leu o contrato
+    chip('portal', 'entrega', '🌐 Portal', (typeof ptInfo === 'function' && ptInfo(key)) ? (ptInfo(key).outroContrato ? `${ptInfo(key).publicado ? 'publicado' : 'configurado'} para ${ptInfo(key).outroContrato.cliente || 'outro contrato'}` : ptInfo(key).publicado ? 'publicado para o cliente' : 'rascunho — ainda não publicado') : (contrato ? 'visão externa do cliente' : 'precisa de um contrato no Admin'),
+      contrato ? 'Abre 🌐 Portal do cliente já neste projeto: publicar, curar pendências, riscos, FAQ e reuniões, convidar o cliente e pré-visualizar a página' : 'O portal publica o projeto PARA um contrato — cadastre o contrato do cliente em 📑 Contratos › 🏢 Clientes e mapeie este projeto'),
   ].join('');
   return `<div class="proj-espinha"><span class="pesp-rot" data-tip="A ficha é a espinha do app: cada chip abre a tela da outra área já neste projeto — e de lá o botão 📁 traz de volta">🦴 Espinha do projeto</span>${chips}</div>`;
 }
@@ -412,6 +415,14 @@ function projEspinhaVai(id, key) {
     vaiPara('parcerias'); return;
   }
   if (id === 'cronograma') { estado.cronograma.proj = key; vaiPara('cronograma'); return; }
+  if (id === 'portal') {   // 🌐 abre a configuração do portal neste projeto (sem contrato, a lista explica o que falta)
+    const pt = estado.portal;
+    if (typeof ptTrocaProjetoOk === 'function' && !ptTrocaProjetoOk(key)) return;   // rascunho sujo de OUTRO projeto: pergunta antes de descartar
+    if (pt.rascKey !== key) { pt.rasc = null; pt.rascKey = ''; }
+    pt.proj = key; pt.ct = contrato ? contrato.id : ''; pt.sec = contrato ? 'config' : 'projetos';
+    if (!contrato) toast('Este projeto não está em nenhum contrato do Admin — o portal publica o projeto PARA um contrato. Cadastre-o em 📑 Contratos › 🏢 Clientes.');
+    vaiPara('portal'); return;
+  }
   if (id === 'plano') {
     const rr = estado.rentab;
     if (plano) { rr.sel = plano.id; rr.edit = false; rr.novo = false; vaiPara('rentab'); return; }

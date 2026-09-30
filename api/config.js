@@ -10,6 +10,11 @@
 //                                           convidar · revogar · reativar · remover.
 //                                           A conta é amarrada a UM contrato: é ele que
 //                                           define o escopo — o pedido nunca escolhe.
+//                                           🌐 PORTAL DO PROJETO (2026-09-28): `dados` também
+//                                           lista os projetos PUBLICADOS do contrato; `projeto&p=KEY`
+//                                           devolve a visão externa (allowlist em api/_lib/portal.js);
+//                                           para o GESTOR: admin-projetos · admin-config · admin-itens ·
+//                                           admin-decisao · admin-sugestoes · admin-refresh · preview.
 // POST /api/config?plan=1                -> Meu Planejamento (planejamento semanal por
 //                                           atividade, SEM tickets): CRUD + fluxo de
 //                                           aprovação + versões + histórico, nas tabelas
@@ -30,6 +35,10 @@ import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
 } from './_lib/util.js';
 import { leFotos, papeisDe, recorteParaPapel, segundaDe } from './_lib/semanal.js';
+import {
+  portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
+  adminItensLista, adminItemEscreve, adminDecisao, adminSugestoes, portalCacheLimpa,
+} from './_lib/portal.js';
 
 const TABELA = 'jirainsight_config';
 const ID = 'default';
@@ -395,6 +404,7 @@ function decPublico(d) {
     prazo: d.prazo || '', ticket: d.ticket || '', projeto: d.projeto || '',
     contexto: d.contexto || '', ataUrl: d.ata_url || '',
     decididoEm: d.decidido_em || '', atualizadoEm: d.updated_at,
+    visivelCliente: d.visivel_cliente === true,   // 🌐 portal do cliente: o interruptor fica em 16d (admin-decisao)
   };
 }
 async function decisoes(req, res, base, headers) {
@@ -523,11 +533,16 @@ function linhaChamado(it, horas) {
   };
 }
 
-// Contratos da config compartilhada — a fonte dos projetos e da apuração de cada cliente.
-async function contratosDaConfig(base, headers) {
+// A config compartilhada (o objeto `data` inteiro): contratos (projetos e apuração de cada
+// cliente) e gestores (quem pode publicar — e cujos e-mails nunca viram "calendário do projeto").
+async function dadosDaConfig(base, headers) {
   const r = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
   const rows = r.ok ? await r.json() : [];
-  const data = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+  return (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+}
+// Contratos da config compartilhada — a fonte dos projetos e da apuração de cada cliente.
+async function contratosDaConfig(base, headers) {
+  const data = await dadosDaConfig(base, headers);
   return Array.isArray(data.contratos) ? data.contratos : [];
 }
 // Link antigo (?portal=<token>): o token do contrato é o próprio controle de acesso.
@@ -539,7 +554,9 @@ async function portal(req, res, base, headers, token) {
 }
 // Monta o painel para UM contrato JÁ RESOLVIDO — pelo link antigo ou pela conta logada.
 // O escopo dos dados é sempre este contrato: nada aqui lê nome de cliente do pedido.
-async function portalDados(req, res, c) {
+// `extra` = campos que a conta logada acrescenta (tipo do contrato, projetos publicados do
+// 🌐 portal do projeto); o link antigo não passa nada e continua respondendo como sempre.
+async function portalDados(req, res, c, extra) {
   // Projetos do cliente (sanitizados para a JQL).
   const projetos = (c.projetos || []).filter((p) => /^[A-Za-z][A-Za-z0-9_]*$/.test(p));
   const ref = (req.query && /^\d{4}-\d{2}-\d{2}$/.test(req.query.ref || '')) ? req.query.ref : spHoje();
@@ -549,6 +566,7 @@ async function portalDados(req, res, c) {
 
   const out = {
     ok: true,
+    ...(extra || {}),
     cliente: c.cliente || 'Cliente',
     apuracao: c.apuracao || 'trimestral',
     ciclo: { start: cyc.start, end: cyc.end, meses: cyc.meses },
@@ -564,6 +582,10 @@ async function portalDados(req, res, c) {
   cyc.meses.forEach((m) => { out.horas.porMes[m] = 0; out.chamados.abertosPorMes[m] = 0; out.chamados.fechadosPorMes[m] = 0; });
 
   if (!projetos.length) return json(res, 200, out);
+  // Contrato de PROJETO (conta logada): não há banco de horas nem chamados do ciclo para mostrar —
+  // a tela esconde a aba, então nada disso viaja (nem horas por chamado, nem `seg`). A forma
+  // continua a mesma (zerada) para a página, que ainda cai no AMS quando nada foi publicado.
+  if (extra && extra.tipo === 'projeto') return json(res, 200, out);
 
   // --- Horas do ciclo (Clockwork, escopado aos projetos do cliente) ---
   // segPorChave alimenta a LISTA de chamados: é por ela que um chamado aberto ANTES do
@@ -752,6 +774,10 @@ async function pcAtualiza(base, headers, id, campos) {
 }
 // Quem está logado no portal (cabeçalho Authorization: Bearer <token>).
 // Revalida a conta no banco a cada pedido: revogar surte efeito na hora seguinte.
+// `ultimo_acesso` é o último ACESSO (não o último login): cada pedido com sessão válida o
+// atualiza, no máximo uma vez a cada PC_ACESSO_MIN minutos — é o que a tabela do 🌐 Portal
+// mostra como "último acesso" do cliente.
+const PC_ACESSO_MIN = 10;
 async function pcSessao(req, base, headers) {
   const h = String(req.headers.authorization || '');
   const p = pcVerifica(h.replace(/^Bearer\s+/i, ''));
@@ -759,6 +785,11 @@ async function pcSessao(req, base, headers) {
   const linhas = await pcBusca(base, headers, `id=eq.${encodeURIComponent(p.sub)}&select=*`);
   const conta = linhas[0];
   if (!conta || !conta.ativo || !conta.senha_hash) return null;
+  const ult = Date.parse(conta.ultimo_acesso || '');
+  if (!Number.isFinite(ult) || Date.now() - ult > PC_ACESSO_MIN * 60000) {
+    conta.ultimo_acesso = new Date().toISOString();
+    await pcAtualiza(base, headers, conta.id, { ultimo_acesso: conta.ultimo_acesso });
+  }
   return conta;
 }
 
@@ -839,7 +870,33 @@ async function portalCliente(req, res, base, headers) {
     const contratos = await contratosDaConfig(base, headers);
     const c = contratos.find((x) => x && String(x.id) === String(conta.contrato_id));
     if (!c) return json(res, 200, { ok: false, erro: 'Contrato não encontrado — fale com a Dexterity.' });
-    return await portalDados(req, res, c);
+    // 🌐 Portal do projeto: o AMS de sempre + o tipo do contrato e os projetos PUBLICADOS dele —
+    // é por esta lista que o portal.html decide entrar no modo projeto. Sem projeto publicado,
+    // a resposta é a de antes (com a lista vazia). Falha ao ler a lista NÃO vira "nada publicado"
+    // (o cliente cairia no AMS vazio): responde 502 e a página pede para tentar de novo.
+    let projetos = [];
+    try { projetos = await projetosPublicados({ base, headers }, c); }
+    catch (e) {
+      // 404 do PostgREST = a tabela do portal ainda não foi migrada: o recurso está desligado, a área AMS segue como antes.
+      if (!(e && e.status === 404)) return json(res, 502, { ok: false, erro: 'Não foi possível carregar o painel agora — tente de novo em instantes.' });
+    }
+    return await portalDados(req, res, c, { tipo: String(c.tipo || ''), projetos });
+  }
+
+  // ---- projeto&p=KEY: a visão externa de UM projeto publicado do contrato DA CONTA ----
+  // Fora do contrato, não publicado ou inexistente: o MESMO 404 — quem tenta não aprende
+  // quais chaves existem. O payload sai da allowlist (api/_lib/portal.js); nada é montado aqui.
+  if (acao === 'projeto') {
+    const conta = await pcSessao(req, base, headers);
+    if (!conta) return json(res, 401, { ok: false, erro: 'Sessão expirada — entre de novo.' });
+    const contratos = await contratosDaConfig(base, headers);
+    const c = contratos.find((x) => x && String(x.id) === String(conta.contrato_id)) || null;
+    const key = String((req.query && req.query.p) || '').trim().toUpperCase();
+    let dados = null;
+    try { dados = await portalProjetoPayload({ sb: { base, headers }, c, key, hoje: spHoje() }); }
+    catch (e) { return json(res, 502, { ok: false, erro: 'Não foi possível montar o portal agora — tente de novo em instantes.' }); }
+    if (!dados) return json(res, 404, PORTAL_404);
+    return json(res, 200, dados);
   }
 
   // ---- trocar a própria senha (exige a atual) ----
@@ -856,10 +913,19 @@ async function portalCliente(req, res, base, headers) {
   // ---- administração (gestor do painel, autenticado pelo Jira) ----
   const auth = await validaJira(req);
   if (!auth.ok) return json(res, 401, { ok: false, erro: auth.erro });
-  // A conta do cliente nasce de um convite do GESTOR (decisão do usuário, 2026-09-26): identidade
-  // válida no Jira não basta — qualquer consultor conseguia listar, convidar e revogar contas.
-  // Revisão de 2026-09-28: a mesma régua do planejamento (cfg.gestores, com o fallback legado).
-  if (!(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Só gestores administram os acessos do cliente.' });
+
+  // 🌐 Portal do projeto e 🔐 contas do cliente — o papel de GESTOR (cfg.gestores, como no planejamento,
+  // com o fallback legado) é exigido para ESCREVER (admin-* por POST, preview, admin-refresh) e para tudo
+  // que mexe nas contas do cliente (contas|convidar|revogar|reativar|remover: "a conta nasce de um convite
+  // do gestor" — decisão do usuário de 2026-09-26 — vale no servidor, não só na tela; antes qualquer
+  // consultor com Jira válido conseguia listar, convidar e revogar contas). LER admin-projetos/admin-itens/
+  // admin-sugestoes por GET é de qualquer usuário validado no Jira — é o modo leitura do consultor no
+  // módulo. É UM gate só: uma checagem geral de gestor antes desta linha tornaria o modo leitura código
+  // morto (achado da revisão do PR #185). O cliente nunca chega aqui: não tem token do Jira.
+  const rotaGestor = acao.startsWith('admin-') || acao === 'preview' || ['contas', 'convidar', 'revogar', 'reativar', 'remover'].includes(acao);
+  const soLeitura = req.method !== 'POST' && ['admin-projetos', 'admin-itens', 'admin-sugestoes'].includes(acao);
+  if (rotaGestor && !soLeitura && !(await planEhGestor(base, headers, auth))) return json(res, 403, { ok: false, erro: 'Ação restrita aos gestores (configure em ⚙️ Configurações).' });
+  if (acao.startsWith('admin-') || acao === 'preview') return await portalAdmin(req, res, base, headers, auth, acao, body);
 
   if (acao === 'contas') {   // lista as contas de um contrato
     const ct = String((req.query && req.query.ct) || body.contrato || '');
@@ -915,6 +981,73 @@ async function portalCliente(req, res, base, headers) {
     return json(res, 200, { ok: true });
   }
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
+}
+
+// ===========================================================================
+// 🌐 PORTAL DO PROJETO — rotas do GESTOR (pedido do usuário, 2026-09-28)
+// O que o cliente vê no portal é curado aqui: publicar/despublicar e a config por projeto
+// (canal do Teams, pasta, calendário, links, equipe, épicos ocultos, blocos), os itens
+// (pendências, riscos, FAQ, reuniões manuais), quais decisões ficam visíveis, a matéria-prima
+// para montar a equipe/reuniões (sugestões) e a pré-visualização — o MESMO payload do
+// cliente, ignorando "publicado". Tudo mora em tabelas próprias (jirainsight_portal_*), com
+// `atualizado_por` como fonte da verdade; o 🗒 Histórico de ações do painel registra
+// publicar/despublicar pelo front (que recebe `publicadoMudou`). As regras e validações
+// estão em api/_lib/portal.js; aqui só se despacha e se responde.
+// ===========================================================================
+const PORTAL_404 = { ok: false, erro: 'Projeto não encontrado.' };
+// Erros vêm SEMPRE como {ok:false, status, erro} com o mesmo status HTTP (400 validação, 404, 409
+// conflito de contrato, 502 banco/Jira fora) — nunca o catch genérico do handler (200 + texto cru).
+async function portalAdmin(req, res, base, headers, auth, acao, body) {
+  try { return await portalAdminRotas(req, res, base, headers, auth, acao, body); }
+  catch (e) { return json(res, 502, { ok: false, status: 502, erro: 'Não foi possível concluir agora (banco ou Jira indisponível) — tente de novo em instantes.' }); }
+}
+async function portalAdminRotas(req, res, base, headers, auth, acao, body) {
+  const sb = { base, headers };
+  const q = req.query || {};
+  const quem = String(auth.email || auth.nome || '').slice(0, 120);
+  const key = String(q.p || body.projeto || '').trim().toUpperCase();
+  const post = req.method === 'POST';
+  const responde = (r) => json(res, r.ok ? 200 : (r.status || 400), r);
+  const cfgDados = await dadosDaConfig(base, headers);
+  const contratos = Array.isArray(cfgDados.contratos) ? cfgDados.contratos : [];
+  const extra = { gestores: Array.isArray(cfgDados.gestores) ? cfgDados.gestores : [] };   // + usuários ativos do Jira (dentro do _lib)
+
+  if (acao === 'admin-projetos') {   // contrato × projeto com contadores, para a tabela do módulo
+    const ct = String(q.ct || body.contratoId || '');
+    const c = contratos.find((x) => x && String(x.id) === ct);
+    if (!c) return json(res, 400, { ok: false, status: 400, erro: 'Contrato não encontrado.' });
+    return json(res, 200, { ok: true, contratoId: ct, cliente: c.cliente || '', projetos: await adminProjetos(sb, c, contratos) });
+  }
+  if (acao === 'admin-config') {     // publicar/despublicar + config curada (upsert validado)
+    if (!post) return json(res, 405, { ok: false, status: 405, erro: 'Use POST' });
+    return responde(await adminConfig(sb, contratos, body, quem, extra));
+  }
+  if (acao === 'admin-refresh') {    // invalida o cache do payload em todas as instâncias (e a ficha do Jira)
+    if (!RE_PROJ_P.test(key)) return json(res, 400, { ok: false, status: 400, erro: 'Projeto inválido.' });
+    await portalCacheLimpa(sb, key);
+    return json(res, 200, { ok: true, projeto: key });
+  }
+  if (acao === 'admin-itens') {      // GET lista tudo (visível ou não) · POST {acao, item}
+    if (!RE_PROJ_P.test(key)) return json(res, 400, { ok: false, status: 400, erro: 'Projeto inválido.' });
+    if (!post) return json(res, 200, { ok: true, projeto: key, itens: await adminItensLista(sb, key) });
+    return responde(await adminItemEscreve(sb, key, body, quem));
+  }
+  if (acao === 'admin-decisao') {    // liga/desliga a decisão para o cliente
+    if (!post) return json(res, 405, { ok: false, status: 405, erro: 'Use POST' });
+    return responde(await adminDecisao(sb, body));
+  }
+  if (acao === 'admin-sugestoes') {  // equipe/reuniões do Jira + teste do calendário (salvo ou candidato &cal=) — só para o gestor
+    if (!RE_PROJ_P.test(key)) return json(res, 400, { ok: false, status: 400, erro: 'Projeto inválido.' });
+    return json(res, 200, { ok: true, projeto: key, ...(await adminSugestoes(sb, key, spHoje(), String(q.cal || ''), quem, extra)) });
+  }
+  if (acao === 'preview') {          // o MESMO payload do cliente, ignorando "publicado"
+    let dados = null;
+    try { const c = await contratoDoProjeto(sb, contratos, key); dados = c ? await portalProjetoPayload({ sb, c, key, hoje: spHoje(), preview: true }) : null; }
+    catch (e) { return json(res, 502, { ok: false, status: 502, erro: `Não foi possível montar o portal: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); }
+    if (!dados) return json(res, 404, PORTAL_404);
+    return json(res, 200, dados);
+  }
+  return json(res, 400, { ok: false, status: 400, erro: 'Ação desconhecida.' });
 }
 
 // ===========================================================================

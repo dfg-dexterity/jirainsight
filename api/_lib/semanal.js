@@ -75,7 +75,7 @@ import { jiraSearchAll, worklogsEnriquecidos, jiraUsuariosAtivos } from './util.
 import { coletaAtividade } from './atividade.js';
 import { ehUtilBR, addDias, diaSemana, rpVendEntre } from './rentab.js';
 import { buscaAbertos } from '../vencimentos.js';
-import { carregaCatalogoProjetos } from '../projetos.js';
+import { carregaCatalogoProjetos } from './projetos.js';
 
 export const SEMANAL_V = 1;
 export const SEMANAL_MAX = 104;        // fotos guardadas (2 anos de sextas)
