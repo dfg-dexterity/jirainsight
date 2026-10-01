@@ -138,12 +138,19 @@ function drill(type,key){
 // ============== AÇÕES DE HOJE — tela inicial de comando ==============
 // Seis pontos de atenção com quantidade, severidade, variação vs. o último dia
 // visto (histórico local) e "Ver casos" abrindo a tela certa já filtrada.
+// A base envelhece: 5 min (o servidor também guarda 5 min), uma escrita (invalidaCacheDados → vencSujo) ou a
+// virada do dia (aba aberta desde ontem — o que é "vencido" muda à meia-noite) fazem a Início reler em segundo
+// plano, SEM apagar os números que já estão na tela.
+const AX_VENC_TTL_MS=5*60*1000;
+function axVencEnvelheceu(ax, hoje){
+  return !!(ax.venc && !ax.carregando && (ax.vencSujo || (Date.now()-(ax.vencEm||0))>AX_VENC_TTL_MS || (ax.vencDia && ax.vencDia!==hoje)));
+}
 function axCarregaVenc(forca){
   const ax=estado.acoes; ax.carregando=true; ax.erro='';
   const ate=somaDias(hojeSP(),30);
   fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
-      if(j.erro){ ax.erro=humanizaErro(j.erro); } else ax.venc=j;
+      if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; }
       agendaRenderAcoes();
     }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); agendaRenderAcoes(); });
 }
@@ -369,6 +376,7 @@ function renderAcoes(){
   const cont=document.getElementById('conteudo');
   const ax=estado.acoes; const hoje=hojeSP();
   if(!ax.venc && !ax.carregando && !ax.erro) axCarregaVenc(false);
+  else if(axVencEnvelheceu(ax, hoje)) axCarregaVenc(false);   // relê por trás; os cards seguem com o que têm
   const temContratos=(cfg.contratos||[]).some(c=>c&&(Number(c.tetoMes)>0||Number(c.minMes)>0)&&(c.projetos||[]).length);
   if(temContratos && !ax.mes && !ax.mesCarr && !ax.mesErro) axCarregaMes();
   const tks=(ax.venc&&ax.venc.tickets)||null;
@@ -924,12 +932,22 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pcx=e.target.closest&&e.target.closest('[data-hx-parceria]'); if(pcx){ const st=estado.parcerias=estado.parcerias||{}; const id=pcx.getAttribute('data-hx-parceria'); st.destaque=id; st.aba={ id, qual:'fat' }; st.novo=false; st.editId=null; st.rasc=null; vaiPara('parcerias'); return; }   // 📆 → 🧾 faturamentos do contrato
   const t=e.target.closest&&e.target.closest('[data-hx-goto]'); if(!t) return;
   const g=t.getAttribute('data-hx-goto');
-  if(g==='apontar-vencidos'){ estado.apontar.fil='vencidos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
-  if(g==='apontar-meus'){ estado.apontar.fil='todos'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
-  if(g==='apontar-semdata'){ estado.apontar.fil='semvenc'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
-  if(g==='apontar-vencehoje'){ estado.apontar.fil='vencehoje'; estado.apontar.soMeus=true; vaiPara('apontar'); return; }
+  if(g==='apontar-vencidos'){ hxAbreApontar('vencidos'); return; }
+  if(g==='apontar-meus'){ hxAbreApontar('todos', { semVenc:true, ate:somaDias(hojeSP(),30) }); return; }   // o bloco "meus tickets" lê a base inteira (30 dias + sem data)
+  if(g==='apontar-semdata'){ hxAbreApontar('semvenc', { semVenc:true }); return; }
+  if(g==='apontar-vencehoje'){ hxAbreApontar('vencehoje'); return; }
   vaiPara(g);
 });
+// Os cards "meus" da Início abrem o ⏱ Apontar com a MESMA base do número mostrado (2026-10-01): "Só os meus"
+// ligado, filtros de projeto/categoria/busca zerados, data = hoje (um `ate` antigo guardado na sessão/URL
+// escondia vencidos) e a lista RELIDA — o cache da tela podia ser de antes de uma ação, e a pessoa clicou
+// "18 vencidos" para ver exatamente esses 18.
+function hxAbreApontar(fil, o){
+  const ap=estado.apontar; o=o||{};
+  ap.fil=fil; ap.soMeus=true; ap.proj=''; ap.cat=''; ap.busca='';
+  ap.ate=o.ate||hojeSP(); ap.semVenc=!!o.semVenc; ap.porData={};
+  vaiPara('apontar');
+}
 // 🧭 Radar do dia — chips (escopo/período/eventos) e ações da combinação
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='acoes') return;
