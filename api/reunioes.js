@@ -182,28 +182,59 @@ async function agenda(req, res, b) {
 // Confere no Jira (conta de serviço) se JÁ EXISTE ticket para reuniões pendentes da
 // Agenda — cobre tickets criados FORA do app: busca por frase no resumo, últimos 90
 // dias. Resposta: { achados: { [título recebido]: { k, resumo, status } } }.
+// POST { conferir:1, itens:[{titulo, dia}] }  (legado: titulos:[…], sem dia)
+// Procura no Jira o ticket DA MESMA REUNIÃO: mesmo resumo (com ou sem o prefixo "Reunião: ") e
+// MESMO DIA — vencimento no dia ou criado no dia (fuso de São Paulo). Devolve quem criou, para o
+// modal sugerir o vínculo: pedido do usuário (2026-10-01) — só sugerir vincular quando existe um
+// ticket com a mesma descrição, para o mesmo dia, criado por outra pessoa (antes a conferência
+// era só por título, e a ocorrência de hoje de uma reunião recorrente casava com o ticket da
+// semana passada). O caminho legado por título continua para clientes antigos.
+const RE_DIA_AG = /^\d{4}-\d{2}-\d{2}$/;
+const diaSPde = (iso) => { const t = Date.parse(String(iso || '')); return Number.isFinite(t) ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(t)) : ''; };
+const diaMais1 = (d) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
 async function conferirTickets(req, res, b) {
-  const brutos = Array.isArray(b.titulos) ? b.titulos.map((t) => String(t || '')).filter(Boolean).slice(0, 8) : [];
+  const porDia = Array.isArray(b.itens);
+  const brutos = porDia
+    ? b.itens.map((x) => ({ titulo: String((x && x.titulo) || ''), dia: String((x && x.dia) || '') })).filter((x) => x.titulo && RE_DIA_AG.test(x.dia)).slice(0, 8)
+    : (Array.isArray(b.titulos) ? b.titulos.map((t) => ({ titulo: String(t || ''), dia: '' })).filter((x) => x.titulo).slice(0, 8) : []);
   const pares = [];
   const vistos = new Set();
-  brutos.forEach((orig) => {
-    const q = orig.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
-    if (q.length >= 4 && !vistos.has(q.toLowerCase())) { vistos.add(q.toLowerCase()); pares.push({ orig, q }); }
+  brutos.forEach(({ titulo, dia }) => {
+    const q = titulo.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const chave = porDia ? `${dia}|${titulo}` : titulo;
+    const dedup = `${dia}|${q.toLowerCase()}`;
+    if (q.length >= 4 && !vistos.has(dedup)) { vistos.add(dedup); pares.push({ chave, q, dia }); }
   });
   if (!pares.length) return json(res, 200, { achados: {} });
-  const ck = `agenda:conferir:${pares.map((p) => p.q).join('|')}`;
+  const ck = `agenda:conferir:${porDia ? 'd:' : ''}${pares.map((p) => `${p.dia}|${p.q}`).join('|')}`;
   if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
-  const jql = '(' + pares.map((p) => `summary ~ "\\"${p.q}\\""`).join(' OR ') + ') AND created >= -90d ORDER BY created DESC';
-  const { issues } = await jiraSearchAll({ jql, fields: ['summary', 'issuetype', 'status'], pageSize: 50, maxPages: 1 });
+  const jql = '(' + pares.map((p) => porDia
+    ? `(summary ~ "\\"${p.q}\\"" AND (duedate = "${p.dia}" OR (created >= "${p.dia}" AND created < "${diaMais1(p.dia)}")))`
+    : `summary ~ "\\"${p.q}\\""`).join(' OR ') + (porDia ? '' : ') AND created >= -90d') + (porDia ? ')' : '') + ' ORDER BY created DESC';
+  const { issues } = await jiraSearchAll({ jql, fields: ['summary', 'issuetype', 'status', 'created', 'duedate', 'creator'], pageSize: 50, maxPages: 1 });
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+  const semPrefixo = (s) => norm(s).replace(/^reuniao:\s*/, '');
   const achados = {};
-  pares.forEach(({ orig, q }) => {
-    const nq = norm(q);
-    const hit = issues.find((it) => norm((it.fields || {}).summary).includes(nq));
+  pares.forEach(({ chave, q, dia }) => {
+    const nq = semPrefixo(q);
+    // Candidatos: mesmo dia (vencimento ou criação em SP) quando há dia; o resumo exatamente igual
+    // (sem o prefixo) vence o "contém"; entre iguais, o mais antigo (o primeiro que alguém criou).
+    const cands = issues.map((it) => {
+      const f = it.fields || {}; const ns = semPrefixo(f.summary);
+      const criadoEm = diaSPde(f.created); const venc = String(f.duedate || '').slice(0, 10);
+      const mesmoDia = !dia || venc === dia || criadoEm === dia;
+      const exato = ns === nq; const contem = exato || ns.includes(nq);
+      return { it, f, criadoEm, venc, mesmoDia, exato, contem };
+    }).filter((c) => c.mesmoDia && c.contem)
+      .sort((a, b2) => (Number(b2.exato) - Number(a.exato)) || (Number(b2.venc === dia) - Number(a.venc === dia)) || String(a.f.created || '').localeCompare(String(b2.f.created || '')));
+    const hit = cands[0];
     if (hit) {
-      achados[orig] = {
-        k: hit.key, resumo: (hit.fields || {}).summary || '',
-        status: ((hit.fields || {}).status && hit.fields.status.name) || '',
+      const cr = hit.f.creator || {};
+      achados[chave] = {
+        k: hit.it.key, resumo: hit.f.summary || '',
+        status: (hit.f.status && hit.f.status.name) || '',
+        dia: dia || '', criadoEm: hit.criadoEm, venc: hit.venc, exato: hit.exato,
+        criadoPor: { id: cr.accountId || '', nome: cr.displayName || '' },
       };
     }
   });

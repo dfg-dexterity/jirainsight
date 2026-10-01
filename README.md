@@ -233,6 +233,15 @@ da própria pessoa**, preservando o modelo de segurança. Os convites ficam na t
 comentario, criado_por, account_id, nome, status `pendente|confirmado|recusado|direto`,
 worklog_id, erro).
 
+**📝 Ticket da reunião (Agenda, 2026-10-01):** ao abrir o modal de uma reunião da Agenda, o painel confere no
+Jira se **já existe um ticket com o mesmo título no mesmo dia** (`POST /api/reunioes {conferir:1,
+itens:[{titulo,dia}]}` — vencimento ou criação no dia, prefixo "Reunião:" ignorado) e, se existir, abre em
+**🔗 Vincular** com a chave preenchida e diz **quem criou**; sem ticket no dia, abre em **🆕 Criar ticket novo**.
+As **horas do convite** têm três fontes: **📅 estimada** (duração agendada), **⏱ real** (relatório de presença do
+Teams, consultado na hora; exige `OnlineMeetings.Read.All` + `OnlineMeetingArtifact.Read.All` de aplicativo e a
+política de acesso a reuniões do Teams) e **✎ manual** (digitada: `1h30`, `45m`). O valor é conferido antes de
+criar ou vincular.
+
 ### 🧾 Contrato de parceria ↔ Odoo Vendas (ordem de venda do contrato)
 
 Desde **2026-09-20** o **🤝 contrato de parceria** (📑 Contratos › 🤝 Parceiros › gaveta **🧾 Faturamentos**) é o
