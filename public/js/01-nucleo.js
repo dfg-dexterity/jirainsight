@@ -454,7 +454,12 @@ async function carrega(periodo, forca){
 // Invalida o que o navegador guardou das leituras (chamada depois de apontar, transicionar,
 // criar…). Também zera as faixas do Ranking (semana/mês/ano), que antes ficavam congeladas
 // pela sessão inteira mesmo depois de novos apontamentos.
-function invalidaCacheDados(){ estado.cache={}; if(estado.ranking) estado.ranking.tempoPer={}; }
+function invalidaCacheDados(){ estado.cache={}; if(estado.ranking) estado.ranking.tempoPer={};
+  // A base de vencimentos da 🏠 Início (⚠ Meus tickets vencidos, 🗓 sem data, ⏰ vencem hoje, ⏰ por projeto)
+  // era lida UMA vez por sessão: depois de concluir/reagendar/apontar no ⏱ Apontar o card continuava com o
+  // número antigo ("18 vencidos" com 7 na lista). Marca como suja — a Início mantém o que tem na tela e relê
+  // em segundo plano no próximo render (2026-10-01, a pedido do usuário).
+  if(estado.acoes) estado.acoes.vencSujo=true; }
 function removeUsuariosTecnicos(t, a){
   const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
   const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));

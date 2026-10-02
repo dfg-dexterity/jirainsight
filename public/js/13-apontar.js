@@ -43,6 +43,7 @@ async function carregaVenc(ate, forca){
   const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${forca?'&nocache=1':''}`);
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
+  j.lidoEm=hojeSP();      // dia (SP) em que o navegador leu — a lista de ontem não serve para o "vencido" de hoje
   ap.porData[key]=j;
   return j;
 }
@@ -259,7 +260,9 @@ function renderApontar(){
   const ap=estado.apontar;
   if(!ap.ate) ap.ate=hojeSP();
 
-  const dados=ap.porData[chaveVenc()];
+  let dados=ap.porData[chaveVenc()];
+  // Aba aberta desde ontem: a lista em memória é de OUTRO dia (o que é "vencido" muda à meia-noite) → relê.
+  if(dados && dados.lidoEm && dados.lidoEm!==hojeSP()){ delete ap.porData[chaveVenc()]; dados=null; }
   if(!dados){
     if(!ap.carregando){
       ap.carregando=true;
@@ -276,12 +279,16 @@ function renderApontar(){
   const projs=dados.projetos||{};
   const nomeProj=(k)=>(projs[k]&&projs[k].nome)?`${k} — ${projs[k].nome}`:k;
 
-  // ---- KPIs sobre a lista completa ----
+  // ---- KPIs no MESMO recorte da lista: com "Só os meus" ligado os números são SÓ os meus (o card
+  //      "⚠ Meus tickets vencidos: N" da Início tem de bater com o KPI Vencidos daqui — antes o KPI
+  //      somava o time inteiro e parecia errado, 2026-10-01). Categoria/projeto/busca continuam só na lista. ----
   const todos=dados.tickets||[];
-  const vencidos=todos.filter(t=>t.venc&&t.venc<hoje);
-  const semHoras=todos.filter(t=>!t.seg);
-  const venceHoje=todos.filter(t=>t.venc===hoje);
-  const semVenc=todos.filter(t=>!t.venc);
+  const meusSo=!!(ap.soMeus && id && id.accountId);
+  const base=meusSo?todos.filter(t=>t.respId===id.accountId):todos;
+  const vencidos=base.filter(t=>t.venc&&t.venc<hoje);
+  const semHoras=base.filter(t=>!t.seg);
+  const venceHoje=base.filter(t=>t.venc===hoje);
+  const semVenc=base.filter(t=>!t.venc);
 
   // ---- Filtros da tela ----
   const catDe=(pk)=>(projs[pk]&&projs[pk].categoria)||'Sem categoria';
@@ -552,9 +559,9 @@ function renderApontar(){
     ${htmlPainelHoras()}
     <div class="kpis ts-kpis">
       <div class="kpi a" data-ap-fil="todos" aria-pressed="${ap.fil==='todos'}" data-tip="Mostrar todos" data-tipk="clique para filtrar">
-        <div class="v">${todos.length}</div><div class="l">Chamados até ${fmtBR(ap.ate)}</div></div>
-      <div class="kpi w" data-ap-fil="vencidos" aria-pressed="${ap.fil==='vencidos'}" data-tip="Só os vencidos" data-tipk="clique para filtrar">
-        <div class="v">${vencidos.length}</div><div class="l">Vencidos</div></div>
+        <div class="v">${base.length}</div><div class="l">Chamados até ${fmtBR(ap.ate)}${meusSo?' · só os meus':''}</div></div>
+      <div class="kpi w" data-ap-fil="vencidos" aria-pressed="${ap.fil==='vencidos'}" data-tip="${meusSo?'Só os meus vencidos':'Só os vencidos'}" data-tipk="clique para filtrar">
+        <div class="v">${vencidos.length}</div><div class="l">Vencidos${meusSo?' (meus)':''}</div></div>
       <div class="kpi w" data-ap-fil="semhoras" aria-pressed="${ap.fil==='semhoras'}" data-tip="Só os sem horas apontadas" data-tipk="clique para filtrar">
         <div class="v">${semHoras.length}</div><div class="l">Sem horas apontadas</div></div>
       <div class="kpi t" data-ap-fil="vencehoje" aria-pressed="${ap.fil==='vencehoje'}" data-tip="Só os que vencem hoje" data-tipk="clique para filtrar">
@@ -563,7 +570,7 @@ function renderApontar(){
         <div class="v">${semVenc.length}</div><div class="l">Sem vencimento</div></div>`:''}
     </div>
     <div class="card full">
-      <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)}${ap.semVenc?' (+ sem vencimento)':''} · exibindo ${lista.length} de ${todos.length}${dados.meta.truncado?' (lista parcial)':''} · clique no 📅 para reagendar</span></h2>
+      <h2>Apontamento rápido <span>chamados abertos com vencimento até ${fmtBR(ap.ate)}${ap.semVenc?' (+ sem vencimento)':''} · exibindo ${lista.length} de ${base.length}${meusSo?' (só os meus)':''}${dados.meta.truncado?' (lista parcial)':''} · clique no 📅 para reagendar</span></h2>
       ${filtros}
       ${viewToggle}
       ${corpoLista}

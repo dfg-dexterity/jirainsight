@@ -181,6 +181,42 @@ async function agDuracaoReal(evId, btn){
   finally{ if(btn){ btn.disabled=false; btn.textContent='⏱ duração real'; } }
 }
 
+// Chave da conferência no Jira: a MESMA reunião = mesmo título E mesmo dia (conferirTickets na API).
+function agAchKey(ev){ return `${(ev.inicio||'').slice(0,10)}|${ev.titulo}`; }
+// 🔎 Confere no Jira, só para o evento do modal, se já existe o ticket desta reunião (mesmo título,
+// mesmo dia, de preferência criado por outra pessoa). Resultado em estado.agenda.achados[ev.id]; o
+// modal redesenha ao chegar e abre em "vincular" com a chave preenchida.
+function agConfereEvento(ev){
+  const ag=estado.agenda; ag.achados=ag.achados||{};
+  if(ag.achados[ev.id]||ag.conferindo) return;   // a conferência geral em andamento já cobre e redesenha o modal
+  const m=_agM; if(!m||m.evId!==ev.id) return;
+  m.conferindo=true;
+  fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({conferir:1,itens:[{titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}]})})
+    .then(r=>r.json()).then(j=>{ const h=((j&&j.achados)||{})[agAchKey(ev)]; if(h&&h.k) ag.achados[ev.id]=h; })
+    .catch(()=>{})
+    .finally(()=>{ if(_agM&&_agM.evId===ev.id){ _agM.conferindo=false; agAtualizaModal(); } if(estado.vista==='agenda'&&ag.achados[ev.id]) renderAgenda(); });
+}
+// ⏱ Horas do convite (pedido de 2026-10-01): 📅 estimada (duração agendada) · ⏱ real (relatório de
+// presença do Teams) · ✎ manual (digitada). Devolve os segundos efetivos ou null quando a escolha ainda
+// não tem valor (manual vazio/inválido, real indisponível) — quem chama decide se bloqueia.
+function agSegConvite(ev, m){ m=m||_agM||{}; const modo=m.durModo||'agendada';
+  if(modo==='manual'){ const s=parseTempo(m.manualTxt||''); return (s&&s>=60&&s<=24*3600)?s:null; }
+  if(modo==='real') return m.segReal>0?m.segReal:null;
+  return agDuracaoSeg(ev); }
+// Busca a duração real quando a pessoa escolhe ⏱ real; sem relatório, volta para a estimada e explica.
+function agBuscaReal(){
+  const m=_agM; if(!m||m.realBusca) return;
+  m.realBusca=true; m.realErro=''; agAtualizaModal();
+  agDuracaoReal(m.evId, null).then(j=>{ if(_agM!==m) return;
+    if(j&&j.ok&&(j.minhaSeg>0||j.duracaoSeg>0)){
+      m.segReal=j.minhaSeg>0?j.minhaSeg:j.duracaoSeg;
+      m.realNota=`⏱ Teams: a reunião durou ${fmtH(j.duracaoSeg)}${j.minhaSeg>0?` e você ficou ${fmtH(j.minhaSeg)}`:''} · ${j.total} participante(s) no relatório.`;
+    } else { m.segReal=0; m.realErro=(j&&j.ok)?'o relatório do Teams não registrou permanência':'o Teams não devolveu o relatório'; m.realNota=`⏱ Duração real indisponível (${m.realErro}) — voltei para a estimada.`; m.durModo='agendada'; }
+  }).catch(()=>{ if(_agM===m){ m.segReal=0; m.durModo='agendada'; m.realNota='⏱ Duração real indisponível — voltei para a estimada.'; } })
+  .finally(()=>{ if(_agM===m){ m.realBusca=false; agAtualizaModal(); } });
+}
+
 // Modal: escolher o projeto em que as ocorrências desta série viram ticket.
 function agAbreAuto(ev){
   const projetos=(_projetosCache||[]);
@@ -207,9 +243,10 @@ function agAbreAuto(ev){
 let _agM=null;   // { evId, fixo(chave já vinculada — só convidar) }
 function agAbreTicket(evId, fixo){
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
-  _agM={ evId, fixo:fixo||'' };
+  _agM={ evId, fixo:fixo||'', durModo:'agendada', manualTxt:'' };
   if(!_projetosCache) garanteProjetos().then(()=>agAtualizaModal()).catch(()=>{});
   agCarregaUsuarios();
+  if(!fixo) agConfereEvento(ev);   // 🔎 já existe o ticket desta reunião (mesmo título, mesmo dia)?
   abreModal('<h2>📝 Ticket da reunião</h2><div class="estado">Carregando…</div>');
   agAtualizaModal();
 }
@@ -219,8 +256,13 @@ function agAtualizaModal(){
   const id=idApontar()||{};
   const projetos=(_projetosCache||[]);
   const projSel=(document.getElementById('agm-proj')||{}).value || (projetos.some(p=>p.key==='RDF')?'RDF':(projetos[0]&&projetos[0].key)||'');
-  const modo=m.fixo?'vincular':(((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'criar');
-  const chave=m.fixo||((document.getElementById('agm-chave')||{}).value||'');
+  // 🟡 Ticket já existente desta reunião (mesmo título + mesmo dia, conferido no Jira): o modal abre em
+  // "vincular" com a chave preenchida; se a pessoa trocar o modo ou a chave, a escolha dela prevalece.
+  const ach=m.fixo?null:((estado.agenda.achados||{})[m.evId]||null);
+  const modoDom=((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'';
+  const modo=m.fixo?'vincular':(m.modoManual?(modoDom||'criar'):(ach?'vincular':'criar'));
+  const chaveDom=String(((document.getElementById('agm-chave')||{}).value)||'');
+  const chave=m.fixo||(m.chaveManual?chaveDom:(ach?ach.k:chaveDom));
   const marcados=new Set([...document.querySelectorAll('[data-agm-p]:checked')].map(x=>x.getAttribute('data-agm-p')));
   const primeira=!m.prechecked;   // pré-marca todo mundo na PRIMEIRA vez que a lista aparece
   const tipo=projSel?agTipoReuniao(projSel):null;
@@ -244,13 +286,18 @@ function agAtualizaModal(){
       +(externos?`<div class="muted small" style="margin-top:6px">👤 ${externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
     m.prechecked=true;
   }
-  const hFmt=fmtH((m.segReal&&m.segReal>0)?m.segReal:agDuracaoSeg(ev));
+  // ⏱ horas do convite: estimada · real (Teams) · manual
+  const segAg=agDuracaoSeg(ev); const durModo=m.durModo||'agendada'; const segEf=agSegConvite(ev,m);
+  const hFmt=segEf?fmtH(segEf):'—';
+  const porMim=!!(ach&&ach.criadoPor&&ach.criadoPor.id&&id.accountId&&ach.criadoPor.id===id.accountId);
+  const sugestao=ach?`<div class="aviso ag-sug" style="margin:8px 0 2px">🟡 <b>Já existe um ticket desta reunião no Jira:</b> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small">${esc(String(ach.resumo||'').slice(0,60))}</span> · criado por <b>${esc(porMim?'você':((ach.criadoPor&&ach.criadoPor.nome)||'alguém'))}</b>${ach.criadoEm?` em ${esc(alxDataBR(ach.criadoEm))}`:''}${ach.venc?` · vencimento ${esc(alxDataBR(ach.venc))}`:''}. ${porMim?'Vincular evita um ticket duplicado.':'Vincular evita um ticket duplicado: o seu apontamento vai para o ticket que já existe.'}</div>`
+    :((m.conferindo||estado.agenda.conferindo)?'<div class="muted small" style="margin:8px 0 2px">🔎 Conferindo no Jira se já existe um ticket desta reunião (mesmo título, mesmo dia)…</div>':'');
   const corpo=`<h2>📝 Ticket da reunião</h2>
     <div class="muted small">${esc(ev.titulo)} · ${esc((ev.inicio||'').slice(0,10))} ${ev.diaTodo?'(dia todo)':esc((ev.inicio||'').slice(11,16))}</div>
-    ${m.fixo?`<div class="ap-id" style="margin-top:8px">✓ Ticket já criado: <strong>${esc(m.fixo)}</strong> — selecione quem convidar para apontar.</div>`:`
+    ${m.fixo?`<div class="ap-id" style="margin-top:8px">✓ Ticket já criado: <strong>${esc(m.fixo)}</strong> — selecione quem convidar para apontar.</div>`:`${sugestao}
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 4px">
       <label class="check"><input type="radio" name="agm-modo" value="criar" ${modo==='criar'?'checked':''}> 🆕 Criar ticket novo</label>
-      <label class="check"><input type="radio" name="agm-modo" value="vincular" ${modo==='vincular'?'checked':''}> 🔗 Vincular a ticket existente</label>
+      <label class="check"><input type="radio" name="agm-modo" value="vincular" ${modo==='vincular'?'checked':''}> 🔗 Vincular a ticket existente${ach?' <span class="badge com-horas" data-tip="Ticket desta reunião encontrado no Jira (mesmo título, mesmo dia)">sugerido</span>':''}</label>
     </div>
     ${modo==='criar'?`
       <div class="alx-campo"><label>Projeto</label>
@@ -258,16 +305,19 @@ function agAtualizaModal(){
         <span class="muted small" style="margin-left:8px">${tipo?`tipo: <b>${esc(tipo.nome)}</b>`:'sem tipo disponível'}</span></div>`
     :`<div class="alx-campo"><label>Chave do ticket</label><input type="text" id="agm-chave" value="${escA(chave)}" placeholder="ex.: IMI-41" maxlength="20" style="width:140px;text-transform:uppercase">
         <span class="muted small" style="margin-left:8px">os detalhes do evento entram como comentário</span></div>`}`}
-    <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Convidar para apontar <span class="muted" style="font-weight:400">· cada um confirma com 1 clique (Inbox/Apontar) e o worklog de ${esc(hFmt)} sai no usuário da pessoa</span></div>
-    <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 6px">
-      <span class="muted small">⏱ Horas do convite: <strong>${esc(hFmt)}</strong> ${m.segReal>0?'<span class="badge com-horas" data-tip="Tempo real de permanência na chamada, do relatório de presença do Teams">real (Teams)</span>':'<span class="badge" data-tip="Duração agendada no Outlook">agendada</span>'}</span>
-      ${ev.link&&!m.segReal?`<button class="btn" data-agm-real="1" data-tip="Busca no Teams quanto a reunião REALMENTE durou (relatório de presença) e usa esse tempo no convite">⏱ duração real</button>`:''}
-      ${m.segReal>0?`<button class="btn" data-agm-agendada="1" data-tip="Voltar para a duração agendada no Outlook">↩ usar a agendada</button>`:''}</div>
+    <div class="muted small" style="font-weight:600;margin:10px 0 4px">⏱ Horas do convite <span class="muted" style="font-weight:400">· quanto cada convidado aponta ao confirmar</span></div>
+    <div class="ap-vis ag-dur" style="display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center;margin:2px 0 6px">
+      <label class="check"><input type="radio" name="agm-dur" value="agendada" ${durModo==='agendada'?'checked':''}> 📅 estimada (agenda): <b>${esc(fmtH(segAg))}</b></label>
+      <label class="check"${ev.link?'':' style="opacity:.6"'} data-tip="${ev.link?'Quanto a reunião REALMENTE durou, pelo relatório de presença do Teams (sua permanência na chamada)':'Esta reunião não tem link do Teams — sem relatório de presença'}"><input type="radio" name="agm-dur" value="real" ${durModo==='real'?'checked':''} ${ev.link?'':'disabled'}> ⏱ real (Teams)${m.segReal>0?`: <b>${esc(fmtH(m.segReal))}</b>`:(m.realBusca?': <span class="muted small">consultando…</span>':(ev.link?'':': <span class="muted small">sem link</span>'))}</label>
+      <label class="check"><input type="radio" name="agm-dur" value="manual" ${durModo==='manual'?'checked':''}> ✎ manual <input type="text" id="agm-dur-manual" value="${escA(m.manualTxt||'')}" placeholder="ex.: 1h30" maxlength="8" style="width:84px;margin-left:4px" ${durModo==='manual'?'':'disabled'} aria-label="Horas do convite (manual)"></label>
+    </div>
     ${m.realNota?`<div class="muted small" style="margin:-2px 0 6px">${esc(m.realNota)}</div>`:''}
+    <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Convidar para apontar <span class="muted" style="font-weight:400">· cada um confirma com 1 clique (Inbox/Apontar) e o worklog de <b id="agm-dur-ef">${esc(hFmt)}</b> sai no usuário da pessoa</span></div>
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
     <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
     <div class="ap-fb" id="agm-fb" hidden></div>`;
   const mb=document.getElementById('modal-body'); if(mb){ mb.replaceChildren(el(`<div class="ag-modal">${corpo}</div>`)); }
+  if(m.focoManual){ m.focoManual=false; const i=document.getElementById('agm-dur-manual'); if(i&&!i.disabled){ try{ i.focus(); }catch(e){} } }
 }
 async function agConfirma(){
   const m=_agM; if(!m) return;
@@ -277,6 +327,10 @@ async function agConfirma(){
   const dia=(ev.inicio||'').slice(0,10);
   const pessoas=[...document.querySelectorAll('[data-agm-p]:checked')].map(x=>({ accountId:x.getAttribute('data-agm-p'), nome:x.getAttribute('data-agm-nome')||'' }));
   try{
+    // ⏱ As horas do convite são conferidas ANTES de criar/vincular: um ticket criado com o convite
+    // recusado deixaria a reunião pela metade.
+    const seg=pessoas.length?agSegConvite(ev,m):null;
+    if(pessoas.length&&!seg) throw new Error(m.durModo==='manual'?'Informe as horas do convite no campo ✎ manual (ex.: 1h30, 45m).':'A duração real do Teams não está disponível — escolha 📅 estimada ou ✎ manual.');
     let key=m.fixo;
     if(!key){
       const modo=((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'criar';
@@ -301,7 +355,7 @@ async function agConfirma(){
     let convidados=0;
     if(pessoas.length){
       const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ convidar:true, issue:key, segundos:((_agM&&_agM.segReal>0)?_agM.segReal:agDuracaoSeg(ev)), inicio:dia,
+        body:JSON.stringify({ convidar:true, issue:key, segundos:seg, inicio:dia,
           comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
       const jv=await rv.json(); if(!jv||jv.ok===false) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');
       convidados=pessoas.length;
@@ -438,19 +492,19 @@ function renderAgenda(){
   const aguardSeg=aguard.reduce((s,ev)=>s+agDuracaoSeg(ev),0);
   const aguardSemAviso=aguard.filter(ev=>!agAvisoDe(ev.id)).length;
   const aberto=(k)=>!!(ag.secoes||{})[k];
-  // 🔎 Confere no Jira se as pendentes JÁ têm ticket criado fora do app (pelo resumo,
-  // conta de serviço) — se achar, a linha oferece "usar este ticket" (1 clique vincula).
+  // 🔎 Confere no Jira se as pendentes JÁ têm ticket criado fora do app — pelo resumo E PELO DIA
+  // (conta de serviço): se achar, a linha oferece "usar este ticket" e o modal abre em "vincular".
   ag.achados=ag.achados||{};
   const pendSem=pend.concat(aguard);
   if(pendSem.length && !ag.conferiu && !ag.conferindo){
     ag.conferindo=true;
     fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({conferir:1,titulos:pendSem.map(ev=>ev.titulo)})})
+      body:JSON.stringify({conferir:1,itens:pendSem.map(ev=>({titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}))})})
       .then(r=>r.json()).then(j=>{ ag.conferindo=false; ag.conferiu=true;
         const a=(j&&j.achados)||{};
-        pendSem.forEach(ev=>{ if(a[ev.titulo]&&a[ev.titulo].k) ag.achados[ev.id]=a[ev.titulo]; });
-        if(estado.vista==='agenda') renderAgenda(); })
-      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(estado.vista==='agenda') renderAgenda(); });
+        pendSem.forEach(ev=>{ const h=a[agAchKey(ev)]; if(h&&h.k) ag.achados[ev.id]=h; });
+        if(estado.vista==='agenda') renderAgenda(); if(_agM) agAtualizaModal(); })
+      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(estado.vista==='agenda') renderAgenda(); if(_agM) agAtualizaModal(); });
   }
   // Peças reaproveitadas pelas linhas dos quatro blocos.
   const ctQuando=(ev)=>{ const dia=(ev.inicio||'').slice(0,10); const n=agDiasAtras(dia);
@@ -459,7 +513,7 @@ function renderAgenda(){
   };
   const ctAchado=(ev)=>ag.achados[ev.id];
   const ctUsar=(ev,ach)=>`<button class="btn primario" data-ag-usar="${escA(ev.id)}|${escA(ach.k)}" data-tip="Registra este ticket como o da reunião (vínculo compartilhado com o time)">✓ usar este ticket</button>`;
-  const ctSituAchado=(ach)=>`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>`;
+  const ctSituAchado=(ach)=>`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>${(ach.criadoPor&&ach.criadoPor.nome)?` <span class="muted small" data-tip="${escA(`Quem criou o ticket no Jira${ach.criadoEm?` em ${alxDataBR(ach.criadoEm)}`:''}`)}">por ${esc(String(ach.criadoPor.nome).split(' ')[0])}</span>`:''}`;
   const ctIgnorar=(ev)=>`<button class="btn" data-ag-ignorar="${escA(ev.id)}" data-tip="${escA(agSerieDe(ev)
     ?'Tira esta reunião recorrente (todas as ocorrências) da cobrança — nada muda no Outlook nem no Jira'
     :'Tira esta reunião da cobrança — nada muda no Outlook nem no Jira')}">🚫 ignorar</button>`;
@@ -638,16 +692,6 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.addEventListener('click',(e)=>{
   const c=e.target.closest&&e.target.closest('[data-agm-conf]');
   if(c){ agConfirma(); return; }
-  const r=e.target.closest&&e.target.closest('[data-agm-real]');
-  if(r&&_agM){ agDuracaoReal(_agM.evId, r).then(j=>{ if(!_agM) return;
-    if(j&&j.ok&&(j.minhaSeg>0||j.duracaoSeg>0)){
-      _agM.segReal=j.minhaSeg>0?j.minhaSeg:j.duracaoSeg;
-      const q=(x)=>fmtH(x);
-      _agM.realNota=`⏱ Teams: a reunião durou ${q(j.duracaoSeg)}${j.minhaSeg>0?` e você ficou ${q(j.minhaSeg)}`:''} · ${j.total} participante(s) no relatório.`;
-    } else if(j&&j.ok){ _agM.realNota='O relatório do Teams não registrou permanência — mantida a duração agendada.'; }
-    agAtualizaModal(); }); return; }
-  const g=e.target.closest&&e.target.closest('[data-agm-agendada]');
-  if(g&&_agM){ _agM.segReal=0; _agM.realNota=''; agAtualizaModal(); return; }
   // 🔁 Automatizar/desautomatizar a SÉRIE recorrente (linha do controle de tickets)
   const au=e.target.closest&&e.target.closest('[data-ag-auto]');
   if(au){ const evId=au.getAttribute('data-ag-auto');
@@ -658,6 +702,18 @@ document.addEventListener('click',(e)=>{
 });
 document.addEventListener('change',(e)=>{
   const t=e.target; if(!t||!t.matches||!_agM) return;
-  if(t.matches('input[name=agm-modo]')||t.matches('#agm-proj')) agAtualizaModal();
+  if(t.matches('input[name=agm-modo]')){ _agM.modoManual=true; agAtualizaModal(); return; }   // a escolha da pessoa vence a sugestão
+  if(t.matches('#agm-proj')){ agAtualizaModal(); return; }
+  // ⏱ estimada · real · manual — "real" consulta o Teams na hora (uma vez por modal)
+  if(t.matches('input[name=agm-dur]')){ _agM.durModo=t.value; _agM.focoManual=(t.value==='manual');
+    if(t.value==='real'&&!(_agM.segReal>0)){ agBuscaReal(); return; }
+    agAtualizaModal(); return; }
+});
+document.addEventListener('input',(e)=>{
+  const t=e.target; if(!t||!t.matches||!_agM) return;
+  if(t.matches('#agm-dur-manual')){ _agM.manualTxt=t.value;   // sem redesenhar: só o resumo "worklog de X" acompanha a digitação
+    const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===_agM.evId); const s=ev?agSegConvite(ev,_agM):null;
+    const sp=document.getElementById('agm-dur-ef'); if(sp) sp.textContent=s?fmtH(s):'—'; return; }
+  if(t.matches('#agm-chave')) _agM.chaveManual=true;
 });
 
