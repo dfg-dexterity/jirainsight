@@ -28,9 +28,36 @@ function agMarcaTicket(evId,key){
     const f=(lst||[]).filter(a=>a.evId!==evId);
     if(f.length!==(lst||[]).length){ if(f.length) cfg.inboxAvisos[acc]=f; else delete cfg.inboxAvisos[acc]; }
   });
+  if(cfg.agendaNao&&cfg.agendaNao[evId]) delete cfg.agendaNao[evId];   // vinculou de novo: a recusa anterior não vale mais
   salvaCfg();
   const m=agTickets(); m[evId]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){}
 }
+// ✂ Desvincular (pedido de 2026-10-02): desfaz SÓ o vínculo do painel — o ticket continua no Jira e a
+// reunião volta às pendências — e lembra a chave recusada (cfg.agendaNao[evId]) para a conferência no
+// Jira não sugerir o MESMO ticket de novo para esta ocorrência ("não é este"). Leitores (agAchadoDe)
+// não criam cfg.agendaNao: criar {} no render marcaria a chave como alterada por esta sessão.
+function agDesmarcaTicket(evId){
+  const atual=agTicketDe(evId); if(!atual) return null;
+  const id=idApontar()||{};
+  if(cfg.agendaTickets&&cfg.agendaTickets[evId]) delete cfg.agendaTickets[evId];
+  cfg.agendaNao=cfg.agendaNao||{};
+  cfg.agendaNao[evId]={ k:atual.t, por:id.nome||id.email||'', quando:new Date().toISOString() };
+  const ks=Object.keys(cfg.agendaNao);
+  if(ks.length>120) ks.sort((x,y)=>String(cfg.agendaNao[x].quando||'').localeCompare(String(cfg.agendaNao[y].quando||'')))
+    .slice(0,ks.length-120).forEach(k=>delete cfg.agendaNao[k]);
+  salvaCfg();
+  const m=agTickets(); if(m[evId]){ delete m[evId]; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){} }
+  const ag=estado.agenda; if(ag&&ag.achados&&ag.achados[evId]&&ag.achados[evId].k===atual.t) delete ag.achados[evId];
+  return atual;
+}
+// Ticket achado no Jira para o evento (conferência por título + dia) — menos o que a pessoa desvinculou.
+function agAchadoDe(evId){
+  const ag=estado.agenda; const h=ag&&ag.achados&&ag.achados[evId]; if(!h||!h.k) return null;
+  const nao=cfg.agendaNao&&cfg.agendaNao[evId]; return (nao&&nao.k===h.k)?null:h;
+}
+// As duas telas do grupo 📅 Agenda (2026-10-02, "o controle poluía a tela"): 'agenda' = os eventos dia a
+// dia com a faixa-resumo; 'agcontrole' = o 🎫 Controle de tickets inteiro. Quem redesenha testa as duas.
+function agVistaAberta(){ return estado.vista==='agenda'||estado.vista==='agcontrole'; }
 // Tipo "Reunião" do projeto (senão o tipo padrão) — para criar o ticket do evento.
 function agTipoReuniao(projKey){
   const pr=(_projetosCache||[]).find(x=>x.key===projKey); const tipos=(pr&&pr.tipos)||[];
@@ -145,7 +172,7 @@ async function agAutoCria(){
     && !agTicketDe(ev.id) && agRegraDe(ev));
   ag.autoRodou=true;
   if(!alvos.length) return;
-  ag.autoRodando=true; if(estado.vista==='agenda') renderAgenda();
+  ag.autoRodando=true; if(agVistaAberta()) renderAgenda();
   const criados=[]; const falhas=[];
   for(const ev of alvos){
     const regra=agRegraDe(ev); const proj=regra.projeto;
@@ -164,7 +191,7 @@ async function agAutoCria(){
   ag.autoRodando=false;
   if(criados.length) toast(`🔁 ${criados.length} ticket(s) de reunião recorrente criados: ${criados.join(', ')} — agora é só apontar.`,'ok');
   if(falhas.length) toast(`⚠ ${falhas.length} reunião(ões) automáticas falharam: ${falhas[0]}`,'warn');
-  if(estado.vista==='agenda') renderAgenda();
+  if(agVistaAberta()) renderAgenda();
 }
 // ---- ⏱ Duração REAL (relatório de presença do Teams) ----
 async function agDuracaoReal(evId, btn){
@@ -195,7 +222,7 @@ function agConfereEvento(ev){
     body:JSON.stringify({conferir:1,itens:[{titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}]})})
     .then(r=>r.json()).then(j=>{ const h=((j&&j.achados)||{})[agAchKey(ev)]; if(h&&h.k) ag.achados[ev.id]=h; })
     .catch(()=>{})
-    .finally(()=>{ if(_agM&&_agM.evId===ev.id){ _agM.conferindo=false; agAtualizaModal(); } if(estado.vista==='agenda'&&ag.achados[ev.id]) renderAgenda(); });
+    .finally(()=>{ if(_agM&&_agM.evId===ev.id){ _agM.conferindo=false; agAtualizaModal(); } if(agVistaAberta()&&ag.achados[ev.id]) renderAgenda(); });
 }
 // ⏱ Horas do convite (pedido de 2026-10-01): 📅 estimada (duração agendada) · ⏱ real (relatório de
 // presença do Teams) · ✎ manual (digitada). Devolve os segundos efetivos ou null quando a escolha ainda
@@ -258,7 +285,7 @@ function agAtualizaModal(){
   const projSel=(document.getElementById('agm-proj')||{}).value || (projetos.some(p=>p.key==='RDF')?'RDF':(projetos[0]&&projetos[0].key)||'');
   // 🟡 Ticket já existente desta reunião (mesmo título + mesmo dia, conferido no Jira): o modal abre em
   // "vincular" com a chave preenchida; se a pessoa trocar o modo ou a chave, a escolha dela prevalece.
-  const ach=m.fixo?null:((estado.agenda.achados||{})[m.evId]||null);
+  const ach=m.fixo?null:agAchadoDe(m.evId);   // o que a pessoa desvinculou não volta como sugestão
   const modoDom=((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'';
   const modo=m.fixo?'vincular':(m.modoManual?(modoDom||'criar'):(ach?'vincular':'criar'));
   const chaveDom=String(((document.getElementById('agm-chave')||{}).value)||'');
@@ -373,9 +400,9 @@ function carregaAgenda(forca){
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
-      if(estado.vista==='agenda') renderAgenda(); else agendaRenderAcoes();
+      if(agVistaAberta()) renderAgenda(); else agendaRenderAcoes();
       try{ agAutoCria(); }catch(e){} })
-    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(estado.vista==='agenda') renderAgenda(); else agendaRenderAcoes(); });
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else agendaRenderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
 async function agRdfTipoReuniao(){
@@ -457,20 +484,22 @@ function agRotuloDia(d){
 }
 function renderAgenda(){
   const cont=document.getElementById('conteudo'); const ag=estado.agenda; const id=idApontar();
+  const ctrl=agVistaAberta()&&estado.vista==='agcontrole';   // aba 🎫 Controle de tickets; o resto da função serve às duas abas
+  const h2=ctrl?'🎫 Controle de tickets <span>quem cria o ticket de cada reunião e o que ainda falta</span>':'📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span>';
   if(!id){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>
+    cont.replaceChildren(el(`<div><div class="card full"><h2>${h2}</h2>
       <div class="estado">Identifique-se (e-mail + token do Jira) para carregarmos a SUA agenda.<br>
         <button class="btn primario" data-ap-act="config-id" style="margin-top:10px">Identificar-se</button></div></div></div>`));
     return;
   }
   if(!ag.dados && !ag.erro){
     if(!ag.carregando) carregaAgenda(false);
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda <span>seus eventos do Outlook → ticket de reunião</span></h2>${skeletonPainel()}</div></div>`));
+    cont.replaceChildren(el(`<div><div class="card full"><h2>${h2}</h2>${skeletonPainel()}</div></div>`));
     return;
   }
   const d=ag.dados||{};
   if(ag.erro || d.configurado===false){
-    cont.replaceChildren(el(`<div><div class="card full"><h2>📅 Agenda</h2>
+    cont.replaceChildren(el(`<div><div class="card full"><h2>${h2}</h2>
       <div class="estado">${esc(ag.erro||d.erro||'Não consegui carregar a agenda.')}
         <div style="margin-top:10px"><button class="btn" data-ag-refresh>Tentar de novo</button></div></div></div></div>`));
     return;
@@ -496,27 +525,29 @@ function renderAgenda(){
   // (conta de serviço): se achar, a linha oferece "usar este ticket" e o modal abre em "vincular".
   ag.achados=ag.achados||{};
   const pendSem=pend.concat(aguard);
-  if(pendSem.length && !ag.conferiu && !ag.conferindo){
+  if(ctrl && pendSem.length && !ag.conferiu && !ag.conferindo){   // só a aba do controle mostra o "🟡 achei no Jira"
     ag.conferindo=true;
     fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({conferir:1,itens:pendSem.map(ev=>({titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}))})})
       .then(r=>r.json()).then(j=>{ ag.conferindo=false; ag.conferiu=true;
         const a=(j&&j.achados)||{};
         pendSem.forEach(ev=>{ const h=a[agAchKey(ev)]; if(h&&h.k) ag.achados[ev.id]=h; });
-        if(estado.vista==='agenda') renderAgenda(); if(_agM) agAtualizaModal(); })
-      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(estado.vista==='agenda') renderAgenda(); if(_agM) agAtualizaModal(); });
+        if(agVistaAberta()) renderAgenda(); if(_agM) agAtualizaModal(); })
+      .catch(()=>{ ag.conferindo=false; ag.conferiu=true; if(agVistaAberta()) renderAgenda(); if(_agM) agAtualizaModal(); });
   }
   // Peças reaproveitadas pelas linhas dos quatro blocos.
   const ctQuando=(ev)=>{ const dia=(ev.inicio||'').slice(0,10); const n=agDiasAtras(dia);
     return `<span class="muted small">· ${esc(alxDataBR(dia))}${dia===hoje?' · <b>hoje</b>':''}</span>`
       +(n>0?` <span class="ag-ct-atras" data-tip="Quanto tempo esta reunião está sem ticket">há ${n} dia${n>1?'s':''}</span>`:'');
   };
-  const ctAchado=(ev)=>ag.achados[ev.id];
+  const ctAchado=(ev)=>agAchadoDe(ev.id);
   const ctUsar=(ev,ach)=>`<button class="btn primario" data-ag-usar="${escA(ev.id)}|${escA(ach.k)}" data-tip="Registra este ticket como o da reunião (vínculo compartilhado com o time)">✓ usar este ticket</button>`;
   const ctSituAchado=(ach)=>`<span class="ag-ct-ok">🟡 achei no Jira</span> <a href="${jiraBase()}/browse/${encodeURIComponent(ach.k)}" target="_blank" rel="noopener">${esc(ach.k)} ↗</a> <span class="muted small" title="${escA(ach.resumo||'')}">${esc(String(ach.resumo||'').slice(0,36))}</span>${(ach.criadoPor&&ach.criadoPor.nome)?` <span class="muted small" data-tip="${escA(`Quem criou o ticket no Jira${ach.criadoEm?` em ${alxDataBR(ach.criadoEm)}`:''}`)}">por ${esc(String(ach.criadoPor.nome).split(' ')[0])}</span>`:''}`;
   const ctIgnorar=(ev)=>`<button class="btn" data-ag-ignorar="${escA(ev.id)}" data-tip="${escA(agSerieDe(ev)
     ?'Tira esta reunião recorrente (todas as ocorrências) da cobrança — nada muda no Outlook nem no Jira'
     :'Tira esta reunião da cobrança — nada muda no Outlook nem no Jira')}">🚫 ignorar</button>`;
+  // ✂ Desvincular (2026-10-02): só o vínculo do painel; o ticket fica no Jira e não é sugerido de novo.
+  const ctDesv=(ev)=>`<button class="btn" data-ag-desvincular="${escA(ev.id)}" data-tip="Desfaz só o vínculo no painel — o ticket continua no Jira e a reunião volta a 'sem ticket'; este ticket não é sugerido de novo para ela">✂ desvincular</button>`;
   // 🔁 Recorrente: liga/desliga a criação automática do ticket de cada ocorrência.
   const ctAuto=(ev)=>{ if(!(ev.recorrente&&(ev.meu||orgExt(ev)))) return '';
     const reg=agRegraDe(ev);
@@ -556,7 +587,7 @@ function renderAgenda(){
     const tk=agTicketDe(ev.id);
     const quem=ev.meu?'Você (organizou)':orgExt(ev)?'Organizador externo':`${esc(String((ev.organizador&&(ev.organizador.nome||ev.organizador.email))||'').split(' ')[0])} (organizou)`;
     const situ=`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`;
-    const acao=(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')+ctAuto(ev);
+    const acao=(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')+ctAuto(ev)+ctDesv(ev);
     return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`, quem, situ, acao);
   };
   // 🚫 Ignoradas — agrupadas pela CHAVE (a série aparece uma vez, não uma por dia).
@@ -588,7 +619,9 @@ function renderAgenda(){
       ${ctTab('Quem deve criar','Situação',aguard.map(linhaColega).join(''))}
     </div>`:'';
   const caixaPend=naoPriv.length?`<div class="card full" style="margin-bottom:12px">
-    <h2>🎫 Controle de tickets <span>quem cria o ticket de cada reunião e o que ainda falta — 🔒 particulares ficam de fora</span></h2>
+    <h2>${h2}</h2>
+    <div class="ts-fonte" style="gap:12px;flex-wrap:wrap"><span class="muted small">${esc(d.de||'')} → ${esc(d.ate||'')} · ${naoPriv.length} reunião(ões) — 🔒 particulares ficam de fora · o vínculo é por ocorrência e vale para o time todo</span>
+      <span class="spacer"></span><button class="btn" data-ag-refresh title="Rebuscar a agenda e a conferência no Jira ignorando o cache">⟳ Atualizar</button></div>
     ${ag.autoRodando?'<div class="aviso" style="margin:6px 0 8px">🔁 Criando os tickets das reuniões recorrentes de hoje…</div>'
       :(nAuto?`<div class="muted small" style="margin:4px 0 8px">🔁 <b>${nAuto}</b> reunião(ões) recorrente(s) automatizada(s): o ticket de cada ocorrência é criado sozinho ao abrir a Agenda — resta apontar as horas.</div>`:'')}
     <div class="ag-ct-kpis">
@@ -620,7 +653,7 @@ function renderAgenda(){
           :orgExt(ev)?'<span class="badge ms-b-atra" data-tip="Organizador de fora da Dexterity — QUALQUER participante da empresa pode criar o ticket">⚠ sem ticket — organizador externo: quem participa cria</span>'
           :`<span class="badge ms-b-sem" data-tip="Quem organizou cria o ticket e envia os convites de apontamento">sem ticket — cabe a ${escA((ev.organizador.nome||ev.organizador.email||'').split(' ')[0])}</span>`));
       const acao=tk
-        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">✓ ${esc(tk.t)} ↗</a>${tk.por?`<div class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</div>`:''}${ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="Convidar (mais) participantes para apontar as horas desta reunião">👥 convidar</button>`:''}`
+        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">✓ ${esc(tk.t)} ↗</a>${tk.por?`<div class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</div>`:''}${ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="Convidar (mais) participantes para apontar as horas desta reunião">👥 convidar</button>`:''}${ctDesv(ev)}`
         :`<button class="btn ${priv||ign||!(ev.meu||orgExt(ev))?'':'primario'}" data-ag-criar="${escA(ev.id)}" data-tip="Escolha o projeto (ou vincule a um ticket existente) e convide os participantes para apontar">📝 Criar/vincular ticket</button>`;
       return `<div class="ag-ev${dia<hoje?' ag-passado':''}">
         <div class="ag-hora">${esc(hora)}</div>
@@ -630,14 +663,26 @@ function renderAgenda(){
     }).join('');
     return `<div class="vg-card" style="margin-bottom:12px"><h3>${esc(agRotuloDia(dia))} <span class="muted small" style="font-weight:400">· ${porDia[dia].length} evento(s)</span></h3>${rows}</div>`;
   }).join('');
+  try{ renderAbas(); }catch(e){}   // o contador da aba 🎫 (pendências suas) nasce com os dados da agenda, não só no render() geral
+  if(ctrl){   // aba 🎫: só o controle — a lista de eventos fica na aba 📅
+    cont.replaceChildren(el(`<div class="tela-agenda tela-agctrl">${caixaPend||`<div class="card full"><h2>${h2}</h2><div class="estado">Nenhuma reunião (fora as 🔒 particulares) no período da agenda.</div></div>`}</div>`));
+    return;
+  }
+  // Faixa-resumo: os números do controle e o caminho para a aba — o controle inteiro saiu desta tela.
+  const faixa=naoPriv.length?`<div class="ag-ct-faixa">🎫 <b>Controle de tickets</b>
+      <span class="ag-ct-kpi ${pend.length?'w':'t'}">⚠ <b>${pend.length}</b> com você</span>
+      <span class="ag-ct-kpi ${aguard.length?'w':'t'}">⏳ <b>${aguard.length}</b> com colegas</span>
+      <span class="ag-ct-kpi t">✓ <b>${grupos.ok.length}</b> com ticket</span>
+      ${grupos.ign.length?`<span class="ag-ct-kpi">🚫 <b>${Object.keys(ignChaves).length}</b> ignorada(s)</span>`:''}
+      <button class="btn ${(pend.length||aguard.length)?'primario':''}" data-ag-goto-ctrl="1" data-tip="Abre a aba 🎫 Controle de tickets: quem cria o ticket de cada reunião, o que falta, cobrar colegas, ignorar e desvincular">Abrir o controle →</button></div>`:'';
   cont.replaceChildren(el(`<div class="tela-agenda">
     <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
       <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
         <span class="muted small">${evs.length} evento(s) · convites de ${esc((d.ocultarDe||[]).join(', '))} ficam ocultos (menos na agenda de quem organizou)${d.nOcultos?` · ${d.nOcultos} oculto(s)`:''}</span>
         <span class="spacer"></span><button class="btn" data-ag-refresh title="Rebuscar a agenda ignorando o cache">⟳ Atualizar</button></div>
+      ${faixa}
       ${evs.length?'':'<div class="estado" style="margin-top:10px">Nenhum evento no período.</div>'}
     </div>
-    ${caixaPend}
     ${blocos}
   </div>`));
 }
@@ -651,6 +696,17 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     estado.agenda.secoes[sc.getAttribute('data-ag-sec')]=!(det&&det.open); return; }
   const rf=e.target.closest&&e.target.closest('[data-ag-refresh]');
   if(rf){ const ag=estado.agenda; ag.dados=null; ag.erro=''; ag.conferiu=false; ag.achados={}; carregaAgenda(true); renderAgenda(); return; }
+  const gc=e.target.closest&&e.target.closest('[data-ag-goto-ctrl]');
+  if(gc){ vaiPara('agcontrole'); return; }
+  // ✂ desvincular: confirma, desfaz o vínculo do painel (o ticket fica no Jira) e lembra a recusa
+  const dv=e.target.closest&&e.target.closest('[data-ag-desvincular]');
+  if(dv){ const evId=dv.getAttribute('data-ag-desvincular');
+    const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); const tk=agTicketDe(evId); if(!ev||!tk) return;
+    if(!confirm(`Desvincular ${tk.t} de "${ev.titulo}"? Só o vínculo do painel é desfeito — o ticket continua no Jira — e a reunião volta a "sem ticket". Este ticket não será sugerido de novo para ela.`)) return;
+    agDesmarcaTicket(evId);
+    logAcao({acao:'agenda-desvincular', t:ev.titulo, k:tk.t, ok:true});
+    toast(`✂ ${tk.t} desvinculado de "${String(ev.titulo).slice(0,40)}" — a reunião voltou às pendências.`,'ok');
+    pintaBadgeInbox(); renderAgenda(); return; }
   const av=e.target.closest&&e.target.closest('[data-ag-avisar]');
   if(av){ if(!idApontar()){ abreIdentidade(); return; } agAvisaInbox(av.getAttribute('data-ag-avisar')); return; }
   const cb=e.target.closest&&e.target.closest('[data-ag-cobrar-todos]');

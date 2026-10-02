@@ -573,6 +573,9 @@
   .tela-agenda .ag-ct-acao{flex:1 1 100%;margin-top:6px!important;gap:4px 6px}
   .tela-agenda .ag-ct-acao .btn{padding:6px 8px;font-size:13.5px}   /* "📨 cobrar" + "📝 criar assim mesmo" cabem numa linha a 360px */
   .tela-agenda .ag-ct-bloco{margin:10px 0 12px}
+  /* faixa-resumo do 🎫 Controle: os chips quebram e o botão ocupa a linha inteira */
+  .tela-agenda .ag-ct-faixa{padding:8px;gap:6px}
+  .tela-agenda .ag-ct-faixa>.btn{flex:1 1 100%;margin-left:0}
   .tela-agenda .badge,.tela-agenda .ag-ct-atras{font-size:12px}
   /* links no meio do texto (RDF-123 ↗, entrar ↗): área de toque maior sem mexer na linha */
   .tela-agenda .ag-ct-row a,.tela-agenda .ag-info a{display:inline-block;padding:9px 2px;margin:-9px -2px}

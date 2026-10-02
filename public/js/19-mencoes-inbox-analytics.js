@@ -322,7 +322,7 @@ function renderInbox(){
         ${a.dia?`<span class="badge">${esc(alxDataBR(a.dia))}</span>`:''}
         <span class="badge" data-tip="Quem avisou pelo painel da Agenda">📨 aviso de ${esc(String(a.de||'?').split(' ')[0])}</span>
         <span class="spacer"></span>
-        <button class="btn primario" data-goto="agenda">📅 Abrir a Agenda para criar →</button>
+        <button class="btn primario" data-goto="agcontrole">🎫 Abrir o Controle de tickets para criar →</button>
         <button class="btn" data-ib-avdel="${escA(a.evId)}" data-tip="Dispensa este aviso do SEU Inbox (não muda a Agenda nem o Jira)">✕</button>
       </div>`).join('')}</div>
   </div>`:'';

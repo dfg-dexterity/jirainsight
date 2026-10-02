@@ -27,7 +27,7 @@ function render(){
   if(estado.vista==='mencoes') return renderMencoes();
   if(estado.vista==='inbox') return renderInbox();
   if(estado.vista==='projetos') return renderProjetos();
-  if(estado.vista==='agenda') return renderAgenda();
+  if(estado.vista==='agenda'||estado.vista==='agcontrole') return renderAgenda();   // 📅 eventos · 🎫 controle (abas)
   if(estado.vista==='minhasemana') return renderMinhaSemana();
   if(estado.vista==='roadmap') return renderRoadmap();
   if(estado.vista==='prioridades') return renderPrioridades();
@@ -82,6 +82,8 @@ function fechaModal(){ document.getElementById('modal').hidden=true;
 const ABAS=[
   { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
+  // 2026-10-02 (a pedido do usuário: "o controle poluía a tela"): os eventos e o 🎫 Controle de tickets viraram abas.
+  { id:'agenda',       rot:'📅 Agenda',                 abas:[ {v:'agenda',rot:'📅 Eventos (Outlook → ticket)'}, {v:'agcontrole',rot:'🎫 Controle de tickets'} ] },
   { id:'minhasemana',  rot:'📋 Meu Planejamento',       abas:[ {v:'minhasemana',rot:'📋 Minha semana'}, {v:'planrel',aud:'minha',rot:'📈 Planejado × realizado'} ] },
   { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'} ] },
   { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
@@ -118,6 +120,7 @@ const ABAS_N={
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
   gp:      { n:()=>(typeof gpPendN==='function')?gpPendN():null, tip:'ticket(s) vencido(s) ou parado(s) nos projetos em foco' },
+  agcontrole: { n:()=>{ const p=(typeof agPendentes==='function')?agPendentes():null; return p?p.length:null; }, tip:'reunião(ões) sem ticket que dependem de você' },
 };
 function abaN(v){ const c=ABAS_N[v]; if(!c) return ''; let n=null; try{ n=c.n(); }catch(e){ n=null; }
   return (typeof n==='number'&&n>0)?`<span class="aba-n" data-tip="${escA(n+' '+c.tip)}">${n>99?'99+':n}</span>`:''; }
@@ -197,7 +200,8 @@ const NAVCAT=[
   ['inbox','📥 Inbox › 📥 Pendências','hub','convites mencoes pendencias caixa entrada aprovacoes meu trabalho'],
   ['prioridades','🎯 Prioridades do time','hub','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
   ['minhasemana','📋 Meu Planejamento › 📋 Minha semana','hub','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado alocacao macro planejamento macro capacidade meu trabalho'],
-  ['agenda','📅 Agenda','hub','outlook reuniao eventos calendario convite meu trabalho novo'],
+  ['agenda','📅 Agenda › 📅 Eventos (Outlook → ticket)','hub','outlook reuniao eventos calendario convite meu trabalho novo'],
+  ['agcontrole','📅 Agenda › 🎫 Controle de tickets','hub','controle de tickets reunioes sem ticket pendentes depende de voce colegas cobrar ignorar desvincular vinculo achei no jira usar este ticket meu trabalho'],
   ['rateio','⏱ Apontar › ➗ Rateio de horas','hub','rateio massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
   ['meudia','⏱ Apontar › 📍 Sugestões do dia (Meu dia)','hub','timetracking dia atividade sugestoes ia meu trabalho meu dia'],
   ['mencoes','📥 Inbox › 💬 Menções','hub','comentarios marcado responder citacoes meu trabalho'],

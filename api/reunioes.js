@@ -180,18 +180,17 @@ async function agenda(req, res, b) {
 }
 
 // Confere no Jira (conta de serviço) se JÁ EXISTE ticket para reuniões pendentes da
-// Agenda — cobre tickets criados FORA do app: busca por frase no resumo, últimos 90
-// dias. Resposta: { achados: { [título recebido]: { k, resumo, status } } }.
-// POST { conferir:1, itens:[{titulo, dia}] }  (legado: titulos:[…], sem dia)
-// Procura no Jira o ticket DA MESMA REUNIÃO: mesmo resumo (com ou sem o prefixo "Reunião: ") e
-// MESMO DIA — vencimento no dia ou criado no dia (fuso de São Paulo). Devolve quem criou, para o
-// modal sugerir o vínculo: pedido do usuário (2026-10-01) — só sugerir vincular quando existe um
-// ticket com a mesma descrição, para o mesmo dia, criado por outra pessoa (antes a conferência
-// era só por título, e a ocorrência de hoje de uma reunião recorrente casava com o ticket da
-// semana passada). O caminho legado por título continua para clientes antigos.
+// Agenda — cobre tickets criados FORA do app. Resposta: { achados: { ["dia|título"]: {…} } }.
+// POST { conferir:1, itens:[{titulo, dia}] }  (legado: titulos:[…], sem dia — frase no resumo, 90 dias)
+// Procura no Jira o ticket DA MESMA REUNIÃO: mesmo resumo (com ou sem o prefixo "Reunião: ") e a
+// MESMA DATA — o VENCIMENTO do ticket igual ao dia da reunião, exatamente. Pedido do usuário
+// (2026-10-01 e 2026-10-02): "só sugira vincular quando existe um ticket com a mesma descrição
+// para o mesmo dia; a data precisa ser exatamente a mesma". Antes a conferência era só por título
+// (a ocorrência de hoje de uma recorrente casava com o ticket da semana passada) e depois aceitava
+// também "criado no dia" (um ticket criado hoje para a reunião de amanhã casava com a de hoje).
+// Ticket sem vencimento não casa. Devolve quem criou, para o modal sugerir o vínculo.
 const RE_DIA_AG = /^\d{4}-\d{2}-\d{2}$/;
 const diaSPde = (iso) => { const t = Date.parse(String(iso || '')); return Number.isFinite(t) ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(t)) : ''; };
-const diaMais1 = (d) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
 async function conferirTickets(req, res, b) {
   const porDia = Array.isArray(b.itens);
   const brutos = porDia
@@ -209,7 +208,7 @@ async function conferirTickets(req, res, b) {
   const ck = `agenda:conferir:${porDia ? 'd:' : ''}${pares.map((p) => `${p.dia}|${p.q}`).join('|')}`;
   if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
   const jql = '(' + pares.map((p) => porDia
-    ? `(summary ~ "\\"${p.q}\\"" AND (duedate = "${p.dia}" OR (created >= "${p.dia}" AND created < "${diaMais1(p.dia)}")))`
+    ? `(summary ~ "\\"${p.q}\\"" AND duedate = "${p.dia}")`
     : `summary ~ "\\"${p.q}\\""`).join(' OR ') + (porDia ? '' : ') AND created >= -90d') + (porDia ? ')' : '') + ' ORDER BY created DESC';
   const { issues } = await jiraSearchAll({ jql, fields: ['summary', 'issuetype', 'status', 'created', 'duedate', 'creator'], pageSize: 50, maxPages: 1 });
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
@@ -217,12 +216,13 @@ async function conferirTickets(req, res, b) {
   const achados = {};
   pares.forEach(({ chave, q, dia }) => {
     const nq = semPrefixo(q);
-    // Candidatos: mesmo dia (vencimento ou criação em SP) quando há dia; o resumo exatamente igual
-    // (sem o prefixo) vence o "contém"; entre iguais, o mais antigo (o primeiro que alguém criou).
+    // Candidatos: VENCIMENTO exatamente no dia da reunião (quando há dia) — a data de criação não
+    // conta; o resumo exatamente igual (sem o prefixo) vence o "contém"; entre iguais, o mais
+    // antigo (o primeiro que alguém criou).
     const cands = issues.map((it) => {
       const f = it.fields || {}; const ns = semPrefixo(f.summary);
       const criadoEm = diaSPde(f.created); const venc = String(f.duedate || '').slice(0, 10);
-      const mesmoDia = !dia || venc === dia || criadoEm === dia;
+      const mesmoDia = !dia || venc === dia;
       const exato = ns === nq; const contem = exato || ns.includes(nq);
       return { it, f, criadoEm, venc, mesmoDia, exato, contem };
     }).filter((c) => c.mesmoDia && c.contem)
