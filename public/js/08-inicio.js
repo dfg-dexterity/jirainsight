@@ -548,7 +548,7 @@ function renderAcoes(){
         ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">…</div><div class="ax-det">Consultando o Outlook…</div>','agenda','Abrir Agenda →')
         :pcard((agp.length===0&&!(agAg&&agAg.length))?'ok':'aten','📅','Reuniões sem ticket',
           `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'suas ou de organizador externo — crie para o time apontar':'nada depende de você ✅'}</div>${agLinhaCol}`,
-          'agenda', (agp.length||(agAg&&agAg.length))?'Resolver na Agenda →':'Abrir Agenda →');
+          'agcontrole', (agp.length||(agAg&&agAg.length))?'Resolver no 🎫 Controle →':'Abrir o 🎫 Controle →');   // a aba 🎫 Controle de tickets da Agenda
     // 📥 inbox
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',

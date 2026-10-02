@@ -8,7 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "check": "node scripts/check-syntax.mjs && node scripts/check-entrega.mjs && node scripts/check-rentab-paridade.mjs && node scripts/check-cronograma-paridade.mjs"
+    "check": "node scripts/check-syntax.mjs && node scripts/check-entrega.mjs && node scripts/check-guias.mjs && node scripts/check-rentab-paridade.mjs && node scripts/check-cronograma-paridade.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
