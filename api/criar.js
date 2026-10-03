@@ -4,7 +4,7 @@
 //
 // Corpo: { itens:[{projeto, tipoId, resumo, descricao?, respId?, paiKey?}], email, token }
 // Resposta: { ok, criados:[{indice,key,resumo}], erros:[{indice,erro}] }
-import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json, jiraUsuariosAtivos, jiraSearchAll } from './_lib/util.js';
+import { jiraBase, jiraAuthHeader, cacheClear, cacheGet, cacheSetTTL, json, jiraUsuariosAtivos, jiraSearchAll } from './_lib/util.js';
 
 // Campo "Departamento Dexterity" (tarefas avulsas/TAD): o id do custom field é
 // resolvido pelo NOME via createmeta do projeto (cache 30 min). Se o campo não
@@ -121,15 +121,33 @@ const FB_TIPOS = {
   sugestao: { label: 'sugestão', pref: 'Sugestão' },
   bug: { label: 'bug', pref: 'Bug' },
 };
-async function criaFeedbackGitHub(res, b) {
+// Cria um issue no repositório do projeto (token de serviço). Devolve {ok, numero, url} ou
+// {ok:false, configurado?, erro} — quem chama decide se a falha derruba o pedido.
+async function ghCriaIssue({ titulo, corpo, labels }) {
   const token = (process.env.GITHUB_TOKEN || process.env.GH_FEEDBACK_TOKEN || '').trim();
   const repo = (process.env.GITHUB_ISSUES_REPO || 'dfg-dexterity/jirainsight').trim();
-  if (!token) {
-    return json(res, 200, { ok: false, configurado: false, erro: 'Integração com o GitHub não configurada. Defina GITHUB_TOKEN na Vercel.' });
-  }
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    return json(res, 200, { ok: false, erro: 'GITHUB_ISSUES_REPO inválido (use owner/repo).' });
-  }
+  if (!token) return { ok: false, configurado: false, erro: 'Integração com o GitHub não configurada. Defina GITHUB_TOKEN na Vercel.' };
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { ok: false, erro: 'GITHUB_ISSUES_REPO inválido (use owner/repo).' };
+  let r;
+  try {
+    r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'jirainsight-feedback',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify({ title: String(titulo).slice(0, 250), body: corpo, labels }),
+    });
+  } catch (e) { return { ok: false, erro: `GitHub fora do ar: ${String(e.message || e).slice(0, 120)}` }; }
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* sem corpo */ }
+  if (!r.ok) return { ok: false, erro: `GitHub ${r.status}: ${String(data.message || '').slice(0, 200)}` };
+  return { ok: true, numero: data.number, url: data.html_url };
+}
+async function criaFeedbackGitHub(res, b) {
   const t = FB_TIPOS[b.tipo] || FB_TIPOS.sugestao;
   const titulo = String(b.titulo || '').trim();
   if (!titulo) return json(res, 400, { ok: false, erro: 'Dê um título.' });
@@ -145,23 +163,155 @@ async function criaFeedbackGitHub(res, b) {
     (nome || email) ? `**Reportado por:** ${nome}${email ? ` (${email})` : ''}` : '',
     '**Origem:** Dexterity Hub (antes Insights de Uso · Jira + Clockwork) — tela de Ajuda',
   ].filter(Boolean).join('\n');
-  const r = await fetch(`https://api.github.com/repos/${repo}/issues`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'jirainsight-feedback',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-    body: JSON.stringify({ title: `${t.pref}: ${titulo}`.slice(0, 250), body: corpo, labels: [t.label] }),
-  });
-  let data = {};
-  try { data = await r.json(); } catch (e) { /* sem corpo */ }
-  if (!r.ok) {
-    return json(res, 200, { ok: false, erro: `GitHub ${r.status}: ${String(data.message || '').slice(0, 200)}` });
+  const gh = await ghCriaIssue({ titulo: `${t.pref}: ${titulo}`, corpo, labels: [t.label] });
+  if (!gh.ok) return json(res, 200, gh);
+  return json(res, 200, { ok: true, numero: gh.numero, url: gh.url });
+}
+
+// ---- 🐞 Reportar bug ou melhoria (2026-10-03): UM relato vira dois registros ligados — o ticket no
+// Jira (projeto JIRA_FEEDBACK_PROJECT, padrão JI) e o issue no GitHub (GITHUB_ISSUES_REPO), cada um com
+// o link do outro. Tipo no Jira: Bug → o tipo "Bug" do projeto; Melhoria → um tipo chamado Melhoria /
+// Improvement se o projeto tiver, senão História (e, na falta, Tarefa) com a label "melhoria" — é a
+// label que filtra as melhorias em qualquer caso. Dúvida não vira ticket: só issue no GitHub.
+// Cria com o token da própria pessoa (ela aparece como relatora); sem permissão no projeto, a conta de
+// serviço cria e o nome de quem relatou vai na descrição. Identidade conferida no Jira antes de tudo.
+// Corpo: { reportar:1, tipo:'bug'|'melhoria'|'duvida', titulo, descricao, passos?, esperado?,
+//          contexto?:{tela, rotulo, url, versao, navegador, janela, erros:[…]}, email, token }
+const RP_TIPOS = {
+  bug: { nome: 'Bug', label: 'bug', gh: 'bug' },
+  melhoria: { nome: 'Melhoria', label: 'melhoria', gh: 'melhoria' },
+  duvida: { nome: 'Dúvida', label: 'duvida', gh: 'dúvida' },
+};
+const rpTxt = (v, max) => String(v == null ? '' : v).replace(/\r\n?/g, '\n').trim().slice(0, max);
+export function reportarContexto(c) {
+  if (!c || typeof c !== 'object') return null;
+  const o = {
+    tela: rpTxt(c.tela, 40), rotulo: rpTxt(c.rotulo, 80), versao: rpTxt(c.versao, 40),
+    navegador: rpTxt(c.navegador, 200), janela: rpTxt(c.janela, 20),
+    // A URL do app leva a tela e os filtros; um parâmetro com cara de segredo nunca viaja.
+    url: rpTxt(c.url, 400).replace(/([?&](?:token|senha|key|segredo|secret|sig)=)[^&#]*/gi, '$1…'),
+    erros: (Array.isArray(c.erros) ? c.erros : []).slice(0, 8).map((e) => rpTxt(e, 300)).filter(Boolean),
+  };
+  return Object.values(o).some((v) => (Array.isArray(v) ? v.length : v)) ? o : null;
+}
+// Escolhe o tipo do Jira entre os do projeto: o nome exato manda; melhoria cai para História/Tarefa.
+export function reportarTipoJira(tipos, tipo) {
+  const uteis = (tipos || []).filter((t) => t && !t.subtask && !/epic|épico/i.test(t.name || ''));
+  const acha = (re) => uteis.find((t) => re.test(String(t.name || '').trim()));
+  if (tipo === 'bug') {
+    const t = acha(/^bug$/i) || acha(/bug|defeito/i) || acha(/^tarefa$|^task$/i) || uteis[0];
+    return t ? { id: String(t.id), nome: t.name, nativo: /bug|defeito/i.test(t.name || '') } : null;
   }
-  return json(res, 200, { ok: true, numero: data.number, url: data.html_url });
+  const nat = acha(/^(melhoria|improvement|aprimoramento)$/i);
+  if (nat) return { id: String(nat.id), nome: nat.name, nativo: true };
+  const t = acha(/^hist[oó]ria$|^story$/i) || acha(/^tarefa$|^task$/i) || uteis[0];
+  return t ? { id: String(t.id), nome: t.name, nativo: false } : null;
+}
+export function reportarTextos(b, quem, ctx) {
+  const t = RP_TIPOS[b.tipo];
+  const titulo = rpTxt(b.titulo, 200);
+  const descricao = rpTxt(b.descricao, 8000);
+  const passos = t === RP_TIPOS.bug ? rpTxt(b.passos, 4000) : '';
+  const esperado = t === RP_TIPOS.bug ? rpTxt(b.esperado, 4000) : '';
+  const ctxLinhas = ctx ? [
+    ctx.rotulo || ctx.tela ? `Tela: ${ctx.rotulo || ''}${ctx.tela ? ` (${ctx.tela})` : ''}` : '',
+    ctx.url ? `Endereço: ${ctx.url}` : '',
+    ctx.versao ? `Versão do app: ${ctx.versao}` : '',
+    ctx.navegador ? `Navegador: ${ctx.navegador}` : '',
+    ctx.janela ? `Janela: ${ctx.janela}` : '',
+    ...(ctx.erros.length ? ['Erros recentes no navegador:', ...ctx.erros.map((e) => `• ${e}`)] : []),
+  ].filter(Boolean) : [];
+  const rel = `Relatado por: ${quem.nome || quem.email}${quem.nome && quem.email ? ` (${quem.email})` : ''} — pelo Dexterity Hub (🐞 Reportar)`;
+  // Texto do Jira (parágrafos) e do GitHub (Markdown) — o mesmo conteúdo, cada um no formato da casa.
+  const jira = [
+    descricao || '(sem descrição)',
+    ...(passos ? ['', 'Passos para reproduzir:', passos] : []),
+    ...(esperado ? ['', 'O que era esperado:', esperado] : []),
+    ...(ctxLinhas.length ? ['', '— Contexto —', ...ctxLinhas] : []),
+    '', rel,
+  ].join('\n');
+  const md = (s) => s.replace(/@/g, '@​');   // nada de @menção acidental no GitHub
+  const gh = [
+    md(descricao) || '_(sem descrição)_',
+    ...(passos ? ['', '### Passos para reproduzir', md(passos)] : []),
+    ...(esperado ? ['', '### O que era esperado', md(esperado)] : []),
+    ...(ctxLinhas.length ? ['', '<details><summary>Contexto</summary>', '', ...ctxLinhas.map((l) => (l.startsWith('•') ? `- ${md(l.slice(2))}` : `- ${md(l)}`)), '', '</details>'] : []),
+    '', '---', md(rel),
+  ].join('\n');
+  return { titulo, jira, gh };
+}
+async function reportar(res, b, base, headersPessoa, quem) {
+  const t = RP_TIPOS[b.tipo];
+  if (!t) return json(res, 400, { erro: 'Escolha o tipo: bug, melhoria ou dúvida.' });
+  if (!rpTxt(b.titulo, 200)) return json(res, 400, { erro: 'Dê um título ao relato.' });
+  if (!(await meusConfereIdentidade(base, headersPessoa, quem.email, String(b.token || '').trim()))) {
+    return json(res, 401, { erro: 'O Jira não aceitou o seu e-mail/token — refaça a identificação (Trocar usuário) e tente de novo.' });
+  }
+  const ctx = reportarContexto(b.contexto);
+  const tx = reportarTextos(b, quem, ctx);
+  const avisos = [];
+  let jira = null;
+  if (b.tipo !== 'duvida') {
+    const projeto = String(process.env.JIRA_FEEDBACK_PROJECT || 'JI').trim().toUpperCase();
+    if (!RE_PROJ.test(projeto)) avisos.push('JIRA_FEEDBACK_PROJECT inválido — o ticket no Jira não foi criado.');
+    else {
+      // Tenta com a pessoa; sem permissão no projeto, a conta de serviço (se houver) cria.
+      const tentativas = [{ headers: headersPessoa, servico: false }];
+      try {
+        tentativas.push({ headers: { Authorization: jiraAuthHeader(), Accept: 'application/json', 'Content-Type': 'application/json' }, servico: true });
+      } catch (e) { /* sem conta de serviço: só a pessoa */ }
+      let ultimoErro = '';
+      for (const tent of tentativas) {
+        const ck = `criar:reportar:tipos:${projeto}:${tent.servico ? 's' : 'p'}`;
+        let tipos = cacheGet(ck);
+        if (!tipos) {
+          const rm = await fetch(`${base}/rest/api/3/issue/createmeta?projectKeys=${encodeURIComponent(projeto)}`, { headers: tent.headers });
+          if (!rm.ok) { ultimoErro = `Jira ${rm.status} ao ler os tipos do projeto ${projeto}`; continue; }
+          tipos = ((((await rm.json()).projects || [])[0] || {}).issuetypes || []).map((x) => ({ id: x.id, name: x.name, subtask: !!x.subtask }));
+          if (!tipos.length) { ultimoErro = `sem permissão para criar no projeto ${projeto}`; continue; }
+          cacheSetTTL(ck, tipos, 30);
+        }
+        const alvo = reportarTipoJira(tipos, b.tipo);
+        if (!alvo) { ultimoErro = `o projeto ${projeto} não tem um tipo de ticket utilizável`; continue; }
+        const resumo = (b.tipo === 'melhoria' && !alvo.nativo ? `Melhoria: ${tx.titulo}` : tx.titulo).slice(0, 255);
+        const fields = {
+          project: { key: projeto }, issuetype: { id: alvo.id }, summary: resumo,
+          description: adf(tx.jira), labels: ['hub-feedback', t.label],
+        };
+        const rc = await fetch(`${base}/rest/api/3/issue`, { method: 'POST', headers: tent.headers, body: JSON.stringify({ fields }) });
+        let dc = {};
+        try { dc = await rc.json(); } catch (e) { /* sem corpo */ }
+        if (rc.ok && dc.key) {
+          jira = { key: dc.key, url: `${base}/browse/${dc.key}`, tipo: alvo.nome, servico: tent.servico, headers: tent.headers };
+          if (tent.servico) avisos.push(`Você não tem permissão para criar no ${projeto}: a conta de serviço criou o ${dc.key} e o seu nome está na descrição.`);
+          break;
+        }
+        const msg = Object.values((dc && dc.errors) || {}).concat((dc && dc.errorMessages) || []).join(' · ');
+        ultimoErro = `Jira ${rc.status}${msg ? `: ${String(msg).slice(0, 200)}` : ''}`;
+        if (rc.status !== 401 && rc.status !== 403) break;   // erro de dado: a conta de serviço daria o mesmo
+      }
+      if (!jira) avisos.push(`Não deu para criar o ticket no Jira (${ultimoErro || 'erro desconhecido'}).`);
+    }
+  }
+  const corpoGh = jira ? `${tx.gh}\n\n**Jira:** [${jira.key}](${jira.url})` : tx.gh;
+  const gh = await ghCriaIssue({ titulo: `${t.nome}: ${tx.titulo}`, corpo: corpoGh, labels: [t.gh, 'hub-feedback'] });
+  if (!gh.ok) avisos.push(gh.configurado === false ? 'O GitHub não está configurado (GITHUB_TOKEN na Vercel) — o issue não foi criado.' : `Não deu para abrir o issue no GitHub (${gh.erro}).`);
+  if (jira && gh.ok) {   // o caminho de volta: o ticket ganha o link do issue (melhor esforço)
+    try {
+      const rl = await fetch(`${base}/rest/api/3/issue/${jira.key}/remotelink`, {
+        method: 'POST', headers: jira.headers,
+        body: JSON.stringify({ object: { url: gh.url, title: `GitHub #${gh.numero} — ${tx.titulo}`.slice(0, 250), icon: { url16x16: 'https://github.com/favicon.ico', title: 'GitHub' } } }),
+      });
+      if (!rl.ok) avisos.push(`O ${jira.key} não ganhou o link do issue (Jira ${rl.status}) — o issue tem o link do ticket.`);
+    } catch (e) { avisos.push(`O ${jira.key} não ganhou o link do issue — o issue tem o link do ticket.`); }
+  }
+  if (!jira && !gh.ok) return json(res, 200, { ok: false, erro: avisos.join(' '), avisos });
+  return json(res, 200, {
+    ok: true, tipo: b.tipo,
+    jira: jira ? { key: jira.key, url: jira.url, tipo: jira.tipo, servico: jira.servico } : null,
+    github: gh.ok ? { numero: gh.numero, url: gh.url } : null,
+    avisos,
+  });
 }
 
 // ---- Edição EM MASSA (grade pós-criação estilo planilha): data limite e/ou
@@ -1005,6 +1155,13 @@ export default async function handler(req, res) {
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Identifique-se (e-mail + token de API) para criar tickets.' });
+    }
+    if (b.reportar) {   // 🐞 Reportar bug ou melhoria: ticket no Jira + issue no GitHub, ligados
+      return await reportar(res, b, jiraBase(), {
+        Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      }, { email, nome: rpTxt(b.nome, 120) });
     }
     if (b.meus) {   // 🧾 Preciso criar meus tickets: separa o relato em itens e acha candidatos (sem criar nada)
       return await meusTickets(res, b, jiraBase(), {

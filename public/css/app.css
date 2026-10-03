@@ -85,7 +85,7 @@
       --linha:#cfd8e3; --linha2:#e6ebf2; --muted:#566879; --muted2:#7e8ea0; --trilho:#eef1f8;
       --hoverbg:#f1ede0; --texto2:#5C5850; --cerceta:#00726E; --marca:#00817D; --areia:#fff; --sombra:none; }
     body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    header,.filtros,#to-top,#btn-guia,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
+    header,.filtros,#to-top,#btn-guia,#btn-reportar,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
     .wrap{max-width:none!important;padding:0!important}
     /* PDF da apuração AMS por contrato: esconde a tela e mostra só o documento dedicado. */
     body.doc-print .wrap{display:none!important}
@@ -1229,6 +1229,9 @@
   .ad-cons{font-size:13px;color:#334155;border-top:1px dashed var(--linha);padding-top:7px;margin-top:4px}
   .ad-over{color:#B91C1C;font-weight:700}
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
+  /* 🔖 ID visível do contrato (CT-001 / PC-001) e a linha do topo do cartão que agora quebra quando não cabe (3 botões) */
+  .ad-card .ad-top{flex-wrap:wrap}
+  .badge.ct-cod{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;background:var(--cartao2);border:1px solid var(--linha);color:var(--grafite)}
   .ad-portal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;border-top:1px dashed var(--linha);padding-top:8px}
   /* 🔐 Acessos do cliente (contas do portal com senha) */
   .pcli-bloco{margin-top:4px}
@@ -2498,6 +2501,11 @@
   #btn-guia[hidden]{display:none}
   #btn-guia:hover{background:var(--cerceta);color:#fff}
   #btn-guia .nov-dot{margin-left:4px;vertical-align:middle}
+  /* Botão flutuante "🐞 Reportar" (canto oposto ao 🧭): discreto até passar o mouse */
+  #btn-reportar{position:fixed;left:18px;bottom:18px;z-index:40;border:1px solid var(--linha2);
+    background:var(--cartao);color:var(--texto2);font-family:var(--corpo);font-size:13px;font-weight:600;
+    padding:9px 14px;border-radius:999px;cursor:pointer;box-shadow:0 8px 24px rgba(34,54,79,.16);opacity:.82}
+  #btn-reportar:hover,#btn-reportar:focus-visible{opacity:1;border-color:var(--cerceta);color:var(--cerceta)}
   /* Índice de guias na Ajuda */
   .gu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:8px}
   .gu-b{display:flex;align-items:center;gap:6px;text-align:left;background:var(--cartao);border:1px solid var(--linha);
@@ -2520,13 +2528,37 @@
   .help-body{padding:10px 14px;font-size:13px;line-height:1.6;color:#374A5E}
   .help-body ul{margin:6px 0;padding-left:18px}
   .help-body b{color:var(--grafite)}
-  .fb-tipos{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px}
   .fb-grid{display:flex;flex-direction:column;gap:10px;margin-top:6px}
   .fb-grid input[type=text],.fb-grid textarea,.fb-grid select{width:100%;box-sizing:border-box;
     font-family:var(--corpo);font-size:13px;padding:8px 10px;border:1px solid #89919A;border-radius:4px;
     background:var(--cartao);color:var(--grafite)}
   .fb-grid textarea{min-height:96px;resize:vertical;line-height:1.5}
   .fb-grid label{font-size:12px;color:var(--texto2);font-weight:600;margin-bottom:-4px}
+  /* ---- 🐞 Reportar bug ou melhoria (25b, 2026-10-03) ---- */
+  .rep-tipos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 4px}
+  .rep-tipo{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--linha2);background:var(--cartao);
+    color:inherit;border-radius:12px;padding:9px 12px;cursor:pointer;font-family:var(--corpo)}
+  .rep-tipo b{font-size:13.5px} .rep-tipo span{font-size:11.5px;color:var(--muted);line-height:1.3}
+  .rep-tipo:hover{border-color:var(--cerceta)}
+  .rep-tipo.on{border-color:var(--cerceta);background:var(--cartao2);box-shadow:inset 0 0 0 1px var(--cerceta)}
+  .rep-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .rep-2col textarea{min-height:80px}
+  .rep-ctx{display:flex;gap:8px;align-items:flex-start;font-weight:500!important;font-size:12.5px!important;margin:2px 0 0!important;line-height:1.4;cursor:pointer}
+  .rep-ctx input{margin-top:3px}
+  .rep-ctxver summary{cursor:pointer;font-size:12px;color:var(--cerceta)}
+  .rep-ctxtab{display:flex;flex-direction:column;gap:4px;margin:8px 0;padding:8px 10px;border:1px dashed var(--linha2);border-radius:10px;font-size:12px}
+  .rep-ctxtab>div{display:grid;grid-template-columns:80px minmax(0,1fr);gap:8px;align-items:baseline}
+  .rep-ctxtab span{color:var(--muted)} .rep-ctxtab code{word-break:break-all;font-size:11.5px}
+  .rep-ctxtab ul{margin:0;padding-left:16px}
+  .rep-acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .rep-rasc{margin-top:8px} .rep-rasc .lnk{border:0;background:none;color:var(--cerceta);cursor:pointer;padding:0;font:inherit;text-decoration:underline}
+  .rep-ok{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .rep-link{display:flex;flex-direction:column;gap:2px;min-width:180px;padding:12px 14px;border:1px solid var(--cerceta);border-radius:12px;text-decoration:none;color:inherit;background:var(--cartao2)}
+  .rep-link b{font-size:16px;color:var(--cerceta)} .rep-link span{font-size:12px;color:var(--muted)}
+  .rep-link:hover{box-shadow:0 4px 14px rgba(34,54,79,.14)}
+  .rep-hist{margin-top:14px;font-size:12.5px} .rep-hist summary{cursor:pointer;color:var(--texto2);font-weight:600}
+  .rep-hist ul{margin:6px 0 0;padding-left:18px;line-height:1.6}
+  .lnk-btn{border:0;background:none;padding:0;color:var(--cerceta);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}
 
   /* ---- Tooltip flutuante (segue o cursor) ---- */
   .tip{position:fixed;z-index:80;pointer-events:none;display:none;max-width:280px;
@@ -2637,6 +2669,7 @@
     footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
     #to-top{bottom:calc(64px + env(safe-area-inset-bottom))}
     #btn-guia{bottom:calc(18px + env(safe-area-inset-bottom))}
+    #btn-reportar{bottom:calc(18px + env(safe-area-inset-bottom))}
     .gx-bar{bottom:calc(10px + env(safe-area-inset-bottom))}
   }
   @media (pointer:coarse){
@@ -2906,6 +2939,7 @@
   [data-theme="dexterity"] .tour-pop,
   [data-theme="dexterity"] .tour-prog,
   [data-theme="dexterity"] #btn-guia,
+  [data-theme="dexterity"] #btn-reportar,
   [data-theme="dexterity"] .gu-b,
   [data-theme="dexterity"] .aj-g,
   [data-theme="dexterity"] .help-sec,

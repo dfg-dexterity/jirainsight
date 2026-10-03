@@ -732,7 +732,7 @@ function renderAcoes(){
       <div class="vp-det muted small">pior atraso <b>${o.maxAtraso}d</b>${o.semHoras?` · ${o.semHoras} sem horas`:''}${topResp?` · ${esc(String(topResp[0]).split(' ')[0])} ${topResp[1]}`:''}</div></div>`;
   }).join('');
   const cardVenc=`<div class="card full" style="margin-top:14px">
-    <h2>⏰ Tickets vencidos por projeto <span>onde o atraso está concentrado — clique num projeto para tratar na 🛠 Gestão</span></h2>
+    <h2>⏰ Tickets vencidos por projeto <span>onde o atraso está concentrado — clique num projeto para tratar cada ticket na 🛠 Gestão (apontar, status, reprogramar…)</span></h2>
     ${vpCarr?'<div class="muted small" style="margin-top:8px">Carregando os vencimentos do Jira…</div>'
       :(vps.length?`<div class="ax-det" style="margin:6px 0 8px"><b>${vpTot}</b> ticket(s) vencido(s) em <b>${vps.length}</b> projeto(s)</div>
           ${vpLinhas}
@@ -982,9 +982,12 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     const pk=t.getAttribute('data-vp-proj');
     const ks=vpVencidos().filter(x=>!pk||x.p===pk).map(x=>x.k).slice(0,200);
     if(!ks.length){ toast('Nenhum vencido nesse projeto.','warn'); return; }
+    // Abre na ▤ LISTA e SEM nada marcado (2026-10-03, a pedido do usuário: "quero as opções de apontar, atualizar o
+    // status etc. individualmente"): cada ticket já traz as ações dele (⏱ apontar, status ▾, 👤 responsável ▾, 💬,
+    // reprogramar, 🔍 ficha); a barra de ações em massa só aparece se a pessoa marcar tickets.
     const g=estado.gestao; g.soKeys=ks; g.origem=pk?`⏰ Vencidos — ${vpProjNome(pk)}`:'⏰ Tickets vencidos';
     g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
-    g.sel={}; ks.forEach(k=>{ g.sel[k]=true; });
+    g.sel={}; g.visSo='lista'; g.visSoDe=g.origem;
     vaiPara('gestao'); return; }
   if(t.hasAttribute('data-rad-rateio')){ const ks=t.getAttribute('data-rad-rateio').split(',').filter(Boolean);
     const rt=estado.rateio; rt.texto=ks.join('\n'); rt.resultados=null;

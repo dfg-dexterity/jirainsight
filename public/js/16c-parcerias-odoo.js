@@ -185,7 +185,7 @@ function pcOdooCancela(c){ const o=pcOdoo(c); const id=idApontar(); if(!o) retur
   return pcOdooFetch('odoo-contrato-cancela',{ ordemId:o.id, email:id.email, token:id.token }).catch(e=>({ ok:false, erro:humanizaErro(e) })); }
 // Remover o contrato: cancela a ordem no Odoo antes; se o Odoo recusar, a pessoa decide.
 function pcRemoveContrato(c){ const st=estado.parcerias=estado.parcerias||{}; const n=pcPlanosDe(c.id).length; const o=pcOdoo(c);
-  if(!confirm(`Remover o contrato "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}${o?` A ordem de venda ${o.name||('#'+o.id)} será CANCELADA no Odoo.`:''}`)) return;
+  if(!confirm(`Remover o contrato ${pcCod(c)} · "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}${o?` A ordem de venda ${o.name||('#'+o.id)} será CANCELADA no Odoo.`:''}`)) return;
   const fim=()=>{ pcPlanosDe(c.id).forEach(p=>{ p.contrato=''; }); cfg.parcerias=pcLista().filter(x=>x.id!==c.id); if(st.aba&&st.aba.id===c.id) st.aba=null; if(st.odoo) delete st.odoo[c.id]; salvaCfg(); toast(`Contrato "${c.consultoria}" removido.`,'ok'); renderParcerias(); };
   if(!o){ fim(); return; }
   const E=pcOdooEstado(c); E.ocupado='cancelando'; renderParcerias();

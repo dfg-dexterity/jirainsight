@@ -62,6 +62,18 @@ function pcDiff(a, b){ const out=[]; Object.keys(PC_CAMPOS).forEach(k=>{ const x
 function pcPlanosDe(id){ const r=cfg.rentab&&Array.isArray(cfg.rentab.planos)?cfg.rentab.planos:[]; return r.filter(p=>p&&p.contrato===id); }
 function pcContas(){ const s=new Set(); pcLista().forEach(c=>{ if(c.conta) s.add(c.conta); }); return [...s]; }
 function pcId(pre){ return pre+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+// 🔖 Código visível do contrato de parceria (PC-001…) — mesma regra do 🏢 Clientes (ctCod/ctProxCod, módulo 16).
+const pcCod=(c)=>ctCod(pcLista(), c, 'PC', 'pcSeq');
+// ⧉ Duplicar: vira o RASCUNHO de um contrato novo (só grava em "Cadastrar contrato"). Vem a configuração — modalidade,
+// valores, faturamento, conta, contato, pasta e documentos, equipe com os trechos, rateio padrão —; ficam de fora o que
+// é da vida DESTE contrato: a ordem de venda no Odoo, as horas extras, a previsão digitada, os ajustes de datas e o
+// histórico. Ids novos para documentos, recursos e trechos (os da cópia não podem colidir com os do original).
+function pcCopia(c){ const x=JSON.parse(JSON.stringify(c||{}));
+  ['odoo','extras','prev','ajustes','rateios','hist','cod','criadoEm','criadoPor','atualizadoEm','atualizadoPor'].forEach(k=>{ delete x[k]; });
+  x.id=pcId('pc'); x.ajustes={}; x.hist=[]; x.consultoria=(String(c.consultoria||'').trim()+' (cópia)').slice(0,120);
+  x.docs=(Array.isArray(x.docs)?x.docs:[]).map(d=>Object.assign({}, d, { id:pcId('dc') }));
+  x.equipe=(Array.isArray(x.equipe)?x.equipe:[]).map(p=>Object.assign({}, p, { id:pcId('rc'), regras:(Array.isArray(p.regras)?p.regras:[]).map(r=>Object.assign({}, r, { id:pcId('rg') })) }));
+  x._dupDe={ id:c.id, cod:pcCod(c), nome:c.consultoria||'' }; return x; }
 
 // ===========================================================================
 // 📂 DOCUMENTOS DO CONTRATO (pedido de 2026-09-14)
@@ -190,6 +202,7 @@ function pcRegraRot(r){ const v=Number(r&&r.v)||0; const m=pcModo(r); const q=m=
 // ---- tela ----
 function renderParcerias(){
   const cont=document.getElementById('conteudo'); const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar(); const lista=pcLista();
+  if(gestor&&cfgShared&&ctGaranteCodigos(lista,'PC','pcSeq')) salvaCfg();   // contratos antigos ganham o ID (uma gravação só)
   const edit=st.editId?pcDe(st.editId):null; if(st.editId&&!edit) st.editId=null;
   const hoje=hojeSP();
   const intro=`<div class="card full"><h2>🤝 Contratos de parceria <span>as consultorias que contratam a Dexterity: modalidade, valor-hora, validade e o calendário de faturamento</span></h2>
@@ -231,7 +244,9 @@ function pcGuardaRasc(){ const st=estado.parcerias; if(!st||!(st.novo||st.editId
   PC_FORM_CAMPOS.forEach(([k,id])=>{ const e=document.getElementById(id); if(e) st.rasc[k]=String(e.value); }); }
 function pcFormHTML(c, novo, chave){
   const contas=pcContas();
-  return `<div class="card full pc-form" data-pc-form="${escA(chave||(novo?'novo':c.id))}"><h2>${novo?'＋ Novo contrato de parceria':'✏️ Editar contrato'} <span>${esc(c.consultoria||'')}</span></h2>
+  const dupDe=novo&&c._dupDe;
+  return `<div class="card full pc-form" data-pc-form="${escA(chave||(novo?'novo':c.id))}"><h2>${dupDe?`⧉ Novo contrato — cópia de ${esc(dupDe.cod||'')} ${esc(dupDe.nome||'')}`:(novo?'＋ Novo contrato de parceria':`✏️ Editar contrato <span class="badge ct-cod" data-tip="ID do contrato">${esc(pcCod(c))}</span>`)}${dupDe?'':` <span>${esc(c.consultoria||'')}</span>`}</h2>
+    ${dupDe?'<div class="aviso">⧉ Cópia pronta para ajustar: confira o nome e as datas e clique em <b>Cadastrar contrato</b>. Vieram a modalidade, os valores, o faturamento, a conta, os documentos, a equipe e o rateio; a ordem de venda no Odoo, as horas extras, a previsão digitada e o histórico ficam só no original.</div>':''}
     <div class="pl-grid">
       <div class="campo"><label>Consultoria parceira</label><input type="text" id="pc-f-consultoria" value="${escA(c.consultoria||'')}" placeholder="nome da consultoria (cliente)" style="min-width:240px"></div>
       <div class="campo"><label>Modalidade de contratação</label><select id="pc-f-modal">${Object.entries(PC_MODAL).map(([k,t])=>`<option value="${k}" ${pcModal(c)===k?'selected':''}>${t[0]} ${t[1]}</option>`).join('')}</select><div class="muted small" id="pc-f-modal-dica">${esc(PC_MODAL[pcModal(c)][2])}</div></div>
@@ -268,8 +283,8 @@ function pcCardHTML(c, gestor, aba, hoje){
   const dest=(estado.parcerias&&estado.parcerias.destaque)===c.id;
   const docs=pcDocs(c).filter(d=>pcUrl(d.url)); const pasta=pcUrl(c.pasta); const plan=pcPlanejamento(c);
   return `<div class="ad-card pc-card pc-${s.k}${aba?' pc-aberto':''}${dest?' pc-dest':''}" data-pc-card="${escA(c.id)}">
-    <div class="ad-top"><strong>${esc(c.consultoria||'(sem nome)')}</strong> <span class="badge rp-tipo" data-tip="${escA(M[2])}">${M[0]} ${M[1]}</span> <span class="badge pc-st-${s.k}">${esc(s.rot)}</span><span class="spacer"></span>
-      ${gestor?`<button class="btn" data-pc-edit="${escA(c.id)}">editar</button><button class="btn" data-pc-del="${escA(c.id)}">remover</button>`:''}</div>
+    <div class="ad-top"><span class="badge ct-cod" data-tip="ID do contrato — use para citar e procurar">${esc(pcCod(c))}</span> <strong>${esc(c.consultoria||'(sem nome)')}</strong> <span class="badge rp-tipo" data-tip="${escA(M[2])}">${M[0]} ${M[1]}</span> <span class="badge pc-st-${s.k}">${esc(s.rot)}</span><span class="spacer"></span>
+      ${gestor?`<button class="btn" data-pc-edit="${escA(c.id)}">editar</button><button class="btn" data-pc-dup="${escA(c.id)}" data-tip="Abre um contrato novo já preenchido com a configuração deste">⧉ duplicar</button><button class="btn" data-pc-del="${escA(c.id)}">remover</button>`:''}</div>
     <div class="ams-dgrid">
       ${dl('Validade', `${c.inicio?dataBR(c.inicio):'—'} → ${c.fim?dataBR(c.fim):'sem fim'}`)}
       ${dl('Aviso prévio', c.fim?`${Number(c.avisoDias)||0} dia(s) · até ${dataBR(s.avisoAte)}${s.k==='avencer'?(s.avisoPassou?' <span class="rp-neg">(passou)</span>':' <span class="rp-neg">(agora)</span>'):''}`:`${Number(c.avisoDias)||0} dia(s)`)}
@@ -458,13 +473,18 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const vaiProForm=()=>{ const f=document.querySelector('.pc-form'); if(f) try{ f.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} };
   if(t.hasAttribute('data-pc-novo')){ st.novo=true; st.editId=null; st.rasc=pcNovo(); st.destaque=''; renderParcerias(); vaiProForm(); return; }
   if(t.hasAttribute('data-pc-edit')){ st.editId=t.getAttribute('data-pc-edit'); st.novo=false; st.rasc=null; st.destaque=''; renderParcerias(); vaiProForm(); return; }
+  if(t.hasAttribute('data-pc-dup')){ const c=pcDe(t.getAttribute('data-pc-dup')); if(!c) return;
+    st.novo=true; st.editId=null; st.destaque=''; st.rasc=pcCopia(c); renderParcerias(); vaiProForm();
+    try{ const i=document.getElementById('pc-f-consultoria'); if(i){ i.focus({preventScroll:true}); i.select(); } }catch(x){} return; }
   if(t.id==='pc-f-cancelar'){ st.novo=false; st.editId=null; st.rasc=null; renderParcerias(); return; }
   if(t.id==='pc-f-salvar'){ const fb=document.getElementById('pc-f-fb'); const diz=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
     if(st.editId){ const c=pcDe(st.editId); if(!c) return; const antes=JSON.parse(JSON.stringify(c)); const erro=pcLeForm(c); if(erro){ Object.assign(c,antes); diz(erro); return; }
       const dif=pcDiff(antes,c); pcLog(c,'editou',dif.length?dif.join('; '):'salvo sem mudanças'); st.editId=null; st.rasc=null; salvaCfg(); toast('Contrato atualizado.','ok'); renderParcerias(); return; }
     const c=st.rasc||pcNovo(); const erro=pcLeForm(c); if(erro){ diz(erro); return; }
-    c.criadoEm=hojeSP(); c.criadoPor=pcQuem().nome; pcLog(c,'criou',`${PC_MODAL[pcModal(c)][1]} · ${dataBR(c.inicio)} → ${c.fim?dataBR(c.fim):'sem fim'} · ${fmtBRL(c.valorHora)}/h · fecha dia ${c.fatFecha}`);
-    pcLista().push(c); st.novo=false; st.rasc=null; salvaCfg(); toast('Contrato cadastrado. Ligue os planos de horas abertas a ele na 💹 Rentabilidade.','ok'); renderParcerias(); return; }
+    const dup=c._dupDe; delete c._dupDe; if(dup) c.copiaDe=dup.cod||dup.id;
+    c.cod=ctProxCod(pcLista(),'PC','pcSeq'); c.criadoEm=hojeSP(); c.criadoPor=pcQuem().nome;
+    pcLog(c,'criou',`${dup?`duplicado de ${dup.cod||dup.nome} · `:''}${PC_MODAL[pcModal(c)][1]} · ${dataBR(c.inicio)} → ${c.fim?dataBR(c.fim):'sem fim'} · ${fmtBRL(c.valorHora)}/h · fecha dia ${c.fatFecha}`);
+    pcLista().push(c); st.novo=false; st.rasc=null; salvaCfg(); toast(`Contrato ${c.cod} cadastrado. Ligue os planos de horas abertas a ele na 💹 Rentabilidade.`,'ok'); renderParcerias(); return; }
   if(t.hasAttribute('data-pc-del')){ const c=pcDe(t.getAttribute('data-pc-del')); if(!c) return;
     if(typeof pcRemoveContrato==='function'){ pcRemoveContrato(c); return; }   // 16c: cancela a ordem no Odoo antes
     const n=pcPlanosDe(c.id).length; if(!confirm(`Remover o contrato "${c.consultoria}"?${n?` ${n} plano(s) da Rentabilidade apontam para ele e perderão o vínculo.`:''}`)) return;

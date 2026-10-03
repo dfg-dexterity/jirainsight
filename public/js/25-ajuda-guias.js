@@ -2,7 +2,6 @@
 // ======================================================================================
 
 // ============================ AJUDA, TOUR E FEEDBACK =================================
-const FB_PREFIXO = { duvida:'Dúvida', sugestao:'Sugestão', bug:'Bug' };
 
 function abreAjuda(){
   const id=idApontar();
@@ -307,52 +306,16 @@ function abreAjuda(){
 
     <div class="mt-sec">
       <h3>Falar com a gente</h3>
-      <div class="muted small">Abre um <b>issue no GitHub</b> do projeto, com o título prefixado (ex.: “Sugestão: …”).
-        ${id?`Você é <b>${esc(id.nome||id.email)}</b> (registrado como autor do report).`:'<span style="color:var(--err)">Identifique-se para enviar.</span>'}</div>
-      <div class="fb-tipos">
-        <button class="chip fb-tipo" data-fb="duvida" aria-pressed="false">❓ Dúvida</button>
-        <button class="chip fb-tipo" data-fb="sugestao" aria-pressed="true">💡 Sugestão</button>
-        <button class="chip fb-tipo" data-fb="bug" aria-pressed="false">🐞 Bug</button>
-      </div>
-      <div class="fb-grid">
-        <div><label>Título</label><input type="text" id="fb-titulo" maxlength="200" placeholder="Resumo curto da dúvida/sugestão/bug"></div>
-        <div><label>Detalhes</label><textarea id="fb-detalhes" placeholder="Descreva com o máximo de contexto (passos, tela, comportamento esperado…)"></textarea></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn primario" id="fb-enviar" ${id?'':'disabled'}>Enviar</button>
-          ${id?'':'<button class="btn" data-ap-act="config-id">Identificar-se</button>'}
-        </div>
-        <div class="ap-fb" id="fb-msg" hidden></div>
+      <div class="muted small">Achou um <b>bug</b>, tem uma <b>ideia de melhoria</b> ou uma <b>dúvida</b>? O <b>🐞 Reportar</b> cria o
+        <b>ticket no Jira</b> (projeto JI, como Bug ou Melhoria) <b>e</b> o <b>issue no GitHub</b>, ligados um ao outro — com a tela em que você
+        estava e os últimos erros do navegador, se você deixar. Também fica no botão 🐞 do canto da tela, em ⋯ Mais e no Ctrl+K.</div>
+      <div class="rep-acoes">
+        <button class="btn primario" data-rep-abre="bug">🐞 Reportar um bug</button>
+        <button class="btn" data-rep-abre="melhoria">💡 Sugerir uma melhoria</button>
+        <button class="btn" data-rep-abre="duvida">❓ Tirar uma dúvida</button>
       </div>
     </div>
   `);
-}
-
-async function enviaFeedback(){
-  const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  const tipoEl=document.querySelector('.fb-tipo[aria-pressed="true"]');
-  const tipo=tipoEl?tipoEl.getAttribute('data-fb'):'sugestao';
-  const titulo=(document.getElementById('fb-titulo').value||'').trim();
-  const detalhes=(document.getElementById('fb-detalhes').value||'').trim();
-  const msg=document.getElementById('fb-msg'); msg.hidden=false; msg.className='ap-fb';
-  if(!titulo){ msg.classList.add('err'); msg.textContent='Dê um título.'; return; }
-  const pref=FB_PREFIXO[tipo];
-  const btn=document.getElementById('fb-enviar'); btn.disabled=true; msg.textContent='Enviando ao GitHub…';
-  try{
-    // Cria um issue no GitHub do projeto (token de serviço no servidor); o report
-    // é atribuído à pessoa identificada (nome/e-mail no corpo do issue).
-    const j=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({feedback:true, tipo, titulo, detalhes, reporter:{nome:id.nome||'', email:id.email||''}})}).then(r=>r.json());
-    if(j.configurado===false){
-      msg.classList.add('err'); msg.textContent=j.erro||'Integração com o GitHub não configurada.';
-    } else if(j.ok){
-      msg.classList.add('ok');
-      msg.innerHTML=`✓ ${esc(pref)} registrado no GitHub${j.url?`: <a href="${escA(j.url)}" target="_blank" rel="noopener">#${esc(String(j.numero||''))} ↗</a>`:'.'}`;
-      document.getElementById('fb-titulo').value=''; document.getElementById('fb-detalhes').value='';
-    } else {
-      msg.classList.add('err'); msg.textContent=j.erro||'Falha ao criar o issue no GitHub.';
-    }
-  }catch(e){ msg.classList.add('err'); msg.textContent='Erro de rede: '+(e.message||e); }
-  btn.disabled=false;
 }
 
 // ---- Tour guiado (coach marks) ----
@@ -370,7 +333,8 @@ const TOUR=[
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},
   {sel:'#grp-exportar',titulo:'⬇ Exportar',texto:'CSV/Excel da visão atual ou PDF da tela — disponível nas telas de análise.'},
   {sel:'#btn-tema',titulo:'Tema do painel',texto:'Claro, Escuro ou Dexterity (o visual do site novo) — a preferência fica salva no navegador.'},
-  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🗺️ Roadmap, 🧭 Guia desta tela (atalho: tecla ?), ❓ Ajuda & feedback, a sua navegação (🏠 usar esta tela como inicial, 👓 ver todas as áreas) e a Administração (⚙️ Central de configurações, 🎯 Metas & ausências, 🗒 Histórico de ações).'},
+  {sel:'#grp-mais',titulo:'⋯ Mais',texto:'✨ Novidades (o pontinho vermelho avisa quando há algo novo), 🗺️ Roadmap, 🧭 Guia desta tela (atalho: tecla ?), ❓ Ajuda & feedback, 🐞 Reportar bug ou melhoria, a sua navegação (🏠 usar esta tela como inicial, 👓 ver todas as áreas) e a Administração (⚙️ Central de configurações, 🎯 Metas & ausências, 🗒 Histórico de ações).'},
+  {sel:'#btn-reportar',titulo:'🐞 Reportar bug ou melhoria',texto:'Achou algo errado ou teve uma ideia? Conte em duas frases: vira um ticket no Jira (projeto JI — Bug ou Melhoria) e um issue no GitHub, ligados um ao outro, com a tela em que você estava e os últimos erros do navegador (se você deixar — dá para ver exatamente o que vai). Também em ⋯ Mais e no Ctrl+K; no celular, em ⋯ Mais.'},
   {sel:'#versaoApp',titulo:'Versão',texto:'No rodapé fica a versão em produção, com link para o pull request no GitHub.', se:()=>!!((document.getElementById('versaoApp')||{}).textContent||'').trim()},
 ];
 // 🗺 Tour COMPLETO: navega por TODAS as telas do aplicativo (uma por passo), com o
@@ -408,8 +372,8 @@ const TOUR_TELAS=[
   {vai:'metricas',titulo:'📚 Central de Relatórios › 📈 Métricas por tipo de projeto',texto:'Para cada tipo (DEA, DEF, PEA, PEF, DAMS, PAMS, ARQ, IMI, IPA, ITPR), as métricas que interessam num período próprio: horas por mês × equipe e Sênior, estimado × gasto por épico, tarefas por nível, rentabilidade, vendidas × realizadas, backlog, custo por departamento — cada bloco com "como ler" e drill até o ticket.'},
   {vai:'semanal',titulo:'📚 Central de Relatórios › 📊 Relatório semanal (R28)',texto:'A foto que o servidor tira toda sexta — planejado × orçado × realizado, reuniões, tickets criados/concluídos, pendências e a nota de qualidade da informação — comparável semana a semana (Δ, média das últimas 4, série das 8), por pessoa e por projeto. É a mesma foto que vai ao canal dos gestores e a cada gerente.'},
   {vai:'uso',titulo:'📊 Uso do painel',texto:'Como o time usa o Dexterity Hub: quem abre qual tela, quantas vezes e por quanto tempo, por dia e por aparelho — e as telas que ninguém abriu. Cada pessoa vê o próprio uso; o consolidado é de gestores e diretoria. Só id de tela e duração são guardados.'},
-  {vai:'roadmap',titulo:'🗺️ Roadmap',texto:'O rumo da ferramenta: o que está em desenvolvimento, planejado e em avaliação — e as entregas recentes. Sugestões entram por ❓ Ajuda & feedback.'},
-  {vai:'gestao',titulo:'🛠 Gestão de Tickets',texto:'Ações em massa: selecione vários tickets e atribua, mude status, comente, reprograme (com motivo), mova de projeto, ajuste épicos, verifique duplicados ou exclua.'},
+  {vai:'roadmap',titulo:'🗺️ Roadmap',texto:'O rumo da ferramenta: o que está em desenvolvimento, planejado e em avaliação — e as entregas recentes. Ideias e bugs entram pelo 🐞 Reportar (botão do canto ou ⋯ Mais) — viram ticket no Jira e issue no GitHub.'},
+  {vai:'gestao',titulo:'🛠 Gestão de Tickets',texto:'Cada ticket com as suas ações na ▤ Lista (⏱ apontar, status ▾, 👤 responsável ▾, 💬, reprogramar) e, marcando vários, as ações em massa: atribua, mude status, comente, reprograme (com motivo), mova de projeto, ajuste épicos, verifique duplicados ou exclua.'},
   {vai:'alertas',titulo:'🚨 Alertas',texto:'A central dos atrasados e críticos: reprograme com motivo padrão (data + comentário no Jira), em lote, com criticidade.'},
   {vai:'reclassificar',titulo:'🗂 Reuniões — aba Reclassificar',texto:'Gestão e reclassificação de reuniões: mova tickets de reunião do RDF para o projeto certo (tipo e status preservados) ou confirme como processo administrativo.'},
   {vai:'reuvinc',titulo:'🗂 Reuniões — aba Vincular',texto:'Transforme reuniões em registro num ticket de AMS (criar novo ou comentar num aberto, com worklog) — e 🔁 transfira QUALQUER ticket pelo número (vincula o esforço e exclui o original).'},
@@ -417,11 +381,11 @@ const TOUR_TELAS=[
   {vai:'receita',titulo:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
   {vai:'prioridades',titulo:'🎯 Prioridades do time',texto:'As (até) 5 prioridades da semana com dono, prazo e pedido ao time; portfólio por natureza mostrando só exceções; e o Modo reunião que conduz a pauta de 35 minutos — status é assíncrono, a reunião decide.'},
   {vai:'config',titulo:'⚙️ Central de configurações',texto:'Todos os ajustes num lugar só: metas & ausências, contratos, resumo agendado no Teams, integrações e preferências.'},
-  {vai:'admin',titulo:'📑 Contratos › 🏢 Clientes',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento.'},
-  {vai:'parcerias',titulo:'📑 Contratos › 🤝 Parceiros (consultorias)',texto:'Os contratos com as consultorias parceiras: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento. É daqui que a Rentabilidade tira os períodos de faturamento e os itens da ordem de venda no Odoo.'},
+  {vai:'admin',titulo:'📑 Contratos › 🏢 Clientes',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento. Cada contrato tem um ID (CT-001…) e pode ser ⧉ duplicado.'},
+  {vai:'parcerias',titulo:'📑 Contratos › 🤝 Parceiros (consultorias)',texto:'Os contratos com as consultorias parceiras: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento. É daqui que a Rentabilidade tira os períodos de faturamento e os itens da ordem de venda no Odoo. Cada contrato tem um ID (PC-001…) e pode ser ⧉ duplicado.'},
   {vai:'rentab',titulo:'💹 Rentabilidade de projetos',texto:'O plano financeiro de cada projeto: receita por modelo (horas abertas, escopo fechado com marcos, interno), alocação pessoa × mês por regra (feriados descontados), horas vendidas digitáveis por mês, cenários, simulador, períodos de faturamento ligados ao contrato e à ordem de venda no Odoo, realizado do Clockwork e histórico de quem mudou o quê.'},
   {vai:'portal',titulo:'🌐 Portal do cliente',texto:'O módulo que monta o que o cliente vê do projeto: publicar/despublicar, o calendário do projeto no M365, épicos ocultos, conteúdo curado (pendências, riscos, FAQ, reuniões), decisões visíveis, as contas de acesso do cliente e a pré-visualização com o mesmo dado que ele recebe.'},
-  {vai:'acoes',sel:'#btn-guia',titulo:'É isso! 🎉',texto:'Você passou por TODAS as telas. Quer o detalhe de uma delas? Abra a tela e clique em 🧭 Guia desta tela (ou tecle ?): o guia destaca item por item ali mesmo. A lista completa dos guias está em ⋯ Mais → ❓ Ajuda, junto do canal de dúvidas/sugestões/bugs. Bom uso!'},
+  {vai:'acoes',sel:'#btn-guia',titulo:'É isso! 🎉',texto:'Você passou por TODAS as telas. Quer o detalhe de uma delas? Abra a tela e clique em 🧭 Guia desta tela (ou tecle ?): o guia destaca item por item ali mesmo. A lista completa dos guias está em ⋯ Mais → ❓ Ajuda; bugs, melhorias e dúvidas vão pelo 🐞 Reportar (o botão do canto esquerdo). Bom uso!'},
 ];
 let _tourI=0, _tourLista=TOUR, _tourHome=false, _tourGuia='';   // _tourGuia = vista do 🧭 guia em curso
 function fimTour(){ document.querySelectorAll('.tour-hl,.tour-pop').forEach(e=>e.remove());
@@ -539,7 +503,7 @@ const GUIAS={
     {s:'#qk-siri',ti:'📱 Pelo celular, Siri e Alexa',tx:'Este botão reúne o app instalável do celular (voz.html), o Atalho da Siri pronto e a configuração da skill da Alexa: criar ticket sem abrir o painel.'},
     {c:'🆕 Meus tickets recém criados',ti:'🆕 Meus tickets recém criados',tx:'Os últimos tickets que VOCÊ abriu, com projeto e quando. Um clique manda todos para a 🛠 Gestão, já selecionados, para ajustar responsável, data ou status em massa.'},
     {c:'📅 Criados nesta semana',ti:'📅 Criados nesta semana',tx:'Quantos tickets o time abriu de segunda até hoje, com a quebra por projeto e por pessoa — útil para ver onde a demanda está entrando.'},
-    {c:'⏰ Tickets vencidos por projeto',ti:'⏰ Onde o atraso está concentrado',tx:'Os vencidos agrupados por projeto, com barra comparativa, o pior atraso, quantos estão sem horas e quem tem mais casos. Clique no projeto e trate na Gestão.'},
+    {c:'⏰ Tickets vencidos por projeto',ti:'⏰ Onde o atraso está concentrado',tx:'Os vencidos agrupados por projeto, com barra comparativa, o pior atraso, quantos estão sem horas e quem tem mais casos. Clique no projeto: a 🛠 Gestão abre na ▤ Lista só com esses tickets, nenhum marcado — cada um com as suas ações (⏱ apontar, status ▾, 👤 responsável ▾, 💬, reprogramar, 🔍 ficha). Para tratar vários de uma vez, marque-os e use a barra de ações em massa.'},
     {c:'🧭 Radar',ti:'🧭 Radar — combine as informações',tx:'Escolha o escopo (meu/time), o período e os eventos (criados, apontados, vencidos…) e o radar cruza tudo: dá para mandar o resultado para a Gestão ou para o ➗ Rateio.'},
     {s:'#conteudo .ax-grid',ti:'🏢 Time — ações de hoje',tx:'Os seis indicadores do time: atrasados, pessoas abaixo da meta, sem atualização há +5 dias, sem responsável, risco de faturamento e aguardando cliente. A setinha compara com o último dia; "Ver casos →" abre a lista.'},
     {s:'#arv-home',ti:'🌳 Onde crio meu ticket?',tx:'A árvore da governança (TI-04-006): responda as perguntas e ela diz — e cria — o ticket no projeto certo, sem sair da Início.'},
@@ -760,10 +724,11 @@ const GUIAS={
   roadmap:{t:'🗺️ Roadmap',p:[
     {c:'🗺️ Roadmap',ti:'O que vem por aí',tx:'O rumo da ferramenta: em desenvolvimento, planejado e em avaliação. A lista é revisada a cada mudança no app (a verificação automática reprova a mudança que não a revisa) — a data da última revisão fica no topo, ao lado do total de itens.'},
     {c:'✅ Entregas recentes',ti:'✅ Entregas recentes',tx:'O que já foi publicado, direto das Novidades — para conferir se o que você pediu chegou.'},
-    {ti:'Como entrar no roadmap',tx:'Sugestões entram por ⋯ Mais → ❓ Ajuda & feedback: viram issue no GitHub e depois item aqui.'}]},
+    {ti:'Como entrar no roadmap',tx:'Ideias e bugs entram pelo 🐞 Reportar (o botão 🐞 do canto, ⋯ Mais ou Ctrl+K): cada relato vira um ticket no Jira (Bug ou Melhoria, projeto JI) e um issue no GitHub, ligados — e as melhorias aceitas viram item aqui.'}]},
   gestao:{t:'🛠 Gestão de Tickets',p:[
     {s:'#conteudo .ap-filtros',ti:'Filtrar o que interessa',tx:'Vencimento-limite, projeto, responsável, status, busca e presets. Um link compartilhável guarda o filtro para outra pessoa abrir igual.'},
-    {s:'#conteudo .ap-vis',ti:'Lista, tabela ou quadro',tx:'▤ Lista, ▦ Tabela ou 🗂 Quadro — no quadro, clicar no cartão SELECIONA. A seleção persiste ao trocar de visualização.'},
+    {s:'#conteudo [data-gx-solimpar]',ti:'📈 Recorte de outra tela',tx:'Vindo da 🏠 Início (⏰ vencidos por projeto), do 📈 Analytics ou das 🧭 Pendências, a Gestão mostra só aqueles tickets — da Início abre na ▤ Lista, sem nada marcado, com as ações de cada ticket. "✕ ver todos os tickets" volta à lista completa.',quando:'Aparece quando você chega por um desses atalhos.'},
+    {s:'#conteudo .ap-vis',ti:'Lista, tabela ou quadro',tx:'▤ Lista (cada ticket com as suas ações: ⏱ apontar, status ▾, 👤 responsável ▾, 💬, reprogramar, 🔍 ficha), ▦ Tabela ou 🗂 Quadro — no quadro, clicar no cartão SELECIONA. A seleção persiste ao trocar de visualização.'},
     {s:'#gx-all',ti:'Selecionar em massa',tx:'Marque tudo (ou grupo a grupo) e trabalhe em cima da seleção.',quando:'Aparece quando há tickets no filtro atual.'},
     {s:'#conteudo .gx-bar',ti:'A barra de ações',tx:'👤 Atribuir · 🔁 Alterar status (separado por status atual) · 💬 Comentar · 📅 Reprogramar com motivo · 🔀 Mover de projeto · 🗑 Excluir (irreversível, exige digitar EXCLUIR).',quando:'Aparece assim que você marca ao menos um ticket.'},
     {s:'#gx-epicos',ti:'Épicos e duplicados',tx:'Ajuste o épico de vários tickets e encontre duplicados prováveis antes de sair criando mais.',quando:'Aparece com tickets marcados.'},
@@ -818,6 +783,8 @@ const GUIAS={
     {s:'#cf-abrir-log',ti:'🗒 Histórico de ações',tx:'A auditoria do que o time fez PELO PAINEL: quem, quando, em qual ticket e com que resultado.'}]},
   admin:{t:'📑 Contratos › 🏢 Clientes',p:[
     {s:'#ad-cliente',ti:'O cadastro do contrato',tx:'Cliente, tipo de contrato, horas contratadas, valor-hora, vigência e mínimo/teto mensal.'},
+    {s:'#conteudo .ad-card .ct-cod',ti:'🔖 O ID do contrato',tx:'Cada contrato tem um ID (CT-001, CT-002…) para citar, procurar e conferir — nasce no cadastro e nunca muda; o de um contrato removido não volta para outro. Os contratos antigos ganharam o ID pela ordem em que foram cadastrados.',quando:'Aparece nos contratos já cadastrados.'},
+    {s:'#conteudo [data-ad-dup]',ti:'⧉ Duplicar',tx:'Abre um contrato NOVO já preenchido com os dados deste (tipo, horas, valor-hora, AMS, projetos): ajuste o nome e as datas e clique em Adicionar — nada é gravado antes disso. O link do cliente não é copiado (cada contrato tem o seu) e a cópia ganha um ID próprio, guardando de qual veio.',quando:'Aparece nos contratos já cadastrados.'},
     {s:'#ad-projs',ti:'Projetos do Jira',tx:'É este mapeamento que liga o contrato às horas apontadas — sem ele, AMS e Receita não têm o que apurar.',quando:'Aparece no formulário do contrato (ao cadastrar um novo ou editar um existente).'},
     {s:'#ad-salvar',ti:'Salvar e conferir',tx:'Depois de salvar, o consumo do contrato aparece logo abaixo, no período selecionado no topo.'},
     {s:'#conteudo [data-pcli-abre]',ti:'👤 Acessos do cliente',tx:'A área do cliente com e-mail e senha: ninguém se cadastra sozinho — você convida pelo e-mail (link de 7 dias, uso único), a conta nasce amarrada a este contrato e pode ser revogada a qualquer hora. É o mesmo bloco que o 🌐 Portal do cliente usa no modo projeto.',quando:'Aparece nos contratos já cadastrados, para gestores.'},
@@ -825,6 +792,7 @@ const GUIAS={
   parcerias:{t:'🤝 Contratos de parceria',p:[
     {s:'#conteudo [data-pc-novo]',ti:'Cadastre o contrato',tx:'Consultoria parceira, modalidade (⏱ horas abertas · 🛠️ atendimento AMS · 📦 demanda com horas fechadas), validade (início/fim), valor da hora negociada, período de aviso (dias de aviso prévio), fechamento do período de faturamento ("até o dia 25"), dia da nota e a conta bancária de recebimento. A prévia mostra como ficam os períodos.',quando:'Aparece para quem está identificado no painel (e-mail + token do Jira) — desde 2026-09-30 a gestão dos contratos de parceria é de todo mundo.'},
     {s:'#conteudo .pc-grid',ti:'Os contratos',tx:'Cada cartão resume validade, aviso prévio (até quando avisar), valor-hora, fechamento, nota, o período atual e a conta. Os que estão dentro do período de aviso vêm primeiro, em laranja, e a faixa no topo avisa.',quando:'Aparece quando há ao menos um contrato. Os botões <b>editar</b> e <b>remover</b> de cada cartão gravam para o time todo — e a mudança não volta mais se outra aba, o celular ou um colega estiver com a tela aberta (desde 03/10/2026).'},
+    {s:'#conteudo [data-pc-dup]',ti:'🔖 ID e ⧉ duplicar',tx:'Cada contrato mostra o seu ID (PC-001, PC-002… — nasce no cadastro e nunca muda). ⧉ duplicar abre um contrato NOVO já preenchido: vêm a modalidade, os valores, o faturamento, a conta, os documentos, a equipe e o rateio; NÃO vêm a ordem de venda do Odoo, as horas extras, a previsão digitada nem o histórico. Ajuste o nome e as datas e clique em Cadastrar — nada é gravado antes disso.',quando:'Aparece para quem pode editar os contratos.'},
     {s:'#conteudo .pc-docs-l',ti:'📂 Ver o contrato',tx:'A pasta do contrato no SharePoint e os arquivos (contrato, aditivos, proposta) abrem numa aba nova, com a sua conta — o painel guarda só o link, nunca o documento. Quem não é gestor também vê e abre.',quando:'Aparece quando a pasta ou algum documento está cadastrado.'},
     {s:'#conteudo [data-pc-eq]',ti:'👥 Equipe e alocação',tx:'O planejamento do contrato: cada recurso (alguém do time ou um nome livre, para quem ainda vai ser contratado) com um ou mais TRECHOS — "2h por dia útil de 15/05 a 25/05" e "4h por dia depois" são dois trechos da mesma pessoa. A dedicação pode ser % do dia, h por dia útil, h por mês ou h no total, e as horas saem dos dias úteis (feriados descontados).',quando:'Aparece em cada contrato.'},
     {s:'#conteudo .pc-eq-grade',ti:'🧾 Previsão por período de faturamento',tx:'As horas de cada recurso caem no período de faturamento em que foram trabalhadas e viram o valor previsto da nota (valor-hora do contrato). É a ponte entre o planejamento e o que vai ser cobrado.',quando:'Aparece com a gaveta 👥 Equipe aberta e ao menos um trecho.'},
