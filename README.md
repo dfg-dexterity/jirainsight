@@ -52,6 +52,7 @@ public/
 scripts/
   check-syntax.mjs sintaxe de api/** e public/js/** + ORDEM DE CARREGAMENTO dos módulos
   check-entrega.mjs gate de entrega (Novidades + Roadmap revisado, vercel.json, mobile.css) — ver CLAUDE.md
+  check-roadmap-commits.mjs  todo commit que mexe no app revisa o 🗺️ Roadmap (commit a commit do PR; avisa antes do commit)
   check-guias.mjs   gate dos 🧭 guias e do 🗺 tour: toda tela com guia, no tour completo e na ❓ Ajuda; seletores
                     dos passos vivos; GUIAS_REV acompanhando a última novidade — ver CLAUDE.md
   mobile-audit.mjs 📱 auditoria do celular (iPhone emulado) tela a tela — local, não roda na CI

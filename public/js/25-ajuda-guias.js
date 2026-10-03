@@ -758,7 +758,7 @@ const GUIAS={
     {s:'#conteudo .rp-grade',ti:'Planner visual pessoa × mês',tx:'Cada célula são as horas da pessoa naquele mês (execução ou gestão). Adicione alguém por REGRA — % do dia (ex.: Diego 50% de 15/03 a 15/04), horas por dia útil, por mês ou no total, entre duas datas: as horas de cada mês saem dos dias úteis, feriados descontados, e a regra fica visível ao lado do nome (clique para ajustar). Digitar na célula vira manual. Enter e setas navegam; o rodapé mostra previsto, vendidas, saldo e o realizado do Clockwork.',quando:'Aparece com um plano aberto.'},
     {s:'#conteudo .rp-stack',ti:'Gráficos',tx:'Vendidas × previsto × realizado por mês, a alocação empilhada por pessoa e a cascata da receita até a margem.',quando:'Aparece com um plano aberto.'}]},
   roadmap:{t:'🗺️ Roadmap',p:[
-    {c:'🗺️ Roadmap',ti:'O que vem por aí',tx:'O rumo da ferramenta: em desenvolvimento, planejado e em avaliação — atualizado a cada entrega.'},
+    {c:'🗺️ Roadmap',ti:'O que vem por aí',tx:'O rumo da ferramenta: em desenvolvimento, planejado e em avaliação. A lista é revisada a cada mudança no app (a verificação automática reprova a mudança que não a revisa) — a data da última revisão fica no topo, ao lado do total de itens.'},
     {c:'✅ Entregas recentes',ti:'✅ Entregas recentes',tx:'O que já foi publicado, direto das Novidades — para conferir se o que você pediu chegou.'},
     {ti:'Como entrar no roadmap',tx:'Sugestões entram por ⋯ Mais → ❓ Ajuda & feedback: viram issue no GitHub e depois item aqui.'}]},
   gestao:{t:'🛠 Gestão de Tickets',p:[
