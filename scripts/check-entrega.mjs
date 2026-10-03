@@ -70,10 +70,18 @@ const ULTIMA = (Array.isArray(NOVIDADES) && NOVIDADES.length && RE_DATA.test(Str
   ? String(NOVIDADES[0][0]) : '';
 
 // --- A GARANTIA: entrega nova ⇒ roadmap revisado na mesma data ---
+// ROADMAP_REV = 'AAAA-MM-DD' ou 'AAAA-MM-DD.N' (N-ésima revisão do dia — desde 2026-10-03 todo COMMIT revisa
+// o roadmap, conferido por scripts/check-roadmap-commits.mjs, e o sufixo é o que permite carimbar de novo no
+// mesmo dia). A data pode passar da última novidade (revisão sem entrega nova), mas nunca ficar para trás.
+const RE_REV = /^(\d{4}-\d{2}-\d{2})(?:\.(\d{1,3}))?$/;
+const REV_DIA = typeof ROADMAP_REV === 'string' && RE_REV.test(ROADMAP_REV) ? ROADMAP_REV.slice(0, 10) : '';
 if (ULTIMA && typeof ROADMAP_REV === 'string') {
-  if (!RE_DATA.test(ROADMAP_REV)) {
-    erros.push(`ROADMAP_REV inválido ("${ROADMAP_REV}") — use AAAA-MM-DD.`);
-  } else if (ROADMAP_REV < ULTIMA) {
+  const amanha = new Date(Date.now() + 36 * 3600 * 1000).toISOString().slice(0, 10);   // folga de fuso
+  if (!REV_DIA) {
+    erros.push(`ROADMAP_REV inválido ("${ROADMAP_REV}") — use AAAA-MM-DD (ou AAAA-MM-DD.2, .3… para revisar de novo no mesmo dia).`);
+  } else if (REV_DIA > amanha) {
+    erros.push(`ROADMAP_REV (${ROADMAP_REV}) está no futuro — carimbe com a data de hoje.`);
+  } else if (REV_DIA < ULTIMA) {
     erros.push([
       `🗺️ ROADMAP NÃO REVISADO NESTA ENTREGA: a última novidade é de ${ULTIMA} e o roadmap foi revisado em ${ROADMAP_REV}.`,
       `     Antes de fechar a entrega, releia o array ROADMAP em ${ARQ}:`,
@@ -82,8 +90,6 @@ if (ULTIMA && typeof ROADMAP_REV === 'string') {
       '       • acrescente os pedidos novos do usuário;',
       `       • e carimbe \`const ROADMAP_REV='${ULTIMA}';\` — mesmo que nada mais mude, a data confirma que a lista foi revista.`,
     ].join('\n'));
-  } else if (ROADMAP_REV > ULTIMA) {
-    erros.push(`ROADMAP_REV (${ROADMAP_REV}) é posterior à última novidade (${ULTIMA}) — revise a data: as duas andam juntas.`);
   }
 }
 

@@ -179,11 +179,50 @@ let cfgShared = false;   // true quando a config vem/vai para o servidor (time)
 let _cfgRev=null;                                  // rev da última config remota adotada
 let _cfgBase=JSON.parse(JSON.stringify(cfg));      // base p/ diff (o que esta sessão mudou)
 let _cfgConectada=false, _cfgSujo=false, _cfgRetryT=null, _cfgAvisou=false;
+// <cfg-mescla> ---- Mescla de TRÊS VIAS da config compartilhada (2026-10-03) ----
+// Antes, a chave inteira que esta sessão tinha mexido vencia o remoto: uma aba antiga (ou o celular, ou um colega)
+// com a 🤝 lista de contratos aberta devolvia a cópia velha da lista INTEIRA por cima — o contrato excluído voltava e
+// a edição de outra pessoa sumia ("não consigo editar nem excluir os contratos"). Agora a mescla é campo a campo e,
+// nas listas de itens com id (contratos, planos…), item a item: só o que ESTA sessão mudou de verdade vence. E vazio
+// criado só para desenhar a tela ([] ou {} — pcDocs/pcEquipe/pcRateio…) não conta como mudança.
+function cfgVazio(v){ return v==null||(Array.isArray(v)&&!v.length)||(typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length); }
+function cfgNorm(v){
+  if(Array.isArray(v)) return v.map(cfgNorm);
+  if(v&&typeof v==='object'){ const o={}; Object.keys(v).sort().forEach(k=>{ const x=cfgNorm(v[k]); if(!cfgVazio(x)) o[k]=x; }); return o; }
+  return v;
+}
+function cfgIgual(a,b){ try{ const na=cfgNorm(a), nb=cfgNorm(b); return JSON.stringify(cfgVazio(na)?null:na)===JSON.stringify(cfgVazio(nb)?null:nb); }catch(e){ return false; } }
+const cfgEhObj=(v)=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const cfgListaId=(v)=>v==null||(Array.isArray(v)&&v.every(x=>cfgEhObj(x)&&x.id!=null&&String(x.id)!==''));
+function cfgMescla3(base, local, remoto){
+  if(cfgIgual(local, base)) return remoto;                              // esta sessão não mexeu (ou só criou vazios)
+  if(cfgIgual(remoto, base)||cfgIgual(remoto, local)) return local;     // só esta sessão mexeu
+  if(cfgEhObj(local)&&cfgEhObj(remoto)){                                // as duas mexeram: campo a campo
+    const b=cfgEhObj(base)?base:{}; const out={};
+    new Set([...Object.keys(remoto), ...Object.keys(local)]).forEach(k=>{ const v=cfgMescla3(b[k], local[k], remoto[k]); if(v!==undefined) out[k]=v; });
+    return out;
+  }
+  if(Array.isArray(local)&&Array.isArray(remoto)&&cfgListaId(base)&&cfgListaId(local)&&cfgListaId(remoto)){   // item a item, pelo id
+    const mapa=(a)=>{ const m=new Map(); (a||[]).forEach(x=>m.set(String(x.id),x)); return m; };
+    const B=mapa(base), L=mapa(local), R=mapa(remoto); const out=[]; const visto=new Set();
+    const decide=(id)=>{ const b=B.get(id), l=L.get(id), r=R.get(id);
+      if(b!==undefined&&l===undefined) return undefined;                // excluído AQUI: sai
+      if(r===undefined){ if(b===undefined) return l;                     // criado aqui
+        return cfgIgual(l,b)?undefined:l; }                               // excluído LÁ: só fica se esta sessão o editou de verdade
+      if(l===undefined) return r;                                         // criado lá
+      return cfgMescla3(b,l,r); };
+    (remoto||[]).forEach(x=>{ const id=String(x.id); visto.add(id); const v=decide(id); if(v!==undefined) out.push(v); });
+    (local||[]).forEach(x=>{ const id=String(x.id); if(visto.has(id)) return; visto.add(id); const v=decide(id); if(v!==undefined) out.push(v); });
+    return out;
+  }
+  return local;                                                          // conflito de verdade num valor: vale o que esta pessoa acabou de fazer
+}
+// </cfg-mescla>
 function cfgAdotaRemoto(j){
   _cfgStamp++;
   const remoto=Object.assign(cfgDefaults(), (j&&j.data)||{});
-  if(_cfgBase){ Object.keys(cfg).forEach(k=>{     // preserva o que esta sessão alterou
-    try{ if(JSON.stringify(cfg[k])!==JSON.stringify(_cfgBase[k])) remoto[k]=cfg[k]; }catch(e){} }); }
+  if(_cfgBase){ new Set([...Object.keys(cfg), ...Object.keys(remoto)]).forEach(k=>{   // preserva só o que esta sessão alterou
+    try{ const v=cfgMescla3(_cfgBase[k], cfg[k], remoto[k]); if(v===undefined) delete remoto[k]; else remoto[k]=v; }catch(e){} }); }
   cfg=remoto; _cfgRev=(j&&j.rev)||null; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgConectada=true;
 }
 function avisaCfgOffline(){ if(_cfgAvisou) return; _cfgAvisou=true;

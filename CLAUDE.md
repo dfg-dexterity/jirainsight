@@ -59,6 +59,19 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   redesenho das tabelas editáveis (extras, rateio) é adiado (`pcAdiaRender`) até o foco sair da tabela, e o
   formulário do contrato renasce de `st.rasc` e reaproveita o nó aberto (era isso que fazia o contrato "não editar").
   Falha de gravação da config compartilhada agora avisa na tela (`avisaCfgRecusada`).
+- **🔀 Mescla de três vias da config compartilhada (2026-10-03, a pedido do usuário: "não consigo editar nem
+  excluir os contratos"):** a causa era a mescla de conflito do `cfgAdotaRemoto` (01-nucleo.js): a CHAVE inteira que
+  a sessão tinha mexido vencia o remoto, e só desenhar a 🤝 Parceiros já "mexia" em `cfg.parcerias` (`pcDocs`,
+  `pcEquipe`, `pcPrev`, `pcRateio`, `pcRateios`, `pcExtras` criam `[]`/`{}` no contrato). Resultado: uma aba antiga, o
+  celular ou um colega com a tela aberta salvava qualquer coisa → conflito → devolvia a lista INTEIRA de contratos
+  velha → o contrato excluído voltava e a edição sumia. Agora `cfgMescla3(base, local, remoto)` (bloco
+  `// <cfg-mescla>`): **vazio não conta como mudança** (`cfgIgual` ignora `[]`/`{}`/ausente), objetos se mesclam
+  **campo a campo** e listas de itens com `id` **item a item** (excluído aqui sai; excluído lá só volta se esta sessão
+  o editou de verdade; criado dos dois lados fica; mesmo campo nos dois lados → vale o desta sessão). Lista sem `id`
+  mexida nos dois lados → vale a desta sessão (como antes). Lista nova na config = dar `id` aos itens para ganhar a
+  mescla item a item. Aba aberta antes da publicação roda a mescla antiga até recarregar (no roadmap: o servidor
+  recusar cliente desatualizado). Testes: `cfg-mescla-test` (unidade, 12 casos) e `parcerias-duas-sessoes` (Playwright,
+  duas sessões contra um servidor que persiste e devolve conflito por rev, com a config real de produção).
 - **✎ Horas vendidas digitadas por mês (2026-09-21, a pedido do usuário):** a linha **Horas vendidas** do 🗓 planner
   (`17b-rentabilidade.js`) aceita um número por mês — `p.vendMan['AAAA-MM']`, irmão do `c.prev[ym]` do contrato. O
   ajuste entra em **`rpVendPorMes`**, a **fonte única** das horas vendidas, e por isso vale de uma vez para receita
@@ -410,29 +423,41 @@ nesse arquivo pequeno, não mais no `index.html`):
 O card **✨ Novidades** na tela inicial (⚡ Ações de hoje) mostra as 6 mais recentes
 automaticamente a partir do array.
 
-## 🗺️ Roadmap — REVISAR EM TODA ENTREGA (acordo de 2026-08-31, reforçado pelo usuário)
+## 🗺️ Roadmap — REVISAR EM TODO COMMIT (acordo de 2026-08-31; desde 2026-10-03 a cada commit, a pedido do usuário)
 
-O **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) **não é opcional nem "quando
-lembrar"**: toda entrega revisa a lista. Em `public/js/05-novidades-roadmap.js`:
+> Pedido literal de 2026-10-03: *"de agora em diante sempre atualize o roadmap quando for fazer um
+> commit"* — veio junto com a revisão completa da lista (que estava desatualizada: itens entregues
+> continuavam lá). Não é "por entrega" nem "quando lembrar": **todo commit que mexe no app revisa o
+> roadmap**, inclusive o commit de correção e o de revisão de código.
 
-1. **Tirar** o que esta entrega concluiu (a entrega passa a aparecer sozinha em
-   "✅ Entregas recentes", que lê o array `NOVIDADES`).
-2. **Mover** o que mudou de estágio entre `fazendo` / `planejado` / `avaliacao`.
+O **🗺️ Roadmap** (`const ROADMAP`, vista `roadmap`) mora em `public/js/05-novidades-roadmap.js`.
+A cada commit:
+
+1. **Tirar** o que o commit concluiu (a entrega passa a aparecer sozinha em
+   "✅ Entregas recentes", que lê o array `NOVIDADES`) — e conferir se algum item já
+   estava entregue e ficou para trás.
+2. **Mover** o que mudou de estágio entre `fazendo` / `planejado` / `avaliacao`, e
+   **reescrever** a descrição do que foi entregue em parte (dizer o que já existe e o que falta).
 3. **Acrescentar** os pedidos novos do usuário e os desdobramentos naturais do que
-   acabou de ser entregue (o que ficou de fora do escopo, a evolução óbvia).
-4. **Carimbar** `const ROADMAP_REV='AAAA-MM-DD'` com a **mesma data da novidade mais
-   recente** — mesmo que nada mais mude, a data é a confirmação de que a lista foi
-   revista.
+   acabou de ser feito (o que ficou de fora do escopo, a evolução óbvia).
+4. **Carimbar** `const ROADMAP_REV='AAAA-MM-DD'` com a data do dia — e, se já foi
+   carimbado hoje, com o sufixo da revisão do dia (`'AAAA-MM-DD.2'`, `.3`…). Mesmo que
+   nada mais mude, o carimbo é a confirmação de que a lista foi relida.
 
-**Isso é verificado por máquina, não por memória:** `npm run check` roda
-`scripts/check-entrega.mjs` (e a CI roda `npm run check` em todo PR —
-`.github/workflows/check.yml`). O gate **reprova** quando:
+**Isso é verificado por máquina, não por memória** — `npm run check` (e a CI em todo PR e
+push na main, `.github/workflows/check.yml`, com `fetch-depth: 0`):
 
-- `ROADMAP_REV` ficou **para trás** da última entrada de `NOVIDADES` (o caso "entreguei
-  e esqueci o roadmap") — a mensagem de erro já traz a linha pronta para carimbar;
-- `NOV_VER` não acompanha a última novidade;
-- `NOVIDADES` está fora de ordem (a mais recente fica no topo) ou malformada;
-- algum item do roadmap tem estágio inválido, título/descrição vazios ou está repetido.
+- **`scripts/check-roadmap-commits.mjs`** confere **commit a commit** do intervalo (o PR na
+  CI; a branch × `origin/main` na máquina): commit que mexe em qualquer arquivo que não seja
+  Markdown e **não muda o array `ROADMAP` nem o `ROADMAP_REV`** é reprovado, com o hash e a
+  mensagem do commit. Na máquina, também **avisa antes do commit** quando há mudança no app
+  sem revisão do roadmap. Mexer só nas `NOVIDADES` não conta. Para consertar uma branch
+  reprovada: `git commit --amend`/rebase (um commit novo não conserta os anteriores).
+- **`scripts/check-entrega.mjs`** reprova quando `ROADMAP_REV` ficou **para trás** da última
+  entrada de `NOVIDADES` (pode passar dela — revisão sem entrega nova — mas não ficar atrás
+  nem ir para o futuro), quando `NOV_VER` não acompanha a última novidade, quando `NOVIDADES`
+  está fora de ordem ou malformada, e quando algum item do roadmap tem estágio inválido,
+  título/descrição vazios ou está repetido.
 
 Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
 de itens — quem lê sabe se está olhando algo atual.
