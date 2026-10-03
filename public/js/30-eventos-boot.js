@@ -101,7 +101,7 @@ document.addEventListener('click', (e)=>{
   aplicaTema(t);
   // Recolore os gráficos (as cores das séries são fixadas no HTML na renderização).
   // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
-  if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
+  if(!['apontar','planejar','meustickets','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
 });
 // Logo no canto superior esquerdo volta para a home do perfil (Ações de hoje; diretoria → Visão Geral; ou a tela escolhida em ⋯ Mais).
 document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara(homePadrao()); });

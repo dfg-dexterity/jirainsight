@@ -135,6 +135,27 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   só os meus, projeto/categoria/busca zerados, `ate` = hoje (um `ate` antigo da URL escondia vencidos),
   `semVenc` conforme o card e `porData={}` (relê); (4) os **KPIs do Apontar seguem o "Só os meus"** (`base`
   em `renderApontar`), com rótulo "(meus)". Contador novo na Início = contar sobre `tks` e abrir pelo helper.
+- **🧾 Preciso criar meus tickets (2026-10-03, a pedido do usuário: "parecida com a criação de ticket: a pessoa
+  lista o que fez por projeto, você acha o ticket ou oferece criar, pergunta quanto tempo gastou em cada um,
+  mostra o status e pergunta se quer atualizar"):** vista `meustickets` (`public/js/14b-meus-tickets.js`, aba
+  do grupo 📝 Criar ticket, também no ➕ Novo e nos 🚀 atalhos da Início), estado em `estado.meus`. **Cinco
+  passos, nada escrito antes do último:** (1) texto livre + dia (rascunho em `localStorage`
+  `jirainsight_meus_rasc_v1`); (2) `POST /api/criar {meus:1, texto, dia}` — sub-rota de `api/criar.js`, sem
+  função nova — devolve os itens: projeto casado com o catálogo (`magicoProjetos`), atividade, título
+  sugerido, horas/"terminou" lidos do texto, tipo padrão (`magicoTipoTarefa`) e os **candidatos entre os
+  abertos do projeto** (`meusAbertos`, mesma consulta e MESMO cache `reuvinc:abertos:P` do `?abertos=`),
+  pontuados por palavras (`meusPontua`: fração das palavras da atividade achadas no resumo, raiz de 5–6 letras;
+  ≥0,6 pré-seleciona "é este", ≥0,34 aparece). A IA (`chamaClaude`, schema de lista) separa os itens quando há
+  `ANTHROPIC_API_KEY`; sem chave ou com erro, `meusParseSimples` (linha = projeto, `;`/`|` = itens) assume e a
+  resposta avisa (`ia:false`). O front repete a pontuação (`mtPontua`) só para **rebuscar ao trocar o projeto**
+  (`?abertos=`) e aceita **qualquer chave** pela ficha (`?detalhe=`). (3) horas por item (`parseTempo`, chips,
+  dia e comentário próprios; total × meta). (4) status: existentes = `{listar:true}` por ticket, lazy;
+  "terminou" pré-seleciona a transição `done`; novos = categoria desejada, resolvida depois da criação.
+  (5) `mtExecuta`: item a item — criar (lote de 1, `venc`=dia), apontar (`/api/apontar` com `inicio`=dia do
+  item), mover status — com o resultado por passo em `it.exec`; **"↻ Tentar de novo" só refaz o que falhou**
+  (o criado não é recriado: `ex.key` fica). Depois: `logAcao(…, false)` por ação + `salvaCfg()` uma vez,
+  `invalidaCacheDados()`, `estado.apontar.porData={}`/`recentes=null`. Listeners `data-mt-*`/`#mt-*` no fim do
+  14b; o tema não redesenha a tela (lista do 30-eventos-boot). Guia `GUIAS.meustickets` e passo no tour.
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o
