@@ -180,6 +180,27 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   sub-rota **confere a identidade no Jira** (`/myself`, hash do par por 10 min) antes da IA e da leitura dos
   abertos — o catálogo vem de um cache comum e não prova nada; horário ("às 14h", "14:30") não vira horas
   e "das 9h às 11h" vira 2h (`meusFaixaSeg`).
+- **📑 ID e ⧉ duplicar contratos · 🏠 vencidos → Lista · 🐞 Reportar (2026-10-03, a pedido do usuário: "permita
+  duplicar os contratos, coloque um id para cada contrato; nos vencidos por projeto quero apontar/atualizar o status
+  individualmente; um workflow fácil para bugs e melhorias que vira GitHub e Jira"):** (1) cada contrato tem um **ID
+  visível** — `c.cod` = `CT-001` (🏢 Clientes, contador `cfg.ctSeq`) / `PC-001` (🤝 Parceiros, `cfg.pcSeq`) — que nasce
+  no cadastro e **nunca muda**; o contador só sobe. Antigos ganham o ID por **migração determinística** no render
+  (`ctCodigosPlano`: data de criação → ordem da lista; código repetido fica com o primeiro da lista) — duas sessões
+  chegam aos mesmos IDs, então a mescla não briga. Leitor = `ctCod`/`ctCodCli`/`pcCod` (não grava); quem grava é
+  `ctGaranteCodigos`/`ctProxCod` + `salvaCfg()`. **⧉ duplicar** (`ctCopia`/`pcCopia`) abre o formulário NOVO
+  preenchido e só grava no "Adicionar/Cadastrar" — sem `portalToken`, e na parceria sem `odoo`, extras, `prev`,
+  `ajustes`, `rateios`, histórico; ids novos para docs/equipe/trechos; `copiaDe` guarda a origem. (2) O
+  ⏰ vencidos por projeto da Início abre a 🛠 Gestão na **▤ Lista sem nada marcado** (`g.visSo`/`g.visSoDe`: vale só
+  para aquele recorte; clicar noutra visualização ou "✕ ver todos" volta a `g.vis`) — cada ticket com ⏱ apontar,
+  status ▾, 👤 responsável ▾, 💬, reprogramar, 🔍. (3) **🐞 Reportar** = `public/js/25b-reportar.js` + sub-rota
+  `b.reportar` do `api/criar.js` (depois da identidade; `meusConfereIdentidade`): Jira (`JIRA_FEEDBACK_PROJECT`, padrão
+  JI; Bug → "Bug"; Melhoria → "Melhoria"/"Improvement" se existir, senão **História + label `melhoria`** — o JI não
+  tem o tipo Melhoria) **→** GitHub (`ghCriaIssue`, com o link do ticket) **→** remotelink do issue no ticket. Token
+  da pessoa primeiro; 401/403 → conta de serviço (aviso + nome na descrição); erro de dado não insiste. Falha de um
+  lado não derruba o outro. Contexto técnico só com a caixa marcada, montado por UMA função (`repContexto`) para a
+  prévia e o envio; o servidor corta parâmetro com cara de segredo na URL e limita os erros a 8. Prefixo `rep` no
+  front (o `rp` é da Rentabilidade). O formulário antigo da Ajuda saiu; `{feedback:true}` segue aceito para abas
+  antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 45 casos).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o

@@ -324,11 +324,46 @@ function pcliMostraConvite(cru, email){
   const b=document.getElementById('pcli-copia');
   if(b) b.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(url); toast('Link do convite copiado.','ok'); }catch(e){ toast('Selecione e copie o link.','warn'); } });
 }
+// ---- 🔖 Código visível de cada contrato (2026-10-03, a pedido do usuário: "coloque um id para cada contrato") ----
+// CT-001… nos 🏢 Clientes (cfg.contratos) e PC-001… nos 🤝 Parceiros (cfg.parcerias, 16b). O id interno continua sendo
+// o que liga tudo (planos, portal, Odoo); o código é para GENTE: falar, procurar e citar. Nasce no cadastro e nunca
+// muda; o contador (cfg.ctSeq / cfg.pcSeq) só sobe, então o código de um contrato removido não volta para outro.
+// Os contratos antigos ganham código numa migração determinística (pela data de criação e pela ordem da lista): duas
+// sessões que migram ao mesmo tempo chegam aos MESMOS códigos — a mescla da config não vê conflito.
+function ctNumCod(c){ const m=/-(\d+)$/.exec(String((c&&c.cod)||'')); return m?+m[1]:0; }
+// Código repetido (duas sessões cadastrando no mesmo instante: a mescla da config guarda os dois contratos) fica com o
+// primeiro da lista; o outro ganha o próximo número livre — de novo igual em todas as sessões.
+function ctCodigosPlano(lista, pre, seq){
+  const out={}; let n=Math.max(Number(seq)||0, 0, ...(lista||[]).map(ctNumCod)); const vistos=new Set();
+  const precisa=(c)=>{ if(!c) return false; if(c.cod&&!vistos.has(c.cod)){ vistos.add(c.cod); return false; } return true; };
+  (lista||[]).map((c,i)=>({c,i,k:String((c&&(c.criadoEm||((c.hist||[])[0]||{}).em))||'')})).filter(x=>precisa(x.c))
+    .sort((a,b)=>a.k.localeCompare(b.k)||a.i-b.i).forEach(({c})=>{ n+=1; out[c.id]=`${pre}-${String(n).padStart(3,'0')}`; });
+  return { mapa:out, ultimo:n };
+}
+/** Código do contrato para mostrar (leitor: não grava; o provisório é o mesmo que a migração vai gravar). */
+function ctCod(lista, c, pre, seqKey){ return ctCodigosPlano(lista,pre,cfg[seqKey]).mapa[c&&c.id]||(c&&c.cod)||''; }
+/** Grava o código nos contratos que ainda não têm. Devolve true se mudou algo (quem chama faz salvaCfg). */
+function ctGaranteCodigos(lista, pre, seqKey){
+  const p=ctCodigosPlano(lista,pre,cfg[seqKey]); const ids=Object.keys(p.mapa); if(!ids.length) return false;
+  (lista||[]).forEach(c=>{ if(p.mapa[c.id]) c.cod=p.mapa[c.id]; }); cfg[seqKey]=Math.max(Number(cfg[seqKey])||0, p.ultimo); return true;
+}
+/** Próximo código livre (depois de garantir os antigos). */
+function ctProxCod(lista, pre, seqKey){ ctGaranteCodigos(lista,pre,seqKey);
+  const n=Math.max(Number(cfg[seqKey])||0, 0, ...(lista||[]).map(ctNumCod))+1; cfg[seqKey]=n; return `${pre}-${String(n).padStart(3,'0')}`; }
+const ctCodCli=(c)=>ctCod(cfg.contratos||[], c, 'CT', 'ctSeq');
+// ⧉ Duplicar um contrato de cliente: o formulário abre como NOVO, já preenchido — só grava ao clicar em "Adicionar".
+// O link do cliente (portalToken) e o código NÃO são copiados (um link por contrato; código novo no cadastro).
+function ctCopia(c){ const x=JSON.parse(JSON.stringify(c||{})); delete x.id; delete x.cod; delete x.portalToken;
+  x.cliente=(String(c.cliente||'').trim()+' (cópia)').slice(0,120); x._dupDe={ id:c.id, cod:ctCodCli(c), nome:c.cliente||'' }; return x; }
+
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
   const ad=estado.admin; const contratos=cfg.contratos||[];
-  const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : null;
+  // Contratos antigos ganham o código na primeira vez que alguém identificado abre a tela (uma gravação só).
+  if(cfgShared&&idApontar()&&ctGaranteCodigos(contratos,'CT','ctSeq')) salvaCfg();
+  const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : (ad.dup||null);
+  const dup = !ad.editId&&ad.dup ? ad.dup : null;
   // Só projetos da categoria AMS aparecem para mapear (+ os já marcados neste contrato,
   // para não perder mapeamentos antigos de outra categoria).
   const jaMarcados=new Set((edit&&edit.projetos)||[]);
@@ -346,7 +381,8 @@ function renderAdmin(){
     : '<div class="muted small">Carregando projetos do Jira…</div>';
 
   const form=`<div class="card full">
-    <h2>${edit?'Editar contrato':'Novo contrato / cliente'}</h2>
+    <h2>${dup?`⧉ Novo contrato — cópia de ${esc(dup._dupDe&&dup._dupDe.cod||'')} ${esc(dup._dupDe&&dup._dupDe.nome||'')}`:(edit?`Editar contrato <span class="badge ct-cod" data-tip="ID do contrato">${esc(ctCodCli(edit))}</span>`:'Novo contrato / cliente')}</h2>
+    ${dup?'<div class="aviso">⧉ Cópia pronta para ajustar: confira o nome, as datas e os projetos e clique em <b>Adicionar contrato</b>. O link do cliente não é copiado (cada contrato tem o seu) e o novo contrato ganha um ID próprio.</div>':''}
     <div class="pl-grid">
       <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
       <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
@@ -372,8 +408,8 @@ function renderAdmin(){
     <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(categoria AMS · marque um ou mais)</span></label>${projBox}</div>
     <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
-      <button class="btn primario" id="ad-salvar">${edit?'Salvar alterações':'Adicionar contrato'}</button>
-      ${edit?'<button class="btn" id="ad-cancelar">Cancelar edição</button>':''}
+      <button class="btn primario" id="ad-salvar">${edit&&!dup?'Salvar alterações':'Adicionar contrato'}</button>
+      ${edit?`<button class="btn" id="ad-cancelar">${dup?'Cancelar cópia':'Cancelar edição'}</button>`:''}
     </div>
     <div class="ap-fb" id="ad-fb" hidden></div>
   </div>`;
@@ -426,9 +462,10 @@ function renderAdmin(){
       ? `<div class="ad-cons" style="color:#B45309">⚠ Sem projetos mapeados — este contrato <strong>não aparece</strong> na apuração da aba <strong>AMS</strong>. Clique em <strong>editar</strong> e marque os projetos da categoria AMS.</div>`
       : '';
     return `<div class="ad-card${over?' over':''}">
-      <div class="ad-top"><strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
+      <div class="ad-top"><span class="badge ct-cod" data-tip="ID do contrato — use para citar e procurar">${esc(ctCodCli(c))}</span> <strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
         <button class="btn" data-ad-edit="${escA(c.id)}">editar</button>
+        <button class="btn" data-ad-dup="${escA(c.id)}" data-tip="Abre um contrato novo já preenchido com os dados deste (o link do cliente não é copiado)">⧉ duplicar</button>
         <button class="btn" data-ad-del="${escA(c.id)}">remover</button></div>
       ${detalhes}
       ${pcliBlocoHTML(c)}
@@ -505,8 +542,10 @@ function salvaContrato(){
   cfg.contratos=cfg.contratos||[];
   const ad=estado.admin;
   if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c) Object.assign(c, dados); ad.editId=null; }
-  else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); cfg.contratos.push(dados); }
-  salvaCfg(); renderAdmin();
+  else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP();
+    if(ad.dup&&ad.dup._dupDe) dados.copiaDe=ad.dup._dupDe.cod||ad.dup._dupDe.id;
+    cfg.contratos.push(dados); try{ toast(`Contrato ${dados.cod} adicionado.`,'ok'); }catch(e){} }
+  ad.dup=null; salvaCfg(); renderAdmin();
 }
 // ===============================================================================
 
@@ -824,9 +863,13 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-ir-admin')){ vaiPara('admin'); return; }
   if(t.id==='ad-salvar'){ salvaContrato(); }
-  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; renderAdmin(); }
-  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
-  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del');
+  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; renderAdmin(); }
+  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); estado.admin.dup=null; renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.hasAttribute('data-ad-dup')){ const c=(cfg.contratos||[]).find(x=>x.id===t.getAttribute('data-ad-dup')); if(!c) return;
+    estado.admin.editId=null; estado.admin.dup=ctCopia(c); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'});
+    try{ const i=document.getElementById('ad-cliente'); if(i){ i.focus({preventScroll:true}); i.select(); } }catch(x){} }
+  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del'); const c=(cfg.contratos||[]).find(x=>x.id===id);
+    if(!confirm(`Remover o contrato ${c?ctCodCli(c)+' · '+(c.cliente||''):''}? Ele sai da apuração do AMS, da Receita e da Controladoria.`)) return;
     cfg.contratos=(cfg.contratos||[]).filter(c=>c.id!==id); if(estado.admin.editId===id) estado.admin.editId=null; salvaCfg(); renderAdmin(); }
   else if(t.hasAttribute('data-ad-portal')||t.hasAttribute('data-ad-portal-novo')){
     const id=t.getAttribute('data-ad-portal')||t.getAttribute('data-ad-portal-novo');

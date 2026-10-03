@@ -413,9 +413,6 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.id==='aj-guia-atual'){ iniciaGuia(estado.vista); }
   else if(t.id==='aj-tour'){ iniciaTour(); }
   else if(t.id==='aj-tour-telas'){ iniciaTourTelas(); }
-  else if(t.classList && t.classList.contains('fb-tipo')){
-    document.querySelectorAll('.fb-tipo').forEach(c=>c.setAttribute('aria-pressed', c===t?'true':'false')); }
-  else if(t.id==='fb-enviar'){ enviaFeedback(); }
   else if(t.id==='folga-enviar'){ enviaFolga(); }
   else if(t.id==='folga-cancelar'){ fechaModal(); }
   else if(t.id==='alx-confirmar'){ confirmaReprog(); }

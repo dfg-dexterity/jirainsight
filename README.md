@@ -102,7 +102,8 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
-| `25-ajuda-guias.js` | ❓ Ajuda, feedback, tour, 🧭 guias interativos |
+| `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
+| `25b-reportar.js` | 🐞 Reportar bug ou melhoria (ticket no Jira + issue no GitHub, `POST /api/criar {reportar:1}`) |
 | `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas; fase 4: **memória** `abaLembra`/`abaUltima` — o menu volta à última aba do grupo — e **contadores** `ABAS_N`), favoritos, paleta Ctrl+K |
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
@@ -206,7 +207,8 @@ largas (Catálogo, Uso, planner da Rentabilidade) rolam de lado por desenho; alg
 | `TEAMS_WEBHOOK_URL` | não | webhook do canal: relatório diário de apontamento e aviso de convites de reunião |
 | `CRON_SECRET` | não | se definida, `/api/teams` exige `Authorization: Bearer <segredo>` (use o mesmo valor no secret do GitHub Actions) |
 | `CLOCKWORK_ESCRITA` | não | `1` ativa o modo direto: ao convidar, tenta criar o worklog dos convidados via API do Clockwork (autor explícito); se a API recusar, o convite segue pendente (fallback automático) |
-| `GITHUB_TOKEN` | não | token do GitHub (`issues:write`) usado pela tela **Ajuda → Falar com a gente** para abrir **issues no GitHub** (`POST /api/criar` com `feedback:true`). Sem ele, o formulário avisa que falta configurar |
+| `GITHUB_TOKEN` | não | token do GitHub (`issues:write`) usado pelo **🐞 Reportar bug ou melhoria** para abrir o **issue no GitHub** (`POST /api/criar` com `reportar:1`; o `feedback:true` antigo continua aceito). Sem ele, o ticket do Jira sai e a tela avisa que o GitHub falta configurar |
+| `JIRA_FEEDBACK_PROJECT` | não | projeto do Jira que recebe os relatos do 🐞 Reportar (padrão `JI`). Bug → tipo **Bug**; Melhoria → tipo **Melhoria**/**Improvement** se existir, senão **História** com a label `melhoria` |
 | `GITHUB_ISSUES_REPO` | não | repositório destino dos issues de feedback no formato `owner/repo` (padrão `dfg-dexterity/jirainsight`) |
 | `ANTHROPIC_API_KEY` | não | chave da API da Anthropic (Claude) — habilita o **resumo das atividades por IA** na aba Resumo (`/api/resumo`). Sem ela, o card explica como configurar |
 | `ANTHROPIC_MODELO` | não | modelo usado no resumo por IA (padrão `claude-opus-4-8`) |
@@ -462,6 +464,16 @@ observações e um **preview de consumo** no período. Um contrato **AMS sem pro
 recebe um **aviso** (ele não aparece na apuração da aba AMS até mapear os projetos). Fica salvo
 em `cfg.contratos` (compartilhado via Supabase / `/api/config`).
 
+**🔖 ID e ⧉ duplicar (2026-10-03).** Cada contrato tem um **ID visível** — `CT-001…` nos 🏢 Clientes
+(`c.cod`, contador `cfg.ctSeq`) e `PC-001…` nos 🤝 Parceiros (`cfg.pcSeq`) — que nasce no cadastro e nunca muda;
+o contador só sobe, então o ID de um contrato removido não volta para outro. Os contratos antigos ganham o ID numa
+migração **determinística** (data de criação → ordem da lista; ID repetido por duas sessões cadastrando ao mesmo
+tempo fica com o primeiro e o outro ganha o próximo), então duas sessões chegam aos mesmos IDs e a mescla da
+config não vê conflito (`ctCodigosPlano`/`ctGaranteCodigos`/`ctProxCod` em `16-contratos-ams-receita.js`). O
+**⧉ duplicar** abre um contrato **novo** já preenchido (`ctCopia` / `pcCopia`) — nada é gravado antes do
+"Adicionar"/"Cadastrar"; não copia o link do cliente (`portalToken`), nem, na parceria, a ordem do Odoo, as horas
+extras, a previsão digitada e o histórico; a cópia guarda de qual veio (`copiaDe`).
+
 ### 🛠️ AMS & Governança / 💰 Receita (abas separadas)
 
 O AMS é **totalmente separado** da Receita: tem **aba própria** (menu **AMS & Governança → AMS**).
@@ -686,6 +698,20 @@ pessoas em dia/atrasadas + ranking de quem mais precisa apontar, com selos
   apontar a um domínio próprio.
 - **Testar:** aba **Actions** → *Relatório de apontamento no Teams* → **Run workflow**
   (use `dry=1` para só montar o cartão sem enviar), ou abra `/api/teams?dry=1`.
+
+### 🐞 Reportar bug ou melhoria (2026-10-03)
+
+O botão 🐞 do canto (também ⋯ Mais › 🐞 Reportar, Ctrl+K e a ❓ Ajuda) abre um formulário curto —
+**🐞 Bug / 💡 Melhoria / ❓ Dúvida**, título, descrição e, no bug, passos e esperado — e um relato vira **dois
+registros ligados**: o **ticket no Jira** (`JIRA_FEEDBACK_PROJECT`, padrão `JI`, labels `hub-feedback` + `bug`/`melhoria`)
+e o **issue no GitHub** (`GITHUB_ISSUES_REPO`), com o link do ticket no issue e um *remote link* do issue no ticket.
+Dúvida vai só ao GitHub. O ticket é criado **com o token da pessoa** (ela é a relatora); sem permissão no projeto,
+a conta de serviço cria e o nome de quem relatou vai na descrição. A identidade é conferida no Jira antes de tudo
+(`meusConfereIdentidade`). Se a pessoa deixar marcado, vai junto o **contexto técnico** — a tela (caminho do menu),
+o endereço (parâmetros com cara de segredo são cortados no servidor), a versão, o navegador e os **últimos 8 erros
+do navegador** — e ela vê exatamente o que vai antes de enviar; nada do conteúdo da tela. Rascunho e "Seus últimos
+relatos" ficam só no navegador (`jirainsight_reporte_rasc_v1`, `jirainsight_reportes_v1`); o envio entra no 🗒 Histórico
+de ações. Sub-rota `b.reportar` do `api/criar.js` (sem função serverless nova).
 
 ### 📣 Aviso de novidades — automático no merge
 

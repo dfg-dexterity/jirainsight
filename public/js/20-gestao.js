@@ -802,11 +802,15 @@ function renderGestao(){
     const aqui=new Set(todos.map(t=>t.k));
     const faltam=g.soKeys.filter(k=>!aqui.has(k)).length;
     chipAnalytics=`<div class="aviso" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      📈 Mostrando só os tickets da visão <strong>${esc(g.origem||'do Analytics')}</strong> (${g.soKeys.length-faltam} de ${g.soKeys.length} aqui)
+      📈 Mostrando só os tickets de <strong>${esc(g.origem||'do Analytics')}</strong> (${g.soKeys.length-faltam} de ${g.soKeys.length} aqui)
       ${faltam?`<span class="muted small">— ${faltam} não aparecem nesta tela (concluídos ou fora da janela de vencimento)</span>`:''}
-      <span class="spacer"></span><button class="chip" data-gx-solimpar="1">✕ limpar filtro do Analytics</button></div>`;
+      <span class="muted small">· cada ticket tem as suas ações (⏱ apontar, status ▾, 👤 responsável ▾, 💬, reprogramar, 🔍 ficha); marque vários para as ações em massa</span>
+      <span class="spacer"></span><button class="chip" data-gx-solimpar="1">✕ ver todos os tickets</button></div>`;
   }
-  const vis=['lista','tabela','quadro'].includes(g.vis)?g.vis:'tabela';
+  // Recorte vindo da Início (⏰ vencidos por projeto) abre na ▤ Lista — a visão em que cada ticket mostra as ações dele.
+  // É só para esse recorte: trocar de visualização ou limpar o recorte volta à preferência da pessoa (g.vis).
+  const visPref=(Array.isArray(g.soKeys)&&g.soKeys.length&&g.visSo&&g.visSoDe===g.origem)?g.visSo:g.vis;   // só vale para o recorte que o pediu
+  const vis=['lista','tabela','quadro'].includes(visPref)?visPref:'tabela';
   const viewToggle=`<div class="ap-vis gx-modos" style="margin:0 0 6px"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${vis==='lista'}" data-gx-vis="lista">▤ Lista</button>
     <button class="chip" aria-pressed="${vis==='tabela'}" data-gx-vis="tabela">▦ Tabela</button>
@@ -887,7 +891,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     if(g0.sel[k]) delete g0.sel[k]; else g0.sel[k]=true; renderGestao(); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   const g=estado.gestao;
-  if(t.hasAttribute&&t.hasAttribute('data-gx-vis')){ g.vis=t.getAttribute('data-gx-vis'); renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-vis')){ g.vis=t.getAttribute('data-gx-vis'); g.visSo=''; renderGestao(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-preset')){ const v=t.getAttribute('data-gx-preset');
     g.preset=(g.preset===v?'':v); renderGestao(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-r')){ const [k,acao]=t.getAttribute('data-gx-r').split('|');
@@ -899,7 +903,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-conv')){ abreConvidarApontar(t.getAttribute('data-gx-conv')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-det')){ abreModalTicket(t.getAttribute('data-gx-det')); return; }
-  if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; renderGestao(); return; }
+  if(t.hasAttribute&&t.hasAttribute('data-gx-solimpar')){ g.soKeys=null; g.origem=''; g.visSo=''; renderGestao(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gxf-salvar')){ abreModalFiltroSalvar(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gxf-gerir')){ abreModalFiltrosGerir(); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gxf-linkatual')){ gxfCopiaLinkAtual(); return; }

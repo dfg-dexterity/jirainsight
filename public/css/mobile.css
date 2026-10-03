@@ -32,6 +32,8 @@
   #to-top,#btn-guia{width:44px;height:44px;padding:0;right:12px;font-size:18px;line-height:1;
     display:inline-flex;align-items:center;justify-content:center}
   #to-top[hidden],#btn-guia[hidden]{display:none}
+  #btn-reportar{width:44px;height:44px;padding:0;left:12px;font-size:18px;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;bottom:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
   #btn-guia{bottom:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
   #to-top{bottom:66px;bottom:calc(66px + env(safe-area-inset-bottom,0px))}
   #btn-guia .nov-dot{position:absolute;top:5px;right:5px;margin:0}
@@ -69,7 +71,7 @@
   .filtros select{width:100%;min-width:0}
   /* os botões flutuantes cobriam números e a 🔍 no canto direito: no celular saem daqui —
      o guia continua em ⋯ Mais › 🧭 Guia desta tela (e na tecla ?), e o iPhone volta ao topo tocando na hora */
-  #to-top,#btn-guia{display:none}
+  #to-top,#btn-guia,#btn-reportar{display:none}
 }
 @media (max-width:380px){
   .atu-rot{display:none}                 /* iPhone SE/mini: só a hora, senão cai de linha */
@@ -1701,7 +1703,7 @@
     overflow:hidden;text-overflow:ellipsis}
   .abas-tela .aba{flex:0 0 auto;margin-bottom:0}
   /* com a gaveta aberta, os botões flutuantes (🧭 e ↑) não cobrem os itens do fim do menu */
-  body:has(#seg-vista.nav-aberto) #btn-guia,body:has(#seg-vista.nav-aberto) #to-top{display:none}
+  body:has(#seg-vista.nav-aberto) #btn-guia,body:has(#seg-vista.nav-aberto) #to-top,body:has(#seg-vista.nav-aberto) #btn-reportar{display:none}
 }
 @media (max-width:600px){
   /* ▭ Modal = folha de tela cheia: largura total, rola por dentro, sem vazar para a página de trás */
@@ -1866,3 +1868,15 @@
   .pt-dec-tab td a{display:inline-flex;align-items:center;min-height:32px;padding:0 4px}   /* o link do ticket da decisão também é alvo de dedo */
 }
 /* ---- fim: portal ---- */
+
+/* ---- 📱 grupo: 🐞 reportar bug ou melhoria (25b) ---- */
+@media (max-width:760px){
+  .rep-tipos{grid-template-columns:minmax(0,1fr);gap:6px}
+  .rep-tipo{flex-direction:row;align-items:baseline;gap:8px;flex-wrap:wrap;min-height:44px}
+  .rep-2col{grid-template-columns:minmax(0,1fr)}
+  .rep-ctxtab>div{grid-template-columns:minmax(0,1fr);gap:0}
+  .rep-ok{flex-direction:column}
+  .rep-link{min-width:0}
+  .rep-acoes .btn{min-height:44px}
+}
+/* ---- fim: 🐞 reportar ---- */

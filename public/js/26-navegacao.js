@@ -245,6 +245,7 @@ const NAVCAT=[
   ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],
   ['acao:log','⚙️ Central de configurações › 🗒 Histórico de ações','admin','auditoria log acoes configuracoes'],
   ['roadmap','🗺️ Roadmap','mais','proximas funcionalidades futuro planejado novidades melhorias analise'],
+  ['acao:reportar','🐞 Reportar bug ou melhoria','mais','bug erro problema defeito falha travou melhoria sugestao ideia duvida feedback github jira issue relatar falar com a gente'],
 ];
 // Telas aposentadas que ainda são procuradas pelo nome antigo: a busca mostra "agora é …".
 const NAV_ANTIGAS=[['alocacao','🧑‍💼 Alocação (macro)','minhasemana'],['planejamento','📅 Planejamento macro','minhasemana']];
@@ -302,6 +303,7 @@ function navPaletaVai(slug){
   fechaModal();
   if(slug==='acao:metas'){ abreMetas(); return; }
   if(slug==='acao:log'){ abreLogAcoes(); return; }
+  if(slug==='acao:reportar'){ abreReportar(); return; }
   if(slug.startsWith('acao:')) return;
   vaiPara(slug);
 }
