@@ -490,16 +490,20 @@ async function abertos(req, res) {
   const ck = `reuvinc:abertos:${projeto}`;
   const c = cacheGet(ck);
   if (c && !(req.query.nocache === '1')) return json(res, 200, c);
+  // MESMA forma (e mesma chave de cache) que meusAbertos em api/criar.js escreve — quem chegar primeiro
+  // serve o outro: por isso `cat` e `resp` vêm daqui também (o 🧾 Preciso criar meus tickets os mostra).
   const { issues, truncado } = await jiraSearchAll({
     jql: `project = ${projeto} AND statusCategory != Done ORDER BY updated DESC`,
-    fields: ['summary', 'status', 'issuetype'], pageSize: 100, maxPages: 3,
+    fields: ['summary', 'status', 'issuetype', 'assignee'], pageSize: 100, maxPages: 3,
   });
   const tickets = issues.map((it) => ({
     k: it.key, resumo: (it.fields && it.fields.summary) || '',
     status: (it.fields && it.fields.status && it.fields.status.name) || '',
+    cat: (it.fields && it.fields.status && it.fields.status.statusCategory && it.fields.status.statusCategory.key) || '',
     tipo: (it.fields && it.fields.issuetype && it.fields.issuetype.name) || '',
+    resp: (it.fields && it.fields.assignee && it.fields.assignee.displayName) || '',
   }));
-  return json(res, 200, cacheSetTTL(ck, { projeto, tickets, truncado }, 3));
+  return json(res, 200, cacheSetTTL(ck, { projeto, tickets, truncado: !!truncado }, 3));
 }
 
 // POST { vincular:1 } — cria/comenta no destino, worklog opcional e EXCLUI a reunião.

@@ -101,7 +101,7 @@ document.addEventListener('click', (e)=>{
   aplicaTema(t);
   // Recolore os gráficos (as cores das séries são fixadas no HTML na renderização).
   // Evita re-render em abas com formulário para não descartar o que a pessoa digitou.
-  if(!['apontar','planejar','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
+  if(!['apontar','planejar','meustickets','reclassificar','reuvinc','gestao','admin'].includes(estado.vista)) try{ render(); }catch(e2){}
 });
 // Logo no canto superior esquerdo volta para a home do perfil (Ações de hoje; diretoria → Visão Geral; ou a tela escolhida em ⋯ Mais).
 document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntra(); vaiPara(homePadrao()); });
@@ -390,7 +390,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
-  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; pintaBadgeConvites(0); fechaModal(); if(estado.vista==='apontar') renderApontar(); }
+  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; pintaBadgeConvites(0); fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); }
   else if(t.id==='rg-enviar'){ enviaReuniaoGrupo(); }
   else if(t.hasAttribute('data-rg-chip')){ const i=document.getElementById('rg-tempo'); if(i) i.value=t.getAttribute('data-rg-chip'); }
   else if(t.id==='rg-todos'){ document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=true; }); }

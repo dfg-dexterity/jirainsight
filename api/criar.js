@@ -4,7 +4,7 @@
 //
 // Corpo: { itens:[{projeto, tipoId, resumo, descricao?, respId?, paiKey?}], email, token }
 // Resposta: { ok, criados:[{indice,key,resumo}], erros:[{indice,erro}] }
-import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json, jiraUsuariosAtivos } from './_lib/util.js';
+import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json, jiraUsuariosAtivos, jiraSearchAll } from './_lib/util.js';
 
 // Campo "Departamento Dexterity" (tarefas avulsas/TAD): o id do custom field é
 // resolvido pelo NOME via createmeta do projeto (cache 30 min). Se o campo não
@@ -390,8 +390,9 @@ function magicoTempoSeg(txt) {
   if (!s) return null;
   if (/meia\s*hora/.test(s)) return 1800;
   if (/^(uma|1)\s*horas?$/.test(s)) return 3600;
-  s = s.replace(/\be\b/g, ' ').replace(/horas?/g, 'h').replace(/minutos?/g, 'm').replace(/\bmins?\b/g, 'm')
-    .replace(/\s+/g, '').replace(',', '.');
+  // "30min", "30 mins" e "2hrs" (como o relato e o separador sem IA escrevem) também valem.
+  s = s.replace(/\be\b/g, ' ').replace(/horas?/g, 'h').replace(/minutos?/g, 'm').replace(/(^|\d|\s)mins?\b/g, '$1m')
+    .replace(/(\d|\s)hrs?\b/g, '$1h').replace(/\s+/g, '').replace(',', '.');
   let m;
   if ((m = s.match(/^(\d+)[:h]([0-5]?\d)m?$/))) return (+m[1]) * 3600 + (+m[2]) * 60;
   if ((m = s.match(/^(\d+(?:\.\d+)?)h$/))) return Math.round((+m[1]) * 3600);
@@ -681,6 +682,221 @@ export async function magicoCore(b, base, headers) {
   return ({ ok: true, key, previa, acoes, msg });
 }
 
+// ===========================================================================
+// 🧾 PRECISO CRIAR MEUS TICKETS (2026-10-03, a pedido do usuário): a pessoa conta O QUE FEZ, por
+// projeto, em texto livre ("Projeto Copel: fiz a configuração do produto XPTO e revisei o cadastro;
+// Sumitomo: reunião de alinhamento 1h"). Esta sub-rota ({meus:1} em /api/criar — nenhuma função
+// serverless nova, a Vercel está no limite de 12) devolve a LISTA DE ITENS: projeto casado com o
+// catálogo, a atividade nas palavras da pessoa, um título sugerido, horas/"concluí" quando ela
+// escreveu, o tipo padrão do projeto e, para cada item, os CANDIDATOS entre os tickets ABERTOS do
+// projeto (mesma consulta do GET /api/reunioes?abertos=, pontuada por palavras). A IA (Claude, a
+// mesma chave do mágico) separa os itens quando há chave; sem chave, ou se ela falhar, um separador
+// por linhas resolve o básico — a tela nunca fica muda. Criar, apontar e mover status continuam nas
+// rotas que já existem (lote, /api/apontar, /api/transicao), chamadas pelo painel item a item.
+// ===========================================================================
+const MEUS_STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'para', 'pra', 'com', 'sem',
+  'no', 'na', 'nos', 'nas', 'em', 'por', 'ao', 'aos', 'que', 'se', 'ja', 'foi', 'fiz', 'feito', 'feita', 'fazer', 'fazendo', 'realizei',
+  'realizado', 'realizada', 'sobre', 'entre', 'mais', 'ate', 'apos', 'durante', 'hoje', 'ontem', 'meu', 'minha', 'nosso', 'nossa', 'seu',
+  'sua', 'este', 'esta', 'esse', 'essa', 'isso', 'isto', 'projeto', 'ticket', 'chamado', 'tarefa', 'atividade', 'trabalhei', 'trabalho',
+  'horas', 'hora', 'minutos', 'min']);
+const RE_PROJ_M = /^[A-Z][A-Z0-9_]*$/;
+const RE_CHAVE_M = /\b([A-Z][A-Z0-9_]+-\d+)\b/;
+// "terminei/concluí/finalizei/entreguei/fechei" na própria frase = a pessoa diz que aquele item acabou.
+const MEUS_RE_FEITO = /(finaliz|conclu|encerr|entregu|termin(ei|amos|ad)|fech(ei|amos|ad)|resolvi|resolvemos|pronto|feito)/;
+function meusTokens(s) {
+  return [...new Set(magicoNorm(s).replace(/[^a-z0-9]+/g, ' ').split(' ').filter((t) => t.length >= 3 && !MEUS_STOP.has(t)))];
+}
+// Mesma raiz = mesma palavra ("configuração"/"configurei", "cadastro"/"cadastros"): compara o começo.
+const meusRaiz = (w) => w.slice(0, w.length >= 7 ? 6 : 5);
+function meusMesma(a, b) { return a === b || (a.length >= 5 && b.length >= 5 && meusRaiz(a) === meusRaiz(b)); }
+// Nota de um candidato: fração das palavras da atividade encontradas no resumo do ticket (0..1).
+export function meusPontua(atividade, resumo) {
+  const ta = meusTokens(atividade); if (!ta.length) return 0;
+  const tr = meusTokens(resumo);
+  let n = 0; ta.forEach((t) => { if (tr.some((r) => meusMesma(r, t))) n += 1; });
+  return n / ta.length;
+}
+// Palavras que aparecem no nome de MUITOS projetos e não identificam nenhum ("Cliente X" não pode casar
+// com "AMS Cliente Alfa"); só valem quando o texto não tem nenhuma outra palavra.
+const MEUS_GENERICO = new Set(['cliente', 'clientes', 'projeto', 'projetos', 'interno', 'interna', 'internos', 'dexterity', 'parceria', 'parceiro',
+  'parceira', 'sistema', 'sistemas', 'implantacao', 'implementacao', 'servicos', 'servico', 'consultoria']);
+// Projeto pelo que a pessoa escreveu ("Copel", "projeto da Copel", "COP"): key exata, depois nome.
+export function meusAchaProjeto(projetos, texto) {
+  const t = magicoNorm(texto).replace(/^projeto\s+(d[aeo]s?\s+)?/, '').trim();
+  if (!t) return null;
+  const porKey = projetos.find((p) => magicoNorm(p.key) === t);
+  if (porKey) return porKey;
+  const tk0 = meusTokens(t); const tkEsp = tk0.filter((x) => !MEUS_GENERICO.has(x));
+  const tk = tkEsp.length ? tkEsp : tk0;
+  let melhor = null; let nota = 0;
+  projetos.forEach((p) => {
+    const nome = magicoNorm(p.nome || '');
+    const nk = meusTokens(nome);
+    let n = 0; tk.forEach((x) => { if (nk.some((y) => meusMesma(x, y)) || magicoNorm(p.key) === x) n += 1; });
+    if (!n && nome.includes(t)) n = 0.5;
+    const v = n / Math.max(1, tk.length) + (nome.includes(t) ? 0.25 : 0) - nome.length / 10000;
+    if (n > 0 && v > nota) { nota = v; melhor = p; }
+  });
+  return melhor;
+}
+// Horário ≠ duração: "reunião às 14h" não são 14 horas trabalhadas, e "das 9h às 11h" são 2h (a diferença).
+const RE_FAIXA_M = /(?:\b(?:das?|de)\s+)?\b(\d{1,2})(?:h(\d{2})?|:(\d{2}))\s*(?:às|as|a|até|ate|-|–|—)\s*(\d{1,2})(?:h(\d{2})?|:(\d{2}))\b/i;
+const RE_HORARIO_ANTES_M = /(?:^|\s)(?:às|as|até|ate|desde|a partir d[ae]s?|das|pelas|antes d[ae]s?|depois d[ae]s?)\s*$/i;
+export function meusFaixaSeg(s) {
+  const m = String(s || '').match(RE_FAIXA_M); if (!m) return null;
+  const h1 = +m[1]; const h2 = +m[4]; if (h1 > 23 || h2 > 23) return null;
+  const ini = h1 * 60 + (+(m[2] || m[3] || 0)); const fim = h2 * 60 + (+(m[5] || m[6] || 0));
+  let d = fim - ini; if (d <= 0) d += 24 * 60;      // "das 22h às 1h"
+  if (d > 12 * 60) return null;
+  return { seg: d * 60, trecho: m[0] };
+}
+// Separador SEM IA: uma linha por projeto ("Copel: fiz A; revisei B"), itens separados por ";" ou "|".
+// A linha sem "Projeto:" herda o projeto da linha anterior. "14:30" não é cabeçalho de projeto.
+export function meusParseSimples(texto) {
+  const itens = []; let projAtual = '';
+  String(texto || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((linha) => {
+    let resto = linha; let proj = projAtual;
+    const m = linha.match(/^(?:projeto\s+)?([^:|;]{2,60}?)\s*:(?!\d{2}\b)\s*(.+)$/i);
+    if (m && !/^https?$/i.test(m[1])) { proj = m[1].trim(); resto = m[2].trim(); projAtual = proj; }
+    resto.split(/\s*(?:;|\||\s[-–—]\s)\s*/).map((s) => s.trim()).filter(Boolean).forEach((ativ) => {
+      const chave = (ativ.toUpperCase().match(RE_CHAVE_M) || [])[1] || '';
+      let tempoTexto = ''; let trecho = '';
+      const faixa = meusFaixaSeg(ativ);
+      if (faixa) { tempoTexto = magicoTempoFmt(faixa.seg); trecho = faixa.trecho; }
+      else {
+        const mt = ativ.match(/(\d+\s*h\s*\d{1,2}\b|\d+(?:[.,]\d+)?\s*(?:h|horas?|hrs?)\b|\d+\s*(?:m|mins?|minutos?)\b|meia\s*hora)/i);
+        // "às 14h", "até as 18h": horário do relógio, não tempo gasto — fica no texto e não vira apontamento.
+        if (mt && !RE_HORARIO_ANTES_M.test(ativ.slice(0, mt.index))) { tempoTexto = mt[1].replace(/\s+/g, ''); trecho = mt[0]; }
+      }
+      const concluido = MEUS_RE_FEITO.test(magicoNorm(ativ));
+      const limpa = (trecho ? ativ.replace(trecho, '') : ativ).replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').replace(/[\s,]+$/, '').trim()
+        .replace(/^(?:de|da|do|das|dos|em|na|no)\s+/i, '');   // "2h de ajuste" → "ajuste"
+      itens.push({ projetoTexto: proj, atividade: limpa || ativ, titulo: '', chave, tempoTexto, concluido });
+    });
+  });
+  return itens;
+}
+// Título sugerido quando a IA não deu um: a frase sem a chave citada e sem o verbo de relato, com inicial maiúscula.
+function meusTitulo(atividade, chave) {
+  let t = String(atividade || '');
+  if (chave) t = t.replace(new RegExp(`\\b${chave.replace(/[^A-Z0-9_-]/gi, '')}\\b\\s*[:\\-–—]?\\s*`, 'gi'), ' ').replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/^(eu\s+)?(fiz|realizei|executei|terminei|conclui|concluí|finalizei|trabalhei (na|no|em)|atuei (na|no|em)|estive (na|no|em))\s+(a|o|as|os|um|uma)?\s*/i, '').trim();
+  t = t.replace(/[.;:,\s]+$/, '');
+  if (!t) t = String(atividade || '').trim();
+  return (t.charAt(0).toUpperCase() + t.slice(1)).slice(0, 100);
+}
+// Abertos do projeto (conta de serviço) — mesma consulta e MESMO cache do GET /api/reunioes?abertos=.
+async function meusAbertos(projeto) {
+  const ck = `reuvinc:abertos:${projeto}`;
+  const c = cacheGet(ck);
+  if (c && Array.isArray(c.tickets)) return c;
+  const { issues, truncado } = await jiraSearchAll({
+    jql: `project = ${projeto} AND statusCategory != Done ORDER BY updated DESC`,
+    fields: ['summary', 'status', 'issuetype', 'assignee'], pageSize: 100, maxPages: 3,
+  });
+  const tickets = (issues || []).map((i) => ({
+    k: i.key, resumo: (i.fields && i.fields.summary) || '',
+    status: (i.fields && i.fields.status && i.fields.status.name) || '',
+    cat: (i.fields && i.fields.status && i.fields.status.statusCategory && i.fields.status.statusCategory.key) || '',
+    tipo: (i.fields && i.fields.issuetype && i.fields.issuetype.name) || '',
+    resp: (i.fields && i.fields.assignee && i.fields.assignee.displayName) || '',
+  }));
+  return cacheSetTTL(ck, { projeto, tickets, truncado: !!truncado }, 3);
+}
+export function meusCandidatos(atividade, chave, tickets) {
+  const lista = (tickets || []).map((t) => ({ k: t.k, resumo: t.resumo, status: t.status, cat: t.cat || '', tipo: t.tipo, resp: t.resp || '',
+    nota: chave && t.k === chave ? 1 : meusPontua(atividade, t.resumo) }))
+    .filter((c) => c.nota >= 0.34)
+    .sort((a, b) => (b.nota - a.nota));
+  return lista.slice(0, 4).map((c) => ({ ...c, nota: Math.round(c.nota * 100) / 100 }));
+}
+// O catálogo de projetos vem de um cache comum a todos: sem esta conferência, um e-mail/token
+// qualquer chegaria à IA e à leitura dos abertos (conta de serviço). Confirma no Jira (GET /myself)
+// e guarda só o hash do par por 10 min — o token nunca é guardado.
+async function meusConfereIdentidade(base, headers, email, token) {
+  const { createHash } = await import('node:crypto');
+  const ck = 'meus:eu:' + createHash('sha256').update(`${email}|${token}`).digest('hex').slice(0, 32);
+  if (cacheGet(ck)) return true;
+  const r = await fetch(`${base}/rest/api/3/myself`, { headers });
+  if (!r.ok) return false;
+  cacheSetTTL(ck, { ok: 1 }, 10);
+  return true;
+}
+async function meusTickets(res, b, base, headers) {
+  const texto = String(b.texto || '').trim().slice(0, 4000);
+  if (!texto) return json(res, 400, { erro: 'Conte o que você fez (texto vazio).' });
+  if (!(await meusConfereIdentidade(base, headers, String(b.email || '').trim(), String(b.token || '').trim()))) {
+    return json(res, 401, { erro: 'O Jira não aceitou o seu e-mail/token — refaça a identificação (Trocar usuário) e tente de novo.' });
+  }
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(b.dia || '')) ? String(b.dia) : magicoHojeSP();
+  const projetos = await magicoProjetos(base, headers);
+  if (!projetos.length) return json(res, 200, { ok: false, erro: 'Não consegui listar os projetos do Jira com o seu token.' });
+  const avisos = [];
+  let brutos = null; let ia = false;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      const { chamaClaude } = await import('./_lib/ia.js');
+      const SYS = ['Você lê um relato em português do Brasil de alguém contando O QUE FEZ no trabalho, organizado por projeto, e devolve uma LISTA de itens para o painel procurar (ou criar) o ticket de cada um no Jira.',
+        'Regras:',
+        '- Um item por atividade distinta. "Projeto Copel: fiz A e revisei B" são DOIS itens do mesmo projeto. Uma linha com uma só atividade é UM item. Não invente atividades nem junte atividades diferentes.',
+        '- projeto: a KEY exata de um projeto da lista (case por nome, apelido ou sigla — "Copel" casa com o projeto cujo nome contém "Copel"; "COP" casa com a key COP). Se o trecho não cita projeto, use o projeto do trecho anterior do mesmo relato; se nenhum projeto da lista casar, retorne "".',
+        '- atividade: o que a pessoa fez, nas palavras dela, sem o nome do projeto e sem as horas/status.',
+        '- titulo: um título curto para o ticket caso ele precise ser criado (máx. 100 caracteres, começando por substantivo: "Configuração do produto XPTO", "Revisão do cadastro de fornecedores").',
+        '- chave: a chave de ticket citada no trecho (ex.: "COP-123"), senão "".',
+        '- tempoTexto: as horas citadas PARA ESSE item ("2 horas", "30 min", "1h30", "meia hora"), normalizadas como "2h", "30m" ou "1h30"; sem horas → "".',
+        '- concluido: true só se a pessoa disse que terminou/finalizou/concluiu/entregou aquele item; senão false.',
+        '- Nunca invente horas, chave nem conclusão.'].join('\n');
+      const SCHEMA = { type: 'object', additionalProperties: false, required: ['itens'], properties: { itens: { type: 'array', items: {
+        type: 'object', additionalProperties: false, required: ['projeto', 'atividade', 'titulo', 'chave', 'tempoTexto', 'concluido'],
+        properties: { projeto: { type: 'string' }, atividade: { type: 'string' }, titulo: { type: 'string' }, chave: { type: 'string' },
+          tempoTexto: { type: 'string' }, concluido: { type: 'boolean' } } } } } };
+      const prompt = `HOJE: ${magicoHojeSP()}\n\nRELATO:\n${texto}\n\nPROJETOS DISPONÍVEIS (key — nome — categoria):\n${
+        projetos.map((p) => `${p.key} — ${p.nome}${p.categoria ? ` — ${p.categoria}` : ''}`).join('\n')}`;
+      const out = await chamaClaude(apiKey, null, { system: SYS, schema: SCHEMA, prompt });
+      brutos = (out.itens || []).map((x) => ({ projetoTexto: String(x.projeto || ''), atividade: String(x.atividade || '').trim(),
+        titulo: String(x.titulo || '').trim(), chave: String(x.chave || '').trim().toUpperCase(), tempoTexto: String(x.tempoTexto || ''),
+        concluido: !!x.concluido })).filter((x) => x.atividade);
+      ia = true;
+    } catch (e) {
+      avisos.push(`IA indisponível (${String(e.message || e).slice(0, 120)}) — separei o texto pelas linhas e pelos ";".`);
+      brutos = null;
+    }
+  }
+  if (!brutos || !brutos.length) { brutos = meusParseSimples(texto); if (ia && !brutos.length) ia = false; }
+  if (!brutos.length) return json(res, 200, { ok: false, erro: 'Não achei nenhuma atividade no texto. Escreva uma linha por projeto, assim: "Projeto Copel: fiz a configuração do produto XPTO".' });
+  brutos = brutos.slice(0, 25);
+  // Resolve cada item: projeto no catálogo, tipo padrão, horas, candidatos entre os abertos.
+  const porProj = {}; const tipos = {};
+  const itens = [];
+  for (let i = 0; i < brutos.length; i += 1) {
+    const x = brutos[i];
+    let proj = null;
+    if (RE_PROJ_M.test(x.projetoTexto) && projetos.some((p) => p.key === x.projetoTexto)) proj = projetos.find((p) => p.key === x.projetoTexto);
+    else proj = meusAchaProjeto(projetos, x.projetoTexto);
+    if (!proj && x.chave) { const pk = x.chave.split('-')[0]; proj = projetos.find((p) => p.key === pk) || null; }
+    const item = { i, projeto: proj ? proj.key : '', projetoNome: proj ? proj.nome : '', projetoTexto: x.projetoTexto, atividade: x.atividade,
+      titulo: x.titulo || meusTitulo(x.atividade, x.chave), chave: x.chave || '', tempoSeg: magicoTempoSeg(x.tempoTexto) || 0, tempoTexto: '',
+      concluido: !!x.concluido, tipo: null, cands: [], truncado: false };
+    if (item.tempoSeg && (item.tempoSeg < 60 || item.tempoSeg > 86400)) item.tempoSeg = 0;
+    if (item.tempoSeg) item.tempoTexto = magicoTempoFmt(item.tempoSeg);
+    if (proj) {
+      if (!(proj.key in tipos)) { try { tipos[proj.key] = await magicoTipoTarefa(base, headers, proj.key); } catch (e) { tipos[proj.key] = null; } }
+      item.tipo = tipos[proj.key];
+      if (!(proj.key in porProj)) { try { porProj[proj.key] = await meusAbertos(proj.key); } catch (e) { porProj[proj.key] = { tickets: [], truncado: false, erro: String(e.message || e).slice(0, 120) }; } }
+      const ab = porProj[proj.key];
+      item.cands = meusCandidatos(item.atividade, item.chave, ab.tickets);
+      item.truncado = !!ab.truncado;
+      if (ab.erro) avisos.push(`Não consegui ler os tickets abertos de ${proj.key}: ${ab.erro}`);
+    }
+    itens.push(item);
+  }
+  const semProjeto = itens.filter((x) => !x.projeto).length;
+  if (semProjeto) avisos.push(`${semProjeto} item(ns) sem projeto reconhecido — escolha o projeto na lista para eu procurar os tickets.`);
+  return json(res, 200, { ok: true, dia, ia, itens, avisos,
+    projetos: projetos.map((p) => ({ key: p.key, nome: p.nome })).sort((a, b2) => a.nome.localeCompare(b2.nome, 'pt')) });
+}
+
 async function magico(res, b, base, headers) {
   const out = await magicoCore(b, base, headers);
   // O Atalho da Siri lê o campo "msg" (Get Dictionary Value → Show Result):
@@ -789,6 +1005,13 @@ export default async function handler(req, res) {
     const token = String(b.token || '').trim();
     if (!email || !email.includes('@') || !token) {
       return json(res, 400, { erro: 'Identifique-se (e-mail + token de API) para criar tickets.' });
+    }
+    if (b.meus) {   // 🧾 Preciso criar meus tickets: separa o relato em itens e acha candidatos (sem criar nada)
+      return await meusTickets(res, b, jiraBase(), {
+        Authorization: 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64'),
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      });
     }
     if (b.magico) {
       return await magico(res, b, jiraBase(), {

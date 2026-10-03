@@ -802,6 +802,7 @@ function renderAcoes(){
     ['hub','prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
     ['hub','minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
     ['hub','apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
+    ['hub','meustickets','🧾 Preciso criar meus tickets','conte o que fez por projeto: o app acha ou cria os tickets, aponta as horas e atualiza o status'],
     ['hub','agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
     ['entrega','projetos','📁 Projetos','ficha com a 🦴 espinha do projeto: contrato, parceria, plano, cronograma, execução, apuração, resultado'],
     ['entrega','gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],

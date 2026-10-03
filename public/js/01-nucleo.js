@@ -55,6 +55,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   uso:{ dias:30, dados:null, carregando:false, erro:'', pessoa:'' },
   // 🎫 Criação rápida por linguagem natural (home) — texto sobrevive aos re-renders
   qk:{ texto:'', criando:false },
+  // 🧾 Preciso criar meus tickets (14b): relato em texto livre → itens (achar/criar) → horas → status → execução.
+  // passo 1..5; texto/dia sobrevivem aos re-renders (e ao reload, pelo rascunho no localStorage).
+  meus:{ passo:1, texto:'', dia:'', itens:[], projetos:[], interpretando:false, erro:'', avisos:[], ia:false, executando:false, feito:false },
   // ➗ Rateio — apontamento em massa: vários tickets, horas TOTAIS divididas por
   // igual / percentual / fatias (pesos) / manual; status trocado em conjunto.
   rateio:{ texto:'', tickets:[], info:{}, naoEnc:[], conferindo:false, confErro:'',
@@ -646,7 +649,7 @@ function barlist(obj, fmt, cor, limite, titleFn, labelFn, opts){
 const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
-  ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, reclassificar:{},
+  ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, meustickets:{}, reclassificar:{},
   reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{}, portal:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};

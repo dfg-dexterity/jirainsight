@@ -36,6 +36,7 @@ function render(){
   if(estado.vista==='meudia') return renderMeuDia();
   if(estado.vista==='planejar') return renderPlanejar();
   if(estado.vista==='ondecrio') return renderOndeCrio();
+  if(estado.vista==='meustickets') return renderMeusTickets();
   if(estado.vista==='reclassificar') return renderReclass();
   if(estado.vista==='reuvinc') return renderReuVinc();
   if(estado.vista==='gestao') return renderGestao();
@@ -85,7 +86,7 @@ const ABAS=[
   // 2026-10-02 (a pedido do usuário: "o controle poluía a tela"): os eventos e o 🎫 Controle de tickets viraram abas.
   { id:'agenda',       rot:'📅 Agenda',                 abas:[ {v:'agenda',rot:'📅 Eventos (Outlook → ticket)'}, {v:'agcontrole',rot:'🎫 Controle de tickets'} ] },
   { id:'minhasemana',  rot:'📋 Meu Planejamento',       abas:[ {v:'minhasemana',rot:'📋 Minha semana'}, {v:'planrel',aud:'minha',rot:'📈 Planejado × realizado'} ] },
-  { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'} ] },
+  { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'}, {v:'meustickets',rot:'🧾 Preciso criar meus tickets'} ] },
   { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
   { id:'reclassificar',rot:'🗂 Reuniões',               abas:[ {v:'reclassificar',rot:'↔ Reclassificar'}, {v:'reuvinc',rot:'🔗 Vincular a tickets'} ] },
   { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'} ] },
@@ -208,6 +209,7 @@ const NAVCAT=[
   ['meutempo','⏳ Como estou gastando meu tempo?','hub','meu tempo historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao meu trabalho'],
   ['planejar','📝 Criar ticket › 📝 Criar (lote, IA, voz)','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento'],
   ['ondecrio','📝 Criar ticket › 🌳 Passo 0 · Onde crio?','hub','arvore decisao projeto duvida novo planejamento onde crio o ticket'],
+  ['meustickets','📝 Criar ticket › 🧾 Preciso criar meus tickets','hub','preciso criar meus tickets o que fiz hoje relato texto livre por projeto achar ticket criar apontar horas status assistente dia fechar o dia timesheet novo'],
   // Dexterity Entrega — gestores de entrega e PMs
   ['alertas','🚨 Alertas','entrega','central atrasados vencidos reprogramar gestao'],
   ['gestao','🛠 Tickets do time › 🛠 Ações em massa (Gestão)','entrega','massa atribuir status transferir epico duplicados excluir gestao de tickets'],

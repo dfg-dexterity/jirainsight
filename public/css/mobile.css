@@ -1499,6 +1499,15 @@
     border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);
     width:100%;box-sizing:border-box}
   .vw-ondecrio .campo>input.arv-in[type=text]{margin-bottom:10px}
+  /* 🧾 Preciso criar meus tickets: a tabela de horas vira cartão por item; chave/título ocupam a linha */
+  .vw-meustickets .mt-tab,.vw-meustickets .mt-tab tbody,.vw-meustickets .mt-tab tr,.vw-meustickets .mt-tab td{display:block;width:100%;box-sizing:border-box}
+  .vw-meustickets .mt-tab thead{display:none}
+  .vw-meustickets .mt-tab tr{border-bottom:1px solid var(--linha);padding:8px 0}
+  .vw-meustickets .mt-tab td{border-bottom:0;padding:4px 0}
+  .vw-meustickets .mt-tab input.mt-tempo,.vw-meustickets .mt-tab input.mt-dia{width:100%}
+  .vw-meustickets .mt-opcao input[type=text]{flex:1 1 100%;min-width:0}
+  .vw-meustickets .mt-opcao.mt-outro input.mt-chave{flex:1 1 100%}
+  .vw-meustickets .mt-acoes .btn{flex:1 1 auto}
   /* "Atualizar lista" não precisa do rótulo vazio que o alinha no computador */
   :is(.vw-reclass,.vw-reuvinc) .ap-filtros{gap:8px}
   :is(.vw-reclass,.vw-reuvinc) .ap-filtros .campo:last-child>label{display:none}

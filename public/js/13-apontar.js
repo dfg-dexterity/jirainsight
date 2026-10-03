@@ -618,7 +618,7 @@ async function validaIdentidade(){
       estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
       buscaConvites();                 // atualiza o selo de convites pendentes na aba
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
-      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); },700);
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); },700);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
 }
