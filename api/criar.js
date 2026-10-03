@@ -390,8 +390,9 @@ function magicoTempoSeg(txt) {
   if (!s) return null;
   if (/meia\s*hora/.test(s)) return 1800;
   if (/^(uma|1)\s*horas?$/.test(s)) return 3600;
-  s = s.replace(/\be\b/g, ' ').replace(/horas?/g, 'h').replace(/minutos?/g, 'm').replace(/\bmins?\b/g, 'm')
-    .replace(/\s+/g, '').replace(',', '.');
+  // "30min", "30 mins" e "2hrs" (como o relato e o separador sem IA escrevem) também valem.
+  s = s.replace(/\be\b/g, ' ').replace(/horas?/g, 'h').replace(/minutos?/g, 'm').replace(/(^|\d|\s)mins?\b/g, '$1m')
+    .replace(/(\d|\s)hrs?\b/g, '$1h').replace(/\s+/g, '').replace(',', '.');
   let m;
   if ((m = s.match(/^(\d+)[:h]([0-5]?\d)m?$/))) return (+m[1]) * 3600 + (+m[2]) * 60;
   if ((m = s.match(/^(\d+(?:\.\d+)?)h$/))) return Math.round((+m[1]) * 3600);
@@ -763,7 +764,7 @@ export function meusParseSimples(texto) {
       const faixa = meusFaixaSeg(ativ);
       if (faixa) { tempoTexto = magicoTempoFmt(faixa.seg); trecho = faixa.trecho; }
       else {
-        const mt = ativ.match(/(\d+\s*h\s*\d{1,2}\b|\d+(?:[.,]\d+)?\s*(?:h|horas?|hrs?)\b|\d+\s*(?:m|min|minutos?)\b|meia\s*hora)/i);
+        const mt = ativ.match(/(\d+\s*h\s*\d{1,2}\b|\d+(?:[.,]\d+)?\s*(?:h|horas?|hrs?)\b|\d+\s*(?:m|mins?|minutos?)\b|meia\s*hora)/i);
         // "às 14h", "até as 18h": horário do relógio, não tempo gasto — fica no texto e não vira apontamento.
         if (mt && !RE_HORARIO_ANTES_M.test(ativ.slice(0, mt.index))) { tempoTexto = mt[1].replace(/\s+/g, ''); trecho = mt[0]; }
       }
@@ -775,9 +776,11 @@ export function meusParseSimples(texto) {
   });
   return itens;
 }
-// Título sugerido quando a IA não deu um: a frase sem o verbo de relato, com inicial maiúscula.
-function meusTitulo(atividade) {
-  let t = String(atividade || '').replace(/^(eu\s+)?(fiz|realizei|executei|terminei|conclui|concluí|finalizei|trabalhei (na|no|em)|atuei (na|no|em)|estive (na|no|em))\s+(a|o|as|os|um|uma)?\s*/i, '').trim();
+// Título sugerido quando a IA não deu um: a frase sem a chave citada e sem o verbo de relato, com inicial maiúscula.
+function meusTitulo(atividade, chave) {
+  let t = String(atividade || '');
+  if (chave) t = t.replace(new RegExp(`\\b${chave.replace(/[^A-Z0-9_-]/gi, '')}\\b\\s*[:\\-–—]?\\s*`, 'gi'), ' ').replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/^(eu\s+)?(fiz|realizei|executei|terminei|conclui|concluí|finalizei|trabalhei (na|no|em)|atuei (na|no|em)|estive (na|no|em))\s+(a|o|as|os|um|uma)?\s*/i, '').trim();
   t = t.replace(/[.;:,\s]+$/, '');
   if (!t) t = String(atividade || '').trim();
   return (t.charAt(0).toUpperCase() + t.slice(1)).slice(0, 100);
@@ -807,9 +810,24 @@ export function meusCandidatos(atividade, chave, tickets) {
     .sort((a, b) => (b.nota - a.nota));
   return lista.slice(0, 4).map((c) => ({ ...c, nota: Math.round(c.nota * 100) / 100 }));
 }
+// O catálogo de projetos vem de um cache comum a todos: sem esta conferência, um e-mail/token
+// qualquer chegaria à IA e à leitura dos abertos (conta de serviço). Confirma no Jira (GET /myself)
+// e guarda só o hash do par por 10 min — o token nunca é guardado.
+async function meusConfereIdentidade(base, headers, email, token) {
+  const { createHash } = await import('node:crypto');
+  const ck = 'meus:eu:' + createHash('sha256').update(`${email}|${token}`).digest('hex').slice(0, 32);
+  if (cacheGet(ck)) return true;
+  const r = await fetch(`${base}/rest/api/3/myself`, { headers });
+  if (!r.ok) return false;
+  cacheSetTTL(ck, { ok: 1 }, 10);
+  return true;
+}
 async function meusTickets(res, b, base, headers) {
   const texto = String(b.texto || '').trim().slice(0, 4000);
   if (!texto) return json(res, 400, { erro: 'Conte o que você fez (texto vazio).' });
+  if (!(await meusConfereIdentidade(base, headers, String(b.email || '').trim(), String(b.token || '').trim()))) {
+    return json(res, 401, { erro: 'O Jira não aceitou o seu e-mail/token — refaça a identificação (Trocar usuário) e tente de novo.' });
+  }
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(b.dia || '')) ? String(b.dia) : magicoHojeSP();
   const projetos = await magicoProjetos(base, headers);
   if (!projetos.length) return json(res, 200, { ok: false, erro: 'Não consegui listar os projetos do Jira com o seu token.' });
@@ -858,7 +876,7 @@ async function meusTickets(res, b, base, headers) {
     else proj = meusAchaProjeto(projetos, x.projetoTexto);
     if (!proj && x.chave) { const pk = x.chave.split('-')[0]; proj = projetos.find((p) => p.key === pk) || null; }
     const item = { i, projeto: proj ? proj.key : '', projetoNome: proj ? proj.nome : '', projetoTexto: x.projetoTexto, atividade: x.atividade,
-      titulo: x.titulo || meusTitulo(x.atividade), chave: x.chave || '', tempoSeg: magicoTempoSeg(x.tempoTexto) || 0, tempoTexto: '',
+      titulo: x.titulo || meusTitulo(x.atividade, x.chave), chave: x.chave || '', tempoSeg: magicoTempoSeg(x.tempoTexto) || 0, tempoTexto: '',
       concluido: !!x.concluido, tipo: null, cands: [], truncado: false };
     if (item.tempoSeg && (item.tempoSeg < 60 || item.tempoSeg > 86400)) item.tempoSeg = 0;
     if (item.tempoSeg) item.tempoTexto = magicoTempoFmt(item.tempoSeg);

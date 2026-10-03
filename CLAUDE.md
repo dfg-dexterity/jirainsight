@@ -156,6 +156,17 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (o criado não é recriado: `ex.key` fica). Depois: `logAcao(…, false)` por ação + `salvaCfg()` uma vez,
   `invalidaCacheDados()`, `estado.apontar.porData={}`/`recentes=null`. Listeners `data-mt-*`/`#mt-*` no fim do
   14b; o tema não redesenha a tela (lista do 30-eventos-boot). Guia `GUIAS.meustickets` e passo no tour.
+  **Regras da revisão (mesmo dia):** todo redesenho DEPOIS de um await passa por `mtRender()` (só desenha se a
+  vista ainda é `meustickets` — a pessoa pode ter navegado); trocar o ticket de um item passa por
+  `mtTrocaTicket` (a transição escolhida era do ticket anterior); a validade das horas é UMA função
+  (`mtTempoRuim`/`mtTemposInvalidos`, usada no render, no digitar, nos chips e no avançar); chave citada no
+  relato que não está entre os abertos é conferida pela ficha antes de oferecer "criar"; o ticket novo nasce
+  **atribuído a quem cria** (`respId`, sem responsável só se o projeto recusar); o rascunho sai quando a
+  execução começa; depois de uma execução com falha dá para voltar só às Horas e aos Status (3 e 4) e
+  confirmar de novo; "Concluído" num fluxo que exige "Em andamento" passa por ele (um salto). No servidor a
+  sub-rota **confere a identidade no Jira** (`/myself`, hash do par por 10 min) antes da IA e da leitura dos
+  abertos — o catálogo vem de um cache comum e não prova nada; horário ("às 14h", "14:30") não vira horas
+  e "das 9h às 11h" vira 2h (`meusFaixaSeg`).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o
