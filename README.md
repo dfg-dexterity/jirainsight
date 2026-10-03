@@ -70,7 +70,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 
 | Arquivo | O que tem |
 | --- | --- |
-| `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
+| `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase; conflito → mescla de 3 vias `cfgMescla3`, item a item pelo id), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
 | `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha com a 🦴 **espinha do projeto** — `projEspinha`/`projEspinhaVai`: chips Contrato · Parceria · Plano · Cronograma · Execução · Apuração · Resultado que abrem a tela da outra área já no projeto, fases 3–4) e o **caminho de volta** (`projAbreFicha` + handler global `[data-proj-ficha]`, `projChipsFicha` para as listas de projetos das outras telas) |
 | `02b-cronograma.js` | 📅 Marcos e Cronograma (R04): Gantt em cascata dos épicos com planejado × real, marcos, previsão pelo ritmo, dependências "blocks", detalhe do épico (burn-up, horas por mês, composição) e CSV |
 | `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, 🎫 Controle de tickets separado por responsabilidade (`agClasse`, `agIgnorado`, `agAguardando`), `renderAgenda` |

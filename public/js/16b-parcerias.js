@@ -453,8 +453,11 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     const p=pcEquipe(c).find(x=>x.id===pid); if(!p) return; const r=pcRegras(p).find(x=>x.id===rid);
     p.regras=pcRegras(p).filter(x=>x.id!==rid); pcLog(c,'equipe',`${pcNomeRec(p)} · trecho removido${r?' ('+pcRegraRot(r)+')':''}`); salvaCfg(); renderParcerias(); return; }
   if(t.id==='pc-f-abrir-pasta'){ const u=pcUrl((document.getElementById('pc-f-pasta')||{}).value); if(u) window.open(u,'_blank','noopener'); else toast('Cole primeiro o link da pasta (http:// ou https://).','warn'); return; }
-  if(t.hasAttribute('data-pc-novo')){ st.novo=true; st.editId=null; st.rasc=pcNovo(); st.destaque=''; renderParcerias(); return; }
-  if(t.hasAttribute('data-pc-edit')){ st.editId=t.getAttribute('data-pc-edit'); st.novo=false; st.rasc=null; st.destaque=''; renderParcerias(); window.scrollTo({top:0,behavior:'smooth'}); return; }
+  // O formulário nasce acima da lista: rola até ELE (subir para o topo deixava o formulário abaixo da dobra — parecia
+  // que o "editar" não fazia nada).
+  const vaiProForm=()=>{ const f=document.querySelector('.pc-form'); if(f) try{ f.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} };
+  if(t.hasAttribute('data-pc-novo')){ st.novo=true; st.editId=null; st.rasc=pcNovo(); st.destaque=''; renderParcerias(); vaiProForm(); return; }
+  if(t.hasAttribute('data-pc-edit')){ st.editId=t.getAttribute('data-pc-edit'); st.novo=false; st.rasc=null; st.destaque=''; renderParcerias(); vaiProForm(); return; }
   if(t.id==='pc-f-cancelar'){ st.novo=false; st.editId=null; st.rasc=null; renderParcerias(); return; }
   if(t.id==='pc-f-salvar'){ const fb=document.getElementById('pc-f-fb'); const diz=(m)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=m; } };
     if(st.editId){ const c=pcDe(st.editId); if(!c) return; const antes=JSON.parse(JSON.stringify(c)); const erro=pcLeForm(c); if(erro){ Object.assign(c,antes); diz(erro); return; }

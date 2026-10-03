@@ -59,6 +59,19 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   redesenho das tabelas editáveis (extras, rateio) é adiado (`pcAdiaRender`) até o foco sair da tabela, e o
   formulário do contrato renasce de `st.rasc` e reaproveita o nó aberto (era isso que fazia o contrato "não editar").
   Falha de gravação da config compartilhada agora avisa na tela (`avisaCfgRecusada`).
+- **🔀 Mescla de três vias da config compartilhada (2026-10-03, a pedido do usuário: "não consigo editar nem
+  excluir os contratos"):** a causa era a mescla de conflito do `cfgAdotaRemoto` (01-nucleo.js): a CHAVE inteira que
+  a sessão tinha mexido vencia o remoto, e só desenhar a 🤝 Parceiros já "mexia" em `cfg.parcerias` (`pcDocs`,
+  `pcEquipe`, `pcPrev`, `pcRateio`, `pcRateios`, `pcExtras` criam `[]`/`{}` no contrato). Resultado: uma aba antiga, o
+  celular ou um colega com a tela aberta salvava qualquer coisa → conflito → devolvia a lista INTEIRA de contratos
+  velha → o contrato excluído voltava e a edição sumia. Agora `cfgMescla3(base, local, remoto)` (bloco
+  `// <cfg-mescla>`): **vazio não conta como mudança** (`cfgIgual` ignora `[]`/`{}`/ausente), objetos se mesclam
+  **campo a campo** e listas de itens com `id` **item a item** (excluído aqui sai; excluído lá só volta se esta sessão
+  o editou de verdade; criado dos dois lados fica; mesmo campo nos dois lados → vale o desta sessão). Lista sem `id`
+  mexida nos dois lados → vale a desta sessão (como antes). Lista nova na config = dar `id` aos itens para ganhar a
+  mescla item a item. Aba aberta antes da publicação roda a mescla antiga até recarregar (no roadmap: o servidor
+  recusar cliente desatualizado). Testes: `cfg-mescla-test` (unidade, 12 casos) e `parcerias-duas-sessoes` (Playwright,
+  duas sessões contra um servidor que persiste e devolve conflito por rev, com a config real de produção).
 - **✎ Horas vendidas digitadas por mês (2026-09-21, a pedido do usuário):** a linha **Horas vendidas** do 🗓 planner
   (`17b-rentabilidade.js`) aceita um número por mês — `p.vendMan['AAAA-MM']`, irmão do `c.prev[ym]` do contrato. O
   ajuste entra em **`rpVendPorMes`**, a **fonte única** das horas vendidas, e por isso vale de uma vez para receita
