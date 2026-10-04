@@ -388,6 +388,20 @@ A cada **entrega/commit** desta ferramenta:
    o worklog nessa tarefa via MCP do Atlassian (`addWorklogToJiraIssue`) ou, se o
    conector pedir aprovação indisponível, via Zapier
    (`jira_software_cloud_add_work_log_to_issue`).
+3. **🖐 Passo manual = ticket `[Manual step]`** (acordo de 2026-10-04, a pedido do usuário — vale para
+   **qualquer projeto/repositório**, não só este): *"toda a tarefa que eu preciso fazer algo manualmente,
+   crie um ticket no mesmo projeto em que você criou o ticket do trabalho, começando com [Manual step]"*.
+   Sempre que uma entrega deixar algo que **só o usuário pode fazer** (configurar algo no Jira/Vercel/
+   Supabase/Odoo/M365/DNS, aprovar no conector, cadastrar dados reais no app, testar com credencial dele…):
+   - **um ticket por passo**, no **mesmo projeto Jira e sob o mesmo épico** do ticket do trabalho (aqui: `JI`);
+   - resumo começando **exatamente** com `[Manual step] ` + o que fazer (ex.: `[Manual step] Criar o tipo
+     "Melhoria" no projeto JI`); tipo "Tarefa", atribuído ao usuário, **sem transição** (fica aberto até ele
+     concluir — nunca "Feito");
+   - descrição: por que é necessário, o **passo a passo** (onde clicar), como saber que deu certo e o que o app
+     faz enquanto o passo não é feito; link **"relates to"** com o ticket do trabalho;
+   - citar as chaves dos tickets `[Manual step]` na mensagem final ao usuário e no corpo do PR;
+   - antes de criar, **conferir se o passo ainda está pendente** (ex.: a variável já existe na Vercel? o tipo já
+     existe no Jira?) — passo que já está feito não vira ticket.
 
 > As escritas no Jira podem exigir aprovação do conector no claude.ai; se falhar com
 > "requires approval", avisar o usuário para aprovar e repetir — não pular a etapa.
