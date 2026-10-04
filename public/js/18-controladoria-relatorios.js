@@ -135,7 +135,7 @@ function ctResultado(d, key){
     seg+=s; if(w.f) segFat+=s; custo+=cu; rec+=rc; if(d.gest.has(w.a)) custoGest+=cu; });
   const cons=((ct.proj&&ct.proj.projetos)||[]).find(x=>x.key===key)||null;
   const ficha=((estado.projetos&&estado.projetos.fichas)||{})[key]||null;
-  const vendidas=contrato?(contrato.tipo==='ams'?((typeof amsHorasCiclo==='function')?amsHorasCiclo(contrato):0):(Number(contrato.horasContratadas)||0)):0;
+  const vendidas=contrato?ctHorasDoProjeto(contrato,key):0;   // AMS = horas do ciclo · horas abertas = o alocado a este projeto
   const gastoJira=cons?(Number(cons.gastoH)||0):null; const estJira=cons?(Number(cons.estH)||0):null;
   const valorVendido=(contrato&&contrato.tipo!=='ams'&&vendidas&&vh)?vendidas*vh:0;
   // custo realizado (histórico do Jira): por responsável quando a ficha já foi lida; senão ≈ horas do Jira × custo/h médio do período
@@ -179,7 +179,7 @@ function ctResultadoHTML(d, key){
     const mgV=(R.valorVendido&&R.custoReal!=null)?R.valorVendido-R.custoReal:null; const mgVp=mgV!=null?ctPct(mgV,R.valorVendido):null; const [rotV,clsV]=ctSemaforo(mgVp);
     vr=`<div class="ams-dgrid">
       ${dl('Contrato',`${esc(c.cliente||'')} · ${esc(rotuloTipo(c.tipo))}`)}
-      ${dl(c.tipo==='ams'?'Horas por ciclo':'Horas vendidas', R.vendidas?fmtHd(R.vendidas):'—')}
+      ${dl(c.tipo==='ams'?'Horas por ciclo':c.tipo==='horas'?'Horas alocadas ao projeto':'Horas vendidas', R.vendidas?fmtHd(R.vendidas):(c.tipo==='horas'?'<span class="muted">ainda não alocadas</span>':'—'))}
       ${dl('Realizadas (Jira, histórico)', temCons?fmtHd(R.gastoJira):'<span class="muted">consolidado ainda não lido</span>')}
       ${dl('Consumo', pcH==null?'—':`<span class="ct-sem ${pcH>100?'crit':(pcH>=85?'aten':'ok')}">${pcH}%</span> <span class="muted small">${pcH>100?'estourou':(pcH>=85?'em risco':'dentro')}</span>`)}
       ${dl('Valor vendido', R.valorVendido?`${fmtBRL(R.valorVendido)} <span class="muted small">${fmtHd(R.vendidas)} × ${fmtBRL(R.vh)}</span>`:(c.tipo==='ams'?'<span class="muted">por ciclo — ver 🛡 AMS</span>':'—'))}

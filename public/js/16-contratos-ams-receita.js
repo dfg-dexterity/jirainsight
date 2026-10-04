@@ -9,8 +9,21 @@ function consumoContrato(c){
   ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(set.has(w.p)) seg+=(Number(w.s)||0); });
   return { seg, valor:(seg/3600)*(Number(c.valorHora)||0) };
 }
-const TIPOS_CONTRATO=[['ams','AMS (pacote por ciclo)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)']];
+const TIPOS_CONTRATO=[['ams','AMS (pacote por ciclo)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)'],['horas','Horas abertas (alocar por projeto)']];
 function rotuloTipo(t){ const o=TIPOS_CONTRATO.find(x=>x[0]===t); return o?o[1]:t; }
+// ---- ⏱ Horas abertas (2026-10-04, a pedido do usuário: "informar o número de horas contratado e, num segundo
+// momento, alocar essas horas para projetos do Jira"): o contrato guarda o TOTAL (horasContratadas) e a alocação
+// por projeto em c.alocacao = {CHAVE: horas}; c.projetos continua sendo a lista de projetos do contrato (é ela que
+// liga as horas apontadas a todos os módulos). Projeto marcado sem horas = ainda não alocado.
+// Categorias do Jira que cada tipo SUGERE no seletor (as demais ficam a um clique, em "mostrar todos").
+const CT_CATS={ ams:['DAMS','PAMS'], horas:['DEA','PEA'], projeto:['DEF','PEF'], bolsa:['DEA','PEA','DEF','PEF','DAMS','PAMS'] };
+function ctSiglaProj(p){ return (typeof relSiglaDe==='function')?relSiglaDe((p&&p.categoria)||''):''; }
+function ctAlocDe(c, k){ return Math.max(0, Number(((c&&c.alocacao)||{})[k])||0); }   // leitor: não cria c.alocacao
+function ctAlocTotal(c){ return ((c&&c.projetos)||[]).reduce((s,k)=>s+ctAlocDe(c,k),0); }
+// Horas "vendidas" de UM projeto do contrato — a régua que a Controladoria, as Métricas, a Rentabilidade e a ficha do
+// projeto usam: AMS = horas do ciclo; horas abertas = o que foi alocado ao projeto; bolsa/projeto = o total do contrato.
+function ctHorasDoProjeto(c, k){ if(!c) return 0; if(c.tipo==='ams') return amsHorasCiclo(c);
+  if(c.tipo==='horas') return ctAlocDe(c,k); return Number(c.horasContratadas)||0; }
 
 // ---------- AMS: apuração por ciclo (com banco de horas dentro do ciclo) ----------
 const AMS_APUR=[['mensal','Mensal'],['trimestral','Trimestral'],['semestral','Semestral'],['anual','Anual']];
@@ -356,6 +369,109 @@ const ctCodCli=(c)=>ctCod(cfg.contratos||[], c, 'CT', 'ctSeq');
 function ctCopia(c){ const x=JSON.parse(JSON.stringify(c||{})); delete x.id; delete x.cod; delete x.portalToken;
   x.cliente=(String(c.cliente||'').trim()+' (cópia)').slice(0,120); x._dupDe={ id:c.id, cod:ctCodCli(c), nome:c.cliente||'' }; return x; }
 
+// ---- Formulário do contrato: o tipo, os projetos marcados e as horas alocadas vivem em estado.admin.form (e não no
+// DOM): a busca pode esconder um projeto marcado, e trocar o tipo redesenha a lista — nada disso pode perder a escolha.
+const ctNorm=(s)=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function ctFormEstado(edit){
+  const ad=estado.admin; const chave=ad.editId?('e:'+ad.editId):(ad.dup?('d:'+((ad.dup._dupDe&&ad.dup._dupDe.id)||'')):'novo');
+  if(!ad.form||ad.form.chave!==chave){
+    const marc={}; ((edit&&edit.projetos)||[]).forEach(k=>{ marc[k]=true; });
+    const aloc={}; Object.keys((edit&&edit.alocacao)||{}).forEach(k=>{ const h=ctAlocDe(edit,k); if(h>0) aloc[k]=h; });
+    ad.form={ chave, tipo:(edit&&edit.tipo)||'ams', marc, aloc, busca:'', todos:false };
+  }
+  return ad.form;
+}
+const CT_CAT_ROT={ DAMS:'Dexterity - AMS', PAMS:'Parceria - AMS', DEA:'Dexterity - Escopo Aberto', PEA:'Parceria - Escopo Aberto', DEF:'Dexterity - Escopo Fechado', PEF:'Parceria - Escopo Fechado' };
+function ctProjRotulo(tipo){
+  const cs=CT_CATS[tipo]||[];
+  const sug=`<span data-tip="${escA(cs.map(x=>`${x} · ${CT_CAT_ROT[x]||x}`).join(' / '))}">${esc(cs.join(', '))}</span>`;
+  return tipo==='horas'
+    ? `Projetos do Jira e horas alocadas <span class="muted">(sugeridos: ${sug} · pode alocar depois)</span>`
+    : `Projetos do Jira deste cliente <span class="muted">(sugeridos: ${sug} · marque um ou mais)</span>`;
+}
+function ctProjListaHTML(f){
+  if(!_projetosCache) return '<div class="muted small">Carregando projetos do Jira…</div>';
+  const cats=CT_CATS[f.tipo]||[]; const busca=ctNorm(f.busca).trim();
+  const lista=(_projetosCache||[]).filter(p=>{ const marc=!!f.marc[p.key]; const sig=ctSiglaProj(p);
+    if(!marc&&sig==='ARQ') return false;                         // arquivado só fica se já estava no contrato
+    if(!marc&&!f.todos&&!cats.includes(sig)) return false;       // fora das categorias do tipo: a um clique ("mostrar todos")
+    if(busca&&!ctNorm(`${p.key} ${p.nome||''} ${p.categoria||''}`).includes(busca)) return false;
+    return true; }).sort((a,b)=>((f.marc[b.key]?1:0)-(f.marc[a.key]?1:0))||a.key.localeCompare(b.key));
+  if(!lista.length) return `<div class="muted small" id="ad-projs">${busca?`Nenhum projeto com “${esc(f.busca)}”.`
+    :`Nenhum projeto das categorias <b>${esc(cats.join(', '))}</b> no Jira — marque <b>mostrar todos os projetos</b>.`}</div>`;
+  const tag=(p)=>{ const sig=ctSiglaProj(p); return sig&&!cats.includes(sig)?` <span class="muted small" data-tip="${escA(p.categoria||'sem categoria')}">(${esc(sig)})</span>`:(!sig?' <span class="muted small">(sem categoria)</span>':''); };
+  if(f.tipo!=='horas') return `<div class="rg-pessoas" id="ad-projs">${lista.map(p=>
+    `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${f.marc[p.key]?'checked':''}> ${esc(p.nome||p.key)} (${esc(p.key)})${tag(p)}</label>`).join('')}</div>`;
+  return `<div class="ad-aloc-lista" id="ad-projs">${lista.map(p=>{ const on=!!f.marc[p.key];
+    return `<div class="ad-aloc-l${on?' on':''}"><label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${on?'checked':''}> ${esc(p.nome||p.key)} (${esc(p.key)})${tag(p)}</label>
+      <span class="ad-aloc-h"><input type="number" min="0" step="1" data-ad-aloc="${escA(p.key)}" value="${on&&f.aloc[p.key]?escA(String(f.aloc[p.key])):''}" placeholder="${on?'a alocar':'—'}" ${on?'':'disabled'} aria-label="Horas alocadas em ${escA(p.key)}"> h</span></div>`; }).join('')}</div>`;
+}
+// Total alocado no formulário × horas contratadas — a mesma conta valida o salvar.
+function ctAlocForm(){
+  const f=estado.admin.form||{marc:{},aloc:{}};
+  const marcados=Object.keys(f.marc).filter(k=>f.marc[k]);
+  const alocado=marcados.reduce((s,k)=>s+(Number(f.aloc[k])||0),0);
+  const contr=Math.max(0,Number((document.getElementById('ad-horas')||{}).value)||0);
+  return { marcados, alocado, contr, semHoras:marcados.filter(k=>!(Number(f.aloc[k])>0)) };
+}
+function ctAlocResumo(){
+  const r=document.getElementById('ad-aloc-resumo'); if(!r) return;
+  const f=estado.admin.form; if(!f||f.tipo!=='horas'){ r.innerHTML=''; r.className='muted small'; return; }
+  const a=ctAlocForm(); const vh=Number((document.getElementById('ad-valor')||{}).value)||0;
+  const sobra=a.contr-a.alocado;
+  r.className='ad-aloc-resumo'+(a.contr&&sobra<0?' err':'');
+  r.innerHTML=!a.contr?'Informe as <b>horas contratadas</b> — depois é só distribuir entre os projetos (agora ou mais tarde).'
+    :`Contratado <b>${fmtHd(a.contr)}</b>${vh?` (${fmtBRL(a.contr*vh)})`:''} · alocado <b>${fmtHd(a.alocado)}</b> em ${a.marcados.length-a.semHoras.length} projeto(s) · `
+      +(sobra<0?`<b>⚠ ${fmtHd(-sobra)} além do contratado</b> — reduza a alocação ou aumente as horas contratadas`:`a alocar <b>${fmtHd(sobra)}</b>`)
+      +(a.semHoras.length?` · <span class="muted">${a.semHoras.length} projeto(s) ainda sem horas</span>`:'');
+}
+// ---- Consumo do contrato de horas abertas DESDE O INÍCIO da vigência (até hoje ou o fim) — à parte do período do
+// topo, que mede outra coisa. Uma leitura por intervalo (/api/tempo, teto de 12 meses como na 💹 Rentabilidade) em
+// estado.ctReal; sem início cadastrado, cai para o período do topo e a tela diz isso.
+function ctRealChave(c){ if(!c||!/^\d{4}-\d{2}-\d{2}$/.test(c.inicio||'')) return ''; const h=hojeSP();
+  const ate=(c.fim&&c.fim<h)?c.fim:h; let de=c.inicio; if(ate<de) return ''; if(de<voltaDias(ate,365)) de=voltaDias(ate,365); return `${de}|${ate}`; }
+function ctGaranteReal(c){
+  const k=ctRealChave(c); const R=estado.ctReal||(estado.ctReal={dados:{},busy:{},erro:{}}); if(!k||R.dados[k]||R.busy[k]||R.erro[k]) return;
+  const [de,ate]=k.split('|'); R.busy[k]=true;
+  const volta=()=>{ if(estado.vista==='admin') renderAdmin(); else if(estado.vista==='receita') renderReceita(); };
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{ R.busy[k]=false;
+    if(j&&!j.erro) R.dados[k]=j; else R.erro[k]=(j&&j.erro)||'Falha ao ler as horas.'; volta();
+  }).catch(e=>{ R.busy[k]=false; R.erro[k]=String(e.message||e); volta(); });
+}
+// {fonte:'inicio'|'periodo'|'carregando'|'erro', de, ate, cortado, seg, segFat, porProj:{K:seg}}
+function ctConsumoHoras(c){
+  const set=new Set(c.projetos||[]); const k=ctRealChave(c); const out={ fonte:'', de:'', ate:'', cortado:false, seg:0, segFat:0, porProj:{} };
+  let wl=null;
+  if(k){ const R=estado.ctReal||{dados:{},busy:{},erro:{}}; [out.de,out.ate]=k.split('|'); out.cortado=out.de>c.inicio;
+    if(R.dados[k]){ wl=R.dados[k].worklogs||[]; out.fonte='inicio'; }
+    else if(R.erro[k]){ out.fonte='erro'; out.erro=R.erro[k]; return out; }
+    else { ctGaranteReal(c); out.fonte='carregando'; return out; } }
+  else { wl=(estado.tempo&&estado.tempo.worklogs)||[]; out.fonte='periodo'; }
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const s=Number(w.s)||0; out.seg+=s; if(w.f) out.segFat+=s; out.porProj[w.p]=(out.porProj[w.p]||0)+s; });
+  return out;
+}
+function ctFonteTxt(cs){ return cs.fonte==='inicio'?`desde ${fmtBR(cs.de)}${cs.cortado?' (últimos 12 meses)':''}`
+  :cs.fonte==='periodo'?'no período do topo — cadastre o início da vigência para ver desde o começo'
+  :cs.fonte==='carregando'?'lendo as horas desde o início…':`não deu para ler as horas (${cs.erro||'erro'})`; }
+// Tabela projeto × alocado × consumido × saldo — a mesma no cartão do contrato e na 💰 Receita.
+function ctAlocTabelaHTML(c, cs){
+  const ks=c.projetos||[]; if(!ks.length) return '<div class="muted small">Nenhum projeto ainda — as horas estão todas <b>a alocar</b>.</div>';
+  const pron=cs.fonte==='inicio'||cs.fonte==='periodo';
+  const rows=ks.map(k=>{ const al=ctAlocDe(c,k); const h=(cs.porProj[k]||0)/3600; const pc=al?Math.round(h/al*100):null;
+    const cor=pc==null?'var(--muted)':pc>100?'var(--err)':pc>=85?'var(--amarelo)':'var(--musgo)';
+    return `<tr><td>${projChipsFicha([k])} <span class="muted small">${esc(projNome(k)!==k?projNome(k):'')}</span></td><td class="num">${al?fmtHd(al):'<span class="muted">a alocar</span>'}</td>
+      <td class="num">${pron?fmtHd(h):'…'}</td><td class="num">${al&&pron?(h>al?`<b style="color:var(--err)">−${fmtHd(h-al)}</b>`:fmtHd(al-h)):'—'}</td>
+      <td class="ad-aloc-bar">${al&&pron?`<span class="ad-aloc-track"><i style="width:${Math.min(100,pc)}%;background:${cor}"></i></span> <span class="muted small">${pc}%</span>`:''}</td></tr>`; }).join('');
+  return `<div class="scroll-x"><table class="ad-aloc-tab"><thead><tr><th>Projeto</th><th class="num">Alocado</th><th class="num">Consumido</th><th class="num">Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function ctProjAtualiza(){
+  const w=document.getElementById('ad-projs-wrap'); const f=estado.admin.form; if(!w||!f) return;
+  w.innerHTML=ctProjListaHTML(f);
+  const rot=document.getElementById('ad-projs-rot'); if(rot) rot.innerHTML=ctProjRotulo(f.tipo);
+  ctAlocResumo();
+}
+
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
@@ -364,21 +480,13 @@ function renderAdmin(){
   if(cfgShared&&idApontar()&&ctGaranteCodigos(contratos,'CT','ctSeq')) salvaCfg();
   const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : (ad.dup||null);
   const dup = !ad.editId&&ad.dup ? ad.dup : null;
-  // Só projetos da categoria AMS aparecem para mapear (+ os já marcados neste contrato,
-  // para não perder mapeamentos antigos de outra categoria).
-  const jaMarcados=new Set((edit&&edit.projetos)||[]);
-  const projsAll=(_projetosCache||[]).slice().sort((a,b)=>a.key.localeCompare(b.key));
-  const projs=projsAll.filter(p=>ehCategoriaAMS(p.categoria)||jaMarcados.has(p.key));
-
-  const projBox = projsAll.length
-    ? (projs.length
-        ? `<div class="rg-pessoas" id="ad-projs">${projs.map(p=>{
-            const ck = jaMarcados.has(p.key);
-            const foraAMS = !ehCategoriaAMS(p.categoria);
-            return `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${ck?'checked':''}> ${esc(p.nome||p.key)} (${esc(p.key)})${foraAMS?' <span class="muted small">(fora da categoria AMS)</span>':''}</label>`;
-          }).join('')}</div>`
-        : '<div class="muted small">Nenhum projeto da categoria <strong>AMS</strong> encontrado no Jira.</div>')
-    : '<div class="muted small">Carregando projetos do Jira…</div>';
+  const f=ctFormEstado(edit);   // tipo, projetos marcados e horas alocadas do formulário (sobrevivem ao redesenho)
+  const projBox=`<div class="ad-proj-barra">
+      <input type="search" id="ad-proj-busca" value="${escA(f.busca)}" placeholder="🔎 filtrar projetos (nome ou chave)" aria-label="Filtrar projetos">
+      <label class="check"><input type="checkbox" id="ad-proj-todos" ${f.todos?'checked':''}> mostrar todos os projetos</label>
+    </div>
+    <div id="ad-projs-wrap">${ctProjListaHTML(f)}</div>
+    <div class="muted small" id="ad-aloc-resumo"></div>`;
 
   const form=`<div class="card full">
     <h2>${dup?`⧉ Novo contrato — cópia de ${esc(dup._dupDe&&dup._dupDe.cod||'')} ${esc(dup._dupDe&&dup._dupDe.nome||'')}`:(edit?`Editar contrato <span class="badge ct-cod" data-tip="ID do contrato">${esc(ctCodCli(edit))}</span>`:'Novo contrato / cliente')}</h2>
@@ -386,10 +494,11 @@ function renderAdmin(){
     <div class="pl-grid">
       <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
       <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
-        ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${edit&&edit.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
-      <div class="campo" id="ad-horas-wrap"><label>Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
+        ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${f.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="campo" id="ad-horas-wrap"><label id="ad-horas-rot">Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
       <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(edit&&edit.valorHora!=null?String(edit.valorHora):'')}" placeholder="ex.: 122"></div>
       <div class="campo"><label>Início da vigência</label><input type="date" id="ad-inicio" value="${escA(edit?edit.inicio||'':'')}"></div>
+      <div class="campo" id="ad-fim-wrap"><label>Fim da vigência <span class="muted">(opcional)</span></label><input type="date" id="ad-fim" value="${escA(edit?edit.fim||'':'')}"></div>
       <div class="campo"><label>Responsável Dexterity</label><input type="text" id="ad-respdex" value="${escA(edit?edit.respDex||'':'')}" placeholder="nome do responsável (Dexterity)"></div>
       <div class="campo"><label>Responsável / Nome do Cliente</label><input type="text" id="ad-respcli" value="${escA(edit?edit.respCliente||'':'')}" placeholder="responsável pelo lado do cliente"></div>
     </div>
@@ -405,7 +514,7 @@ function renderAdmin(){
       <label class="check" style="margin-top:6px"><input type="checkbox" id="ad-banco" ${(!edit||edit.bancoHoras!==false)?'checked':''}> Banco de horas dentro do ciclo (saldo não consumido vale até o fim do ciclo; <strong>não acumula</strong> para o ciclo seguinte)</label>
       <div class="muted small" id="ad-ams-resumo" style="margin-top:8px"></div>
     </fieldset>
-    <div class="campo"><label>Projetos do Jira deste cliente <span class="muted">(categoria AMS · marque um ou mais)</span></label>${projBox}</div>
+    <div class="campo"><label id="ad-projs-rot">${ctProjRotulo(f.tipo)}</label>${projBox}</div>
     <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn primario" id="ad-salvar">${edit&&!dup?'Salvar alterações':'Adicionar contrato'}</button>
@@ -415,15 +524,31 @@ function renderAdmin(){
   </div>`;
 
   const cards=contratos.map(c=>{
-    const cons=consumoContrato(c); const h=cons.seg/3600;
-    const ams=c.tipo==='ams';
+    const ams=c.tipo==='ams', horas=c.tipo==='horas';
+    const csH=horas?ctConsumoHoras(c):null;   // horas abertas: consumo desde o início do contrato
+    const cons=horas?{seg:csH.seg, valor:(csH.seg/3600)*(Number(c.valorHora)||0)}:consumoContrato(c); const h=cons.seg/3600;
     const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const pctv=contr?Math.round(h/contr*100):null;
     const over=pctv!=null&&pctv>100;
     const vh=Number(c.valorHora)||0;
     const semProj=!(c.projetos||[]).length;
     const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
     let detalhes;
-    if(ams){
+    if(horas){
+      const al=ctAlocTotal(c); const aAlocar=contr-al;
+      detalhes=`<div class="ams-dgrid">
+        ${dl('Horas contratadas', contr?fmtHd(contr):'—')}
+        ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
+        ${dl('Valor do contrato', vh&&contr?fmtBRL(contr*vh):'—')}
+        ${dl('Alocado nos projetos', `${fmtHd(al)}${contr?` <span class="muted">(${Math.round(al/contr*100)}%)</span>`:''}`)}
+        ${dl('A alocar', aAlocar<0?`<b style="color:var(--err)">−${fmtHd(-aAlocar)}</b>`:(aAlocar>0?`<b style="color:var(--amarelo)">${fmtHd(aAlocar)}</b>`:'0h'))}
+        ${dl('Vigência', c.inicio?`${esc(fmtBR(c.inicio))}${c.fim?` → ${esc(fmtBR(c.fim))}`:''}`:'—')}
+        ${dl('Responsável Dexterity', c.respDex?esc(c.respDex):'—')}
+        ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
+      </div>
+      <div class="ad-aloc-bloco"><div class="ad-aloc-cab"><b>📌 Alocação por projeto</b> <span class="muted small">consumo ${esc(ctFonteTxt(csH))}</span>
+        <span class="spacer"></span><button class="btn" data-ad-alocar="${escA(c.id)}">📌 ${aAlocar>0&&!(c.projetos||[]).length?'alocar horas':'ajustar alocação'}</button></div>
+        ${ctAlocTabelaHTML(c, csH)}</div>`;
+    } else if(ams){
       const pool=amsHorasCiclo(c); const ca=amsCiclosAno(c.apuracao||'trimestral'); const parcela=pool*vh;
       detalhes=`<div class="ams-dgrid">
         ${dl('Apuração (ciclo)', esc(amsLabelApur(c.apuracao||'trimestral')))}
@@ -447,7 +572,7 @@ function renderAdmin(){
         ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
       </div>`;
     }
-    const projetos=`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
+    const projetos=horas?'':`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
     const obs=c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:'';
     const url = c.portalToken ? `${portalBase()}/portal.html?c=${encodeURIComponent(c.portalToken)}` : '';
     const portalLine = url
@@ -460,6 +585,10 @@ function renderAdmin(){
     // AMS sem projetos não aparece na apuração da aba AMS — avisa e oferece o atalho de edição.
     const avisoSemProj = (ams && semProj)
       ? `<div class="ad-cons" style="color:#B45309">⚠ Sem projetos mapeados — este contrato <strong>não aparece</strong> na apuração da aba <strong>AMS</strong>. Clique em <strong>editar</strong> e marque os projetos da categoria AMS.</div>`
+      : (horas && contr && ctAlocTotal(c)<contr)
+      ? `<div class="ad-cons" style="color:#B45309">📌 <strong>${fmtHd(contr-ctAlocTotal(c))}</strong> ainda a alocar — use <strong>📌 ${semProj?'alocar horas':'ajustar alocação'}</strong> quando os projetos do Jira estiverem definidos.</div>`
+      : (horas && contr && ctAlocTotal(c)>contr)
+      ? `<div class="ad-cons" style="color:var(--err)">⚠ A alocação passa das horas contratadas em <strong>${fmtHd(ctAlocTotal(c)-contr)}</strong>.</div>`
       : '';
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><span class="badge ct-cod" data-tip="ID do contrato — use para citar e procurar">${esc(ctCodCli(c))}</span> <strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
@@ -472,7 +601,7 @@ function renderAdmin(){
       ${projetos}
       ${obs}
       ${avisoSemProj}
-      <div class="ad-cons">Consumo no período: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}</div>
+      <div class="ad-cons">${horas?`Consumo ${esc(ctFonteTxt(csH))}`:'Consumo no período'}: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}${horas?' <span class="muted">· projeto a projeto na aba <strong>💰 Bolsa de horas &amp; projetos</strong></span>':''}</div>
       ${portalLine}
     </div>`;
   }).join('');
@@ -500,9 +629,12 @@ function renderAdmin(){
 // Mostra/esconde os campos de AMS conforme o tipo e atualiza o resumo derivado (h/ano, parcela).
 function amsToggleForm(){
   const t=document.getElementById('ad-tipo'); if(!t) return;
-  const isAms=t.value==='ams';
+  const isAms=t.value==='ams', isHoras=t.value==='horas';
   const ams=document.getElementById('ad-ams'); if(ams) ams.style.display=isAms?'':'none';
   const hw=document.getElementById('ad-horas-wrap'); if(hw) hw.style.display=isAms?'none':'';
+  const hr=document.getElementById('ad-horas-rot'); if(hr) hr.textContent=isHoras?'Horas contratadas (total)':'Horas contratadas';
+  const fw=document.getElementById('ad-fim-wrap'); if(fw) fw.style.display=isHoras?'':'none';
+  const f=estado.admin.form; if(f&&f.tipo!==t.value){ f.tipo=t.value; ctProjAtualiza(); } else ctAlocResumo();
   amsResumoForm();
 }
 function amsResumoForm(){
@@ -521,7 +653,8 @@ function salvaContrato(){
   const fb=document.getElementById('ad-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; }
   const cliente=v('ad-cliente');
   if(!cliente){ if(fb){ fb.classList.add('err'); fb.textContent='Informe o nome do cliente.'; } return; }
-  const projetos=[...document.querySelectorAll('#ad-projs input[data-ad-proj]:checked')].map(c=>c.getAttribute('data-ad-proj'));
+  const f=estado.admin.form||{marc:{},aloc:{}};
+  const projetos=Object.keys(f.marc).filter(k=>f.marc[k]);   // do estado: inclui os marcados que a busca escondeu
   const tipo=v('ad-tipo')||'ams';
   const dados={
     cliente, tipo,
@@ -539,13 +672,24 @@ function salvaContrato(){
   } else {
     dados.horasContratadas=Math.max(0,Number(v('ad-horas'))||0);
   }
+  if(tipo==='horas'){   // ⏱ horas abertas: o total é obrigatório; a alocação pode ficar para depois, mas não passa do total
+    const erro=(m)=>{ if(fb){ fb.classList.add('err'); fb.textContent=m; } };
+    if(!dados.horasContratadas) return erro('Informe as horas contratadas (o total do contrato) — a alocação nos projetos pode ficar para depois.');
+    const fim=v('ad-fim'); if(fim&&dados.inicio&&fim<dados.inicio) return erro('O fim da vigência é anterior ao início.');
+    const a=ctAlocForm();
+    if(a.alocado>dados.horasContratadas) return erro(`A alocação (${fmtHd(a.alocado)}) passa das horas contratadas (${fmtHd(dados.horasContratadas)}) em ${fmtHd(a.alocado-dados.horasContratadas)}. Reduza a alocação ou aumente o total.`);
+    dados.fim=fim; dados.alocacao={};
+    projetos.forEach(k=>{ const h=Math.max(0,Number(f.aloc[k])||0); if(h>0) dados.alocacao[k]=h; });
+  }
   cfg.contratos=cfg.contratos||[];
   const ad=estado.admin;
-  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c) Object.assign(c, dados); ad.editId=null; }
+  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c){ Object.assign(c, dados);
+      if(tipo!=='horas'){ delete c.alocacao; delete c.fim; } }   // mudou de tipo: a alocação de horas abertas não fica pendurada
+    ad.editId=null; }
   else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP();
     if(ad.dup&&ad.dup._dupDe) dados.copiaDe=ad.dup._dupDe.cod||ad.dup._dupDe.id;
     cfg.contratos.push(dados); try{ toast(`Contrato ${dados.cod} adicionado.`,'ok'); }catch(e){} }
-  ad.dup=null; salvaCfg(); renderAdmin();
+  ad.dup=null; ad.form=null; salvaCfg(); renderAdmin();
 }
 // ===============================================================================
 
@@ -724,7 +868,40 @@ function renderReceita(){
   const totalUteis=diasUteis.length;
 
   // ---- Bolsa de horas / projeto fechado: projeção pelo período da tela ----
-  const outros=contratos.filter(c=>c.tipo!=='ams');
+  const outros=contratos.filter(c=>c.tipo!=='ams'&&c.tipo!=='horas');
+  // ---- ⏱ Horas abertas: contratado × alocado × consumido DESDE O INÍCIO, projeto a projeto ----
+  const abertos=contratos.filter(c=>c.tipo==='horas');
+  const cardHoras=(c)=>{
+    const cs=ctConsumoHoras(c); const contr=Number(c.horasContratadas)||0; const al=ctAlocTotal(c); const h=cs.seg/3600; const vh=Number(c.valorHora)||0;
+    const pron=cs.fonte==='inicio'||cs.fonte==='periodo';
+    const estPor=(c.projetos||[]).filter(k=>{ const a=ctAlocDe(c,k); return a&&(cs.porProj[k]||0)/3600>a; });
+    const risco=!pron?'ok':(contr&&h>=contr?'estourado':(estPor.length||(contr&&h>=contr*0.85)?'risco':'ok'));
+    const cor=risco==='estourado'?'#D20A0A':(risco==='risco'?'#C77700':'#188918');
+    const w=contr&&pron?Math.min(100,h/contr*100):0; const wa=contr?Math.min(100,al/contr*100):0;
+    const tag=risco==='estourado'?'<span class="rc2-tag est">contrato esgotado</span>':risco==='risco'?`<span class="rc2-tag ris">${estPor.length?`${estPor.length} projeto(s) acima do alocado`:'em risco'}</span>`:'';
+    return `<div class="rc2-card ${risco}" data-ct-horas="${escA(c.id)}">
+      <div class="rc2-top"><span class="badge ct-cod">${esc(ctCodCli(c))}</span> <strong>${esc(c.cliente||'(sem nome)')}</strong>
+        <span class="badge">${esc(rotuloTipo(c.tipo))}</span><span class="spacer"></span>${tag}</div>
+      ${contr?`<div class="rc2-bar"><div class="rc2-track">
+          <div class="rc2-fill" style="width:${w.toFixed(1)}%;background:${cor}"></div>
+          ${wa>0.5&&wa<99.5?`<div class="rc2-proj" style="left:${wa.toFixed(1)}%" data-tip="Até aqui está alocado nos projetos (${fmtHd(al)})"></div>`:''}
+        </div>
+        <div class="rc2-bar-l"><span><strong>${pron?fmtHd(h):'…'}</strong> consumidas de ${fmtHd(contr)}${pron&&contr?` (${Math.round(h/contr*100)}%)`:''}</span>
+          <span class="muted">alocado ${fmtHd(al)}${contr>al?` · a alocar ${fmtHd(contr-al)}`:''}</span></div></div>`
+        :'<div class="rc2-bar-l" style="margin:10px 0"><span class="muted">sem horas contratadas</span></div>'}
+      <div class="muted small" style="margin:6px 0">Consumo ${esc(ctFonteTxt(cs))}</div>
+      ${ctAlocTabelaHTML(c, cs)}
+      <div class="rc2-fin">
+        <div><div class="rc2-fv">${vh&&pron?fmtBRL(h*vh):'—'}</div><div class="rc2-fl">Receita estimada</div></div>
+        <div><div class="rc2-fv">${vh&&contr?fmtBRL(contr*vh):'—'}</div><div class="rc2-fl">Valor do contrato</div></div>
+        <div><div class="rc2-fv">${pron&&cs.seg?Math.round(cs.segFat/cs.seg*100)+'%':'—'}</div><div class="rc2-fl">Faturável</div></div>
+      </div>
+      <div class="rc2-meta"><button class="btn" data-ad-alocar-ir="${escA(c.id)}">📌 ${contr>al?'alocar horas':'ajustar alocação'} em 📑 Contratos</button></div>
+    </div>`;
+  };
+  const horasSection=abertos.length?`<div class="card full"><h2>⏱ Horas abertas <span>${abertos.length} contrato(s) · contratado × alocado × consumido desde o início</span></h2>
+      <div class="muted small" style="margin-bottom:12px">O total contratado é distribuído entre os projetos do Jira (📌 alocação); o consumo de cada projeto é contado <strong>desde o início da vigência</strong> (até 12 meses), não pelo período do topo. A marca escura na barra é o quanto já foi alocado.</div>
+      <div class="rc2-grid">${abertos.map(cardHoras).join('')}</div></div>`:'';
   const linhas=outros.map(c=>{
     const an=analisaContrato(c);
     const contrSeg=(Number(c.horasContratadas)||0)*3600;
@@ -791,9 +968,10 @@ function renderReceita(){
     </div>` : '';
 
   cont.replaceChildren(el(`<div class="rc-tela">
-    ${genericoSection || `<div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
-      <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong> ou <strong>projeto fechado</strong> cadastrado.<br>
-      Os contratos <strong>AMS</strong> têm aba própria (<strong>🛡 AMS</strong>, ao lado). Cadastre contratos em <strong>📑 Contratos › 🏢 Clientes</strong>.</div></div>`}
+    ${genericoSection || (horasSection?'':`<div class="card full"><h2>💰 Bolsa de horas &amp; projetos <span>consumo × contratado, projeção e receita estimada</span></h2>
+      <div class="estado">Nenhum contrato de <strong>bolsa de horas</strong>, <strong>projeto fechado</strong> ou <strong>horas abertas</strong> cadastrado.<br>
+      Os contratos <strong>AMS</strong> têm aba própria (<strong>🛡 AMS</strong>, ao lado). Cadastre contratos em <strong>📑 Contratos › 🏢 Clientes</strong>.</div></div>`)}
+    ${horasSection}
   </div>`));
 }
 
@@ -859,12 +1037,33 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(e.target && e.target.id==='ams-sel'){ estado.ams.sel=e.target.value; estado.ams.ref=''; renderAMS(); }
 });
 // ---- Administração: cadastro de contratos ----
+// Projetos do contrato e horas alocadas: só anotam no estado do formulário (e atualizam a linha e o resumo), sem
+// redesenhar a tela — o que foi digitado nos outros campos fica onde está.
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  const t=e.target; if(!t||!estado.admin.form) return; const f=estado.admin.form;
+  if(t.hasAttribute&&t.hasAttribute('data-ad-proj')){ const k=t.getAttribute('data-ad-proj'); if(t.checked) f.marc[k]=true; else delete f.marc[k];
+    const l=t.closest('.ad-aloc-l'); if(l){ l.classList.toggle('on',t.checked); const h=l.querySelector('[data-ad-aloc]'); if(h){ h.disabled=!t.checked; h.placeholder=t.checked?'a alocar':'—'; if(t.checked&&f.aloc[k]) h.value=f.aloc[k]; if(!t.checked) h.value=''; } }
+    ctAlocResumo(); }
+  else if(t.id==='ad-proj-todos'){ f.todos=t.checked; ctProjAtualiza(); }
+});
+document.getElementById('conteudo').addEventListener('input', (e)=>{
+  const t=e.target; if(!t||!estado.admin.form) return; const f=estado.admin.form;
+  if(t.hasAttribute&&t.hasAttribute('data-ad-aloc')){ const k=t.getAttribute('data-ad-aloc'); const h=Number(t.value);
+    if(t.value===''||!(h>0)) delete f.aloc[k]; else f.aloc[k]=h; ctAlocResumo(); }
+  else if(t.id==='ad-proj-busca'){ f.busca=t.value; ctProjAtualiza(); }
+  else if(t.id==='ad-horas'||t.id==='ad-valor'){ ctAlocResumo(); }
+});
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-ir-admin')){ vaiPara('admin'); return; }
+  if(t.hasAttribute('data-ad-alocar-ir')){ estado.admin.editId=t.getAttribute('data-ad-alocar-ir'); estado.admin.dup=null; vaiPara('admin');
+    setTimeout(()=>{ const w=document.getElementById('ad-projs-wrap'); if(w) w.scrollIntoView({block:'center'}); },60); return; }
   if(t.id==='ad-salvar'){ salvaContrato(); }
-  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; renderAdmin(); }
+  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; estado.admin.form=null; renderAdmin(); }
   else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); estado.admin.dup=null; renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.hasAttribute('data-ad-alocar')){   // 📌 alocar horas: abre o contrato já na lista de projetos
+    estado.admin.editId=t.getAttribute('data-ad-alocar'); estado.admin.dup=null; renderAdmin();
+    const w=document.getElementById('ad-projs-wrap'); if(w){ w.scrollIntoView({block:'center'}); const i=w.querySelector('input[data-ad-aloc]:not([disabled])'); if(i) i.focus({preventScroll:true}); } }
   else if(t.hasAttribute('data-ad-dup')){ const c=(cfg.contratos||[]).find(x=>x.id===t.getAttribute('data-ad-dup')); if(!c) return;
     estado.admin.editId=null; estado.admin.dup=ctCopia(c); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'});
     try{ const i=document.getElementById('ad-cliente'); if(i){ i.focus({preventScroll:true}); i.select(); } }catch(x){} }

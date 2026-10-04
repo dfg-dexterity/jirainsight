@@ -439,12 +439,24 @@ CSS e **respeita `prefers-reduced-motion`** (sem animação para quem pediu meno
 ### ⚙️ Administração — Contratos & Valores
 
 Aba **Admin**: cadastro de **clientes/contratos** que destrava AMS e Receita.
-Para cada contrato: **cliente**, **tipo** (AMS / bolsa de horas / projeto),
+Para cada contrato: **cliente**, **tipo** (AMS / bolsa de horas / projeto / **horas abertas**),
 **valor-hora (R$)**, **vigência** e os **projetos do Jira** mapeados ao cliente.
 
-> **Só projetos da categoria AMS** aparecem para mapear (categoria do Jira que contém
-> "AMS", ex.: *"DAMS | Dexterity - AMS"*). Projetos já marcados num contrato continuam
-> listados mesmo que sejam de outra categoria (não se perde mapeamento antigo).
+> **A lista de projetos segue o tipo** (desde 2026-10-04; antes ela só mostrava AMS e os
+> projetos de horas abertas nem apareciam): AMS sugere DAMS/PAMS, **Horas abertas** sugere
+> DEA/PEA, Projeto sugere DEF/PEF e Bolsa todas as categorias de cliente (`CT_CATS`). "Mostrar
+> todos os projetos" abre as demais (arquivados só se já estavam no contrato) e a 🔎 filtra por
+> nome/chave. O tipo, os marcados e as horas vivem em `estado.admin.form` — o que a busca esconde
+> continua marcado e é salvo.
+
+**⏱ Horas abertas (2026-10-04):** o contrato guarda o **total contratado** (`horasContratadas`,
+obrigatório) e, quando os projetos existirem, a **alocação por projeto** (`c.alocacao = {CHAVE: horas}`,
+`c.projetos` = os projetos do contrato). Dá para salvar só o total e alocar depois (📌 alocar horas
+no cartão); alocar além do contratado não salva. O cartão e a aba **💰 Bolsa de horas & projetos**
+mostram contratado × alocado × consumido × saldo por projeto, com o consumo lido **desde o início da
+vigência** (`/api/tempo?desde&ate`, teto de 12 meses — `ctConsumoHoras`). `ctHorasDoProjeto(c, chave)`
+é a régua de "horas vendidas" de UM projeto que a Controladoria, as Métricas, a 💹 Rentabilidade e a
+ficha do projeto usam: AMS = horas do ciclo; horas abertas = o alocado ao projeto; bolsa/projeto = o total.
 
 Para o tipo **AMS** há um bloco extra de parâmetros do contrato:
 

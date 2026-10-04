@@ -358,7 +358,7 @@ function rmBlPessoas(d){
 }
 function rmBlVendidas(d){
   const rows=d.alvo.map(p=>{ const P=d.por[p.key]||{seg:0}; const c=ctContratoDe(p.key); const cons=d.consPor[p.key]||{};
-    const vend=c&&Number(c.horasContratadas)>0?Number(c.horasContratadas):0; const est=cons.estH||0; const base=vend||est;
+    const vend=c?ctHorasDoProjeto(c,p.key):0; const est=cons.estH||0; const base=vend||est;   // horas abertas: vend = o alocado a este projeto
     const real=cons.gastoH||0; const pc=rmPct(real,base);
     const st=!base?rmSem('na','sem horas vendidas'):(pc>100?rmSem('crit','estourou'):(pc>=85?rmSem('aten','em risco'):rmSem('ok','dentro')));
     return { drill:`pj=${p.key}`, cels:[`<b>${esc(p.nome)}</b> <span class="muted small">${esc(p.key)}</span>`, vend?`${fmtHd(vend)} <span class="muted small">contrato</span>`:(est?`${fmtHd(est)} <span class="muted small" data-tip="Sem contrato com horas: usa a soma das estimativas do Jira">estimado</span>`:'—'),
@@ -382,7 +382,7 @@ function rmBlAdm(d){
 }
 function rmBlValorVendido(d){
   rmGaranteFichas(d.alvo.map(p=>p.key));
-  const rows=d.alvo.map(p=>{ const c=ctContratoDe(p.key); const vh=c?(Number(c.valorHora)||0):0; const hv=c?(Number(c.horasContratadas)||0):0;
+  const rows=d.alvo.map(p=>{ const c=ctContratoDe(p.key); const vh=c?(Number(c.valorHora)||0):0; const hv=c&&c.tipo!=='ams'?ctHorasDoProjeto(c,p.key):0;
     const vend=vh*hv; const f=rmFicha(p.key); const P=d.por[p.key]||{custo:0,seg:0};
     const custoReal=f?(f.esforcoResp||[]).reduce((s,r)=>s+(r.gastoH||0)*ctCustoDe(r.id||''),0):null;
     const mg=custoReal!=null&&vend?vend-custoReal:null; const mgp=vend?rmPct(mg,vend):null; const [rot,cls]=ctSemaforo(mgp);
