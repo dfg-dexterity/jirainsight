@@ -201,6 +201,20 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   prévia e o envio; o servidor corta parâmetro com cara de segredo na URL e limita os erros a 8. Prefixo `rep` no
   front (o `rp` é da Rentabilidade). O formulário antigo da Ajuda saiu; `{feedback:true}` segue aceito para abas
   antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 45 casos).
+- **⏱ Contrato de cliente "Horas abertas" (2026-10-04, a pedido do usuário: "um tipo horas abertas; informar o
+  número de horas contratado e depois alocar essas horas para projetos do Jira; hoje nem consigo selecionar esses
+  projetos"):** a causa do "não consigo selecionar" era o seletor do 🏢 Clientes filtrar SEMPRE pela categoria AMS.
+  Agora a lista segue o tipo (`CT_CATS`: AMS → DAMS/PAMS, horas → DEA/PEA, projeto → DEF/PEF, bolsa → todas de
+  cliente; sigla por `relSiglaDe`), com 🔎 busca e "mostrar todos" (ARQ só se já marcado). O formulário guarda
+  tipo/marcados/horas em **`estado.admin.form`** (`ctFormEstado`, chave = edição/cópia/novo) — o salvar lê daí, não
+  do DOM, então o que a busca esconde não se perde, e trocar o tipo redesenha só a lista (`ctProjAtualiza`). Tipo
+  `horas`: `horasContratadas` obrigatório, `c.alocacao={CHAVE:h}` (só >0) com soma ≤ contratado, `c.fim` opcional;
+  mudar de tipo apaga `alocacao`/`fim`. Leitores `ctAlocDe`/`ctAlocTotal` não criam objeto. Consumo desde o início
+  (`ctConsumoHoras`/`ctGaranteReal`, cache `estado.ctReal` por intervalo, teto 12 meses; sem início cai para o
+  período do topo e a tela diz). **`ctHorasDoProjeto(c,k)` é a régua única** das horas vendidas de um projeto
+  (Controladoria `ctResultado`, Métricas vendidas/valor vendido, 💹 Rentabilidade e a ficha do projeto ao criar o
+  plano). Aba 💰 ganhou a seção ⏱ Horas abertas (`[data-ct-horas]`) e a lista genérica deixou de incluir `horas`.
+  Teste: `horas-abertas-test.mjs` (Playwright, 30 casos).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o

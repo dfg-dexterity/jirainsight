@@ -1231,6 +1231,29 @@
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
   /* 🔖 ID visível do contrato (CT-001 / PC-001) e a linha do topo do cartão que agora quebra quando não cabe (3 botões) */
   .ad-card .ad-top{flex-wrap:wrap}
+  /* ⏱ Horas abertas (2026-10-04): seletor de projetos por categoria e alocação das horas por projeto */
+  .ad-proj-barra{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:2px 0 8px}
+  .ad-proj-barra input[type=search]{flex:1 1 220px;max-width:340px;padding:6px 10px;border:1px solid var(--linha2);border-radius:8px;background:var(--cartao);color:inherit;font:inherit;font-size:13px}
+  .ad-aloc-lista{display:flex;flex-direction:column;gap:2px;max-height:340px;overflow:auto;border:1px solid var(--linha);border-radius:10px;padding:6px 10px}
+  .ad-aloc-l{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--linha)}
+  .ad-aloc-l:last-child{border-bottom:0}
+  .ad-aloc-l .check{flex:1 1 auto;min-width:0}
+  .ad-aloc-l.on{font-weight:600}
+  .ad-aloc-h{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:12.5px;color:var(--texto2)}
+  .ad-aloc-h input{width:84px;padding:4px 6px;border:1px solid var(--linha2);border-radius:6px;background:var(--cartao);color:inherit;font:inherit;text-align:right}
+  .ad-aloc-h input:disabled{opacity:.45}
+  .ad-aloc-resumo{margin-top:8px;font-size:12.5px;color:var(--texto2)}
+  .ad-aloc-resumo.err{color:var(--err)}
+  .ad-aloc-bloco{margin:10px 0 6px;padding-top:8px;border-top:1px dashed var(--linha)}
+  .ad-aloc-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .ad-aloc-cab .btn{padding:4px 10px;font-size:12px}
+  .ad-aloc-tab{width:100%;border-collapse:collapse;font-size:12.5px}
+  .ad-aloc-tab th{text-align:left;font-weight:600;color:var(--muted);font-size:11.5px;padding:3px 6px;border-bottom:1px solid var(--linha)}
+  .ad-aloc-tab td{padding:4px 6px;border-bottom:1px dashed var(--linha);vertical-align:middle}
+  .ad-aloc-tab .num{text-align:right;white-space:nowrap}
+  .ad-aloc-bar{white-space:nowrap}
+  .ad-aloc-track{display:inline-block;width:70px;height:6px;border-radius:999px;background:var(--trilho);overflow:hidden;vertical-align:middle}
+  .ad-aloc-track i{display:block;height:100%}
   .badge.ct-cod{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;letter-spacing:.02em;background:var(--cartao2);border:1px solid var(--linha);color:var(--grafite)}
   .ad-portal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;border-top:1px dashed var(--linha);padding-top:8px}
   /* 🔐 Acessos do cliente (contas do portal com senha) */

@@ -1483,6 +1483,14 @@
   .ams-chcard .ams-ch-b{display:none}
   .pc-xt-tab td:nth-child(1),.pc-xt-tab td:nth-child(2){grid-column:span 3}
 }
+/* ⏱ horas abertas (2026-10-04): a alocação por projeto vira linha de duas camadas e a tabela rola no cartão */
+@media (max-width:760px){
+  .ad-proj-barra input[type=search]{max-width:none;font-size:16px}
+  .ad-aloc-lista{max-height:none}
+  .ad-aloc-l{flex-wrap:wrap;gap:4px 10px}
+  .ad-aloc-h input{font-size:16px;width:96px;min-height:40px}
+  .ad-aloc-tab{font-size:13px}
+}
 /* ---- fim: negocio ---- */
 
 /* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */

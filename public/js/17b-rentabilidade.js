@@ -665,8 +665,9 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     const c=(cfg.contratos||[]).find(x=>x&&(x.projetos||[]).includes(t.value)); if(!c) return;
     const vh=document.getElementById('rp-f-vh'), cg=document.getElementById('rp-f-carga'), md=document.getElementById('rp-f-modo'), dica=document.getElementById('rp-f-dica');
     if(vh&&!Number(vh.value)&&Number(c.valorHora)>0) vh.value=c.valorHora;
-    if(cg&&md&&(md.value!=='total'||!Number(cg.value))&&Number(c.horasContratadas)>0&&c.tipo!=='ams'&&!(Number(cg.value)>0&&md.value==='dia')){ cg.value=c.horasContratadas; md.value='total'; }
-    if(dica) dica.innerHTML=`💡 Contrato <b>${esc(c.cliente||'')}</b> encontrado: ${Number(c.valorHora)>0?`valor-hora ${fmtBRL(c.valorHora)}`:'sem valor-hora'}${Number(c.horasContratadas)>0?` · ${c.horasContratadas}h contratadas`:''}. Prefere horas por dia útil? Troque o modo e informe a carga diária.`;
+    const hvP=ctHorasDoProjeto(c,t.value);   // horas abertas: o alocado a ESTE projeto, não o total do contrato
+    if(cg&&md&&(md.value!=='total'||!Number(cg.value))&&hvP>0&&c.tipo!=='ams'&&!(Number(cg.value)>0&&md.value==='dia')){ cg.value=hvP; md.value='total'; }
+    if(dica) dica.innerHTML=`💡 Contrato <b>${esc(c.cliente||'')}</b> encontrado: ${Number(c.valorHora)>0?`valor-hora ${fmtBRL(c.valorHora)}`:'sem valor-hora'}${c.tipo==='horas'?(hvP>0?` · ${hvP}h alocadas a este projeto (de ${Number(c.horasContratadas)||0}h do contrato de horas abertas)`:' · contrato de horas abertas ainda sem horas alocadas a este projeto'):(Number(c.horasContratadas)>0?` · ${c.horasContratadas}h contratadas`:'')}. Prefere horas por dia útil? Troque o modo e informe a carga diária.`;
     const cl=document.getElementById('rp-f-cliente'); if(cl&&!cl.value&&c.cliente) cl.value=c.cliente; return; }
   if(!p||!gestor) return;
   const c0=rpCenario(p); const meses=rpMeses(p);

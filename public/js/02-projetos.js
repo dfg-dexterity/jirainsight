@@ -432,7 +432,8 @@ function projEspinhaVai(id, key) {
       const sig = (typeof relSiglaDe === 'function' && ficha.categoria) ? relSiglaDe(ficha.categoria) : '';   // tipo pela categoria da ficha (o cache de projetos pode não estar carregado)
       np.tipo = sig ? (/^(DEF|PEF)$/.test(sig) ? 'fechado' : /^(IMI|IPA|ITPR)$/.test(sig) ? 'interno' : 'horas') : rpTipoSugerido(key);
       if (contrato) { np.cliente = contrato.cliente || ''; if (Number(contrato.valorHora) > 0) np.valorHora = Number(contrato.valorHora);
-        if (Number(contrato.horasContratadas) > 0 && contrato.tipo !== 'ams') { np.modoCarga = 'total'; np.cargaTotal = Number(contrato.horasContratadas); } }
+        const hv = (typeof ctHorasDoProjeto === 'function') ? ctHorasDoProjeto(contrato, key) : Number(contrato.horasContratadas);   // horas abertas: o que foi alocado a ESTE projeto
+        if (hv > 0 && contrato.tipo !== 'ams') { np.modoCarga = 'total'; np.cargaTotal = hv; } }
       rr.novo = true; rr.rasc = np;
     } else toast('Este projeto ainda não tem plano de rentabilidade — um gestor pode criar um na 💹 Rentabilidade.');
     vaiPara('rentab'); return;

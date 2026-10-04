@@ -291,7 +291,7 @@ function abreAjuda(){
       faturável × não faturável (pelo <b>tipo</b> do chamado), chamados do ciclo, labels de ciclo faturado e
       <b>PDF da apuração</b>. A aba <b>💰 Bolsa de horas & projetos</b>: consumo × contratado e projeção.
       <b>Dexterity Negócio › 📑 Contratos › 🏢 Clientes</b>: o cadastro de clientes/contratos que alimenta tudo isso
-      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira); a aba <b>🤝 Parceiros</b> guarda os contratos com as consultorias,
+      (tipo, horas, valor-hora, vigência, mín/teto mensal e projetos do Jira — no tipo <b>⏱ Horas abertas</b>, o total contratado é distribuído entre os projetos, agora ou depois); a aba <b>🤝 Parceiros</b> guarda os contratos com as consultorias,
       com a <b>📂 pasta do contrato no SharePoint</b> (o contrato e os aditivos abrem com 1 clique, com a sua conta) e a <b>👥 equipe e alocação</b> —
       cada recurso com os seus trechos (<i>2h por dia útil de 15/05 a 25/05, 4h por dia depois</i>) virando horas e valor previstos em cada nota —
       e, quando o mês for negociado, gestores <b>digitam por cima</b> as horas ou o valor daquele período (✎), com o calculado sempre ao lado e o ↺ para voltar ao automático.
@@ -378,10 +378,10 @@ const TOUR_TELAS=[
   {vai:'reclassificar',titulo:'🗂 Reuniões — aba Reclassificar',texto:'Gestão e reclassificação de reuniões: mova tickets de reunião do RDF para o projeto certo (tipo e status preservados) ou confirme como processo administrativo.'},
   {vai:'reuvinc',titulo:'🗂 Reuniões — aba Vincular',texto:'Transforme reuniões em registro num ticket de AMS (criar novo ou comentar num aberto, com worklog) — e 🔁 transfira QUALQUER ticket pelo número (vincula o esforço e exclui o original).'},
   {vai:'ams',titulo:'🛡 Apuração de contratos › AMS (por ciclo)',texto:'Um contrato por vez, por ciclo: banco de horas, faturamento, faturável × não faturável (pelo TIPO do chamado), chamados do ciclo e PDF da apuração.'},
-  {vai:'receita',titulo:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período.'},
+  {vai:'receita',titulo:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',texto:'Bolsa de horas e projetos: consumo × contratado, projeção e receita estimada por período — e a seção ⏱ Horas abertas: contratado × alocado × consumido desde o início, projeto a projeto.'},
   {vai:'prioridades',titulo:'🎯 Prioridades do time',texto:'As (até) 5 prioridades da semana com dono, prazo e pedido ao time; portfólio por natureza mostrando só exceções; e o Modo reunião que conduz a pauta de 35 minutos — status é assíncrono, a reunião decide.'},
   {vai:'config',titulo:'⚙️ Central de configurações',texto:'Todos os ajustes num lugar só: metas & ausências, contratos, resumo agendado no Teams, integrações e preferências.'},
-  {vai:'admin',titulo:'📑 Contratos › 🏢 Clientes',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento. Cada contrato tem um ID (CT-001…) e pode ser ⧉ duplicado.'},
+  {vai:'admin',titulo:'📑 Contratos › 🏢 Clientes',texto:'Cadastro de clientes/contratos (tipo, horas, valor-hora, vigência, projetos do Jira) — a base do AMS, da Receita e do risco de faturamento. Cada contrato tem um ID (CT-001…) e pode ser ⧉ duplicado. No tipo ⏱ Horas abertas, informe o total e aloque as horas nos projetos do Jira (agora ou depois).'},
   {vai:'parcerias',titulo:'📑 Contratos › 🤝 Parceiros (consultorias)',texto:'Os contratos com as consultorias parceiras: modalidade, validade e aviso prévio, valor-hora, fechamento do período de faturamento e dia da nota (ajustáveis mês a mês), conta de recebimento. É daqui que a Rentabilidade tira os períodos de faturamento e os itens da ordem de venda no Odoo. Cada contrato tem um ID (PC-001…) e pode ser ⧉ duplicado.'},
   {vai:'rentab',titulo:'💹 Rentabilidade de projetos',texto:'O plano financeiro de cada projeto: receita por modelo (horas abertas, escopo fechado com marcos, interno), alocação pessoa × mês por regra (feriados descontados), horas vendidas digitáveis por mês, cenários, simulador, períodos de faturamento ligados ao contrato e à ordem de venda no Odoo, realizado do Clockwork e histórico de quem mudou o quê.'},
   {vai:'portal',titulo:'🌐 Portal do cliente',texto:'O módulo que monta o que o cliente vê do projeto: publicar/despublicar, o calendário do projeto no M365, épicos ocultos, conteúdo curado (pendências, riscos, FAQ, reuniões), decisões visíveis, as contas de acesso do cliente e a pré-visualização com o mesmo dado que ele recebe.'},
@@ -489,7 +489,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-10-03';
+const GUIAS_REV='2026-10-04';
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo — já filtrada no que o card contou.'},
@@ -763,7 +763,8 @@ const GUIAS={
   receita:{t:'🛡 Apuração de contratos › 💰 Bolsa de horas & projetos',p:[
     {s:'#conteudo .kpis',ti:'A visão do dinheiro',tx:'Bolsa de horas e projetos: consumo × contratado, com a receita estimada do período.'},
     {s:'#conteudo .rc2-grid',ti:'Projeto a projeto',tx:'Cada barra mostra quanto do contratado já foi consumido, com a projeção até o fim — e a tag de risco quando o ritmo estoura.',quando:'Aparece quando houver contratos com horas e projetos mapeados.'},
-    {ti:'De onde vêm os números',tx:'Da base de Contratos (Admin): horas contratadas, valor-hora e projetos do Jira. Contrato sem projeto mapeado não aparece aqui.'}]},
+    {s:'#conteudo [data-ct-horas]',ti:'⏱ Horas abertas',tx:'Os contratos de horas abertas têm a seção própria: contratado × alocado × consumido, com o consumo contado DESDE O INÍCIO da vigência (até 12 meses) — não pelo período do topo — e a tabela por projeto (alocado, consumido, saldo). A marca escura na barra é o quanto já foi alocado; o 📌 leva à alocação em 📑 Contratos.',quando:'Aparece quando houver contrato do tipo ⏱ Horas abertas.'},
+    {ti:'De onde vêm os números',tx:'Da base de Contratos (Admin): horas contratadas, valor-hora e projetos do Jira (e, nas horas abertas, a alocação por projeto). Contrato sem projeto mapeado não aparece nas barras de bolsa e projeto.'}]},
   controladoria:{t:'🏦 Controladoria de Projetos',p:[
     {s:'#conteudo .ap-chips',ti:'Escolha a categoria',tx:'A saúde financeira é lida por CATEGORIA de projeto (AMS, Tarefas Avulsas…) — os blocos são configuráveis por categoria.'},
     {s:'#ct-de',ti:'O período da apuração',tx:'De/até próprios desta tela (não é o período do topo), porque o fechamento financeiro tem calendário próprio.'},
@@ -784,8 +785,11 @@ const GUIAS={
   admin:{t:'📑 Contratos › 🏢 Clientes',p:[
     {s:'#ad-cliente',ti:'O cadastro do contrato',tx:'Cliente, tipo de contrato, horas contratadas, valor-hora, vigência e mínimo/teto mensal.'},
     {s:'#conteudo .ad-card .ct-cod',ti:'🔖 O ID do contrato',tx:'Cada contrato tem um ID (CT-001, CT-002…) para citar, procurar e conferir — nasce no cadastro e nunca muda; o de um contrato removido não volta para outro. Os contratos antigos ganharam o ID pela ordem em que foram cadastrados.',quando:'Aparece nos contratos já cadastrados.'},
+    {s:'#conteudo [data-ad-alocar]',ti:'📌 Alocação por projeto',tx:'No contrato de horas abertas, o cartão mostra contratado, alocado e a alocar, e a tabela projeto × alocado × consumido × saldo — o consumo contado desde o início da vigência. 📌 alocar horas abre o contrato já na lista de projetos.',quando:'Aparece nos contratos de ⏱ Horas abertas.'},
     {s:'#conteudo [data-ad-dup]',ti:'⧉ Duplicar',tx:'Abre um contrato NOVO já preenchido com os dados deste (tipo, horas, valor-hora, AMS, projetos): ajuste o nome e as datas e clique em Adicionar — nada é gravado antes disso. O link do cliente não é copiado (cada contrato tem o seu) e a cópia ganha um ID próprio, guardando de qual veio.',quando:'Aparece nos contratos já cadastrados.'},
-    {s:'#ad-projs',ti:'Projetos do Jira',tx:'É este mapeamento que liga o contrato às horas apontadas — sem ele, AMS e Receita não têm o que apurar.',quando:'Aparece no formulário do contrato (ao cadastrar um novo ou editar um existente).'},
+    {s:'#ad-tipo',ti:'O tipo de contrato',tx:'AMS (pacote por ciclo), Bolsa de horas (total), Projeto (horas fechadas) ou ⏱ Horas abertas — um total de horas contratado que você distribui entre os projetos do Jira, agora ou depois. O tipo escolhe também quais projetos a lista sugere.'},
+    {s:'#ad-projs',ti:'Projetos do Jira',tx:'É este mapeamento que liga o contrato às horas apontadas — sem ele, AMS e Receita não têm o que apurar. A lista sugere as categorias do tipo (AMS → DAMS/PAMS; Horas abertas → DEA/PEA; Projeto → DEF/PEF; Bolsa → todas as de cliente); "mostrar todos os projetos" abre as demais e a 🔎 filtra pelo nome ou chave — o que você marcou continua marcado mesmo escondido pela busca.',quando:'Aparece no formulário do contrato (ao cadastrar um novo ou editar um existente).'},
+    {s:'#ad-aloc-resumo',ti:'⏱ Horas abertas: alocar por projeto',tx:'Informe o total contratado e, quando os projetos existirem, as horas de cada um ao lado do nome. O resumo mostra contratado, alocado e o que falta alocar — alocar além do contratado não salva. Pode cadastrar só o total agora e alocar depois.',quando:'Aparece quando o tipo é ⏱ Horas abertas.'},
     {s:'#ad-salvar',ti:'Salvar e conferir',tx:'Depois de salvar, o consumo do contrato aparece logo abaixo, no período selecionado no topo.'},
     {s:'#conteudo [data-pcli-abre]',ti:'👤 Acessos do cliente',tx:'A área do cliente com e-mail e senha: ninguém se cadastra sozinho — você convida pelo e-mail (link de 7 dias, uso único), a conta nasce amarrada a este contrato e pode ser revogada a qualquer hora. É o mesmo bloco que o 🌐 Portal do cliente usa no modo projeto.',quando:'Aparece nos contratos já cadastrados, para gestores.'},
     {s:'#conteudo [data-ad-portal],#conteudo [data-ad-portal-input]',ti:'🔗 Link do cliente (sem senha)',tx:'O caminho antigo continua: um link único de acompanhamento, só leitura — quem tiver o endereço entra. "novo" gera outro link e invalida o anterior.',quando:'Aparece nos contratos já cadastrados.'}]},
