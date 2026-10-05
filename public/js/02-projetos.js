@@ -305,8 +305,11 @@ function projTabela(titulo, arr, cols) {
 function projEspinhaDados(key) {
   const contrato = (typeof ctContratoDe === 'function') ? ctContratoDe(key) : null;
   const plano = (typeof rpPlanos === 'function') ? (rpPlanos().find((x) => x && x.projeto === key) || null) : null;
-  const parceria = (plano && plano.contrato && typeof pcDe === 'function') ? pcDe(plano.contrato) : null;
-  return { contrato, plano, parceria };
+  // 🤝 a consultoria que fatura este projeto: o 🗂 projeto de um contrato de parceria (desde 2026-10-05 é o vínculo mais
+  // específico — o projeto está DENTRO do contrato da consultoria); sem ele, o contrato que o plano da Rentabilidade aponta.
+  const fr = (typeof pcFrenteDoProjeto === 'function') ? pcFrenteDoProjeto(key) : null;
+  const parceria = fr ? fr.c : ((plano && plano.contrato && typeof pcDe === 'function') ? pcDe(plano.contrato) : null);
+  return { contrato, plano, parceria, frente: fr ? fr.f : null };
 }
 // Próximo marco (Data limite de épico aberto ≥ hoje) e contagem de épicos — alimenta o chip 📅 Cronograma.
 function projMarcos(d) {
@@ -336,7 +339,7 @@ document.addEventListener('click', (e) => {
   projAbreFicha(t.getAttribute('data-proj-ficha'), t.getAttribute('data-proj-aba') || '');
 });
 function projEspinha(key, d) {
-  const { contrato, plano, parceria } = projEspinhaDados(key);
+  const { contrato, plano, parceria, frente } = projEspinhaDados(key);
   const r = d.resumo || {}; const cat = d.categoria || 'Sem categoria'; const mk = projMarcos(d);
   const fora = (a) => ((typeof areaVisivel === 'function' && !areaVisivel(a)) ? ' pesp-fora' : '');
   const areaRot = (a) => (((typeof AREAS !== 'undefined' && AREAS[a] && AREAS[a].rot) || a)).replace(/^Dexterity\s+/i, '');   // "Negócio", "Entrega" — cabe no canto do chip
@@ -349,8 +352,8 @@ function projEspinha(key, d) {
   const chips = [
     chip('contrato', 'negocio', '📑 Contrato', contrato ? `${contrato.cliente || '(sem nome)'} · ${rotTipo(contrato.tipo)}` : 'nenhum cadastrado',
       contrato ? 'Abre o contrato deste projeto em 📑 Contratos › 🏢 Clientes (valor-hora, horas, vigência)' : 'Nenhum contrato do Admin mapeia este projeto — abre 📑 Contratos › 🏢 Clientes para cadastrar'),
-    chip('parceria', 'negocio', '🤝 Parceria', parceria ? `${parceria.consultoria || '(sem nome)'} · fecha dia ${parceria.fatFecha || 31}` : (plano ? 'plano sem contrato de parceria' : 'sem contrato de parceria'),
-      parceria ? 'Abre 📑 Contratos › 🤝 Parceiros com o contrato desta consultoria em destaque (validade, aviso prévio, calendário de faturamento)' : 'Nenhum contrato de parceria ligado ao plano deste projeto — abre 🤝 Parceiros (vincule pelo plano, em 💹 Rentabilidade)'),
+    chip('parceria', 'negocio', '🤝 Parceria', parceria ? `${parceria.consultoria || '(sem nome)'} · ${frente ? '🗂 ' + ((typeof pcFrCurto === 'function') ? pcFrCurto(frente) : (frente.nome || 'projeto')) : 'fecha dia ' + (parceria.fatFecha || 31)}` : (plano ? 'plano sem contrato de parceria' : 'sem contrato de parceria'),
+      parceria ? (frente ? `Este projeto é faturado à ${parceria.consultoria || 'consultoria'} como o projeto "${frente.nome || ''}" do contrato — abre 📑 Contratos › 🤝 Parceiros em 🗂 Projetos (previsão por ciclo e dia, apuração, Odoo)` : 'Abre 📑 Contratos › 🤝 Parceiros com o contrato desta consultoria em destaque (validade, aviso prévio, ciclos de faturamento)') : 'Nenhum contrato de parceria ligado a este projeto — abre 🤝 Parceiros (cadastre-o como 🗂 projeto do contrato da consultoria, ou vincule pelo plano em 💹 Rentabilidade)'),
     chip('plano', 'negocio', '💹 Plano', plano ? `${plano.nome || '(sem nome)'}${tipoPlano ? ' · ' + tipoPlano : ''}${odoo}` : 'sem plano de rentabilidade',
       plano ? `Abre o plano de rentabilidade deste projeto (cenários, períodos de faturamento${odoo ? ', ordem de venda ' + (plano.odoo.name || '') + ' no Odoo' : ''})` : 'Sem plano ainda — abre a 💹 Rentabilidade com um plano novo já apontando para este projeto'),
     chip('cronograma', 'entrega', '📅 Cronograma', mk.n ? `${nBR(mk.n)} épico(s)${mk.prox ? ' · próximo marco ' + dataBR(mk.prox) : (mk.atras ? ` · ${nBR(mk.atras)} marco(s) atrasado(s)` : ' · sem marcos com data')}` : 'sem épicos',
@@ -404,13 +407,14 @@ function projGerenteMuda(key, a, add) {
   renderProjetos();
 }
 function projEspinhaVai(id, key) {
-  const { contrato, plano, parceria } = projEspinhaDados(key);
+  const { contrato, plano, parceria, frente } = projEspinhaDados(key);
   const ficha = (estado.projetos.fichas || {})[key] || {};
   if (id === 'gp') { if (estado.gp) { estado.gp.proj = key; estado.gp.meus = false; estado.gp.resp = ''; } vaiPara('gp'); return; }
   if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }
   if (id === 'parceria') {
     const st = estado.parcerias = estado.parcerias || {}; st.novo = false; st.editId = null; st.rasc = null;
     st.destaque = parceria ? parceria.id : ''; if (parceria) st.cal = '';
+    if (parceria && frente) st.aba = { id: parceria.id, qual: 'proj' };   // 🗂 já na gaveta dos projetos do contrato
     if (!parceria) toast(plano ? 'O plano deste projeto ainda não está ligado a um contrato de parceria — vincule em 💹 Rentabilidade › ✏️ Dados do projeto.' : 'Este projeto não tem plano nem contrato de parceria — aqui ficam as consultorias que contratam a Dexterity.');
     vaiPara('parcerias'); return;
   }

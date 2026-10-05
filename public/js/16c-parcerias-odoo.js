@@ -42,7 +42,7 @@ function pcSomaDias(s, n){ const [y,m,d]=String(s).split('-').map(Number); retur
 // pelo `focusin` seguinte: foco caiu em outra célula → continua adiado; caiu fora → redesenha; ninguém ganhou o
 // foco → redesenha depois de 800 ms.)
 let _pcRenderAdiado=false, _pcAdiaT=null;
-const PC_TAB_EDIT='.pc-xt-tab,.pc-rt-tab,.pc-fr';   // + o cartão de cada 🗂 projeto (16b)
+const PC_TAB_EDIT='.pc-xt-tab,.pc-rt-tab,.pc-fr,.pc-dia-tab';   // + o cartão de cada 🗂 projeto e a 📆 previsão diária (16b)
 const pcNaTabela=(e)=>!!(e&&e.closest&&e.closest(PC_TAB_EDIT));
 function pcAdiaRender(){ _pcRenderAdiado=true; clearTimeout(_pcAdiaT);
   _pcAdiaT=setTimeout(()=>{ _pcAdiaT=null; if(!_pcRenderAdiado) return; if(pcNaTabela(document.activeElement)){ pcAdiaRender(); return; } _pcRenderAdiado=false; if(estado.vista==='parcerias') renderParcerias(); },800); }
@@ -123,6 +123,12 @@ function pcLinhasOrdem(c, plan){
       rateio:(x.ac?[{ ac:x.ac, pct:100 }]:pcRateioEfetivo(c,x.ym)).map(r=>({ ac:r.ac, pct:r.pct })) }); });
   return out;
 }
+// 🗂 Projetos que vão à ordem como item próprio (período por projeto, a partir do "levar ao Odoo") e NÃO têm objeto de
+// resultado — o faturamento é por consultoria, mas o objeto de custo é identificado por projeto (pedido de 2026-10-05).
+function pcSemObjeto(c, plan){ const P=plan||pcPlanejamento(c); const legado=pcOdooLegado(c); const out=[];
+  (P.frentes||[]).forEach(f=>{ if(f.id===PC_SEM_FR||Number(f.ac)>0) return;
+    if(P.periodos.some(x=>pcNoOdoo(c,x.ym)&&!legado.has(x.ym)&&x.porFr&&x.porFr[f.id]&&(Number(x.porFr[f.id].v)||0)>0)) out.push(f); });
+  return out; }
 // Estado de um item (chave) na ordem, pela última leitura do Odoo.
 function pcOdooItem(c, chave){ const o=pcOdoo(c); return o?((o.itens||[]).find(x=>x.chave===chave)||null):null; }
 function pcOdooStatusChave(c, chave, nota, hoje){
@@ -294,6 +300,9 @@ function pcFaturamentosHTML(c, gestor, plan, hoje){
       <div class="muted small" style="align-self:center;max-width:540px">${desde?`As notas de <b>antes de ${esc(labelMesAbbr(desde))}</b> foram emitidas fora do painel: continuam na previsão, na apuração e no 💰 fluxo de caixa, mas <b>não viram item</b> na ordem de venda — nada é faturado duas vezes${pcOdoo(c)?'; itens antigos que já estão na ordem ficam como estão':''}.`:'Todos os períodos viram item na ordem de venda.'}${padrao&&!pcOdoo(c)?' Sem ordem ainda, o padrão é começar no período atual.':''}</div></div>`
     :(desde?`<div class="muted small">📤 Levando ao Odoo a partir de <b>${esc(labelMesAbbr(desde))}</b> — os períodos anteriores foram faturados fora do painel.</div>`:'');
   const erro=E.erro?`<div class="aviso err">⚠ ${esc(E.erro)}${E.dica?`<div class="muted small">${esc(E.dica)}</div>`:''}</div>`:'';
+  // 🎯 o faturamento é por consultoria (esta ordem), mas o objeto de resultado vai POR PROJETO: projeto com item na ordem e sem
+  // objeto próprio sai com o rateio padrão do contrato — avisado, não bloqueado (pedido de 2026-10-05)
+  const semAc=pcSemObjeto(c,P); const avisoAc=semAc.length?`<div class="aviso">🎯 <b>${semAc.length} projeto(s) sem objeto de resultado próprio</b> — ${semAc.map(f=>`<b>${esc(pcFrNome(f))}</b>`).join(', ')}: o item deles na ordem sai com o rateio padrão do contrato (${esc(pcRateioRot(pcRateio(c)))}). ${gestor?'Escolha o objeto de cada projeto em 🗂 Projetos › ⚙️ Cadastro (📥 carregue o catálogo do Odoo se a lista estiver vazia).':''}</div>`:'';
   const escolher=(E.escolher&&E.escolher.length)?`<div class="aviso">Mais de um cliente no Odoo parece com <b>${esc(c.consultoria||'')}</b> — escolha: <select data-pc-odoo-parc="${escA(c.id)}">${E.escolher.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select> <button class="btn primario" data-pc-odoo-parc-ok="${escA(c.id)}">Usar este cliente</button></div>`:'';
   const plano=E.plano?pcPlanoHTML(c,E.plano,gestor,ocupado):'';
   const avisos=(E.avisos&&E.avisos.length)?`<div class="aviso">⚠ O Odoo avisou: ${E.avisos.map(esc).join(' · ')}</div>`:'';
@@ -357,7 +366,7 @@ function pcFaturamentosHTML(c, gestor, plan, hoje){
     <div class="ap-filtros">${pSel('produtoId',ov.produtoId,ov.produtoNome,'Horas de consultoria (períodos)','— automático (1º produto de serviço à venda) —')}${pSel('produtoExtraId',ov.produtoExtraId,ov.produtoExtraNome,'Horas extras','— o mesmo das horas de consultoria —')}</div>
     <div class="muted small">Vale para os itens NOVOS (os que já existem na ordem mantêm o produto) e para todos os contratos.${prods.length?'':' Carregue o catálogo do Odoo (acima) para escolher.'}</div>`:'';
   return `<div class="pc-cal pc-fat"><div class="mp-h3">🧾 Faturamentos <span class="mp-dim">cada período de faturamento é um item da ordem de venda no Odoo; hora extra é item à parte; o rateio diz para qual objeto de resultado vai cada nota</span></div>
-    ${cab}${desdeHtml}${erro}${escolher}${avisos}${plano}${grade}${extras}${rateio}${produtos}
+    ${cab}${desdeHtml}${erro}${avisoAc}${escolher}${avisos}${plano}${grade}${extras}${rateio}${produtos}
     <div class="muted small" style="margin-top:8px">Horas e valor de cada período vêm de ${pcTemFrentes(c)?'<b>🗂 Projetos</b> (a ✔ apuração de cada projeto ou, sem ela, a previsão da alocação/estimativa) — um item por projeto e período':'<b>👥 Equipe e alocação</b> (inclusive o ✎ ajuste manual)'}. Um item já <b>faturado</b> no Odoo nunca é alterado pelo painel; o que sai da previsão é apagado da cotação ou <b>zerado</b> na ordem confirmada. A nota só sai de 🧾 Próximas notas quando o item é faturado no Odoo.</div></div>`;
 }
 // Modal: rateio próprio de UM período.

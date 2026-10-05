@@ -2069,6 +2069,19 @@
   .pc-fat-tab tr.pc-fr-sub td{background:var(--cartao2);font-size:12.5px}
   .pc-desde{margin:8px 0 4px;align-items:flex-start} .pc-desde select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
   .pc-ap-tab td,.pc-ap-tab th{white-space:nowrap} .pc-ap-tab input{font-size:13px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite);text-align:right}
+  /* 📅 ciclos com início/fim próprios · 📆 previsão diária por projeto e ciclo (2026-10-05) */
+  .pc-fr-acs{white-space:nowrap}
+  .pc-dia{margin-top:4px} .pc-dia-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px}
+  .pc-dia-h select{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite);max-width:100%}
+  .pc-dia-fds-l{display:inline-flex;gap:4px;align-items:center;cursor:pointer}
+  .pc-dia-tab td,.pc-dia-tab th{white-space:nowrap} .pc-dia-tab tfoot td{border-top:2px solid var(--linha)}
+  .pc-dia-tab tr.pc-dia-fds td{color:var(--muted);background:var(--cartao2)}
+  .pc-dia-tab input.pc-dia-i{width:64px;font-size:13px;padding:3px 5px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite);text-align:right}
+  .pc-dia-tab input.pc-dia-i::placeholder{color:var(--muted);font-style:italic}
+  .pc-dia-tab input.pc-dia-i.pc-man{border-color:var(--marca,#009994);font-weight:700;background:rgba(0,153,148,.06)}
+  .pc-dia-tab tr.pc-dia-ap td{font-weight:400} .pc-dia-tab tr.pc-dia-fr td{border-top:1px dashed var(--linha)}
+  .pc-dia-fill{white-space:nowrap} .pc-dia-fill input{width:58px;font-size:12.5px;padding:3px 5px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite);text-align:right;margin-right:4px}
+  .pc-dia-n{display:block}
   .pc-imp-arq{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
   .pc-imp-arq label.btn{cursor:pointer}
   #pc-imp-cola{font-family:var(--mono,monospace);font-size:12px;padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
