@@ -1420,6 +1420,34 @@
   .pc-eq-tab .pc-rg-ded{display:flex;width:100%}
   .pc-eq-tab .pc-rg-ded>input{flex:0 0 36%}
   .pc-eq-tab .pc-rg-ded>select{flex:1 1 auto}
+  /* 🗂 com projetos (2026-10-05) o trecho ganha a 1ª coluna "Projeto": as demais andam uma casa */
+  .pc-eq-tab.pc-com-fr td:nth-child(1){flex:1 1 100%}
+  .pc-eq-tab.pc-com-fr td:nth-child(1)::before{content:'Projeto'}
+  .pc-eq-tab.pc-com-fr td:nth-child(2),.pc-eq-tab.pc-com-fr td:nth-child(3){flex:1 1 calc(50% - 4px)}
+  .pc-eq-tab.pc-com-fr td:nth-child(2)::before{content:'De'}
+  .pc-eq-tab.pc-com-fr td:nth-child(3)::before{content:'Até'}
+  .pc-eq-tab.pc-com-fr td:nth-child(4){flex:1 1 100%}
+  .pc-eq-tab.pc-com-fr td:nth-child(4)::before{content:'Dedicação'}
+  .pc-eq-tab.pc-com-fr td:nth-child(5){flex:1 1 25%}
+  .pc-eq-tab.pc-com-fr td:nth-child(5)::before{content:'Dias úteis'}
+  .pc-eq-tab.pc-com-fr td:nth-child(6){flex:2 1 45%}
+  .pc-eq-tab.pc-com-fr td:nth-child(6)::before{content:'Horas'}
+  .pc-eq-tab.pc-com-fr td:nth-child(7){flex:0 0 auto}
+  /* 🗂 projetos do contrato, ✔ apuração, 📥 importação e 💰 fluxo de caixa */
+  .pc-fr{padding:8px 8px 8px 10px}
+  .pc-fr .pc-fr-nome{min-width:0;flex:1 1 100%;max-width:none;font-size:16px}
+  .pc-fr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pc-fr-grid input,.pc-fr-grid select{width:100%!important;min-width:0!important;box-sizing:border-box}
+  .pc-fr-acoes>.btn{flex:1 1 100%}
+  .pc-tela .scroll-x>table:is(.pc-fr-tab,.pc-cx-tab) :is(th,td):first-child:not([colspan]){
+    position:sticky;left:0;z-index:1;background-color:var(--cartao);box-shadow:inset -1px 0 0 var(--linha)}
+  .pc-cx-kpi{flex:1 1 calc(50% - 5px);min-width:0}
+  .pc-cx-base{margin-left:0;flex:1 1 100%}
+  .pc-cx-base>.btn{flex:1 1 0;min-height:40px}
+  .pc-cx-barras{grid-template-columns:repeat(12,44px);overflow-x:auto;height:96px}
+  .pc-cx-bar span{font-size:12px}
+  .pc-imp-tab select,.pc-imp-tab input,.pc-ap-tab input,#pc-imp-cola,.pc-desde select{font-size:16px}
+  .modal :is(.pc-imp-tab,.pc-ap-tab) input[type=text],.modal :is(.pc-imp-tab,.pc-ap-tab) input[type=number],.modal input[data-pc-imp-ate]{font-size:16px}
   /* hora extra: Período | Descrição · Horas | Valor/h | Valor · Projeto | Objeto · Quem | 🗑 (grade de 6) */
   .pc-xt-tab>tbody>tr{grid-template-columns:repeat(6,minmax(0,1fr))}
   .pc-xt-tab td{grid-column:span 2}
@@ -1479,6 +1507,7 @@
   :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela) .ams-dl .dd{font-size:13.5px}
   /* 360px: as datas do trecho não cabem lado a lado (o campo de data corta o ano) */
   .pc-eq-tab td:nth-child(-n+2){flex-basis:100%}
+  .pc-eq-tab.pc-com-fr td:nth-child(-n+3){flex-basis:100%}
   /* "somente faturáveis" já está no título da lista: o selo repetido empurrava as horas para uma linha sozinhas */
   .ams-chcard .ams-ch-b{display:none}
   .pc-xt-tab td:nth-child(1),.pc-xt-tab td:nth-child(2){grid-column:span 3}

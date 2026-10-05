@@ -28,7 +28,9 @@ const PC_SO_GESTORES=false;
 function pcPodeEditar(){ return PC_SO_GESTORES ? souAprovador() : !!idApontar(); }
 // Quem está mexendo (identidade do ⏱ Apontar) — só o nome/e-mail, para o histórico.
 function pcQuem(){ const id=idApontar()||{}; return { nome:String(id.nome||id.email||'alguém').trim(), email:String(id.email||'') }; }
-function pcNovo(){ const h=hojeSP(); return { id:'pc'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), consultoria:'', modalidade:'horas', inicio:h.slice(0,7)+'-01', fim:'', valorHora:0, avisoDias:30, fatFecha:25, fatDia:30, conta:'', contato:'', obs:'', pasta:'', docs:[], equipe:[], ajustes:{}, hist:[] }; }
+function pcNovo(){ const h=hojeSP(); return { id:'pc'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), consultoria:'', modalidade:'horas', inicio:h.slice(0,7)+'-01', fim:'', valorHora:0, avisoDias:30, fatFecha:25, fatDia:30, prazoReceb:30, conta:'', contato:'', obs:'', pasta:'', docs:[], frentes:[], equipe:[], ajustes:{}, hist:[] }; }
+// 💰 Prazo de recebimento (dias corridos depois da nota) — vazio/inválido = 30. Base do 💰 fluxo de caixa.
+function pcPrazo(c){ const s=c&&c.prazoReceb; if(s==null||String(s).trim()==='') return 30; const n=Math.round(Number(s)); return (isFinite(n)&&n>=0)?Math.min(n,365):30; }
 // ---- datas ----
 function pcUltimoDia(ym){ const y=+ym.slice(0,4), m=+ym.slice(5,7); return new Date(Date.UTC(y,m,0)).toISOString().slice(0,10); }
 function pcDiaNoMes(ym, dia){ const u=pcUltimoDia(ym); const d=Math.max(1,Math.min(31,Math.round(Number(dia)||31))); const dd=Math.min(d,+u.slice(8,10)); return `${ym}-${String(dd).padStart(2,'0')}`; }
@@ -56,7 +58,7 @@ function pcStatus(c){ const h=hojeSP(); const fim=pcData(c.fim)?c.fim:''; const 
 // Histórico do contrato (quem gravou/alterou o quê) — mesmo formato do plano de rentabilidade.
 function pcLog(c, o, d){ if(!Array.isArray(c.hist)) c.hist=[]; const q=pcQuem(); c.hist.push({ em:new Date().toISOString().slice(0,16), por:q.nome, o, d:String(d||'').slice(0,240) }); if(c.hist.length>40) c.hist=[c.hist[0]].concat(c.hist.slice(-39)); c.atualizadoEm=hojeSP(); c.atualizadoPor=q.nome; }
 function pcQuando(em){ if(!em) return ''; const d=new Date(em.length===16?em+':00Z':em); if(isNaN(d)) return em; return d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
-const PC_CAMPOS={ consultoria:'consultoria', modalidade:'modalidade', inicio:'início', fim:'fim', valorHora:'valor-hora', avisoDias:'aviso (dias)', fatFecha:'fechamento (dia)', fatDia:'nota (dia)', conta:'conta', contato:'contato', obs:'obs.', pasta:'pasta do contrato' };
+const PC_CAMPOS={ consultoria:'consultoria', modalidade:'modalidade', inicio:'início', fim:'fim', valorHora:'valor-hora', avisoDias:'aviso (dias)', fatFecha:'fechamento (dia)', fatDia:'nota (dia)', prazoReceb:'recebimento (dias após a nota)', retPct:'retenção na fonte (%)', conta:'conta', contato:'contato', obs:'obs.', pasta:'pasta do contrato' };
 function pcDiff(a, b){ const out=[]; Object.keys(PC_CAMPOS).forEach(k=>{ const x=a[k]==null?'':String(a[k]), y=b[k]==null?'':String(b[k]); if(x!==y) out.push(`${PC_CAMPOS[k]}: ${x||'—'} → ${y||'—'}`); }); return out; }
 // Planos da 💹 Rentabilidade ligados a este contrato.
 function pcPlanosDe(id){ const r=cfg.rentab&&Array.isArray(cfg.rentab.planos)?cfg.rentab.planos:[]; return r.filter(p=>p&&p.contrato===id); }
@@ -69,10 +71,11 @@ const pcCod=(c)=>ctCod(pcLista(), c, 'PC', 'pcSeq');
 // é da vida DESTE contrato: a ordem de venda no Odoo, as horas extras, a previsão digitada, os ajustes de datas e o
 // histórico. Ids novos para documentos, recursos e trechos (os da cópia não podem colidir com os do original).
 function pcCopia(c){ const x=JSON.parse(JSON.stringify(c||{}));
-  ['odoo','extras','prev','ajustes','rateios','hist','cod','criadoEm','criadoPor','atualizadoEm','atualizadoPor'].forEach(k=>{ delete x[k]; });
+  ['odoo','extras','prev','ajustes','rateios','apur','odooDesde','hist','cod','criadoEm','criadoPor','atualizadoEm','atualizadoPor'].forEach(k=>{ delete x[k]; });
   x.id=pcId('pc'); x.ajustes={}; x.hist=[]; x.consultoria=(String(c.consultoria||'').trim()+' (cópia)').slice(0,120);
   x.docs=(Array.isArray(x.docs)?x.docs:[]).map(d=>Object.assign({}, d, { id:pcId('dc') }));
-  x.equipe=(Array.isArray(x.equipe)?x.equipe:[]).map(p=>Object.assign({}, p, { id:pcId('rc'), regras:(Array.isArray(p.regras)?p.regras:[]).map(r=>Object.assign({}, r, { id:pcId('rg') })) }));
+  const frIds={}; x.frentes=(Array.isArray(x.frentes)?x.frentes:[]).filter(f=>f&&f.id).map(f=>{ const n=pcId('fr'); frIds[f.id]=n; return Object.assign({}, f, { id:n }); });   // 🗂 projetos com ids novos; os trechos acompanham
+  x.equipe=(Array.isArray(x.equipe)?x.equipe:[]).map(p=>Object.assign({}, p, { id:pcId('rc'), regras:(Array.isArray(p.regras)?p.regras:[]).map(r=>Object.assign({}, r, { id:pcId('rg'), fr:(r&&r.fr&&frIds[r.fr])||'' })) }));
   x._dupDe={ id:c.id, cod:pcCod(c), nome:c.consultoria||'' }; return x; }
 
 // ===========================================================================
@@ -111,7 +114,8 @@ function pcNovoRec(nome, a){ return { id:pcId('rc'), nome:String(nome||'').slice
 // (ou 3 meses adiante, quando o contrato não tem prazo).
 function pcNovaRegra(c){ const h=hojeSP(); const de=(pcData(c.inicio)&&c.inicio>h)?c.inicio:h;
   let ate=pcData(c.fim)?c.fim:pcUltimoDia(pcYmSoma(de.slice(0,7),2)); if(ate<de) ate=de;
-  return { id:pcId('rg'), de, ate, modo:'dia', v:4 }; }
+  const fr=(pcFrentes(c).find(f=>pcFrTipo(f)==='aloc')||{}).id||'';   // 🗂 com projetos, o trecho novo já nasce no 1º projeto de alocação
+  return { id:pcId('rg'), de, ate, modo:'dia', v:4, fr }; }
 // Meta diária da pessoa (🎯 Metas & ausências); um nome livre (sem accountId) usa a meta global.
 function pcHDia(a){ const h=(typeof metaSegDe==='function')?metaSegDe(a)/3600:0; return h>0?h:8; }
 function pcNomeRec(p){ if(p&&p.a&&typeof pessoasUnidas==='function'){ const u=pessoasUnidas()[p.a]; if(u&&u.nome) return u.nome; } return (p&&p.nome)||'(sem nome)'; }
@@ -170,10 +174,125 @@ function pcPrevOrfaos(c, periodos){
   return Object.keys(pcPrev(c)).filter(ym=>!vistos.has(ym)).sort();
 }
 
+// ===========================================================================
+// 🗂 PROJETOS DO CONTRATO — as "FRENTES" (pedido do usuário, 2026-10-05: "eu tenho um contrato e eles me alocam
+// em um projeto; eu faturo por hora, independente se eu gastei horas lá ou não — posso passar tarefas internamente
+// ou usar um acelerador; quero projetar essas alocações por projeto e ter previsibilidade do meu fluxo de caixa…
+// Hi-Mix e Sumitomo eu faturo mensalmente… Axia é atendimento de AMS").
+// Um contrato (a Cast) tem VÁRIOS projetos do parceiro (Sumitomo, Hi-Mix, AMS Axia…): cada um é uma FRENTE em
+// `c.frentes = [{ id, nome, tipo, proj, ref, casar, vh, ac, acNome, estMes, de, obs }]`:
+//   • tipo 'aloc' (⏱ alocação): o parceiro paga as horas ALOCADAS — a previsão sai dos trechos da equipe que
+//     apontam para a frente (`regra.fr`), nunca do esforço real da equipe no Jira;
+//   • tipo 'ams' (🛠️ AMS sob demanda): paga as horas atendidas no mês — a previsão é a estimativa `estMes`
+//     (h por mês, a partir de `de`/da 1ª apuração/de hoje) ou os trechos, e o real vem da apuração.
+// 📥 APURAÇÃO = as horas APROVADAS no sistema do parceiro, por período de faturamento e frente — a base da nota:
+// `c.apur['AAAA-MM'][frenteId] = { h, fonte:'planilha'|'manual', parcial, ate, em, por, arq }`.
+// A regra de cada célula (período × frente) mora numa função só, pcFrPeriodo: apuração fechada > apuração parcial
+// + o previsto do resto do período > previsto. Contrato SEM frentes segue exatamente como antes (um item por
+// período, ✎ ajuste manual em `c.prev`). Leitores não criam objetos; quem grava é o handler, com salvaCfg().
+// ===========================================================================
+const PC_FR_TIPOS={ aloc:['⏱','Alocação','o parceiro aloca a pessoa no projeto e paga as horas ALOCADAS — mesmo que a equipe repasse tarefas ou use um acelerador'],
+  ams:['🛠️','AMS sob demanda','atendimento de chamados: o parceiro paga as horas atendidas no mês; a previsão usa a estimativa mensal'] };
+const PC_SEM_FR='_';          // trechos sem projeto, num contrato que tem projetos
+const PC_HORIZ_MESES=12;      // contrato sem fim: a estimativa AMS vai até 12 meses à frente
+function pcFrentes(c){ return (c&&Array.isArray(c.frentes))?c.frentes.filter(f=>f&&f.id):[]; }
+function pcFrentesW(c){ if(!Array.isArray(c.frentes)) c.frentes=[]; return c.frentes; }
+function pcTemFrentes(c){ return pcFrentes(c).length>0; }
+function pcFrente(c, id){ return pcFrentes(c).find(f=>f.id===id)||null; }
+function pcFrTipo(f){ return PC_FR_TIPOS[f&&f.tipo]?f.tipo:'aloc'; }
+function pcFrNome(f){ return (f&&String(f.nome||'').trim())||(f&&f.id===PC_SEM_FR?'Sem projeto':'(projeto sem nome)'); }
+function pcFrCurto(f){ const n=pcFrNome(f).split(/\s+[—–-]\s+/)[0]; return n.length>18?n.slice(0,17)+'…':n; }
+function pcFrVh(c, f){ const v=Number(f&&f.vh)||0; return v>0?v:Math.max(0,Number(c&&c.valorHora)||0); }
+function pcNovaFrente(nome, tipo){ return { id:pcId('fr'), nome:String(nome||'').slice(0,90), tipo:PC_FR_TIPOS[tipo]?tipo:'aloc', proj:'', ref:'', casar:'', vh:0, ac:0, acNome:'', estMes:0, de:'', obs:'' }; }
+// A frente de um trecho ('_' quando não aponta para nenhuma — ou para uma que foi apagada).
+function pcRegraFr(c, r){ const f=r&&r.fr; return (f&&pcFrente(c,f))?f:PC_SEM_FR; }
+// ---- 📥 apuração (leitores não criam) ----
+function pcApur(c){ return (c&&c.apur&&typeof c.apur==='object')?c.apur:{}; }
+function pcApurDe(c, ym, fid){ const m=pcApur(c)[ym]; const x=m&&m[fid]; return (x&&typeof x==='object'&&isFinite(Number(x.h))&&Number(x.h)>=0)?x:null; }
+function pcApurSet(c, ym, fid, x){ if(!c.apur||typeof c.apur!=='object') c.apur={}; const m=c.apur[ym]||{};
+  if(x) m[fid]=x; else delete m[fid]; if(Object.keys(m).length) c.apur[ym]=m; else delete c.apur[ym]; }
+// Frentes efetivas: as cadastradas + "Sem projeto" quando sobrou trecho (ou apuração) sem frente.
+function pcFrentesEf(c){ const fs=pcFrentes(c).slice(); if(!fs.length) return fs;
+  const sobra=pcEquipe(c).some(p=>pcRegras(p).some(r=>pcRegraFr(c,r)===PC_SEM_FR&&Number(r.v)>0));
+  const apSem=Object.keys(pcApur(c)).some(ym=>pcApurDe(c,ym,PC_SEM_FR));
+  if(sobra||apSem) fs.push({ id:PC_SEM_FR, nome:'Sem projeto', tipo:'aloc' });
+  return fs; }
+// Período de faturamento (ym) a que uma data pertence — o fechamento de cada mês respeita os ajustes do 📅 calendário.
+function pcYmDaData(c, d){ let ym=d.slice(0,7); if(d>pcFechamento(c,ym)) ym=pcYmSoma(ym,1); else if(d<pcPeriodo(c,ym).ini) ym=pcYmSoma(ym,-1); return ym; }
+// Janela da estimativa AMS: de `de` (ou do início da 1ª apuração, ou do período atual) até o fim do contrato
+// (ou 12 meses à frente) — a estimativa não inventa horas no passado em que a frente nem existia.
+function pcFrJanelaAms(c, f){ const h=hojeSP();
+  let de=pcData(f.de)?f.de:''; if(!de){ const yms=Object.keys(pcApur(c)).filter(ym=>pcApurDe(c,ym,f.id)).sort(); de=yms.length?pcPeriodo(c,yms[0]).ini:pcPeriodo(c,pcYmDaData(c,h)).ini; }
+  let ate=pcData(c.fim)?c.fim:pcUltimoDia(pcYmSoma(h.slice(0,7),PC_HORIZ_MESES-1));
+  if(pcData(c.inicio)&&de<c.inicio) de=c.inicio; return { de, ate }; }
+// Início do período de faturamento de hoje — a data que o AMS cadastrado à mão grava em `f.de` (sem ela a janela da
+// estimativa andaria com o calendário e cada mês fechado sumiria da previsão, das notas e da ordem).
+function pcInicioPeriodoAtual(c){ return pcPeriodo(c,pcYmDaData(c,hojeSP())).ini; }
+// PREVISTO da frente em [ini, fim]: os trechos que apontam para ela; sem trecho, uma frente AMS usa a estimativa
+// mensal (h por mês, rateada pelos dias úteis de cada mês civil — como o modo "h por mês" dos trechos).
+function pcFrPrevisto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<ini) return 0;
+  let h=0, tem=false;
+  pcEquipe(c).forEach(p=>pcRegras(p).forEach(r=>{ if(pcRegraFr(c,r)!==f.id) return; tem=true; h+=pcHorasRegra(r,p.a,ini,fim); }));
+  const est=Math.max(0,Number(f.estMes)||0);
+  if(!tem&&est>0&&pcFrTipo(f)==='ams'){ const J=pcFrJanelaAms(c,f); const a=ini>J.de?ini:J.de, b=fim<J.ate?fim:J.ate;
+    if(pcData(a)&&pcData(b)&&b>=a){ const rec=pcDiasUteisPorMes(a,b);
+      Object.keys(rec).forEach(m=>{ const tot=pcDiasUteis(m+'-01',pcUltimoDia(m)); if(tot>0) h+=est*rec[m]/tot; }); } }
+  return Math.round(h*100)/100; }
+// UMA célula período × frente: o que vai para a nota (h, v) e de onde veio (fonte: apur · parcial · prev).
+function pcFrPeriodo(c, f, P){ const ini=P.iniPlano||P.ini, fim=P.fimPlano||P.fim; const prev=pcFrPrevisto(c,f,ini,fim); const ap=pcApurDe(c,P.ym,f.id); const vh=pcFrVh(c,f);
+  let h=prev, fonte='prev', resto=prev;
+  if(ap&&!ap.parcial){ h=Number(ap.h)||0; fonte='apur'; resto=0; }
+  else if(ap){ // parcial: o arquivo cobriu [desde, ate] do período — o que fica antes e depois continua previsto
+    const desde=pcData(ap.desde)&&ap.desde>ini?ap.desde:'', ate=pcData(ap.ate)&&ap.ate<fim?ap.ate:'';
+    resto=(desde?pcFrPrevisto(c,f,ini,pcMaisDias(desde,-1)):0)+(ate?pcFrPrevisto(c,f,proxDia(ate),fim):0);
+    h=(Number(ap.h)||0)+resto; fonte='parcial'; }
+  h=Math.round(h*100)/100; return { h, prev, ap, fonte, resto:Math.round(resto*100)/100, vh, v:Math.round(h*vh*100)/100 }; }
+// O planejamento de um contrato COM projetos: cada período × frente pela regra acima; as colunas por pessoa
+// continuam sendo o que os trechos dizem (base do 👥). `semApur` = período já fechado com previsão e sem apuração.
+function pcPlanejamentoFrentes(c){
+  const eq=pcEquipe(c); const vh=Math.max(0,Number(c.valorHora)||0); const R=pcEqRange(c); const frs=pcFrentesEf(c); const hoje=hojeSP();
+  const r2=(n)=>Math.round(n*100)/100;
+  let de=R.de, ate=R.ate; const amplia=(a,b)=>{ if(!pcData(a)||!pcData(b)||b<a) return; if(!de||a<de) de=a; if(!ate||b>ate) ate=b; };
+  Object.keys(pcApur(c)).forEach(ym=>{ if(!/^\d{4}-\d{2}$/.test(ym)) return; if(!frs.some(f=>pcApurDe(c,ym,f.id))) return; const P=pcPeriodo(c,ym); amplia(P.ini,P.fim); });   // a apuração traz o período inteiro
+  frs.forEach(f=>{ if(pcFrTipo(f)==='ams'&&Number(f.estMes)>0){ const J=pcFrJanelaAms(c,f); amplia(J.de,J.ate); } });
+  if(de&&pcData(c.inicio)&&de<c.inicio) de=c.inicio; if(ate&&pcData(c.fim)&&ate>c.fim) ate=c.fim;
+  const porRec={}; eq.forEach(p=>{ porRec[p.id]=0; });
+  const totFr={}; frs.forEach(f=>{ totFr[f.id]={ h:0, v:0, prev:0, apur:0, nApur:0 }; });
+  const base={ eq, vh, porRec, frentes:frs, totFr, nMan:0, orfaos:[], legado:Object.keys(pcPrev(c)).sort(), fora:R.fora };
+  if(!de||!ate||ate<de) return { ...base, periodos:[], totalH:0, totalV:0, totalHAuto:0, totalVAuto:0, nApur:0, nSemApur:0, de, ate };
+  const periodos=pcPeriodos(c,de,ate).map(P=>{
+    const porPessoa={}; eq.forEach(p=>{ const h=r2(pcHorasRec(p,P.iniPlano,P.fimPlano)); if(h>0){ porPessoa[p.id]=h; porRec[p.id]+=h; } });
+    const porFr={}; let horas=0, valor=0, hAuto=0, vAuto=0, nAp=0, semApur=false;
+    frs.forEach(f=>{ const x=pcFrPeriodo(c,f,P); porFr[f.id]=x; horas+=x.h; valor+=x.v; hAuto+=x.prev; vAuto+=x.prev*x.vh;
+      const T=totFr[f.id]; T.h+=x.h; T.v+=x.v; T.prev+=x.prev; if(x.ap){ T.apur+=Number(x.ap.h)||0; T.nApur++; nAp++; }
+      if(P.fim<hoje&&x.resto>0) semApur=true; });   // fechou e ainda há parte do período só na previsão
+    return { ...P, du:pcDiasUteis(P.iniPlano,P.fimPlano), porPessoa, porFr, horasAuto:r2(hAuto), valorAuto:r2(vAuto), horas:r2(horas), valor:r2(valor), manH:false, manV:false, nApur:nAp, semApur };
+  });
+  Object.keys(porRec).forEach(k=>{ porRec[k]=r2(porRec[k]); }); Object.values(totFr).forEach(T=>{ T.h=r2(T.h); T.v=r2(T.v); T.prev=r2(T.prev); T.apur=r2(T.apur); });
+  const soma=(fn)=>r2(periodos.reduce((s,P)=>s+fn(P),0));
+  return { ...base, periodos, totalH:soma(P=>P.horas), totalV:soma(P=>P.valor), totalHAuto:soma(P=>P.horasAuto), totalVAuto:soma(P=>P.valorAuto),
+    nApur:periodos.reduce((s,P)=>s+P.nApur,0), nSemApur:periodos.filter(P=>P.semApur).length, de, ate };
+}
+// Horas efetivas de uma frente por MÊS CIVIL (para a 💹 Rentabilidade): cada período é rateado pelos dias úteis
+// que caem em cada mês.
+function pcFrHorasPorMes(c, fid, plan){ const P=plan||pcPlanejamento(c); const out={};
+  P.periodos.forEach(x=>{ const cel=x.porFr&&x.porFr[fid]; if(!cel||!(cel.h>0||cel.ap)) return;   // apuração de 0h também é um número do contrato
+    const du=pcDiasUteisPorMes(x.iniPlano,x.fimPlano); const tot=Object.values(du).reduce((s,n)=>s+n,0);
+    if(!tot){ const m=x.fimPlano.slice(0,7); out[m]=(out[m]||0)+cel.h; return; }
+    if(!(cel.h>0)){ Object.keys(du).forEach(m=>{ if(out[m]==null) out[m]=0; }); return; }
+    Object.keys(du).forEach(m=>{ out[m]=(out[m]||0)+cel.h*du[m]/tot; }); });
+  Object.keys(out).forEach(m=>{ out[m]=Math.round(out[m]*10)/10; }); return out; }
+// A frente (de qualquer contrato) ligada a um projeto do Jira — a 💹 Rentabilidade usa para achar "de onde vêm as horas".
+function pcFrenteDoProjeto(key, contratoId){ const k=String(key||'').trim().toUpperCase(); if(!k) return null;
+  const lista=contratoId?[pcDe(contratoId)].filter(Boolean):pcLista();
+  for(const c of lista){ const f=pcFrentes(c).find(x=>String(x.proj||'').toUpperCase()===k); if(f) return { c, f }; } return null; }
+
 // O planejamento: horas de cada recurso em cada período de faturamento + o valor previsto da nota.
+// Com projetos (frentes), cada período é a soma das frentes (pcPlanejamentoFrentes); sem, a conta de sempre.
+function pcPlanejamento(c){ return pcTemFrentes(c)?pcPlanejamentoFrentes(c):pcPlanejamentoSimples(c); }
 // Cada período leva o valor CALCULADO (horasAuto/valorAuto) e o EFETIVO (horas/valor) — iguais, a não ser
 // que haja ajuste manual; manH/manV dizem qual dos dois foi digitado.
-function pcPlanejamento(c){
+function pcPlanejamentoSimples(c){
   const eq=pcEquipe(c); const vh=Math.max(0,Number(c.valorHora)||0); const R=pcEqRange(c);
   const porRec={}; eq.forEach(p=>{ porRec[p.id]=0; });
   if(!R.de||!R.ate||R.ate<R.de) return { periodos:[], eq, vh, porRec, totalH:0, totalV:0, totalHAuto:0, totalVAuto:0,
@@ -206,7 +325,7 @@ function renderParcerias(){
   const edit=st.editId?pcDe(st.editId):null; if(st.editId&&!edit) st.editId=null;
   const hoje=hojeSP();
   const intro=`<div class="card full"><h2>🤝 Contratos de parceria <span>as consultorias que contratam a Dexterity: modalidade, valor-hora, validade e o calendário de faturamento</span></h2>
-    <div class="muted small">Cadastre cada contrato com a <b>modalidade</b> (horas abertas, atendimento AMS ou demanda com horas fechadas), o <b>período de validade</b>, o <b>valor da hora negociada</b>, o <b>período de aviso</b> (dias de aviso prévio), o <b>período de faturamento</b> (o dia em que o período fecha — "até o dia 25") e o <b>dia da nota</b>, além da <b>conta bancária</b> em que você recebe. As datas de fechamento e de nota podem ser <b>ajustadas mês a mês</b> no 📅 calendário de cada contrato. Na 💹 Rentabilidade, o plano de horas abertas liga-se ao contrato: o cliente, o valor-hora e os <b>períodos de faturamento</b> (um item da ordem de venda no Odoo por período) vêm daqui. ${gestor?'':(PC_SO_GESTORES?'<b>Somente gestores editam</b>; você está vendo em modo leitura.':'🔐 <b>Para editar, identifique-se</b> em ⏱ Apontar (e-mail + token do Jira): a gravação da config compartilhada exige a identidade. <button class="btn" data-goto="apontar">⏱ Apontar</button>')}</div>
+    <div class="muted small">Cadastre cada contrato com a <b>modalidade</b> (horas abertas, atendimento AMS ou demanda com horas fechadas), o <b>período de validade</b>, o <b>valor da hora negociada</b>, o <b>período de aviso</b> (dias de aviso prévio), o <b>período de faturamento</b> (o dia em que o período fecha — "até o dia 25") e o <b>dia da nota</b>, além da <b>conta bancária</b> em que você recebe. As datas de fechamento e de nota podem ser <b>ajustadas mês a mês</b> no 📅 calendário de cada contrato. <b>🗂 Projetos</b>: um contrato (ex.: a Cast) tem os projetos em que o parceiro aloca a equipe — <b>⏱ alocação</b>, faturada pelas horas alocadas mesmo que a equipe repasse tarefas ou use um acelerador — e os de <b>🛠️ AMS sob demanda</b>, faturados pelas horas atendidas. No fechamento, <b>📥 importe a planilha de apontamentos aprovados</b> do parceiro: ela vira a <b>✔ apuração</b> de cada projeto, que vai para a nota e para o Odoo (um item por projeto e período). O <b>💰 fluxo de caixa</b> mostra quando cada nota entra no caixa. Na 💹 Rentabilidade, o plano liga-se ao contrato: o cliente, o valor-hora, os <b>períodos de faturamento</b> e as horas faturadas vêm daqui. ${gestor?'':(PC_SO_GESTORES?'<b>Somente gestores editam</b>; você está vendo em modo leitura.':'🔐 <b>Para editar, identifique-se</b> em ⏱ Apontar (e-mail + token do Jira): a gravação da config compartilhada exige a identidade. <button class="btn" data-goto="apontar">⏱ Apontar</button>')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor&&!st.novo&&!edit?'<button class="btn primario" data-pc-novo="1">＋ Novo contrato</button>':''}<button class="btn" data-goto="rentab">💹 Rentabilidade</button><button class="btn" data-goto="admin">⚙️ Contratos (Admin)</button></div></div>`;
   // O formulário nasce do RASCUNHO (st.rasc): no contrato novo ele já existe; na edição é a cópia do contrato.
   // O rascunho acompanha o que a pessoa digita (pcGuardaRasc), então um render() vindo de fora — o catálogo de
@@ -221,10 +340,11 @@ function renderParcerias(){
   const aVencer=lista.filter(c=>pcStatus(c).k==='avencer');
   const aviso=aVencer.length?`<div class="aviso">⏰ <b>${aVencer.length} contrato(s) dentro do período de aviso</b>: ${aVencer.map(c=>{ const s=pcStatus(c); return `<b>${esc(c.consultoria||'')}</b> vence em ${dataBR(c.fim)} (aviso prévio ${s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(s.avisoAte)}${s.avisoPassou?'</span>':''})`; }).join(' · ')}.</div>`:'';
   const notas=(typeof pcProximasNotasHTML==='function')?pcProximasNotasHTML(lista, hoje):'';
+  const caixa=(typeof pcCaixaHTML==='function')?pcCaixaHTML(lista, hoje):'';   // 💰 16f
   // O formulário já aberto é REAPROVEITADO (mesmo nó, com o que está digitado e o cursor onde estava) quando o
   // redesenho é do mesmo contrato — só o resto da tela é reconstruído.
   const formVelho=cont.querySelector('.pc-form'); const ativo=document.activeElement;
-  const arvore=el(`<div class="pc-tela">${intro}${aviso}${notas}${form}
+  const arvore=el(`<div class="pc-tela">${intro}${aviso}${notas}${caixa}${form}
     <div class="card full"><h2>Contratos cadastrados <span>${lista.length}</span></h2>
       ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`);
   const reusa=!!(formVelho&&chaveForm&&formVelho.getAttribute('data-pc-form')===chaveForm);
@@ -238,7 +358,7 @@ function renderParcerias(){
   ['pc-f-inicio','pc-f-fim'].forEach(id=>{ const d=document.getElementById(id); if(d&&!d.hasAttribute('data-picker')){ d.setAttribute('data-picker','1'); d.addEventListener('click',()=>{ try{ if(d.showPicker) d.showPicker(); }catch(e){} }); } });
 }
 // O rascunho do formulário (st.rasc) acompanha cada tecla: é dele que o formulário renasce em qualquer redesenho.
-const PC_FORM_CAMPOS=[['consultoria','pc-f-consultoria'],['modalidade','pc-f-modal'],['inicio','pc-f-inicio'],['fim','pc-f-fim'],['valorHora','pc-f-vh'],['avisoDias','pc-f-aviso'],['fatFecha','pc-f-fecha'],['fatDia','pc-f-nota'],['conta','pc-f-conta'],['contato','pc-f-contato'],['obs','pc-f-obs'],['pasta','pc-f-pasta']];
+const PC_FORM_CAMPOS=[['consultoria','pc-f-consultoria'],['modalidade','pc-f-modal'],['inicio','pc-f-inicio'],['fim','pc-f-fim'],['valorHora','pc-f-vh'],['avisoDias','pc-f-aviso'],['fatFecha','pc-f-fecha'],['fatDia','pc-f-nota'],['prazoReceb','pc-f-prazo'],['retPct','pc-f-ret'],['conta','pc-f-conta'],['contato','pc-f-contato'],['obs','pc-f-obs'],['pasta','pc-f-pasta']];
 function pcGuardaRasc(){ const st=estado.parcerias; if(!st||!(st.novo||st.editId)) return;
   if(!st.rasc) st.rasc=st.editId?JSON.parse(JSON.stringify(pcDe(st.editId)||pcNovo())):pcNovo();
   PC_FORM_CAMPOS.forEach(([k,id])=>{ const e=document.getElementById(id); if(e) st.rasc[k]=String(e.value); }); }
@@ -256,6 +376,8 @@ function pcFormHTML(c, novo, chave){
       <div class="campo"><label>Período de aviso (dias)</label><input type="number" id="pc-f-aviso" min="0" step="1" value="${escA(String(c.avisoDias!=null?c.avisoDias:30))}" style="width:90px" data-tip="Dias de aviso prévio para encerrar ou renovar; a tela avisa quando o contrato entra nesse período"></div>
       <div class="campo"><label>Fechamento do período (dia do mês)</label><input type="number" id="pc-f-fecha" min="1" max="31" step="1" value="${escA(String(c.fatFecha||25))}" style="width:90px" data-tip="Até que dia vai o período de faturamento (ex.: 25 = de 26 do mês anterior a 25 deste; 31 = mês civil)"></div>
       <div class="campo"><label>Dia da nota (faturamento)</label><input type="number" id="pc-f-nota" min="1" max="31" step="1" value="${escA(String(c.fatDia||''))}" placeholder="= fechamento" style="width:90px" data-tip="Dia em que a nota é emitida: no próprio mês se for igual/depois do fechamento, senão no mês seguinte"></div>
+      <div class="campo"><label>💰 Recebimento (dias após a nota)</label><input type="number" id="pc-f-prazo" min="0" max="365" step="1" value="${escA(String(c.prazoReceb!=null&&c.prazoReceb!==''?c.prazoReceb:30))}" style="width:90px" data-tip="Prazo de pagamento do parceiro, em dias corridos depois da nota (ex.: 30). É o que o 💰 fluxo de caixa usa para dizer em que mês o dinheiro entra; quando a fatura já existe no Odoo, vale o vencimento dela"></div>
+      <div class="campo"><label>Retenção na fonte (%)</label><input type="number" id="pc-f-ret" min="0" max="60" step="0.01" value="${escA(String(c.retPct||''))}" placeholder="0" style="width:90px" data-tip="Impostos que o parceiro retém ao pagar (IR, PIS/COFINS/CSLL, ISS…). Opcional: o 💰 fluxo de caixa mostra o líquido quando informado"></div>
       <div class="campo"><label>Conta bancária de recebimento</label><input type="text" id="pc-f-conta" list="pc-contas" value="${escA(c.conta||'')}" placeholder="ex.: Itaú · ag 1234 · cc 56789-0" style="min-width:240px"><datalist id="pc-contas">${contas.map(x=>`<option value="${escA(x)}"></option>`).join('')}</datalist></div>
       <div class="campo"><label>Contato na consultoria</label><input type="text" id="pc-f-contato" value="${escA(c.contato||'')}" placeholder="nome / e-mail"></div>
     </div>
@@ -281,7 +403,7 @@ function pcCardHTML(c, gestor, aba, hoje){
   const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
   const hist=Array.isArray(c.hist)?c.hist.slice().reverse():[];
   const dest=(estado.parcerias&&estado.parcerias.destaque)===c.id;
-  const docs=pcDocs(c).filter(d=>pcUrl(d.url)); const pasta=pcUrl(c.pasta); const plan=pcPlanejamento(c);
+  const docs=pcDocs(c).filter(d=>pcUrl(d.url)); const pasta=pcUrl(c.pasta); const plan=pcPlanejamento(c); const frs=pcFrentes(c);
   return `<div class="ad-card pc-card pc-${s.k}${aba?' pc-aberto':''}${dest?' pc-dest':''}" data-pc-card="${escA(c.id)}">
     <div class="ad-top"><span class="badge ct-cod" data-tip="ID do contrato — use para citar e procurar">${esc(pcCod(c))}</span> <strong>${esc(c.consultoria||'(sem nome)')}</strong> <span class="badge rp-tipo" data-tip="${escA(M[2])}">${M[0]} ${M[1]}</span> <span class="badge pc-st-${s.k}">${esc(s.rot)}</span><span class="spacer"></span>
       ${gestor?`<button class="btn" data-pc-edit="${escA(c.id)}">editar</button><button class="btn" data-pc-dup="${escA(c.id)}" data-tip="Abre um contrato novo já preenchido com a configuração deste">⧉ duplicar</button><button class="btn" data-pc-del="${escA(c.id)}">remover</button>`:''}</div>
@@ -291,6 +413,7 @@ function pcCardHTML(c, gestor, aba, hoje){
       ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
       ${dl('Fechamento', `dia ${c.fatFecha||31}${(c.fatFecha||31)>=31?' (mês civil)':''}`)}
       ${dl('Nota', c.fatDia?`dia ${c.fatDia}`:'no fechamento')}
+      ${dl('Recebimento', `${pcPrazo(c)} dia(s) após a nota`)}
       ${dl('Período atual', `${dataBR(atual.ini)} → ${dataBR(atual.fim)} · nota ${dataBR(atual.nota)}${atual.ajustado?' ✎':''}`)}
       ${dl('Conta de recebimento', c.conta?esc(c.conta):'—')}
       ${dl('Contato', c.contato?esc(c.contato):'—')}
@@ -299,17 +422,20 @@ function pcCardHTML(c, gestor, aba, hoje){
       docs.slice(0,4).map(d=>{ const T=pcDocTipo(d); return `<a class="btn rt-step pc-doc" href="${escA(pcUrl(d.url))}" target="_blank" rel="noopener noreferrer" data-tip="${escA(T[2]+' — '+pcUrlCurta(d.url))}">${T[1]} ${esc(d.nome||T[2])}</a>`; }).join('')}${
       docs.length>4?`<span class="muted small">+${docs.length-4} em 📄 Documentos</span>`:''}${
       !pasta&&!docs.length?`<span class="muted small">📂 Nenhum documento cadastrado${gestor?' — informe a <b>pasta do contrato</b> em ✏️ editar e os arquivos em 📄 Documentos':''}.</span>`:''}</div>
-    <div class="ams-dprojs muted small">👥 Equipe: ${plan.eq.length?`<b>${plan.eq.length}</b> recurso(s) · <b>${fmtHd(plan.totalH)}</b> previstas${plan.vh?` · <b>${fmtBRL(plan.totalV)}</b>`:''}${plan.de?` · ${dataBR(plan.de)} → ${dataBR(plan.ate)}`:''}`:'ninguém alocado ainda'}</div>
+    <div class="ams-dprojs muted small">👥 Equipe: ${plan.eq.length?`<b>${plan.eq.length}</b> recurso(s)`:'ninguém alocado ainda'}${plan.periodos.length?` · <b>${fmtHd(plan.totalH)}</b> ${frs.length?'previstas/apuradas':'previstas'}${plan.vh||frs.length?` · <b>${fmtBRL(plan.totalV)}</b>`:''}${plan.de?` · ${dataBR(plan.de)} → ${dataBR(plan.ate)}`:''}`:''}</div>
+    <div class="ams-dprojs muted small pc-fr-l">🗂 Projetos: ${frs.length?frs.map(f=>`<span class="pc-fr-chip pc-fr-${pcFrTipo(f)}" data-tip="${escA(`${PC_FR_TIPOS[pcFrTipo(f)][1]}${f.ref?' · '+f.ref:''}${f.proj?' · Jira '+f.proj:''}`)}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</span>${f.proj?` ${projChipsFicha([f.proj])}`:''}`).join(' '):`<span class="muted">nenhum — ${gestor?'cadastre em <b>🗂 Projetos</b> ou <b>📥 importe os apontamentos</b> do parceiro':'o contrato fatura como um bloco só'}</span>`}${plan.nSemApur?` · <span class="rp-neg">⚠ ${plan.nSemApur} período(s) fechado(s) sem apuração</span>`:''}</div>
     <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>${p.projeto?` ${projChipsFicha([p.projeto])}`:''}`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · ✎ ${Object.keys(c.ajustes).length} mês(es) com datas ajustadas`:''}</div>
     ${typeof pcOdooResumo==='function'?`<div class="ams-dprojs muted small pc-odoo-l">${pcOdooResumo(c, plan)}</div>`:''}
     ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
     <div class="ad-cons pc-gav">
+      <button class="btn rt-step${aba==='proj'?' on':''}" data-pc-proj="${escA(c.id)}">🗂 ${aba==='proj'?'Fechar projetos':`Projetos${frs.length?` (${frs.length})`:''}`}</button>
       <button class="btn rt-step${aba==='equipe'?' on':''}" data-pc-eq="${escA(c.id)}">👥 ${aba==='equipe'?'Fechar equipe':`Equipe e alocação${plan.eq.length?` (${plan.eq.length})`:''}`}</button>
       <button class="btn rt-step${aba==='fat'?' on':''}" data-pc-fat="${escA(c.id)}">🧾 ${aba==='fat'?'Fechar faturamentos':`Faturamentos${(typeof pcOdoo==='function'&&pcOdoo(c))?' · '+esc(pcOdoo(c).name||'Odoo'):''}`}</button>
       <button class="btn rt-step${aba==='cal'?' on':''}" data-pc-cal="${escA(c.id)}">📅 ${aba==='cal'?'Fechar calendário':'Calendário de faturamento'}</button>
       <button class="btn rt-step${aba==='docs'?' on':''}" data-pc-docs="${escA(c.id)}">📄 ${aba==='docs'?'Fechar documentos':`Documentos${docs.length?` (${docs.length})`:''}`}</button>
+      ${gestor&&typeof pcImpAbre==='function'?`<button class="btn rt-step pc-imp-btn" data-pc-imp="${escA(c.id)}" data-tip="Leia a planilha de apontamentos aprovados do parceiro (Excel ou colada): ela cria os projetos, lança as horas apuradas de cada período e sugere a alocação">📥 Importar apontamentos</button>`:''}
       <span class="muted small">${c.atualizadoEm?`atualizado ${dataBR(c.atualizadoEm)}${c.atualizadoPor?' por '+esc(c.atualizadoPor):''}`:''}</span></div>
-    ${aba==='cal'?pcCalendarioHTML(c, gestor, hoje):aba==='equipe'?pcEquipeHTML(c, gestor, plan):aba==='docs'?pcDocsHTML(c, gestor):(aba==='fat'&&typeof pcFaturamentosHTML==='function')?pcFaturamentosHTML(c, gestor, plan, hoje):''}
+    ${aba==='proj'?pcFrentesHTML(c, gestor, plan, hoje):aba==='cal'?pcCalendarioHTML(c, gestor, hoje):aba==='equipe'?pcEquipeHTML(c, gestor, plan):aba==='docs'?pcDocsHTML(c, gestor):(aba==='fat'&&typeof pcFaturamentosHTML==='function')?pcFaturamentosHTML(c, gestor, plan, hoje):''}
     ${hist.length?`<details class="rm-det"><summary>🕓 Histórico (${hist.length})</summary><table class="mp-tab-mini rp-hist"><tbody>${hist.slice(0,8).map(h=>`<tr><td class="muted small">${esc(pcQuando(h.em))}</td><td>${esc(h.por||'')}</td><td class="small">${esc(h.d||'')}</td></tr>`).join('')}</tbody></table></details>`:''}
   </div>`;
 }
@@ -343,6 +469,82 @@ function pcDocsHTML(c, gestor){
     ${gestor?`<div style="margin-top:8px"><button class="btn" data-pc-doc-add="${escA(c.id)}">＋ Documento</button></div>`:''}
     <div class="muted small" style="margin-top:6px">Quem abre usa a <b>própria conta do SharePoint</b> — quem não tem acesso à pasta continua sem ver o arquivo. O painel nunca guarda o documento nem credencial.</div></div>`;
 }
+// 💰 Data prevista do recebimento de um período: dia da nota + prazo do contrato (dias corridos).
+function pcMaisDias(s, n){ const [y,m,d]=String(s).split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); }
+function pcRecebeEm(c, P){ return pcData(P&&P.nota)?pcMaisDias(P.nota,pcPrazo(c)):''; }
+const PC_FONTE_ROT={ apur:['✔','apurado — horas aprovadas no parceiro'], parcial:['◐','apurado em parte + previsto do resto do período'], prev:['','previsto pela alocação/estimativa'] };
+// 🗂 Projetos do contrato: o cadastro de cada frente + a grade período × projeto (previsto, apurado, valor, nota e
+// recebimento), com o ✔ apurar de cada período.
+function pcFrentesHTML(c, gestor, plan, hoje){
+  const P=plan||pcPlanejamento(c); const frs=pcFrentes(c); const vhC=Math.max(0,Number(c.valorHora)||0);
+  const cat=(typeof pcCat==='function')?pcCat():null; const anals=(cat&&cat.analiticas)||[];
+  const projs=(_projetosCache||[]).filter(p=>p&&p.key);
+  const prox=P.periodos.filter(x=>x.fimPlano>=hoje).slice(0,3);
+  // o cadastro fica aberto com poucos projetos, com algum sem nome ou quando a pessoa abriu (estado só da sessão)
+  const stP=estado.parcerias||{}; const cadEst=(stP.frCad||{})[c.id]; const cadAberto=cadEst!=null?cadEst:(frs.length<=2||frs.some(f=>!String(f.nome||'').trim()));
+  const boxes=frs.map(f=>{ const T=(P.totFr||{})[f.id]||{ h:0, v:0, apur:0, nApur:0 }; const tipo=pcFrTipo(f); const k=`${escA(c.id)}|${escA(f.id)}`;
+    const nTr=pcEquipe(c).reduce((s,p)=>s+pcRegras(p).filter(r=>pcRegraFr(c,r)===f.id).length,0);
+    const ultAp=Object.keys(pcApur(c)).filter(ym=>pcApurDe(c,ym,f.id)).sort().pop();
+    const fld=(rot, html, tip)=>`<div class="campo"${tip?` data-tip="${escA(tip)}"`:''}><label>${rot}</label>${html}</div>`;
+    const txt=(campo, val, ph, w)=>gestor?`<input type="text" data-pc-fr="${k}|${campo}" value="${escA(val==null?'':String(val))}" placeholder="${escA(ph||'')}" style="${w||''}">`:esc(val==null||val===''?'—':String(val));
+    const acSel=gestor?(anals.length?`<select data-pc-fr="${k}|ac"><option value="">= rateio padrão do contrato</option>${anals.map(a=>`<option value="${a.id}" ${Number(f.ac)===a.id?'selected':''}>${esc(a.nome)}${a.codigo?' ('+esc(a.codigo)+')':''}</option>`).join('')}${f.ac&&!anals.some(a=>a.id===Number(f.ac))?`<option value="${escA(String(f.ac))}" selected>${esc(f.acNome||('#'+f.ac))}</option>`:''}</select>`
+        :`<span class="small">${f.ac?esc(f.acNome||('#'+f.ac)):'= rateio padrão'}</span> <button class="btn rt-step" data-pc-cat="${escA(c.id)}" data-tip="Ler os objetos de resultado (contas analíticas) do Odoo">📥 Odoo</button>`)
+      :esc(f.ac?(f.acNome||('#'+f.ac)):'rateio padrão do contrato');
+    return `<div class="pc-fr pc-fr-${tipo}" data-pc-fr-box="${escA(f.id)}">
+      <div class="pc-eq-h">${gestor?`<input type="text" class="pc-fr-nome" data-pc-fr="${k}|nome" value="${escA(f.nome||'')}" placeholder="nome do projeto (ex.: Sumitomo — S/4HANA)" aria-label="Nome do projeto">`:`<b>${esc(pcFrNome(f))}</b>`}
+        ${gestor?`<select data-pc-fr="${k}|tipo" aria-label="Como o parceiro paga">${Object.entries(PC_FR_TIPOS).map(([t,T])=>`<option value="${t}" ${tipo===t?'selected':''}>${T[0]} ${T[1]}</option>`).join('')}</select>`:`<span class="badge" data-tip="${escA(PC_FR_TIPOS[tipo][2])}">${PC_FR_TIPOS[tipo][0]} ${PC_FR_TIPOS[tipo][1]}</span>`}
+        ${f.proj?projChipsFicha([f.proj]):''}<span class="spacer"></span>${gestor?`<button class="btn rt-step" data-pc-fr-rm="${k}" data-tip="Tirar o projeto do contrato">🗑</button>`:''}</div>
+      <div class="muted small">${esc(PC_FR_TIPOS[tipo][2])}.</div>
+      <div class="pl-grid pc-fr-grid">
+        ${fld('Projeto no Jira', gestor?`<input type="text" data-pc-fr="${k}|proj" list="pc-jira-projs" value="${escA(f.proj||'')}" placeholder="ex.: CS" style="width:110px">`:esc(f.proj||'—'), 'Onde a equipe aponta o esforço — a 💹 Rentabilidade compara as horas faturadas daqui com esse esforço')}
+        ${fld('Código no parceiro', txt('ref', f.ref, 'ex.: PTC-29028', 'width:130px'), 'Código do projeto no sistema do parceiro (PTC, classe de valor…) — vai na descrição do item da nota')}
+        ${fld('Reconhecer na planilha', txt('casar', f.casar, 'ex.: PTC-29028; SUMITOMO', 'min-width:170px'), 'Trechos de texto (separados por ;) que identificam as linhas deste projeto na planilha de apontamentos do parceiro — o 📥 importador usa')}
+        ${fld('Valor-hora (R$)', gestor?`<input type="number" min="0" step="0.01" data-pc-fr="${k}|vh" value="${escA(f.vh?String(f.vh):'')}" placeholder="${escA(vhC?String(vhC):'do contrato')}" style="width:110px">`:(f.vh?fmtBRL(f.vh):`do contrato${vhC?' ('+fmtBRL(vhC)+')':''}`), 'Vazio = o valor-hora do contrato')}
+        ${tipo==='ams'?fld('Desde', gestor?`<input type="date" data-pc-fr="${k}|de" value="${escA(f.de||'')}">`:(f.de?dataBR(f.de):'—'), 'A partir de quando a estimativa vale (o início do atendimento). Os períodos fechados depois disso sem apuração ficam com ⚠'):''}
+        ${tipo==='ams'?fld('Estimativa (h/mês)', gestor?`<input type="number" min="0" step="0.5" data-pc-fr="${k}|estMes" value="${escA(f.estMes?String(f.estMes):'')}" placeholder="ex.: 30" style="width:90px">`:fmtHd(Number(f.estMes)||0), 'Quanto deve vir de chamado por mês — a previsão dos períodos ainda não apurados (o 📥 importador sugere pela média)')
+          :fld('Alocação', `<span class="muted small">${nTr?`${nTr} trecho(s) em 👥 Equipe`:'nenhum trecho — aloque em 👥 Equipe e alocação'}</span>`)}
+        ${fld('🎯 Objeto de resultado', acSel, 'Conta analítica do Odoo que recebe 100% do item deste projeto; vazio = o rateio padrão do contrato (🧾 Faturamentos)')}
+      </div>
+      <div class="muted small pc-fr-res">No contrato: <b>${fmtHd(T.h)}</b> · <b>${fmtBRL(T.v)}</b>${T.nApur?` · ✔ apurado em ${T.nApur} período(s) (${fmtHd(T.apur)})${ultAp?`, o último em ${esc(labelMesAbbr(ultAp))}`:''}`:' · nada apurado ainda'}${prox.length?` · próximos: ${prox.map(x=>{ const cel=x.porFr&&x.porFr[f.id]; return `${esc(labelMesAbbr(x.ym))} ${fmtHd(cel?cel.h:0)}`; }).join(' · ')}`:''}</div></div>`; }).join('');
+  const add=gestor?`<div class="pc-fr-acoes"><button class="btn primario" data-pc-fr-add="${escA(c.id)}|aloc">＋ Projeto com alocação</button><button class="btn" data-pc-fr-add="${escA(c.id)}|ams">＋ AMS sob demanda</button>${typeof pcImpAbre==='function'?`<button class="btn" data-pc-imp="${escA(c.id)}">📥 Importar apontamentos do parceiro</button>`:''}</div>`:'';
+  const semFr=(P.frentes||[]).some(f=>f.id===PC_SEM_FR);
+  const legado=(P.legado||[]).length?`<div class="aviso">✎ Há ajuste manual antigo do <b>total</b> em ${P.legado.map(ym=>`<b>${esc(labelMesAbbr(ym))}</b>`).join(' · ')}. Com projetos, quem manda em cada período é a <b>apuração por projeto</b> (✔ apurar, abaixo) — o ajuste antigo não entra na conta.${gestor?` <button class="btn rt-step" data-pc-prev-legado="${escA(c.id)}">🗑 descartar</button>`:''}</div>`:'';
+  return `<div class="pc-cal pc-frs"><div class="mp-h3">🗂 Projetos do contrato <span class="mp-dim">cada projeto em que o parceiro aloca a equipe (ou abre chamados de AMS), com a previsão e a apuração de cada período</span></div>
+    <div class="muted small" style="margin-bottom:8px">Projeto com <b>⏱ alocação</b>: o parceiro paga as horas <b>alocadas</b> (h/dia nos trechos de 👥 Equipe) — mesmo que a equipe repasse tarefas ou use um acelerador; o esforço real fica no Jira e aparece na 💹 Rentabilidade. <b>🛠️ AMS sob demanda</b>: paga as horas atendidas no mês; a previsão usa a estimativa mensal. Em todo fechamento, a <b>✔ apuração</b> (as horas aprovadas no sistema do parceiro — 📥 importadas da planilha ou digitadas) substitui a previsão e é ela que vai para a nota e para o Odoo.</div>
+    ${add}${legado}${semFr?`<div class="aviso">⚠ Há trecho(s) da equipe <b>sem projeto</b> — eles aparecem como "Sem projeto". Escolha o projeto de cada trecho em <b>👥 Equipe e alocação</b>.</div>`:''}
+    ${frs.length?pcGradeFrentesHTML(c, gestor, P, hoje):''}
+    ${frs.length?`<details class="rm-det pc-fr-cad" data-pc-fr-cad="${escA(c.id)}" ${cadAberto?'open':''}><summary>⚙️ Cadastro dos projetos (${frs.length}) <span class="muted small">— nome, tipo, projeto do Jira, código no parceiro, reconhecer na planilha, valor-hora, estimativa e objeto de resultado</span></summary>${boxes}</details>`
+      :`<div class="estado">Nenhum projeto neste contrato — ele fatura como um bloco só (👥 Equipe e alocação).${gestor?' Cadastre os projetos em que o parceiro aloca a equipe (ex.: Sumitomo, Hi-Mix) e os de AMS — ou <b>📥 importe a planilha de apontamentos</b> do parceiro, que cria tudo de uma vez.':''}</div>`}
+    <datalist id="pc-jira-projs">${projs.map(p=>`<option value="${escA(p.key)}">${esc(p.nome||'')}</option>`).join('')}</datalist></div>`;
+}
+// A grade período × projeto: horas efetivas de cada projeto (✔ apurado · ◐ parcial · previsto), total, valor, nota
+// e recebimento previsto — e o ✔ apurar do período.
+function pcGradeFrentesHTML(c, gestor, P, hoje){
+  const frs=P.frentes||[]; if(!P.periodos.length) return `<div class="estado" style="margin-top:10px">Ainda não há previsão: aloque a equipe nos projetos de alocação (👥), informe a estimativa dos de AMS ou 📥 importe os apontamentos.</div>`;
+  const cel=(x,f)=>{ const z=x.porFr&&x.porFr[f.id]; if(!z||!(z.h>0||z.ap)) return '<span class="muted">—</span>'; const F=PC_FONTE_ROT[z.fonte]||PC_FONTE_ROT.prev;
+    const tip=`${F[1]} · previsto ${fmtHd(z.prev)}${z.ap?` · apurado ${fmtHd(Number(z.ap.h)||0)}${z.ap.parcial&&z.ap.ate?' até '+dataBR(z.ap.ate):''}${z.ap.fonte==='planilha'?' (planilha'+(z.ap.arq?' '+z.ap.arq:'')+')':z.ap.fonte==='manual'?' (digitado)':''}${z.ap.por?' por '+z.ap.por:''}`:''} · ${fmtBRL(z.v)}`;
+    return `<span class="pc-fr-cel pc-fc-${z.fonte}" data-tip="${escA(tip)}">${F[0]?F[0]+' ':''}${fmtHd(z.h)}</span>`; };
+  const rows=P.periodos.map(x=>{ const atual=x.ini<=hoje&&hoje<=x.fim; const rec=pcRecebeEm(c,x);
+    return `<tr class="${atual?'rm-destaque':''}${x.semApur?' pc-sem-apur':''}"><td><b>${esc(labelMesAbbr(x.ym))}</b>${x.semApur?' <span class="rp-neg" data-tip="O período já fechou e ainda há projeto sem apuração — importe a planilha de apontamentos aprovados ou digite em ✔ apurar">⚠</span>':''}</td>
+      <td class="small">${dataBR(x.iniPlano)} → ${dataBR(x.fimPlano)}</td>${frs.map(f=>`<td class="num">${cel(x,f)}</td>`).join('')}
+      <td class="num"><b>${fmtHd(x.horas)}</b></td><td class="num">${fmtBRL(x.valor)}</td><td class="muted small">${dataBR(x.nota)}</td><td class="muted small">${rec?dataBR(rec):'—'}</td>
+      ${gestor?`<td><button class="btn rt-step" data-pc-apur="${escA(c.id)}|${escA(x.ym)}" data-tip="Lançar ou corrigir as horas aprovadas de cada projeto neste período">✔ apurar</button></td>`:''}</tr>`; }).join('');
+  const T=P.totFr||{};
+  return `<div class="mp-h3" style="margin-top:14px">🧾 Previsão e apuração por período <span class="mp-dim">✔ apurado · ◐ apurado em parte + previsto do resto · sem marca = previsto · ⚠ período fechado sem apuração</span></div>
+    <div class="scroll-x"><table class="mp-tab-mini pc-fr-tab"><thead><tr><th>Mês</th><th>Período</th>${frs.map(f=>`<th class="num" data-tip="${escA(pcFrNome(f)+(f.ref?' · '+f.ref:''))}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</th>`).join('')}<th class="num">Horas</th><th class="num">Valor</th><th>Nota</th><th data-tip="Nota + ${pcPrazo(c)} dia(s) (prazo de recebimento do contrato)">Recebimento</th>${gestor?'<th></th>':''}</tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="2"><b>Total</b></td>${frs.map(f=>`<td class="num"><b>${fmtHd((T[f.id]||{}).h||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b></td><td class="num"><b>${fmtBRL(P.totalV)}</b></td><td colspan="${gestor?3:2}"></td></tr></tfoot></table></div>
+    ${P.nSemApur?`<div class="aviso" style="margin-top:6px">⚠ <b>${P.nSemApur} período(s) já fechado(s) sem apuração</b> de algum projeto: a nota sairia pela previsão. ${gestor?'Importe a planilha de apontamentos aprovados do parceiro (📥) ou digite em ✔ apurar.':''}</div>`:''}`;
+}
+// Modal ✔ apurar: as horas aprovadas de cada projeto num período (vazio = volta à previsão).
+function pcAbreApurar(c, ym){ const st=estado.parcerias=estado.parcerias||{}; st.apModal={ id:c.id, ym }; const P=pcPlanejamento(c); const x=P.periodos.find(q=>q.ym===ym)||{ ...pcPeriodo(c,ym), porFr:{} };
+  const per=pcPeriodo(c,ym); const frs=(P.frentes&&P.frentes.length)?P.frentes:pcFrentesEf(c);
+  abreModal(`<h3>✔ Apurar ${esc(labelMesAbbr(ym))} — ${esc(c.consultoria||'')}</h3>
+    <div class="muted small">Período ${dataBR(per.ini)} → ${dataBR(per.fim)} · nota ${dataBR(per.nota)}. Digite as horas <b>aprovadas no sistema do parceiro</b> para cada projeto — é o que vai para a nota e para o Odoo. Vazio = a previsão (o número cinza). Só os campos que você mexer são gravados; a apuração parcial da planilha continua valendo até você digitar o total.</div>
+    <div class="scroll-x"><table class="mp-tab-mini pc-ap-tab"><thead><tr><th>Projeto</th><th class="num">Previsto</th><th>Apurado (h)</th><th>Origem</th></tr></thead><tbody>${frs.map(f=>{ const z=(x.porFr||{})[f.id]||pcFrPeriodo(c,f,x); const ap=pcApurDe(c,ym,f.id);
+      return `<tr><td>${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrNome(f))}${f.ref?` <span class="muted small">${esc(f.ref)}</span>`:''}</td><td class="num">${fmtHd(z.prev)}</td>
+        <td><input type="number" min="0" step="0.25" data-pc-apm="${escA(f.id)}" value="${ap&&!ap.parcial?escA(String(Math.round((Number(ap.h)||0)*100)/100)):''}" data-ini="${ap&&!ap.parcial?escA(String(Math.round((Number(ap.h)||0)*100)/100)):''}" placeholder="${escA(String(Math.round(z.h*100)/100))}" style="width:96px" aria-label="Horas apuradas de ${escA(pcFrNome(f))}"></td>
+        <td class="muted small">${ap?`${ap.fonte==='planilha'?'📥 planilha'+(ap.arq?' '+esc(ap.arq):''):'✎ digitado'}${ap.parcial?` · parcial${ap.desde?' desde '+dataBR(ap.desde):''}${ap.ate?' até '+dataBR(ap.ate):''} (${fmtHd(Number(ap.h)||0)})`:''}${ap.por?' · '+esc(ap.por):''}${ap.em?' · '+dataBR(ap.em):''} <button class="btn rt-step" type="button" data-pc-apm-limpa="${escA(f.id)}" data-tip="Apaga a apuração deste projeto no período — volta à previsão">↺ previsão</button>`:'—'}</td></tr>`; }).join('')}</tbody></table></div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn primario" data-pc-apm-ok="1">Salvar apuração</button><button class="btn" data-pc-apm-fechar="1">Cancelar</button></div>`); }
 // 👥 Equipe e alocação: os recursos do contrato, cada um com os seus trechos, e as horas por período de faturamento.
 function pcEquipeHTML(c, gestor, plan){
   const P=plan||pcPlanejamento(c); const eq=P.eq; const vh=P.vh;
@@ -355,11 +557,16 @@ function pcEquipeHTML(c, gestor, plan){
     <div class="campo"><label>Nome do recurso</label><input type="text" id="pc-eq-nome" placeholder="ex.: Consultor SAP MM (a contratar)" style="min-width:210px"></div>
     <div class="campo"><label>&nbsp;</label><button class="btn primario" data-pc-eq-add="${escA(c.id)}">＋ Adicionar recurso</button></div></div>`:'';
   const ci=pcData(c.inicio)?c.inicio:'0000-01-01', cf=pcData(c.fim)?c.fim:'9999-12-31';   // o trecho conta só dentro da validade
+  const frs=pcFrentes(c); const comFr=frs.length>0;
+  // 🗂 com projetos, cada trecho diz a que projeto pertence (é isso que vira a previsão de cada projeto)
+  const celFr=(p,r)=>{ if(!comFr) return ''; const fid=pcRegraFr(c,r); const f=fid===PC_SEM_FR?null:pcFrente(c,fid);
+    return `<td>${gestor?`<select data-pc-rg="${escA(p.id)}|${escA(r.id)}|fr" aria-label="Projeto do trecho"${f?'':' class="pc-sem-fr"'}><option value="">— sem projeto —</option>${frs.map(x=>`<option value="${escA(x.id)}" ${x.id===fid?'selected':''}>${PC_FR_TIPOS[pcFrTipo(x)][0]} ${esc(pcFrNome(x))}</option>`).join('')}</select>`
+      :(f?`${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrNome(f))}`:'<span class="muted">sem projeto</span>')}</td>`; };
   const caixas=eq.map(p=>{
     const rs=pcRegras(p);
     const linhas=rs.map(r=>{ const h=Math.round(pcHorasRegra(r,p.a,ci,cf)*100)/100;
       const du=pcDiasUteis(r.de>ci?r.de:ci, r.ate<cf?r.ate:cf);
-      return `<tr>
+      return `<tr>${celFr(p,r)}
         <td>${gestor?`<input type="date" data-pc-rg="${escA(p.id)}|${escA(r.id)}|de" value="${escA(r.de||'')}">`:dataBR(r.de)}</td>
         <td>${gestor?`<input type="date" data-pc-rg="${escA(p.id)}|${escA(r.id)}|ate" value="${escA(r.ate||'')}">`:dataBR(r.ate)}</td>
         <td>${gestor?`<span class="pc-rg-ded"><input type="number" min="0" step="0.5" data-pc-rg="${escA(p.id)}|${escA(r.id)}|v" value="${escA(String(r.v==null?'':r.v))}" style="width:84px">
@@ -373,7 +580,7 @@ function pcEquipeHTML(c, gestor, plan){
       <div class="pc-eq-h"><b>${esc(pcNomeRec(p))}</b>${p.a?` <span class="badge" data-tip="Pessoa do time — a meta diária dela (${pcHDia(p.a)}h) é a base do % do dia">👤 do time</span>`:' <span class="badge" data-tip="Nome livre: usa a meta diária global no % do dia">✎ nome livre</span>'}
         <span class="muted small">${rs.length} trecho(s) · <b>${fmtHd(tot)}</b> no contrato${vh?` · ${fmtBRL(tot*vh)}`:''}</span>
         <span class="spacer"></span>${gestor?`<button class="btn rt-step" data-pc-rec-rm="${escA(c.id)}|${escA(p.id)}" data-tip="Tirar o recurso do contrato">🗑 remover</button>`:''}</div>
-      ${rs.length?`<div class="scroll-x"><table class="mp-tab-mini pc-eq-tab"><thead><tr><th>De</th><th>Até</th><th>Dedicação</th><th class="num">Dias úteis</th><th class="num">Horas</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      ${rs.length?`<div class="scroll-x"><table class="mp-tab-mini pc-eq-tab${comFr?' pc-com-fr':''}"><thead><tr>${comFr?'<th>Projeto</th>':''}<th>De</th><th>Até</th><th>Dedicação</th><th class="num">Dias úteis</th><th class="num">Horas</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`
         :`<div class="muted small">Sem trechos — ${gestor?'clique em <b>＋ trecho</b> para alocar (ex.: 2h por dia útil de 15/05 a 25/05).':'nada alocado ainda.'}</div>`}
       ${gestor?`<div style="margin-top:6px"><button class="btn rt-step" data-pc-rg-add="${escA(c.id)}|${escA(p.id)}">＋ trecho</button> <span class="muted small">um trecho por dedicação: 2h/dia até 25/05 e 4h/dia depois são <b>dois</b> trechos.</span></div>`:''}</div>`;
   }).join('');
@@ -383,33 +590,35 @@ function pcEquipeHTML(c, gestor, plan){
   // cálculo como placeholder (= automático) e, quando alguém digita, o calculado continua logo abaixo
   // ("calc. 168h") para a diferença ficar à vista. O ↺ devolve a linha ao automático.
   const nu=(v)=>String(Math.round((Number(v)||0)*100)/100);
-  const celH=(x)=>gestor
+  const edita=gestor&&!comFr;   // 🗂 com projetos, quem ajusta o período é a apuração por projeto (🗂 Projetos › ✔ apurar)
+  const celH=(x)=>edita
     ? `<input type="number" min="0" step="0.5" class="pc-prev-i${x.manH?' pc-man':''}" data-pc-prev="${escA(c.id)}|${escA(x.ym)}|h"
          value="${x.manH?escA(nu(x.horas)):''}" placeholder="${escA(fmtHd(x.horasAuto))}" aria-label="Horas previstas em ${escA(labelMesAbbr(x.ym))}"
          data-tip="${x.manH?'Horas digitadas — apague para voltar ao cálculo':'Horas calculadas pelos trechos: digite para substituir'}">
        ${x.manH?`<span class="pc-prev-calc">calc. ${fmtHd(x.horasAuto)}</span>`:''}`
     : `<b>${fmtHd(x.horas)}</b>${x.manH?` <span class="pc-man-selo" data-tip="Ajustado à mão — o cálculo dava ${escA(fmtHd(x.horasAuto))}">✎</span>`:''}`;
-  const celV=(x)=>gestor
+  const celV=(x)=>edita
     ? `<input type="number" min="0" step="0.01" class="pc-prev-i pc-prev-v${x.manV?' pc-man':''}" data-pc-prev="${escA(c.id)}|${escA(x.ym)}|v"
          value="${x.manV?escA(nu(x.valor)):''}" placeholder="${escA(fmtBRL(x.valorAuto))}" aria-label="Valor previsto em ${escA(labelMesAbbr(x.ym))}"
          data-tip="${x.manV?'Valor digitado — apague para voltar ao cálculo':'Valor calculado (horas × valor-hora): digite para fechar um valor'}">
        ${x.manV?`<span class="pc-prev-calc">calc. ${fmtBRL(x.valorAuto)}</span>`:''}`
     : `${fmtBRL(x.valor)}${x.manV?` <span class="pc-man-selo" data-tip="Ajustado à mão — o cálculo dava ${escA(fmtBRL(x.valorAuto))}">✎</span>`:''}`;
+  const mostraV=vh>0||comFr;
   const grade=P.periodos.length?`<div class="scroll-x"><table class="mp-tab-mini pc-eq-grade"><thead><tr><th>Mês</th><th>Período</th><th class="num">Dias úteis</th>${
-      eq.map(p=>`<th class="num" data-tip="${escA(pcNomeRec(p))}">${esc(curto(pcNomeRec(p)))}</th>`).join('')}<th class="num">Horas</th>${vh?'<th class="num">Valor</th>':''}<th>Nota</th>${gestor?'<th></th>':''}</tr></thead>
+      eq.map(p=>`<th class="num" data-tip="${escA(pcNomeRec(p))}">${esc(curto(pcNomeRec(p)))}</th>`).join('')}<th class="num">Horas</th>${mostraV?'<th class="num">Valor</th>':''}<th>Nota</th>${gestor?'<th></th>':''}</tr></thead>
     <tbody>${P.periodos.map(x=>`<tr class="${x.ini<=hoje&&hoje<=x.fim?'rm-destaque':''}${(x.manH||x.manV)?' pc-prev-man':''}"><td><b>${esc(labelMesAbbr(x.ym))}</b>${x.ajustado?' <span class="muted small" data-tip="datas ajustadas neste mês">✎</span>':''}</td>
       <td>${dataBR(x.iniPlano)} → ${dataBR(x.fimPlano)}${x.recortado?' <span class="muted small" data-tip="Período recortado pela alocação/validade">✂</span>':''}</td><td class="num">${x.du}</td>
       ${eq.map(p=>`<td class="num">${x.porPessoa[p.id]?fmtHd(x.porPessoa[p.id]):'<span class="muted">—</span>'}</td>`).join('')}
-      <td class="num pc-prev-c">${celH(x)}</td>${vh?`<td class="num pc-prev-c">${celV(x)}</td>`:''}<td class="muted small">${dataBR(x.nota)}</td>${
+      <td class="num pc-prev-c">${celH(x)}</td>${mostraV?`<td class="num pc-prev-c">${celV(x)}</td>`:''}<td class="muted small">${dataBR(x.nota)}</td>${
       gestor?`<td>${(x.manH||x.manV)?`<button class="btn rt-step" data-pc-prev-rm="${escA(c.id)}|${escA(x.ym)}" data-tip="Voltar este período ao cálculo automático">↺</button>`:''}</td>`:''}</tr>`).join('')}</tbody>
     <tfoot><tr><td colspan="3"><b>Total</b></td>${eq.map(p=>`<td class="num"><b>${fmtHd(P.porRec[p.id]||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b>${
-      P.totalH!==P.totalHAuto?`<span class="pc-prev-calc">calc. ${fmtHd(P.totalHAuto)}</span>`:''}</td>${vh?`<td class="num"><b>${fmtBRL(P.totalV)}</b>${
+      P.totalH!==P.totalHAuto?`<span class="pc-prev-calc">calc. ${fmtHd(P.totalHAuto)}</span>`:''}</td>${mostraV?`<td class="num"><b>${fmtBRL(P.totalV)}</b>${
       P.totalV!==P.totalVAuto?`<span class="pc-prev-calc">calc. ${fmtBRL(P.totalVAuto)}</span>`:''}</td>`:''}<td></td>${gestor?'<td></td>':''}</tr></tfoot></table></div>
     ${P.nMan?`<div class="muted small" style="margin-top:6px">✎ <b>${P.nMan} período(s) ajustado(s) à mão</b> — o número digitado vale, e o calculado fica ao lado. As colunas de cada pessoa continuam mostrando o que os <b>trechos</b> dizem, por isso elas podem não somar o total ajustado.</div>`:''}
     ${P.orfaos&&P.orfaos.length?`<div class="aviso" style="margin-top:6px">✎ Há ajuste manual guardado para ${P.orfaos.map(ym=>`<b>${esc(labelMesAbbr(ym))}</b>`).join(' · ')}, fora do que a alocação cobre hoje. Ele volta a valer se o período voltar.${
       gestor?` <button class="btn rt-step" data-pc-prev-limpar="${escA(c.id)}">🗑 descartar</button>`:''}</div>`:''}
-    <div class="muted small" style="margin-top:6px">As horas de cada período saem dos <b>dias úteis</b> do trecho dentro dele (feriados descontados) e o valor usa o valor-hora do contrato${vh?` (${fmtBRL(vh)})`:' — ainda não informado'}. O período e o dia da nota são os do 📅 calendário de faturamento.${
-      gestor?' Nem todo mês fecha pela conta: <b>digite por cima</b> nas colunas Horas e Valor quando o mês for negociado; apague o campo para voltar ao cálculo.':''}</div>`
+    ${comFr?`<div class="muted small" style="margin-top:6px">🗂 Este contrato tem <b>projetos</b>: o total de cada período é a soma dos projetos, com a <b>✔ apuração</b> (horas aprovadas no parceiro) no lugar da previsão quando ela existe — veja e ajuste por projeto em <b>🗂 Projetos</b>. As colunas por pessoa mostram o que os trechos dizem.</div>`:`<div class="muted small" style="margin-top:6px">As horas de cada período saem dos <b>dias úteis</b> do trecho dentro dele (feriados descontados) e o valor usa o valor-hora do contrato${vh?` (${fmtBRL(vh)})`:' — ainda não informado'}. O período e o dia da nota são os do 📅 calendário de faturamento.${
+      gestor?' Nem todo mês fecha pela conta: <b>digite por cima</b> nas colunas Horas e Valor quando o mês for negociado; apague o campo para voltar ao cálculo.':''}</div>`}`
     :`<div class="estado">Nenhuma alocação ainda${eq.length?' — cadastre os trechos de cada recurso acima':''}. O planejamento aparece aqui por <b>período de faturamento</b> assim que houver um trecho com datas.</div>`;
   return `<div class="pc-cal pc-eq"><div class="mp-h3">👥 Equipe e alocação <span class="mp-dim">quem vai trabalhar no contrato, quanto e quando — e quanto isso vira em cada nota</span></div>
     ${P.fora&&P.fora.length?`<div class="aviso">⚠ Fora da validade do contrato (não entram no planejamento): ${P.fora.map(esc).join(' · ')}.</div>`:''}
@@ -421,6 +630,8 @@ function pcLeForm(c){
   c.consultoria=v('pc-f-consultoria').slice(0,120); c.modalidade=PC_MODAL[v('pc-f-modal')]?v('pc-f-modal'):'horas'; c.inicio=v('pc-f-inicio'); c.fim=v('pc-f-fim');
   c.valorHora=Math.max(0,Number(v('pc-f-vh'))||0); c.avisoDias=Math.max(0,Math.round(Number(v('pc-f-aviso'))||0));
   c.fatFecha=Math.max(1,Math.min(31,Math.round(Number(v('pc-f-fecha'))||31))); c.fatDia=Math.max(0,Math.min(31,Math.round(Number(v('pc-f-nota'))||0)));
+  const pz=v('pc-f-prazo'); c.prazoReceb=pz===''?30:Math.max(0,Math.min(365,Math.round(Number(pz)||0)));
+  c.retPct=Math.max(0,Math.min(60,Math.round((Number(v('pc-f-ret').replace(',','.'))||0)*100)/100));
   c.conta=v('pc-f-conta').slice(0,120); c.contato=v('pc-f-contato').slice(0,120); c.obs=v('pc-f-obs').slice(0,300);
   const pasta=v('pc-f-pasta'); if(pasta&&!pcUrl(pasta)) return 'A pasta do contrato precisa ser um endereço http(s) — copie o link da pasta no SharePoint.';
   c.pasta=pcUrl(pasta); if(!c.ajustes||typeof c.ajustes!=='object') c.ajustes={};
@@ -435,10 +646,27 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pl=e.target.closest&&e.target.closest('[data-pc-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-pc-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   // 🗂 gavetas do cartão (uma por vez): 👥 equipe · 🧾 faturamentos (16c) · 📅 calendário · 📄 documentos
-  const gav=['data-pc-eq','data-pc-fat','data-pc-cal','data-pc-docs'].find(k=>t.hasAttribute(k));
-  if(gav){ const id=t.getAttribute(gav); const qual=gav==='data-pc-eq'?'equipe':gav==='data-pc-fat'?'fat':gav==='data-pc-cal'?'cal':'docs';
+  const gav=['data-pc-proj','data-pc-eq','data-pc-fat','data-pc-cal','data-pc-docs'].find(k=>t.hasAttribute(k));
+  if(gav){ const id=t.getAttribute(gav); const qual=gav==='data-pc-proj'?'proj':gav==='data-pc-eq'?'equipe':gav==='data-pc-fat'?'fat':gav==='data-pc-cal'?'cal':'docs';
+    if(qual==='proj'){ if(typeof garanteProjetos==='function') garanteProjetos().then(()=>{ if(estado.vista==='parcerias') renderParcerias(); }).catch(()=>{}); if(pcPodeEditar()&&typeof pcCat==='function'&&!pcCat()&&typeof pcCatCarrega==='function') pcCatCarrega(false); }
     st.aba=(st.aba&&st.aba.id===id&&st.aba.qual===qual)?null:{ id, qual }; renderParcerias(); return; }
   if(!gestor) return;
+  // 🗂 projetos do contrato (frentes)
+  if(t.hasAttribute('data-pc-fr-add')){ const [id,tipo]=t.getAttribute('data-pc-fr-add').split('|'); const c=pcDe(id); if(!c) return;
+    const f=pcNovaFrente('', tipo); if(tipo==='ams'){ f.nome='Atendimento AMS'; f.de=pcInicioPeriodoAtual(c); } pcFrentesW(c).push(f); pcLog(c,'projeto',`projeto novo (${PC_FR_TIPOS[f.tipo][1]})`); salvaCfg();
+    st.frCad=st.frCad||{}; st.frCad[c.id]=true;
+    st.aba={ id:c.id, qual:'proj' }; renderParcerias(); const inp=document.querySelector(`[data-pc-fr="${c.id}|${f.id}|nome"]`); if(inp){ try{ inp.focus(); inp.select(); }catch(e2){} } return; }
+  if(t.hasAttribute('data-pc-fr-rm')){ const [id,fid]=t.getAttribute('data-pc-fr-rm').split('|'); const c=pcDe(id); if(!c) return; const f=pcFrente(c,fid); if(!f) return;
+    const nTr=pcEquipe(c).reduce((s,p)=>s+pcRegras(p).filter(r=>r.fr===fid).length,0); const nAp=Object.keys(pcApur(c)).filter(ym=>pcApurDe(c,ym,fid)).length;
+    if(!confirm(`Tirar o projeto "${pcFrNome(f)}" do contrato?${nTr?` ${nTr} trecho(s) da equipe ficam sem projeto.`:''}${nAp?` As apurações de ${nAp} período(s) deste projeto serão apagadas.`:''}`)) return;
+    c.frentes=pcFrentes(c).filter(x=>x.id!==fid); pcEquipe(c).forEach(p=>pcRegras(p).forEach(r=>{ if(r.fr===fid) r.fr=''; }));
+    Object.keys(pcApur(c)).forEach(ym=>{ if(pcApurDe(c,ym,fid)) pcApurSet(c,ym,fid,null); });
+    pcLog(c,'projeto',`projeto removido: ${pcFrNome(f)}`); salvaCfg(); renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-apur')){ const [id,ym]=t.getAttribute('data-pc-apur').split('|'); const c=pcDe(id); if(c) pcAbreApurar(c,ym); return; }
+  if(t.hasAttribute('data-pc-imp')){ const c=pcDe(t.getAttribute('data-pc-imp')); if(c&&typeof pcImpAbre==='function') pcImpAbre(c); return; }
+  if(t.hasAttribute('data-pc-prev-legado')){ const c=pcDe(t.getAttribute('data-pc-prev-legado')); if(!c) return; const yms=Object.keys(pcPrev(c)); if(!yms.length) return;
+    if(!confirm(`Descartar o ajuste manual antigo do total de ${yms.map(labelMesAbbr).join(', ')}? Com projetos, quem vale é a apuração por projeto.`)) return;
+    c.prev={}; pcLog(c,'previsão',`ajuste manual antigo descartado: ${yms.map(labelMesAbbr).join(', ')}`); salvaCfg(); renderParcerias(); return; }
   // 📄 documentos do contrato
   if(t.hasAttribute('data-pc-doc-add')){ const c=pcDe(t.getAttribute('data-pc-doc-add')); if(!c) return;
     pcDocs(c).push({ id:pcId('dc'), tipo:pcDocs(c).length?'aditivo':'contrato', nome:'', url:'' }); salvaCfg(); renderParcerias(); return; }
@@ -532,9 +760,51 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     const val=String(t.value||'').trim();
     if(campo==='de'||campo==='ate'){ if(!pcData(val)){ renderParcerias(); return; } r[campo]=val; if(pcData(r.de)&&pcData(r.ate)&&r.ate<r.de){ const x=r.de; r.de=r.ate; r.ate=x; } }
     else if(campo==='modo') r.modo=PC_MODO_IDS.includes(val)?val:'dia';
+    else if(campo==='fr') r.fr=pcFrente(c,val)?val:'';
     else r.v=Math.max(0,Number(val)||0);
-    pcLog(c,'equipe',`${pcNomeRec(p)} · ${pcRegraRot(r)}`); salvaCfg(); renderParcerias(); return; }
+    pcLog(c,'equipe',`${pcNomeRec(p)} · ${pcRegraRot(r)}${campo==='fr'?' → projeto '+(r.fr?pcFrNome(pcFrente(c,r.fr)):'nenhum'):''}`); salvaCfg(); renderParcerias(); return; }
+  // 🗂 campos do projeto (frente)
+  if(t.hasAttribute('data-pc-fr')){ if(!pcPodeEditar()) return; const [id,fid,campo]=t.getAttribute('data-pc-fr').split('|'); const c=pcDe(id); if(!c) return;
+    const f=pcFrente(c,fid); if(!f) return; const val=String(t.value||'').trim(); const antes=JSON.stringify(f);
+    if(campo==='nome') f.nome=val.slice(0,90);
+    else if(campo==='tipo'){ f.tipo=PC_FR_TIPOS[val]?val:'aloc'; if(f.tipo==='ams'&&!pcData(f.de)) f.de=pcInicioPeriodoAtual(c); }
+    else if(campo==='de'){ if(val&&!pcData(val)){ renderParcerias(); return; } f.de=val; }
+    else if(campo==='proj') f.proj=val.toUpperCase().replace(/[^A-Z0-9_]/g,'').slice(0,20);
+    else if(campo==='ref') f.ref=val.slice(0,60);
+    else if(campo==='casar') f.casar=val.slice(0,240);
+    else if(campo==='vh') f.vh=Math.max(0,Math.round((Number(val.replace(',','.'))||0)*100)/100);
+    else if(campo==='estMes'){ f.estMes=Math.max(0,Math.round((Number(val.replace(',','.'))||0)*10)/10); if(f.estMes>0&&!pcData(f.de)) f.de=pcInicioPeriodoAtual(c); }
+    else if(campo==='ac'){ f.ac=Number(val)||0; const a=((typeof pcCat==='function'&&pcCat()||{}).analiticas||[]).find(y=>y.id===f.ac); f.acNome=a?a.nome:(f.ac?f.acNome||'':''); }
+    else return;
+    if(JSON.stringify(f)===antes){ return; }
+    pcLog(c,'projeto',`${pcFrNome(f)}: ${campo} → ${campo==='tipo'?PC_FR_TIPOS[f.tipo][1]:campo==='ac'?(f.acNome||'rateio padrão'):campo==='vh'?(f.vh?fmtBRL(f.vh):'do contrato'):campo==='estMes'?fmtHd(f.estMes)+'/mês':campo==='de'?(f.de?dataBR(f.de):'—'):(f[campo]||'—')}`);
+    salvaCfg();
+    // texto digitado: o redesenho espera o foco sair do cartão do projeto (o Tab de um campo ao outro não perde nada)
+    if((campo==='tipo'||campo==='ac')||typeof pcAdiaRender!=='function') renderParcerias(); else pcAdiaRender(); return; }
   if(/^pc-f-/.test(t.id||'')){ pcGuardaRasc(); pcPreview(); }
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{ if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!/^pc-f-/.test(t.id||'')) return;
   pcGuardaRasc(); if(/^pc-f-(fecha|nota|fim|aviso)$/.test(t.id)) pcPreview(); });
+// ⚙️ cadastro dos projetos aberto/fechado: o <details> se abre sozinho; o listener só anota (o redesenho não fecha de novo).
+document.getElementById('conteudo').addEventListener('toggle',(e)=>{ const d=e.target; if(estado.vista!=='parcerias'||!d||!d.hasAttribute||!d.hasAttribute('data-pc-fr-cad')) return;
+  const st=estado.parcerias=estado.parcerias||{}; st.frCad=st.frCad||{}; st.frCad[d.getAttribute('data-pc-fr-cad')]=d.open; }, true);
+// Modal ✔ apurar período: grava a apuração de cada projeto (vazio = de volta à previsão).
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  if(estado.vista!=='parcerias') return; const st=estado.parcerias||{}; const m=st.apModal; if(!m) return; const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-pc-apm-fechar')){ st.apModal=null; fechaModal(); return; }
+  if(t.hasAttribute('data-pc-apm-limpa')){ const inp=document.querySelector(`#modal-body [data-pc-apm="${t.getAttribute('data-pc-apm-limpa')}"]`);
+    if(inp){ inp.value=''; inp.setAttribute('data-limpar','1'); inp.placeholder='volta à previsão'; } t.disabled=true; t.textContent='↺ volta à previsão ao salvar'; return; }
+  if(!t.hasAttribute('data-pc-apm-ok')) return; const c=pcDe(m.id); if(!c||!pcPodeEditar()) return;
+  const quem=pcQuem().nome; const mud=[]; let ruim='';
+  document.querySelectorAll('#modal-body [data-pc-apm]').forEach(inp=>{ const fid=inp.getAttribute('data-pc-apm'); const f=fid===PC_SEM_FR?{ id:PC_SEM_FR, nome:'Sem projeto' }:pcFrente(c,fid); if(!f) return;
+    const bruto=String(inp.value||'').trim().replace(',','.'); const ant=pcApurDe(c,m.ym,fid);
+    if(inp.getAttribute('data-limpar')==='1'&&!bruto){ if(ant){ pcApurSet(c,m.ym,fid,null); mud.push(`${pcFrNome(f)} de volta à previsão`); } return; }
+    if(bruto===String(inp.getAttribute('data-ini')||'').replace(',','.')) return;   // só grava o que a pessoa mexeu (o parcial da planilha fica como está)
+    if(!bruto){ if(ant){ pcApurSet(c,m.ym,fid,null); mud.push(`${pcFrNome(f)} de volta à previsão`); } return; }
+    const n=Number(bruto); if(!isFinite(n)||n<0){ ruim=pcFrNome(f); return; } const h=Math.round(n*100)/100;
+    if(ant&&!ant.parcial&&Math.abs((Number(ant.h)||0)-h)<0.005) return;
+    pcApurSet(c,m.ym,fid,{ h, fonte:'manual', em:hojeSP(), por:quem }); mud.push(`${pcFrNome(f)} ${fmtHd(h)}`); });
+  if(ruim){ toast(`Horas inválidas em "${ruim}" — digite um número igual ou maior que zero (ou deixe vazio).`,'warn'); return; }
+  st.apModal=null; fechaModal();
+  if(mud.length){ pcLog(c,'apuração',`${labelMesAbbr(m.ym)}: ${mud.join(' · ')}`); salvaCfg(); toast(`Apuração de ${labelMesAbbr(m.ym)} salva.`,'ok'); }
+  renderParcerias(); });

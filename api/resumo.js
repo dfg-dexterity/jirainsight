@@ -211,12 +211,15 @@ function odooDistIgual(a, b) {
   const ka = Object.keys(A), kb = Object.keys(B);
   return ka.length === kb.length && ka.every((k) => Math.abs(num(A[k]) - num(B[k])) < 0.01);
 }
+// Teto de itens por ordem: com 🗂 projetos o contrato manda um item por projeto e período (2026-10-05) — 3 projetos × 24
+// períodos + extras passa fácil dos 80 de antes. O painel avisa antes de chegar aqui (PC_ODOO_MAX_LINHAS no 16c).
+const ODOO_MAX_LINHAS = 300;
 function odooLinhasCorpo(b) {
   return (Array.isArray(b.linhas) ? b.linhas : []).map((l) => ({
     chave: txt(l && l.chave, 40), tipo: (l && l.tipo === 'extra') ? 'extra' : 'periodo', mes: txt(l && l.mes, 7), de: isoData(l && l.de), ate: isoData(l && l.ate), nota: isoData(l && l.nota),
     descricao: txt(l && l.descricao, 200), qtd: Math.round(Math.max(0, num(l && l.qtd)) * 100) / 100, unitario: Math.round(Math.max(0, num(l && l.unitario)) * 100) / 100,
     rateio: (Array.isArray(l && l.rateio) ? l.rateio : []).slice(0, 12).map((r) => ({ ac: Math.round(num(r && r.ac)), pct: num(r && r.pct) })).filter((r) => r.ac > 0 && r.pct > 0),
-  })).filter((l) => l.chave && l.qtd > 0 && l.unitario > 0).slice(0, 80);
+  })).filter((l) => l.chave && l.qtd > 0 && l.unitario > 0).slice(0, ODOO_MAX_LINHAS);
 }
 const resumoLinha = (l, extra) => ({ chave: l.chave, tipo: l.tipo, mes: l.mes, descricao: l.descricao, qtd: l.qtd, unitario: l.unitario, valor: Math.round(l.qtd * l.unitario * 100) / 100, rateio: l.rateio, ...(extra || {}) });
 // Produto de serviço: o id escolhido na tela → o env (id ou nome) → o 1º serviço à venda (se `fallback`).
@@ -264,7 +267,7 @@ async function catalogoOdoo(res, b) {
 async function sincronizaContratoOdoo(res, b) {
   const email = txt(b.email, 200), token = String(b.token || '');
   const linhas = odooLinhasCorpo(b); const ordemId = Math.max(0, Math.round(num(b.ordemId)));
-  const vinculos = (Array.isArray(b.itens) ? b.itens : []).map((x) => ({ chave: txt(x && x.chave, 40), id: Math.round(num(x && x.id)) })).filter((x) => x.chave && x.id > 0).slice(0, 200);
+  const vinculos = (Array.isArray(b.itens) ? b.itens : []).map((x) => ({ chave: txt(x && x.chave, 40), id: Math.round(num(x && x.id)) })).filter((x) => x.chave && x.id > 0).slice(0, ODOO_MAX_LINHAS * 2);
   const consultoria = txt(b.consultoria, 120); const cliente = txt(b.cliente, 120) || consultoria;
   const ref = `Jira Insights · contrato de parceria ${txt(b.contratoId, 30)}`;
   const totalPrev = Math.round(linhas.reduce((s, l) => s + l.qtd * l.unitario, 0) * 100) / 100;

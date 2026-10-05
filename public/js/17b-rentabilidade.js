@@ -548,7 +548,17 @@ function renderRentab(){
   if(c.semCusto) avisos.push(`⚠ <b>${c.semCusto} pessoa(s) sem custo/h</b> neste cenário — o custo fica menor do que é. Cadastre o custo/h na 🏦 Controladoria (⚙️) ou o custo previsto da vaga em Pessoas planejadas.`);
   const vendOrf=rpVendManOrfaos(p);
   if(vendOrf.length) avisos.push(`✎ Há <b>horas vendidas digitadas</b> para ${vendOrf.map(ym=>`<b>${esc(labelMesAbbr(ym))}</b>`).join(' · ')}, fora do prazo atual do plano (${dataBR(p.inicio)} → ${dataBR(rpFim(p))}). Elas voltam a valer se o prazo cobrir esses meses de novo.${gestor?' <button class="btn rt-step" data-rp-vend-orf="1">🗑 descartar</button>':''}`);
-  if(tipo==='horas'&&!ct&&pcLista().length) avisos.push('💡 Ligue o plano a um <b>🤝 contrato de parceria</b> em ✏️ Dados do projeto: o cliente, o valor-hora e os <b>períodos de faturamento</b> (fechamento da consultoria) passam a vir do contrato.');
+  // 🗂 o projeto é um PROJETO de um contrato de parceria (pedido de 2026-10-05): as horas FATURADAS (alocação + apuração)
+  // moram no contrato; aqui elas viram as horas vendidas, e o custo continua sendo o esforço real da equipe no Jira.
+  const frc=(tipo==='horas'&&p.projeto&&typeof pcFrenteDoProjeto==='function')?(pcFrenteDoProjeto(p.projeto,ct?ct.id:'')||(!ct?pcFrenteDoProjeto(p.projeto):null)):null;
+  if(frc&&(!ct||ct.id!==frc.c.id)) avisos.push(`🗂 Este projeto é o <b>${esc(pcFrNome(frc.f))}</b> do contrato de parceria <b>${esc(pcCod(frc.c))} ${esc(frc.c.consultoria||'')}</b> — ligue o plano a ele para o cliente, o valor-hora, os períodos e as horas faturadas virem de lá.${gestor?` <button class="btn rt-step" data-rp-fr-ligar="${escA(frc.c.id)}">🤝 Ligar ao contrato</button>`:''}`);
+  else if(frc){ const hm=pcFrHorasPorMes(frc.c,frc.f.id); const vp=rpVendPorMes(p); const ms=rpMeses(p);
+    // só os meses que o contrato cobre entram na comparação
+    const dif=ms.filter(m=>hm[m]!=null&&Math.abs(hm[m]-(vp.porMes[m]||0))>=0.5); const fonte=p.vendFonte&&p.vendFonte.f===frc.f.id;
+    avisos.push(`🗂 As horas <b>faturadas</b> deste projeto vêm do contrato <b>${esc(pcCod(frc.c))} ${esc(frc.c.consultoria||'')}</b> › <b>${esc(pcFrNome(frc.f))}</b> (${esc(PC_FR_TIPOS[pcFrTipo(frc.f)][1].toLowerCase())}: o parceiro paga as horas ${pcFrTipo(frc.f)==='ams'?'atendidas':'alocadas'}, apuradas no sistema dele). Aqui elas são as <b>horas vendidas</b> — a receita —, e o <b>custo</b> continua sendo o esforço real da equipe no Jira: é nessa diferença que aparece o ganho de repassar tarefas ou usar um acelerador.
+      ${dif.length?`<br>⚠ <b>${dif.length} mês(es) diferente(s)</b> do contrato: ${dif.slice(0,6).map(m=>`${esc(labelMesAbbr(m))} plano ${rpH(vp.porMes[m]||0)} × contrato ${rpH(hm[m]||0)}`).join(' · ')}${dif.length>6?' …':''}.${gestor?` <button class="btn rt-step" data-rp-fr-trazer="${escA(frc.c.id)}|${escA(frc.f.id)}" data-tip="Grava as horas do contrato (alocação e apuração, rateadas por mês civil) como horas vendidas de cada mês do plano">↻ Trazer as horas do contrato</button>`:''}`
+        :`<br>✓ As horas vendidas do plano batem com o contrato${fonte&&p.vendFonte.em?` (trazidas em ${dataBR(p.vendFonte.em)})`:''}.`}`); }
+  if(tipo==='horas'&&!ct&&!frc&&pcLista().length) avisos.push('💡 Ligue o plano a um <b>🤝 contrato de parceria</b> em ✏️ Dados do projeto: o cliente, o valor-hora e os <b>períodos de faturamento</b> (fechamento da consultoria) passam a vir do contrato.');
   if(ct&&ctSt&&ctSt.k==='avencer') avisos.push(`⏰ O contrato <b>${esc(ct.consultoria||'')}</b> vence em ${dataBR(ct.fim)} — aviso prévio ${ctSt.avisoPassou?'<b>deveria ter sido dado</b> até':'até'} ${dataBR(ctSt.avisoAte)}.`);
   if(ct&&ctSt&&ctSt.k==='encerrado') avisos.push(`⚠ O contrato <b>${esc(ct.consultoria||'')}</b> está <b>encerrado</b> desde ${dataBR(ct.fim)} — renove-o em 🤝 Contratos de parceria.`);
   if(ct&&((ct.inicio&&p.inicio<ct.inicio)||(ct.fim&&rpFim(p)>ct.fim))) avisos.push(`⚠ O prazo do plano (${dataBR(p.inicio)} → ${dataBR(rpFim(p))}) sai da validade do contrato (${dataBR(ct.inicio)} → ${ct.fim?dataBR(ct.fim):'sem fim'}).`);
@@ -722,6 +732,17 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rp-vend-limpar')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const n=Object.keys(p.vendMan||{}).length; if(!n) return;
     if(!confirm(`Voltar as horas vendidas de ${n} mês(es) ao cálculo automático (${rpCargaRot(p)})?`)) return;
     p.vendMan={}; rpSalva(p,'vend',`horas vendidas de ${n} mês(es) de volta ao cálculo`); renderRentab(); return; }
+  // 🗂 projeto de contrato de parceria: ligar o plano ao contrato · trazer as horas faturadas (alocação + apuração) do contrato
+  if(t.hasAttribute('data-rp-fr-ligar')){ const p=rpPlano(r.sel); const c=pcDe(t.getAttribute('data-rp-fr-ligar')); if(!p||!c||!gestor) return;
+    p.contrato=c.id; if(!p.cliente) p.cliente=c.consultoria||''; if(!(Number(p.valorHora)>0)&&Number(c.valorHora)>0) p.valorHora=Number(c.valorHora);
+    rpSalva(p,'dados',`ligado ao contrato de parceria ${pcCod(c)} ${c.consultoria||''}`); toast(`Plano ligado ao contrato ${pcCod(c)}.`,'ok'); renderRentab(); return; }
+  if(t.hasAttribute('data-rp-fr-trazer')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const [cid,fid]=t.getAttribute('data-rp-fr-trazer').split('|'); const c=pcDe(cid); const f=c&&pcFrente(c,fid); if(!f) return;
+    const hm=pcFrHorasPorMes(c,fid); const ms=rpMeses(p); const fora=Object.keys(hm).filter(m=>!ms.includes(m)&&hm[m]>0);
+    if(!confirm(`Gravar as horas do contrato (${pcFrNome(f)}) como horas vendidas dos ${ms.filter(m=>hm[m]!=null).length} mês(es) do plano que ele cobre?${fora.length?` O contrato tem horas fora do prazo do plano (${fora.map(labelMesAbbr).join(', ')}) — ajuste o início/fim do plano para incluí-las.`:''}`)) return;
+    const cob=ms.filter(m=>hm[m]!=null);   // mês que o contrato não cobre fica com as horas do próprio plano
+    if(!cob.length){ toast('O contrato não tem horas neste projeto dentro do prazo do plano.','warn'); return; }
+    cob.forEach(m=>{ rpVendManSet(p,m,String(Math.round(hm[m]*10)/10)); }); p.vendFonte={ c:c.id, f:fid, em:hojeSP() };
+    rpSalva(p,'vend',`horas vendidas trazidas do contrato ${pcCod(c)} › ${pcFrNome(f)}: ${cob.map(m=>labelMesAbbr(m)+' '+rpH(hm[m])).join(' · ')}`); toast('Horas vendidas atualizadas a partir do contrato.','ok'); renderRentab(); return; }
   if(t.hasAttribute('data-rp-vend-orf')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const orf=rpVendManOrfaos(p); if(!orf.length) return;
     if(!confirm(`Descartar as horas vendidas digitadas de ${orf.map(labelMesAbbr).join(', ')}? Esses meses estão fora do prazo atual do plano.`)) return;
     orf.forEach(ym=>{ delete rpVendMan(p)[ym]; });
