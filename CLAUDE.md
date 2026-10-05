@@ -215,6 +215,31 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (Controladoria `ctResultado`, Métricas vendidas/valor vendido, 💹 Rentabilidade e a ficha do projeto ao criar o
   plano). Aba 💰 ganhou a seção ⏱ Horas abertas (`[data-ct-horas]`) e a lista genérica deixou de incluir `horas`.
   Teste: `horas-abertas-test.mjs` (Playwright, 30 casos).
+- **🗂 Parcerias por projeto · 📥 apuração pela planilha · 💰 fluxo de caixa (2026-10-05, a pedido do usuário: "tenho
+  um contrato e eles me alocam em um projeto; faturo por hora independente se gastei horas lá ou não — posso repassar
+  tarefas ou usar um acelerador; quero projetar as alocações por projeto e ter previsibilidade do caixa; integrar com o
+  Odoo para o fechamento e a nota serem consistentes; Axia é AMS"):** o diagnóstico na produção foi que os 3 contratos
+  de parceria não tinham equipe/alocação nem vínculo com projeto, e a alocação vivia espalhada (contrato × planos da
+  💹 Rentabilidade, com o Hi-Mix a 8h/dia desde janeiro quando a planilha dizia ~4h/dia desde junho). Agora o contrato
+  tem **frentes** (`c.frentes`, 16b): ⏱ `aloc` (paga as horas ALOCADAS — trechos com `regra.fr`) ou 🛠️ `ams` (paga as
+  atendidas — `estMes`, janela `pcFrJanelaAms`). A **apuração** `c.apur[ym][fid]={h,fonte,parcial,ate}` manda no
+  período; **`pcFrPeriodo` é a regra única** (apurado > parcial + previsto do resto > previsto) e `pcPlanejamento`
+  despacha para `pcPlanejamentoFrentes` quando há frentes — contrato sem frentes segue **idêntico** (`pcPlanejamentoSimples`,
+  `c.prev`). O **📥 importador** (16e) lê o `.xlsx` sem dependência (zip à mão + `DecompressionStream`), CSV e o colado do
+  Excel; agrupa por projeto do parceiro (PTC), soma por **período de faturamento** do contrato (`pcYmDaData`), período
+  não coberto até o fim = **parcial**, período fechado sem linha = 0h; nada grava antes do "Aplicar". O modal ✔ apurar
+  **só grava o campo que a pessoa mexeu** (`data-ini`) — o parcial da planilha não pode virar fechado ao salvar sem
+  mexer (bug achado no teste). **Odoo (16c):** item por projeto e período (`p:AAAA-MM:frente`), MAS período que a ordem
+  já tem no formato antigo (`p:AAAA-MM`) continua item único (`pcOdooLegado`) — trocar o formato apagaria/zeraria o
+  antigo e refaturaria o já faturado. **`c.odooDesde`**: vazio + sem ordem = período atual (o que veio antes saiu à mão;
+  é gravado ao criar a ordem); vazio + com ordem = todos (como antes); `'todos'` explícito; itens de antes do corte não
+  vão em `itens` (o servidor os trata como feitos à mão e não mexe). Próximas notas só respeitam o corte **escolhido**.
+  **💰 Fluxo de caixa** (16f, só leitura): vencimento da fatura no Odoo ou nota + `pcPrazo(c)` (padrão 30), retenção
+  `c.retPct`. **💹 Rentabilidade:** plano cujo projeto é `f.proj` de uma frente avisa a divergência e ↻ traz as horas
+  (`pcFrHorasPorMes` → `p.vendMan`, `p.vendFonte`) — de propósito sem mudar `rpVendPorMes` (o servidor tem gate de
+  paridade). Servidor: só `ODOO_MAX_LINHAS=300` (era 80 — com frentes estoura e o corte silencioso apagaria itens).
+  Teste: `parcerias-frentes-test.mjs` (Playwright, 32 casos, com a planilha REAL do usuário `book13.xlsx` — só no
+  scratchpad, nunca no repositório).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o
