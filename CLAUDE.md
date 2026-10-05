@@ -256,6 +256,21 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   contra `servidor-mini.mjs` (fixtures enxutas — o `servidor-fix.mjs` antigo se perdeu num reinício do ambiente) com a
   planilha **sintética** no formato da Cast (`gera-book.py` → `book13.xlsx` + `book13-esperado.json`); a planilha real
   do usuário fica só no scratchpad, nunca no repositório.
+- **📅 Ciclos com início/fim próprios · 📆 previsão diária por projeto e ciclo (2026-10-05, 2ª leva, a pedido do
+  usuário: "informar manualmente início e fim de cada ciclo, sem limitar ao mês-calendário; para cada projeto, em cada
+  ciclo, as horas previstas de cada dia, distintas do apontamento; vincular a alocação à consultoria; faturamento por
+  consultoria, objeto de custo por projeto"):** o modelo do ciclo NÃO mudou — `AAAA-MM` definido pelo fim
+  (`c.ajustes[ym].fecha`), início = fim do anterior + 1 —; o 📅 só ganhou a coluna Início: editar o início grava o fim do
+  ciclo ANTERIOR (`pcCicloAjusta`, que recusa datas que se cruzam; os ciclos são contíguos) e a lista vai do 1º ciclo do
+  contrato a 12 meses à frente (`pcCiclosLista`). A previsão diária mora em **`c.diario[frente][AAAA-MM-DD] = h`** (0 vale;
+  leitores `pcDiario`/`pcDiaMan` não criam; `pcDiaSet`/`pcDiaPreenche`/`pcDiaLimpa` gravam + `salvaCfg()` no handler).
+  **`pcFrPrevisto` = `pcFrPrevistoAuto` + Σ(digitado − automático do dia)** — continua a única porta da previsão, então
+  grade por ciclo, modal ✔ apurar, Odoo, notas, caixa e Rentabilidade seguem sem mudar; `pcPlanejamentoFrentes` amplia o
+  intervalo com os dias digitados. A grade `pcDiarioHTML` (dia × projeto, um ciclo por vez, `estado.parcerias.diaYm`)
+  atualiza os totais no DOM (`pcDiaAtualiza`) e adia o redesenho (`PC_TAB_EDIT` ganhou `.pc-dia-tab`) — o Tab de um dia
+  ao outro não perde nada. A apuração NÃO é tocada pela grade (linha "✔ Apurado" só mostra). `pcCopia` não leva `diario`.
+  `projEspinhaDados` acha a consultoria pelo 🗂 projeto (`pcFrenteDoProjeto`) antes do plano e abre a gaveta 🗂;
+  `pcSemObjeto` (16c) avisa projeto que iria ao Odoo sem 🎯 objeto próprio. Teste: `ciclos-diario-test.mjs` (31 casos).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o

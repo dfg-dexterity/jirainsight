@@ -7,6 +7,14 @@
 // e o DIA DA NOTA — ambos AJUSTÁVEIS MÊS A MÊS (cfg.parcerias[].ajustes['AAAA-MM']) — e a CONTA BANCÁRIA de
 // recebimento. Tudo mora em cfg.parcerias (config compartilhada); quem se identificou no painel edita
 // (PC_SO_GESTORES religa a restrição aos gestores).
+// 📅 CICLOS DE FATURAMENTO COM INÍCIO E FIM PRÓPRIOS (pedido de 2026-10-05): cada ciclo (chave AAAA-MM) pode ter as
+// datas digitadas no 📅 — "25/08 → 25/09", "20/10 → 21/11" —, sem se prender ao mês civil. O modelo continua o mesmo:
+// o ciclo é definido pelo FIM (`ajustes[ym].fecha`) e começa no dia seguinte ao fim do anterior; por isso editar o
+// INÍCIO de um ciclo grava o fim do ciclo anterior (pcCicloAjusta). Os ciclos são contíguos: nenhum dia fica fora.
+// 📆 PREVISÃO DIÁRIA POR PROJETO (mesmo pedido): dentro de cada ciclo, cada projeto aceita as horas previstas DIA A DIA
+// (`c.diario[frente][AAAA-MM-DD] = h`) — 4h num dia, 6h noutro —; o total do projeto no ciclo é a soma dos dias
+// (pcFrPrevisto = automático dos trechos + Σ(digitado − automático do dia)). É PREVISÃO: a ✔ apuração (horas
+// aprovadas no parceiro) continua separada e é ela que vai para a nota quando existe.
 // A 💹 Rentabilidade liga cada plano de horas abertas a um contrato: cliente e valor-hora vêm dele e a receita
 // prevista é quebrada nos PERÍODOS DE FATURAMENTO do contrato — um item da ordem de venda no Odoo por período.
 // Regra do período: o período do mês M vai do dia seguinte ao fechamento de M−1 até o fechamento de M; a nota
@@ -49,6 +57,27 @@ function pcPeriodo(c, ym){ const fim=pcFechamento(c,ym); let ini=proxDia(pcFecha
 function pcPeriodos(c, de, ate){ const out=[]; if(!pcData(de)||!pcData(ate)||ate<de) return out; let ym=de.slice(0,7); if(pcFechamento(c,ym)<de) ym=pcYmSoma(ym,1); let g=0;
   while(g++<60){ const P=pcPeriodo(c,ym); if(P.ini>ate) break; out.push({ ...P, iniPlano:P.ini<de?de:P.ini, fimPlano:P.fim>ate?ate:P.fim, recortado:P.ini<de||P.fim>ate }); ym=pcYmSoma(ym,1); }
   return out; }
+// ---- 📅 ciclos de faturamento (pedido de 2026-10-05: "informar manualmente as datas de início e fim de cada ciclo") ----
+// Os ciclos que a tela mostra (📅 calendário e o seletor da 📆 previsão diária): do 1º ciclo do contrato (até 18 meses
+// para trás) a 12 meses à frente, ou até o fim do contrato — no máximo 36.
+function pcCiclosLista(c, hoje){ const h=hoje||hojeSP(); let ym=pcYmSoma(h.slice(0,7),-1); const piso=pcYmSoma(h.slice(0,7),-18);
+  if(pcData(c.inicio)){ const y0=pcYmDaData(c,c.inicio); ym=y0<piso?piso:y0; }
+  let fim=pcYmSoma(h.slice(0,7),12); if(pcData(c.fim)){ const yf=pcYmDaData(c,c.fim); if(yf>fim) fim=yf; }
+  const out=[]; let g=0; while(ym<=fim&&g++<36){ out.push(ym); ym=pcYmSoma(ym,1); } return out; }
+// Grava uma data do ciclo `ym`: 'fecha' (o fim), 'ini' (o início = o fim do ciclo ANTERIOR, no dia anterior) ou 'nota'.
+// Devolve '' quando gravou ou a mensagem do que impede — os ciclos são contíguos, então o fim de um ciclo precisa ficar
+// depois do fim do anterior e antes do fim do seguinte. Não grava a config: quem chama faz salvaCfg().
+function pcCicloAjusta(c, ym, campo, val){
+  if(!pcData(val)) return 'Data inválida.'; if(!c.ajustes||typeof c.ajustes!=='object') c.ajustes={};
+  const grava=(y, k, v, padrao)=>{ const a=c.ajustes[y]||{}; if(v===padrao) delete a[k]; else a[k]=v; if(Object.keys(a).length) c.ajustes[y]=a; else delete c.ajustes[y]; };
+  if(campo==='nota'){ grava(ym,'nota',val,pcNota({ ...c, ajustes:{ ...c.ajustes, [ym]:{ ...(c.ajustes[ym]||{}), nota:'' } } },ym)); return ''; }
+  const yA=campo==='ini'?pcYmSoma(ym,-1):ym;                       // o ciclo cujo FIM vai mudar
+  const fecha=campo==='ini'?pcMaisDias(val,-1):val;                 // início = fim do anterior + 1 dia
+  const antes=pcFechamento(c,pcYmSoma(yA,-1)), depois=pcFechamento(c,pcYmSoma(yA,1));
+  if(fecha<=antes) return `${campo==='ini'?'O início de '+labelMesAbbr(ym):'O fim de '+labelMesAbbr(ym)} precisa ficar depois do fim de ${labelMesAbbr(pcYmSoma(yA,-1))} (${dataBR(antes)}) — ajuste primeiro o ciclo anterior.`;
+  if(fecha>=depois) return `${campo==='ini'?'O início de '+labelMesAbbr(ym)+' precisa ficar até o fim dele':'O fim de '+labelMesAbbr(ym)+' precisa ficar antes do fim de '+labelMesAbbr(pcYmSoma(yA,1))} (${dataBR(depois)})${campo==='ini'?'':' — ajuste primeiro o ciclo seguinte'}.`;
+  grava(yA,'fecha',fecha,pcDiaNoMes(yA,c.fatFecha||31)); return '';
+}
 // Situação do contrato hoje: futuro · vigente · a vencer (dentro do período de aviso) · encerrado.
 function pcStatus(c){ const h=hojeSP(); const fim=pcData(c.fim)?c.fim:''; const aviso=Math.max(0,Math.round(Number(c.avisoDias)||0)); const avisoAte=fim?voltaDias(fim,aviso):'';
   if(pcData(c.inicio)&&h<c.inicio) return { k:'futuro', rot:'Começa em '+dataBR(c.inicio), avisoAte };
@@ -68,10 +97,10 @@ function pcId(pre){ return pre+Date.now().toString(36)+Math.random().toString(36
 const pcCod=(c)=>ctCod(pcLista(), c, 'PC', 'pcSeq');
 // ⧉ Duplicar: vira o RASCUNHO de um contrato novo (só grava em "Cadastrar contrato"). Vem a configuração — modalidade,
 // valores, faturamento, conta, contato, pasta e documentos, equipe com os trechos, rateio padrão —; ficam de fora o que
-// é da vida DESTE contrato: a ordem de venda no Odoo, as horas extras, a previsão digitada, os ajustes de datas e o
-// histórico. Ids novos para documentos, recursos e trechos (os da cópia não podem colidir com os do original).
+// é da vida DESTE contrato: a ordem de venda no Odoo, as horas extras, a previsão digitada (por período e a 📆 diária),
+// os ajustes de datas e o histórico. Ids novos para documentos, recursos e trechos (os da cópia não podem colidir com os do original).
 function pcCopia(c){ const x=JSON.parse(JSON.stringify(c||{}));
-  ['odoo','extras','prev','ajustes','rateios','apur','odooDesde','hist','cod','criadoEm','criadoPor','atualizadoEm','atualizadoPor'].forEach(k=>{ delete x[k]; });
+  ['odoo','extras','prev','diario','ajustes','rateios','apur','odooDesde','hist','cod','criadoEm','criadoPor','atualizadoEm','atualizadoPor'].forEach(k=>{ delete x[k]; });
   x.id=pcId('pc'); x.ajustes={}; x.hist=[]; x.consultoria=(String(c.consultoria||'').trim()+' (cópia)').slice(0,120);
   x.docs=(Array.isArray(x.docs)?x.docs:[]).map(d=>Object.assign({}, d, { id:pcId('dc') }));
   const frIds={}; x.frentes=(Array.isArray(x.frentes)?x.frentes:[]).filter(f=>f&&f.id).map(f=>{ const n=pcId('fr'); frIds[f.id]=n; return Object.assign({}, f, { id:n }); });   // 🗂 projetos com ids novos; os trechos acompanham
@@ -228,15 +257,41 @@ function pcFrJanelaAms(c, f){ const h=hojeSP();
 // Início do período de faturamento de hoje — a data que o AMS cadastrado à mão grava em `f.de` (sem ela a janela da
 // estimativa andaria com o calendário e cada mês fechado sumiria da previsão, das notas e da ordem).
 function pcInicioPeriodoAtual(c){ return pcPeriodo(c,pcYmDaData(c,hojeSP())).ini; }
-// PREVISTO da frente em [ini, fim]: os trechos que apontam para ela; sem trecho, uma frente AMS usa a estimativa
-// mensal (h por mês, rateada pelos dias úteis de cada mês civil — como o modo "h por mês" dos trechos).
-function pcFrPrevisto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<ini) return 0;
+// PREVISTO AUTOMÁTICO da frente em [ini, fim]: os trechos que apontam para ela; sem trecho, uma frente AMS usa a
+// estimativa mensal (h por mês, rateada pelos dias úteis de cada mês civil — como o modo "h por mês" dos trechos).
+function pcFrPrevistoAuto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<ini) return 0;
   let h=0, tem=false;
   pcEquipe(c).forEach(p=>pcRegras(p).forEach(r=>{ if(pcRegraFr(c,r)!==f.id) return; tem=true; h+=pcHorasRegra(r,p.a,ini,fim); }));
   const est=Math.max(0,Number(f.estMes)||0);
   if(!tem&&est>0&&pcFrTipo(f)==='ams'){ const J=pcFrJanelaAms(c,f); const a=ini>J.de?ini:J.de, b=fim<J.ate?fim:J.ate;
     if(pcData(a)&&pcData(b)&&b>=a){ const rec=pcDiasUteisPorMes(a,b);
       Object.keys(rec).forEach(m=>{ const tot=pcDiasUteis(m+'-01',pcUltimoDia(m)); if(tot>0) h+=est*rec[m]/tot; }); } }
+  return Math.round(h*100)/100; }
+// ---- 📆 PREVISÃO DIÁRIA por projeto e ciclo (pedido de 2026-10-05: "para cada projeto, dentro de cada ciclo de faturamento,
+// informar manualmente a quantidade de horas prevista para cada dia; o total do projeto no ciclo é a soma dessas previsões
+// diárias; distinta do apontamento das horas efetivamente trabalhadas") ----
+// `c.diario[frenteId][AAAA-MM-DD] = h` (0 também é um valor digitado). Dia sem valor = o automático dos trechos (ou da
+// estimativa AMS). Leitores não criam o objeto; quem grava é pcDiaSet/pcDiaPreenche/pcDiaLimpa + salvaCfg() no handler.
+function pcDiario(c){ return (c&&c.diario&&typeof c.diario==='object')?c.diario:{}; }
+function pcDiaMan(c, fid, dia){ const D=pcDiario(c)[fid]; const v=D&&D[dia]; return (v!=null&&isFinite(Number(v))&&Number(v)>=0)?Math.round(Number(v)*100)/100:null; }
+function pcDiaSet(c, fid, dia, val){ if(!c.diario||typeof c.diario!=='object') c.diario={}; const D=c.diario[fid]||{}; const n=pcPrevNum(val);
+  if(n==null) delete D[dia]; else D[dia]=n; if(Object.keys(D).length) c.diario[fid]=D; else delete c.diario[fid]; return n; }
+// Os dias digitados de uma frente dentro de [ini, fim] (ordenados).
+function pcDiasMan(c, fid, ini, fim){ const D=pcDiario(c)[fid]||{}; return Object.keys(D).filter(d=>pcData(d)&&d>=ini&&d<=fim&&pcDiaMan(c,fid,d)!=null).sort(); }
+function pcDiaLimpa(c, fid, ini, fim){ const ds=pcDiasMan(c,fid,ini,fim); ds.forEach(d=>pcDiaSet(c,fid,d,'')); return ds.length; }
+// Preenche os DIAS ÚTEIS de [ini, fim] com v horas (sobrescreve o que estava digitado nesses dias; fins de semana e
+// feriados ficam como estão).
+function pcDiaPreenche(c, fid, ini, fim, v){ const n=pcPrevNum(v); if(n==null) return 0; let d=ini, g=0, k=0;
+  while(d<=fim&&g++<400){ if(ehUtil(d)&&!ehFeriado(d)){ pcDiaSet(c,fid,d,n); k++; } d=proxDia(d); } return k; }
+// Automático de UM dia (os trechos/estimativa naquele dia) e o efetivo (digitado, se houver).
+function pcFrDiaAuto(c, f, dia){ return pcFrPrevistoAuto(c,f,dia,dia); }
+function pcFrDia(c, f, dia){ const m=pcDiaMan(c,f.id,dia); return m!=null?m:pcFrDiaAuto(c,f,dia); }
+// PREVISTO da frente em [ini, fim] = automático + Σ (digitado − automático) dos dias digitados dentro do recorte.
+// É a única porta de entrada da previsão: a grade por período, o modal ✔ apurar, a ordem no Odoo, as 🧾 próximas
+// notas, o 💰 caixa e a 💹 Rentabilidade passam por aqui.
+function pcFrPrevisto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<ini) return 0;
+  let h=pcFrPrevistoAuto(c,f,ini,fim);
+  pcDiasMan(c,f.id,ini,fim).forEach(d=>{ h+=pcDiaMan(c,f.id,d)-pcFrDiaAuto(c,f,d); });
   return Math.round(h*100)/100; }
 // UMA célula período × frente: o que vai para a nota (h, v) e de onde veio (fonte: apur · parcial · prev).
 function pcFrPeriodo(c, f, P){ const ini=P.iniPlano||P.ini, fim=P.fimPlano||P.fim; const prev=pcFrPrevisto(c,f,ini,fim); const ap=pcApurDe(c,P.ym,f.id); const vh=pcFrVh(c,f);
@@ -255,6 +310,7 @@ function pcPlanejamentoFrentes(c){
   let de=R.de, ate=R.ate; const amplia=(a,b)=>{ if(!pcData(a)||!pcData(b)||b<a) return; if(!de||a<de) de=a; if(!ate||b>ate) ate=b; };
   Object.keys(pcApur(c)).forEach(ym=>{ if(!/^\d{4}-\d{2}$/.test(ym)) return; if(!frs.some(f=>pcApurDe(c,ym,f.id))) return; const P=pcPeriodo(c,ym); amplia(P.ini,P.fim); });   // a apuração traz o período inteiro
   frs.forEach(f=>{ if(pcFrTipo(f)==='ams'&&Number(f.estMes)>0){ const J=pcFrJanelaAms(c,f); amplia(J.de,J.ate); } });
+  frs.forEach(f=>{ const ds=pcDiasMan(c,f.id,'0000-01-01','9999-12-31'); if(ds.length) amplia(ds[0],ds[ds.length-1]); });   // 📆 dia digitado fora da alocação também é previsão
   if(de&&pcData(c.inicio)&&de<c.inicio) de=c.inicio; if(ate&&pcData(c.fim)&&ate>c.fim) ate=c.fim;
   const porRec={}; eq.forEach(p=>{ porRec[p.id]=0; });
   const totFr={}; frs.forEach(f=>{ totFr[f.id]={ h:0, v:0, prev:0, apur:0, nApur:0 }; });
@@ -374,7 +430,7 @@ function pcFormHTML(c, novo, chave){
       <div class="campo"><label>Fim da validade</label><input type="date" id="pc-f-fim" value="${escA(c.fim||'')}" data-tip="Vazio = sem prazo definido (o aviso prévio só faz sentido com fim)"></div>
       <div class="campo"><label>Valor da hora negociada (R$)</label><input type="number" id="pc-f-vh" min="0" step="0.01" value="${escA(String(c.valorHora||''))}" placeholder="ex.: 220" style="width:120px"></div>
       <div class="campo"><label>Período de aviso (dias)</label><input type="number" id="pc-f-aviso" min="0" step="1" value="${escA(String(c.avisoDias!=null?c.avisoDias:30))}" style="width:90px" data-tip="Dias de aviso prévio para encerrar ou renovar; a tela avisa quando o contrato entra nesse período"></div>
-      <div class="campo"><label>Fechamento do período (dia do mês)</label><input type="number" id="pc-f-fecha" min="1" max="31" step="1" value="${escA(String(c.fatFecha||25))}" style="width:90px" data-tip="Até que dia vai o período de faturamento (ex.: 25 = de 26 do mês anterior a 25 deste; 31 = mês civil)"></div>
+      <div class="campo"><label>Fechamento do ciclo (dia do mês, padrão)</label><input type="number" id="pc-f-fecha" min="1" max="31" step="1" value="${escA(String(c.fatFecha||25))}" style="width:90px" data-tip="Até que dia vai o ciclo de faturamento (ex.: 25 = de 26 do mês anterior a 25 deste; 31 = mês civil). É o padrão: cada ciclo pode ter início e fim próprios no 📅 do contrato"></div>
       <div class="campo"><label>Dia da nota (faturamento)</label><input type="number" id="pc-f-nota" min="1" max="31" step="1" value="${escA(String(c.fatDia||''))}" placeholder="= fechamento" style="width:90px" data-tip="Dia em que a nota é emitida: no próprio mês se for igual/depois do fechamento, senão no mês seguinte"></div>
       <div class="campo"><label>💰 Recebimento (dias após a nota)</label><input type="number" id="pc-f-prazo" min="0" max="365" step="1" value="${escA(String(c.prazoReceb!=null&&c.prazoReceb!==''?c.prazoReceb:30))}" style="width:90px" data-tip="Prazo de pagamento do parceiro, em dias corridos depois da nota (ex.: 30). É o que o 💰 fluxo de caixa usa para dizer em que mês o dinheiro entra; quando a fatura já existe no Odoo, vale o vencimento dela"></div>
       <div class="campo"><label>Retenção na fonte (%)</label><input type="number" id="pc-f-ret" min="0" max="60" step="0.01" value="${escA(String(c.retPct||''))}" placeholder="0" style="width:90px" data-tip="Impostos que o parceiro retém ao pagar (IR, PIS/COFINS/CSLL, ISS…). Opcional: o 💰 fluxo de caixa mostra o líquido quando informado"></div>
@@ -411,7 +467,7 @@ function pcCardHTML(c, gestor, aba, hoje){
       ${dl('Validade', `${c.inicio?dataBR(c.inicio):'—'} → ${c.fim?dataBR(c.fim):'sem fim'}`)}
       ${dl('Aviso prévio', c.fim?`${Number(c.avisoDias)||0} dia(s) · até ${dataBR(s.avisoAte)}${s.k==='avencer'?(s.avisoPassou?' <span class="rp-neg">(passou)</span>':' <span class="rp-neg">(agora)</span>'):''}`:`${Number(c.avisoDias)||0} dia(s)`)}
       ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
-      ${dl('Fechamento', `dia ${c.fatFecha||31}${(c.fatFecha||31)>=31?' (mês civil)':''}`)}
+      ${dl('Fechamento (padrão)', `dia ${c.fatFecha||31}${(c.fatFecha||31)>=31?' (mês civil)':''}`)}
       ${dl('Nota', c.fatDia?`dia ${c.fatDia}`:'no fechamento')}
       ${dl('Recebimento', `${pcPrazo(c)} dia(s) após a nota`)}
       ${dl('Período atual', `${dataBR(atual.ini)} → ${dataBR(atual.fim)} · nota ${dataBR(atual.nota)}${atual.ajustado?' ✎':''}`)}
@@ -424,14 +480,14 @@ function pcCardHTML(c, gestor, aba, hoje){
       !pasta&&!docs.length?`<span class="muted small">📂 Nenhum documento cadastrado${gestor?' — informe a <b>pasta do contrato</b> em ✏️ editar e os arquivos em 📄 Documentos':''}.</span>`:''}</div>
     <div class="ams-dprojs muted small">👥 Equipe: ${plan.eq.length?`<b>${plan.eq.length}</b> recurso(s)`:'ninguém alocado ainda'}${plan.periodos.length?` · <b>${fmtHd(plan.totalH)}</b> ${frs.length?'previstas/apuradas':'previstas'}${plan.vh||frs.length?` · <b>${fmtBRL(plan.totalV)}</b>`:''}${plan.de?` · ${dataBR(plan.de)} → ${dataBR(plan.ate)}`:''}`:''}</div>
     <div class="ams-dprojs muted small pc-fr-l">🗂 Projetos: ${frs.length?frs.map(f=>`<span class="pc-fr-chip pc-fr-${pcFrTipo(f)}" data-tip="${escA(`${PC_FR_TIPOS[pcFrTipo(f)][1]}${f.ref?' · '+f.ref:''}${f.proj?' · Jira '+f.proj:''}`)}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</span>${f.proj?` ${projChipsFicha([f.proj])}`:''}`).join(' '):`<span class="muted">nenhum — ${gestor?'cadastre em <b>🗂 Projetos</b> ou <b>📥 importe os apontamentos</b> do parceiro':'o contrato fatura como um bloco só'}</span>`}${plan.nSemApur?` · <span class="rp-neg">⚠ ${plan.nSemApur} período(s) fechado(s) sem apuração</span>`:''}</div>
-    <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>${p.projeto?` ${projChipsFicha([p.projeto])}`:''}`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · ✎ ${Object.keys(c.ajustes).length} mês(es) com datas ajustadas`:''}</div>
+    <div class="ams-dprojs muted small">💹 Planos na Rentabilidade: ${planos.length?planos.map(p=>`<span class="lnk" data-pc-plano="${escA(p.id)}">${esc(p.nome||p.projeto||p.id)}</span>${p.projeto?` ${projChipsFicha([p.projeto])}`:''}`).join(', '):'nenhum ainda'}${Object.keys(c.ajustes||{}).length?` · 📅 ${Object.keys(c.ajustes).length} ciclo(s) com datas próprias`:''}${(()=>{ const n=pcFrentes(c).reduce((s,f)=>s+Object.keys(pcDiario(c)[f.id]||{}).length,0); return n?` · 📆 ${n} dia(s) com previsão digitada`:''; })()}</div>
     ${typeof pcOdooResumo==='function'?`<div class="ams-dprojs muted small pc-odoo-l">${pcOdooResumo(c, plan)}</div>`:''}
     ${c.obs?`<div class="ams-dobs muted small"><strong>Obs.:</strong> ${esc(c.obs)}</div>`:''}
     <div class="ad-cons pc-gav">
       <button class="btn rt-step${aba==='proj'?' on':''}" data-pc-proj="${escA(c.id)}">🗂 ${aba==='proj'?'Fechar projetos':`Projetos${frs.length?` (${frs.length})`:''}`}</button>
       <button class="btn rt-step${aba==='equipe'?' on':''}" data-pc-eq="${escA(c.id)}">👥 ${aba==='equipe'?'Fechar equipe':`Equipe e alocação${plan.eq.length?` (${plan.eq.length})`:''}`}</button>
       <button class="btn rt-step${aba==='fat'?' on':''}" data-pc-fat="${escA(c.id)}">🧾 ${aba==='fat'?'Fechar faturamentos':`Faturamentos${(typeof pcOdoo==='function'&&pcOdoo(c))?' · '+esc(pcOdoo(c).name||'Odoo'):''}`}</button>
-      <button class="btn rt-step${aba==='cal'?' on':''}" data-pc-cal="${escA(c.id)}">📅 ${aba==='cal'?'Fechar calendário':'Calendário de faturamento'}</button>
+      <button class="btn rt-step${aba==='cal'?' on':''}" data-pc-cal="${escA(c.id)}">📅 ${aba==='cal'?'Fechar ciclos':'Ciclos de faturamento'}</button>
       <button class="btn rt-step${aba==='docs'?' on':''}" data-pc-docs="${escA(c.id)}">📄 ${aba==='docs'?'Fechar documentos':`Documentos${docs.length?` (${docs.length})`:''}`}</button>
       ${gestor&&typeof pcImpAbre==='function'?`<button class="btn rt-step pc-imp-btn" data-pc-imp="${escA(c.id)}" data-tip="Leia a planilha de apontamentos aprovados do parceiro (Excel ou colada): ela cria os projetos, lança as horas apuradas de cada período e sugere a alocação">📥 Importar apontamentos</button>`:''}
       <span class="muted small">${c.atualizadoEm?`atualizado ${dataBR(c.atualizadoEm)}${c.atualizadoPor?' por '+esc(c.atualizadoPor):''}`:''}</span></div>
@@ -439,18 +495,20 @@ function pcCardHTML(c, gestor, aba, hoje){
     ${hist.length?`<details class="rm-det"><summary>🕓 Histórico (${hist.length})</summary><table class="mp-tab-mini rp-hist"><tbody>${hist.slice(0,8).map(h=>`<tr><td class="muted small">${esc(pcQuando(h.em))}</td><td>${esc(h.por||'')}</td><td class="small">${esc(h.d||'')}</td></tr>`).join('')}</tbody></table></details>`:''}
   </div>`;
 }
-// Calendário dos próximos 12 períodos (a partir do mês anterior ao atual): datas ajustáveis mês a mês.
+// 📅 Ciclos de faturamento: do 1º ciclo do contrato a 12 meses à frente, cada um com INÍCIO e FIM digitáveis (e a nota).
+// Os ciclos são contíguos — o início de um é o dia seguinte ao fim do anterior —, por isso mudar o início grava o fim
+// do ciclo anterior (pcCicloAjusta). Nada obriga o ciclo ao mês civil: "25/08 → 25/09", "20/10 → 21/11".
 function pcCalendarioHTML(c, gestor, hoje){
-  let ym=pcYmSoma(hoje.slice(0,7),-1); if(pcData(c.inicio)&&ym<c.inicio.slice(0,7)) ym=c.inicio.slice(0,7);
-  const rows=[]; for(let i=0;i<12;i++){ const P=pcPeriodo(c,ym); const fora=(pcData(c.fim)&&P.ini>c.fim)||(pcData(c.inicio)&&P.fim<c.inicio); const atual=P.ini<=hoje&&hoje<=P.fim;
-    rows.push(`<tr class="${atual?'rm-destaque':''} ${fora?'pc-fora':''}"><td><b>${esc(labelMesAbbr(P.ym))}</b>${P.ajustado?' <span class="muted small" data-tip="datas ajustadas neste mês">✎</span>':''}</td><td>${dataBR(P.ini)} → ${dataBR(P.fim)}</td>
-      <td>${gestor?`<input type="date" data-pc-aj="${escA(c.id)}|${P.ym}|fecha" value="${escA(P.fim)}">`:dataBR(P.fim)}</td>
-      <td>${gestor?`<input type="date" data-pc-aj="${escA(c.id)}|${P.ym}|nota" value="${escA(P.nota)}">`:dataBR(P.nota)}</td>
-      <td class="num">${pcDiasUteis(P.ini,P.fim)}</td><td>${fora?'<span class="muted small">fora da validade</span>':''}${gestor&&P.ajustado?`<button class="btn rt-step" data-pc-aj-rm="${escA(c.id)}|${P.ym}" data-tip="Volta às datas padrão do contrato neste mês">↺ padrão</button>`:''}</td></tr>`);
-    ym=pcYmSoma(ym,1); }
-  return `<div class="pc-cal"><div class="mp-h3">📅 Calendário de faturamento <span class="mp-dim">período · fechamento · dia da nota · dias úteis (feriados descontados)</span></div>
-    <div class="scroll-x"><table class="mp-tab-mini pc-cal-tab"><thead><tr><th>Mês</th><th>Período</th><th>Fechamento</th><th>Nota</th><th class="num">Dias úteis</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
-    <div class="muted small">${gestor?'Mude a data de fechamento ou de nota de um mês para ajustar só aquele mês (ex.: dezembro fecha no dia 20). O mês seguinte começa no dia seguinte ao fechamento ajustado.':'Datas ajustáveis pelos gestores.'}</div></div>`;
+  const rows=pcCiclosLista(c,hoje).map(ym=>{ const P=pcPeriodo(c,ym); const fora=(pcData(c.fim)&&P.ini>c.fim)||(pcData(c.inicio)&&P.fim<c.inicio); const atual=P.ini<=hoje&&hoje<=P.fim; const nMan=pcFrentes(c).reduce((s,f)=>s+pcDiasMan(c,f.id,P.ini,P.fim).length,0);
+    return `<tr class="${atual?'rm-destaque':''} ${fora?'pc-fora':''}" data-pc-ciclo="${P.ym}"><td><b>${esc(labelMesAbbr(P.ym))}</b>${P.ajustado?' <span class="muted small" data-tip="datas próprias neste ciclo">✎</span>':''}</td>
+      <td>${gestor?`<input type="date" data-pc-aj="${escA(c.id)}|${P.ym}|ini" value="${escA(P.ini)}" aria-label="Início do ciclo ${escA(labelMesAbbr(P.ym))}" data-tip="O 1º dia do ciclo — gravar aqui muda o fim do ciclo anterior (os ciclos são contíguos)">`:dataBR(P.ini)}</td>
+      <td>${gestor?`<input type="date" data-pc-aj="${escA(c.id)}|${P.ym}|fecha" value="${escA(P.fim)}" aria-label="Fim do ciclo ${escA(labelMesAbbr(P.ym))}" data-tip="O último dia do ciclo (o fechamento) — o ciclo seguinte começa no dia seguinte">`:dataBR(P.fim)}</td>
+      <td>${gestor?`<input type="date" data-pc-aj="${escA(c.id)}|${P.ym}|nota" value="${escA(P.nota)}" aria-label="Nota do ciclo ${escA(labelMesAbbr(P.ym))}">`:dataBR(P.nota)}</td>
+      <td class="num">${pcDiasUteis(P.ini,P.fim)}</td><td class="num">${pcDias(P.ini,P.fim)+1}</td>
+      <td>${fora?'<span class="muted small">fora da validade</span> ':''}${gestor&&P.ajustado?`<button class="btn rt-step" data-pc-aj-rm="${escA(c.id)}|${P.ym}" data-tip="Volta às datas padrão do contrato neste ciclo (fecha dia ${c.fatFecha||31})">↺ padrão</button> `:''}${pcTemFrentes(c)?`<button class="btn rt-step" data-pc-dia-ym="${escA(c.id)}|${P.ym}" data-tip="Abre a 📆 previsão diária deste ciclo em 🗂 Projetos">📆${nMan?` <span class="muted small">${nMan} dia(s) ✎</span>`:''}</button>`:''}</td></tr>`; });
+  return `<div class="pc-cal"><div class="mp-h3">📅 Ciclos de faturamento <span class="mp-dim">início · fim (fechamento) · dia da nota · dias úteis (feriados descontados) · dias corridos</span></div>
+    <div class="scroll-x"><table class="mp-tab-mini pc-cal-tab"><thead><tr><th>Ciclo</th><th>Início</th><th>Fim</th><th>Nota</th><th class="num">Dias úteis</th><th class="num">Dias</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <div class="muted small">${gestor?`O padrão vem do cadastro (fecha dia <b>${c.fatFecha||31}</b>${c.fatDia?`, nota dia <b>${c.fatDia}</b>`:''}); digite o <b>início</b> ou o <b>fim</b> de um ciclo para ele ter as suas próprias datas — ex.: 25/08 → 25/09, ou 20/10 → 21/11 —, sem se prender ao mês civil. Os ciclos são <b>contíguos</b>: mudar o início de um muda o fim do anterior, e o seguinte começa no dia seguinte ao fim. ↺ padrão desfaz.`:'Datas ajustáveis por quem está identificado.'}</div></div>`;
 }
 // 📄 Documentos do contrato: tipo, nome e o link (SharePoint). Todos veem e abrem; gestores cadastram.
 function pcDocsHTML(c, gestor){
@@ -513,6 +571,7 @@ function pcFrentesHTML(c, gestor, plan, hoje){
     <div class="muted small" style="margin-bottom:8px">Projeto com <b>⏱ alocação</b>: o parceiro paga as horas <b>alocadas</b> (h/dia nos trechos de 👥 Equipe) — mesmo que a equipe repasse tarefas ou use um acelerador; o esforço real fica no Jira e aparece na 💹 Rentabilidade. <b>🛠️ AMS sob demanda</b>: paga as horas atendidas no mês; a previsão usa a estimativa mensal. Em todo fechamento, a <b>✔ apuração</b> (as horas aprovadas no sistema do parceiro — 📥 importadas da planilha ou digitadas) substitui a previsão e é ela que vai para a nota e para o Odoo.</div>
     ${add}${legado}${semFr?`<div class="aviso">⚠ Há trecho(s) da equipe <b>sem projeto</b> — eles aparecem como "Sem projeto". Escolha o projeto de cada trecho em <b>👥 Equipe e alocação</b>.</div>`:''}
     ${frs.length?pcGradeFrentesHTML(c, gestor, P, hoje):''}
+    ${frs.length?pcDiarioHTML(c, gestor, P, hoje):''}
     ${frs.length?`<details class="rm-det pc-fr-cad" data-pc-fr-cad="${escA(c.id)}" ${cadAberto?'open':''}><summary>⚙️ Cadastro dos projetos (${frs.length}) <span class="muted small">— nome, tipo, projeto do Jira, código no parceiro, reconhecer na planilha, valor-hora, estimativa e objeto de resultado</span></summary>${boxes}</details>`
       :`<div class="estado">Nenhum projeto neste contrato — ele fatura como um bloco só (👥 Equipe e alocação).${gestor?' Cadastre os projetos em que o parceiro aloca a equipe (ex.: Sumitomo, Hi-Mix) e os de AMS — ou <b>📥 importe a planilha de apontamentos</b> do parceiro, que cria tudo de uma vez.':''}</div>`}
     <datalist id="pc-jira-projs">${projs.map(p=>`<option value="${escA(p.key)}">${esc(p.nome||'')}</option>`).join('')}</datalist></div>`;
@@ -528,13 +587,59 @@ function pcGradeFrentesHTML(c, gestor, P, hoje){
     return `<tr class="${atual?'rm-destaque':''}${x.semApur?' pc-sem-apur':''}"><td><b>${esc(labelMesAbbr(x.ym))}</b>${x.semApur?' <span class="rp-neg" data-tip="O período já fechou e ainda há projeto sem apuração — importe a planilha de apontamentos aprovados ou digite em ✔ apurar">⚠</span>':''}</td>
       <td class="small">${dataBR(x.iniPlano)} → ${dataBR(x.fimPlano)}</td>${frs.map(f=>`<td class="num">${cel(x,f)}</td>`).join('')}
       <td class="num"><b>${fmtHd(x.horas)}</b></td><td class="num">${fmtBRL(x.valor)}</td><td class="muted small">${dataBR(x.nota)}</td><td class="muted small">${rec?dataBR(rec):'—'}</td>
-      ${gestor?`<td><button class="btn rt-step" data-pc-apur="${escA(c.id)}|${escA(x.ym)}" data-tip="Lançar ou corrigir as horas aprovadas de cada projeto neste período">✔ apurar</button></td>`:''}</tr>`; }).join('');
+      <td class="pc-fr-acs">${gestor?`<button class="btn rt-step" data-pc-apur="${escA(c.id)}|${escA(x.ym)}" data-tip="Lançar ou corrigir as horas aprovadas de cada projeto neste período">✔ apurar</button> `:''}<button class="btn rt-step" data-pc-dia-ym="${escA(c.id)}|${escA(x.ym)}" data-tip="Abre a 📆 previsão diária deste ciclo (horas por dia, projeto a projeto)">📆</button></td></tr>`; }).join('');
   const T=P.totFr||{};
-  return `<div class="mp-h3" style="margin-top:14px">🧾 Previsão e apuração por período <span class="mp-dim">✔ apurado · ◐ apurado em parte + previsto do resto · sem marca = previsto · ⚠ período fechado sem apuração</span></div>
-    <div class="scroll-x"><table class="mp-tab-mini pc-fr-tab"><thead><tr><th>Mês</th><th>Período</th>${frs.map(f=>`<th class="num" data-tip="${escA(pcFrNome(f)+(f.ref?' · '+f.ref:''))}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</th>`).join('')}<th class="num">Horas</th><th class="num">Valor</th><th>Nota</th><th data-tip="Nota + ${pcPrazo(c)} dia(s) (prazo de recebimento do contrato)">Recebimento</th>${gestor?'<th></th>':''}</tr></thead>
-    <tbody>${rows}</tbody><tfoot><tr><td colspan="2"><b>Total</b></td>${frs.map(f=>`<td class="num"><b>${fmtHd((T[f.id]||{}).h||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b></td><td class="num"><b>${fmtBRL(P.totalV)}</b></td><td colspan="${gestor?3:2}"></td></tr></tfoot></table></div>
+  return `<div class="mp-h3" style="margin-top:14px">🧾 Previsão e apuração por ciclo <span class="mp-dim">✔ apurado · ◐ apurado em parte + previsto do resto · sem marca = previsto · ⚠ ciclo fechado sem apuração · 📆 previsão diária</span></div>
+    <div class="scroll-x"><table class="mp-tab-mini pc-fr-tab"><thead><tr><th>Ciclo</th><th>Período</th>${frs.map(f=>`<th class="num" data-tip="${escA(pcFrNome(f)+(f.ref?' · '+f.ref:''))}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</th>`).join('')}<th class="num">Horas</th><th class="num">Valor</th><th>Nota</th><th data-tip="Nota + ${pcPrazo(c)} dia(s) (prazo de recebimento do contrato)">Recebimento</th><th></th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="2"><b>Total</b></td>${frs.map(f=>`<td class="num"><b>${fmtHd((T[f.id]||{}).h||0)}</b></td>`).join('')}<td class="num"><b>${fmtHd(P.totalH)}</b></td><td class="num"><b>${fmtBRL(P.totalV)}</b></td><td colspan="3"></td></tr></tfoot></table></div>
     ${P.nSemApur?`<div class="aviso" style="margin-top:6px">⚠ <b>${P.nSemApur} período(s) já fechado(s) sem apuração</b> de algum projeto: a nota sairia pela previsão. ${gestor?'Importe a planilha de apontamentos aprovados do parceiro (📥) ou digite em ✔ apurar.':''}</div>`:''}`;
 }
+// ---- 📆 PREVISÃO DIÁRIA: a grade dia × projeto de UM ciclo ----
+// Linhas = os dias do ciclo (dias úteis; fins de semana e feriados ao pedir), colunas = os projetos, mais o total do dia.
+// Cada célula mostra o automático como placeholder e aceita o número digitado (0 também); o rodapé traz o total do
+// projeto no ciclo (= soma dos dias), o "calc." quando difere e a ✔ apuração, para a diferença previsão × apurado
+// ficar à vista — a apuração nunca é tocada aqui.
+const PC_DIA_SEM=['dom','seg','ter','qua','qui','sex','sáb'];
+function pcDiaRot(dia){ const d=new Date(dia+'T12:00:00Z'); return `${PC_DIA_SEM[d.getUTCDay()]} ${dia.slice(8,10)}/${dia.slice(5,7)}`; }
+function pcDiaYm(c, hoje){ const st=estado.parcerias||{}; const ym=(st.diaYm||{})[c.id]; return /^\d{4}-\d{2}$/.test(ym||'')?ym:pcYmDaData(c,hoje); }
+function pcDiarioHTML(c, gestor, P, hoje){
+  const frs=(P.frentes&&P.frentes.length?P.frentes:pcFrentesEf(c)).filter(f=>f.id!==PC_SEM_FR); if(!frs.length) return '';
+  const ym=pcDiaYm(c,hoje); const per=pcPeriodo(c,ym); const yms=pcCiclosLista(c,hoje); if(!yms.includes(ym)) yms.push(ym); yms.sort();
+  const st=estado.parcerias||{}; const fds=!!((st.diaFds||{})[c.id]);
+  const dias=[]; let d=per.ini, g=0; while(d<=per.fim&&g++<400){ const util=ehUtil(d)&&!ehFeriado(d); if(util||fds||frs.some(f=>pcDiaMan(c,f.id,d)!=null)) dias.push({ d, util }); d=proxDia(d); }
+  const du=pcDiasUteis(per.ini,per.fim); const nu=(v)=>String(Math.round((Number(v)||0)*100)/100).replace('.',',');
+  const cel=(f, x)=>{ const man=pcDiaMan(c,f.id,x.d); const auto=Math.round(pcFrDiaAuto(c,f,x.d)*100)/100;
+    if(!gestor) return `<td class="num">${man!=null?`<b>${nu(man)}</b> <span class="pc-man-selo" data-tip="digitado — o automático dava ${escA(nu(auto))}h">✎</span>`:(auto?nu(auto):'<span class="muted">—</span>')}</td>`;
+    return `<td class="num"><input type="number" min="0" step="0.25" class="pc-dia-i${man!=null?' pc-man':''}" data-pc-dia="${escA(c.id)}|${escA(f.id)}|${x.d}" value="${man!=null?escA(nu(man).replace(',','.')):''}" placeholder="${escA(nu(auto))}" aria-label="${escA(pcFrNome(f)+' em '+dataBR(x.d))}" data-tip="${man!=null?'Digitado — apague para voltar ao automático ('+escA(nu(auto))+'h)':'Automático pelos trechos/estimativa: digite para prever outro número neste dia'}"></td>`; };
+  const rows=dias.map(x=>`<tr class="${x.util?'':'pc-dia-fds'}${x.d===hoje?' rm-destaque':''}"><td>${esc(pcDiaRot(x.d))}${x.util?'':' <span class="muted small" data-tip="fim de semana ou feriado — sem hora automática">○</span>'}</td>${frs.map(f=>cel(f,x)).join('')}<td class="num" data-pc-dia-rtot="${x.d}">${fmtHd(frs.reduce((s,f)=>s+pcFrDia(c,f,x.d),0))}</td></tr>`).join('');
+  const tot=(f)=>{ const h=pcFrPrevisto(c,f,per.ini,per.fim), a=pcFrPrevistoAuto(c,f,per.ini,per.fim); const n=pcDiasMan(c,f.id,per.ini,per.fim).length;
+    return `<td class="num" data-pc-dia-tot="${escA(f.id)}"><b>${fmtHd(h)}</b>${Math.abs(h-a)>0.004?`<span class="pc-prev-calc" data-tip="o automático dos trechos/estimativa">calc. ${fmtHd(a)}</span>`:''}${n?`<span class="muted small pc-dia-n"> ✎ ${n} dia(s)</span>`:''}</td>`; };
+  const apur=(f)=>{ const ap=pcApurDe(c,ym,f.id); if(!ap) return '<td class="num muted small">—</td>'; return `<td class="num small pc-fc-${ap.parcial?'parcial':'apur'}" data-tip="${escA((ap.fonte==='planilha'?'📥 planilha'+(ap.arq?' '+ap.arq:''):'✎ digitado')+(ap.parcial?' · parcial':'')+(ap.por?' · '+ap.por:''))}">${ap.parcial?'◐':'✔'} ${fmtHd(Number(ap.h)||0)}</td>`; };
+  const fill=(f)=>gestor?`<td class="num pc-dia-fill"><input type="number" min="0" step="0.25" data-pc-dia-fill-v="${escA(c.id)}|${escA(f.id)}" placeholder="h/dia" aria-label="Horas por dia útil para preencher ${escA(pcFrNome(f))}"><button class="btn rt-step" data-pc-dia-fill="${escA(c.id)}|${escA(f.id)}|${escA(ym)}" data-tip="Grava esse número em TODOS os dias úteis do ciclo para este projeto (depois ajuste os dias que fogem)">✎ dias úteis</button>${pcDiasMan(c,f.id,per.ini,per.fim).length?`<button class="btn rt-step" data-pc-dia-limpa="${escA(c.id)}|${escA(f.id)}|${escA(ym)}" data-tip="Apaga o que foi digitado neste ciclo — volta ao automático dos trechos">↺</button>`:''}</td>`:'<td></td>';
+  const temAp=frs.some(f=>pcApurDe(c,ym,f.id));
+  const idx=yms.indexOf(ym);
+  return `<div class="pc-dia" data-pc-dia-box="${escA(c.id)}"><div class="mp-h3" style="margin-top:14px">📆 Previsão diária por projeto <span class="mp-dim">as horas previstas em cada dia do ciclo, projeto a projeto — o total do projeto no ciclo é a soma dos dias</span></div>
+    <div class="pc-dia-h"><button class="btn rt-step" data-pc-dia-nav="${escA(c.id)}|${escA(yms[Math.max(0,idx-1)])}" ${idx<=0?'disabled':''} data-tip="Ciclo anterior">◀</button>
+      <select data-pc-dia-sel="${escA(c.id)}" aria-label="Ciclo de faturamento">${yms.map(y=>{ const Q=pcPeriodo(c,y); return `<option value="${y}" ${y===ym?'selected':''}>${esc(labelMesAbbr(y))} · ${dataBR(Q.ini)} → ${dataBR(Q.fim)}</option>`; }).join('')}</select>
+      <button class="btn rt-step" data-pc-dia-nav="${escA(c.id)}|${escA(yms[Math.min(yms.length-1,idx+1)])}" ${idx>=yms.length-1?'disabled':''} data-tip="Ciclo seguinte">▶</button>
+      <span class="muted small">${dataBR(per.ini)} → ${dataBR(per.fim)} · <b>${du}</b> dia(s) útil(eis) · nota ${dataBR(per.nota)}${per.ajustado?' ✎':''} · faturado a <b>🤝 ${esc(c.consultoria||'')}</b></span>
+      <label class="muted small pc-dia-fds-l"><input type="checkbox" data-pc-dia-fds="${escA(c.id)}" ${fds?'checked':''}> fins de semana e feriados</label></div>
+    <div class="scroll-x"><table class="mp-tab-mini pc-dia-tab"><thead><tr><th>Dia</th>${frs.map(f=>`<th class="num" data-tip="${escA(pcFrNome(f)+(f.ref?' · '+f.ref:'')+' · '+PC_FR_TIPOS[pcFrTipo(f)][1])}">${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrCurto(f))}</th>`).join('')}<th class="num">Total do dia</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td><b>Ciclo</b> <span class="muted small">(previsto)</span></td>${frs.map(tot).join('')}<td class="num" data-pc-dia-gtot="1"><b>${fmtHd(frs.reduce((s,f)=>s+pcFrPrevisto(c,f,per.ini,per.fim),0))}</b></td></tr>
+        <tr class="pc-dia-ap"><td>✔ Apurado <span class="muted small">(parceiro)</span></td>${frs.map(apur).join('')}<td></td></tr>
+        ${gestor?`<tr class="pc-dia-fr"><td class="muted small">preencher</td>${frs.map(fill).join('')}<td></td></tr>`:''}</tfoot></table></div>
+    <div class="muted small" style="margin-top:6px">Dia vazio = o automático dos trechos de 👥 Equipe (ou da estimativa do AMS), mostrado em cinza. ${gestor?'Digite por cima nos dias que fogem (4h num dia, 6h noutro; 0 também vale) ou use <b>✎ dias úteis</b> para preencher o ciclo inteiro e depois ajustar; apague o campo para voltar ao automático. ':''}É <b>previsão</b>: a <b>✔ apuração</b> (horas aprovadas no parceiro) fica na linha de baixo e ${temAp?'<b>é ela que vai para a nota neste ciclo</b>':'é ela que vai para a nota quando existe'}. O 📅 calendário define o início e o fim de cada ciclo.</div></div>`;
+}
+// Depois de digitar um dia: recalcula só os totais da grade (coluna do projeto, linha do dia e o geral) sem redesenhar
+// a tela — o redesenho completo espera o foco sair da tabela (pcAdiaRender, 16c), para o Tab de um dia ao outro não perder nada.
+function pcDiaAtualiza(c, ym){ const box=document.querySelector(`[data-pc-dia-box="${c.id}"]`); if(!box) return; const per=pcPeriodo(c,ym);
+  const frs=pcFrentes(c); let g=0;
+  frs.forEach(f=>{ const td=box.querySelector(`[data-pc-dia-tot="${f.id}"]`); if(!td) return; const h=pcFrPrevisto(c,f,per.ini,per.fim), a=pcFrPrevistoAuto(c,f,per.ini,per.fim); const n=pcDiasMan(c,f.id,per.ini,per.fim).length; g+=h;
+    td.innerHTML=`<b>${fmtHd(h)}</b>${Math.abs(h-a)>0.004?`<span class="pc-prev-calc">calc. ${fmtHd(a)}</span>`:''}${n?`<span class="muted small pc-dia-n"> ✎ ${n} dia(s)</span>`:''}`; });
+  const gt=box.querySelector('[data-pc-dia-gtot]'); if(gt) gt.innerHTML=`<b>${fmtHd(g)}</b>`;
+  box.querySelectorAll('[data-pc-dia-rtot]').forEach(td=>{ const d=td.getAttribute('data-pc-dia-rtot'); td.textContent=fmtHd(frs.reduce((s,f)=>s+pcFrDia(c,f,d),0)); });
+  box.querySelectorAll('input[data-pc-dia]').forEach(i=>{ const [,fid,d]=i.getAttribute('data-pc-dia').split('|'); i.classList.toggle('pc-man',pcDiaMan(c,fid,d)!=null); }); }
 // Modal ✔ apurar: as horas aprovadas de cada projeto num período (vazio = volta à previsão).
 function pcAbreApurar(c, ym){ const st=estado.parcerias=estado.parcerias||{}; st.apModal={ id:c.id, ym }; const P=pcPlanejamento(c); const x=P.periodos.find(q=>q.ym===ym)||{ ...pcPeriodo(c,ym), porFr:{} };
   const per=pcPeriodo(c,ym); const frs=(P.frentes&&P.frentes.length)?P.frentes:pcFrentesEf(c);
@@ -650,7 +755,20 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(gav){ const id=t.getAttribute(gav); const qual=gav==='data-pc-proj'?'proj':gav==='data-pc-eq'?'equipe':gav==='data-pc-fat'?'fat':gav==='data-pc-cal'?'cal':'docs';
     if(qual==='proj'){ if(typeof garanteProjetos==='function') garanteProjetos().then(()=>{ if(estado.vista==='parcerias') renderParcerias(); }).catch(()=>{}); if(pcPodeEditar()&&typeof pcCat==='function'&&!pcCat()&&typeof pcCatCarrega==='function') pcCatCarrega(false); }
     st.aba=(st.aba&&st.aba.id===id&&st.aba.qual===qual)?null:{ id, qual }; renderParcerias(); return; }
+  // 📆 previsão diária: escolher o ciclo (◀ ▶, o 📆 da grade por ciclo ou do 📅) — abre a gaveta 🗂 nesse ciclo (todo mundo vê)
+  if(t.hasAttribute('data-pc-dia-nav')||t.hasAttribute('data-pc-dia-ym')){ const [id,ym]=(t.getAttribute('data-pc-dia-nav')||t.getAttribute('data-pc-dia-ym')).split('|'); const c=pcDe(id); if(!c||!/^\d{4}-\d{2}$/.test(ym)) return;
+    st.diaYm=st.diaYm||{}; st.diaYm[c.id]=ym; st.aba={ id:c.id, qual:'proj' }; renderParcerias();
+    const box=document.querySelector(`[data-pc-dia-box="${c.id}"]`); if(box&&t.hasAttribute('data-pc-dia-ym')) setTimeout(()=>{ try{ box.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} },40); return; }
   if(!gestor) return;
+  // 📆 preencher os dias úteis do ciclo com um número · ↺ apagar o digitado do ciclo (um projeto)
+  if(t.hasAttribute('data-pc-dia-fill')){ const [id,fid,ym]=t.getAttribute('data-pc-dia-fill').split('|'); const c=pcDe(id); const f=c&&pcFrente(c,fid); if(!f) return;
+    const inp=document.querySelector(`input[data-pc-dia-fill-v="${c.id}|${fid}"]`); const bruto=String((inp&&inp.value)||'').trim();
+    if(!bruto||pcPrevNum(bruto)==null){ toast('Digite as horas por dia útil (ex.: 4) ao lado do botão.','warn'); if(inp) try{ inp.focus(); }catch(e){} return; }
+    const per=pcPeriodo(c,ym); const n=pcDiaPreenche(c,fid,per.ini,per.fim,bruto); if(!n) return;
+    pcLog(c,'previsão diária',`${pcFrNome(f)} · ${labelMesAbbr(ym)}: ${fmtHd(pcPrevNum(bruto))} em ${n} dia(s) útil(eis)`); salvaCfg(); renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-dia-limpa')){ const [id,fid,ym]=t.getAttribute('data-pc-dia-limpa').split('|'); const c=pcDe(id); const f=c&&pcFrente(c,fid); if(!f) return;
+    const per=pcPeriodo(c,ym); const n=pcDiaLimpa(c,fid,per.ini,per.fim); if(!n) return;
+    pcLog(c,'previsão diária',`${pcFrNome(f)} · ${labelMesAbbr(ym)}: ${n} dia(s) de volta ao automático`); salvaCfg(); renderParcerias(); return; }
   // 🗂 projetos do contrato (frentes)
   if(t.hasAttribute('data-pc-fr-add')){ const [id,tipo]=t.getAttribute('data-pc-fr-add').split('|'); const c=pcDe(id); if(!c) return;
     const f=pcNovaFrente('', tipo); if(tipo==='ams'){ f.nome='Atendimento AMS'; f.de=pcInicioPeriodoAtual(c); } pcFrentesW(c).push(f); pcLog(c,'projeto',`projeto novo (${PC_FR_TIPOS[f.tipo][1]})`); salvaCfg();
@@ -730,11 +848,21 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 });
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='parcerias') return; const t=e.target; if(!t||!t.hasAttribute) return;
-  if(t.hasAttribute('data-pc-aj')){ if(!pcPodeEditar()) return; const [id,ym,campo]=t.getAttribute('data-pc-aj').split('|'); const c=pcDe(id); if(!c) return; if(!c.ajustes||typeof c.ajustes!=='object') c.ajustes={};
+  // 📅 ciclo: início (= fim do anterior + 1), fim (fechamento) ou nota — os ciclos são contíguos; o que não cabe é recusado
+  if(t.hasAttribute('data-pc-aj')){ if(!pcPodeEditar()) return; const [id,ym,campo]=t.getAttribute('data-pc-aj').split('|'); const c=pcDe(id); if(!c||!/^(ini|fecha|nota)$/.test(campo)) return;
     const val=String(t.value||''); if(!pcData(val)){ renderParcerias(); return; }
-    const padrao=campo==='fecha'?pcDiaNoMes(ym,c.fatFecha||31):pcNota({ ...c, ajustes:{ ...c.ajustes, [ym]:{ ...(c.ajustes[ym]||{}), nota:'' } } },ym);
-    const a=c.ajustes[ym]||{}; if(val===padrao) delete a[campo]; else a[campo]=val; if(Object.keys(a).length) c.ajustes[ym]=a; else delete c.ajustes[ym];
-    pcLog(c,'ajuste',`${labelMesAbbr(ym)}: ${campo==='fecha'?'fechamento':'nota'} → ${dataBR(val)}`); salvaCfg(); renderParcerias(); return; }
+    const antes=JSON.stringify(c.ajustes||{}); const erro=pcCicloAjusta(c,ym,campo,val);
+    if(erro){ toast(erro,'warn'); renderParcerias(); return; } if(JSON.stringify(c.ajustes||{})===antes){ renderParcerias(); return; }
+    pcLog(c,'ciclo',`${labelMesAbbr(ym)}: ${campo==='ini'?`início → ${dataBR(val)} (fim de ${labelMesAbbr(pcYmSoma(ym,-1))} → ${dataBR(pcMaisDias(val,-1))})`:campo==='fecha'?'fim → '+dataBR(val):'nota → '+dataBR(val)}`); salvaCfg(); renderParcerias(); return; }
+  // 📆 previsão diária: um dia de um projeto (vazio = volta ao automático); o ciclo escolhido; fins de semana à vista
+  if(t.hasAttribute('data-pc-dia')){ if(!pcPodeEditar()) return; const [id,fid,dia]=t.getAttribute('data-pc-dia').split('|'); const c=pcDe(id); const f=c&&pcFrente(c,fid); if(!f||!pcData(dia)) return;
+    const bruto=String(t.value||'').trim();
+    if(bruto&&pcPrevNum(bruto)==null){ toast('Digite um número igual ou maior que zero — ou deixe em branco para voltar ao automático.','warn'); t.value=''; return; }
+    const tinha=pcDiaMan(c,fid,dia); const n=pcDiaSet(c,fid,dia,bruto); if(n===tinha||(n==null&&tinha==null)) return;
+    pcLog(c,'previsão diária',`${pcFrNome(f)} · ${dataBR(dia)}: ${n==null?'de volta ao automático':fmtHd(n)}`); salvaCfg();
+    pcDiaAtualiza(c,pcYmDaData(c,dia)); if(typeof pcAdiaRender==='function') pcAdiaRender(); else renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-dia-sel')){ const c=pcDe(t.getAttribute('data-pc-dia-sel')); if(!c) return; const st=estado.parcerias=estado.parcerias||{}; st.diaYm=st.diaYm||{}; st.diaYm[c.id]=String(t.value||''); renderParcerias(); return; }
+  if(t.hasAttribute('data-pc-dia-fds')){ const c=pcDe(t.getAttribute('data-pc-dia-fds')); if(!c) return; const st=estado.parcerias=estado.parcerias||{}; st.diaFds=st.diaFds||{}; st.diaFds[c.id]=!!t.checked; renderParcerias(); return; }
   // 📄 documento: tipo, nome e link (só http(s) — um endereço inválido é recusado e o campo volta ao que estava)
   if(t.hasAttribute('data-pc-doc')){ if(!pcPodeEditar()) return; const [id,did,campo]=t.getAttribute('data-pc-doc').split('|'); const c=pcDe(id); if(!c) return;
     const d=pcDocs(c).find(x=>x.id===did); if(!d) return; const val=String(t.value||'').trim();

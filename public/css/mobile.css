@@ -1219,7 +1219,7 @@
   :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini:not(.rp-marcos){width:max-content;min-width:100%}
   :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini td.num{white-space:nowrap}
   :is(.ct-tela,.rp-tela) .scroll-x>table.mp-tab-mini:not(.rp-marcos) :is(th,td):first-child:not([colspan]),
-  .pc-tela .scroll-x>table:is(.pc-cal-tab,.pc-eq-grade,.pc-fat-tab) :is(th,td):first-child:not([colspan]){
+  .pc-tela .scroll-x>table:is(.pc-cal-tab,.pc-eq-grade,.pc-fat-tab,.pc-dia-tab) :is(th,td):first-child:not([colspan]){
     position:sticky;left:0;z-index:1;background-color:var(--cartao);box-shadow:inset -1px 0 0 var(--linha)}
   /* quando a 1ª coluna é um NOME (categoria, projeto, pessoa, cenário), ela tem largura fixa e quebra em linhas */
   .ct-tela .scroll-x>table.mp-tab-mini :is(th,td):first-child:not([colspan]),
@@ -1447,6 +1447,11 @@
   .pc-cx-barras{grid-template-columns:repeat(12,44px);overflow-x:auto;height:96px}
   .pc-cx-bar span{font-size:12px}
   .pc-imp-tab select,.pc-imp-tab input,.pc-ap-tab input,#pc-imp-cola,.pc-desde select{font-size:16px}
+  /* 📆 previsão diária: a grade rola de lado (dia preso à esquerda); campos de 16px no toque e um pouco mais largos */
+  .pc-tela .pc-dia-tab input.pc-dia-i,.pc-tela .pc-dia-fill input,.pc-tela .pc-dia-h select{font-size:16px}
+  .pc-tela .pc-dia-tab input.pc-dia-i{width:4.4em;min-height:36px} .pc-tela .pc-dia-fill input{width:4em;min-height:36px}
+  .pc-tela .pc-dia-h{gap:6px} .pc-tela .pc-dia-h>.muted{flex:1 1 100%}
+  .pc-tela .pc-cal-tab input[type=date]{font-size:16px;min-height:36px}
   .modal :is(.pc-imp-tab,.pc-ap-tab) input[type=text],.modal :is(.pc-imp-tab,.pc-ap-tab) input[type=number],.modal input[data-pc-imp-ate]{font-size:16px}
   /* hora extra: Período | Descrição · Horas | Valor/h | Valor · Projeto | Objeto · Quem | 🗑 (grade de 6) */
   .pc-xt-tab>tbody>tr{grid-template-columns:repeat(6,minmax(0,1fr))}

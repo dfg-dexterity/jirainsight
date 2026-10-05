@@ -301,6 +301,28 @@ de AMS; integrar com o Odoo para o fechamento e a emissão da nota serem consist
 5. **💹 Rentabilidade**: o plano cujo projeto é um 🗂 projeto do contrato avisa quando as horas vendidas divergem e
    **↻ traz as horas do contrato** — receita = o que o parceiro paga; custo = o esforço real da equipe no Jira.
 
+### 📅 Ciclos com início/fim próprios e 📆 previsão diária por projeto e ciclo (2026-10-05, 2ª leva)
+
+Pedido do usuário: *"informar manualmente as datas de início e fim de cada ciclo de faturamento, sem limitar ao
+mês-calendário (25/08 a 25/09); para cada projeto, dentro de cada ciclo, informar manualmente as horas previstas de
+cada dia — a previsão distinta do apontamento; vincular a alocação do projeto no ciclo à consultoria parceira; o
+faturamento por consultoria, mas o objeto de custo enviado ao Odoo identificado por projeto"*.
+
+1. **📅 Ciclos de faturamento** (gaveta do contrato): do 1º ciclo do contrato a 12 meses à frente, cada um com
+   **início** e **fim** digitáveis (`pcCiclosLista`, `pcCicloAjusta`). O modelo continua o mesmo — o ciclo `AAAA-MM` é
+   definido pelo fim (`c.ajustes[ym].fecha`) e começa no dia seguinte ao fim do anterior —, então editar o **início**
+   grava o fim do ciclo anterior; datas que se cruzam são recusadas (os ciclos são contíguos).
+2. **📆 Previsão diária** (em 🗂 Projetos): `c.diario[frente][AAAA-MM-DD] = h` (0 também vale). Linhas = os dias do
+   ciclo (úteis; fins de semana e feriados ao pedir), colunas = os projetos; o automático dos trechos/estimativa é o
+   placeholder; **✎ dias úteis** preenche o ciclo; **↺** limpa. **`pcFrPrevisto` = automático + Σ(digitado − automático
+   do dia)** é a única porta da previsão (grade por ciclo, modal ✔ apurar, Odoo, 🧾 próximas notas, 💰 caixa,
+   💹 Rentabilidade). A ✔ apuração (`c.apur`) é outra coisa e manda na nota quando existe. Dia digitado num ciclo sem
+   alocação cria o ciclo no planejamento. Leitores (`pcDiario`, `pcDiaMan`) não criam o objeto; `⧉ duplicar` não leva.
+3. **🤝 Vínculo projeto ↔ consultoria**: o projeto vive dentro do contrato da consultoria; a grade diz "faturado a 🤝 X"
+   e a 🦴 espinha do projeto (`projEspinhaDados`) acha a consultoria pelo 🗂 projeto (`pcFrenteDoProjeto`) antes do plano.
+4. **🎯 Objeto de custo por projeto**: a ordem continua por consultoria com um item por projeto e ciclo; `pcSemObjeto`
+   (16c) avisa no 🧾 Faturamentos o projeto que iria ao Odoo sem objeto próprio (sai com o rateio padrão).
+
 Contrato **sem** projetos continua exatamente como antes (um item por período, ✎ ajuste manual em `c.prev`).
 
 ### 🌴 Folga / compensação de horas extras (Odoo)
