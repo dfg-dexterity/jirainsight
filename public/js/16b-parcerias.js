@@ -225,6 +225,9 @@ function pcFrJanelaAms(c, f){ const h=hojeSP();
   let de=pcData(f.de)?f.de:''; if(!de){ const yms=Object.keys(pcApur(c)).filter(ym=>pcApurDe(c,ym,f.id)).sort(); de=yms.length?pcPeriodo(c,yms[0]).ini:pcPeriodo(c,pcYmDaData(c,h)).ini; }
   let ate=pcData(c.fim)?c.fim:pcUltimoDia(pcYmSoma(h.slice(0,7),PC_HORIZ_MESES-1));
   if(pcData(c.inicio)&&de<c.inicio) de=c.inicio; return { de, ate }; }
+// Início do período de faturamento de hoje — a data que o AMS cadastrado à mão grava em `f.de` (sem ela a janela da
+// estimativa andaria com o calendário e cada mês fechado sumiria da previsão, das notas e da ordem).
+function pcInicioPeriodoAtual(c){ return pcPeriodo(c,pcYmDaData(c,hojeSP())).ini; }
 // PREVISTO da frente em [ini, fim]: os trechos que apontam para ela; sem trecho, uma frente AMS usa a estimativa
 // mensal (h por mês, rateada pelos dias úteis de cada mês civil — como o modo "h por mês" dos trechos).
 function pcFrPrevisto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<ini) return 0;
@@ -237,11 +240,13 @@ function pcFrPrevisto(c, f, ini, fim){ if(!f||!pcData(ini)||!pcData(fim)||fim<in
   return Math.round(h*100)/100; }
 // UMA célula período × frente: o que vai para a nota (h, v) e de onde veio (fonte: apur · parcial · prev).
 function pcFrPeriodo(c, f, P){ const ini=P.iniPlano||P.ini, fim=P.fimPlano||P.fim; const prev=pcFrPrevisto(c,f,ini,fim); const ap=pcApurDe(c,P.ym,f.id); const vh=pcFrVh(c,f);
-  let h=prev, fonte='prev';
-  if(ap&&!ap.parcial){ h=Number(ap.h)||0; fonte='apur'; }
-  else if(ap){ const ate=pcData(ap.ate)?ap.ate:''; const resto=(ate&&ate<fim)?pcFrPrevisto(c,f,proxDia(ate)>ini?proxDia(ate):ini,fim):0;
+  let h=prev, fonte='prev', resto=prev;
+  if(ap&&!ap.parcial){ h=Number(ap.h)||0; fonte='apur'; resto=0; }
+  else if(ap){ // parcial: o arquivo cobriu [desde, ate] do período — o que fica antes e depois continua previsto
+    const desde=pcData(ap.desde)&&ap.desde>ini?ap.desde:'', ate=pcData(ap.ate)&&ap.ate<fim?ap.ate:'';
+    resto=(desde?pcFrPrevisto(c,f,ini,pcMaisDias(desde,-1)):0)+(ate?pcFrPrevisto(c,f,proxDia(ate),fim):0);
     h=(Number(ap.h)||0)+resto; fonte='parcial'; }
-  h=Math.round(h*100)/100; return { h, prev, ap, fonte, vh, v:Math.round(h*vh*100)/100 }; }
+  h=Math.round(h*100)/100; return { h, prev, ap, fonte, resto:Math.round(resto*100)/100, vh, v:Math.round(h*vh*100)/100 }; }
 // O planejamento de um contrato COM projetos: cada período × frente pela regra acima; as colunas por pessoa
 // continuam sendo o que os trechos dizem (base do 👥). `semApur` = período já fechado com previsão e sem apuração.
 function pcPlanejamentoFrentes(c){
@@ -260,7 +265,7 @@ function pcPlanejamentoFrentes(c){
     const porFr={}; let horas=0, valor=0, hAuto=0, vAuto=0, nAp=0, semApur=false;
     frs.forEach(f=>{ const x=pcFrPeriodo(c,f,P); porFr[f.id]=x; horas+=x.h; valor+=x.v; hAuto+=x.prev; vAuto+=x.prev*x.vh;
       const T=totFr[f.id]; T.h+=x.h; T.v+=x.v; T.prev+=x.prev; if(x.ap){ T.apur+=Number(x.ap.h)||0; T.nApur++; nAp++; }
-      if(P.fim<hoje&&x.prev>0&&x.fonte!=='apur') semApur=true; });
+      if(P.fim<hoje&&x.resto>0) semApur=true; });   // fechou e ainda há parte do período só na previsão
     return { ...P, du:pcDiasUteis(P.iniPlano,P.fimPlano), porPessoa, porFr, horasAuto:r2(hAuto), valorAuto:r2(vAuto), horas:r2(horas), valor:r2(valor), manH:false, manV:false, nApur:nAp, semApur };
   });
   Object.keys(porRec).forEach(k=>{ porRec[k]=r2(porRec[k]); }); Object.values(totFr).forEach(T=>{ T.h=r2(T.h); T.v=r2(T.v); T.prev=r2(T.prev); T.apur=r2(T.apur); });
@@ -271,9 +276,10 @@ function pcPlanejamentoFrentes(c){
 // Horas efetivas de uma frente por MÊS CIVIL (para a 💹 Rentabilidade): cada período é rateado pelos dias úteis
 // que caem em cada mês.
 function pcFrHorasPorMes(c, fid, plan){ const P=plan||pcPlanejamento(c); const out={};
-  P.periodos.forEach(x=>{ const cel=x.porFr&&x.porFr[fid]; if(!cel||!(cel.h>0)) return;
+  P.periodos.forEach(x=>{ const cel=x.porFr&&x.porFr[fid]; if(!cel||!(cel.h>0||cel.ap)) return;   // apuração de 0h também é um número do contrato
     const du=pcDiasUteisPorMes(x.iniPlano,x.fimPlano); const tot=Object.values(du).reduce((s,n)=>s+n,0);
     if(!tot){ const m=x.fimPlano.slice(0,7); out[m]=(out[m]||0)+cel.h; return; }
+    if(!(cel.h>0)){ Object.keys(du).forEach(m=>{ if(out[m]==null) out[m]=0; }); return; }
     Object.keys(du).forEach(m=>{ out[m]=(out[m]||0)+cel.h*du[m]/tot; }); });
   Object.keys(out).forEach(m=>{ out[m]=Math.round(out[m]*10)/10; }); return out; }
 // A frente (de qualquer contrato) ligada a um projeto do Jira — a 💹 Rentabilidade usa para achar "de onde vêm as horas".
@@ -494,6 +500,7 @@ function pcFrentesHTML(c, gestor, plan, hoje){
         ${fld('Código no parceiro', txt('ref', f.ref, 'ex.: PTC-29028', 'width:130px'), 'Código do projeto no sistema do parceiro (PTC, classe de valor…) — vai na descrição do item da nota')}
         ${fld('Reconhecer na planilha', txt('casar', f.casar, 'ex.: PTC-29028; SUMITOMO', 'min-width:170px'), 'Trechos de texto (separados por ;) que identificam as linhas deste projeto na planilha de apontamentos do parceiro — o 📥 importador usa')}
         ${fld('Valor-hora (R$)', gestor?`<input type="number" min="0" step="0.01" data-pc-fr="${k}|vh" value="${escA(f.vh?String(f.vh):'')}" placeholder="${escA(vhC?String(vhC):'do contrato')}" style="width:110px">`:(f.vh?fmtBRL(f.vh):`do contrato${vhC?' ('+fmtBRL(vhC)+')':''}`), 'Vazio = o valor-hora do contrato')}
+        ${tipo==='ams'?fld('Desde', gestor?`<input type="date" data-pc-fr="${k}|de" value="${escA(f.de||'')}">`:(f.de?dataBR(f.de):'—'), 'A partir de quando a estimativa vale (o início do atendimento). Os períodos fechados depois disso sem apuração ficam com ⚠'):''}
         ${tipo==='ams'?fld('Estimativa (h/mês)', gestor?`<input type="number" min="0" step="0.5" data-pc-fr="${k}|estMes" value="${escA(f.estMes?String(f.estMes):'')}" placeholder="ex.: 30" style="width:90px">`:fmtHd(Number(f.estMes)||0), 'Quanto deve vir de chamado por mês — a previsão dos períodos ainda não apurados (o 📥 importador sugere pela média)')
           :fld('Alocação', `<span class="muted small">${nTr?`${nTr} trecho(s) em 👥 Equipe`:'nenhum trecho — aloque em 👥 Equipe e alocação'}</span>`)}
         ${fld('🎯 Objeto de resultado', acSel, 'Conta analítica do Odoo que recebe 100% do item deste projeto; vazio = o rateio padrão do contrato (🧾 Faturamentos)')}
@@ -536,7 +543,7 @@ function pcAbreApurar(c, ym){ const st=estado.parcerias=estado.parcerias||{}; st
     <div class="scroll-x"><table class="mp-tab-mini pc-ap-tab"><thead><tr><th>Projeto</th><th class="num">Previsto</th><th>Apurado (h)</th><th>Origem</th></tr></thead><tbody>${frs.map(f=>{ const z=(x.porFr||{})[f.id]||pcFrPeriodo(c,f,x); const ap=pcApurDe(c,ym,f.id);
       return `<tr><td>${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrNome(f))}${f.ref?` <span class="muted small">${esc(f.ref)}</span>`:''}</td><td class="num">${fmtHd(z.prev)}</td>
         <td><input type="number" min="0" step="0.25" data-pc-apm="${escA(f.id)}" value="${ap&&!ap.parcial?escA(String(Math.round((Number(ap.h)||0)*100)/100)):''}" data-ini="${ap&&!ap.parcial?escA(String(Math.round((Number(ap.h)||0)*100)/100)):''}" placeholder="${escA(String(Math.round(z.h*100)/100))}" style="width:96px" aria-label="Horas apuradas de ${escA(pcFrNome(f))}"></td>
-        <td class="muted small">${ap?`${ap.fonte==='planilha'?'📥 planilha'+(ap.arq?' '+esc(ap.arq):''):'✎ digitado'}${ap.parcial&&ap.ate?` · parcial até ${dataBR(ap.ate)}`:''}${ap.por?' · '+esc(ap.por):''}${ap.em?' · '+dataBR(ap.em):''}`:'—'}</td></tr>`; }).join('')}</tbody></table></div>
+        <td class="muted small">${ap?`${ap.fonte==='planilha'?'📥 planilha'+(ap.arq?' '+esc(ap.arq):''):'✎ digitado'}${ap.parcial?` · parcial${ap.desde?' desde '+dataBR(ap.desde):''}${ap.ate?' até '+dataBR(ap.ate):''} (${fmtHd(Number(ap.h)||0)})`:''}${ap.por?' · '+esc(ap.por):''}${ap.em?' · '+dataBR(ap.em):''} <button class="btn rt-step" type="button" data-pc-apm-limpa="${escA(f.id)}" data-tip="Apaga a apuração deste projeto no período — volta à previsão">↺ previsão</button>`:'—'}</td></tr>`; }).join('')}</tbody></table></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn primario" data-pc-apm-ok="1">Salvar apuração</button><button class="btn" data-pc-apm-fechar="1">Cancelar</button></div>`); }
 // 👥 Equipe e alocação: os recursos do contrato, cada um com os seus trechos, e as horas por período de faturamento.
 function pcEquipeHTML(c, gestor, plan){
@@ -646,7 +653,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(!gestor) return;
   // 🗂 projetos do contrato (frentes)
   if(t.hasAttribute('data-pc-fr-add')){ const [id,tipo]=t.getAttribute('data-pc-fr-add').split('|'); const c=pcDe(id); if(!c) return;
-    const f=pcNovaFrente('', tipo); if(tipo==='ams') f.nome='Atendimento AMS'; pcFrentesW(c).push(f); pcLog(c,'projeto',`projeto novo (${PC_FR_TIPOS[f.tipo][1]})`); salvaCfg();
+    const f=pcNovaFrente('', tipo); if(tipo==='ams'){ f.nome='Atendimento AMS'; f.de=pcInicioPeriodoAtual(c); } pcFrentesW(c).push(f); pcLog(c,'projeto',`projeto novo (${PC_FR_TIPOS[f.tipo][1]})`); salvaCfg();
     st.frCad=st.frCad||{}; st.frCad[c.id]=true;
     st.aba={ id:c.id, qual:'proj' }; renderParcerias(); const inp=document.querySelector(`[data-pc-fr="${c.id}|${f.id}|nome"]`); if(inp){ try{ inp.focus(); inp.select(); }catch(e2){} } return; }
   if(t.hasAttribute('data-pc-fr-rm')){ const [id,fid]=t.getAttribute('data-pc-fr-rm').split('|'); const c=pcDe(id); if(!c) return; const f=pcFrente(c,fid); if(!f) return;
@@ -760,16 +767,17 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(t.hasAttribute('data-pc-fr')){ if(!pcPodeEditar()) return; const [id,fid,campo]=t.getAttribute('data-pc-fr').split('|'); const c=pcDe(id); if(!c) return;
     const f=pcFrente(c,fid); if(!f) return; const val=String(t.value||'').trim(); const antes=JSON.stringify(f);
     if(campo==='nome') f.nome=val.slice(0,90);
-    else if(campo==='tipo') f.tipo=PC_FR_TIPOS[val]?val:'aloc';
+    else if(campo==='tipo'){ f.tipo=PC_FR_TIPOS[val]?val:'aloc'; if(f.tipo==='ams'&&!pcData(f.de)) f.de=pcInicioPeriodoAtual(c); }
+    else if(campo==='de'){ if(val&&!pcData(val)){ renderParcerias(); return; } f.de=val; }
     else if(campo==='proj') f.proj=val.toUpperCase().replace(/[^A-Z0-9_]/g,'').slice(0,20);
     else if(campo==='ref') f.ref=val.slice(0,60);
     else if(campo==='casar') f.casar=val.slice(0,240);
     else if(campo==='vh') f.vh=Math.max(0,Math.round((Number(val.replace(',','.'))||0)*100)/100);
-    else if(campo==='estMes') f.estMes=Math.max(0,Math.round((Number(val.replace(',','.'))||0)*10)/10);
+    else if(campo==='estMes'){ f.estMes=Math.max(0,Math.round((Number(val.replace(',','.'))||0)*10)/10); if(f.estMes>0&&!pcData(f.de)) f.de=pcInicioPeriodoAtual(c); }
     else if(campo==='ac'){ f.ac=Number(val)||0; const a=((typeof pcCat==='function'&&pcCat()||{}).analiticas||[]).find(y=>y.id===f.ac); f.acNome=a?a.nome:(f.ac?f.acNome||'':''); }
     else return;
     if(JSON.stringify(f)===antes){ return; }
-    pcLog(c,'projeto',`${pcFrNome(f)}: ${campo} → ${campo==='tipo'?PC_FR_TIPOS[f.tipo][1]:campo==='ac'?(f.acNome||'rateio padrão'):campo==='vh'?(f.vh?fmtBRL(f.vh):'do contrato'):campo==='estMes'?fmtHd(f.estMes)+'/mês':(f[campo]||'—')}`);
+    pcLog(c,'projeto',`${pcFrNome(f)}: ${campo} → ${campo==='tipo'?PC_FR_TIPOS[f.tipo][1]:campo==='ac'?(f.acNome||'rateio padrão'):campo==='vh'?(f.vh?fmtBRL(f.vh):'do contrato'):campo==='estMes'?fmtHd(f.estMes)+'/mês':campo==='de'?(f.de?dataBR(f.de):'—'):(f[campo]||'—')}`);
     salvaCfg();
     // texto digitado: o redesenho espera o foco sair do cartão do projeto (o Tab de um campo ao outro não perde nada)
     if((campo==='tipo'||campo==='ac')||typeof pcAdiaRender!=='function') renderParcerias(); else pcAdiaRender(); return; }
@@ -784,10 +792,13 @@ document.getElementById('conteudo').addEventListener('toggle',(e)=>{ const d=e.t
 document.getElementById('modal-body').addEventListener('click',(e)=>{
   if(estado.vista!=='parcerias') return; const st=estado.parcerias||{}; const m=st.apModal; if(!m) return; const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-pc-apm-fechar')){ st.apModal=null; fechaModal(); return; }
+  if(t.hasAttribute('data-pc-apm-limpa')){ const inp=document.querySelector(`#modal-body [data-pc-apm="${t.getAttribute('data-pc-apm-limpa')}"]`);
+    if(inp){ inp.value=''; inp.setAttribute('data-limpar','1'); inp.placeholder='volta à previsão'; } t.disabled=true; t.textContent='↺ volta à previsão ao salvar'; return; }
   if(!t.hasAttribute('data-pc-apm-ok')) return; const c=pcDe(m.id); if(!c||!pcPodeEditar()) return;
   const quem=pcQuem().nome; const mud=[]; let ruim='';
   document.querySelectorAll('#modal-body [data-pc-apm]').forEach(inp=>{ const fid=inp.getAttribute('data-pc-apm'); const f=fid===PC_SEM_FR?{ id:PC_SEM_FR, nome:'Sem projeto' }:pcFrente(c,fid); if(!f) return;
     const bruto=String(inp.value||'').trim().replace(',','.'); const ant=pcApurDe(c,m.ym,fid);
+    if(inp.getAttribute('data-limpar')==='1'&&!bruto){ if(ant){ pcApurSet(c,m.ym,fid,null); mud.push(`${pcFrNome(f)} de volta à previsão`); } return; }
     if(bruto===String(inp.getAttribute('data-ini')||'').replace(',','.')) return;   // só grava o que a pessoa mexeu (o parcial da planilha fica como está)
     if(!bruto){ if(ant){ pcApurSet(c,m.ym,fid,null); mud.push(`${pcFrNome(f)} de volta à previsão`); } return; }
     const n=Number(bruto); if(!isFinite(n)||n<0){ ruim=pcFrNome(f); return; } const h=Math.round(n*100)/100;

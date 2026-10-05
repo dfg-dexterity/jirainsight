@@ -72,6 +72,15 @@ function pcOdooDesde(c){ const v=String((c&&c.odooDesde)||''); if(v==='todos') r
 // Período (AAAA-MM) de uma chave de item: p:AAAA-MM[:frente] ou a hora extra x:<id>.
 function pcChaveYm(c, chave){ const m=String(chave||'').match(/^p:(\d{4}-\d{2})/); if(m) return m[1]; const x=String(chave||'').startsWith('x:')?pcExtras(c).find(e=>e&&e.id===chave.slice(2)):null; return x?x.ym:''; }
 function pcNoOdoo(c, ym, soEscolha){ const d=soEscolha?(String((c&&c.odooDesde)||'').match(/^\d{4}-\d{2}$/)||[''])[0]:pcOdooDesde(c); return !d||String(ym||'')>=d; }
+// O item da ordem (pela chave) ainda é do painel? Hora extra SEMPRE é (apagada ou movida, a sincronização precisa vê-la
+// para tirar da ordem); período só a partir do "levar ao Odoo a partir de" (o anterior foi faturado à mão e fica como está).
+function pcNoOdooChave(c, chave){ const k=String(chave||''); if(k.startsWith('x:')) return true; const ym=pcChaveYm(c,k); return !ym||pcNoOdoo(c,ym); }
+// Períodos (AAAA-MM) que já têm ALGUM item faturado na ordem (pela última leitura do Odoo). Nesses períodos o painel
+// nunca cria item NOVO — trocar o projeto de um trecho, tirar um projeto ou os projetos inteiros mudaria a chave do item,
+// e a nota já emitida sairia de novo. Só os itens que já existem são atualizados (e o faturado nunca muda no servidor).
+function pcOdooFatYms(c){ const o=pcOdoo(c); const s=o&&o.sync; const out=new Set(); if(!o||!s) return out;
+  (o.itens||[]).forEach(x=>{ const L=s.linhas&&s.linhas[x.id]; const m=String(x.chave||'').match(/^p:(\d{4}-\d{2})/); if(m&&L&&Number(L.qtdFat)>0) out.add(m[1]); }); return out; }
+function pcOdooChavesExistentes(c){ const o=pcOdoo(c); return new Set(((o&&o.itens)||[]).map(x=>String(x.chave||''))); }
 // Períodos que a ordem JÁ tem no formato antigo (um item por período, p:AAAA-MM): eles continuam um item só mesmo
 // depois de o contrato ganhar 🗂 projetos — trocar pelo item por projeto apagaria/zeraria o antigo e, se ele já foi
 // faturado, criaria a mesma nota de novo. Só os períodos novos saem por projeto.
@@ -85,14 +94,23 @@ function pcChavesPeriodo(c, x, legado){ const L=legado||pcOdooLegado(c);
 // ---- as linhas que a ordem deve ter HOJE: um item por período (por projeto, quando há) + um por hora extra ----
 function pcLinhasOrdem(c, plan){
   const P=plan||pcPlanejamento(c); const nome=c.consultoria||'consultoria'; const out=[]; const legado=pcOdooLegado(c);
+  const fatYms=pcOdooFatYms(c), existe=pcOdooChavesExistentes(c);
+  const pode=(ym, chave)=>!fatYms.has(ym)||existe.has(chave);   // período já faturado: só o que já é item
   P.periodos.forEach(x=>{ if(!pcNoOdoo(c,x.ym)) return;
     if(x.porFr&&!legado.has(x.ym)){ (P.frentes||[]).forEach(f=>{ const z=x.porFr[f.id]; if(!z) return; const h=Math.round((Number(z.h)||0)*100)/100, v=Math.round((Number(z.v)||0)*100)/100; if(!(v>0)) return;
+        if(!pode(x.ym,`p:${x.ym}:${f.id}`)) return;
         const qtd=h>0?h:1, unit=h>0?Math.round(v/h*100)/100:v; const fn=pcFrNome(f)+(f.ref?' ('+f.ref+')':'');
         out.push({ chave:`p:${x.ym}:${f.id}`, tipo:'periodo', mes:x.ym, frente:f.id, de:x.iniPlano, ate:x.fimPlano, nota:x.nota, qtd, unitario:unit, valor:v,
           descricao:`Consultoria — ${nome} · ${fn} · ${dataBR(x.iniPlano)} a ${dataBR(x.fimPlano)} (${fmtHd(h)}${z.fonte==='apur'?' apuradas':''} × ${fmtBRL(unit)}) · nota ${dataBR(x.nota)}`,
           rateio:(f.ac?[{ ac:f.ac, pct:100 }]:pcRateioEfetivo(c,x.ym)).map(r=>({ ac:r.ac, pct:r.pct })) }); });
       return; }
-    const h=Math.round((Number(x.horas)||0)*100)/100, v=Math.round((Number(x.valor)||0)*100)/100; if(!(v>0)) return;
+    let h=Math.round((Number(x.horas)||0)*100)/100, v=Math.round((Number(x.valor)||0)*100)/100;
+    // período do formato antigo num contrato que ganhou projetos: o ✎ ajuste manual antigo (c.prev) continua mandando
+    // nele, como mandava quando o item foi criado — senão a quantidade mudaria sozinha (e a já faturada sairia de novo)
+    if(x.porFr){ const pv=pcPrevDe(c,x.ym); const vhB=h>0?v/h:Math.max(0,Number(c.valorHora)||0);
+      if(pv&&pv.h!=null){ h=Math.round(Number(pv.h)*100)/100; v=pv.v!=null?Math.round(Number(pv.v)*100)/100:Math.round(h*vhB*100)/100; }
+      else if(pv&&pv.v!=null) v=Math.round(Number(pv.v)*100)/100; }
+    if(!(v>0)||!pode(x.ym,'p:'+x.ym)) return;
     const qtd=h>0?h:1, unit=h>0?Math.round(v/h*100)/100:v;   // valor fechado sem horas = 1 × valor
     out.push({ chave:'p:'+x.ym, tipo:'periodo', mes:x.ym, de:x.iniPlano, ate:x.fimPlano, nota:x.nota, qtd, unitario:unit, valor:v,
       descricao:h>0?`Consultoria — ${nome} · ${dataBR(x.iniPlano)} a ${dataBR(x.fimPlano)} (${fmtHd(h)} × ${fmtBRL(unit)}) · nota ${dataBR(x.nota)}`
@@ -184,7 +202,7 @@ function pcOdooGaranteLeitura(c){ const o=pcOdoo(c); if(!o) return; const E=pcOd
 function pcOdooCorpo(c, extra){ const id=idApontar()||{}; const o=(c.odoo&&typeof c.odoo==='object')?c.odoo:{}; const E=pcOdooEstado(c); const ov=pcOdooVendas();
   return Object.assign({ contratoId:c.id, consultoria:c.consultoria||'', cliente:c.consultoria||'', conta:c.conta||'', fatFecha:c.fatFecha||31, fatDia:c.fatDia||0, modalidade:PC_MODAL[pcModal(c)][1], obs:c.obs||'',
     ordemId:o.id||null, parceiroId:E.parceiroId||o.parceiroId||null, produtoId:ov.produtoId||o.produtoId||null, produtoExtraId:ov.produtoExtraId||o.produtoExtraId||null,
-    itens:(o.itens||[]).filter(x=>pcNoOdoo(c,pcChaveYm(c,x.chave))).map(x=>({ chave:x.chave, id:x.id })),   // antes do "a partir de": o Odoo trata como item feito à mão (fica)
+    itens:(o.itens||[]).filter(x=>pcNoOdooChave(c,x.chave)).map(x=>({ chave:x.chave, id:x.id })),   // período antes do "a partir de": o Odoo trata como item feito à mão (fica); hora extra sempre vai
     linhas:pcLinhasOrdem(c).map(l=>({ chave:l.chave, tipo:l.tipo, mes:l.mes, de:l.de, ate:l.ate, nota:l.nota, descricao:l.descricao, qtd:l.qtd, unitario:l.unitario, rateio:l.rateio })),
     email:id.email, token:id.token }, extra||{}); }
 const PC_ODOO_MAX_LINHAS=300;   // o mesmo teto do servidor (ODOO_MAX_LINHAS em api/resumo.js)
@@ -198,11 +216,13 @@ function pcOdooConfere(c){ const id=idApontar(); if(!id){ abreIdentidade(); retu
     else { E.erro=(j&&j.erro)||'Não foi possível conferir a ordem no Odoo.'; E.dica=(j&&j.dica)||''; }
     pcReRender(); }).catch(e=>{ E.ocupado=''; E.erro=humanizaErro(e); pcReRender(); }); }
 function pcOdooSincroniza(c){ if(pcOdoo(c)) pcOdooLe(c,true); pcOdooConfere(c); }
-function pcOdooAplica(c){ const id=idApontar(); if(!id){ abreIdentidade(); return; } const E=pcOdooEstado(c); if(E.ocupado) return; E.ocupado='aplicando'; E.erro=''; E.dica=''; pcReRender();
+function pcOdooAplica(c){ const id=idApontar(); if(!id){ abreIdentidade(); return; } const E=pcOdooEstado(c); if(E.ocupado) return;
+  const nL=pcLinhasOrdem(c).length; if(nL>PC_ODOO_MAX_LINHAS){ toast(`A ordem teria ${nL} itens — mais que os ${PC_ODOO_MAX_LINHAS} que o painel leva ao Odoo. Escolha em "📤 Levar ao Odoo a partir de" o primeiro período ainda não faturado.`,'warn'); return; }
+  E.ocupado='aplicando'; E.erro=''; E.dica=''; pcReRender();
   pcOdooFetch('odoo-contrato', pcOdooCorpo(c)).then(j=>{ E.ocupado='';
     if(j&&j.ok){ const novo=!pcOdoo(c); const o=(c.odoo&&typeof c.odoo==='object')?c.odoo:{};
       if(novo&&!c.odooDesde){ const d=pcOdooDesde(c); c.odooDesde=d||'todos'; }   // o padrão vira escolha gravada (com a ordem criada, o vazio passaria a "todos")
-      const antigos=(o.itens||[]).filter(x=>!pcNoOdoo(c,pcChaveYm(c,x.chave))&&!(j.itens||[]).some(y=>y.chave===x.chave));   // itens de antes do "a partir de": o vínculo fica (status continua visível)
+      const antigos=(o.itens||[]).filter(x=>!pcNoOdooChave(c,x.chave)&&!(j.itens||[]).some(y=>y.chave===x.chave));   // itens de antes do "a partir de": o vínculo fica (status continua visível)
       c.odoo=Object.assign(o,{ id:j.id, name:j.name||o.name||'', url:j.url||o.url||'', parceiroId:j.parceiroId||o.parceiroId||null, produtoId:j.produtoId||null, produtoExtraId:j.produtoExtraId||null, itens:antigos.concat((j.itens||[]).map(x=>({ chave:x.chave, id:x.id }))), sync:null });
       if(novo){ c.odoo.em=new Date().toISOString(); c.odoo.por=id.nome||id.email; }
       const A=j.aplicado||{}; const partes=[]; if(A.criadas) partes.push(`${A.criadas} item(ns) criado(s)`); if(A.atualizadas) partes.push(`${A.atualizadas} atualizado(s)`); if(A.removidas) partes.push(`${A.removidas} apagado(s)`); if(A.zeradas) partes.push(`${A.zeradas} zerado(s)`);
@@ -279,6 +299,7 @@ function pcFaturamentosHTML(c, gestor, plan, hoje){
   const avisos=(E.avisos&&E.avisos.length)?`<div class="aviso">⚠ O Odoo avisou: ${E.avisos.map(esc).join(' · ')}</div>`:'';
   // ---- a grade: uma linha por período (+ sub-linhas das horas extras) ----
   const ymsAll=[...new Set(P.periodos.map(x=>x.ym).concat(pcExtras(c).map(x=>x&&x.ym).filter(Boolean)))].sort();
+  const fatYms=pcOdooFatYms(c), existe=pcOdooChavesExistentes(c);
   // períodos de ANTES do "levar ao Odoo a partir de" (faturados fora do painel) ficam recolhidos numa linha
   const antes=ymsAll.filter(ym=>!pcNoOdoo(c,ym)); const verAntes=!!((st.fatAntes||{})[c.id]); const yms=verAntes?ymsAll:ymsAll.filter(ym=>pcNoOdoo(c,ym));
   const vAntes=Math.round(antes.reduce((s,ym)=>{ const per=P.periodos.find(x=>x.ym===ym); return s+(per?Number(per.valor)||0:0)+pcExtrasDe(c,ym).reduce((t,e)=>t+pcExtraValor(e),0); },0)*100)/100;
@@ -295,7 +316,8 @@ function pcFaturamentosHTML(c, gestor, plan, hoje){
       <td class="small">${esc(pcRateioRot(rEf))}${proprio?' <span class="muted small" data-tip="este período tem rateio próprio, diferente do padrão do contrato">(próprio)</span>':''}${gestor?` <button class="btn rt-step" data-pc-rt-per="${escA(c.id)}|${escA(ym)}" data-tip="Rateio só deste período">✎</button>`:''}</td>
       <td class="muted small">${dataBR(per.nota)}${per.semApur?' <span class="rp-neg" data-tip="Período fechado sem a apuração de algum projeto — 📥 importe a planilha ou ✔ apure em 🗂 Projetos">⚠</span>':''}</td><td>${stP?`<span class="ct-sem ${stP.k==='antes'?'na':pcStCls(stP)}">${esc(stP.rot)}</span>`:'<span class="muted small">só extras</span>'}</td></tr>`;
     // 🗂 com projetos: uma sub-linha por projeto (o item dele na ordem, com o objeto de resultado próprio)
-    const subFr=per.porFr?(P.frentes||[]).map(f=>{ const z=per.porFr[f.id]; if(!z||!(z.v>0)) return ''; const sf=noOdoo?pcOdooStatusChave(c,pcChaveItem(c,ym,f.id),per.nota,hoje):null; const F=PC_FONTE_ROT[z.fonte]||PC_FONTE_ROT.prev;
+    const subFr=per.porFr?(P.frentes||[]).map(f=>{ const z=per.porFr[f.id]; if(!z||!(z.v>0)) return ''; const chF=pcChaveItem(c,ym,f.id); const travado=noOdoo&&fatYms.has(ym)&&!existe.has(chF);
+      const sf=travado?{ k:'fora', rot:'período já faturado — não vira item novo (lance como ➕ hora extra se precisar)' }:noOdoo?pcOdooStatusChave(c,chF,per.nota,hoje):null; const F=PC_FONTE_ROT[z.fonte]||PC_FONTE_ROT.prev;
       return `<tr class="pc-xt-row pc-fr-sub"><td></td><td class="small">↳ ${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrNome(f))}${f.ref?` <span class="muted small">${esc(f.ref)}</span>`:''}</td><td class="num"><span class="pc-fr-cel pc-fc-${z.fonte}" data-tip="${escA(F[1]+' · previsto '+fmtHd(z.prev))}">${F[0]?F[0]+' ':''}${fmtHd(z.h)}</span></td><td class="num muted small">× ${fmtBRL(z.vh)}</td><td class="num">${fmtBRL(z.v)}</td><td></td><td class="small">${esc(f.ac?`100% ${f.acNome||('#'+f.ac)}`:pcRateioRot(rEf))}</td><td></td><td>${sf?`<span class="ct-sem ${pcStCls(sf)}">${esc(sf.rot)}</span>`:''}</td></tr>`; }).join(''):'';
     const sub=ex.map(e=>{ const se=pcOdooStatusChave(c,'x:'+e.id,per.nota,hoje); return `<tr class="pc-xt-row"><td></td><td class="small">↳ ➕ ${esc(e.desc||'horas extras')}${e.proj?` <span class="muted small">${esc(e.proj)}</span>`:''}${e.quem?` <span class="muted small">· ${esc(e.quem)}</span>`:''}</td><td class="num">${fmtHd(Number(e.h)||0)}</td><td class="num muted small">× ${fmtBRL(Number(e.vh)||0)}</td><td class="num">${fmtBRL(pcExtraValor(e))}</td><td></td><td class="small">${esc(e.ac?`100% ${e.acNome||('#'+e.ac)}`:pcRateioRot(rEf))}</td><td></td><td><span class="ct-sem ${pcStCls(se)}">${esc(se.rot)}</span></td></tr>`; }).join('');
     return linha+subFr+sub; }).join('');

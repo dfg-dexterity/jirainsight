@@ -72,7 +72,8 @@ async function pcImpXlsx(buf){
   const out=[]; for(let i=0;i<rows.length;i++) out.push(rows[i]||[]); return out; }
 // CSV/TSV (ou o colado do Excel, que vem com TAB) → linhas. Aspas com quebra de linha dentro são respeitadas.
 function pcImpTexto(txt){ const s=String(txt||'').replace(/^﻿/,'').replace(/\r\n?/g,'\n'); if(!s.trim()) return [];
-  const prim=s.split('\n').find(l=>l.trim())||''; const sep=['\t',';',','].map(x=>[x,prim.split(x).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const amostra=s.split('\n').filter(l=>l.trim()).slice(0,20);   // a linha com mais colunas manda (um título no topo não engana)
+  const sep=['\t',';',','].map(x=>[x,Math.max(...amostra.map(l=>l.split(x).length))]).sort((a,b)=>b[1]-a[1])[0][0];
   const rows=[]; let lin=[], cur='', q=false;
   for(let i=0;i<s.length;i++){ const ch=s[i];
     if(q){ if(ch==='"'){ if(s[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=ch; continue; }
@@ -93,6 +94,10 @@ function pcImpLeHoras(v){ if(v&&typeof v==='object'&&v.horas!=null) return Numbe
   const s=String(v==null?'':v).trim(); let m=s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/); if(m) return (+m[1])+(+m[2])/60+(m[3]?(+m[3])/3600:0);
   const dec=/,/.test(s)?s.replace(/\./g,'').replace(',','.'):s;   // "1.234,5" e "8,5" (vírgula decimal) · "8.5" (ponto decimal)
   const n=Number(dec); return isFinite(n)?n:0; }
+// "Aprovado" sim; "Não aprovado", "Desaprovado", "Reprovado" não.
+function pcImpAprovado(sit){ const n=pcImpNorm(sit); return /aprovad/.test(n)&&!/nao aprov|desaprov|reprov/.test(n); }
+// CSV salvo pelo Excel em português vem em windows-1252: UTF-8 estrito primeiro, senão windows-1252.
+function pcImpDecodifica(buf){ try{ return new TextDecoder('utf-8',{ fatal:true }).decode(buf); }catch(e){ return new TextDecoder('windows-1252').decode(buf); } }
 // Acha o cabeçalho (1ª linha com "data" e "horas") e devolve os apontamentos + o que faltou.
 function pcImpRegistros(rows){
   let hi=-1, mapa=null;
@@ -107,7 +112,7 @@ function pcImpRegistros(rows){
     const id=String(g('id')==null?'':g('id')).trim(); if(id){ if(ids.has(id)){ dup++; continue; } ids.add(id); }
     const sit=String(g('sit')==null?'':g('sit')).trim();
     const proj=String(g('proj')||g('cv')||g('cliente')||'').trim()||'(sem projeto)';
-    regs.push({ data, h, proj, cliente:String(g('cliente')||'').trim(), cv:String(g('cv')||'').trim(), recurso:String(g('recurso')||'').trim(), sit, aprovado:mapa.sit==null?true:/aprovad/i.test(sit) }); }
+    regs.push({ data, h, proj, cliente:String(g('cliente')||'').trim(), cv:String(g('cv')||'').trim(), recurso:String(g('recurso')||'').trim(), sit, aprovado:mapa.sit==null?true:pcImpAprovado(sit) }); }
   return { regs, cols:mapa, dup, inval, temSit:mapa.sit!=null, temProj:mapa.proj!=null }; }
 // ---------------------------------------------------------------- análise para UM contrato
 // Código do projeto no parceiro (PTC-29028) e um nome legível ("Sumitomo — Implementação SAP S/4HANA").
@@ -141,18 +146,42 @@ function pcImpJira(g, tipo){ const cat=(_projetosCache||[]).filter(p=>p&&p.key);
 // Pessoa do time pelo nome do recurso (1º e último nome iguais bastam: "Diego Fornazier Gozer" = "Diego Gozer").
 function pcImpPessoa(nome){ const u=(typeof pessoasUnidas==='function')?pessoasUnidas():{}; const n=pcImpNorm(nome).split(' ').filter(Boolean); if(!n.length) return '';
   const ent=Object.entries(u).find(([a,p])=>{ const m=pcImpNorm(p&&p.nome).split(' ').filter(Boolean); return m.length&&m[0]===n[0]&&m[m.length-1]===n[n.length-1]; }); return ent?ent[0]:''; }
-// Alocação sugerida para um recurso a partir do histórico: h por DIA TRABALHADO em cada mês; meses vizinhos com
-// ritmo parecido (±0,75h) viram um trecho; o último vai até `ateProj`.
-function pcImpTrechos(regsRec, ateProj){
-  const porMes={}; regsRec.forEach(r=>{ const m=r.data.slice(0,7); const x=porMes[m]=porMes[m]||{ h:0, dias:new Set(), de:r.data, ate:r.data }; x.h+=r.h; x.dias.add(r.data); if(r.data<x.de) x.de=r.data; if(r.data>x.ate) x.ate=r.data; });
+// Alocação sugerida para um recurso a partir do histórico: o RITMO de cada mês é h ÷ dias úteis entre o 1º e o último
+// dia com apontamento (ausência no meio conta — não se aplica "h por dia trabalhado" a todo dia útil); meses VIZINHOS
+// com ritmo parecido (±12%, mínimo 0,75h) viram um trecho. Cada trecho começa no seu 1º apontamento (um buraco entre trechos fica
+// sem alocação) e só o último é projetado até `ateProj` — e só se ele chega ao último mês do arquivo (quem parou antes
+// não ganha horas futuras).
+function pcImpTrechos(regsRec, ateProj, ymFimArq){
+  const porMes={}; regsRec.forEach(r=>{ const m=r.data.slice(0,7); const x=porMes[m]=porMes[m]||{ h:0, de:r.data, ate:r.data }; x.h+=r.h; if(r.data<x.de) x.de=r.data; if(r.data>x.ate) x.ate=r.data; });
+  const du=(a,b)=>Math.max(1,pcDiasUteis(a,b));
   const ms=Object.keys(porMes).sort(); const runs=[];
-  ms.forEach(m=>{ const x=porMes[m]; const taxa=x.h/x.dias.size; const R=runs[runs.length-1];
+  ms.forEach(m=>{ const x=porMes[m]; const taxa=x.h/du(x.de,x.ate); const R=runs[runs.length-1];
     const contiguo=R&&pcYmSoma(R.ms[R.ms.length-1],1)===m;
-    if(R&&contiguo&&Math.abs(taxa-R.h/R.dias)<=0.75){ R.ms.push(m); R.h+=x.h; R.dias+=x.dias.size; R.ate=x.ate; }
-    else runs.push({ ms:[m], h:x.h, dias:x.dias.size, de:x.de, ate:x.ate }); });
-  return runs.map((R,i)=>{ const v=Math.max(0.5,Math.round(R.h/R.dias*2)/2); const prox=runs[i+1];
-    const de=i===0?R.de:proxDia(runs[i-1]._ate); const ate=prox?pcUltimoDia(R.ms[R.ms.length-1]):(pcData(ateProj)&&ateProj>R.ate?ateProj:pcUltimoDia(R.ms[R.ms.length-1]));
-    R._ate=ate; return { de, ate, modo:'dia', v, h:Math.round(R.h*10)/10, dias:R.dias }; }); }
+    const rR=R?R.h/du(R.de,R.ate):0;
+    if(R&&contiguo&&Math.abs(taxa-rR)<=Math.max(0.75,rR*0.12)){ R.ms.push(m); R.h+=x.h; R.ate=x.ate; }   // ±12% (ou 0,75h): duas faltas num mês de 8h/dia não quebram o trecho
+    else runs.push({ ms:[m], h:x.h, de:x.de, ate:x.ate }); });
+  return runs.map((R,i)=>{ const v=Math.max(0.5,Math.round(R.h/du(R.de,R.ate)*2)/2); const prox=runs[i+1];
+    let ate=R.ate;
+    if(prox&&pcYmSoma(R.ms[R.ms.length-1],1)===prox.ms[0]) ate=pcMaisDias(prox.de,-1);   // vizinho: emenda até a véspera do próximo
+    else if(!prox&&R.ms[R.ms.length-1]===ymFimArq&&pcData(ateProj)&&ateProj>R.ate) ate=ateProj;   // segue até o fim da projeção
+    return { de:R.de, ate, modo:'dia', v, h:Math.round(R.h*10)/10 }; }); }
+// O que o arquivo cobre de um período: `desde`/`ate` só quando fica DIA ÚTIL de fora (um arquivo que começa no dia 2
+// porque o dia 1 é feriado não deixa o período parcial). Recortado pela validade do contrato.
+function pcImpCobre(c, ym, dMin, dMax){ const P=pcPeriodo(c,ym); const ini=pcData(c.inicio)&&P.ini<c.inicio?c.inicio:P.ini, fim=pcData(c.fim)&&P.fim>c.fim?c.fim:P.fim;
+  const desde=dMin>ini&&pcDiasUteis(ini,pcMaisDias(dMin,-1))>0?dMin:''; const ate=dMax<fim&&pcDiasUteis(proxDia(dMax),fim)>0?dMax:'';
+  return { desde, ate, parcial:!!(desde||ate), ini, fim }; }
+// A apuração que fica gravada para um projeto num período, juntando com a que já existe:
+//   • existente COMPLETA e arquivo parcial → mantém a existente (o arquivo cobre menos que ela);
+//   • existente parcial da planilha e arquivo sem sobreposição (o mês seguinte do relatório) → SOMA e une a cobertura;
+//   • qualquer outro caso → vale a do arquivo.
+function pcImpMescla(c, ym, fid, novo){ const ant=fid?pcApurDe(c,ym,fid):null;
+  if(!ant) return { ...novo, acao:'novo' };
+  if(!ant.parcial&&novo.parcial) return { ...ant, acao:'mantem' };
+  if(ant.parcial&&ant.fonte==='planilha'&&novo.parcial){ const P=pcPeriodo(c,ym);
+    const od=ant.desde||P.ini, oa=ant.ate||P.fim, nd=novo.desde||P.ini, na=novo.ate||P.fim;
+    if(na<od||nd>oa){ const d=od<nd?od:nd, a=oa>na?oa:na; const cob=pcImpCobre(c,ym,d,a);
+      return { h:Math.round(((Number(ant.h)||0)+(Number(novo.h)||0))*100)/100, parcial:cob.parcial, desde:cob.desde, ate:cob.ate, acao:'soma', antes:Number(ant.h)||0 }; } }
+  return { ...novo, acao:Math.abs((Number(ant.h)||0)-(Number(novo.h)||0))>0.005||!!ant.parcial!==!!novo.parcial?'troca':'igual', antes:Number(ant.h)||0 }; }
 // A análise completa (o que vai acontecer se aplicar), recalculada a cada escolha na tela.
 function pcImpAnalisa(c, I){
   const regs=I.regs.filter(r=>I.naoAprovados||r.aprovado!==false);
@@ -170,24 +199,38 @@ function pcImpAnalisa(c, I){
     // apuração por período: do 1º período do grupo até o último que o arquivo alcança (0h onde não há linha)
     const porYm={}; g.regs.forEach(r=>{ const ym=pcYmDaData(c,r.data); porYm[ym]=(porYm[ym]||0)+r.h; });
     const yms=[]; let ym=pcYmDaData(c,g.de), guard=0; while(ym&&ym<=ymFim&&guard++<72){ yms.push(ym); ym=pcYmSoma(ym,1); }
-    const apur=yms.map(y=>{ const P=pcPeriodo(c,y); const parcial=dMax<P.fim; return { ym:y, h:Math.round((porYm[y]||0)*100)/100, parcial, ate:parcial?dMax:'' }; });
+    const fidAlvo=frAlvo?frAlvo.id:'';
+    const apur=yms.map(y=>{ const cob=pcImpCobre(c,y,dMin,dMax); const novo={ ym:y, h:Math.round((porYm[y]||0)*100)/100, parcial:cob.parcial, desde:cob.desde, ate:cob.ate };
+      return { ...novo, fica:pcImpMescla(c,y,fidAlvo,novo) }; });
     // alocação sugerida por recurso (só alocação)
     const porRec={}; g.regs.forEach(r=>{ const k=r.recurso||'(sem nome)'; (porRec[k]=porRec[k]||[]).push(r); });
     const ateProj=pcData(I.ate)?I.ate:(fim||pcUltimoDia(pcYmSoma(hojeSP().slice(0,7),6)));
-    const recursos=Object.keys(porRec).map(nome=>({ nome, a:pcImpPessoa(nome), trechos:pcImpTrechos(porRec[nome],ateProj) }));
+    const ymFimArq=dMax.slice(0,7);
+    const recursos=Object.keys(porRec).map(nome=>{ const a=pcImpPessoa(nome); const trechos=pcImpTrechos(porRec[nome],ateProj,ymFimArq);
+      // trechos SEM projeto desta pessoa que cruzam o intervalo derivado seriam contados de novo ("Sem projeto") — são recortados
+      const D=trechos.length?trechos[0].de:'', Z=trechos.length?trechos[trechos.length-1].ate:''; const rec=(a&&pcEquipe(c).find(p=>p.a===a))||pcEquipe(c).find(p=>!p.a&&pcImpNorm(p.nome)===pcImpNorm(nome));
+      const recortar=rec&&D?pcRegras(rec).filter(r=>pcRegraFr(c,r)===PC_SEM_FR&&pcData(r.de)&&pcData(r.ate)&&r.ate>=D&&r.de<=Z).length:0;
+      return { nome, a, trechos, recortar }; });
+    // estimativa: média dos últimos 3 períodos fechados com hora
     const cheios=apur.filter(x=>!x.parcial&&x.h>0).slice(-3); const est=cheios.length?Math.round(cheios.reduce((s,x)=>s+x.h,0)/cheios.length*2)/2:0;
     return { ...g, fr:frAlvo, acao, tipo, jira, apur, recursos, est, aloc:esc0.aloc!=null?!!esc0.aloc:(tipo==='aloc'&&!(frAlvo&&pcEquipe(c).some(p=>pcRegras(p).some(r=>r.fr===frAlvo.id)))), regs:undefined };
   });
   // projetos do contrato que a planilha não traz: zerar (AMS) nos períodos fechados que o arquivo cobre?
   const casados=new Set(lista.filter(g=>g.acao.startsWith('fr:')).map(g=>g.acao.slice(3)));
-  const cobertos=[]; if(dMin&&dMax){ let y=pcYmDaData(c,dMin), gd=0; while(y<=ymFim&&gd++<72){ const P=pcPeriodo(c,y); if(P.fim<=dMax&&P.fim>=dMin) cobertos.push(y); y=pcYmSoma(y,1); } }
-  const ausentes=pcFrentes(c).filter(f=>!casados.has(f.id)).map(f=>({ f, zerar:I.zerar[f.id]!=null?!!I.zerar[f.id]:pcFrTipo(f)==='ams' }));
+  // períodos INTEIROS dentro do arquivo (nenhum dia útil de fora): só neles "não aparece na planilha" quer dizer 0h
+  const cobertos=[]; if(dMin&&dMax){ let y=pcYmDaData(c,dMin), gd=0; while(y<=ymFim&&gd++<72){ if(!pcImpCobre(c,y,dMin,dMax).parcial) cobertos.push(y); y=pcYmSoma(y,1); } }
+  // zerar vem marcado só para AMS SEM horas já apuradas nesses períodos (uma planilha filtrada não apaga o que outra trouxe)
+  const ausentes=pcFrentes(c).filter(f=>!casados.has(f.id)).map(f=>{ const tem=cobertos.reduce((s,ym)=>{ const a=pcApurDe(c,ym,f.id); return s+(a?Number(a.h)||0:0); },0);
+    return { f, tem:Math.round(tem*100)/100, zerar:I.zerar[f.id]!=null?!!I.zerar[f.id]:(pcFrTipo(f)==='ams'&&!(tem>0)) }; });
   return { grupos:lista, dMin, dMax, foraVal, nUso:uso.length, nNaoAprov:I.regs.filter(r=>r.aprovado===false).length, cobertos, ausentes }; }
 // ---------------------------------------------------------------- a tela (modal)
+// O modal do importador ainda está aberto? (× e Esc fecham pelo fechaModal global, sem passar por aqui — uma leitura que
+// termina depois NÃO pode reabri-lo por cima de outra coisa)
+function pcImpModalAberto(){ const m=document.getElementById('modal'); return !!(m&&!m.hidden&&document.querySelector('#modal-body .pc-imp-root')); }
 function pcImpAbre(c){ const st=estado.parcerias=estado.parcerias||{}; st.imp={ cid:c.id, arq:'', regs:null, info:null, escolhas:{}, zerar:{}, naoAprovados:false, ate:'', erro:'', lendo:false }; pcImpPinta();
-  if(typeof garanteProjetos==='function') garanteProjetos().then(()=>{ if(st.imp&&st.imp.regs) pcImpPinta(); }).catch(()=>{}); }
+  if(typeof garanteProjetos==='function') garanteProjetos().then(()=>{ if(st.imp&&st.imp.regs&&pcImpModalAberto()) pcImpPinta(); }).catch(()=>{}); }
 function pcImpPinta(){ const st=estado.parcerias||{}; const I=st.imp; if(!I) return; const c=pcDe(I.cid); if(!c){ st.imp=null; fechaModal(); return; }
-  const topo=`<h3>📥 Importar apontamentos — ${esc(c.consultoria||'')} <span class="muted small">${esc(pcCod(c))} · fecha dia ${c.fatFecha||31}</span></h3>`;
+  const topo=`<div class="pc-imp-root" hidden></div><h3>📥 Importar apontamentos — ${esc(c.consultoria||'')} <span class="muted small">${esc(pcCod(c))} · fecha dia ${c.fatFecha||31}</span></h3>`;
   if(!I.regs){ abreModal(`${topo}
     <div class="muted small">Use a planilha de <b>apontamentos aprovados</b> exportada do sistema do parceiro (ex.: "Apontamentos consolidados" da Cast). Ela precisa ter as colunas <b>Data</b> e <b>Horas</b> e, de preferência, <b>Descrição Projeto</b>, <b>Cliente</b>, <b>Recurso</b> e <b>Situação</b>. Nada é gravado antes de você conferir e clicar em <b>Aplicar</b>.</div>
     <div class="pc-imp-arq"><label class="btn primario" for="pc-imp-file">📂 Escolher arquivo (.xlsx ou .csv)</label><input type="file" id="pc-imp-file" accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
@@ -199,7 +242,7 @@ function pcImpPinta(){ const st=estado.parcerias||{}; const I=st.imp; if(!I) ret
   const A=pcImpAnalisa(c,I); I.ultima=A; const frs=pcFrentes(c);
   const linhas=A.grupos.map(g=>{ const k=escA(g.chave); const novo=g.acao==='novo'; const ign=g.acao==='ignorar';
     const opts=`<option value="novo" ${novo?'selected':''}>＋ criar projeto novo</option>${frs.map(f=>`<option value="fr:${escA(f.id)}" ${g.acao==='fr:'+f.id?'selected':''}>→ ${PC_FR_TIPOS[pcFrTipo(f)][0]} ${esc(pcFrNome(f))}</option>`).join('')}<option value="ignorar" ${ign?'selected':''}>✕ ignorar estas linhas</option>`;
-    const trechos=g.tipo==='aloc'?g.recursos.map(R=>`<div class="small"><b>${esc(R.nome)}</b>${R.a?' <span class="badge" data-tip="pessoa do time">👤</span>':' <span class="muted small">(nome livre)</span>'}: ${R.trechos.map(t=>`${String(t.v).replace('.',',')}h/dia ${dataBR(t.de)} → ${dataBR(t.ate)}`).join(' · ')}</div>`).join(''):'';
+    const trechos=g.tipo==='aloc'?g.recursos.map(R=>`<div class="small"><b>${esc(R.nome)}</b>${R.a?' <span class="badge" data-tip="pessoa do time">👤</span>':' <span class="muted small">(nome livre)</span>'}: ${R.trechos.map(t=>`${String(t.v).replace('.',',')}h/dia ${dataBR(t.de)} → ${dataBR(t.ate)}`).join(' · ')}${R.recortar?` <span class="muted small">· ${R.recortar} trecho(s) sem projeto dessa pessoa nesse intervalo serão recortados (senão as horas contariam duas vezes)</span>`:''}</div>`).join(''):'';
     return `<tr class="${ign?'pc-imp-ign':''}"><td><b>${esc(g.nome)}</b>${g.ref?` <span class="badge">${esc(g.ref)}</span>`:''}<div class="muted small" title="${escA(g.proj)}">${esc(String(g.proj).slice(0,80))}</div></td>
       <td class="num"><b>${fmtHd(g.h)}</b><div class="muted small">${dataBR(g.de)} → ${dataBR(g.ate)}</div></td>
       <td><select data-pc-imp-acao="${k}" aria-label="O que fazer">${opts}</select>
@@ -211,45 +254,56 @@ function pcImpPinta(){ const st=estado.parcerias||{}; const I=st.imp; if(!I) ret
   const yms=[...new Set(A.grupos.filter(g=>g.acao!=='ignorar').flatMap(g=>g.apur.map(x=>x.ym)))].sort();
   const gr=A.grupos.filter(g=>g.acao!=='ignorar');
   const grade=yms.length?`<div class="scroll-x"><table class="mp-tab-mini pc-imp-grade"><thead><tr><th>Período</th>${gr.map(g=>`<th class="num" data-tip="${escA(g.nome)}">${esc(g.nome.split(' — ')[0].slice(0,16))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>${yms.map(ym=>{ const P=pcPeriodo(c,ym); let tot=0;
-      const cels=gr.map(g=>{ const x=g.apur.find(a=>a.ym===ym); if(!x) return '<td class="num muted">—</td>'; tot+=x.h; const fid=g.acao.startsWith('fr:')?g.acao.slice(3):''; const ant=fid?pcApurDe(c,ym,fid):null; const muda=ant&&Math.abs((Number(ant.h)||0)-x.h)>0.005;
-        return `<td class="num${muda?' pc-imp-muda':''}" data-tip="${escA((x.parcial?`parcial: até ${dataBR(x.ate)} (o resto do período continua previsto)`:'período fechado')+(ant?` · hoje apurado ${fmtHd(Number(ant.h)||0)}`:''))}">${x.parcial?'◐ ':''}${fmtHd(x.h)}${muda?' <span class="muted small">era '+fmtHd(Number(ant.h)||0)+'</span>':''}</td>`; }).join('');
+      const cels=gr.map(g=>{ const x=g.apur.find(a=>a.ym===ym); if(!x) return '<td class="num muted">—</td>'; const F=x.fica||{ ...x, acao:'novo' }; tot+=Number(F.h)||0;
+        const cob=F.parcial?`parcial${F.desde?' desde '+dataBR(F.desde):''}${F.ate?' até '+dataBR(F.ate):''} (o resto do período continua previsto)`:'período inteiro';
+        const nota=F.acao==='soma'?` <span class="muted small">soma ${fmtHd(F.antes)} já importadas</span>`:F.acao==='mantem'?' <span class="muted small">mantém a apuração completa</span>':F.acao==='troca'?` <span class="muted small">era ${fmtHd(F.antes)}</span>`:'';
+        return `<td class="num${F.acao==='troca'||F.acao==='soma'?' pc-imp-muda':''}" data-tip="${escA(`arquivo: ${fmtHd(x.h)} · ${cob}`)}">${F.parcial?'◐ ':''}${fmtHd(F.h)}${nota}</td>`; }).join('');
       return `<tr><td><b>${esc(labelMesAbbr(ym))}</b> <span class="muted small">${dataBR(P.ini)} → ${dataBR(P.fim)}</span></td>${cels}<td class="num"><b>${fmtHd(tot)}</b></td></tr>`; }).join('')}</tbody></table></div>`:'<div class="estado">Nada a apurar com as escolhas atuais.</div>';
-  const aus=A.ausentes.length?`<div class="muted small" style="margin-top:8px">Projetos do contrato que <b>não aparecem</b> na planilha: ${A.ausentes.map(x=>`<label class="pc-imp-aus"><input type="checkbox" data-pc-imp-zerar="${escA(x.f.id)}" ${x.zerar?'checked':''}> ${esc(pcFrNome(x.f))}</label>`).join(' ')} — marcados = <b>0h apuradas</b> nos períodos fechados que o arquivo cobre (${A.cobertos.length?A.cobertos.map(labelMesAbbr).join(', '):'nenhum'}).</div>`:'';
+  const aus=A.ausentes.length?`<div class="muted small" style="margin-top:8px">Projetos do contrato que <b>não aparecem</b> na planilha: ${A.ausentes.map(x=>`<label class="pc-imp-aus"><input type="checkbox" data-pc-imp-zerar="${escA(x.f.id)}" ${x.zerar?'checked':''}> ${esc(pcFrNome(x.f))}${x.tem>0?` <span class="muted">(já tem ${fmtHd(x.tem)} apuradas nesses períodos)</span>`:''}</label>`).join(' ')} — marcados = <b>0h apuradas</b> nos períodos fechados que o arquivo cobre (${A.cobertos.length?A.cobertos.map(labelMesAbbr).join(', '):'nenhum'}).</div>`:'';
   const ateDef=pcData(I.ate)?I.ate:(pcData(c.fim)?c.fim:pcUltimoDia(pcYmSoma(hojeSP().slice(0,7),6)));
   abreModal(`${topo}
     <div class="aviso ok">📄 <b>${esc(I.arq||'texto colado')}</b> · ${A.nUso} apontamento(s) de ${dataBR(A.dMin)} a ${dataBR(A.dMax)} · ${A.grupos.length} projeto(s) do parceiro${I.info.dup?` · ${I.info.dup} repetido(s) ignorado(s)`:''}${A.foraVal?` · <span class="rp-neg">${A.foraVal} fora da validade do contrato (ignorados)</span>`:''}${I.info.temSit?(A.nNaoAprov?` · <label><input type="checkbox" data-pc-imp-naoaprov="1" ${I.naoAprovados?'checked':''}> incluir ${A.nNaoAprov} não aprovado(s)</label>`:' · todos aprovados'):' · <span class="muted">sem coluna de situação — tudo entra</span>'}</div>
     <div class="scroll-x"><table class="mp-tab-mini pc-imp-tab"><thead><tr><th>Projeto no parceiro</th><th class="num">Horas</th><th>No contrato</th><th>Alocação / estimativa</th></tr></thead><tbody>${linhas}</tbody></table></div>
     <datalist id="pc-imp-projs">${(_projetosCache||[]).filter(p=>p&&p.key).map(p=>`<option value="${escA(p.key)}">${esc(p.nome||'')}</option>`).join('')}</datalist>
     <div class="campo" style="margin-top:8px"><label>Projetar a alocação até</label><input type="date" data-pc-imp-ate="1" value="${escA(ateDef)}"> <span class="muted small">o último ritmo de cada projeto de alocação continua até esta data (a previsão do caixa).</span></div>
-    <div class="mp-h3" style="margin-top:12px">✔ Apuração que será gravada <span class="mp-dim">horas aprovadas por período de faturamento do contrato · ◐ parcial = o arquivo termina antes do fim do período</span></div>${grade}${aus}
+    <div class="mp-h3" style="margin-top:12px">✔ Apuração que será gravada <span class="mp-dim">horas aprovadas por período de faturamento do contrato · ◐ parcial = o arquivo não cobre o período inteiro (o resto continua previsto) · importações seguidas do mesmo período se somam</span></div>${grade}${aus}
     <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn primario" data-pc-imp-aplicar="1" ${gr.length?'':'disabled'}>✅ Aplicar no contrato</button><button class="btn" data-pc-imp-outro="1">Outro arquivo</button><button class="btn" data-pc-imp-fechar="1">Cancelar</button></div>`);
 }
-async function pcImpCarrega(fonte, nome){ const st=estado.parcerias||{}; const I=st.imp; if(!I) return; I.erro=''; I.lendo=true; pcImpPinta();
-  try{ const rows=(typeof fonte==='string')?pcImpTexto(fonte):(/\.(csv|tsv|txt)$/i.test(nome||'')?pcImpTexto(new TextDecoder().decode(fonte)):await pcImpXlsx(fonte));
-    const R=pcImpRegistros(rows); I.lendo=false;
+async function pcImpCarrega(fonte, nome){ const st=estado.parcerias||{}; const I=st.imp; if(!I) return;
+  if(!pcImpModalAberto()){ st.imp=null; return; }   // o modal já foi fechado: não reabre
+  I.erro=''; I.lendo=true; pcImpPinta();
+  try{ const rows=(typeof fonte==='string')?pcImpTexto(fonte):(/\.(csv|tsv|txt)$/i.test(nome||'')?pcImpTexto(pcImpDecodifica(fonte)):await pcImpXlsx(fonte));
+    const R=pcImpRegistros(rows); I.lendo=false; if(!pcImpModalAberto()){ if(st.imp===I) st.imp=null; return; }   // fecharam o modal enquanto lia
     if(R.erro){ I.erro=R.erro; pcImpPinta(); return; }
     if(!R.regs.length){ I.erro='Nenhum apontamento com data e horas foi encontrado.'; pcImpPinta(); return; }
     I.regs=R.regs; I.info=R; I.arq=String(nome||'').slice(0,80); pcImpPinta();
-  }catch(e){ I.lendo=false; I.erro=(e&&e.message)||String(e); pcImpPinta(); } }
+  }catch(e){ I.lendo=false; I.erro=(e&&e.message)||String(e); if(pcImpModalAberto()) pcImpPinta(); else if(st.imp===I) st.imp=null; } }
 // Aplica: cria/atualiza os projetos, grava a apuração (fonte planilha), a alocação e a estimativa. Uma gravação só.
 function pcImpAplica(){ const st=estado.parcerias||{}; const I=st.imp; if(!I||!I.ultima) return; const c=pcDe(I.cid); if(!c||!pcPodeEditar()) return;
-  const A=pcImpAnalisa(c,I); const quem=pcQuem().nome; const em=hojeSP(); const res={ novos:0, apur:0, trechos:0, est:0, zerados:0 };
+  const A=pcImpAnalisa(c,I); const quem=pcQuem().nome; const em=hojeSP(); const res={ novos:0, apur:0, trechos:0, est:0, zerados:0, recortados:0, somados:0, mantidos:0 };
   const acum={};   // fid → ym → {h, parcial, ate}
   A.grupos.forEach(g=>{ if(g.acao==='ignorar') return; let f=g.acao.startsWith('fr:')?pcFrente(c,g.acao.slice(3)):null;
     if(!f){ f=pcNovaFrente(g.nome,g.tipo); f.proj=String(g.jira||'').toUpperCase().replace(/[^A-Z0-9_]/g,'').slice(0,20); f.ref=g.ref; f.casar=g.ref||g.proj.slice(0,120); pcFrentesW(c).push(f); res.novos++; }
     else { if(!f.ref&&g.ref) f.ref=g.ref; if(!f.casar) f.casar=g.ref||g.proj.slice(0,120); }
-    g.apur.forEach(x=>{ const m=acum[f.id]=acum[f.id]||{}; const y=m[x.ym]=m[x.ym]||{ h:0, parcial:false, ate:'' }; y.h+=x.h; if(x.parcial){ y.parcial=true; y.ate=x.ate; } });
+    g.apur.forEach(x=>{ const m=acum[f.id]=acum[f.id]||{}; const y=m[x.ym]=m[x.ym]||{ h:0, parcial:x.parcial, desde:x.desde, ate:x.ate }; y.h+=x.h; });
     if(pcFrTipo(f)==='aloc'&&g.aloc){ g.recursos.forEach(R=>{ const eq=pcEquipe(c);
         let rec=(R.a&&eq.find(p=>p.a===R.a))||eq.find(p=>!p.a&&pcImpNorm(p.nome)===pcImpNorm(R.nome));
         if(!rec){ rec=pcNovoRec(R.a?((pessoasUnidas()[R.a]||{}).nome||R.nome):R.nome, R.a); eq.push(rec); }
         rec.regras=pcRegras(rec).filter(r=>r.fr!==f.id);
+        if(R.trechos.length){ const D=R.trechos[0].de, Z=R.trechos[R.trechos.length-1].ate; const novas=[];   // recorta os trechos SEM projeto no intervalo derivado
+          pcRegras(rec).forEach(r=>{ if(pcRegraFr(c,r)!==PC_SEM_FR||!pcData(r.de)||!pcData(r.ate)||r.ate<D||r.de>Z){ novas.push(r); return; }
+            if(r.de<D) novas.push({ ...r, ate:pcMaisDias(D,-1) }); if(r.ate>Z) novas.push({ ...r, id:pcId('rg'), de:proxDia(Z) }); res.recortados++; });
+          rec.regras=novas; }
         R.trechos.forEach(t=>{ rec.regras.push({ id:pcId('rg'), de:t.de, ate:t.ate, modo:'dia', v:t.v, fr:f.id }); res.trechos++; }); }); }
-    if(pcFrTipo(f)==='ams'&&g.est>0&&!(Number(f.estMes)>0)){ f.estMes=g.est; res.est++; } });
+    if(pcFrTipo(f)==='ams'){ if(g.est>0&&!(Number(f.estMes)>0)){ f.estMes=g.est; res.est++; }
+      const prim=(g.apur.find(x=>x.h>0)||g.apur[0]); if(prim&&!pcData(f.de)) f.de=pcPeriodo(c,prim.ym).ini; } });   // a janela da estimativa começa no 1º período do arquivo
   Object.keys(acum).forEach(fid=>Object.keys(acum[fid]).forEach(ym=>{ const y=acum[fid][ym];
-    pcApurSet(c,ym,fid,{ h:Math.round(y.h*100)/100, fonte:'planilha', arq:I.arq||'texto colado', em, por:quem, ...(y.parcial?{ parcial:true, ate:y.ate }:{}) }); res.apur++; }));
+    const F=pcImpMescla(c,ym,fid,{ h:Math.round(y.h*100)/100, parcial:y.parcial, desde:y.desde, ate:y.ate });
+    if(F.acao==='mantem'){ res.mantidos++; return; } if(F.acao==='soma') res.somados++;
+    pcApurSet(c,ym,fid,{ h:Math.round((Number(F.h)||0)*100)/100, fonte:'planilha', arq:I.arq||'texto colado', em, por:quem, ...(F.parcial?{ parcial:true, ...(F.desde?{ desde:F.desde }:{}), ...(F.ate?{ ate:F.ate }:{}) }:{}) }); res.apur++; }));
   A.ausentes.forEach(x=>{ if(!x.zerar) return; A.cobertos.forEach(ym=>{ const ant=pcApurDe(c,ym,x.f.id); if(ant&&ant.fonte==='manual') return;
     pcApurSet(c,ym,x.f.id,{ h:0, fonte:'planilha', arq:I.arq||'texto colado', em, por:quem }); res.zerados++; }); });
-  pcLog(c,'importação',`📥 ${I.arq||'texto colado'}: ${A.nUso} apontamento(s) ${dataBR(A.dMin)}–${dataBR(A.dMax)} · ${res.apur} apuração(ões)${res.novos?` · ${res.novos} projeto(s) novo(s)`:''}${res.trechos?` · ${res.trechos} trecho(s) de alocação`:''}${res.est?` · ${res.est} estimativa(s) AMS`:''}${res.zerados?` · ${res.zerados} período(s) zerado(s)`:''}`);
+  pcLog(c,'importação',`📥 ${I.arq||'texto colado'}: ${A.nUso} apontamento(s) ${dataBR(A.dMin)}–${dataBR(A.dMax)} · ${res.apur} apuração(ões)${res.novos?` · ${res.novos} projeto(s) novo(s)`:''}${res.trechos?` · ${res.trechos} trecho(s) de alocação`:''}${res.est?` · ${res.est} estimativa(s) AMS`:''}${res.zerados?` · ${res.zerados} período(s) zerado(s)`:''}${res.somados?` · ${res.somados} somada(s) à importação anterior`:''}${res.mantidos?` · ${res.mantidos} apuração(ões) completa(s) mantida(s)`:''}${res.recortados?` · ${res.recortados} trecho(s) sem projeto recortado(s)`:''}`);
   salvaCfg(); st.imp=null; fechaModal(); st.aba={ id:c.id, qual:'proj' }; st.destaque=c.id;
   toast(`Importado: ${res.apur} apuração(ões)${res.novos?`, ${res.novos} projeto(s) novo(s)`:''}${res.trechos?`, ${res.trechos} trecho(s) de alocação`:''}. Confira em 🗂 Projetos.`,'ok'); renderParcerias(); }
 // ---------------------------------------------------------------- listeners do modal

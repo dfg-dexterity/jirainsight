@@ -238,8 +238,24 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `c.retPct`. **💹 Rentabilidade:** plano cujo projeto é `f.proj` de uma frente avisa a divergência e ↻ traz as horas
   (`pcFrHorasPorMes` → `p.vendMan`, `p.vendFonte`) — de propósito sem mudar `rpVendPorMes` (o servidor tem gate de
   paridade). Servidor: só `ODOO_MAX_LINHAS=300` (era 80 — com frentes estoura e o corte silencioso apagaria itens).
-  Teste: `parcerias-frentes-test.mjs` (Playwright, 32 casos, com a planilha REAL do usuário `book13.xlsx` — só no
-  scratchpad, nunca no repositório).
+  **Regras da revisão de código (mesmo dia, 12 achados corrigidos):** hora extra (`x:`) vai SEMPRE em `itens`, mesmo
+  antes do corte (`pcNoOdooChave`) — apagada, a sincronização precisa vê-la para tirar da ordem; período com item já
+  faturado **nunca ganha item novo** (`pcOdooFatYms` + `pcOdooChavesExistentes`: trocar/tirar projeto mudaria a chave e a
+  nota sairia de novo); o item antigo `p:AAAA-MM` respeita o `c.prev` de quando foi criado; AMS grava `f.de` ao nascer,
+  ao virar AMS e ao ganhar estimativa (`pcInicioPeriodoAtual`) — sem isso a janela andava com o calendário e cada mês
+  fechado sumia; a apuração parcial tem **`desde` e `ate`** (`pcImpCobre`: só conta como parcial se fica DIA ÚTIL de
+  fora; recortado pela validade) e `pcFrPeriodo` soma o previsto das duas pontas (`resto`), que é o que acende o ⚠;
+  importações seguidas **somam** (`pcImpMescla`: parcial da planilha + arquivo sem sobreposição = soma; completa +
+  arquivo parcial = mantém); o ritmo sugerido é h ÷ dias úteis do trecho (±12% para juntar meses), buraco não é
+  preenchido e só é projetado quem chega ao último mês do arquivo; trechos SEM projeto da pessoa no intervalo derivado
+  são recortados; "Não aprovado"/"Reprovado" ficam de fora (`pcImpAprovado`); CSV em windows-1252 (`pcImpDecodifica`);
+  zerar AMS ausente só vem marcado sem horas já apuradas; o modal não reabre depois de fechado (`pcImpModalAberto`);
+  ✔ apurar tem "↺ previsão"; "Trazer" só grava os meses que o contrato cobre. **Cuidado aprendido (de novo):** comentário
+  `//` acrescentado no MEIO de uma linha com mais código engole o resto — duas vezes nesta entrega.
+  Testes: `parcerias-frentes-test.mjs` (Playwright, 32 casos) e `revisao-fix-test.mjs` (15 casos, um por achado),
+  contra `servidor-mini.mjs` (fixtures enxutas — o `servidor-fix.mjs` antigo se perdeu num reinício do ambiente) com a
+  planilha **sintética** no formato da Cast (`gera-book.py` → `book13.xlsx` + `book13-esperado.json`); a planilha real
+  do usuário fica só no scratchpad, nunca no repositório.
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o
