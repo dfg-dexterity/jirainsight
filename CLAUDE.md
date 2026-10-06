@@ -271,6 +271,19 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   ao outro não perde nada. A apuração NÃO é tocada pela grade (linha "✔ Apurado" só mostra). `pcCopia` não leva `diario`.
   `projEspinhaDados` acha a consultoria pelo 🗂 projeto (`pcFrenteDoProjeto`) antes do plano e abre a gaveta 🗂;
   `pcSemObjeto` (16c) avisa projeto que iria ao Odoo sem 🎯 objeto próprio. Teste: `ciclos-diario-test.mjs` (31 casos).
+- **🧩 AMS por ciclo: apuração por TICKET PRINCIPAL e PDF sem tipos não faturáveis (2026-10-06, a pedido do usuário:
+  "consolidar os apontamentos por ticket pai e não abrir por qualquer tipo de task e sub-task; o PDF agrupado por ticket
+  pai; excluir do relatório de faturamento os tipos não faturáveis"):** o servidor (`jiraResolveIssues`/`worklogsEnriquecidos`
+  em `api/_lib/util.js`) marca a sub-tarefa (`issuetype.subtask` ou `hierarchyLevel −1`) com **`w.pk`** = chave do pai e
+  resolve o pai no 2º nível (resumo, tipo + descrição, campos AMS) — o pai entra em `resumos`/`infos` e no mapa novo
+  **`chamados = {chave: {t, f, pk}}`** mesmo sem apontamento próprio. **Regra do faturável:** `f = próprio tipo && tipo do
+  pai` — sub-tarefa de ticket não faturável é não faturável (senão o tipo não faturável viraria faturável por baixo).
+  No front (`16-contratos-ams-receita.js`) **`amsIndice(c, cyc, ym?)` é o ÚNICO agrupador**: grupo = ticket principal
+  (`amsPrincipal(w)`), tipo/faturável = do pai (`amsChamadoInfo`), `subs`/`nSub`/`ent[{…, k, sub}]`; `amsPorTipo`,
+  `amsChamadosCiclo`, `amsDrillMes`, relatórios e o `pdfApuracaoAMS` (27) leem dele — nada de reagrupar por consumidor.
+  O PDF exclui os tipos não faturáveis da tabela e da memória (só o rodapé diz as horas deixadas de fora); a tela mantém
+  o indicador faturável × não faturável. Testes: `tempo-pai-test.mjs` (servidor, fetch stubado, 6 casos) e
+  `ams-pai-test.mjs` (Playwright, 14 casos; fixture `AMS_WL` no `servidor-mini.mjs`).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o

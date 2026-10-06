@@ -560,10 +560,17 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
   risco/esgotado — **só as horas faturáveis consomem o pacote** (o total fica como contexto);
 - **Faturável × não faturável** no ciclo (split + KPI), classificado pela **descrição do tipo**
   do chamado no Jira (ex.: tipo cuja descrição diz "não faturável");
-- **Horas por tipo de issue** com **drill-down** (clique no tipo → chamados → Jira) **e**
-  **Chamados do ciclo**: lista achatada de **todos os chamados que fazem parte do ciclo**
-  (chave com link para o Jira, **🔖 Número do Chamado Cliente**, resumo, tipo, faturável/não,
-  nº de pessoas e horas);
+- **🧩 Apuração por TICKET PRINCIPAL (2026-10-06, a pedido do usuário):** as **sub-tarefas são
+  somadas no ticket pai** — `/api/tempo` devolve `w.pk` (chave do pai) em cada apontamento de
+  sub-tarefa e o mapa `chamados = {chave: {t, f, pk}}` com tipo/faturável do pai, que entra em
+  `resumos`/`infos` mesmo sem apontamento próprio (`jiraResolveIssues` resolve o pai no 2º nível).
+  No painel, `amsIndice(c, cyc, ym?)` é o **único agrupador**: um grupo por ticket principal, com
+  o tipo e os campos (Causa raiz/Produto/Processo) **do pai**, `nSub` e as linhas dizendo de qual
+  sub-tarefa vieram. **Regra do faturável:** sub-tarefa de ticket não faturável é não faturável
+  (`f = próprio tipo && tipo do pai`, no servidor).
+- **Horas por tipo do ticket principal** com **drill-down** (clique no tipo → tickets → Jira) **e**
+  **Chamados do ciclo**: um **ticket principal por linha** (chave com link para o Jira, **🔖 Número
+  do Chamado Cliente**, resumo, chip **+N sub**, tipo, faturável/não, nº de pessoas e horas);
 - **📊 Relatórios do ciclo** — distribuição dos chamados por **Causa raiz**, **Produto** e
   **Processo** (campos do Jira): horas · % do ciclo · nº de chamados, ordenado por horas
   (Pareto com acumulado); clique num item para abrir os chamados daquele grupo. Os campos
@@ -572,7 +579,10 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
   faturáveis acima do pacote → requer **autorização prévia** e é faturado junto com o ciclo);
 - **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente faturável;
 - **Consumo por mês** dentro do ciclo, sinalizando meses **abaixo do mínimo** e **acima do teto**;
-- **🖨 PDF da apuração** (por contrato): documento com o **valor apurado** referenciando o
+- **🖨 PDF da apuração** (por contrato) — desde 2026-10-06 **agrupado por ticket principal**
+  (cada bloco com a coluna Sub-tarefa) e **sem os tipos de ticket não faturáveis**: eles não
+  entram na tabela de tipos nem na memória; o rodapé só registra quantas horas ficaram de fora.
+  Documento com o **valor apurado** referenciando o
   contrato, os **responsáveis** (Dexterity e cliente), o **status de faturamento do ciclo** + a
   **memória de apontamentos por chamado** (cada chamado com suas linhas de worklog: data, pessoa
   e horas) — pronto para "Salvar como PDF". O **cabeçalho se repete em todas as páginas**.
