@@ -571,10 +571,11 @@ de início da vigência). Os worklogs **do ciclo selecionado** são buscados via
 - **Horas por tipo do ticket principal** com **drill-down** (clique no tipo → tickets → Jira) **e**
   **Chamados do ciclo**: um **ticket principal por linha** (chave com link para o Jira, **🔖 Número
   do Chamado Cliente**, resumo, chip **+N sub**, tipo, faturável/não, nº de pessoas e horas);
-- **📊 Relatórios do ciclo** — distribuição dos chamados por **Causa raiz**, **Produto** e
-  **Processo** (campos do Jira): horas · % do ciclo · nº de chamados, ordenado por horas
-  (Pareto com acumulado); clique num item para abrir os chamados daquele grupo. Os campos
-  são configuráveis por env (`JIRA_CF_*`);
+- **📊 Relatórios do ciclo** — distribuição dos **tickets principais faturáveis** por **Causa
+  raiz**, **Produto** e **Processo** (campos do Jira, do ticket pai): horas faturáveis · % ·
+  nº de tickets, ordenado por horas (Pareto com acumulado); clique num item para abrir os
+  tickets daquele grupo (`amsChamadosFat`, 2026-10-06 — os tipos não faturáveis ficam de fora,
+  como no PDF). Os campos são configuráveis por env (`JIRA_CF_*`);
 - **Banco de horas** (saldo faturável disponível até o fim do ciclo) e **excedente** (horas
   faturáveis acima do pacote → requer **autorização prévia** e é faturado junto com o ciclo);
 - **Faturamento do ciclo** = parcela fixa (horas do ciclo × valor-hora) + excedente faturável;
