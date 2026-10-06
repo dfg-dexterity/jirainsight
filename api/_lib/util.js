@@ -211,8 +211,13 @@ function primeiroCampo(f, ids) {
 
 // Resolve metadados (projeto, tipo + campos AMS) para uma lista de IDs de issue.
 // Usado pela função de tempo para enriquecer os worklogs do Clockwork.
-export async function jiraResolveIssues(ids) {
+// 🧩 TICKET PRINCIPAL (pedido de 2026-10-06, apuração do AMS "por ticket pai"): uma SUB-TAREFA (issuetype.subtask,
+// hierarchyLevel −1) leva `paiKey` = a chave do ticket principal, e o pai é resolvido no 2º nível com resumo, tipo
+// (+ descrição, para o faturável) e os campos AMS — mesmo que o pai não tenha apontamento próprio no período.
+// `extras.pais` (opcional) recebe esse mapa por chave: { resumo, tipo, tipoDesc, chamadoCliente, causaRaiz, produto, processo }.
+export async function jiraResolveIssues(ids, extras) {
   const mapa = {};
+  const pais = (extras && typeof extras === 'object') ? (extras.pais = extras.pais || {}) : {};
   const paiNaoEpico = {};   // issueId -> key do pai (história) p/ resolver o épico num 2º nível
   const unicos = [...new Set(ids.map(String))].filter(Boolean);
   // Lotes de 100 ids buscados 4 POR VEZ (eram em série: 5–10 idas ao Jira numa janela de
@@ -241,6 +246,7 @@ export async function jiraResolveIssues(ids) {
         issueKey: it.key || '',
         resumo: f.summary || '',
         epicoKey: '',
+        paiKey: '',
         chamadoCliente: primeiroCampo(f, CAMPOS_AMS.chamadoCliente),
         causaRaiz: primeiroCampo(f, CAMPOS_AMS.causaRaiz),
         produto: primeiroCampo(f, CAMPOS_AMS.produto),
@@ -254,17 +260,27 @@ export async function jiraResolveIssues(ids) {
       if (nivel === 1) mapa[id].epicoKey = it.key || '';
       else if (par && par.key && parNivel === 1) mapa[id].epicoKey = par.key;
       else if (par && par.key) paiNaoEpico[id] = par.key;
+      // 🧩 sub-tarefa: o ticket principal é o pai direto (resolvido com os dados dele no 2º nível)
+      const ehSub = !!(f.issuetype && (f.issuetype.subtask === true || nivel === -1));
+      if (ehSub && par && par.key) { mapa[id].paiKey = par.key; paiNaoEpico[id] = par.key; }
     }
   }
-  // 2º nível: para issues cujo pai é uma história, o épico é o pai dessa história.
+  // 2º nível: para issues cujo pai é uma história, o épico é o pai dessa história — e, para as sub-tarefas,
+  // o ticket principal com resumo, tipo e campos AMS (a apuração do AMS consolida por ele).
   const paisKeys = [...new Set(Object.values(paiNaoEpico))];
   if (paisKeys.length) {
     const epicoDoPai = {};
     const lotesPai = [];
     for (let i = 0; i < paisKeys.length; i += 100) lotesPai.push(paisKeys.slice(i, i + 100));
     for (let i = 0; i < lotesPai.length; i += 4) {
-      const rs = await Promise.all(lotesPai.slice(i, i + 4).map((lote) => jiraSearchAll({ jql: `key in (${lote.join(',')})`, fields: ['parent'], pageSize: 100, maxPages: 2 })));
-      for (const { issues } of rs) for (const it of issues) { const par = it.fields && it.fields.parent; epicoDoPai[it.key] = (par && par.key) || ''; }
+      const rs = await Promise.all(lotesPai.slice(i, i + 4).map((lote) => jiraSearchAll({ jql: `key in (${lote.join(',')})`, fields: ['parent', 'summary', 'issuetype', ...CAMPOS_AMS_IDS], pageSize: 100, maxPages: 2 })));
+      for (const { issues } of rs) for (const it of issues) {
+        const fp = it.fields || {}; const par = fp.parent; epicoDoPai[it.key] = (par && par.key) || '';
+        const nivelP = fp.issuetype && fp.issuetype.hierarchyLevel;
+        pais[it.key] = { resumo: fp.summary || '', tipo: (fp.issuetype && fp.issuetype.name) || '—', tipoDesc: (fp.issuetype && fp.issuetype.description) || '',
+          epicoKey: nivelP === 1 ? it.key : ((par && par.key) || ''),
+          chamadoCliente: primeiroCampo(fp, CAMPOS_AMS.chamadoCliente), causaRaiz: primeiroCampo(fp, CAMPOS_AMS.causaRaiz), produto: primeiroCampo(fp, CAMPOS_AMS.produto), processo: primeiroCampo(fp, CAMPOS_AMS.processo) };
+      }
     }
     for (const [id, paiKey] of Object.entries(paiNaoEpico)) { if (mapa[id]) mapa[id].epicoKey = epicoDoPai[paiKey] || ''; }
   }
@@ -371,35 +387,48 @@ export function textoComentario(v) {
   }
   return String(v).trim();
 }
-// Worklogs do Clockwork enriquecidos: [{a,s,d,p,t,f,k,e}] + mapas pessoas/projetos/resumos.
+// Worklogs do Clockwork enriquecidos: [{a,s,d,p,t,f,k,e,pk}] + mapas pessoas/projetos/resumos/infos/chamados.
 // opts.comentarios=true acrescenta `c` (texto do comentário do apontamento, até 400
 // caracteres) — usado por "⏳ Como estou gastando meu tempo?".
+// 🧩 `pk` = o TICKET PRINCIPAL de uma sub-tarefa (vazio nos demais). Regra do faturável (pedido de 2026-10-06, "exclua
+// do relatório de faturamento os tipos de ticket que não são faturáveis"): a sub-tarefa de um ticket de tipo NÃO
+// faturável é não faturável, mesmo que o tipo da própria sub-tarefa ("Sub-tarefa") não diga nada — senão o tipo não
+// faturável viraria faturável por baixo, pelas sub-tarefas. `chamados` = { chave: { t: tipo, f: 0|1, pk } } para TODAS
+// as chaves (as apontadas e os pais), para a tela ter tipo/faturável do pai mesmo sem apontamento próprio dele.
 export async function worklogsEnriquecidos(startDate, endDate, opts) {
   const comComentarios = !!(opts && opts.comentarios);
   const brutos = await clockworkRaw(startDate, endDate);
   const ids = brutos.map((w) => String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '')).filter(Boolean);
-  const meta = ids.length ? await jiraResolveIssues(ids) : {};
-  const pessoas = {}; const projetos = {}; const resumos = {}; const infos = {}; const worklogs = [];
+  const extras = { pais: {} };
+  const meta = ids.length ? await jiraResolveIssues(ids, extras) : {};
+  const pais = extras.pais;
+  const pessoas = {}; const projetos = {}; const resumos = {}; const infos = {}; const chamados = {}; const worklogs = [];
+  const guardaInfo = (k, m) => { if (k && !infos[k] && (m.chamadoCliente || m.causaRaiz || m.produto || m.processo)) infos[k] = { cc: m.chamadoCliente || '', cr: m.causaRaiz || '', pr: m.produto || '', pc: m.processo || '' }; };
   for (const w of brutos) {
     const author = w.author || {}; const aid = author.accountId;
     if (!aid) continue;
     if (!pessoas[aid]) pessoas[aid] = { nome: author.displayName || aid, email: author.emailAddress || author.email || '' };
     const issueId = String((w.issue && (w.issue.id || w.issueId)) || w.issueId || '');
-    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', tipoDesc: '', issueKey: '', resumo: '', epicoKey: '' };
+    const m = meta[issueId] || { projetoKey: '—', projetoNome: '—', categoria: 'Sem categoria', tipo: '—', tipoDesc: '', issueKey: '', resumo: '', epicoKey: '', paiKey: '' };
     if (!projetos[m.projetoKey]) projetos[m.projetoKey] = { nome: m.projetoNome, categoria: m.categoria };
     const ik = m.issueKey || (w.issue && w.issue.key) || '';
     if (ik && m.resumo && !resumos[ik]) resumos[ik] = m.resumo;
     // Campos AMS por chamado (Número do Chamado Cliente, Causa Raiz, Produto, Processo).
-    if (ik && !infos[ik] && (m.chamadoCliente || m.causaRaiz || m.produto || m.processo)) {
-      infos[ik] = { cc: m.chamadoCliente || '', cr: m.causaRaiz || '', pr: m.produto || '', pc: m.processo || '' };
-    }
-    const wl = { a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f: ehFaturavel(m.tipo, m.tipoDesc) ? 1 : 0, k: ik, e: m.epicoKey || '' };
+    guardaInfo(ik, m);
+    // 🧩 o ticket principal da sub-tarefa: resumo, campos e tipo/faturável dele também vão no payload
+    const pk = m.paiKey || ''; const P = pk ? pais[pk] : null;
+    const fPai = P ? (ehFaturavel(P.tipo, P.tipoDesc) ? 1 : 0) : 1;
+    if (P) { if (P.resumo && !resumos[pk]) resumos[pk] = P.resumo; guardaInfo(pk, P); if (!chamados[pk]) chamados[pk] = { t: P.tipo, f: fPai, pk: '' }; }
+    const f = (ehFaturavel(m.tipo, m.tipoDesc) && fPai) ? 1 : 0;
+    if (ik && !chamados[ik]) chamados[ik] = { t: m.tipo, f, pk };
+    const wl = { a: aid, s: Number(w.timeSpentSeconds || 0), d: w.started || '', p: m.projetoKey, t: m.tipo, f, k: ik, e: m.epicoKey || '' };
+    if (pk) wl.pk = pk;
     if (comComentarios) wl.c = textoComentario(w.comment).slice(0, 400);
     worklogs.push(wl);
   }
   // `bruto`/`truncado`: o sinal de corte é medido nas linhas BRUTAS do Clockwork (a lista
   // enriquecida é menor — worklog sem autor sai — e não serve para comparar com o teto).
-  return { pessoas, projetos, resumos, infos, worklogs, bruto: brutos.length, truncado: brutos.length >= CLOCKWORK_TETO };
+  return { pessoas, projetos, resumos, infos, chamados, worklogs, bruto: brutos.length, truncado: brutos.length >= CLOCKWORK_TETO };
 }
 
 // ---------------------------------------------------------------------------

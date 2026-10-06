@@ -75,20 +75,36 @@ function amsShiftRef(ref, deltaCiclos, cm){
   const ny=y+Math.floor(nm/12), mm=((nm%12)+12)%12;
   return `${ny}-${String(mm+1).padStart(2,'0')}-15`;
 }
-// Horas do ciclo agrupadas por TIPO de issue (com drill-down por chamado) e split faturável.
-// Cada tipo: { seg, f (faturável), chamados:{ chave -> {seg} } }.
-function amsPorTipo(c, cyc){
-  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
-  const tipos={}; let segFat=0, segNao=0;
-  wl.forEach(w=>{
-    if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
-    if(!dia||dia<cyc.start||dia>cyc.end) return;
+// 🧩 TICKET PRINCIPAL (pedido de 2026-10-06: "a apuração seja feita por ticket pai — consolidar os apontamentos por
+// ticket pai e não abrir por qualquer tipo de task e sub-task; um ticket pai pode ter várias sub-tarefas"): cada
+// sub-tarefa é somada no ticket principal (`w.pk`, resolvido pelo servidor). A chave do grupo é o pai; o TIPO e o
+// FATURÁVEL são os do pai (`estado.ams.chamados`, que traz o pai mesmo sem apontamento próprio). amsIndice é o ÚNICO
+// agrupador do ciclo — lista de chamados, horas por tipo, drill do mês, relatórios e o PDF leem dele.
+function amsChamadoInfo(k){ return (estado.ams&&estado.ams.chamados&&estado.ams.chamados[k])||null; }
+function amsPrincipal(w){ return w.pk||w.k||'(sem chave)'; }
+// Grupos do ciclo (ou de UM mês do ciclo, com `ym`): { k, tipo, f, seg, segFat, segNao, pessoas, subs:{k->{seg}}, nSub, ent:[…] }.
+function amsIndice(c, cyc, ym){
+  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[]; const porK={};
+  wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10); if(!dia) return;
+    if(ym){ if(dia.slice(0,7)!==ym) return; } else if(dia<cyc.start||dia>cyc.end) return;
     const s=Number(w.s)||0; if(!s) return;
-    const tp=w.t||'—'; const t=tipos[tp]||(tipos[tp]={seg:0,f:!!w.f,chamados:{}});
-    t.seg+=s; const k=w.k||'(sem chave)'; (t.chamados[k]||(t.chamados[k]={seg:0})).seg+=s;
-    if(w.f) segFat+=s; else segNao+=s;
-  });
-  return { tipos, segFat, segNao, seg:segFat+segNao };
+    const k=amsPrincipal(w); const I=amsChamadoInfo(k);
+    const g=porK[k]||(porK[k]={ k, tipo:(I&&I.t)||w.t||'—', f:I?!!I.f:!!w.f, seg:0, segFat:0, segNao:0, pessoas:new Set(), subs:{}, ent:[] });
+    g.seg+=s; if(w.f) g.segFat+=s; else g.segNao+=s; if(w.a) g.pessoas.add(w.a);
+    if(w.pk&&w.k){ const sb=g.subs[w.k]||(g.subs[w.k]={ k:w.k, tipo:w.t||'—', seg:0 }); sb.seg+=s; }
+    g.ent.push({ d:dia, a:w.a, s, k:w.k||'', f:!!w.f, sub:!!w.pk }); });
+  const lista=Object.values(porK); lista.forEach(g=>{ g.nSub=Object.keys(g.subs).length; }); lista.sort((a,b)=>b.seg-a.seg);
+  const segFat=lista.reduce((s,g)=>s+g.segFat,0), segNao=lista.reduce((s,g)=>s+g.segNao,0);
+  return { lista, porK, segFat, segNao, seg:segFat+segNao };
+}
+// Rótulo "+N sub" de um grupo (as sub-tarefas somadas no ticket principal).
+function amsSubChip(n){ return n?`<span class="ams-ch-sub" data-tip="${n} sub-tarefa(s) somada(s) neste ticket principal">+${n} sub</span>`:''; }
+// Horas do ciclo agrupadas por TIPO do ticket principal (com drill-down por chamado) e split faturável.
+// Cada tipo: { seg, f (faturável), chamados:{ chave -> {seg, nSub} } }.
+function amsPorTipo(c, cyc){
+  const X=amsIndice(c,cyc); const tipos={};
+  X.lista.forEach(g=>{ const t=tipos[g.tipo]||(tipos[g.tipo]={seg:0,f:g.f,chamados:{}}); t.seg+=g.seg; t.chamados[g.k]={ seg:g.seg, nSub:g.nSub }; });
+  return { tipos, segFat:X.segFat, segNao:X.segNao, seg:X.seg };
 }
 // Worklogs (linhas individuais) de um contrato no ciclo — memória de apontamentos por chamado.
 function amsWorklogsCiclo(c, cyc){
@@ -107,15 +123,8 @@ function amsContratoSel(amsList){
   const id=(estado.ams&&estado.ams.sel)||'';
   return amsList.find(c=>c.id===id) || amsList[0] || null;
 }
-// Chamados do ciclo (lista achatada de todos os tipos) — o que faz parte do ciclo selecionado.
-function amsChamadosCiclo(c, cyc){
-  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[]; const m={};
-  wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
-    if(!dia||dia<cyc.start||dia>cyc.end) return; const s=Number(w.s)||0; if(!s) return;
-    const k=w.k||'(sem chave)'; const o=m[k]||(m[k]={k, tipo:w.t||'—', f:!!w.f, seg:0, pessoas:new Set()});
-    o.seg+=s; if(w.a) o.pessoas.add(w.a); });
-  return Object.values(m).sort((a,b)=>b.seg-a.seg);
-}
+// Chamados do ciclo — os tickets PRINCIPAIS (sub-tarefas somadas), do maior para o menor.
+function amsChamadosCiclo(c, cyc){ return amsIndice(c,cyc).lista; }
 // Faturamento do ciclo (chave = início do ciclo), guardado em c.faturados.
 function amsCicloFaturado(c, cyc){ return !!(c && c.faturados && cyc && c.faturados[cyc.start]); }
 // Card com os DADOS CADASTRADOS do contrato + controle de faturamento do ciclo.
@@ -154,52 +163,48 @@ function amsDadosCard(c, cyc){
 // linhas de worklog — data · pessoa · horas) com link para o Jira.
 function amsDrillMes(cId, ym){
   const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
-  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
-  const porCh={}; let tot=0;
-  wl.forEach(w=>{ if(!set.has(w.p)) return; const d=(w.d||'').slice(0,10); if(d.slice(0,7)!==ym) return;
-    const s=Number(w.s)||0; if(!s) return;
-    const k=w.k||'(sem chave)'; const o=porCh[k]||(porCh[k]={seg:0,f:!!w.f,ent:[]});
-    o.seg+=s; o.ent.push({d,a:w.a,s}); tot+=s; });
-  const chs=Object.entries(porCh).sort((a,b)=>b[1].seg-a[1].seg);
-  const corpo = chs.length ? chs.map(([k,o])=>{
+  const X=amsIndice(c, amsCicloVigente(c, amsRefSel()), ym); const chs=X.lista; const tot=X.seg;
+  const corpo = chs.length ? chs.map(o=>{ const k=o.k;
     const temK=k && k!=='(sem chave)';
     const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
     const ent=o.ent.slice().sort((a,b)=> a.d<b.d?-1:a.d>b.d?1:0 );
-    const linhas=ent.map(x=>`<div class="ts-dch"><span class="ts-dch-k">${esc(fmtBR(x.d))}</span><span class="ts-dch-r">${esc(amsNomePessoa(x.a))}</span><span class="ts-dch-h">${fmtH(x.s)}</span></div>`).join('');
+    // a linha de uma sub-tarefa diz qual é (o total do grupo é do ticket principal)
+    const linhas=ent.map(x=>`<div class="ts-dch"><span class="ts-dch-k">${esc(fmtBR(x.d))}</span><span class="ts-dch-r">${esc(amsNomePessoa(x.a))}${x.sub?` <span class="ams-ch-sub" data-tip="${escA('sub-tarefa '+x.k+(amsResumoChamado(x.k)?' — '+amsResumoChamado(x.k):''))}">↳ ${esc(x.k)}</span>`:''}</span><span class="ts-dch-h">${fmtH(x.s)}</span></div>`).join('');
     const pct=tot?Math.round(o.seg/tot*100):0;
     return `<details class="ts-dproj">
-      <summary><span class="ts-dp-k">${alvo}</span><span class="ts-dp-n">${(()=>{const cc=amsNumCliente(k);return cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span> `:'';})()}${esc(amsResumoChamado(k)||'')} <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span></span>
+      <summary><span class="ts-dp-k">${alvo}</span><span class="ts-dp-n">${(()=>{const cc=amsNumCliente(k);return cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span> `:'';})()}${esc(amsResumoChamado(k)||'')} ${amsSubChip(o.nSub)} <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span></span>
         <span class="ts-dp-h">${fmtH(o.seg)} · ${pct}%</span></summary>
       <div class="ts-dchs">${linhas}</div>
     </details>`;
   }).join('') : '<div class="estado">Sem apontamentos neste mês.</div>';
-  abreModal(`<h2>${esc(c.cliente||'(sem nome)')} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(labelMesAbbr(ym))} · ${fmtH(tot)} · ${chs.length} chamado(s)</span></h2>
-    <div class="muted small" style="margin:2px 0 10px">Apontamentos por chamado no mês — clique num chamado para ver as linhas (data · pessoa · horas). ↗ abre no Jira.</div>
+  abreModal(`<h2>${esc(c.cliente||'(sem nome)')} <span class="muted" style="font-weight:400;font-size:14px">· ${esc(labelMesAbbr(ym))} · ${fmtH(tot)} · ${chs.length} ticket(s) principal(is)</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Apontamentos por <b>ticket principal</b> no mês (as sub-tarefas estão somadas no pai, +N sub) — clique num ticket para ver as linhas (data · pessoa · sub-tarefa · horas). ↗ abre no Jira.</div>
     <div class="ts-drill">${corpo}</div>`);
 }
 // Card "Chamados do ciclo": lista achatada dos chamados que fazem parte do ciclo selecionado.
 function amsChamadosCard(c, cyc){
-  // A lista mostra só chamados FATURÁVEIS; os não faturáveis ficam fora (mas continuam
-  // no indicador faturável×não faturável e em "Horas por tipo"/Relatórios).
-  const todos=amsChamadosCiclo(c,cyc); const chs=todos.filter(o=>o.f); const tot=chs.reduce((s,o)=>s+o.seg,0);
-  const nao=todos.filter(o=>!o.f); const segNao=nao.reduce((s,o)=>s+o.seg,0);
+  // A lista mostra só tickets principais FATURÁVEIS (com as horas faturáveis das sub-tarefas somadas); os não
+  // faturáveis ficam fora (mas continuam no indicador faturável×não faturável e em "Horas por tipo"/Relatórios).
+  const X=amsIndice(c,cyc); const todos=X.lista; const chs=todos.filter(o=>o.f&&o.segFat>0); const tot=chs.reduce((s,o)=>s+o.segFat,0);
+  const nao=todos.filter(o=>!o.f); const segNao=X.segNao; const nSub=chs.reduce((s,o)=>s+o.nSub,0);
   const linhas=chs.map(o=>{
     const temK=o.k && o.k!=='(sem chave)';
     const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
-    const pct=tot?Math.round(o.seg/tot*100):0;
+    const pct=tot?Math.round(o.segFat/tot*100):0;
     const cc=amsNumCliente(o.k);
     return `<div class="ams-ch">
       <span class="ams-ch-k">${alvo}</span>
       ${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}
       <span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>
+      ${amsSubChip(o.nSub)}
       <span class="ams-ch-t">${esc(o.tipo)}</span>
       <span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span>
       <span class="ams-ch-p muted" data-tip="Pessoas que apontaram">${o.pessoas.size}</span>
-      <span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
+      <span class="ams-ch-h">${fmtH(o.segFat)} · ${pct}%</span></div>`;
   }).join('');
-  const notaNao = segNao>0 ? `<span class="muted" style="font-weight:400"> · não faturáveis ocultos: <strong>${fmtH(segNao)}</strong> em ${nao.length} chamado(s)</span>` : '';
+  const notaNao = segNao>0 ? `<span class="muted" style="font-weight:400"> · não faturáveis ocultos: <strong>${fmtH(segNao)}</strong>${nao.length?` em ${nao.length} ticket(s)`:''}</span>` : '';
   return `<div class="ams-chcard">
-    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(somente faturáveis · ${chs.length} chamado(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span>${notaNao}</div>
+    <div class="muted small" style="font-weight:600;margin:2px 0 6px">Chamados do ciclo <span class="muted" style="font-weight:400">(por <b>ticket principal</b>, sub-tarefas somadas no pai${nSub?` — ${nSub} sub-tarefa(s)`:''} · somente faturáveis · ${chs.length} ticket(s) · ${fmtH(tot)} — 🔖 = Nº do Chamado Cliente · clique na chave para abrir no Jira)</span>${notaNao}</div>
     <div class="ams-chlist">${linhas||'<div class="muted small">Sem chamados faturáveis neste ciclo.</div>'}</div>
   </div>`;
 }
@@ -252,11 +257,11 @@ function amsDrillRel(cId, dim, valor){
     const temK=o.k && o.k!=='(sem chave)';
     const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(o.k)}" target="_blank" rel="noopener">${esc(o.k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
     const cc=amsNumCliente(o.k); const pct=tot?Math.round(o.seg/tot*100):0;
-    return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span>${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}<span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span><span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span><span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
+    return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span>${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}<span class="ams-ch-r">${esc(amsResumoChamado(o.k)||'')}</span>${amsSubChip(o.nSub)}<span class="ams-ch-b ${o.f?'fat':'nfat'}">${o.f?'faturável':'não faturável'}</span><span class="ams-ch-h">${fmtH(o.seg)} · ${pct}%</span></div>`;
   }).join('');
   const dimLabel = dim==='cr'?'Causa raiz':dim==='pr'?'Produto':'Processo';
-  abreModal(`<h2>${esc(dimLabel)}: ${esc(valor)} <span class="muted" style="font-weight:400;font-size:14px">· ${fmtH(tot)} · ${chs.length} chamado(s)</span></h2>
-    <div class="muted small" style="margin:2px 0 10px">Chamados do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong>. 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
+  abreModal(`<h2>${esc(dimLabel)}: ${esc(valor)} <span class="muted" style="font-weight:400;font-size:14px">· ${fmtH(tot)} · ${chs.length} ticket(s) principal(is)</span></h2>
+    <div class="muted small" style="margin:2px 0 10px">Tickets principais do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong> (o campo é o do ticket pai; as sub-tarefas estão somadas). 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
     <div class="ams-chlist">${linhas||'<div class="estado">Sem chamados.</div>'}</div>`);
 }
 // ===========================================================================
@@ -732,7 +737,7 @@ function renderAMS(){
       fetch(`/api/tempo?desde=${encodeURIComponent(cycSel.start)}&ate=${encodeURIComponent(ate)}${forcar?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
         am.carregando=false;
         if(j.erro){ am.erro=j.erro; am.erroKey=amsKey; }
-        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.range=amsKey; am.quando=new Date(); }
+        else { am.dados=j.worklogs||[]; am.pessoas=j.pessoas||{}; am.projetos=j.projetos||{}; am.resumos=j.resumos||{}; am.infos=j.infos||{}; am.chamados=j.chamados||{}; am.range=amsKey; am.quando=new Date(); }
         if(estado.vista==='ams') renderAMS();
       }).catch(e=>{ am.carregando=false; am.erro=String(e.message||e); am.erroKey=amsKey; if(estado.vista==='ams') renderAMS(); });
     }
@@ -787,7 +792,7 @@ function renderAMS(){
         const temK=k && k!=='(sem chave)';
         const alvo=temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)} ↗</a>`:'<span class="muted">(sem chave)</span>';
         const cc=amsNumCliente(k);
-        return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span>${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}<span class="ams-ch-r">${esc(amsResumoChamado(k))}</span><span class="ams-ch-h">${fmtH(ch.seg)}</span></div>`;
+        return `<div class="ams-ch"><span class="ams-ch-k">${alvo}</span>${cc?`<span class="ams-ch-cc" data-tip="Número do Chamado Cliente">🔖 ${esc(cc)}</span>`:''}<span class="ams-ch-r">${esc(amsResumoChamado(k))}</span>${amsSubChip(ch.nSub)}<span class="ams-ch-h">${fmtH(ch.seg)}</span></div>`;
       }).join('');
       const pctT=pt.seg?Math.round(t.seg/pt.seg*100):0;
       return `<details class="ams-tipo${t.f?'':' nf'}">
@@ -819,7 +824,7 @@ function renderAMS(){
       ${burnChart?`<div class="muted small" style="font-weight:600;margin:6px 0 2px">Evolução do consumo faturável no ciclo <span class="muted" style="font-weight:400">(linha tracejada = pacote de ${pool}h; só horas faturáveis consomem o pacote)</span></div>${burnChart}`:''}
       <div class="muted small" style="font-weight:600;margin:10px 0 2px">Por mês no ciclo <span class="muted" style="font-weight:400">(clique num mês para ver os apontamentos por chamado${minMes||tetoMes?` · mín ${minMes||'–'}h · teto ${tetoMes||'–'}h/mês`:''})</span></div>
       <div class="ams-months">${mesesHtml}</div>
-      <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo de issue <span class="muted" style="font-weight:400">(clique no tipo para ver os chamados → Jira)</span></div>
+      <div class="muted small" style="font-weight:600;margin:12px 0 4px">Horas por tipo do ticket principal <span class="muted" style="font-weight:400">(sub-tarefas somadas no pai, pelo tipo do pai · clique no tipo para ver os tickets → Jira)</span></div>
       <div class="ams-tipos">${tiposHtml||'<div class="muted small">Sem apontamentos neste ciclo.</div>'}</div>
       ${excedente>0?`<div class="ams-note">⚠ Acima das ${pool}h do ciclo — o excedente (${fmtH(Math.round(excedente*3600))} · ${fmtBRL(valExced)}) só com <strong>autorização prévia</strong> e é faturado junto com o ciclo.</div>`:''}
       ${c.bancoHoras!==false?`<div class="ams-note">Banco de horas: o saldo vale até o fim do ciclo e <strong>não acumula</strong> para o próximo.</div>`:''}
@@ -837,7 +842,7 @@ function renderAMS(){
   } else {
     amsSection=`<div class="card full"><h2>🛡 AMS <span>apuração por ciclo · ${esc(cSel.cliente||'')}</span></h2>
         ${amsNav}
-        <div class="muted small" style="margin:8px 0 12px">Apuração do <strong>ciclo selecionado</strong> deste contrato (independente do período do topo). Faturável vs não faturável vem da <strong>descrição do tipo</strong> do chamado no Jira; <strong>só as horas faturáveis consomem o pacote/excedente</strong>. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
+        <div class="muted small" style="margin:8px 0 12px">Apuração do <strong>ciclo selecionado</strong> deste contrato (independente do período do topo), <strong>consolidada por ticket principal</strong>: as sub-tarefas são somadas no ticket pai (+N sub), e o tipo que vale é o do pai. Faturável vs não faturável vem da <strong>descrição do tipo</strong> no Jira (sub-tarefa de ticket não faturável também não é); <strong>só as horas faturáveis consomem o pacote/excedente</strong>, e o PDF da apuração deixa os tipos não faturáveis de fora. O banco de horas vale dentro do ciclo; o excedente requer autorização e é faturado junto.</div>
         ${amsDadosCard(cSel, cycSel)}
         ${amsCard(cSel)}
         ${amsChamadosCard(cSel, cycSel)}

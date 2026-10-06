@@ -166,40 +166,42 @@ function exportarPDF(){
   else setTimeout(go,120);
 }
 // PDF da apuração de UM contrato AMS: valor apurado (referenciando o contrato) +
-// memória de apontamentos por chamado (cada chamado com suas linhas de worklog → Jira).
+// memória de apontamentos por TICKET PRINCIPAL (sub-tarefas somadas no pai, cada linha dizendo qual sub-tarefa).
+// 🧩 Pedido de 2026-10-06: o PDF agrupa por ticket pai e EXCLUI os tipos de ticket não faturáveis — eles não entram
+// na tabela de tipos nem na memória; só o rodapé diz quantas horas ficaram de fora, para a conferência.
 function pdfApuracaoAMS(id){
   const c=(cfg.contratos||[]).find(x=>x.id===id); if(!c) return;
   const doc=document.getElementById('print-doc'); if(!doc) return;
   const cyc=amsCicloVigente(c,amsRefSel()); const cons=amsConsumoCiclo(c,cyc);
-  // Só horas faturáveis consomem o pacote/excedente; o total do ciclo entra como contexto.
+  // Só horas faturáveis consomem o pacote/excedente.
   const pool=amsHorasCiclo(c); const vh=Number(c.valorHora)||0; const h=cons.segFat/3600;
   const excedente=Math.max(0,h-pool), banco=Math.max(0,pool-h);
   const parcela=pool*vh, valExced=excedente*vh, total=parcela+valExced;
   const pctv=pool?Math.round(h/pool*100):0;
-  const pt=amsPorTipo(c,cyc); const fatPct=pt.seg?Math.round(pt.segFat/pt.seg*100):0;
+  const pt=amsPorTipo(c,cyc); const X=amsIndice(c,cyc);
   const agora=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
-  // Memória por chamado (com as entradas individuais de apontamento).
-  const wl=amsWorklogsCiclo(c,cyc); const porCh={};
-  wl.forEach(w=>{ const k=w.k||'(sem chave)'; const ch=porCh[k]||(porCh[k]={seg:0,f:!!w.f,tipo:w.t||'—',ent:[]});
-    ch.seg+=(Number(w.s)||0); ch.ent.push({d:(w.d||'').slice(0,10),a:w.a,s:Number(w.s)||0}); });
-  const chs=Object.entries(porCh).sort((a,b)=>b[1].seg-a[1].seg);
-  const tiposOrd=Object.entries(pt.tipos).sort((a,b)=>b[1].seg-a[1].seg);
+  // Só os tipos FATURÁVEIS entram no relatório; os demais ficam só no rodapé (horas e tipos deixados de fora).
+  const tiposOrd=Object.entries(pt.tipos).filter(([,t])=>t.f).sort((a,b)=>b[1].seg-a[1].seg);
+  const tiposFora=Object.entries(pt.tipos).filter(([,t])=>!t.f).sort((a,b)=>b[1].seg-a[1].seg);
+  const chs=X.lista.filter(g=>g.f&&g.segFat>0);   // tickets principais faturáveis, com as horas faturáveis das sub-tarefas
+  const nFora=X.lista.filter(g=>!g.f).length; const nSub=chs.reduce((s,g)=>s+g.nSub,0);
 
   const linhaKpi=(v,l,cls)=>`<div class="doc-k${cls?' '+cls:''}"><div class="dk-v">${v}</div><div class="dk-l">${l}</div></div>`;
-  const tiposTab=`<table class="doc-t"><thead><tr><th>Tipo de issue</th><th>Faturável</th><th class="num">Horas</th><th class="num">%</th></tr></thead><tbody>
-    ${tiposOrd.map(([nome,t])=>`<tr><td>${esc(nome)}</td><td>${t.f?'Sim':'Não'}</td><td class="num">${fmtH(t.seg)}</td><td class="num">${pt.seg?Math.round(t.seg/pt.seg*100):0}%</td></tr>`).join('')}
-    <tr class="doc-tot"><td>Total</td><td>${fatPct}% faturável</td><td class="num">${fmtH(pt.seg)}</td><td class="num">100%</td></tr>
+  const tiposTab=`<table class="doc-t"><thead><tr><th>Tipo do ticket principal</th><th class="num">Tickets</th><th class="num">Horas</th><th class="num">%</th></tr></thead><tbody>
+    ${tiposOrd.map(([nome,t])=>`<tr><td>${esc(nome)}</td><td class="num">${Object.keys(t.chamados).length}</td><td class="num">${fmtH(t.seg)}</td><td class="num">${pt.segFat?Math.round(t.seg/pt.segFat*100):0}%</td></tr>`).join('')}
+    <tr class="doc-tot"><td>Total faturável</td><td class="num">${chs.length}</td><td class="num">${fmtH(pt.segFat)}</td><td class="num">100%</td></tr>
     </tbody></table>`;
-  const memoria=chs.map(([k,ch])=>{
+  const memoria=chs.map(g=>{ const k=g.k;
     const temK=k&&k!=='(sem chave)';
     const tit=temK?`${esc(k)} — ${esc(amsResumoChamado(k)||'')}`:'(apontamentos sem chave de chamado)';
-    const ent=ch.ent.slice().sort((a,b)=>(a.d<b.d?-1:a.d>b.d?1:0));
+    const ent=g.ent.filter(x=>x.f).slice().sort((a,b)=>(a.d<b.d?-1:a.d>b.d?1:0));   // só as linhas faturáveis
+    const comSub=g.nSub>0; const cc=amsNumCliente(k);
     return `<div class="doc-ch">
       <div class="doc-ch-h"><span class="doc-ch-k">${temK?`<a href="${jiraBase()}/browse/${encodeURIComponent(k)}">${tit}</a>`:tit}</span>
-        <span class="doc-ch-meta">${esc(ch.tipo)} · ${ch.f?'faturável':'não faturável'}</span>
-        <span class="doc-ch-tot">${fmtH(ch.seg)}</span></div>
-      <table class="doc-ct"><thead><tr><th>Data</th><th>Pessoa</th><th class="num">Horas</th></tr></thead><tbody>
-        ${ent.map(x=>`<tr><td>${esc(fmtBR(x.d))}</td><td>${esc(amsNomePessoa(x.a))}</td><td class="num">${fmtH(x.s)}</td></tr>`).join('')}
+        <span class="doc-ch-meta">${esc(g.tipo)}${cc?` · nº cliente ${esc(cc)}`:''}${comSub?` · ${g.nSub} sub-tarefa(s) somada(s)`:''}</span>
+        <span class="doc-ch-tot">${fmtH(g.segFat)}</span></div>
+      <table class="doc-ct"><thead><tr><th>Data</th><th>Pessoa</th>${comSub?'<th>Sub-tarefa</th>':''}<th class="num">Horas</th></tr></thead><tbody>
+        ${ent.map(x=>`<tr><td>${esc(fmtBR(x.d))}</td><td>${esc(amsNomePessoa(x.a))}</td>${comSub?`<td class="sub">${x.sub?`${esc(x.k)}${amsResumoChamado(x.k)?' — '+esc(amsResumoChamado(x.k)):''}`:'<span class="doc-dim">(o próprio ticket)</span>'}</td>`:''}<td class="num">${fmtH(x.s)}</td></tr>`).join('')}
       </tbody></table></div>`;
   }).join('');
 
@@ -220,19 +222,18 @@ function pdfApuracaoAMS(id){
       ${c.obs?`<tr><th>Observações</th><td colspan="3">${esc(c.obs)}</td></tr>`:''}
     </tbody></table>
     <div class="doc-kpis">
-      ${linhaKpi(fmtH(cons.seg),'Horas no ciclo (total)')}
-      ${linhaKpi(fmtH(pt.segFat),`Faturáveis · ${pctv}% de ${pool}h`,'good')}
-      ${linhaKpi(fmtH(pt.segNao),'Não faturáveis','warn')}
+      ${linhaKpi(fmtH(pt.segFat),`Horas faturáveis · ${pctv}% de ${pool}h`,'good')}
+      ${linhaKpi(String(chs.length),`Ticket(s) principal(is)${nSub?` · ${nSub} sub-tarefa(s)`:''}`)}
       ${linhaKpi(fmtH(Math.round(banco*3600)),'Banco de horas')}
       ${linhaKpi(excedente>0?fmtH(Math.round(excedente*3600)):'0h','Excedente',excedente>0?'bad':'')}
       ${linhaKpi(vh?fmtBRL(total):'—','Valor apurado do ciclo','tot')}
     </div>
     <div class="doc-val">Valor apurado: parcela do ciclo (${pool}h × ${vh?fmtBRL(vh):'—'} = <strong>${vh?fmtBRL(parcela):'—'}</strong>)${excedente>0?` + excedente (${fmtH(Math.round(excedente*3600))} × ${fmtBRL(vh)} = <strong>${fmtBRL(valExced)}</strong>, requer autorização prévia)`:''} = <strong>${vh?fmtBRL(total):'—'}</strong></div>
-    <h3>Horas por tipo de issue</h3>
-    ${tiposOrd.length?tiposTab:'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
-    <h3>Memória de apontamentos por chamado <span class="doc-h3s">${chs.length} chamado(s) · ${fmtH(pt.seg)}</span></h3>
-    ${memoria||'<div class="doc-empty">Sem apontamentos neste ciclo.</div>'}
-    <div class="doc-foot">Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do chamado no Jira. <strong>Só as horas faturáveis consomem o pacote/excedente</strong>; as não faturáveis aparecem na memória apenas como registro. O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo Dexterity Hub (Jira + Clockwork + Odoo) da Dexterity IT.</div>
+    <h3>Horas faturáveis por tipo do ticket principal</h3>
+    ${tiposOrd.length?tiposTab:'<div class="doc-empty">Sem apontamentos faturáveis neste ciclo.</div>'}
+    <h3>Memória de apontamentos por ticket principal <span class="doc-h3s">${chs.length} ticket(s) · ${fmtH(pt.segFat)}${nSub?` · sub-tarefas somadas no pai`:''}</span></h3>
+    ${memoria||'<div class="doc-empty">Sem apontamentos faturáveis neste ciclo.</div>'}
+    <div class="doc-foot">Apuração consolidada por <strong>ticket principal</strong>: as sub-tarefas estão somadas no ticket pai, e cada linha diz de qual sub-tarefa veio. Faturável vs não faturável é classificado pela <strong>descrição do tipo</strong> do ticket no Jira (sub-tarefa de ticket não faturável também não é). <strong>Só as horas faturáveis consomem o pacote/excedente.</strong>${pt.segNao>0?` <strong>Fora deste relatório:</strong> ${fmtH(pt.segNao)} em tipos não faturáveis${nFora?` (${nFora} ticket(s)${tiposFora.length?`: ${tiposFora.map(([n])=>esc(n)).join(', ')}`:''})`:''} — não entram na apuração nem no valor.`:''} O banco de horas vale dentro do ciclo e não acumula para o próximo. Documento gerado pelo Dexterity Hub (Jira + Clockwork + Odoo) da Dexterity IT.</div>
     </td></tr></tbody></table></div>`;
   document.body.classList.add('doc-print');
   const prev=document.title; document.title=`Apuração AMS — ${c.cliente||''} — ${amsLabelCiclo(cyc)}`;

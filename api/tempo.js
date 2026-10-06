@@ -41,6 +41,7 @@ export default async function handler(req, res) {
       projetos: enr.projetos,
       resumos: enr.resumos,
       infos: enr.infos,
+      chamados: enr.chamados,   // 🧩 tipo/faturável/ticket pai por chave (apuração do AMS por ticket principal)
       worklogs: enr.worklogs,
     };
     return json(res, 200, cacheSet(ck, payload));
