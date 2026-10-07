@@ -125,6 +125,10 @@ function amsContratoSel(amsList){
 }
 // Chamados do ciclo — os tickets PRINCIPAIS (sub-tarefas somadas), do maior para o menor.
 function amsChamadosCiclo(c, cyc){ return amsIndice(c,cyc).lista; }
+// Só os tickets principais FATURÁVEIS, com `seg` = as horas faturáveis (pedido de 2026-10-06: "nesses indicadores
+// apenas os tickets que são faturáveis") — a base dos 📊 Relatórios do ciclo (Causa raiz · Produto · Processo) e do
+// drill deles. Um ticket faturável com uma "Subtarefa Não Faturável" entra só com as horas faturáveis.
+function amsChamadosFat(c, cyc){ return amsIndice(c,cyc).lista.filter(o=>o.f&&o.segFat>0).map(o=>Object.assign({}, o, { seg:o.segFat })); }
 // Faturamento do ciclo (chave = início do ciclo), guardado em c.faturados.
 function amsCicloFaturado(c, cyc){ return !!(c && c.faturados && cyc && c.faturados[cyc.start]); }
 // Card com os DADOS CADASTRADOS do contrato + controle de faturamento do ciclo.
@@ -235,12 +239,12 @@ function amsRelBloco(chs, dim, titulo, cor){
     ${linhas||'<div class="muted small">Sem dados.</div>'}</div>`;
 }
 function amsRelatoriosCard(c, cyc){
-  const chs=amsChamadosCiclo(c, cyc);
+  const chs=amsChamadosFat(c, cyc);
   const semInfo=chs.every(o=>!amsInfoChamado(o.k));
-  const aviso = semInfo ? `<div class="muted small" style="margin-top:6px">Sem <strong>Causa raiz/Produto/Processo</strong> preenchidos nos chamados deste ciclo (ou os campos ainda não foram mapeados).</div>` : '';
+  const aviso = semInfo ? `<div class="muted small" style="margin-top:6px">Sem <strong>Causa raiz/Produto/Processo</strong> preenchidos nos tickets faturáveis deste ciclo (ou os campos ainda não foram mapeados).</div>` : '';
   return `<div class="ams-chcard" style="margin-top:14px">
     <div class="muted small" style="font-weight:600;margin:2px 0 8px">📊 Relatórios do ciclo — Causa raiz · Produto · Processo
-      <span class="muted" style="font-weight:400">(horas · % do ciclo · (nº de chamados); ordenado por horas — Pareto com acumulado; clique num item para ver os chamados)</span></div>
+      <span class="muted" style="font-weight:400">(somente tickets <b>faturáveis</b>, pelos campos do ticket principal · horas faturáveis · % · (nº de tickets); ordenado por horas — Pareto com acumulado; clique num item para ver os tickets)</span></div>
     <div class="ams-rel-grid">
       ${amsRelBloco(chs,'cr','Causa raiz',cores.roxo)}
       ${amsRelBloco(chs,'pr','Produto',cores.cerceta)}
@@ -251,7 +255,7 @@ function amsRelatoriosCard(c, cyc){
 function amsDrillRel(cId, dim, valor){
   const c=(cfg.contratos||[]).find(x=>x.id===cId); if(!c) return;
   const cyc=amsCicloVigente(c, amsRefSel()); const getVal=amsRelGetVal(dim);
-  const chs=amsChamadosCiclo(c,cyc).filter(o=>{ const info=amsInfoChamado(o.k)||{}; return (((getVal(info)||'')+'').trim()||'(não informado)')===valor; });
+  const chs=amsChamadosFat(c,cyc).filter(o=>{ const info=amsInfoChamado(o.k)||{}; return (((getVal(info)||'')+'').trim()||'(não informado)')===valor; });
   const tot=chs.reduce((s,o)=>s+o.seg,0);
   const linhas=chs.map(o=>{
     const temK=o.k && o.k!=='(sem chave)';
@@ -261,7 +265,7 @@ function amsDrillRel(cId, dim, valor){
   }).join('');
   const dimLabel = dim==='cr'?'Causa raiz':dim==='pr'?'Produto':'Processo';
   abreModal(`<h2>${esc(dimLabel)}: ${esc(valor)} <span class="muted" style="font-weight:400;font-size:14px">· ${fmtH(tot)} · ${chs.length} ticket(s) principal(is)</span></h2>
-    <div class="muted small" style="margin:2px 0 10px">Tickets principais do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong> (o campo é o do ticket pai; as sub-tarefas estão somadas). 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
+    <div class="muted small" style="margin:2px 0 10px">Tickets principais <b>faturáveis</b> do ciclo de <strong>${esc(c.cliente||'')}</strong> com ${esc(dimLabel.toLowerCase())} = <strong>${esc(valor)}</strong> (o campo é o do ticket pai; as sub-tarefas estão somadas, só as horas faturáveis). 🔖 = Nº do Chamado Cliente · ↗ abre no Jira.</div>
     <div class="ams-chlist">${linhas||'<div class="estado">Sem chamados.</div>'}</div>`);
 }
 // ===========================================================================

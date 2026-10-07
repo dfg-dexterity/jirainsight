@@ -282,8 +282,10 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (`amsPrincipal(w)`), tipo/faturável = do pai (`amsChamadoInfo`), `subs`/`nSub`/`ent[{…, k, sub}]`; `amsPorTipo`,
   `amsChamadosCiclo`, `amsDrillMes`, relatórios e o `pdfApuracaoAMS` (27) leem dele — nada de reagrupar por consumidor.
   O PDF exclui os tipos não faturáveis da tabela e da memória (só o rodapé diz as horas deixadas de fora); a tela mantém
-  o indicador faturável × não faturável. Testes: `tempo-pai-test.mjs` (servidor, fetch stubado, 6 casos) e
-  `ams-pai-test.mjs` (Playwright, 14 casos; fixture `AMS_WL` no `servidor-mini.mjs`).
+  o indicador faturável × não faturável, MAS os **📊 Relatórios do ciclo** (Causa raiz · Produto · Processo) e o drill
+  deles leem `amsChamadosFat` (só grupos faturáveis, `seg` = horas faturáveis — pedido do mesmo dia: "nesses
+  indicadores apenas os tickets faturáveis"). Testes: `tempo-pai-test.mjs` (servidor, fetch stubado, 6 casos) e
+  `ams-pai-test.mjs` (Playwright, 15 casos; fixture `AMS_WL` no `servidor-mini.mjs`).
 - **🎫 Busca de tickets (2026-09-15, a pedido do usuário):** `public/js/12b-busca-tickets.js` — sobreposição
   **projeto → ticket** aberta pela tecla **`/`**, por **Ctrl+J**, pelo botão 🎫 da barra, por **⋯ Mais › 🎫 Buscar
   ticket** (o caminho do celular, onde a barra vira gaveta) e pelas linhas 🎫 da paleta Ctrl+K. O desempenho é o
