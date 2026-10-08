@@ -138,6 +138,32 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   tela dos eventos ganhou a faixa-resumo `.ag-ct-faixa` (`[data-ag-goto-ctrl]`). Quem redesenha testa
   `agVistaAberta()`, nunca `estado.vista==='agenda'`. O card "Reuniões sem ticket" da Início e o aviso do Inbox
   levam a `agcontrole`.
+  **➕ Convidar quem não está no convite (2026-10-08, a pedido do usuário: "convidar uma pessoa da Dexterity para
+  fazer o apontamento mesmo que ela não esteja convidada na reunião"):** a lista do modal 📝 vem de
+  `agPessoasConvite(ev)` (convidados do Outlook × usuários ativos do Jira por e-mail; devolve `internos`, `externos`
+  e o conjunto `accs` já coberto) e, abaixo dela, o bloco `.agm-extra` com a busca `#agm-extra-busca`:
+  `agExtraCandidatos(m, ev, q)` → `{itens, total}` procura entre `estado.agenda.usuarios` (≥ 2 letras, nome sem
+  acento ou e-mail; a lista já vem só com pessoas ativas do `/api/usuarios`, o `RE_EXCLUIR` é só garantia) fora de
+  você, dos convidados casados e dos extras já adicionados; até `AG_EXTRA_MAX`=8 chips + "… e mais N"; o 1º chip
+  (`.agm-extra-1`, ↵) é o que o Enter adiciona; e-mail de outro domínio aparece no chip. Chips e Enter chamam
+  `agExtraAdiciona` (mantém a busca enquanto houver resultados, rola a linha nova à vista, toast), o ✕
+  `[data-agm-extra-rm]` chama `agExtraRemove` (sem levar o foco à busca — no celular abriria o teclado). Esc com
+  texto na busca só limpa (o listener do 03 roda antes do Esc global do 30 e faz `stopImmediatePropagation`).
+  Os extras vivem só em `_agM.extras` (nada na config) e viram linhas `[data-agm-p][data-agm-extra]` marcadas —
+  `agConfirma` lê `[data-agm-p]:checked` como antes, **sem e-mail no payload** (o servidor resolve o do aviso no
+  Teams pelo accountId), então servidor, Inbox e Teams não mudaram. Digitar na busca redesenha SÓ
+  `#agm-extra-lista` (`aria-live`); no redesenho do modal inteiro, quem já estava na tela mantém a marcação
+  (`noDom`/`marcados`), quem acabou de entrar nasce marcado e o campo com foco recupera foco e cursor.
+  **Regras da revisão (mesmo dia):** todo redesenho do 📝 passa por `agAgModalAberto()` — o placeholder nasce com
+  `.ag-modal`, e com o modal fechado `_agM` vira null (antes a conferência no Jira/⏱ real que chegava depois do Esc
+  trocava o conteúdo de QUALQUER modal aberto pelo 📝 com o botão Confirmar); falha do `/api/usuarios` não vira
+  `{}` (`ag.usuErro` + `[data-agm-usu-retry]`), senão todo convidado contava como externo e a busca mentia.
+  `logAcao('agenda-convidar-extra')` grava no formato que o 🗒 Histórico mostra: `t`=ticket, `para`=quem entrou
+  fora do convite, `motivo`=a reunião. Achado de
+  passagem (não mexido): a linha "(você — o convite aponta as suas horas automaticamente)" é um checkbox
+  desabilitado sem `data-agm-p`, então o organizador NÃO entra em `pessoas` e o worklog dele não é criado por este
+  modal — decisão pendente do usuário. Teste: `agenda-extra-test.mjs` (Playwright, 44 casos, inclusive um por achado da revisão, celular e tablet; fixture
+  `AGENDA_EVENTOS` + `/api/_convites` no `servidor-mini.mjs`).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

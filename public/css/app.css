@@ -1858,6 +1858,20 @@
   .ag-ct-h .muted{font-weight:400}
   .ag-ct-atras{font-size:11px;font-weight:700;color:#B91C1C;white-space:nowrap}
   :root[data-theme="dark"] .ag-ct-atras{color:#F09A9A}
+  /* 📝 Ticket da reunião · ➕ alguém que não está no convite (2026-10-08): busca + chips + linha com ✕ */
+  .agm-extra{margin-top:8px;padding:8px 10px;border:1px dashed var(--linha2);border-radius:10px;background:var(--cartao2)}
+  .agm-extra-lista .chip.agm-extra-1{border-color:var(--cerceta);box-shadow:0 0 0 1px var(--cerceta) inset;font-weight:600}
+  .agm-extra-enter{opacity:.7;font-weight:400}
+  .agm-extra-busca{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+  .agm-extra-busca input{width:240px;max-width:100%}
+  .agm-extra-lista{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .agm-extra-lista:empty,.agm-extra-lista-in:empty{display:none}
+  .agm-extra-lista-in{display:contents}
+  .agm-extra-row{display:flex;align-items:center;gap:6px}
+  .agm-extra-row .check{flex:1;min-width:0}
+  .agm-extra-rm{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:4px 8px;border-radius:6px;margin-bottom:7px}
+  .agm-extra-rm:hover{color:#B91C1C;background:var(--cartao2)}
+  :root[data-theme="dark"] .agm-extra-rm:hover{color:#F09A9A}
   .ag-sec{margin-top:8px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo)}
   .ag-sec>summary{cursor:pointer;padding:7px 12px;font-weight:700;font-size:13.5px;list-style:none;border-radius:10px}
   .ag-sec>summary::-webkit-details-marker{display:none}

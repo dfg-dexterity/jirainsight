@@ -603,6 +603,16 @@
   .tela-rateio .rt-step{min-width:38px;min-height:38px}
   .tela-agenda .ag-sec>summary{min-height:44px;box-sizing:border-box}
 }
+@media (pointer:coarse){
+  /* modal "Ticket da reunião": chips da busca ➕ e o ✕ de tirar da lista com altura de dedo — em qualquer tela
+     de toque, inclusive o tablet em pé (761–880px), que o bloco acima (≤760px) não alcança */
+  .ag-modal .agm-extra-lista .chip{min-height:36px;padding-top:6px;padding-bottom:6px}
+  .ag-modal .agm-extra-rm{min-width:36px;min-height:36px}
+}
+@media (max-width:600px){
+  /* o modal fica fora de .tela-agenda: o selo "fora do convite" precisa da própria regra de 12px */
+  .ag-modal .badge{font-size:12px}
+}
 /* ---- fim: apontar ---- */
 
 /* ---- 📱 grupo: projetos (Prioridades, Visão Geral, Resumo, Projetos, Cronograma) ---- */

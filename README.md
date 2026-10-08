@@ -73,7 +73,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `01-nucleo.js` | `estado`, paleta, config compartilhada (`cfg`, Supabase; conflito → mescla de 3 vias `cfgMescla3`, item a item pelo id), helpers (`esc`, `fmtH`, `toast`, tooltip), datas/feriados, `carrega()`, filtros, `agrega()` |
 | `02-projetos.js` | 📁 Visão por Projetos (consolidado + ficha com a 🦴 **espinha do projeto** — `projEspinha`/`projEspinhaVai`: chips Contrato · Parceria · Plano · Cronograma · Execução · Apuração · Resultado que abrem a tela da outra área já no projeto, fases 3–4) e o **caminho de volta** (`projAbreFicha` + handler global `[data-proj-ficha]`, `projChipsFicha` para as listas de projetos das outras telas) |
 | `02b-cronograma.js` | 📅 Marcos e Cronograma (R04): Gantt em cascata dos épicos com planejado × real, marcos, previsão pelo ritmo, dependências "blocks", detalhe do épico (burn-up, horas por mês, composição) e CSV |
-| `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, 🎫 Controle de tickets separado por responsabilidade (`agClasse`, `agIgnorado`, `agAguardando`), `renderAgenda` |
+| `03-agenda-reunioes.js` | 📅 Agenda do Outlook → ticket de reunião, 🔁 séries recorrentes, 🎫 Controle de tickets separado por responsabilidade (`agClasse`, `agIgnorado`, `agAguardando`), convites de apontamento aos internos + ➕ a quem não está no convite (`agPessoasConvite`, `agExtraCandidatos`), `renderAgenda` |
 | `04-meu-planejamento.js` | 📋 Meu Planejamento (plano semanal, aprovação, relatórios planejado × realizado, drag-and-drop) |
 | `05-novidades-roadmap.js` | ✨ `NOVIDADES`/`NOV_VER` e 🗺️ `ROADMAP`/`ROADMAP_REV` — **os dados que toda entrega atualiza** |
 | `06-prioridades.js` | 🎯 Prioridades do time + Modo reunião |
@@ -249,6 +249,23 @@ As **horas do convite** têm três fontes: **📅 estimada** (duração agendada
 Teams, consultado na hora; exige `OnlineMeetings.Read.All` + `OnlineMeetingArtifact.Read.All` de aplicativo e a
 política de acesso a reuniões do Teams) e **✎ manual** (digitada: `1h30`, `45m`). O valor é conferido antes de
 criar ou vincular.
+
+**➕ Convidar quem não está no convite (2026-10-08):** a lista de convidados do modal nasce dos participantes do
+evento casados com os usuários ativos do Jira (por e-mail), mas quem participou **sem estar no convite** do Outlook
+(entrou pelo link, foi chamado na hora, ou é o 21º convidado — o painel leva só os 20 primeiros do convite,
+`.slice(0, 20)` no `api/reunioes.js`) também precisa apontar. O bloco **➕ Alguém da Dexterity que não está no
+convite?** procura pelo nome (sem acento) ou e-mail entre os usuários ativos do Jira (`agExtraCandidatos`: a lista
+já vem só com pessoas ativas — `/api/usuarios` → `jiraUsuariosAtivos`; o `RE_EXCLUIR` é só garantia —, fora quem
+já está coberto: você, os convidados casados e os extras já adicionados). Mostra até 8 chips e avisa "… e mais N"
+quando há mais; o 1º chip fica destacado (↵) e é o que o **Enter** adiciona; e-mail de outro domínio aparece no
+próprio chip; **Esc** com texto limpa a busca (com o campo vazio fecha o modal, como sempre). A pessoa entra na lista
+marcada com o selo **fora do convite** (✕ tira), a linha é trazida à vista e um aviso confirma; a busca continua
+enquanto houver resultados. Os extras vivem só no modal (`_agM.extras`) e vão em `pessoas` do
+`POST /api/apontar {convidar:true}` como os demais, **sem e-mail** — o servidor resolve o e-mail do aviso
+individual no Teams pelo `accountId` — e o 🗒 Histórico de ações mostra `agenda-convidar-extra` com o ticket e, em
+"De → Para", quem entrou fora do convite. Redesenho atrasado (conferência no Jira, ⏱ real, projetos, usuários) só
+acontece se o 📝 ainda é o modal aberto (`agAgModalAberto`) e devolve o foco/cursor a quem estava digitando; falha
+ao ler os usuários mostra "↻ tentar de novo" em vez de tratar todo mundo como externo.
 
 ### 🧾 Contrato de parceria ↔ Odoo Vendas (ordem de venda do contrato)
 
