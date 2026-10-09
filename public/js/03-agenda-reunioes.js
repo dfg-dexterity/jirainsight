@@ -66,11 +66,14 @@ function agTipoReuniao(projKey){
   return tipos.find(x=>!x.subtarefa&&/reuni/i.test(x.nome||''))||base.find(t=>/task|tarefa/i.test(t.nome||''))||base[0]||null;
 }
 // Usuários ativos do Jira (accountId → {nome,email}) para casar com os convidados.
-function agCarregaUsuarios(){
-  const ag=estado.agenda; if(ag.usuarios||ag.usuCarr) return;
-  ag.usuCarr=true;
-  usuariosP().then(j=>{ ag.usuCarr=false; ag.usuarios=(j&&j.pessoas)||{}; agAtualizaModal(); })
-    .catch(()=>{ ag.usuCarr=false; ag.usuarios={}; agAtualizaModal(); });
+// Falha na leitura NÃO vira {} (revisão de 2026-10-08): com {} o modal tratava todo convidado como externo e a
+// busca ➕ respondia "ninguém com esse nome" — falso. Fica null + usuErro, o modal explica e oferece ↻ tentar de novo.
+function agCarregaUsuarios(forca){
+  const ag=estado.agenda; if((ag.usuarios&&!forca)||ag.usuCarr) return;
+  ag.usuCarr=true; ag.usuErro=false;
+  const falhou=()=>{ ag.usuCarr=false; ag.usuarios=null; ag.usuErro=true; agAtualizaModal(); };
+  usuariosP(!!forca).then(j=>{ if(!(j&&j.pessoas)) return falhou(); ag.usuCarr=false; ag.usuarios=j.pessoas; agAtualizaModal(); })
+    .catch(falhou);
 }
 // Duração do evento em segundos (mínimo 15 min; dia todo = 8h).
 function agDuracaoSeg(ev){
@@ -267,19 +270,97 @@ function agAbreAuto(ev){
 }
 
 // ---- Modal criar/vincular + convidar participantes ----
-let _agM=null;   // { evId, fixo(chave já vinculada — só convidar) }
+let _agM=null;   // { evId, fixo(chave já vinculada — só convidar), extras:[{acc,nome,email}] (➕ fora do convite) }
+// Convidados do evento casados com os usuários ATIVOS do Jira (por e-mail). Só pessoas internas entram na
+// lista de convites — participante externo (cliente/fora da Dexterity) não aponta horas aqui. Devolve null
+// enquanto os usuários não chegaram; `accs` é o conjunto já coberto pelo convite (a busca ➕ exclui).
+function agPessoasConvite(ev){
+  const usu=estado.agenda.usuarios; if(!usu) return null;
+  const meuEmail=String(((idApontar()||{}).email||'')).toLowerCase();
+  const porEmail={}; Object.entries(usu).forEach(([acc,u])=>{ if(u&&u.email) porEmail[String(u.email).toLowerCase()]={ acc, nome:u.nome||acc, email:String(u.email).toLowerCase() }; });
+  const internos=[]; const accs=new Set(); let externos=0;
+  (ev.pessoas||[]).forEach(p=>{
+    const j=porEmail[p.email];
+    if(p.email===meuEmail){ internos.push({ eu:true, nome:p.nome||p.email, email:p.email }); return; }
+    if(!j){ externos++; return; }
+    if(accs.has(j.acc)) return;   // o mesmo e-mail duas vezes no convite
+    accs.add(j.acc); internos.push(j);
+  });
+  return { internos, externos, accs };
+}
+// ➕ Convidar quem NÃO está no convite (pedido de 2026-10-08): a lista nasce do convite do Outlook, mas quem
+// participou sem estar nele (entrou pelo link, foi chamado na hora, ou é o 21º convidado — o painel leva só os
+// 20 primeiros do convite, `.slice(0, 20)` no api/reunioes.js) também precisa apontar. A busca procura entre os
+// usuários ativos do Jira (mesmo critério de "interno" da lista e das telas 👥 em grupo e 📨 convidar do
+// Apontar), fora quem já está coberto: você, os convidados casados e os extras já adicionados. Os extras vivem
+// só no modal (_agM.extras) e entram em `pessoas` como os demais — o servidor não distingue.
+const AG_EXTRA_MAX=8;
+const agNorm=(s)=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+// Devolve { itens (até AG_EXTRA_MAX), total } — o total é o que avisa "e mais N" em vez de cortar calado.
+function agExtraCandidatos(m, ev, q){
+  const n=agNorm(q).trim(); if(n.length<2) return { itens:[], total:0 };
+  const usu=estado.agenda.usuarios||{}; const conv=agPessoasConvite(ev); const id=idApontar()||{};
+  const meuEmail=String(id.email||'').toLowerCase();
+  const fora=new Set([...((conv&&conv.accs)||[]), ...(m.extras||[]).map(x=>x.acc)]); if(id.accountId) fora.add(id.accountId);
+  const todos=Object.entries(usu)
+    .filter(([acc,u])=>u&&!fora.has(acc)&&!RE_EXCLUIR.test(u.nome||'')&&String(u.email||'').toLowerCase()!==meuEmail
+      &&(agNorm(u.nome).includes(n)||String(u.email||'').toLowerCase().includes(n)))
+    .map(([acc,u])=>({ acc, nome:u.nome||acc, email:String(u.email||'').toLowerCase() }))
+    .sort((a,b)=>(agNorm(a.nome).startsWith(n)?0:1)-(agNorm(b.nome).startsWith(n)?0:1)||a.nome.localeCompare(b.nome,'pt'));
+  return { itens:todos.slice(0,AG_EXTRA_MAX), total:todos.length };
+}
+function agExtraListaHTML(m, ev){
+  const q=String(m.extraBusca||'').trim();
+  if(agNorm(q).length<2) return q?'<span class="muted small">digite ao menos 2 letras</span>':'';
+  const { itens, total }=agExtraCandidatos(m, ev, q);
+  if(!itens.length) return '<span class="muted small">ninguém com esse nome entre os usuários ativos do Jira — ou a pessoa já está na lista acima</span>';
+  // O 1º chip é o que o Enter adiciona: fica destacado e com ↵. E-mail de outro domínio aparece no chip
+  // (não só no tooltip), para ninguém de fora entrar por engano sob "alguém da Dexterity".
+  const dom=agMeuDominio();
+  return itens.map((x,i)=>{ const d=String(x.email||'').split('@')[1]||'';
+    return `<button type="button" class="chip${i===0?' agm-extra-1':''}" data-agm-extra-add="${escA(x.acc)}" data-tip="${escA(x.email||'')}">➕ ${esc(x.nome)}${d&&dom&&d!==dom?` <span class="muted small">@${esc(d)}</span>`:''}${i===0?' <span class="agm-extra-enter" aria-hidden="true">↵</span>':''}</button>`; }).join('')
+    +(total>itens.length?`<span class="muted small">… e mais ${total-itens.length} — digite mais letras</span>`:'');
+}
+// Adicionar mantém a busca enquanto ainda houver resultados (dois ou três do mesmo sobrenome entram em sequência);
+// quem entrou já sai dos resultados. A linha nova é trazida à vista (#agm-pessoas rola) e o toast confirma.
+function agExtraAdiciona(acc){
+  const m=_agM; if(!m) return; const u=(estado.agenda.usuarios||{})[acc]; if(!u) return;
+  m.extras=m.extras||[]; if(m.extras.some(x=>x.acc===acc)) return;
+  m.extras.push({ acc, nome:u.nome||acc, email:String(u.email||'').toLowerCase() });
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===m.evId);
+  if(!ev||!agExtraCandidatos(m, ev, m.extraBusca||'').itens.length) m.extraBusca='';
+  m.focoExtra=true; m.ultimoExtra=acc; agAtualizaModal();
+  toast(`➕ ${u.nome||acc} entrou na lista de convites`,'ok');
+}
+// Tirar NÃO leva o foco à busca: no celular isso abria o teclado sem a pessoa pedir.
+function agExtraRemove(acc){ const m=_agM; if(!m||!m.extras) return; const x=m.extras.find(y=>y.acc===acc); m.extras=m.extras.filter(y=>y.acc!==acc); agAtualizaModal();
+  if(x) toast(`✕ ${x.nome} saiu da lista de convites`,'ok'); }
 function agAbreTicket(evId, fixo){
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId); if(!ev) return;
-  _agM={ evId, fixo:fixo||'', durModo:'agendada', manualTxt:'' };
+  _agM={ evId, fixo:fixo||'', durModo:'agendada', manualTxt:'', extras:[], extraBusca:'' };
+  // O placeholder já nasce com .ag-modal: é o que agAgModalAberto() confere antes de qualquer redesenho.
+  abreModal('<div class="ag-modal"><h2>📝 Ticket da reunião</h2><div class="estado">Carregando…</div></div>');
   if(!_projetosCache) garanteProjetos().then(()=>agAtualizaModal()).catch(()=>{});
   agCarregaUsuarios();
   if(!fixo) agConfereEvento(ev);   // 🔎 já existe o ticket desta reunião (mesmo título, mesmo dia)?
-  abreModal('<h2>📝 Ticket da reunião</h2><div class="estado">Carregando…</div>');
   agAtualizaModal();
+}
+// O 📝 ainda é o modal aberto? (revisão de 2026-10-08) A conferência no Jira, o ⏱ real do Teams, os projetos e
+// os usuários respondem DEPOIS — se a pessoa fechou o 📝 (Esc, ×, fundo) e abriu outro modal (Ctrl+K, a ficha 🔍,
+// ⚡ automatizar), o redesenho atrasado trocava o conteúdo dele pelo 📝 com o botão Confirmar. Fechado → _agM sai.
+function agAgModalAberto(){
+  const md=document.getElementById('modal');
+  if(md&&!md.hidden&&document.querySelector('#modal-body > .ag-modal')) return true;
+  _agM=null; return false;   // fechado, ou outro modal no lugar: o 📝 acabou
 }
 function agAtualizaModal(){
   const m=_agM; if(!m) return;
+  if(!agAgModalAberto()) return;
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===m.evId); if(!ev) return;
+  // Redesenho atrasado (conferência, projetos, usuários) não pode tirar o foco de quem está digitando:
+  // guarda o campo e o cursor e devolve depois do replaceChildren.
+  const at=document.activeElement; const focoId=(at&&/^agm-(extra-busca|chave|dur-manual)$/.test(at.id||''))?at.id:'';
+  let pos=null; if(focoId){ try{ pos=at.selectionStart; }catch(e){} }
   const id=idApontar()||{};
   const projetos=(_projetosCache||[]);
   const projSel=(document.getElementById('agm-proj')||{}).value || (projetos.some(p=>p.key==='RDF')?'RDF':(projetos[0]&&projetos[0].key)||'');
@@ -291,27 +372,28 @@ function agAtualizaModal(){
   const chaveDom=String(((document.getElementById('agm-chave')||{}).value)||'');
   const chave=m.fixo||(m.chaveManual?chaveDom:(ach?ach.k:chaveDom));
   const marcados=new Set([...document.querySelectorAll('[data-agm-p]:checked')].map(x=>x.getAttribute('data-agm-p')));
+  const noDom=new Set([...document.querySelectorAll('[data-agm-p]')].map(x=>x.getAttribute('data-agm-p')));
   const primeira=!m.prechecked;   // pré-marca todo mundo na PRIMEIRA vez que a lista aparece
   const tipo=projSel?agTipoReuniao(projSel):null;
-  const usu=estado.agenda.usuarios;
-  const meuEmail=String(id.email||'').toLowerCase();
-  // Convidados do evento casados com os usuários do Jira (por e-mail).
-  let pessoasHtml='<span class="muted small">Carregando pessoas…</span>';
-  if(usu){
-    const porEmail={}; Object.entries(usu).forEach(([acc,u])=>{ if(u.email) porEmail[String(u.email).toLowerCase()]={acc,nome:u.nome}; });
-    // Só pessoas INTERNAS (com conta ativa no Jira) entram na lista de convites —
-    // participantes externos (cliente/fora da Dexterity) não apontam horas aqui.
-    let externos=0;
-    const linhas=(ev.pessoas||[]).map(p=>{
-      const j=porEmail[p.email];
-      if(p.email===meuEmail) return `<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(p.nome||p.email)} <span class="muted small">(você — o convite aponta as suas horas automaticamente)</span></label>`;
-      if(!j){ externos++; return ''; }
-      const chk=primeira?true:marcados.has(j.acc);
-      return `<label class="check"><input type="checkbox" data-agm-p="${escA(j.acc)}" data-agm-nome="${escA(j.nome)}" ${chk?'checked':''}> ${esc(j.nome)}</label>`;
-    }).filter(Boolean).join('');
-    pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno além de você.</span>')
-      +(externos?`<div class="muted small" style="margin-top:6px">👤 ${externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
+  // Convidados do evento casados com os usuários do Jira (por e-mail) + ➕ os extras adicionados à mão.
+  // Quem ainda não estava na tela (lista nova ou extra recém-adicionado) nasce marcado; quem já estava
+  // mantém o que a pessoa marcou (o modal redesenha a cada troca de modo/projeto/duração).
+  let pessoasHtml='<span class="muted small">Carregando pessoas…</span>'; let extraHtml='';
+  if(estado.agenda.usuErro) pessoasHtml='<div class="aviso">⚠ Não consegui carregar os usuários do Jira — sem eles o painel não sabe quem do convite é da Dexterity. <button type="button" class="btn" data-agm-usu-retry="1">↻ tentar de novo</button></div>';
+  const conv=agPessoasConvite(ev);
+  if(conv){
+    const chkDe=(acc)=>(primeira||!noDom.has(acc))?true:marcados.has(acc);
+    const linhas=conv.internos.map(p=>p.eu
+      ?`<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(p.nome)} <span class="muted small">(você — o convite aponta as suas horas automaticamente)</span></label>`
+      :`<label class="check"><input type="checkbox" data-agm-p="${escA(p.acc)}" data-agm-nome="${escA(p.nome)}" ${chkDe(p.acc)?'checked':''}> ${esc(p.nome)}</label>`).join('');
+    const extras=(m.extras||[]).map(x=>`<div class="agm-extra-row"><label class="check"><input type="checkbox" data-agm-p="${escA(x.acc)}" data-agm-nome="${escA(x.nome)}" data-agm-extra="1" ${chkDe(x.acc)?'checked':''}> ${esc(x.nome)} <span class="badge" data-tip="Não está no convite do Outlook — adicionado à mão neste modal; recebe o convite de apontamento como os demais">➕ fora do convite</span></label><button type="button" class="agm-extra-rm" data-agm-extra-rm="${escA(x.acc)}" data-tip="Tirar da lista" aria-label="Tirar ${escA(x.nome)} da lista">✕</button></div>`).join('');
+    pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno além de você.</span>')+extras
+      +(conv.externos?`<div class="muted small" style="margin-top:6px">👤 ${conv.externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
     m.prechecked=true;
+    extraHtml=`<div class="agm-extra">
+      <div class="muted small">➕ <b>Alguém da Dexterity que não está no convite?</b> Quem participou sem estar na lista do Outlook também pode apontar — procure pelo nome e adicione; a pessoa recebe o convite como os demais.</div>
+      <div class="agm-extra-busca"><input type="text" id="agm-extra-busca" value="${escA(m.extraBusca||'')}" placeholder="nome ou e-mail…" maxlength="60" autocomplete="off" enterkeyhint="done" aria-label="Procurar pessoa da Dexterity para convidar" aria-describedby="agm-extra-dica"><span class="muted small" id="agm-extra-dica">Enter adiciona o destacado (↵) · Esc limpa a busca</span></div>
+      <div id="agm-extra-lista" class="agm-extra-lista" aria-live="polite">${agExtraListaHTML(m, ev)}</div></div>`;
   }
   // ⏱ horas do convite: estimada · real (Teams) · manual
   const segAg=agDuracaoSeg(ev); const durModo=m.durModo||'agendada'; const segEf=agSegConvite(ev,m);
@@ -341,10 +423,17 @@ function agAtualizaModal(){
     ${m.realNota?`<div class="muted small" style="margin:-2px 0 6px">${esc(m.realNota)}</div>`:''}
     <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Convidar para apontar <span class="muted" style="font-weight:400">· cada um confirma com 1 clique (Inbox/Apontar) e o worklog de <b id="agm-dur-ef">${esc(hFmt)}</b> sai no usuário da pessoa</span></div>
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
+    ${extraHtml}
     <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
     <div class="ap-fb" id="agm-fb" hidden></div>`;
   const mb=document.getElementById('modal-body'); if(mb){ mb.replaceChildren(el(`<div class="ag-modal">${corpo}</div>`)); }
-  if(m.focoManual){ m.focoManual=false; const i=document.getElementById('agm-dur-manual'); if(i&&!i.disabled){ try{ i.focus(); }catch(e){} } }
+  const foca=(idCampo, p)=>{ const i=document.getElementById(idCampo); if(!i||i.disabled) return; try{ i.focus(); if(p!=null) i.setSelectionRange(p,p); }catch(e){} };
+  if(m.focoManual){ m.focoManual=false; foca('agm-dur-manual'); }
+  else if(m.focoExtra){ m.focoExtra=false; const i=document.getElementById('agm-extra-busca'); foca('agm-extra-busca', i?i.value.length:null); }
+  else if(focoId) foca(focoId, pos);
+  // ➕ a linha recém-adicionada aparece: #agm-pessoas tem 180px e rola — sem isso ela nascia abaixo da dobra.
+  if(m.ultimoExtra){ const r=document.querySelector(`#agm-pessoas [data-agm-p="${CSS.escape(m.ultimoExtra)}"]`); m.ultimoExtra='';
+    if(r){ try{ r.closest('.agm-extra-row').scrollIntoView({block:'nearest'}); }catch(e){} } }
 }
 async function agConfirma(){
   const m=_agM; if(!m) return;
@@ -352,7 +441,11 @@ async function agConfirma(){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const fb=document.getElementById('agm-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Processando…'; }
   const dia=(ev.inicio||'').slice(0,10);
+  // Sem e-mail de propósito: o servidor resolve o e-mail do aviso individual no Teams pelo accountId, no
+  // cadastro do Jira (avisaTeamsDM) — um e-mail vindo do navegador poderia mandar o aviso para outra pessoa.
   const pessoas=[...document.querySelectorAll('[data-agm-p]:checked')].map(x=>({ accountId:x.getAttribute('data-agm-p'), nome:x.getAttribute('data-agm-nome')||'' }));
+  // ➕ quem não estava no convite do Outlook — vai no mesmo lote; fica no 🗒 histórico de ações (quem incluiu quem).
+  const extras=[...document.querySelectorAll('[data-agm-p][data-agm-extra]:checked')].map(x=>x.getAttribute('data-agm-nome')||'');
   try{
     // ⏱ As horas do convite são conferidas ANTES de criar/vincular: um ticket criado com o convite
     // recusado deixaria a reunião pela metade.
@@ -386,8 +479,10 @@ async function agConfirma(){
           comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
       const jv=await rv.json(); if(!jv||jv.ok===false) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');
       convidados=pessoas.length;
+      // No formato que o 🗒 Histórico mostra: t = ticket (vira link), para = quem entrou fora do convite, motivo = a reunião.
+      if(extras.length) logAcao({acao:'agenda-convidar-extra', t:key, para:extras.join(', ').slice(0,200), motivo:`fora do convite: ${String(ev.titulo||'').slice(0,100)}`, n:extras.length, ok:true});
     }
-    toast(`✓ ${key}${convidados?` · ${convidados} convite(s) de apontamento enviados`:''}`,'ok');
+    toast(`✓ ${key}${convidados?` · ${convidados} convite(s) de apontamento enviados${extras.length?` (${extras.length} fora do convite)`:''}`:''}`,'ok');
     _agM=null; fechaModal(); renderAgenda();
   }catch(err){ if(fb){ fb.classList.add('err'); fb.textContent=humanizaErro(err); } }
 }
@@ -748,6 +843,13 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 document.addEventListener('click',(e)=>{
   const c=e.target.closest&&e.target.closest('[data-agm-conf]');
   if(c){ agConfirma(); return; }
+  // ➕ adicionar/tirar alguém que não está no convite (chips da busca e ✕ da linha)
+  const xa=e.target.closest&&e.target.closest('[data-agm-extra-add]');
+  if(xa){ agExtraAdiciona(xa.getAttribute('data-agm-extra-add')); return; }
+  const xr=e.target.closest&&e.target.closest('[data-agm-extra-rm]');
+  if(xr){ e.preventDefault(); agExtraRemove(xr.getAttribute('data-agm-extra-rm')); return; }
+  const ur=e.target.closest&&e.target.closest('[data-agm-usu-retry]');
+  if(ur){ agCarregaUsuarios(true); agAtualizaModal(); return; }
   // 🔁 Automatizar/desautomatizar a SÉRIE recorrente (linha do controle de tickets)
   const au=e.target.closest&&e.target.closest('[data-ag-auto]');
   if(au){ const evId=au.getAttribute('data-ag-auto');
@@ -771,5 +873,25 @@ document.addEventListener('input',(e)=>{
     const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===_agM.evId); const s=ev?agSegConvite(ev,_agM):null;
     const sp=document.getElementById('agm-dur-ef'); if(sp) sp.textContent=s?fmtH(s):'—'; return; }
   if(t.matches('#agm-chave')) _agM.chaveManual=true;
+  // ➕ busca de quem não está no convite: só a lista de resultados redesenha (o campo mantém o foco)
+  if(t.matches('#agm-extra-busca')){ _agM.extraBusca=t.value;
+    const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===_agM.evId); const l=document.getElementById('agm-extra-lista');
+    if(ev&&l) l.replaceChildren(el(`<div class="agm-extra-lista-in">${agExtraListaHTML(_agM, ev)}</div>`)); }
+});
+// Enter no campo ➕ adiciona o resultado destacado (o 1º) sem confirmar o modal. Esc com texto só limpa a busca —
+// este listener roda antes do Esc global do 30-eventos-boot (que fecharia o modal e perderia os extras); com o
+// campo vazio, o Esc segue fechando o modal como em todo o app.
+document.addEventListener('keydown',(e)=>{
+  if(!_agM) return; const t=e.target; if(!t||!t.matches||!t.matches('#agm-extra-busca')) return;
+  if(e.key==='Escape'){
+    if(!t.value) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    t.value=''; _agM.extraBusca=''; const l=document.getElementById('agm-extra-lista'); if(l) l.replaceChildren();
+    return;
+  }
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===_agM.evId); if(!ev) return;
+  const c=agExtraCandidatos(_agM, ev, _agM.extraBusca||'').itens; if(c.length) agExtraAdiciona(c[0].acc);
 });
 
