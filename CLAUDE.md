@@ -164,6 +164,54 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   desabilitado sem `data-agm-p`, então o organizador NÃO entra em `pessoas` e o worklog dele não é criado por este
   modal — decisão pendente do usuário. Teste: `agenda-extra-test.mjs` (Playwright, 44 casos, inclusive um por achado da revisão, celular e tablet; fixture
   `AGENDA_EVENTOS` + `/api/_convites` no `servidor-mini.mjs`).
+- **📞 Ligações — Call tracking (2026-10-09, a pedido do usuário: "qualquer ligação no meu computador — WhatsApp,
+  Teams, Google Meet —, assim que acabar, um pop-up para criar um ticket daquela reunião ou apontar minhas horas num
+  ticket já criado; igual ao Call Timing do Timing, integrado ao Jira Insights"):** o usuário usa **Mac** (o Timing é
+  só macOS; o `meudia-activitywatch.mjs` e o `.shortcut` já eram de Mac). Duas peças: (1) **detector**
+  `public/call-tracking/CallTracking.swift` — app de barra de menus que sabe pelo **Core Audio quem capta o
+  microfone** (macOS 14.2+: `kAudioHardwarePropertyProcessObjectList` + `kAudioProcessPropertyIsRunningInput` +
+  bundle id; antes: dispositivo em uso + "app provável"), lê as abas do navegador por AppleScript (Automação) para
+  reconhecer Meet/Teams web/WhatsApp Web, e no fim da ligação mostra o **pop-up** (NSPanel) que abre
+  `/?v=chamadas#ct=<base64url(JSON)>&m=criar|apontar|lista`. Máquina de estados `Rastreador` (folga 20 s, mínimo
+  2 min, sono fecha no último tique) coberta pelo `--selftest`. **Não dá para compilar Swift neste ambiente (Linux):
+  a verificação é a CI** `.github/workflows/call-tracking-mac.yml` (repo público → macOS grátis; roda em `claude/**`
+  também), que compila arm64/x86_64 com alvo macOS 12, roda `--selftest`/`--probe`, o instalador em modo CI e o
+  `--demo` — o pop-up sai como **PNG em base64 no log** (`CT_DEMO_PNG`), porque o proxy daqui bloqueia o download de
+  artefatos; leia o log com `mcp__github__get_job_logs` e decodifique entre `PNG-INICIO`/`PNG-FIM`. Instalação:
+  `instalar.sh` compila **no Mac do usuário** (Ferramentas de Linha de Comando do Xcode), assina localmente e cria o
+  LaunchAgent `br.com.dexterityit.calltracking` (o painel de produção responde a `curl` sem login — conferido pela
+  CI). (2) **aba 📅 Agenda › 📞 Ligações** (`public/js/14c-chamadas.js`, vista `chamadas`, prefixo `chm`): um
+  `<script>` inline no `<head>` do index tira o fragmento da URL ANTES de qualquer script (Analytics da Vercel) e o
+  guarda em `sessionStorage` (`jirainsight_ct_frag`) — a ligação **nunca vai ao servidor** e fica só no navegador
+  (`localStorage` `jirainsight_chamadas_v1`, por id; `chmValida` filtra o payload, que é dado de fora). O modal
+  (`chmAbre` → `chmDesenhaModal`; dado assíncrono atualiza só pedaços em `chmAtualizaModal`, sem tirar o foco)
+  casa a ligação com o evento da Agenda pela maior sobreposição (`chmEventoDe`), sugere o ticket da reunião / os
+  recentes (`apCarregaRecentes`, extraído do 13) / os abertos parecidos (`mtPontua`, cache `_tkbCache` do 12b),
+  cria (`/api/criar`, tipo `agTipoReuniao`, `respId` = quem cria, labels `call-tracking`) e aponta com o **início
+  real**: o `/api/apontar` ganhou `hora` (`HH:MM`, opcional, validada; sem ela segue 09:00) — só vai quando o dia não
+  foi trocado. Criou e o apontamento falhou → `parcial.key` na ligação e confirmar de novo só aponta. Fila "▶
+  registrar uma a uma" em `estado.chamadas.fila`. **UMA gravação da config por confirmação** (o `agMarcaTicket` já
+  grava; o `logAcao` vai com `false` antes dele). **Bug do núcleo achado aqui (01-nucleo.js):** duas gravações da
+  config no mesmo clique (ex.: `agMarcaTicket` + `logAcao` da Agenda) saíam com a mesma rev, a 2ª dava conflito
+  contra a 1ª e a mescla descartava a mudança dela (era o "S.aud undefined" intermitente do `agenda-extra-test`).
+  Regras agora: **`salvaCfgRemota` manda UMA gravação por vez** (`_cfgEmVoo`/`_cfgDeNovo`: a que chega com outra no ar
+  sai depois, com o cfg atual e a rev nova); a base da mescla (`_cfgBase`) é sempre o que o servidor TEM — a cópia do
+  que foi enviado no sucesso e o remoto puro no `cfgAdotaRemoto` (nunca o resultado mesclado). Não compare revs por
+  string: o sucesso devolve `…Z` e o conflito `…+00:00` (Postgres). **Revisão adversarial (mesmo dia, 16 achados
+  corrigidos):** Mac — as entregues ficam 14 dias para "Reenviar ao painel" (outro perfil do Chrome); antes do 14.2 o
+  palpite do app fica fixo enquanto o microfone segue em uso, só o microfone PADRÃO conta, sem app de chamada não é
+  chamada e fone com microfone exige o app na frente; seletores pelo código de 4 letras (o SDK do macOS 12/13 não
+  tinha os nomes — a CI reprova o símbolo fora do `#if compiler(>=5.10)` do autoteste e compila com o Xcode mais
+  antigo); aba ativa primeiro e Teams/WhatsApp web só na aba ativa; "nunca perguntar" no meio da ligação vale;
+  "Abrir 📞" no mesmo navegador das entregas. Painel — o `<select>` placeholder não apaga o projeto lembrado; a chave
+  exata digitada vem antes de ACME-120…; sucesso depois de await só segue a fila se o modal ainda é o dela (e
+  Depois/Ignorar travam durante a gravação); ignorar não apaga o `parcial`; o 📅 "ligar à reunião" é um contêiner
+  (`#chm-vinc-l`) atualizado sem redesenhar (o foco fica); Enter só confirma de campo de texto/data; ligação com data
+  no futuro ou de mais de 30 dias é recusada e o que chega nunca despeja pendente guardada. Testes: `chamadas-test.mjs`
+  (Playwright, 85 casos: criar/apontar/fila/ignorar/busca/falha parcial/sem identidade/payload hostil/link forjado/
+  hashchange/duas gravações seguidas/conflito real/celular/tablet; relógio do navegador fixo às 20:00 SP com
+  `ctx.clock.setFixedTime`) com `ABERTOS`, `APONTADOS` (worklog com as validações da produção) e
+  `?abertos=`/`?detalhe=` no `servidor-mini.mjs`.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão
@@ -431,6 +479,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-020 | Uso do Dexterity Hub no celular e tablet (camada mobile) | `3e9c6937-1e17-816e-9261-cc3b14966ecd` |
   | TI-14-021 | Relatório semanal de sexta e pendências do projeto (gerente) | `3e9c6937-1e17-817a-a612-f3ecaae95503` |
   | TI-14-022 | Portal do projeto para o cliente (modo projeto + módulo 🌐 Portal do cliente) | `3e9c6937-1e17-81f2-b00e-d788e99c5d33` |
+  | TI-14-023 | Ligações (Call tracking): detector do Mac e apontamento das chamadas | `3f4c6937-1e17-81f5-8bb7-c31280615ed8` |
 
   (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
   com SharePoint, Odoo e Finder.)

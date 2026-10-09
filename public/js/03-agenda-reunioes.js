@@ -495,9 +495,9 @@ function carregaAgenda(forca){
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
-      if(agVistaAberta()) renderAgenda(); else agendaRenderAcoes();
+      if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else agendaRenderAcoes();
       try{ agAutoCria(); }catch(e){} })
-    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else agendaRenderAcoes(); });
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else agendaRenderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
 async function agRdfTipoReuniao(){

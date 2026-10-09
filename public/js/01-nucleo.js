@@ -221,9 +221,12 @@ function cfgMescla3(base, local, remoto){
 function cfgAdotaRemoto(j){
   _cfgStamp++;
   const remoto=Object.assign(cfgDefaults(), (j&&j.data)||{});
+  // A base da próxima mescla é o que o servidor TEM (o remoto puro), não o resultado mesclado: o que esta sessão
+  // re-aplicou ainda não está lá — se a regravação falhar, continua contando como mudança desta sessão.
+  const srv=JSON.parse(JSON.stringify(remoto));
   if(_cfgBase){ new Set([...Object.keys(cfg), ...Object.keys(remoto)]).forEach(k=>{   // preserva só o que esta sessão alterou
     try{ const v=cfgMescla3(_cfgBase[k], cfg[k], remoto[k]); if(v===undefined) delete remoto[k]; else remoto[k]=v; }catch(e){} }); }
-  cfg=remoto; _cfgRev=(j&&j.rev)||null; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgConectada=true;
+  cfg=remoto; _cfgRev=(j&&j.rev)||null; _cfgBase=srv; _cfgConectada=true;
 }
 function avisaCfgOffline(){ if(_cfgAvisou) return; _cfgAvisou=true;
   try{ toast('⚠ Sem conexão com a config compartilhada — suas mudanças estão salvas neste navegador e serão sincronizadas ao reconectar.','warn'); }catch(e){} }
@@ -256,34 +259,45 @@ function avisaCfgRecusada(erro){ _cfgSujo=true; console.warn('Config não salva 
   try{ toast('⚠ Não foi possível gravar no servidor: '+humanizaErro(erro||'')+' A mudança ficou só neste navegador — corrija e salve de novo.','err'); }catch(e){} }
 // Salva no servidor (quando compartilhado). Dispara junto com o salvar local.
 // Exige credenciais do Jira (a gravação não é anônima); envia-as por cabeçalho.
+// UMA gravação por vez (2026-10-09): duas no mesmo clique (ex.: agMarcaTicket + logAcao da Agenda) saíam com a
+// mesma rev, a 2ª dava conflito contra a 1ª e a mescla descartava a mudança dela. Agora o pedido que chega com uma
+// gravação no ar só marca "de novo" e, quando ela termina, sai a próxima com o cfg ATUAL e a rev nova. A base da
+// mescla é a cópia do que foi ENVIADO (não o cfg de quando a resposta chega).
+let _cfgEmVoo=false, _cfgDeNovo=false;
 function salvaCfgRemota(){
   if(!_cfgConectada){                     // sem conexão (boot falhou ou caiu depois)
     if(cfgShared || _cfgRetryT){ _cfgSujo=true; avisaCfgOffline(); agendaCfgRetry(); }
     return;
   }
   if(!cfgShared) return;
+  if(_cfgEmVoo){ _cfgDeNovo=true; return; }
+  _cfgEmVoo=true;
+  const fim=()=>{ _cfgEmVoo=false; if(_cfgDeNovo){ _cfgDeNovo=false; salvaCfgRemota(); } };
   const id=idApontar();
   const h={'Content-Type':'application/json'};
   if(id){ h['X-Jira-Email']=id.email; h['X-Jira-Token']=id.token; }
-  const corpo=Object.assign({ __rev:_cfgRev||'' }, cfg);
+  const enviado=JSON.parse(JSON.stringify(cfg));
+  const corpo=Object.assign({ __rev:_cfgRev||'' }, enviado);
   try{ fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(corpo) })
     .then(r=>r.json()).then(j=>{
-      if(j && j.ok){ _cfgRev=j.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; return; }
+      if(j && j.ok){ _cfgRev=j.rev||_cfgRev; _cfgBase=enviado; _cfgSujo=false; return fim(); }
       if(j && j.conflito){
         // Outra pessoa/aba gravou depois de nós: adota o remoto, re-aplica o que
         // ESTA sessão mudou e tenta de novo com a rev nova (uma vez).
         cfgAdotaRemoto(j);
-        const corpo2=Object.assign({ __rev:_cfgRev||'' }, cfg);
+        const enviado2=JSON.parse(JSON.stringify(cfg));
+        const corpo2=Object.assign({ __rev:_cfgRev||'' }, enviado2);
         fetch('/api/config', { method:'POST', headers:h, body:JSON.stringify(corpo2) })
-          .then(r=>r.json()).then(j2=>{ if(j2 && j2.ok){ _cfgRev=j2.rev||_cfgRev; _cfgBase=JSON.parse(JSON.stringify(cfg)); _cfgSujo=false; } else avisaCfgRecusada(j2&&j2.erro); })
-          .catch(()=>{ _cfgSujo=true; });
+          .then(r=>r.json()).then(j2=>{ if(j2 && j2.ok){ _cfgRev=j2.rev||_cfgRev; _cfgBase=enviado2; _cfgSujo=false; } else avisaCfgRecusada(j2&&j2.erro); })
+          .catch(()=>{ _cfgSujo=true; }).then(fim);
         try{ toast('↻ Config atualizada por outra pessoa — suas mudanças foram mescladas por cima.','warn'); }catch(e){}
         try{ render(); }catch(e){}
         return;
       }
       if(j && j.ok===false) avisaCfgRecusada(j.erro);
+      fim();
     })
-    .catch(()=>{ _cfgSujo=true; _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }); }catch(e){}
+    .catch(()=>{ _cfgEmVoo=false; _cfgDeNovo=false; _cfgSujo=true; _cfgConectada=false; avisaCfgOffline(); agendaCfgRetry(); }); }catch(e){ _cfgEmVoo=false; }
 }
 // Meta diária (em segundos) de uma pessoa: override individual ou meta global.
 function metaSegDe(a){
@@ -689,7 +703,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, meustickets:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{}, portal:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, chamadas:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{}, portal:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };

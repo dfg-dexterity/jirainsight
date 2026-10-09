@@ -86,6 +86,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `13-apontar.js` | ⏱ Apontar (identidade, minhas horas, transições, reagendar, convites, reunião em grupo) |
 | `14-planejar.js` | 📝 Planejar em lote, 🌳 colar estrutura, árvore "onde crio", CSV, templates |
 | `14b-meus-tickets.js` | 🧾 Preciso criar meus tickets: relato em texto livre por projeto → achar/criar o ticket → horas → status → confirmar tudo (`POST /api/criar {meus:1}`) |
+| `14c-chamadas.js` | 📞 Ligações (Call tracking): recebe do detector do Mac a ligação encerrada (`#ct=` no fragmento), guarda no navegador e o modal cria o ticket e/ou aponta no horário real, casando com a reunião da 📅 Agenda |
 | `15-alertas.js` | 🚨 Central de Alertas (reprogramar, atribuir, log de ações) |
 | `16-contratos-ams-receita.js` | 💼 Contratos & Valores, 🛠️ AMS & Governança, 💰 Receita |
 | `16b-parcerias.js` | 🤝 Contratos de parceria (`cfg.parcerias`): consultoria, modalidade (horas abertas · AMS · demanda fechada), validade e período de aviso, valor-hora, fechamento do período de faturamento e dia da nota **ajustáveis mês a mês** (`ajustes`), conta de recebimento, calendário dos próximos 12 períodos, histórico; **📂 pasta do contrato no SharePoint + 📄 documentos** (`c.pasta`, `c.docs[]` — só links `http(s)`, validados por `pcUrl`; todos veem e abrem, gestores cadastram) e **👥 equipe e alocação** (`c.equipe[]` = recursos com uma LISTA de trechos `{de, ate, modo, v}` — % do dia · h/dia útil · h/mês · h no total: `pcHorasRegra`/`pcPlanejamento` somam pelos dias úteis e devolvem horas e valor por **período de faturamento**); **✎ ajuste manual da previsão** (`c.prev[ym]={h,v}`, `pcPrev`/`pcPrevSet`: gestores digitam as horas e/ou o valor de um período por cima do cálculo — o calculado continua visível em `horasAuto`/`valorAuto` e o campo vazio volta ao automático); helpers `pcPeriodos`/`pcStatus` usados pela Rentabilidade; **🗂 projetos do contrato** (2026-10-05: `c.frentes[]` — ⏱ alocação ou 🛠️ AMS sob demanda, projeto do Jira, código no parceiro, padrões da planilha, valor-hora e objeto de resultado próprios, estimativa mensal do AMS; cada trecho aponta a sua frente em `regra.fr`), a **✔ apuração** por período e projeto (`c.apur[ym][frente]`, `pcFrPeriodo` = apurado > parcial + previsto do resto > previsto), `pcPlanejamentoFrentes`, o **prazo de recebimento** (`pcPrazo`) e a retenção na fonte |
@@ -266,6 +267,61 @@ individual no Teams pelo `accountId` — e o 🗒 Histórico de ações mostra `
 "De → Para", quem entrou fora do convite. Redesenho atrasado (conferência no Jira, ⏱ real, projetos, usuários) só
 acontece se o 📝 ainda é o modal aberto (`agAgModalAberto`) e devolve o foco/cursor a quem estava digitando; falha
 ao ler os usuários mostra "↻ tentar de novo" em vez de tratar todo mundo como externo.
+
+### 📞 Ligações — Call tracking (2026-10-09)
+
+Pedido: *"qualquer ligação que aconteça no meu computador — WhatsApp, Teams, Google Meet —, assim que acabar, um
+pop-up para criar um ticket daquela reunião ou apontar minhas horas num ticket já criado"* (como o Call Timing do
+Timing). Duas peças:
+
+- **Detector no Mac** (`public/call-tracking/CallTracking.swift`, app de barra de menus 📞, macOS 12+). Pelo Core
+  Audio ele sabe **quem está captando o microfone** — no macOS 14.2+ pela lista de processos de áudio
+  (`IsRunningInput` + bundle id: Teams, WhatsApp, Zoom, FaceTime, Slack, navegadores…; os seletores vão pelo código
+  de 4 letras, para compilar também com o SDK do macOS 12/13). Antes do 14.2 só sabe que o microfone PADRÃO está em
+  uso e supõe o app de chamada aberto ("app provável"): o palpite fica fixo enquanto o microfone segue em uso (trocar
+  de janela não "troca de chamada"), sem app de chamada aberto não é chamada, e em fone com microfone (que também
+  toca música) só vale se o app de chamada está na frente quando o aparelho liga. Nunca ouve nem grava.
+  Ligação no navegador: com a permissão de Automação, lê o endereço e o título das abas para reconhecer
+  `meet.google.com/xxx-xxxx-xxx`, Teams web, WhatsApp Web, Zoom web — a aba ATIVA e a janela da frente primeiro;
+  Teams/WhatsApp web só contam na aba ativa (ficam abertos o dia todo); a 1ª aba de chamada achada dá o nome. Regras da máquina de estados (`Rastreador`,
+  testada no `--selftest`): microfone solto por menos de 20 s é a mesma ligação, menos de 2 min (configurável) é
+  descartada, Mac que dormiu fecha a ligação no último instante visto. Quando a ligação acaba, um **pop-up** (NSPanel
+  flutuante) oferece **📝 Criar ticket · ⏱ Apontar em ticket · Depois · Ignorar · Ver todas**; o botão abre
+  `/?v=chamadas#ct=<base64url(JSON)>&m=criar|apontar|lista` no navegador padrão (ou numa janela pop-up do
+  Chrome/Edge, pelo menu). As "Depois" ficam no menu 📞 (até 50, 14 dias); as já entregues ficam 14 dias para
+  **Reenviar ao painel** (o navegador abriu noutro perfil do Chrome, a janela fechou antes de carregar — o painel junta
+  por id e não duplica). Preferências no menu: duração mínima, apps que nunca perguntam (vale também no meio da
+  ligação), ler abas, som, início automático, pausar 1 h e um diagnóstico de quem usa o microfone.
+- **Aba 📅 Agenda › 📞 Ligações** (`14c-chamadas.js`). Um `<script>` no `<head>` tira o fragmento da URL antes de
+  qualquer outro script (inclusive o Analytics da Vercel) e o guarda no `sessionStorage`: **a ligação nunca vai ao
+  servidor**. O 14c valida cada item (id, textos curtos, ligação já encerrada e de até 30 dias — link forjado com data
+  no futuro não entra), junta ao `localStorage` (`jirainsight_chamadas_v1`, por id — o que já foi apontado ou ignorado
+  não volta; o que chega nunca despeja uma pendente guardada) e abre o modal: ligação que coincide com uma reunião da
+  Agenda (maior sobreposição, ontem a +14 dias) puxa o título, sugere o ticket da reunião (vínculo da Agenda ou a
+  mesma conferência "mesmo título, mesmo dia") e oferece ligar o ticket ao evento (`agMarcaTicket`). **⏱ Apontar**:
+  sugestões (ticket da reunião, seus recentes de 14 dias, abertos parecidos), projeto + busca nos abertos (mesma
+  rota e cache da 🎫 busca) ou chave digitada. **📝 Criar**: projeto, título, tipo Reunião do projeto, atribuído a
+  quem cria, labels `call-tracking` (+ `agenda-outlook`). O worklog nasce no **início real** da ligação — o
+  `/api/apontar` ganhou o campo opcional `hora` (`HH:MM`, São Paulo); trocando o dia, entra às 09:00. Se o ticket foi
+  criado e o apontamento falhou, a ligação guarda `parcial.key` e confirmar de novo **só aponta** (ignorar e voltar
+  também não perde o parcial). Várias ligações:
+  **▶ Registrar uma a uma** (fila; o "Ver todas" do Mac abre o mesmo). Histórico: `chamada-criar` e
+  `chamada-apontar`.
+- **Instalar** (uma linha no Terminal, também na aba 📞): `curl -fsSL https://jirainsight.vercel.app/call-tracking/instalar.sh | bash`
+  — baixa o `.swift`, compila **no Mac** (precisa das Ferramentas de Linha de Comando do Xcode; o script abre o
+  instalador da Apple se faltarem), roda o autoteste, monta `~/Applications/Dexterity Call Tracking.app` com
+  assinatura local e liga o LaunchAgent `br.com.dexterityit.calltracking`. Desinstalar: `…/desinstalar.sh | bash`
+  (`-s -- --tudo` apaga também as preferências).
+- **CI**: `.github/workflows/call-tracking-mac.yml` compila para Apple Silicon e Intel (alvo macOS 12) no macOS 14 e
+  15 (e com o Xcode mais antigo da máquina), reprova símbolo do SDK 14 fora do autoteste, roda o autoteste (que
+  confere os seletores de 4 letras contra o SDK) e o diagnóstico do Core Audio, o instalador em modo CI e o pop-up de
+  demonstração (o PNG sai em base64 no log). Teste do painel: `chamadas-test` (Playwright, 85 casos, inclusive
+  celular e tablet).
+- **Config compartilhada — uma gravação por vez** (achado nesta entrega, `01-nucleo.js`): duas gravações no mesmo
+  clique (ex.: `agMarcaTicket` + `logAcao`) saíam com a mesma rev; a 2ª dava conflito contra a 1ª e a mescla
+  descartava a mudança dela. Agora `salvaCfgRemota` manda uma de cada vez (a que chega com outra no ar sai depois,
+  com o cfg atual e a rev nova), a base da mescla é a cópia do que foi enviado e, no conflito, o remoto puro
+  (`cfgAdotaRemoto`) — não o resultado mesclado, que o servidor ainda não tem.
 
 ### 🧾 Contrato de parceria ↔ Odoo Vendas (ordem de venda do contrato)
 

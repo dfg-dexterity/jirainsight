@@ -18,7 +18,9 @@
 // Rotas:
 //   GET  ?convites=1&accountId=X                          -> convites pendentes da pessoa
 //   POST { validar:true, email, token }                   -> confirma credenciais (GET /myself)
-//   POST { issue, segundos, inicio, comentario?, email, token } -> cria o worklog próprio
+//   POST { issue, segundos, inicio, hora?, comentario?, email, token } -> cria o worklog próprio
+//          (hora = 'HH:MM' em São Paulo, opcional — o 📞 Call tracking manda o início real da ligação;
+//           sem ela o worklog nasce às 09:00, como sempre)
 //   POST { convidar:true, issue, segundos, inicio, comentario?, pessoas:[{accountId,nome}],
 //          avisarTeams?, email, token }                   -> cria convites (e aponta o do organizador)
 //   POST { confirmarConvite:id, email, token }            -> confirma um convite (cria o worklog)
@@ -28,6 +30,7 @@ import { jiraBase, cacheClear, json, jiraUsuariosAtivos } from './_lib/util.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+const RE_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MIN_SEG = 60;            // 1 minuto
 const MAX_SEG = 24 * 3600;     // 24 horas por lançamento
 const MAX_PESSOAS = 100;       // por convite
@@ -86,11 +89,12 @@ async function jiraMyself(base, headers) {
   return { ok: true, accountId: me.accountId || '', nome: me.displayName || '', email: me.emailAddress || '' };
 }
 
-async function criaWorklog(base, headers, { issue, segundos, inicio, comentario }) {
+async function criaWorklog(base, headers, { issue, segundos, inicio, comentario, hora }) {
   const corpo = {
     timeSpentSeconds: segundos,
-    // 09:00 no fuso de São Paulo — o dia é o que importa para o timesheet.
-    started: `${inicio}T09:00:00.000-0300`,
+    // 09:00 no fuso de São Paulo — o dia é o que importa para o timesheet. Quem sabe a hora
+    // de verdade (a ligação do 📞 Call tracking) manda `hora` e o worklog nasce nela.
+    started: `${inicio}T${RE_HORA.test(hora || '') ? hora : '09:00'}:00.000-0300`,
   };
   if (comentario) {
     corpo.comment = {
@@ -445,13 +449,15 @@ export default async function handler(req, res) {
     const segundos = Math.round(Number(b.segundos) || 0);
     const inicio = String(b.inicio || '').trim();
     const comentario = String(b.comentario || '').trim();
+    const hora = String(b.hora || '').trim();
     if (!RE_ISSUE.test(issue)) return json(res, 400, { erro: 'Ticket inválido.' });
     if (!(segundos >= MIN_SEG && segundos <= MAX_SEG)) {
       return json(res, 400, { erro: 'Tempo inválido (mínimo 1m, máximo 24h por lançamento).' });
     }
     if (!RE_DATA.test(inicio)) return json(res, 400, { erro: 'Data inválida.' });
+    if (hora && !RE_HORA.test(hora)) return json(res, 400, { erro: 'Hora inválida (use HH:MM).' });
 
-    const wl = await criaWorklog(base, headers, { issue, segundos, inicio, comentario });
+    const wl = await criaWorklog(base, headers, { issue, segundos, inicio, comentario, hora });
     if (!wl.ok) return json(res, 200, { ok: false, erro: wl.erro });
 
     // O dado mudou: derruba os caches desta instância para refletir mais rápido.

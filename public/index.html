@@ -14,6 +14,12 @@
 <meta name="apple-mobile-web-app-title" content="Dexterity Hub" />
 <meta name="theme-color" content="#F5F6F7" media="(prefers-color-scheme: light)" />
 <meta name="theme-color" content="#0E1726" media="(prefers-color-scheme: dark)" />
+<!-- 📞 Call tracking: o detector do Mac abre /?v=chamadas#ct=… — o fragmento sai da URL AQUI, antes de
+     qualquer script (inclusive os da Vercel), e fica só no sessionStorage até o 14c-chamadas.js ler. -->
+<script>
+  try{ if(/(^|&)ct=/.test(location.hash.slice(1))){ sessionStorage.setItem('jirainsight_ct_frag', location.hash.slice(1));
+    history.replaceState(null,'',location.pathname+location.search); } }catch(e){}
+</script>
 <!-- Vercel Web Analytics -->
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -136,6 +142,7 @@
           <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
           <button data-v="ondecrio" class="nav-sub">🌳 Onde crio o ticket?</button>
           <button data-v="meustickets" class="nav-sub">🧾 Preciso criar meus tickets</button>
+          <button data-v="chamadas" class="nav-sub">📞 Ligações para apontar</button>
           <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar horas</button>
           <button data-v="rateio" class="nav-sub">➗ Ratear horas em vários tickets</button>
           <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Reunião do Outlook → ticket</button>
@@ -272,6 +279,7 @@
 <script defer src="/js/13-apontar.js"></script>
 <script defer src="/js/14-planejar.js"></script>
 <script defer src="/js/14b-meus-tickets.js"></script>
+<script defer src="/js/14c-chamadas.js"></script>
 <script defer src="/js/15-alertas.js"></script>
 <script defer src="/js/16-contratos-ams-receita.js"></script>
 <script defer src="/js/16b-parcerias.js"></script>
