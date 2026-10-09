@@ -1,0 +1,86 @@
+name: Call tracking (macOS)
+
+# O detector de chamadas (public/call-tracking/CallTracking.swift) é um app de barra de menus do
+# macOS que cada pessoa compila no próprio Mac pelo instalar.sh. Este gate faz o mesmo caminho
+# numa máquina macOS do GitHub antes do deploy: compila para Apple Silicon e Intel com o alvo
+# mínimo (macOS 12), roda o autoteste da máquina de estados, o diagnóstico do Core Audio, o
+# instalador em modo CI (sem LaunchAgent) e abre o pop-up de demonstração para uma captura de tela.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['public/call-tracking/**', '.github/workflows/call-tracking-mac.yml']
+  pull_request:
+    paths: ['public/call-tracking/**', '.github/workflows/call-tracking-mac.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versões
+        run: sw_vers && xcrun swiftc --version
+      - name: Compilar (arm64 e x86_64, alvo macOS 12)
+        run: |
+          for arq in arm64 x86_64; do
+            xcrun swiftc -O -parse-as-library -target "$arq-apple-macos12.0" \
+              -o "$RUNNER_TEMP/ct-$arq" public/call-tracking/CallTracking.swift
+          done
+          file "$RUNNER_TEMP"/ct-*
+      - name: Autoteste
+        run: '"$RUNNER_TEMP/ct-$(uname -m)" --selftest'
+      - name: Diagnóstico do Core Audio (o runner não tem microfone)
+        run: '"$RUNNER_TEMP/ct-$(uname -m)" --probe'
+      - name: Sem símbolo do SDK 14 fora do autoteste (o detector compila no macOS 12/13)
+        run: |
+          if sed '/#if compiler(>=5.10)/,/#endif/d' public/call-tracking/CallTracking.swift | sed 's://.*$::' \
+             | grep -nE 'kAudioHardwarePropertyProcessObjectList|kAudioProcessProperty'; then
+            echo "::error::Use os seletores de 4 letras (Microfone.sel*) — o SDK do macOS 12/13 não tem esses nomes."; exit 1
+          fi
+      - name: Compilar com o Xcode mais antigo da máquina (Swift/SDK mais velhos)
+        run: |
+          X=$(ls -d /Applications/Xcode_1[0-9]*.app 2>/dev/null | sort -V | head -1)
+          if [ -z "$X" ]; then echo "nenhum Xcode versionado nesta imagem — pulando"; exit 0; fi
+          echo "usando $X"
+          DEVELOPER_DIR="$X/Contents/Developer" xcrun swiftc --version
+          DEVELOPER_DIR="$X/Contents/Developer" xcrun swiftc -O -parse-as-library -target "$(uname -m)-apple-macos12.0" \
+            -o "$RUNNER_TEMP/ct-antigo" public/call-tracking/CallTracking.swift
+          "$RUNNER_TEMP/ct-antigo" --selftest
+      - name: Scripts (sintaxe)
+        run: bash -n public/call-tracking/instalar.sh && bash -n public/call-tracking/desinstalar.sh
+      - name: Instalador (modo CI, sem início automático)
+        run: |
+          CT_FONTE="$PWD/public/call-tracking/CallTracking.swift" CT_DESTINO="$RUNNER_TEMP/apps" CT_SEM_INICIAR=1 \
+            bash public/call-tracking/instalar.sh
+          APP="$RUNNER_TEMP/apps/Dexterity Call Tracking.app"
+          plutil -lint "$APP/Contents/Info.plist"
+          codesign --verify --verbose "$APP"
+          test "$(defaults read "$APP/Contents/Info" CFBundleIdentifier)" = br.com.dexterityit.calltracking
+          "$APP/Contents/MacOS/DexterityCallTracking" --version
+      - name: Pop-up de demonstração (captura de tela)
+        continue-on-error: true
+        run: |
+          APP="$RUNNER_TEMP/apps/Dexterity Call Tracking.app"
+          mkdir -p "$RUNNER_TEMP/dados" shots
+          CT_DADOS="$RUNNER_TEMP/dados" CT_DEMO_PNG="$PWD/shots/popup-render-${{ matrix.os }}.png" \
+            "$APP/Contents/MacOS/DexterityCallTracking" --demo 12 &
+          sleep 6
+          screencapture -x "shots/popup-${{ matrix.os }}.png"
+          wait
+          # o pop-up renderizado, em base64 entre marcadores (para ler pelo log)
+          echo "---- PNG-INICIO ----"; base64 -b 76 -i "shots/popup-render-${{ matrix.os }}.png"; echo "---- PNG-FIM ----"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: call-tracking-${{ matrix.os }}
+          path: shots/
+          if-no-files-found: ignore

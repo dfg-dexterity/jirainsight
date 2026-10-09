@@ -390,7 +390,7 @@ document.getElementById('modal-body').addEventListener('click', (e)=>{
   else if(t.hasAttribute('data-restore-fer')){ const iso=t.getAttribute('data-restore-fer');
     cfg.feriadosRemovidos=(cfg.feriadosRemovidos||[]).filter(x=>x!==iso); salvaCfg(); render(); abreMetas(); }
   else if(t.id==='ap-id-validar'){ validaIdentidade(); }
-  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; pintaBadgeConvites(0); fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); }
+  else if(t.id==='ap-id-sair'){ limpaIdApontar(); estado.apontar.convites=null; pintaBadgeConvites(0); fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); else if(estado.vista==='chamadas') renderChamadas(); }
   else if(t.id==='rg-enviar'){ enviaReuniaoGrupo(); }
   else if(t.hasAttribute('data-rg-chip')){ const i=document.getElementById('rg-tempo'); if(i) i.value=t.getAttribute('data-rg-chip'); }
   else if(t.id==='rg-todos'){ document.querySelectorAll('#rg-pessoas input[data-rg-p]').forEach(c=>{ c.checked=true; }); }

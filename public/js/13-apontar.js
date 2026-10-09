@@ -255,6 +255,26 @@ function atualizaPainelHoras(){
   const novo=el(htmlPainelHoras()); if(novo) alvo.replaceWith(novo);
 }
 
+// Meus tickets recentes (onde EU apontei nos últimos 14 dias) — usado pelo ⏱ Apontar e pelas 📞 Ligações (14c).
+function apCarregaRecentes(hoje){
+  const ap=estado.apontar; const id=idApontar();
+  if(!(id && id.accountId) || ap.recentes!==null || ap.recCarr) return;
+  hoje=hoje||hojeSP();
+  ap.recCarr=true;
+  fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json()).then(j=>{
+    ap.recCarr=false;
+    const meus=((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId && w.k);
+    // Guarda o RESUMO junto (do mapa do /api/tempo): o ticket recente nem sempre
+    // está na lista de chamados a vencer da tela (ex.: já concluído).
+    const nomes=(j&&j.resumos)||{};
+    const por={};
+    meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:'',resumo:nomes[w.k]||''};
+      r.seg+=Number(w.s)||0; const d=(w.d||'').slice(0,10); if(d>r.ult) r.ult=d; });
+    ap.recentes=Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
+    if(estado.vista==='apontar') renderApontar();
+    else if(estado.vista==='chamadas' && typeof chmAtualizaModal==='function') chmAtualizaModal();
+  }).catch(()=>{ ap.recCarr=false; ap.recentes=[]; });
+}
 function renderApontar(){
   const cont=document.getElementById('conteudo');
   const ap=estado.apontar;
@@ -338,21 +358,7 @@ function renderApontar(){
     </div>` : '';
 
   // ---- Meus tickets recentes: onde VOCÊ apontou nos últimos 14 dias (reapontar com 1 clique) ----
-  if(id && id.accountId && ap.recentes===null && !ap.recCarr){
-    ap.recCarr=true;
-    fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json()).then(j=>{
-      ap.recCarr=false;
-      const meus=((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId && w.k);
-      // Guarda o RESUMO junto (do mapa do /api/tempo): o ticket recente nem sempre
-      // está na lista de chamados a vencer da tela (ex.: já concluído).
-      const nomes=(j&&j.resumos)||{};
-      const por={};
-      meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:'',resumo:nomes[w.k]||''};
-        r.seg+=Number(w.s)||0; const d=(w.d||'').slice(0,10); if(d>r.ult) r.ult=d; });
-      ap.recentes=Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
-      if(estado.vista==='apontar') renderApontar();
-    }).catch(()=>{ ap.recCarr=false; ap.recentes=[]; });
-  }
+  apCarregaRecentes(hoje);
   // (recRow/blocoRecentes agora vivem DEPOIS da linhaTicket — os recentes reusam a
   //  linha completa do apontamento rápido; ver "🕑 Meus tickets recentes" abaixo.)
 
@@ -618,7 +624,7 @@ async function validaIdentidade(){
       estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
       buscaConvites();                 // atualiza o selo de convites pendentes na aba
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
-      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); },700);
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); else if(estado.vista==='chamadas') renderChamadas(); },700);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
 }

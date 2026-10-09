@@ -435,7 +435,7 @@
 }
 /* ---- fim: pessoal ---- */
 
-/* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda) ---- */
+/* ---- 📱 grupo: apontar (Apontar, Rateio, Agenda, 📞 Ligações) ---- */
 /* Escopo: .tela-apontar / .tela-rateio / .tela-agenda são as raízes que cada tela desenha
    (ap-filtros, ap-row, ap-vis, ap-id… também aparecem em telas de outros grupos). */
 @media (max-width:600px){
@@ -612,6 +612,24 @@
 @media (max-width:600px){
   /* o modal fica fora de .tela-agenda: o selo "fora do convite" precisa da própria regra de 12px */
   .ag-modal .badge{font-size:12px}
+}
+@media (max-width:760px){
+  /* 📞 Ligações: KPIs 2×2, cada ligação empilha (info em cima, botões embaixo), modal sem nada largo */
+  .tela-chamadas .chm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tela-chamadas .chm-row{flex-wrap:wrap;align-items:flex-start}
+  .tela-chamadas .chm-info{flex-basis:calc(100% - 44px)}
+  .tela-chamadas .chm-info .muted{white-space:normal}
+  .tela-chamadas .chm-acoes-l{width:100%;justify-content:flex-start}
+  .tela-chamadas .chm-setup li>code{display:block;white-space:pre;overflow-x:auto;max-width:100%}
+  .chm-modal .chm-busca-l #chm-busca,.chm-modal #chm-titulo,.chm-modal #chm-coment{width:100%}
+  .chm-modal .chm-busca-l .alx-campo{flex:1 1 100%}
+  .chm-modal .chm-chips{margin-left:0;margin-top:6px;display:flex}
+  .chm-modal .chm-tk{flex-wrap:wrap}
+  .chm-modal .chm-tk span{flex-basis:100%;white-space:normal}
+}
+@media (pointer:coarse){
+  .chm-modal .chm-tk,.chm-modal .chm-chips .chip,.chm-modal .check{min-height:36px}
+  .tela-chamadas .chm-acoes-l .btn{min-height:36px}
 }
 /* ---- fim: apontar ---- */
 
