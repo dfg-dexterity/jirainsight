@@ -212,6 +212,24 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   hashchange/duas gravações seguidas/conflito real/celular/tablet; relógio do navegador fixo às 20:00 SP com
   `ctx.clock.setFixedTime`) com `ABERTOS`, `APONTADOS` (worklog com as validações da produção) e
   `?abertos=`/`?detalhe=` no `servidor-mini.mjs`.
+- **⏱ Total do dia num dia que já passou (2026-10-20, a pedido do usuário: "quando aponto num dia que já passou, é
+  informado que é o primeiro lançamento do dia, e já existiam lançamentos"):** `minhasHorasPorDia()` somava
+  `estado.tempo.worklogs` — o PERÍODO do topo (padrão `7d`), que o ⏱ Apontar nem mostra (`VCHROME.apontar={}`) —, então
+  um dia fora dele entrava na conta só com o lançamento recém-feito ("Total do dia: 30m"). Agora o Apontar tem a
+  **janela própria** `estado.apontar.meusLogs={de, ate, logs:[{d,s,k,p,dt,resumo}]}`: SÓ os meus worklogs de
+  `/api/tempo?desde&ate`, hoje-13 → hoje, alargada para trás por `apGaranteMeusLogs(dia)` (uma leitura em voo; só
+  alarga; falha não insiste por 30 s). **Regras:** (1) `fazApontamento` **aguarda a janela ANTES do POST** — a leitura
+  anterior ao worklog não pode contá-lo duas vezes — e a mensagem diz o dia ("Total do dia 14/10: 2h"); sem base
+  (`apMeusLogsCobre`/`apTempoCobre` falsos) diz que não conferiu; (2) a janela manda nos dias que cobre, o período do
+  topo serve fora dela, e `extraPorDia`/`extraLogs` somam por cima; na releitura, o extra que já voltou (mesmo dia +
+  ticket + segundos) sai do acumulador — o que o Clockwork ainda não devolveu fica; (3) `carrega()` zera janela, extras e
+  recentes juntos; o ↻ "Atualizar lista" e o 24 marcam `meusLogsSujo`; (4) os 🕑 recentes são DERIVADOS da janela +
+  extraLogs (`apRecentesDe`), sem leitura própria — por isso o modal de apontar da 🛠 Gestão passou a chamar
+  `registraExtraDia`; (5) `mtsLogsSemana` lê a janela e a navegação ‹ › alarga e redesenha ("Carregando…" enquanto
+  lê); (6) o passo 3 do 🧾 Preciso criar meus tickets lê a janela do dia escolhido. Escolher a data na linha já lê o dia
+  (o Apontar não espera). Teste: `apontar-dia-test.mjs` (Playwright, 24 casos; fixture `MEUS_WL` relativo a hoje +
+  `/api/vencimentos` no `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou, para
+  provar que a releitura não dobra). Fica no roadmap: a hora do apontamento na própria linha.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

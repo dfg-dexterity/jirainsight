@@ -28,7 +28,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{} },
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{},
+    meusLogs:null, meusLogsP:null, meusLogsSujo:false, meusLogsErro:0 },   // ⏱ janela própria das MINHAS horas por dia (13)
   // 🏦 Controladoria de Projetos: período próprio, categoria ativa e caches
   // (worklogs do período + consolidado do Jira p/ execução do esforço).
   ctrl:{ de:'', ate:'', cat:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
@@ -502,6 +503,7 @@ async function carrega(periodo, forca){
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
   estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
   estado.apontar.extraLogs=[];
+  estado.apontar.meusLogs=null; estado.apontar.recentes=null;   // a janela das minhas horas por dia é relida junto
   estado.cache[periodo]={tempo:t,atividade:a,usuarios,avisoAtiv:aviso};
 }
 

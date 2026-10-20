@@ -103,7 +103,7 @@ function abreAjuda(){
       Abrindo a página, o protagonista é o painel <b>⏱ Meu timesheet</b>, que mostra a sua semana como nas ferramentas de timetracking:
       <b>🧮 Grade</b> (matriz <b>Projeto → Ticket × dias</b>, com Σ por linha, totais por dia e fim de semana
       destacado) e <b>🗓 Calendário</b> (blocos posicionados pela <b>hora de início</b> de cada worklog, coloridos
-      por projeto). Navegue entre as semanas (‹ hoje ›), recolha projetos, acompanhe o alvo semanal
+      por projeto). Navegue entre as semanas (‹ hoje › — as anteriores carregam sozinhas, sem trocar o período do topo), recolha projetos, acompanhe o alvo semanal
       (<i>apontado de meta</i>, descontando feriados e ausências) e veja o <b>aviso quando um dia passa da meta</b>
       (padrão 8h/dia, ajustável em Metas). O que você aponta na sessão entra na hora com o selo 🕓.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="apontar">🧭 ver na tela (guia interativo)</button></div></div></details>
@@ -497,7 +497,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-10-09';
+const GUIAS_REV='2026-10-20';
 const GUIAS={
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo — já filtrada no que o card contou.'},
@@ -527,7 +527,7 @@ const GUIAS={
     {c:'📰 Fluxo de atividade',ti:'📰 Fluxo de atividade',tx:'As últimas ações do time no Jira, em tempo quase real — bom para saber o que está acontecendo agora.'}]},
   apontar:{t:'⏱ Apontar',p:[
     {s:'#conteudo .ap-id',ti:'Identifique-se uma vez',tx:'O worklog sai no SEU usuário do Jira, então o painel pede e-mail + token de API uma única vez (fica só neste navegador, nunca no servidor).'},
-    {s:'#mh-card',ti:'⏱ Meu timesheet',tx:'A sua semana como numa ferramenta de timetracking: 🧮 Grade (Projeto → Ticket × dias) e 🗓 Calendário (blocos pela hora de início). Navegue as semanas em ‹ hoje › e acompanhe o alvo diário.'},
+    {s:'#mh-card',ti:'⏱ Meu timesheet',tx:'A sua semana como numa ferramenta de timetracking: 🧮 Grade (Projeto → Ticket × dias) e 🗓 Calendário (blocos pela hora de início). Navegue as semanas em ‹ hoje › — as anteriores carregam sozinhas, sem depender do período do topo — e acompanhe o alvo diário. É a mesma base que diz o "Total do dia" ao apontar, inclusive num dia que já passou.'},
     {s:'#conteudo .ap-filtros',ti:'Achar o chamado certo',tx:'Filtre por categoria, projeto, busca livre e data-limite. "Só os meus" mostra o que é seu — e os KPIs do topo seguem a mesma caixa, com o rótulo "(meus)"; desligue para ver o time. "Incluir sem vencimento" traz o que ainda não tem data. Vindo de um card da Início, a lista chega já com os filtros certos.'},
     {s:'#conteudo .kpi[data-ap-fil="vencidos"]',ti:'Os KPIs filtram',tx:'Clique num KPI (Todos, Sem horas, Vencidos, Vencem hoje, Sem vencimento) para filtrar a lista. Com "Só os meus" ligado eles contam só os seus tickets — o mesmo número do card ⚠ Meus tickets vencidos da Início.',quando:'Aparece quando a lista de chamados termina de carregar.'},
     {s:'#conteudo .ap-chips',ti:'Apontar em 1 clique',tx:'Os chips (30m, 1h, 2h…) preenchem o tempo; dá para digitar 1h30, 1:30 ou 45m. Clique em Apontar e o worklog vai para o Jira/Clockwork na hora.'},

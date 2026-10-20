@@ -137,6 +137,9 @@ function mtP3(m){
       <td><input type="text" class="mt-com" data-mt-com="${i}" value="${escA(it.comentario||'')}" placeholder="comentário do apontamento" aria-label="Comentário"${dis}></td></tr>`; }).join('');
   const tot=mtTotalSeg(m); const id=idApontar(); const meta=metaSegDe(id&&id.accountId)||8*3600;
   let jaDia=0; try{ jaDia=minhasHorasPorDia()[m.dia]||0; }catch(e){}
+  // "você já tem X em DD/MM" precisa das MINHAS horas daquele dia, não do período do topo: lê a janela e redesenha.
+  if(!apMeusLogsCobre(m.dia)&&!estado.apontar.meusLogsP&&!estado.apontar.meusLogsErro){ const dia=m.dia;
+    apGaranteMeusLogs(dia).then(()=>{ if(estado.vista==='meustickets'&&estado.meus.passo===3&&estado.meus.dia===dia) mtRender(); }); }
   const invalidos=mtTemposInvalidos(m);
   return `<div class="mt-p3"><div class="pl-dica">Quanto tempo você gastou em cada um? Digite <b>1h30</b>, <b>45m</b>, <b>2</b> (= 2h) ou use os chips. Deixe vazio para não apontar naquele item. O comentário vai junto no apontamento.</div>
     <div class="ts-wrap"><table class="mt-tab"><thead><tr><th>Ticket</th><th>Tempo</th><th>Dia</th><th>Comentário</th></tr></thead><tbody>${linhas}</tbody></table></div>

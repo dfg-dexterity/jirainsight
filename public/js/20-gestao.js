@@ -505,6 +505,7 @@ async function gxApontaConfirma(){
     (((estado.analytics.dados||{}).abertos)||[]).forEach(soma);
     (((estado.analytics.dados||{}).concluidos)||[]).forEach(soma);
     logAcao({acao:'apontar', t:ctx.k, para:fmtH(seg), ok:true});
+    try{ registraExtraDia(dia, seg, ctx.k); }catch(e){}   // total do dia e recentes do ⏱ Apontar acompanham na hora
     invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
     _gxApont=null; fechaModal();
     toast(`✓ ${fmtH(seg)} apontadas em ${ctx.k}.`,'ok');

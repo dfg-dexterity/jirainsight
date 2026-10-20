@@ -795,10 +795,21 @@ carregamento (`removeUsuariosTecnicos`) e no `/api/teams`.
 
 ### Minhas horas por dia (aba ⏱ Apontar)
 
-No topo da aba, quem está identificado vê um painel **⏱ Minhas horas por dia** com o
-total que já apontou em cada dia do período carregado, destacando (⚠) e avisando os
-dias que passam da **meta diária** (padrão 8h, ajustável em Metas / por pessoa). Ao
-apontar, o painel atualiza na hora e o feedback avisa se aquele dia excedeu a meta.
+No topo da aba, quem está identificado vê o painel **⏱ Meu timesheet** com o total que já
+apontou em cada dia, destacando (⚠) e avisando os dias que passam da **meta diária**
+(padrão 8h, ajustável em Metas / por pessoa). Ao apontar, o painel atualiza na hora e o
+feedback diz o total daquele dia e avisa se ele excedeu a meta.
+
+**Base própria das minhas horas por dia (2026-10-20):** o total do dia, o aviso de meta, o
+painel 🗓 e os 🕑 tickets recentes leem `estado.apontar.meusLogs` — **só os meus** worklogs
+de `/api/tempo?desde&ate`, dos últimos 14 dias e alargados para trás quando um dia mais
+antigo é escolhido (`apGaranteMeusLogs(dia)`), lidos **antes** de gravar o apontamento.
+Antes, tudo isso somava `estado.tempo.worklogs` — o período selecionado no topo (padrão
+7 dias), que o Apontar nem mostra —, e apontar num dia fora dele dizia que o total do dia
+era só aquele lançamento. Fora da janela o período do topo ainda vale; o acumulador
+otimista (`extraPorDia`/`extraLogs`) soma por cima e é descontado quando a leitura seguinte
+já traz o mesmo worklog (dia + ticket + segundos). Se o Clockwork não responder, a
+mensagem diz que o total não foi conferido.
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 

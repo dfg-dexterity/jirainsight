@@ -48,19 +48,65 @@ async function carregaVenc(ate, forca){
   return j;
 }
 
-// Horas que EU (usuário identificado) já apontei por dia, no período carregado,
-// somadas ao acumulador otimista do que foi apontado nesta sessão pela aba Apontar.
+// ---- Base das MINHAS horas por dia (2026-10-20, a pedido do usuário: "apontei num dia que já passou e o painel
+// disse que era o primeiro lançamento do dia") ----
+// Antes o total do dia somava `estado.tempo.worklogs` — o PERÍODO selecionado no topo (padrão 7 dias), que o ⏱ Apontar
+// nem mostra. Dia fora dele entrava na conta só com o lançamento recém-feito. Agora o Apontar tem a própria janela:
+// `estado.apontar.meusLogs = {de, ate, logs:[{d, s, k, p, dt, resumo}]}` — SÓ os meus worklogs, lidos de
+// /api/tempo?desde&ate (hoje-13 → hoje; alargada para trás quando um dia mais antigo é pedido). A janela manda nos
+// dias que cobre; fora dela o período do topo ainda vale; o acumulador otimista (extraPorDia) soma por cima.
+function apMeusLogs(){ const m=estado.apontar.meusLogs; return (m&&Array.isArray(m.logs))?m:null; }
+function apMeusLogsCobre(d){ const m=apMeusLogs(); return !!(m&&d&&d>=m.de&&d<=m.ate); }
+function apTempoCobre(d){ const mt=estado.tempo&&estado.tempo.meta; return !!(mt&&mt.startDate&&mt.endDate&&d>=mt.startDate&&d<=mt.endDate); }
 function minhasHorasPorDia(){
-  const id=idApontar(); const out={};
+  const id=idApontar(); const out={}; const m=apMeusLogs();
   if(id && id.accountId){
+    (m?m.logs:[]).forEach(w=>{ out[w.d]=(out[w.d]||0)+w.s; });
     ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
-      if(w.a!==id.accountId) return; const d=(w.d||'').slice(0,10); if(!d) return;
+      if(w.a!==id.accountId) return; const d=(w.d||'').slice(0,10); if(!d||(m&&d>=m.de&&d<=m.ate)) return;
       out[d]=(out[d]||0)+(Number(w.s)||0);
     });
   }
   const ex=estado.apontar.extraPorDia||{};
   Object.keys(ex).forEach(d=>{ out[d]=(out[d]||0)+ex[d]; });
   return out;
+}
+// Garante a janela cobrindo [dia (ou hoje-13, o mais antigo) → hoje]. Devolve a janela (ou null se a leitura falhou —
+// quem lê cai no período do topo). Uma leitura em voo por vez; a janela só alarga, nunca encolhe.
+function apGaranteMeusLogs(dia){
+  const ap=estado.apontar; const id=idApontar(); if(!(id&&id.accountId)) return Promise.resolve(null);
+  const hoje=hojeSP(); let de=voltaDias(hoje,13); if(dia&&/^\d{4}-\d{2}-\d{2}$/.test(dia)&&dia<de) de=dia;
+  const m=apMeusLogs();
+  if(m&&m.de<=de&&m.ate>=hoje&&!ap.meusLogsSujo) return Promise.resolve(m);
+  if(m&&m.de<de) de=m.de;
+  if(ap.meusLogsP){ if(ap.meusLogsDe<=de) return ap.meusLogsP; return ap.meusLogsP.then(()=>apGaranteMeusLogs(dia)); }
+  if(ap.meusLogsErro&&Date.now()-ap.meusLogsErro<30000) return Promise.resolve(null);   // acabou de falhar: não insiste
+  ap.meusLogsDe=de;
+  const p=fetch(`/api/tempo?desde=${de}&ate=${hoje}`).then(r=>r.json()).then(j=>{
+    if(!j||!Array.isArray(j.worklogs)) throw new Error((j&&j.erro)||'tempo');
+    const nomes=j.resumos||{};
+    const logs=j.worklogs.filter(w=>w.a===id.accountId).map(w=>({ d:(w.d||'').slice(0,10), s:Number(w.s)||0, k:w.k||'',
+      p:w.p||(w.k?String(w.k).split('-')[0]:''), dt:w.d||'', resumo:nomes[w.k]||'' })).filter(w=>w.d);
+    // O que esta sessão apontou e JÁ voltou na leitura sai do acumulador otimista (não conta duas vezes); o que ainda
+    // não voltou (Clockwork atrasado) continua contando.
+    const usados=new Set(); const sobra=[];
+    (ap.extraLogs||[]).forEach(x=>{ if(x.d<de||x.d>hoje){ sobra.push(x); return; }
+      const i=logs.findIndex((w,i2)=>!usados.has(i2)&&w.d===x.d&&w.k===x.k&&w.s===x.s);
+      if(i>=0) usados.add(i); else sobra.push(x); });
+    ap.extraLogs=sobra; const por={}; sobra.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
+    ap.meusLogs={ de, ate:hoje, logs }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
+    return ap.meusLogs;
+  }).catch(()=>{ ap.meusLogsErro=Date.now(); return null; }).then(x=>{ if(ap.meusLogsP===p) ap.meusLogsP=null; return x; });
+  ap.meusLogsP=p; return p;
+}
+// Meus tickets recentes (14 dias) derivados da janela + do que esta sessão apontou — sem leitura própria.
+function apRecentesDe(){
+  const m=apMeusLogs(); const de=voltaDias(hojeSP(),13); const por={};
+  const add=(k,p,s,d,resumo)=>{ if(!k) return; const r=por[k]=por[k]||{k, p:p||String(k).split('-')[0], seg:0, ult:'', resumo:''};
+    r.seg+=s; if(d>r.ult) r.ult=d; if(!r.resumo&&resumo) r.resumo=resumo; };
+  (m?m.logs:[]).forEach(w=>{ if(w.d>=de) add(w.k,w.p,w.s,w.d,w.resumo); });
+  (estado.apontar.extraLogs||[]).forEach(x=>{ if(x.d>=de) add(x.k,x.p,x.s,x.d,''); });
+  return Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
 }
 // Registra (otimista) o que acabei de apontar, para o painel refletir na hora.
 // Guarda também o TICKET (k) para a grade/calendário do Meu timesheet.
@@ -94,11 +140,13 @@ function mtsEstado(){ const ap=estado.apontar;
   return ap; }
 // Worklogs meus da semana [seg0..seg0+6]: {d, s, k, p, dt(ISO c/ hora), extra}
 function mtsLogsSemana(seg0){
-  const id=idApontar(); const fim=mtsSoma(seg0,6); const logs=[];
+  const id=idApontar(); const fim=mtsSoma(seg0,6); const logs=[]; const m=apMeusLogs();
   if(id&&id.accountId){
-    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
+    (m?m.logs:[]).forEach(w=>{ if(w.d<seg0||w.d>fim) return;
+      logs.push({d:w.d, s:w.s, k:w.k, p:w.p||'—', dt:w.dt}); });
+    ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{       // fora da janela: o período do topo ainda serve
       if(w.a!==id.accountId) return;
-      const d=(w.d||'').slice(0,10); if(!d||d<seg0||d>fim) return;
+      const d=(w.d||'').slice(0,10); if(!d||d<seg0||d>fim||(m&&d>=m.de&&d<=m.ate)) return;
       logs.push({d, s:Number(w.s)||0, k:w.k||'', p:w.p||(w.k?String(w.k).split('-')[0]:'—'), dt:w.d||''});
     });
   }
@@ -182,7 +230,7 @@ function htmlPainelHoras(){
     grade=`<div class="ts-wrap"><table class="mts-tab">
       <thead><tr><th class="mts-c1">Projeto / Ticket</th><th class="mts-sig">Σ</th>
         ${dias.map(d=>`<th class="mts-d${clsDia(d)}">${esc(rot(d))}${ehFeriado(d)&&ehUtil(d)?'<br><span class="muted small">feriado</span>':''}</th>`).join('')}</tr></thead>
-      <tbody>${linhas||`<tr><td colspan="9" class="muted small" style="padding:14px 10px">Sem apontamentos nesta semana. O painel usa o <strong>período selecionado</strong> no topo — se a semana está fora dele, troque o período.</td></tr>`}</tbody>
+      <tbody>${linhas||`<tr><td colspan="9" class="muted small" style="padding:14px 10px">${(!apMeusLogsCobre(seg0)&&ap.meusLogsP)?'Carregando os apontamentos desta semana…':'Sem apontamentos nesta semana.'}</td></tr>`}</tbody>
       <tfoot><tr><td class="mts-c1"><strong>Total</strong></td><td class="mts-sig"><strong>${fmtH(totalSem)}</strong></td>
         ${dias.map(d=>{ const s=porDia[d]||0; const ov=s>metaSeg;
           return `<td class="mts-v f${ov?' over':''}${clsDia(d)}">${s?fmtH(s):'·'}${ov?' ⚠':''}</td>`; }).join('')}</tr></tfoot>
@@ -260,20 +308,14 @@ function apCarregaRecentes(hoje){
   const ap=estado.apontar; const id=idApontar();
   if(!(id && id.accountId) || ap.recentes!==null || ap.recCarr) return;
   hoje=hoje||hojeSP();
+  // A janela de 14 dias já está na memória: deriva na hora (o que foi apontado nesta sessão entra pelo extraLogs).
+  if(apMeusLogsCobre(voltaDias(hoje,13))&&apMeusLogsCobre(hoje)&&!ap.meusLogsSujo){ ap.recentes=apRecentesDe(); return; }
   ap.recCarr=true;
-  fetch(`/api/tempo?desde=${voltaDias(hoje,13)}&ate=${hoje}`).then(r=>r.json()).then(j=>{
-    ap.recCarr=false;
-    const meus=((j&&j.worklogs)||[]).filter(w=>w.a===id.accountId && w.k);
-    // Guarda o RESUMO junto (do mapa do /api/tempo): o ticket recente nem sempre
-    // está na lista de chamados a vencer da tela (ex.: já concluído).
-    const nomes=(j&&j.resumos)||{};
-    const por={};
-    meus.forEach(w=>{ const r=por[w.k]=por[w.k]||{k:w.k,p:w.p||'',seg:0,ult:'',resumo:nomes[w.k]||''};
-      r.seg+=Number(w.s)||0; const d=(w.d||'').slice(0,10); if(d>r.ult) r.ult=d; });
-    ap.recentes=Object.values(por).sort((a,b)=>b.ult.localeCompare(a.ult)||b.seg-a.seg).slice(0,6);
+  apGaranteMeusLogs().then(()=>{
+    ap.recCarr=false; ap.recentes=apRecentesDe();
     if(estado.vista==='apontar') renderApontar();
     else if(estado.vista==='chamadas' && typeof chmAtualizaModal==='function') chmAtualizaModal();
-  }).catch(()=>{ ap.recCarr=false; ap.recentes=[]; });
+  });
 }
 function renderApontar(){
   const cont=document.getElementById('conteudo');
@@ -643,6 +685,9 @@ async function fazApontamento(btn){
   const inicio=dataEl.value||hojeSP();
   ocupado(btn,true); fb.textContent='Apontando…';
   try{
+    // As minhas horas do dia vêm ANTES de gravar: o total do dia sai certo mesmo fora do período do topo, e a leitura
+    // (anterior ao worklog novo) não pode contar este lançamento duas vezes.
+    await apGaranteMeusLogs(inicio);
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({issue:k,segundos:seg,inicio,comentario:comEl.value.trim(),email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
@@ -662,10 +707,13 @@ async function fazApontamento(btn){
       registraExtraDia(inicio, seg, k); atualizaPainelHoras();
       const meuId=idApontar(); const metaSeg=metaSegDe(meuId&&meuId.accountId)||8*3600;
       const totalDia=minhasHorasPorDia()[inicio]||0;
-      if(totalDia>metaSeg){ fb.className='ap-fb warn';
+      const conferido=apMeusLogsCobre(inicio)||apTempoCobre(inicio);   // sem base do dia, o total seria só este lançamento
+      if(conferido&&totalDia>metaSeg){ fb.className='ap-fb warn';
         fb.textContent=`⚠ ${fmtH(seg)} apontadas em ${k}. Você já tem ${fmtH(totalDia)} em ${fmtBR(inicio)} — acima da meta de ${fmtH(metaSeg)}/dia.`;
         toast(`Apontado em ${k}, mas você já passou da meta de ${fmtH(metaSeg)} em ${fmtBR(inicio)}.`,'warn'); }
-      else { fb.classList.add('ok'); fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). Total do dia: ${fmtH(totalDia)}.`;
+      else { fb.classList.add('ok');
+        fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). `+(conferido?`Total do dia ${fmtBR(inicio)}: ${fmtH(totalDia)}.`
+          :`Não consegui ler o Clockwork para somar o dia ${fmtBR(inicio)} — só este lançamento foi contado.`);
         toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
       logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio, ok:true});
       // "Meus tickets recentes" acompanha sem nova busca.
@@ -1260,7 +1308,10 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   // ---- ⏱ Meu timesheet (grade × calendário, navegação de semana, recolher projeto) ----
   else if(t.hasAttribute('data-mts-modo')){ mtsEstado().mtsModo=t.getAttribute('data-mts-modo'); escondeTip(); atualizaPainelHoras(); }
   else if(t.hasAttribute('data-mts-nav')){ const ap=mtsEstado(); const n=+t.getAttribute('data-mts-nav');
-    ap.mtsSem=n===0?mtsSegunda(hojeSP()):mtsSoma(ap.mtsSem, n*7); escondeTip(); atualizaPainelHoras(); }
+    ap.mtsSem=n===0?mtsSegunda(hojeSP()):mtsSoma(ap.mtsSem, n*7); escondeTip();
+    if(!apMeusLogsCobre(ap.mtsSem)){ const alvo=ap.mtsSem;   // semana anterior ao que já foi lido: alarga a janela e redesenha
+      apGaranteMeusLogs(alvo).then(()=>{ if(estado.vista==='apontar'&&estado.apontar.mtsSem===alvo) atualizaPainelHoras(); }); }
+    atualizaPainelHoras(); }
   else if(t.hasAttribute('data-mts-proj')){ const ap=mtsEstado(); const p=t.getAttribute('data-mts-proj');
     ap.mtsFech[p]=!ap.mtsFech[p]; escondeTip(); atualizaPainelHoras(); }
   else if(t.hasAttribute('data-ap-mover')){ escondeTip(); toggleReclass(t); }
@@ -1281,7 +1332,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='cv-todos'){ confirmaTodosConvites(t); }
   else if(t.getAttribute('data-ap-act')==='config-id'||t.getAttribute('data-ap-act')==='trocar-id'){ abreIdentidade(); }
   else if(t.id==='ap-refresh'){ t.disabled=true; t.textContent='Atualizando…';
-    estado.apontar.recentes=null;                       // recarrega também os recentes
+    estado.apontar.recentes=null; estado.apontar.meusLogsSujo=true;   // recarrega também os recentes e as minhas horas por dia
     carregaVenc(estado.apontar.ate,true)
       .then(()=>{ if(estado.vista==='apontar') renderApontar(); })
       .catch(()=>{ t.disabled=false; t.textContent='Atualizar lista'; }); }
@@ -1307,4 +1358,9 @@ document.getElementById('conteudo').addEventListener('keydown', (e)=>{
     const row=e.target.closest('.ap-row'); const b=row&&row.querySelector('[data-ap-key]');
     if(b){ e.preventDefault(); fazApontamento(b); }
   }
+});
+// Escolher um dia na linha já lê as minhas horas daquele dia (o clique em Apontar não espera a leitura).
+document.getElementById('conteudo').addEventListener('change', (e)=>{
+  if(estado.vista!=='apontar') return; const t=e.target;
+  if(t&&t.classList&&t.classList.contains('ap-data')&&t.value) apGaranteMeusLogs(t.value);
 });
