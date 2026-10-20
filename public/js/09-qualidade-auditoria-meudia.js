@@ -331,6 +331,7 @@ async function mdAponta(i, btn){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const seg=parseTempo(s.tempo||'');
   if(seg==null||seg<60){ toast('Tempo sugerido inválido — ajuste no Apontar.','err'); return; }
+  if(!(await planGate(md.dados.dia))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   if(btn){ btn.disabled=true; btn.textContent='Apontando…'; }
   try{
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},

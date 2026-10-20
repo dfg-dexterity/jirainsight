@@ -137,6 +137,9 @@ function mtP3(m){
       <td><input type="text" class="mt-com" data-mt-com="${i}" value="${escA(it.comentario||'')}" placeholder="comentário do apontamento" aria-label="Comentário"${dis}></td></tr>`; }).join('');
   const tot=mtTotalSeg(m); const id=idApontar(); const meta=metaSegDe(id&&id.accountId)||8*3600;
   let jaDia=0; try{ jaDia=minhasHorasPorDia()[m.dia]||0; }catch(e){}
+  // "você já tem X em DD/MM" precisa das MINHAS horas daquele dia, não do período do topo: lê a janela e redesenha.
+  if(id&&id.accountId&&!apMeusLogsCobre(m.dia)&&!estado.apontar.meusLogsP&&!(estado.apontar.meusLogsErro&&Date.now()-estado.apontar.meusLogsErro<30000)){ const dia=m.dia;
+    apGaranteMeusLogs(dia).then(w=>{ if(w&&apMeusLogsCobre(dia)&&estado.vista==='meustickets'&&estado.meus.passo===3&&estado.meus.dia===dia) mtRender(); }); }
   const invalidos=mtTemposInvalidos(m);
   return `<div class="mt-p3"><div class="pl-dica">Quanto tempo você gastou em cada um? Digite <b>1h30</b>, <b>45m</b>, <b>2</b> (= 2h) ou use os chips. Deixe vazio para não apontar naquele item. O comentário vai junto no apontamento.</div>
     <div class="ts-wrap"><table class="mt-tab"><thead><tr><th>Ticket</th><th>Tempo</th><th>Dia</th><th>Comentário</th></tr></thead><tbody>${linhas}</tbody></table></div>
@@ -264,6 +267,8 @@ function mtCarregaTrans(it){
 async function mtExecuta(){
   const m=estado.meus; const id=idApontar(); if(!id){ abreIdentidade(); return; }
   if(m.executando) return;
+  const diasPl=mtAtivos(m).filter(it=>!(it.exec&&it.exec.apontou)&&(parseTempo(String(it.tempo||'').trim())||0)>=60).map(it=>it.dia||m.dia);
+  if(!(await planGate(diasPl))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   m.executando=true; m.executou=true; m.passo=5; m.feito=false; renderMeusTickets();
   // O relato virou ações: o rascunho sai já (recarregar a página não pode oferecer lançar tudo de novo).
   // O "Tentar de novo" não depende dele — usa o estado em memória (it.exec).

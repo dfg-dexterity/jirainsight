@@ -212,6 +212,63 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   hashchange/duas gravações seguidas/conflito real/celular/tablet; relógio do navegador fixo às 20:00 SP com
   `ctx.clock.setFixedTime`) com `ABERTOS`, `APONTADOS` (worklog com as validações da produção) e
   `?abertos=`/`?detalhe=` no `servidor-mini.mjs`.
+- **⏱ Total do dia num dia que já passou (2026-10-20, a pedido do usuário: "quando aponto num dia que já passou, é
+  informado que é o primeiro lançamento do dia, e já existiam lançamentos"):** `minhasHorasPorDia()` somava
+  `estado.tempo.worklogs` — o PERÍODO do topo (padrão `7d`), que o ⏱ Apontar nem mostra (`VCHROME.apontar={}`) —, então
+  um dia fora dele entrava na conta só com o lançamento recém-feito ("Total do dia: 30m"). Agora o Apontar tem a
+  **janela própria** `estado.apontar.meusLogs={de, ate, logs:[{d,s,k,p,dt,resumo}]}`: SÓ os meus worklogs de
+  `/api/tempo?desde&ate`, hoje-13 → hoje, alargada para trás por `apGaranteMeusLogs(dia)` (uma leitura em voo; só
+  alarga; falha não insiste por 30 s). **Regras:** (1) `fazApontamento` **aguarda a janela ANTES do POST** — a leitura
+  anterior ao worklog não pode contá-lo duas vezes — e a mensagem diz o dia ("Total do dia 14/10: 2h"); sem base
+  (`apMeusLogsCobre`/`apTempoCobre` falsos) diz que não conferiu; (2) a janela manda nos dias que cobre, o período do
+  topo serve fora dela, e `extraPorDia`/`extraLogs` somam por cima; na releitura, o extra que já voltou (mesmo dia +
+  ticket + segundos) sai do acumulador — o que o Clockwork ainda não devolveu fica; (3) `carrega()` zera janela, extras e
+  recentes juntos; o ↻ "Atualizar lista" e o 24 marcam `meusLogsSujo`; (4) os 🕑 recentes são DERIVADOS da janela +
+  extraLogs (`apRecentesDe`), sem leitura própria — por isso o modal de apontar da 🛠 Gestão passou a chamar
+  `registraExtraDia`; (5) `mtsLogsSemana` lê a janela e a navegação ‹ › alarga e redesenha ("Carregando…" enquanto
+  lê); (6) o passo 3 do 🧾 Preciso criar meus tickets lê a janela do dia escolhido. Escolher a data na linha já lê o dia
+  (o Apontar não espera). **Regras da revisão (mesmo dia, 10 achados corrigidos):** o pedido é limitado a 400 dias
+  (`voltaDias(hoje,399)`) e a janela guarda o intervalo que o servidor DEVOLVEU (`j.meta.startDate/endDate`; resposta
+  que não é `custom` é erro) — o `/api/tempo` cai em silêncio nos "7 dias" quando o pedido passa de 400 dias, e a janela
+  ficaria "cobrindo" anos sem dados; a janela leva `a` = accountId e `apMeusLogs()` devolve null para outra identidade
+  (trocar usuário / esquecer credenciais zeram janela, recentes e otimista); a releitura vai com `nocache=1` quando
+  `meusLogsSujo` ou `meusLogsEscreveu` (o `registraExtraDia` marca), senão o cache de 20 min do servidor devolvia a
+  janela anterior ao apontamento; a reconciliação só consome worklog NOVO em relação à base anterior (contagem por
+  `d|k|s`) — 1h + 1h no mesmo ticket não engole o lançamento de agora; `carrega()` só zera o otimista dos dias FORA da
+  janela (dentro, a releitura reconcilia); `fazApontamento` reobtém a linha depois do await (a janela chegando redesenha
+  a lista); `apExtrasRemoveTicket(k)` no reclassificar (13) e no vincular (24); o passo 3 do 🧾 só redesenha quando a
+  janela passou a cobrir o dia (antes, sem identidade, virava laço infinito de microtarefas); a semana que não conseguiu
+  ler diz isso em vez de "sem apontamentos"; o realizado por projeto da "sua semana" (08) lê `minhasLogsEntre`. Teste:
+  `apontar-dia-test.mjs` (Playwright, 32 casos, um por achado; fixture `MEUS_WL` relativo a hoje + `/api/vencimentos` no
+  `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou e imita a queda nos "7 dias"
+  acima de 400 dias). Fica no roadmap: a hora do apontamento na própria linha.
+- **🚧 Trava do planejamento ao apontar + indicadores do planejamento na Início (2026-10-20, a pedido do usuário:
+  "bloquear lançamento em dia que não foi planejado no planejamento semanal, ou deixar só como aviso, bem explícito;
+  e o painel de entrada com projetos da semana pelo planejamento, tickets sem data, ticket aguardando minha
+  resposta"):** `cfg.planGate={modo:'off'|'aviso'|'bloqueio', rascunho}` (⚙️ Configurações › 📋 Meu Planejamento, só
+  gestor/admin; **`planGate` entrou em `CHAVES_PAPEL` do `api/config.js`** — o servidor recusa a mudança de quem não é).
+  **A porta é UMA: `planGate(dias)` em `04-meu-planejamento.js`**, chamada ANTES do POST em todo lugar que grava worklog
+  próprio (13 `fazApontamento`/`respondeConvite`/`enviaReuniaoGrupo`, 20 `gxApontaConfirma`, 14b `mtExecuta`, 14c
+  `chmConfirma`, 22 `rtExecuta`, 23 `trfExecuta`, 09 `mdAponta`, 21 `cvEnviar`/`qkConfirma`, 24 `rvExecuta`) — lugar novo
+  que grava horas = `if(!(await planGate(dia))) return;`. `planGateDia(dia)` é a régua (sem identidade, antes de
+  `mpInicioVig` e `mpCapDia===0` dispensam; plano ausente / em elaboração / devolvido sem `rascunho` / sem atividade
+  no dia reprovam); `planGateCarrega(w)` é a leitura AGUARDÁVEL do plano (o `mpGaranteMeu` é dispara-e-segue) com o
+  mesmo cache `estado.minhasemana.meu[w]`; falha ao ler → toast e segue (nunca bloqueia por erro). O aviso/bloqueio é
+  uma **sobreposição própria `.pg-bg`** (não o `#modal` — Gestão, 📞 e convite já estão num modal), Esc capturado
+  antes do Esc global; "Apontar mesmo assim" (só no aviso) grava `logAcao('apontar-sem-plano')`; "Ir para o Meu
+  Planejamento" abre a semana reprovada. Leitores `planGateCfg`/`planGateAtivo` não criam o objeto. É regra de tela —
+  o servidor não impõe (roadmap). **Início (08):** `cAloc` virou **🗂 Projetos da semana** (do MEU plano, planejado ×
+  feito via `minhasLogsEntre` + `extraLogs`; a alocação macro `cfg.alocacoes` ficou órfã da tela aposentada), **💬
+  Aguardando sua resposta** (`mencoesPend` + último evento `comentario` de outra pessoa nos meus tickets em
+  `ax.radAtv` + plano devolvido → `ax.respKeys`, rota `aguardando-resposta` → Gestão `soKeys`) e **⏳ Com o cliente**
+  (`ax.cliKeys`, rota `gestao-cliente`); o 🗓 Tickets sem data já existia. `carregaInbox` redesenha a Início ao chegar
+  (19). **Cuidado aprendido:** um handler local chamado `esc` dentro de uma função que usa o `esc()` global de HTML
+  antes dele = TDZ ("Cannot access 'esc' before initialization") e a faixa nunca nascia — o teste pegou; handlers
+  locais nunca com nome de helper global. Teste: `plan-gate-test.mjs` (Playwright, 69 casos: régua do dia, aviso/
+  bloqueio/Esc/ir ao plano, falha de leitura, 📞 por cima do modal, config por gestor × recusa de não-gestor na tela e
+  no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
+  `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
+  (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

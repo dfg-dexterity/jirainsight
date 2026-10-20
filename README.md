@@ -795,10 +795,51 @@ carregamento (`removeUsuariosTecnicos`) e no `/api/teams`.
 
 ### Minhas horas por dia (aba ⏱ Apontar)
 
-No topo da aba, quem está identificado vê um painel **⏱ Minhas horas por dia** com o
-total que já apontou em cada dia do período carregado, destacando (⚠) e avisando os
-dias que passam da **meta diária** (padrão 8h, ajustável em Metas / por pessoa). Ao
-apontar, o painel atualiza na hora e o feedback avisa se aquele dia excedeu a meta.
+No topo da aba, quem está identificado vê o painel **⏱ Meu timesheet** com o total que já
+apontou em cada dia, destacando (⚠) e avisando os dias que passam da **meta diária**
+(padrão 8h, ajustável em Metas / por pessoa). Ao apontar, o painel atualiza na hora e o
+feedback diz o total daquele dia e avisa se ele excedeu a meta.
+
+**Base própria das minhas horas por dia (2026-10-20):** o total do dia, o aviso de meta, o
+painel 🗓 e os 🕑 tickets recentes leem `estado.apontar.meusLogs` — **só os meus** worklogs
+de `/api/tempo?desde&ate`, dos últimos 14 dias e alargados para trás quando um dia mais
+antigo é escolhido (`apGaranteMeusLogs(dia)`), lidos **antes** de gravar o apontamento.
+Antes, tudo isso somava `estado.tempo.worklogs` — o período selecionado no topo (padrão
+7 dias), que o Apontar nem mostra —, e apontar num dia fora dele dizia que o total do dia
+era só aquele lançamento. Fora da janela o período do topo ainda vale; o acumulador
+otimista (`extraPorDia`/`extraLogs`) soma por cima e é descontado quando a leitura seguinte
+traz um worklog **novo** com o mesmo dia + ticket + segundos (um igual que já existia não o
+engole). A releitura depois de gravar ou do ↻ vai sem o cache do servidor (`nocache=1`); o
+pedido é limitado a 400 dias e a janela guarda o intervalo que o servidor devolveu; trocar
+de usuário descarta a janela. Se o Clockwork não responder, a mensagem diz que o total não
+foi conferido.
+
+### 🚧 Trava do planejamento ao apontar (2026-10-20)
+
+Configuração dos gestores em **⚙️ Configurações › 📋 Meu Planejamento** (`cfg.planGate =
+{modo:'off'|'aviso'|'bloqueio', rascunho}`, chave de papel: o `api/config.js` recusa a mudança
+de quem não é gestor/admin). Com a regra ligada, lançar horas num dia que **não está no seu
+planejamento semanal enviado** (plano da semana inexistente, em elaboração/devolvido sem a
+opção `rascunho`, ou sem atividade naquele dia) mostra uma sobreposição própria (`.pg-bg`):
+**Avisar** explica, registra `apontar-sem-plano` no 🗒 Histórico e deixa seguir; **Bloquear**
+só oferece "📋 Ir para o Meu Planejamento" (já na semana certa). Fim de semana, feriado,
+ausência (`mpCapDia === 0`) e dias antes do início da apuração (`mpInicioVig`) são dispensados.
+A porta é **uma** — `planGate(dias)` em `04-meu-planejamento.js`, que lê o plano com
+`planGateCarrega` (aguardável, mesmo cache de `mpGaranteMeu`) — e todo lugar que grava worklog
+próprio a chama **antes do POST**: ⏱ Apontar (linha, convite, 👥 em grupo), 🛠 Gestão, 🧾
+Preciso criar meus tickets, 📞 Ligações, ➗ Rateio, 🔁 Transformar, 📍 Meu dia, 🎫 criação
+rápida e 🔗 vincular. Falha ao ler o plano não bloqueia (toast e segue). É regra de tela: o
+servidor ainda não a impõe (roadmap).
+
+### Indicadores do planejamento na 🏠 Início (2026-10-20)
+
+No bloco "seu dia": **🗂 Projetos da semana** (projetos do MEU plano da semana, planejado ×
+feito pela janela do ⏱ Apontar — substitui o card da alocação macro aposentada), **💬
+Aguardando sua resposta** (menções sem resposta + comentários de OUTRAS pessoas nos meus
+tickets sem ação minha depois, pela atividade de 7 dias do Radar + plano devolvido; abre a
+🛠 Gestão só nesses tickets via `soKeys`) e **⏳ Com o cliente** (meus tickets em status
+"aguardando cliente"). Nenhuma leitura nova: tudo vem do que a Início já carrega
+(`/api/vencimentos`, `/api/atividade`, Inbox, plano da semana).
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 

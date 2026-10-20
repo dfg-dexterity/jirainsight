@@ -492,6 +492,7 @@ async function gxApontaConfirma(){
   const dia=((document.getElementById('gx-ap-dia')||{}).value||'').trim()||hojeSP();
   const coment=((document.getElementById('gx-ap-coment')||{}).value||'').trim();
   if(!seg||seg<=0){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent='Tempo inválido — use 1h30, 45m ou 2:15.'; } return; }
+  if(!(await planGate(dia))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   const bt=document.getElementById('gx-ap-confirmar'); if(bt) bt.disabled=true;
   if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Registrando o apontamento…'; }
   try{
@@ -505,6 +506,7 @@ async function gxApontaConfirma(){
     (((estado.analytics.dados||{}).abertos)||[]).forEach(soma);
     (((estado.analytics.dados||{}).concluidos)||[]).forEach(soma);
     logAcao({acao:'apontar', t:ctx.k, para:fmtH(seg), ok:true});
+    try{ registraExtraDia(dia, seg, ctx.k); }catch(e){}   // total do dia e recentes do ⏱ Apontar acompanham na hora
     invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
     _gxApont=null; fechaModal();
     toast(`✓ ${fmtH(seg)} apontadas em ${ctx.k}.`,'ok');

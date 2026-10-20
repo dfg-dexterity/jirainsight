@@ -28,7 +28,8 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{} },
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{},
+    meusLogs:null, meusLogsP:null, meusLogsSujo:false, meusLogsErro:0 },   // ⏱ janela própria das MINHAS horas por dia (13)
   // 🏦 Controladoria de Projetos: período próprio, categoria ativa e caches
   // (worklogs do período + consolidado do Jira p/ execução do esforço).
   ctrl:{ de:'', ate:'', cat:'', tempo:null, tempoB:false, tempoErro:'', chaveT:'',
@@ -500,8 +501,15 @@ async function carrega(periodo, forca){
   removeUsuariosTecnicos(t, a);
   aplicaVigenciaUsuarios(usuarios, t, a);
   estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
-  estado.apontar.extraPorDia={};   // dados frescos do Clockwork já incluem o que foi apontado: zera o acumulador otimista
-  estado.apontar.extraLogs=[];
+  // Dados frescos do Clockwork já incluem o que foi apontado nos dias que o período cobre: o acumulador otimista desses
+  // dias sai. Dentro da janela própria do ⏱ Apontar (meusLogs) ele FICA — a releitura dela (sem cache, marcada aqui)
+  // é quem reconcilia, senão um apontamento recém-feito sumiria até o Clockwork responder de novo.
+  { const ap=estado.apontar; const m=ap.meusLogs; const mt=(t&&t.meta)||{};
+    const cobre=(d)=>!!(m&&m.de&&d>=m.de&&d<=m.ate);
+    const noPeriodo=(d)=>!!(mt.startDate&&mt.endDate&&d>=mt.startDate&&d<=mt.endDate);
+    ap.extraLogs=(ap.extraLogs||[]).filter(x=>cobre(x.d)||!noPeriodo(x.d));
+    const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
+    ap.meusLogsSujo=true; ap.recentes=null; }
   estado.cache[periodo]={tempo:t,atividade:a,usuarios,avisoAtiv:aviso};
 }
 
