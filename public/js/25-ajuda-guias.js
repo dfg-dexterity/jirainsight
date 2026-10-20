@@ -744,6 +744,7 @@ const GUIAS={
     {s:'#conteudo .rp-stack',ti:'Gráficos',tx:'Vendidas × previsto × realizado por mês, a alocação empilhada por pessoa e a cascata da receita até a margem.',quando:'Aparece com um plano aberto.'}]},
   roadmap:{t:'🗺️ Roadmap',p:[
     {c:'🗺️ Roadmap',ti:'O que vem por aí',tx:'O rumo da ferramenta: em desenvolvimento, planejado e em avaliação. A lista é revisada a cada mudança no app (a verificação automática reprova a mudança que não a revisa) — a data da última revisão fica no topo, ao lado do total de itens.'},
+    {s:'#conteudo [data-rm-analise]',ti:'📈 De onde vieram os itens',tx:'A análise de 20/10/2026 comparou o app com 36 ferramentas de mercado, auditou as 44 telas e mediu o celular — os itens das três ondas (apontar com menos atrito · organizar o meu trabalho · o time e a plataforma) saíram dela. O link abre o documento completo, com as evidências e as fontes.'},
     {c:'✅ Entregas recentes',ti:'✅ Entregas recentes',tx:'O que já foi publicado, direto das Novidades — para conferir se o que você pediu chegou.'},
     {ti:'Como entrar no roadmap',tx:'Ideias e bugs entram pelo 🐞 Reportar (o botão 🐞 do canto, ⋯ Mais ou Ctrl+K): cada relato vira um ticket no Jira (Bug ou Melhoria, projeto JI) e um issue no GitHub, ligados — e as melhorias aceitas viram item aqui.'}]},
   gestao:{t:'🛠 Gestão de Tickets',p:[

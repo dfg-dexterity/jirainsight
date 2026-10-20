@@ -269,6 +269,21 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
   `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
   (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
+- **📈 Análise do app × mercado e plano de melhorias (2026-10-20, a pedido do usuário: "verifique meu aplicativo
+  como um todo, analise outras ferramentas de mercado semelhantes, sugira como melhorar — funcionalidades,
+  usabilidade e facilidade para a pessoa organizar seu trabalho — e crie itens no roadmap"):** o documento mora em
+  **`docs/analise-mercado-e-melhorias-2026-10-20.md`** (método, inventário, achados com evidência arquivo:linha,
+  mercado com fontes, oportunidades em três ondas, o que ficou de fora de propósito) e a tela do 🗺️ Roadmap linka
+  para ele (`[data-rm-analise]`, com passo no guia). Os **27 itens novos** entraram no topo do `ROADMAP` numa leva
+  comentada (`// ---- 📈 Análise do app × mercado`), cada descrição começando por "Análise de 2026-10-20:" com a
+  evidência e as ferramentas que fazem igual; 4 itens foram **reescritos** (📋 Carga das próximas semanas, 📣 Cobrar o
+  apontamento, 📊 Uso do painel, ⚡ Carregar sob demanda → "Abertura mais leve", que subiu para planejado). O estágio é
+  sugestão da análise; o usuário decide. Números que a análise fixou e que valem como régua para as próximas
+  entregas: 2,4 MB de JS em 45 módulos; 13–16 requisições na Início (atividade 2×, tempo 3×); 11 pontos gravam
+  worklog; mobile-audit com transbordo 0 e alvos de toque < 44 px em 111/114 no Apontar. Dado de uso real não entrou
+  (o Supabase do painel não estava acessível daqui). Lição de método: a auditoria do código, a pesquisa de mercado e
+  a medição mobile rodaram em paralelo (dois agentes + script) e o documento consolidou os três; o agente de mercado
+  não sabia que "Copiar semana anterior" e "Criar rotina" já existiam — conferir no código antes de propor.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

@@ -841,6 +841,23 @@ tickets sem ação minha depois, pela atividade de 7 dias do Radar + plano devol
 "aguardando cliente"). Nenhuma leitura nova: tudo vem do que a Início já carrega
 (`/api/vencimentos`, `/api/atividade`, Inbox, plano da semana).
 
+### 📈 Análise do app × mercado e plano de melhorias (2026-10-20)
+
+A pedido do usuário, o app inteiro foi auditado (44 telas, 9 fluxos da pessoa e do gestor, capturas no
+computador e no celular, `scripts/mobile-audit.mjs`) e comparado com 36 ferramentas de mercado em seis
+categorias (apontamento sobre o Jira — Clockwork Pro, Tempo, Everhour, Clockify —, apontamento automático —
+Toggl, Timely, Memtime, Timing, Rize —, organização pessoal — Sunsama, Akiflow, Reclaim, Jira *For you*,
+Linear, Asana —, capacidade do time — Float, Runn, ActivityTimeline —, rituais no Teams e IA aplicada).
+O resultado está em **`docs/analise-mercado-e-melhorias-2026-10-20.md`** (resumo executivo, achados com
+evidência arquivo:linha, tabela de mercado, padrões de UX, oportunidades priorizadas em três ondas e as
+fontes) e virou **27 itens novos + 4 reescritos no 🗺️ Roadmap** (revisão `2026-10-20.4`), com um link
+para o documento no topo da tela do Roadmap. As três ondas: **apontar com menos atrito** (cronômetro,
+editar/desfazer, "continuar de onde parei", lembrete pessoal de fim de dia, rascunho do dia em cartões,
+componente único de apontamento), **organizar o meu trabalho** (lista única dos meus tickets, plano ligado
+a tickets, grade semanal, Início com ações no lugar e modo foco, atalhos, Hoje em linha do tempo, rituais)
+e **o time e a plataforma** (bom-dia no Teams, config fatiada por perfil, abertura mais leve, alvos de
+toque de 44 px, fechamento semanal do timesheet). O estágio de cada item é a sugestão da análise; o time decide.
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
