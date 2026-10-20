@@ -279,11 +279,15 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   evidência e as ferramentas que fazem igual; 4 itens foram **reescritos** (📋 Carga das próximas semanas, 📣 Cobrar o
   apontamento, 📊 Uso do painel, ⚡ Carregar sob demanda → "Abertura mais leve", que subiu para planejado). O estágio é
   sugestão da análise; o usuário decide. Números que a análise fixou e que valem como régua para as próximas
-  entregas: 2,4 MB de JS em 45 módulos; 13–16 requisições na Início (atividade 2×, tempo 3×); 11 pontos gravam
-  worklog; mobile-audit com transbordo 0 e alvos de toque < 44 px em 111/114 no Apontar. Dado de uso real não entrou
-  (o Supabase do painel não estava acessível daqui). Lição de método: a auditoria do código, a pesquisa de mercado e
-  a medição mobile rodaram em paralelo (dois agentes + script) e o documento consolidou os três; o agente de mercado
-  não sabia que "Copiar semana anterior" e "Criar rotina" já existiam — conferir no código antes de propor.
+  entregas: 2,5 MB de JS em 45 módulos; 13 leituras da API na abertura da Início (18 requisições com identidade;
+  atividade 2×, tempo 4×); 12 pontos gravam worklog (os 12 do planGate; 4 sem `registraExtraDia`); mobile-audit com
+  transbordo 0 nas 15 telas medidas e alvos de toque < 44 px em 111/114 no Apontar. Dado de uso real não entrou (o
+  Supabase do painel não estava acessível daqui). Lições de método: a auditoria do código, a pesquisa de mercado e a
+  medição mobile rodaram em paralelo (dois agentes + script) e o documento consolidou os três; o agente de mercado não
+  sabia que "Copiar semana anterior" e "Criar rotina" já existiam — conferir no código antes de propor; e a
+  **verificação adversarial** (8 agentes, 230 afirmações, 39 corrigidas — 4 erradas, 35 imprecisas) pegou contagens
+  feitas de cabeça ("só 3 chamam registraExtraDia" eram 8; "95 abreModal" eram 94; "📞 tem sobreposição própria" não
+  tem) — número ou "não existe X" só entra no texto depois do grep.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

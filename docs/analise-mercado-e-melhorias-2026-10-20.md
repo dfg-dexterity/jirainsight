@@ -8,15 +8,15 @@ Os itens que saíram desta análise estão no 🗺️ Roadmap do próprio app (`
 
 ## 1. Resumo executivo
 
-**O que o app já é.** O Dexterity Hub cobre o ciclo inteiro de uma consultoria que vive de horas: 44 telas em 4 áreas, da ⏱ hora apontada ao 🧾 Odoo, passando por planejamento semanal com aprovação, reuniões do Outlook que viram ticket, ligações do Mac que viram apontamento, relato em linguagem natural que vira tickets, portal do cliente, relatório de sexta no Teams e guias interativos em todas as telas. Comparado com 36 ferramentas de mercado, há coisas que **quase ninguém tem**: reunião → ticket com convite de apontamento para os presentes, detector de ligações, trava do planejamento ao apontar, apuração de AMS por ticket pai ligada ao faturamento e um roadmap vivo dentro do app.
+**O que o app já é.** O Dexterity Hub cobre o ciclo inteiro de uma consultoria que vive de horas: 44 telas em 4 áreas, da ⏱ hora apontada ao 🧾 Odoo, passando por planejamento semanal com aprovação, reuniões do Outlook que viram ticket, ligações do Mac que viram apontamento, relato em linguagem natural que vira tickets, portal do cliente, relatório de sexta no Teams e guias interativos em todas as telas. Comparado com 36 ferramentas de mercado, há coisas que **quase ninguém tem**: reunião → ticket com convite de apontamento para os presentes, detector de ligações, trava do planejamento ao apontar, apuração de AMS por ticket pai, contratos de parceria ligados ao Odoo e um roadmap vivo dentro do app.
 
 **Onde dói hoje (para a pessoa).**
 
 1. **Apontar ainda é digitar de memória.** Não há cronômetro, não dá para editar nem apagar um apontamento pelo app, não há "desfazer", e ninguém avisa a pessoa no fim do dia que faltam horas. Os 🕑 recentes, o caso mais comum, ficam recolhidos no fim da página.
 2. **O planejamento não conversa com os tickets nem com o Apontar.** O item do plano é "projeto + texto + horas"; não vira lista do dia, não pré-preenche worklog, e o comparativo não diz qual ticket ficou de fora.
-3. **"O que é meu" está em seis lugares.** Início, Apontar (que mostra só o que vence até hoje), Gestão, Inbox, Agenda e Meu Planejamento — nenhum responde "o que é meu e em que ordem ataco hoje". A Início tem cerca de 20 blocos e 5.800 px no computador (8.800 px no celular), e nenhum card age no lugar: tudo é "Ver →".
-4. **No celular nada transborda, mas 95% dos alvos de toque estão abaixo de 44 px** (111 de 114 no Apontar, 87 de 90 na Gestão).
-5. **Plataforma:** 2,4 MB de JavaScript sem build em 45 módulos carregados em toda abertura; 13 a 16 requisições na Início, com leituras repetidas; a config compartilhada inteira (valores de contrato, custo/h) desce para o navegador de todo o time; 11 pontos de código gravam worklog com validações e feedbacks diferentes.
+3. **"O que é meu" está em seis lugares.** Início, Apontar (que por padrão mostra só o que vence até hoje), Gestão, Inbox, Agenda e Meu Planejamento — nenhum responde "o que é meu e em que ordem ataco hoje". A Início tem 12 cards de página (mais de 30 blocos contando os mini-cards) e 5.800 px no computador (8.800 px no celular), e quase nenhum card age no lugar: fora o 🎫 Criar ticket rápido e a ficha 🔍, tudo é "Abrir →".
+4. **No celular nada transborda nas 15 telas medidas, mas cerca de 90% dos alvos de toque estão abaixo de 44 px** (411 de 458 no total; 111 de 114 no Apontar, 87 de 90 na Gestão).
+5. **Plataforma:** 2,5 MB de JavaScript sem build em 45 módulos carregados em toda abertura; 13 leituras da API na abertura da Início (18 requisições com identidade), com leituras repetidas; a config compartilhada inteira (valores de contrato, custo/h) desce para o navegador de todo o time; 12 pontos de código gravam worklog com validações e feedbacks diferentes.
 
 **O que o mercado faz e nós não.** Timer com "continuar o último" (Toggl, Clockify, Everhour), lembrete de fim de dia com meta que respeita feriado e folga (Clockify, Harvest, Fillchecker), rascunho do dia em cartões para aceitar de uma vez (Tempo, Timely), visão "Hoje" unificada com agenda + plano + apontado (Tempo My Work, Akiflow, Sunsama), fechamento semanal do timesheet com aprovação e trava (Clockwork Pro, Tempo, Harvest), variância planejado × real com horas assumidas e heatmap de capacidade (Runn, Float, ActivityTimeline), digest pessoal de manhã (Rize, DailyBot) e lista de trabalho única "para você" (Jira For you, Asana My Tasks, ClickUp Me Mode).
 
@@ -53,9 +53,9 @@ Dados de uso real (📊 Uso do painel) não foram consultados nesta rodada: o pr
 - 📞 Ligações: detector no Mac que sabe pelo Core Audio quem usa o microfone e, no fim da chamada, oferece criar ticket ou apontar com a hora real. Só o Timing (macOS) tem algo parecido, sem integração com o Jira.
 - 🧾 Preciso criar meus tickets: relato em linguagem natural → itens → tickets criados, horas apontadas e status movidos num fluxo só. O Rovo quebra trabalho em subtarefas, mas não aponta nem move.
 - 🚧 Trava do planejamento ao apontar (avisar/bloquear) em todos os lugares que gravam horas, com régua de capacidade (feriado, ausência, fim de semana) — não encontrado em nenhuma ferramenta comparada.
-- 🛡 Apuração de AMS por ticket principal ligada ao 🧾 Odoo (item por projeto e período), 🤝 frentes de parceria com planilha do parceiro, 💰 fluxo de caixa. Produtos como Productive.io e Runn cobram caro por isso e não falam com o Odoo.
+- 🛡 Apuração de AMS por ticket principal (PDF por ticket pai, sem os tipos não faturáveis); 🤝 contratos de parceria ligados ao 🧾 Odoo (item por projeto e período), com frentes apuradas pela planilha do parceiro; 💰 fluxo de caixa. Produtos como Productive.io e Runn cobram caro por isso e não falam com o Odoo.
 - 🧭 Guia interativo em todas as 44 telas + tour, verificados por máquina; ✨ Novidades e 🗺️ Roadmap dentro do app com aviso automático no Teams.
-- Camada mobile sem transbordo em nenhuma tela; PWA instalável.
+- Camada mobile sem transbordo nas 15 telas medidas; PWA instalável.
 
 ---
 
@@ -68,11 +68,11 @@ Cada achado cita a evidência (arquivo:linha no estado do repositório em 2026-1
 | Achado | Evidência | 🗺️ |
 | --- | --- | --- |
 | Não existe cronômetro: o único timer do app é o da pauta da reunião de prioridades. O `/api/apontar` já aceita `hora` (HH:MM), mas só o 📞 a manda; a linha do Apontar grava tudo às 09:00 | `06-prioridades.js:222,345`; `api/apontar.js:21-23,95-96`; `13-apontar.js:499` | ⏱ Cronômetro; (hora na linha já estava no roadmap) |
-| Não dá para editar nem apagar um worklog pelo app; o toast de sucesso não tem "desfazer"; 28 `confirm()` nativos | `api/apontar.js:19-28` (só cria); `13-apontar.js:753`, `20-gestao.js:512` | ↩ Editar/excluir + desfazer |
+| Não dá para editar nem apagar um worklog pelo app; o toast de sucesso não tem "desfazer"; 30 `confirm()` nativos | `api/apontar.js:19-28` (só cria); `13-apontar.js:753`, `20-gestao.js:512` | ↩ Editar/excluir + desfazer |
 | A lista padrão do Apontar é "vence até hoje, só os meus": ticket sem data ou com vencimento futuro some até mexer em 2 controles | `01-nucleo.js:30`; `13-apontar.js:440-462` | 👤 Minha lista de trabalho |
 | 🕑 Recentes (o caso mais comum: o mesmo ticket de ontem) ficam no fim da página e recolhidos; chips fixos 30m…8h sem "até a meta" nem "desde o último", embora meta e total do dia já estejam calculados | `13-apontar.js:550-559,499,744-746` | 🕑 Continuar de onde parei |
-| Nenhum lembrete pessoal: zero `Notification`/push no front; o servidor manda ranking e resumo ao **canal**; DM individual só para convites | `30-eventos-boot.js:63-64`; `api/teams.js:2-3,170,248` | 🔔 Lembrete diário |
-| 11 pontos gravam worklog com validações e mensagens diferentes; só 3 chamam `registraExtraDia` (o "Total do dia" não acompanha nos outros); o `planGate` é repetido em cada um | `13:714` × `20:494` × `14c:392`; `09:340`, `22:143`, `23:143`, `14b:312` sem extra | ♻️ Componente único |
+| Nenhum lembrete pessoal: zero `Notification`/push no front; o servidor manda ranking e resumo ao **canal**; DM individual só para os convites de apontamento e para a mensagem semanal de cada gerente (relatório de sexta) — nenhuma lembra a pessoa de apontar | `30-eventos-boot.js:63-64`; `api/teams.js:2-3,170,248,581` | 🔔 Lembrete diário |
+| 12 pontos gravam worklog com validações e mensagens diferentes (os mesmos 12 em que o `planGate` é chamado; o 📝 da Agenda só cria convites); 8 chamam `registraExtraDia` e 4 não — 📍 Meu dia, 🎫 criação rápida com tempo, 📨 convidar incluindo a si mesmo e 🔗 vincular com worklog —, então o "Total do dia" não acompanha neles | `13:714` × `20:494` × `14c:392`; `09:340`, `21:117`, `21:244`, `24:119` sem extra | ♻️ Componente único |
 | Três assistentes de "reconstruir o dia" sem ponte: 📍 Meu dia (ActivityWatch + Terminal + token em variável de ambiente), 📞 Ligações e 🧾 relato | `09-qualidade-auditoria-meudia.js:352-361`; `14c`; `14b` | 🤖 Rascunho do dia; 📱 Meu dia sem Terminal |
 | O organizador da reunião não entra em `pessoas` do modal 📝 (checkbox desabilitado) e precisa apontar as próprias horas à parte | `03-agenda-reunioes.js:387,446,477` | 🧑‍🤝‍🧑 Organizador aponta no 📝 |
 | Convites de apontamento expiram em 21 dias sem aviso; a confirmação exige abrir o painel | `api/apontar.js:37`; `19:342`; `13:1156` | 📨 Lembrete dos convites |
@@ -84,17 +84,17 @@ Cada achado cita a evidência (arquivo:linha no estado do repositório em 2026-1
 | O item do plano é projeto + descrição livre + horas; não aponta para ticket, então não vira lista do dia nem pré-preenche o worklog; o comparativo é só por projeto/dia | `04-meu-planejamento.js:196-216,127-164` | 🔗 Plano ligado a tickets |
 | Um formulário por vez com 5 campos: uma semana comum são ~15 ciclos; não há grade projeto × dia nem "copiar este dia"; "Copiar semana anterior" duplica se clicado 2×. Já existem "Copiar semana anterior", "Criar rotina" e arrastar entre dias | `04:227,202-209,321-322,1134-1142,1054-1080` | 🧩 Grade semanal |
 | Nenhuma sugestão a partir dos meus tickets que vencem na semana nem das reuniões da Agenda, embora a Início já tenha os dois | `08-inicio.js:656,639` | 🔗 Plano ligado a tickets |
-| Plano enviado bloqueia edição; com a trava em "bloqueio", um imprevisto no meio da semana trava o apontamento até retirar o envio e reaprovar | `04:306,311,1251-1262` | 🔄 Rollover + guarda-corpo; (exceções já estavam no roadmap) |
-| Botão "Modelo anterior desta semana" (cfg.planosSemana) ainda aparece | `04:314,1034` | 🧽 Rastros aposentados |
+| Plano enviado bloqueia edição; com a trava em "bloqueio", um imprevisto no meio da semana trava o apontamento até retirar o envio (ou reabrir o aprovado), incluir a atividade no dia e reenviar — a régua aceita plano "enviado" ou "aprovado" sem nova aprovação, e com `rascunho` ligado o plano em elaboração já passa | `04:306,311,1155-1167,1251-1262` | 🔄 Rollover + guarda-corpo; (exceções já estavam no roadmap) |
+| Botão "Modelo anterior desta semana" (cfg.planosSemana) continua no código e aparece nas semanas que têm plano no modelo antigo por tickets | `04:314,1034` | 🧽 Rastros aposentados |
 
 ### 4.3 Começar o dia — a Início
 
 | Achado | Evidência | 🗺️ |
 | --- | --- | --- |
-| A Início junta agenda + tickets + plano + horas, mas como **contadores e links**: nenhum card age no lugar (apontar no card de horas, criar o ticket da reunião de hoje, concluir um ticket) | `08-inicio.js:493` (pcard), `641-648` (evRow), `663-664` (tkRow) | ⚡ Ações no lugar + modo foco |
-| ~20 blocos (11 cards pessoais + 6 do time + Novidades + vencidos por projeto + recém-criados + criados na semana + criação rápida + Radar + Ir para + Fechamento do mês + Apontamento do time + Onde crio + Time); 5.789 px no computador e 8.813 px no celular; nada é recolhível ou personalizável; cada chegada de dado redesenha tudo | captura `desk-acoes.png`; `08:371` | ⚡ Ações no lugar + modo foco |
-| 13 a 16 requisições na abertura: `/api/atividade?janela=7d` pedido 2× (boot e Radar) e `/api/tempo` 3× com janelas sobrepostas | `01-nucleo.js:473-479`; `08:151,176,268,274,524,542` | ⚡ Abertura mais leve (reescrito) |
-| As Novidades na Início trazem o texto integral (a entrada de 20/10 tem ~1.000 caracteres); o rodapé "Fontes / Timesheet / Planejar / Apontar / Observações" repete em todas as telas | `08:449`; `index.html:225-240` | ⚡ Ações no lugar + modo foco |
+| A Início junta agenda + tickets + plano + horas, mas os cards do seu dia (11 mini-cards + 📅 Hoje na agenda, 🎯 Meus tickets, 📊 Sua semana) são só **contadores e links**: nenhum deles age no lugar (apontar no card de horas, criar o ticket da reunião de hoje, concluir um ticket); as únicas ações no lugar ficam mais abaixo — o 🎫 Criar ticket rápido, a ficha 🔍 nas linhas do Radar e dos recém-criados e o 🌳 Onde crio | `08-inicio.js:493` (pcard), `641-648` (evRow), `663-664` (tkRow) | ⚡ Ações no lugar + modo foco |
+| 12 cards de página (o seu dia com 11 mini-cards e 3 blocos, Apontamento do time, criação rápida, recém-criados, criados na semana, vencidos por projeto, Fechamento do mês, Radar, Time com 6 mini-cards, Onde crio, Ir para, Novidades — mais de 30 blocos no total); 5.789 px no computador e 8.813 px no celular; nenhum card pode ser recolhido, escondido ou reordenado (só o Radar guarda a combinação escolhida); cada chegada de dado redesenha tudo | captura `desk-acoes.png`; `08:371` | ⚡ Ações no lugar + modo foco |
+| 13 leituras da API na abertura (18 requisições com identidade, contando os POSTs do plano, da config e do status do Odoo; 11 sem identidade): `/api/atividade?janela=7d` pedido 2× (boot e Radar) e `/api/tempo` 4× com janelas sobrepostas (7 dias no boot, mês até hoje, semana até hoje e 7 dias no Radar — boot e Radar pedem o mesmo intervalo com URLs diferentes) | `01-nucleo.js:473-479`; `08:160,176,268,274` | ⚡ Abertura mais leve (reescrito) |
+| As Novidades na Início trazem o texto integral (as três entradas de 20/10 somam quase 3.000 caracteres); o rodapé "Fontes / Timesheet / Planejar / Apontar / Observações" repete em todas as telas | `08:449`; `index.html:225-240` | ⚡ Ações no lugar + modo foco |
 | 🎯 Prioridades (ritual semanal de gestão) ocupa um dos 4 botões fixos da barra para todos, enquanto 📅 Agenda e 📋 Meu Planejamento, diários para o consultor, ficam no dropdown | `index.html:91-94,100-101` | ⚡ Ações no lugar + modo foco |
 
 ### 4.4 Acompanhar o que me pediram
@@ -102,14 +102,14 @@ Cada achado cita a evidência (arquivo:linha no estado do repositório em 2026-1
 | Achado | Evidência | 🗺️ |
 | --- | --- | --- |
 | "O que me pediram" está em 6 lugares (Inbox, Início, Apontar, Gestão, Agenda, Meu Planejamento); não há lista de trabalho única | fluxo f da auditoria | 👤 Minha lista de trabalho |
-| Ser atribuído a um ticket ou ter o vencimento/status alterado por outra pessoa não gera pendência no Inbox; menções limitadas a 14 dias | `19-mencoes-inbox-analytics.js:234-237,258` | 📥 Inbox com atribuições + snooze |
+| Ser atribuído a um ticket ou ter o vencimento/status alterado por outra pessoa não gera pendência no Inbox; menções com janela padrão de 14 dias (ajustável para 7/30/60 na aba 💬 Menções; teto de 60 no servidor) | `19-mencoes-inbox-analytics.js:66,234-237,258` | 📥 Inbox com atribuições + snooze |
 | KPI "🔒 Alocações p/ aprovar" lê `cfg.alocTravas`, escrito só pela tela arquivada — nunca enche; o Meu dia ainda lê `cfg.alocacoes` | `19:218-223,297`; `09:309` | 🧽 Rastros aposentados |
 
 ### 4.5 Criar ticket
 
 | Achado | Evidência | 🗺️ |
 | --- | --- | --- |
-| Oito portas para criar (rápido com IA, lote, árvore, relato, reunião, ligação, voz/Siri/Alexa, bot do Teams); ➕ Novo lista 7 itens; a mais rápida (IA) só existe na Início e o "📝 Criar ticket" do menu abre o módulo de lote (109 KB); a vista chama-se `planejar`, que confunde com o Meu Planejamento | `08:802`; `index.html:141-148`; `29-url-topo.js:4` | ➕ Uma porta só |
+| Pelo menos oito portas para criar (rápido com IA, lote, árvore, relato, reunião, ligação, voz/Siri/Alexa, bot do Teams — e ainda o 🔗 Vincular reunião › criar e o 🔁 Transformar); ➕ Novo lista 7 itens; a mais rápida (IA) só existe na Início e o "📝 Criar ticket" do menu abre o módulo de lote (109 KB); a vista chama-se `planejar`, que confunde com o Meu Planejamento | `08:802`; `index.html:141-148`; `29-url-topo.js:4` | ➕ Uma porta só |
 
 ### 4.6 Celular (medição `mobile-audit`, iPhone emulado, 393 px)
 
@@ -128,11 +128,11 @@ A camada mobile de 2026-09-28 resolveu o transbordo (meta 0, atingida em todas);
 
 | Achado | Evidência | 🗺️ |
 | --- | --- | --- |
-| 2.490.830 bytes de JS em 45 módulos sem minificação, todos em `<script defer>` em toda abertura; os maiores: guias 172 KB, novidades/roadmap 159 KB, rentabilidade 129 KB, parcerias 123 KB, Início 119 KB, criar 109 KB; Negócio + Insights ≈ 700 KB para quem só aponta; CSS 252 + 131 KB | `index.html:264-308`; `du -b public/js` | ⚡ Abertura mais leve (reescrito) |
+| 2.510.537 bytes de JS nos 45 módulos carregados (sem o `_arquivado`), sem minificação, todos em `<script defer>` em toda abertura; os maiores: novidades/roadmap 179 KB (cresceu com esta análise), guias 172 KB, rentabilidade 129 KB, parcerias 123 KB, Início 119 KB, criar (`14-planejar.js`) 109 KB; Negócio + Insights ≈ 700 KB para quem só aponta; CSS 252 + 131 KB | `index.html:264-308`; soma dos 45 arquivos carregados (`ls public/js/*.js \| grep -v '/_' \| xargs cat \| wc -c`) | ⚡ Abertura mais leve (reescrito) |
 | A config compartilhada (45 chaves `cfg.*`) desce **inteira** para o navegador de todo o time — contratos com valores, custo/h por pessoa, parcerias com equipe/previsão/documentos — e é mesclada no cliente; teto de 256 KB | `api/_lib/portal.js:15`; `16-contratos-ams-receita.js:278`; `api/config.js:1241` | 🧾 Config fatiada por domínio e perfil |
-| Um único `#modal` para 95 chamadas: busca 🎫 → ficha → apontar substituem o conteúdo e só a ficha tem "voltar"; `fechaModal` redesenha a Gestão sempre; 📞 e planGate precisaram de sobreposição própria | `26-navegacao.js:61-66`; `20:408`; `04:1301` | 🪟 Pilha de modais / gaveta |
+| Um único `#modal` para 94 chamadas: busca 🎫 → ficha → apontar substituem o conteúdo e só a ficha tem "voltar"; `fechaModal` redesenha a Gestão sempre; o planGate precisou de sobreposição própria porque Gestão, 📞 e convite já ocupam o `#modal` | `26-navegacao.js:61-66`; `20:408`; `04:1301`; `14c:204` | 🪟 Pilha de modais / gaveta |
 | PWA instalável e service worker que nunca intercepta `/api/`: sem rede, o apontamento falha e se perde | `sw.js:45`; `13:764` | 📱 Fila offline |
-| Atalhos só de navegação (Ctrl+K, `/`, Ctrl+J, `?`, Esc); nenhum para apontar, criar ou trocar de aba; sem lista de atalhos na Ajuda | `26:319`; `12b:338`; `30:9` | ⌨️ Atalhos de ação |
+| Atalhos globais quase só de navegação (Ctrl+K, `/`, Ctrl+J, `?`, Esc — as exceções são Ctrl+Enter no 🐞 Reportar e Ctrl+C para copiar uma data); nenhum para apontar, criar ou trocar de aba; sem lista consolidada de atalhos na Ajuda | `26:319`; `12b:338`; `30:9` | ⌨️ Atalhos de ação |
 | A telemetria registra abertura e segundos por tela, não ações (abriu o Apontar e não apontou, cancelou o 📝, usou Ctrl+K) | `31-uso.js:47-51,126-156` | 📊 Uso do painel (reescrito) |
 | Acessibilidade: 228 `aria-*`, 61 `role=`, 24 `tabindex`, 611 `data-tip` por hover | contagens | (já no roadmap: ♿) |
 
