@@ -808,8 +808,11 @@ Antes, tudo isso somava `estado.tempo.worklogs` — o período selecionado no to
 7 dias), que o Apontar nem mostra —, e apontar num dia fora dele dizia que o total do dia
 era só aquele lançamento. Fora da janela o período do topo ainda vale; o acumulador
 otimista (`extraPorDia`/`extraLogs`) soma por cima e é descontado quando a leitura seguinte
-já traz o mesmo worklog (dia + ticket + segundos). Se o Clockwork não responder, a
-mensagem diz que o total não foi conferido.
+traz um worklog **novo** com o mesmo dia + ticket + segundos (um igual que já existia não o
+engole). A releitura depois de gravar ou do ↻ vai sem o cache do servidor (`nocache=1`); o
+pedido é limitado a 400 dias e a janela guarda o intervalo que o servidor devolveu; trocar
+de usuário descarta a janela. Se o Clockwork não responder, a mensagem diz que o total não
+foi conferido.
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 

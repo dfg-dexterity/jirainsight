@@ -13,7 +13,7 @@
 //   • scripts/check-roadmap-commits.mjs — o commit que mexe no app sem mudar ROADMAP nem ROADMAP_REV;
 //   • scripts/check-entrega.mjs — ROADMAP_REV para trás da última entrada de NOVIDADES.
 // É a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-10-20';   // ⏱ Apontar: total do dia certo num dia que já passou
+const ROADMAP_REV='2026-10-20.2';   // ⏱ Apontar: total do dia certo num dia que já passou (+ revisão)
 const ROADMAP=[
   { s:'avaliacao', t:'⏱ Apontar — informar a hora do apontamento na própria linha', d:'Desde 2026-10-09 o /api/apontar aceita a hora de início (o 📞 Call tracking manda a hora real da ligação), mas a linha do ⏱ Apontar e o 🧾 Preciso criar meus tickets gravam tudo às 09:00 — no 🗓 Calendário do Meu timesheet os blocos do dia se empilham na mesma hora. Um campo de hora opcional na linha (e o 📅 estimada/⏱ real da Agenda) deixaria o calendário fiel ao dia; falta decidir se vale a pergunta a mais em cada apontamento.' },
   { s:'planejado', t:'📞 Ligações — detector também no Windows', d:'Desde 2026-10-09 o detector de ligações roda no Mac (app de barra de menus que lê pelo Core Audio quem usa o microfone). No Windows o mesmo sinal existe no registro (CapabilityAccessManager › microphone: o app com LastUsedTimeStop zerado está usando o microfone agora); um agente pequeno em PowerShell com notificação do Windows abriria a mesma aba 📞 Ligações, sem mudar nada no painel.' },

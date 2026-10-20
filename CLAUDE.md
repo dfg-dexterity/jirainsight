@@ -227,9 +227,21 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   extraLogs (`apRecentesDe`), sem leitura própria — por isso o modal de apontar da 🛠 Gestão passou a chamar
   `registraExtraDia`; (5) `mtsLogsSemana` lê a janela e a navegação ‹ › alarga e redesenha ("Carregando…" enquanto
   lê); (6) o passo 3 do 🧾 Preciso criar meus tickets lê a janela do dia escolhido. Escolher a data na linha já lê o dia
-  (o Apontar não espera). Teste: `apontar-dia-test.mjs` (Playwright, 24 casos; fixture `MEUS_WL` relativo a hoje +
-  `/api/vencimentos` no `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou, para
-  provar que a releitura não dobra). Fica no roadmap: a hora do apontamento na própria linha.
+  (o Apontar não espera). **Regras da revisão (mesmo dia, 10 achados corrigidos):** o pedido é limitado a 400 dias
+  (`voltaDias(hoje,399)`) e a janela guarda o intervalo que o servidor DEVOLVEU (`j.meta.startDate/endDate`; resposta
+  que não é `custom` é erro) — o `/api/tempo` cai em silêncio nos "7 dias" quando o pedido passa de 400 dias, e a janela
+  ficaria "cobrindo" anos sem dados; a janela leva `a` = accountId e `apMeusLogs()` devolve null para outra identidade
+  (trocar usuário / esquecer credenciais zeram janela, recentes e otimista); a releitura vai com `nocache=1` quando
+  `meusLogsSujo` ou `meusLogsEscreveu` (o `registraExtraDia` marca), senão o cache de 20 min do servidor devolvia a
+  janela anterior ao apontamento; a reconciliação só consome worklog NOVO em relação à base anterior (contagem por
+  `d|k|s`) — 1h + 1h no mesmo ticket não engole o lançamento de agora; `carrega()` só zera o otimista dos dias FORA da
+  janela (dentro, a releitura reconcilia); `fazApontamento` reobtém a linha depois do await (a janela chegando redesenha
+  a lista); `apExtrasRemoveTicket(k)` no reclassificar (13) e no vincular (24); o passo 3 do 🧾 só redesenha quando a
+  janela passou a cobrir o dia (antes, sem identidade, virava laço infinito de microtarefas); a semana que não conseguiu
+  ler diz isso em vez de "sem apontamentos"; o realizado por projeto da "sua semana" (08) lê `minhasLogsEntre`. Teste:
+  `apontar-dia-test.mjs` (Playwright, 32 casos, um por achado; fixture `MEUS_WL` relativo a hoje + `/api/vencimentos` no
+  `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou e imita a queda nos "7 dias"
+  acima de 400 dias). Fica no roadmap: a hora do apontamento na própria linha.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

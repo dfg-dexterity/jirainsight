@@ -55,7 +55,24 @@ async function carregaVenc(ate, forca){
 // `estado.apontar.meusLogs = {de, ate, logs:[{d, s, k, p, dt, resumo}]}` — SÓ os meus worklogs, lidos de
 // /api/tempo?desde&ate (hoje-13 → hoje; alargada para trás quando um dia mais antigo é pedido). A janela manda nos
 // dias que cobre; fora dela o período do topo ainda vale; o acumulador otimista (extraPorDia) soma por cima.
-function apMeusLogs(){ const m=estado.apontar.meusLogs; return (m&&Array.isArray(m.logs))?m:null; }
+function apMeusLogs(){ const m=estado.apontar.meusLogs; const id=idApontar();
+  return (m&&Array.isArray(m.logs)&&id&&m.a===id.accountId)?m:null; }   // janela de OUTRA identidade não vale (trocar usuário)
+// Meus worklogs entre dois dias (inclusive): a janela nos dias que cobre, o período do topo fora dela. Sem os extras.
+function minhasLogsEntre(de, ate){
+  const id=idApontar(); const out=[]; const m=apMeusLogs(); if(!(id&&id.accountId)) return out;
+  (m?m.logs:[]).forEach(w=>{ if(w.d>=de&&w.d<=ate) out.push({d:w.d, s:w.s, k:w.k, p:w.p||'', dt:w.dt}); });
+  ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
+    if(w.a!==id.accountId) return; const d=(w.d||'').slice(0,10); if(!d||d<de||d>ate||(m&&d>=m.de&&d<=m.ate)) return;
+    out.push({d, s:Number(w.s)||0, k:w.k||'', p:w.p||(w.k?String(w.k).split('-')[0]:''), dt:w.d||''});
+  });
+  return out;
+}
+// Ticket que saiu do Jira ou mudou de chave (reclassificar, vincular): o otimista dele não reconcilia nunca — sai.
+function apExtrasRemoveTicket(k){
+  const ap=estado.apontar; if(!k) return;
+  ap.extraLogs=(ap.extraLogs||[]).filter(x=>x.k!==k);
+  const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
+}
 function apMeusLogsCobre(d){ const m=apMeusLogs(); return !!(m&&d&&d>=m.de&&d<=m.ate); }
 function apTempoCobre(d){ const mt=estado.tempo&&estado.tempo.meta; return !!(mt&&mt.startDate&&mt.endDate&&d>=mt.startDate&&d<=mt.endDate); }
 function minhasHorasPorDia(){
@@ -76,25 +93,38 @@ function minhasHorasPorDia(){
 function apGaranteMeusLogs(dia){
   const ap=estado.apontar; const id=idApontar(); if(!(id&&id.accountId)) return Promise.resolve(null);
   const hoje=hojeSP(); let de=voltaDias(hoje,13); if(dia&&/^\d{4}-\d{2}-\d{2}$/.test(dia)&&dia<de) de=dia;
+  const teto=voltaDias(hoje,399); if(de<teto) de=teto;   // o /api/tempo aceita 400 dias; além disso ele cairia em silêncio nos "7 dias"
   const m=apMeusLogs();
-  if(m&&m.de<=de&&m.ate>=hoje&&!ap.meusLogsSujo) return Promise.resolve(m);
+  if(m&&m.de<=de&&m.ate>=hoje&&!ap.meusLogsSujo&&!ap.meusLogsEscreveu) return Promise.resolve(m);
   if(m&&m.de<de) de=m.de;
   if(ap.meusLogsP){ if(ap.meusLogsDe<=de) return ap.meusLogsP; return ap.meusLogsP.then(()=>apGaranteMeusLogs(dia)); }
   if(ap.meusLogsErro&&Date.now()-ap.meusLogsErro<30000) return Promise.resolve(null);   // acabou de falhar: não insiste
   ap.meusLogsDe=de;
-  const p=fetch(`/api/tempo?desde=${de}&ate=${hoje}`).then(r=>r.json()).then(j=>{
+  // Releitura pedida (↻, dado excluído) ou gravação feita nesta sessão: sem o cache de 20 min do servidor.
+  const fresco=!!(ap.meusLogsSujo||ap.meusLogsEscreveu);
+  const p=fetch(`/api/tempo?desde=${de}&ate=${hoje}${fresco?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!j||!Array.isArray(j.worklogs)) throw new Error((j&&j.erro)||'tempo');
+    const mt=j.meta||{};   // só vale o intervalo que o servidor DEVOLVEU (um pedido inválido viria como "7 dias")
+    if(mt.janela&&mt.janela!=='custom') throw new Error('intervalo');
+    const deSrv=mt.startDate||de, ateSrv=mt.endDate||hoje;
     const nomes=j.resumos||{};
     const logs=j.worklogs.filter(w=>w.a===id.accountId).map(w=>({ d:(w.d||'').slice(0,10), s:Number(w.s)||0, k:w.k||'',
-      p:w.p||(w.k?String(w.k).split('-')[0]:''), dt:w.d||'', resumo:nomes[w.k]||'' })).filter(w=>w.d);
-    // O que esta sessão apontou e JÁ voltou na leitura sai do acumulador otimista (não conta duas vezes); o que ainda
-    // não voltou (Clockwork atrasado) continua contando.
-    const usados=new Set(); const sobra=[];
-    (ap.extraLogs||[]).forEach(x=>{ if(x.d<de||x.d>hoje){ sobra.push(x); return; }
+      p:w.p||(w.k?String(w.k).split('-')[0]:''), dt:w.d||'', resumo:nomes[w.k]||'' })).filter(w=>w.d>=deSrv&&w.d<=ateSrv);
+    // O que esta sessão apontou e JÁ voltou na leitura sai do acumulador otimista; o que ainda não voltou (Clockwork
+    // atrasado, cache) continua contando. Só o que é NOVO em relação à base anterior pode casar com um extra — um worklog
+    // igual que já existia antes do apontamento (1h + 1h no mesmo ticket) não engole o lançamento de agora.
+    const chave=(w)=>`${w.d}|${w.k}|${w.s}`; const antes=new Map();
+    const base=m?m.logs:minhasLogsEntre(deSrv, ateSrv);
+    base.forEach(w=>{ if(w.d>=deSrv&&w.d<=ateSrv) antes.set(chave(w),(antes.get(chave(w))||0)+1); });
+    const usados=new Set();
+    logs.forEach((w,i)=>{ const c=chave(w); const n=antes.get(c)||0; if(n>0){ antes.set(c,n-1); usados.add(i); } });
+    const sobra=[];
+    (ap.extraLogs||[]).forEach(x=>{ if(x.d<deSrv||x.d>ateSrv){ sobra.push(x); return; }
       const i=logs.findIndex((w,i2)=>!usados.has(i2)&&w.d===x.d&&w.k===x.k&&w.s===x.s);
       if(i>=0) usados.add(i); else sobra.push(x); });
     ap.extraLogs=sobra; const por={}; sobra.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
-    ap.meusLogs={ de, ate:hoje, logs }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
+    ap.meusLogs={ de:deSrv, ate:ateSrv, a:id.accountId, logs }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
+    if(fresco) ap.meusLogsEscreveu=false;
     return ap.meusLogs;
   }).catch(()=>{ ap.meusLogsErro=Date.now(); return null; }).then(x=>{ if(ap.meusLogsP===p) ap.meusLogsP=null; return x; });
   ap.meusLogsP=p; return p;
@@ -112,7 +142,7 @@ function apRecentesDe(){
 // Guarda também o TICKET (k) para a grade/calendário do Meu timesheet.
 function registraExtraDia(dia, seg, k){
   if(!dia||!seg) return;
-  const ap=estado.apontar; ap.extraPorDia=ap.extraPorDia||{};
+  const ap=estado.apontar; ap.extraPorDia=ap.extraPorDia||{}; ap.meusLogsEscreveu=true;   // a próxima leitura da janela vem sem cache
   ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
   ap.extraLogs=ap.extraLogs||[];
   ap.extraLogs.push({d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'—'});
@@ -230,7 +260,7 @@ function htmlPainelHoras(){
     grade=`<div class="ts-wrap"><table class="mts-tab">
       <thead><tr><th class="mts-c1">Projeto / Ticket</th><th class="mts-sig">Σ</th>
         ${dias.map(d=>`<th class="mts-d${clsDia(d)}">${esc(rot(d))}${ehFeriado(d)&&ehUtil(d)?'<br><span class="muted small">feriado</span>':''}</th>`).join('')}</tr></thead>
-      <tbody>${linhas||`<tr><td colspan="9" class="muted small" style="padding:14px 10px">${(!apMeusLogsCobre(seg0)&&ap.meusLogsP)?'Carregando os apontamentos desta semana…':'Sem apontamentos nesta semana.'}</td></tr>`}</tbody>
+      <tbody>${linhas||`<tr><td colspan="9" class="muted small" style="padding:14px 10px">${(!apMeusLogsCobre(seg0)&&ap.meusLogsP)?'Carregando os apontamentos desta semana…':((apMeusLogsCobre(seg0)||apTempoCobre(seg0)||apTempoCobre(mtsSoma(seg0,6)))?'Sem apontamentos nesta semana.':'Não consegui ler os apontamentos desta semana — tente ↻ Atualizar lista.')}</td></tr>`}</tbody>
       <tfoot><tr><td class="mts-c1"><strong>Total</strong></td><td class="mts-sig"><strong>${fmtH(totalSem)}</strong></td>
         ${dias.map(d=>{ const s=porDia[d]||0; const ov=s>metaSeg;
           return `<td class="mts-v f${ov?' over':''}${clsDia(d)}">${s?fmtH(s):'·'}${ov?' ⚠':''}</td>`; }).join('')}</tr></tfoot>
@@ -274,7 +304,7 @@ function htmlPainelHoras(){
   }
 
   return `<div class="card full mh-card" id="mh-card">
-    <h2>⏱ Meu timesheet <span>meta ${fmtH(metaSeg)}/dia · usa o período selecionado</span></h2>
+    <h2>⏱ Meu timesheet <span>meta ${fmtH(metaSeg)}/dia · seus apontamentos, independente do período do topo</span></h2>
     <div class="mts-head">
       <div class="mts-nav">
         <button class="btn" data-mts-nav="-1" data-tip="Semana anterior">‹</button>
@@ -663,6 +693,7 @@ async function validaIdentidade(){
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({validar:true,email,token})}).then(r=>r.json());
     if(j.ok){ salvaIdApontar({email:j.email||email,token,nome:j.nome||email,accountId:j.accountId||''});
+      Object.assign(estado.apontar,{ meusLogs:null, recentes:null, extraLogs:[], extraPorDia:{}, meusLogsErro:0 });   // horas da identidade anterior não valem
       estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
       buscaConvites();                 // atualiza o selo de convites pendentes na aba
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
@@ -673,23 +704,27 @@ async function validaIdentidade(){
 
 // Envia o apontamento de uma linha e dá o feedback inline.
 async function fazApontamento(btn){
-  const row=btn.closest('.ap-row'); if(!row) return;
+  let row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-key');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  const tempoEl=row.querySelector('.ap-tempo'), dataEl=row.querySelector('.ap-data'),
-        comEl=row.querySelector('.ap-coment'), fb=row.querySelector('.ap-fb');
+  let tempoEl=row.querySelector('.ap-tempo'), comEl=row.querySelector('.ap-coment'), fb=row.querySelector('.ap-fb');
+  const dataEl=row.querySelector('.ap-data');
   const seg=parseTempo(tempoEl.value);
   fb.hidden=false; fb.className='ap-fb';
   if(seg==null){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; tempoEl.focus(); return; }
   if(seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo fora do limite (mínimo 1m, máximo 24h).'; tempoEl.focus(); return; }
-  const inicio=dataEl.value||hojeSP();
+  const inicio=dataEl.value||hojeSP(); const comentario=comEl.value.trim();
   ocupado(btn,true); fb.textContent='Apontando…';
   try{
     // As minhas horas do dia vêm ANTES de gravar: o total do dia sai certo mesmo fora do período do topo, e a leitura
     // (anterior ao worklog novo) não pode contar este lançamento duas vezes.
     await apGaranteMeusLogs(inicio);
+    // A janela chegando redesenha a lista (apCarregaRecentes → renderApontar): a linha capturada pode ter saído da tela.
+    const rowNova=document.querySelector(`#conteudo .ap-row[data-k="${CSS.escape(k)}"]`);
+    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=row.querySelector('.ap-fb');
+      btn=row.querySelector(`[data-ap-key="${CSS.escape(k)}"]`)||btn; fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; ocupado(btn,true); }
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({issue:k,segundos:seg,inicio,comentario:comEl.value.trim(),email:id.email,token:id.token})}).then(r=>r.json());
+      body:JSON.stringify({issue:k,segundos:seg,inicio,comentario,email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
       row.classList.add('feito'); tempoEl.value=''; comEl.value='';
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
@@ -713,7 +748,7 @@ async function fazApontamento(btn){
         toast(`Apontado em ${k}, mas você já passou da meta de ${fmtH(metaSeg)} em ${fmtBR(inicio)}.`,'warn'); }
       else { fb.classList.add('ok');
         fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). `+(conferido?`Total do dia ${fmtBR(inicio)}: ${fmtH(totalDia)}.`
-          :`Não consegui ler o Clockwork para somar o dia ${fmtBR(inicio)} — só este lançamento foi contado.`);
+          :`Não consegui somar o que você já tinha em ${fmtBR(inicio)} — só este lançamento foi contado.`);
         toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
       logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio, ok:true});
       // "Meus tickets recentes" acompanha sem nova busca.
@@ -1077,6 +1112,7 @@ async function executaReclass(btn){
     if(j.ok && j.status==='completo'){
       const mov=j.movidos&&j.movidos[0]; const novaChave=(mov&&mov.key)||'';
       if(dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);   // mudou de projeto/chave: sai da lista
+      apExtrasRemoveTicket(k); estado.apontar.meusLogsSujo=true;
       invalidaCacheDados();
       fb.classList.add('ok'); fb.textContent=`✓ ${k} movido para ${alvo}${(novaChave&&novaChave!==k)?` (agora ${novaChave})`:''}.`;
       row.classList.add('feito'); row.style.transition='opacity .5s ease'; row.style.opacity='.35';

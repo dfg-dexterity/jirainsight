@@ -127,6 +127,7 @@ function rvExecuta(){
         estado.reuvinc.dados=null;
       } else { estado.reuvinc.dados=null; carregaReuVinc(true); }
       // O original foi excluído: a aba Apontar recarrega as listas ao fechar o modal.
+      apExtrasRemoveTicket(rv.m.k);
       estado.apontar.porData={}; estado.apontar.recentes=null; estado.apontar.meusLogsSujo=true; invalidaCacheDados();
     }).catch(e=>{ if(_rv){ _rv.executando=false; _rv.erro=String(e.message||e); renderRvModal(); } });
 }

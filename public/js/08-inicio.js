@@ -640,9 +640,8 @@ function renderAcoes(){
     const realSemSeg=wDias.reduce((s,d)=>s+(hpd[d]||0),0);
     const planSeg=Math.round(planH*3600);
     const planPorP={}; itensP.forEach(i=>{ if(i.projeto) planPorP[i.projeto]=(planPorP[i.projeto]||0)+(Number(i.horas)||0)*3600; });
-    const realPorP={}; ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(w.a!==acc) return;
-      const d=(w.d||'').slice(0,10); if(d<wDias[0]||d>wDias[6]) return;
-      realPorP[w.p||'—']=(realPorP[w.p||'—']||0)+(Number(w.s)||0); });
+    const realPorP={}; minhasLogsEntre(wDias[0], wDias[6]).forEach(w=>{ realPorP[w.p||'—']=(realPorP[w.p||'—']||0)+w.s; });
+    (estado.apontar.extraLogs||[]).forEach(x=>{ if(x.d>=wDias[0]&&x.d<=wDias[6]) realPorP[x.p||'—']=(realPorP[x.p||'—']||0)+x.s; });
     const projsCmp=[...new Set([...Object.keys(planPorP),...Object.keys(realPorP)])]
       .map(p=>({p, plan:Math.round(planPorP[p]||0), real:realPorP[p]||0}))
       .sort((x,y)=>(y.plan+y.real)-(x.plan+x.real)).slice(0,4);
