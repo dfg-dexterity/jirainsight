@@ -91,7 +91,7 @@ const T_PLAN = 'jirainsight_plan_semana';
 const T_ITENS = 'jirainsight_plan_itens';
 const T_HIST = 'jirainsight_plan_hist';
 // Chaves da config que definem PAPEL (e, por isso, permissão no servidor): só gestor/admin mudam.
-const CHAVES_PAPEL = ['papeis', 'gestores', 'projGerentes'];
+const CHAVES_PAPEL = ['papeis', 'gestores', 'projGerentes', 'planGate'];   // planGate = 🚧 trava do planejamento ao apontar (2026-10-20)
 // JSON canônico (chaves de objeto ordenadas) para comparar "mudou?" sem falso positivo por ordem.
 function canonJson(v) {
   const ord = (x) => (Array.isArray(x) ? x.map(ord) : (x && typeof x === 'object') ? Object.keys(x).sort().reduce((o, k) => { o[k] = ord(x[k]); return o; }, {}) : x);
@@ -1267,7 +1267,7 @@ export default async function handler(req, res) {
       if (mudou.length) {
         const ps = papeisDe(cfgAtual, auth);
         if (!ps.includes('gestor') && !ps.includes('admin')) {
-          return json(res, 403, { configurado: true, ok: false, erro: `Só gestores ou admin do painel alteram ${mudou.join(', ')} (perfis, gestores e gerentes de projeto). A mudança não foi gravada.` });
+          return json(res, 403, { configurado: true, ok: false, erro: `Só gestores ou admin do painel alteram ${mudou.join(', ')} (perfis, gestores, gerentes de projeto e a trava do planejamento). A mudança não foi gravada.` });
         }
       }
       const novoRev = new Date().toISOString();

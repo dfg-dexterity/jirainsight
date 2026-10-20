@@ -714,6 +714,7 @@ async function fazApontamento(btn){
   if(seg==null){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; tempoEl.focus(); return; }
   if(seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo fora do limite (mínimo 1m, máximo 24h).'; tempoEl.focus(); return; }
   const inicio=dataEl.value||hojeSP(); const comentario=comEl.value.trim();
+  if(!(await planGate(inicio))){ fb.hidden=true; return; }   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   ocupado(btn,true); fb.textContent='Apontando…';
   try{
     // As minhas horas do dia vêm ANTES de gravar: o total do dia sai certo mesmo fora do período do topo, e a leitura
@@ -1157,6 +1158,8 @@ async function respondeConvite(btn, recusa){
   const cid=btn.getAttribute(recusa?'data-cv-rec':'data-cv-conf');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const fb=row.querySelector('.ap-fb'); fb.hidden=false; fb.className='ap-fb';
+  if(!recusa){ const cv=(estado.apontar.convites||[]).find(c=>c.id===cid);
+    if(cv&&cv.inicio&&!(await planGate(cv.inicio))){ fb.hidden=true; return; } }   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   [...row.querySelectorAll('button')].forEach(b=>{ b.disabled=true; });
   fb.textContent=recusa?'Recusando…':'Apontando…';
   try{
@@ -1275,6 +1278,7 @@ async function enviaReuniaoGrupo(){
   if(seg==null||seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; return; }
   if(!ids.length){ fb.classList.add('err'); fb.textContent='Selecione pelo menos uma pessoa.'; return; }
   try{ localStorage.setItem(RG_SEL_KEY, JSON.stringify(ids)); }catch(e){}
+  if(ids.includes(id.accountId)&&!(await planGate(inicio))){ fb.hidden=true; return; }   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   // email = para o aviso INDIVIDUAL no Teams (chat privado); o servidor completa
   // pelo cadastro do Jira se faltar aqui.
   const pessoas=ids.map(a=>{ const u=pessoasUnidas()[a]||estado.usuarios[a]||{};

@@ -1235,3 +1235,90 @@ document.addEventListener('submit',(e)=>{
   else mpItens().push(item);
   mp.form=null; mpAgendaSalvar(); renderMinhaSemana();
 });
+
+// ---------------- 🚧 Trava do planejamento ao apontar (2026-10-20, a pedido do usuário) ----------------
+// "Bloquear o lançamento em dia que não foi planejado no planejamento semanal — ou só avisar, de forma explícita, que
+// o planejamento está pendente." cfg.planGate={modo:'off'|'aviso'|'bloqueio', rascunho:bool} é configurado pelos
+// gestores (⚙️ Configurações › 📋 Meu Planejamento) e protegido no servidor como chave de papel. Dia planejado = o MEU
+// plano da semana existe, foi ENVIADO ou APROVADO (com `rascunho`, em elaboração/devolvido também vale) e tem pelo menos
+// uma atividade naquele dia. Fim de semana, feriado, ausência e semanas antes do início da apuração não contam.
+// A porta é UMA (planGate) e todo lugar que grava worklog próprio passa por ela ANTES do POST: ⏱ Apontar, convites,
+// 👥 em grupo, 🛠 Gestão, 🧾 Preciso criar meus tickets, 📞 Ligações, ➗ Rateio, 🔁 Transformar, 📍 Meu dia, 🎫 criação
+// rápida e 🔗 vincular. É regra de tela (o servidor não a impõe — está no roadmap). Falha ao ler o plano NÃO bloqueia.
+function planGateCfg(){ return Object.assign({ modo:'off', rascunho:false }, cfg.planGate||{}); }   // leitor: não cria o objeto
+function planGateAtivo(){ const m=planGateCfg().modo; return m==='aviso'||m==='bloqueio'; }
+// Situação de UM dia: {ok:true[,dispensa]} · {ok:false, motivo:'sem-plano'|'rascunho'|'devolvido'|'sem-dia', w, plano} · {ok:null} (plano não lido)
+function planGateDia(dia){
+  const id=idApontar(); if(!(id&&id.accountId)) return { ok:true, dispensa:'sem-identidade' };
+  const w=semChave(dia); const vig=mpInicioVig(); if(vig&&dia<vig) return { ok:true, dispensa:'antes', w };
+  if(mpCapDia(id.accountId, dia)===0) return { ok:true, dispensa:'sem-capacidade', w };   // fim de semana, feriado, ausência
+  const p=mpPlano(w); if(p===undefined) return { ok:null, w };
+  if(!p) return { ok:false, motivo:'sem-plano', w };
+  const c=planGateCfg();
+  if(!c.rascunho&&p.status!=='enviado'&&p.status!=='aprovado') return { ok:false, motivo:p.status==='devolvido'?'devolvido':'rascunho', w, plano:p };
+  if(!(p.itens||[]).some(i=>i.data===dia)) return { ok:false, motivo:'sem-dia', w, plano:p };
+  return { ok:true, w, plano:p };
+}
+// O meu plano da semana w em memória, aguardável (mpGaranteMeu é "dispara e segue"). Falha → undefined.
+function planGateCarrega(w){
+  const mp=estado.minhasemana; mp.meu=mp.meu||{}; mp.meuP=mp.meuP||{};
+  if(mp.meu[w]!==undefined) return Promise.resolve(mp.meu[w].plano);
+  const id=idApontar(); if(!(id&&id.accountId)) return Promise.resolve(null);
+  if(mp.meuP[w]) return mp.meuP[w];
+  const p=mpApi({acao:'meu', semana:w}).then(j=>{ if(j&&j.ok){ mp.meu[w]={plano:j.plano||null}; return mp.meu[w].plano; } throw new Error((j&&j.erro)||'plano'); })
+    .catch(()=>undefined).then(x=>{ delete mp.meuP[w]; return x; });
+  mp.meuP[w]=p; return p;
+}
+// A porta: devolve true para seguir com o apontamento. `dias` = um dia ou uma lista ('AAAA-MM-DD').
+async function planGate(dias){
+  if(!planGateAtivo()) return true;
+  const lista=[...new Set((Array.isArray(dias)?dias:[dias]).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d||''))))].sort();
+  const id=idApontar(); if(!lista.length||!(id&&id.accountId)) return true;
+  await Promise.all([...new Set(lista.map(d=>semChave(d)))].map(planGateCarrega));
+  const sit=lista.map(d=>Object.assign({ dia:d }, planGateDia(d)));
+  const falhas=sit.filter(x=>x.ok===false);
+  if(!falhas.length){
+    if(sit.some(x=>x.ok===null)){ try{ toast('Não consegui conferir o seu planejamento semanal agora — o apontamento segue.','warn'); }catch(e){} }
+    return true;
+  }
+  return planGateModal(falhas, planGateCfg().modo);
+}
+// O aviso/bloqueio: sobreposição PRÓPRIA (não o #modal — a 🛠 Gestão, as 📞 Ligações e o 👥 convite já estão num modal).
+function planGateModal(falhas, modo){
+  return new Promise((resolve)=>{
+    document.querySelectorAll('.pg-bg').forEach(n=>n.remove());
+    const porSem=new Map();
+    falhas.forEach(f=>{ const g=porSem.get(f.w)||{ w:f.w, dias:[], motivo:f.motivo, plano:f.plano }; g.dias.push(f.dia); if(f.motivo!=='sem-dia') g.motivo=f.motivo; porSem.set(f.w,g); });
+    const linhas=[...porSem.values()].map(g=>{
+      const semTxt=`semana de ${fmtBR(g.w)}`; const diasTxt=g.dias.map(fmtBR).join(', ');
+      const planejados=[...new Set(((g.plano&&g.plano.itens)||[]).map(i=>i.data))].sort().map(fmtBR).join(', ');
+      const m={ 'sem-plano':`você ainda não planejou a ${semTxt}`,
+        rascunho:`o seu plano da ${semTxt} ainda está em elaboração — envie para aprovação`,
+        devolvido:`o seu plano da ${semTxt} foi devolvido para ajustes — corrija e reenvie`,
+        'sem-dia':`${g.dias.length>1?'os dias':'o dia'} ${diasTxt} não ${g.dias.length>1?'estão':'está'} no seu planejamento da ${semTxt}${planejados?` (planejado: ${planejados})`:''}` }[g.motivo]||g.motivo;
+      return `<li>${esc(m)}</li>`; }).join('');
+    const bloq=modo==='bloqueio';
+    const box=el(`<div class="pg-bg ${bloq?'bloqueio':'aviso'}" role="dialog" aria-modal="true" aria-labelledby="pg-tit"><div class="pg-box">
+      <h3 id="pg-tit">${bloq?'🚧 Apontamento bloqueado — planejamento semanal pendente':'⚠ Planejamento semanal pendente'}</h3>
+      <div class="small">${bloq?'Para apontar neste dia, o dia precisa estar no seu planejamento semanal enviado.':'Este dia não está no seu planejamento semanal. Dá para apontar mesmo assim, mas fica registrado no 🗒 Histórico.'}</div>
+      <ul>${linhas}</ul>
+      <div class="pg-regra">Regra do painel definida pelos gestores em ⚙️ Configurações › 📋 Meu Planejamento${planGateCfg().rascunho?' (plano em elaboração vale)':''}.</div>
+      <div class="pg-acoes"><button class="btn primario" data-pg="plano">📋 Ir para o Meu Planejamento</button>${bloq?'':'<button class="btn" data-pg="segue">Apontar mesmo assim</button>'}<button class="btn" data-pg="fecha">${bloq?'Fechar':'Cancelar'}</button></div>
+    </div></div>`);
+    // (o handler NÃO se chama `esc`: sombrearia o esc() de HTML usado nas linhas acima — TDZ, a faixa nunca nascia)
+    const fim=(v)=>{ document.removeEventListener('keydown', teclaEsc, true); box.remove(); resolve(v); };
+    const teclaEsc=(e)=>{ if(e.key==='Escape'){ e.stopImmediatePropagation(); e.preventDefault(); fim(false); } };
+    box.addEventListener('click', (e)=>{
+      const b=e.target.closest('[data-pg]'); if(!b){ if(e.target===box) fim(false); return; }
+      const acao=b.getAttribute('data-pg');
+      if(acao==='plano'){ const w=[...porSem.keys()].sort()[0]; estado.minhasemana.w=w; try{ fechaModal(); }catch(x){} fim(false); vaiPara('minhasemana'); return; }
+      if(acao==='segue'){
+        try{ logAcao({ acao:'apontar-sem-plano', para:falhas.map(f=>f.dia).join(', '), motivo:[...porSem.values()].map(g=>`${g.motivo} (semana ${g.w})`).join('; '), ok:true }); }catch(x){}
+        fim(true); return; }
+      fim(false);
+    });
+    document.addEventListener('keydown', teclaEsc, true);   // antes do Esc global (fecharia o #modal de trás)
+    document.body.appendChild(box);
+    const foco=box.querySelector('[data-pg="segue"]')||box.querySelector('[data-pg="plano"]'); if(foco) try{ foco.focus(); }catch(x){}
+  });
+}

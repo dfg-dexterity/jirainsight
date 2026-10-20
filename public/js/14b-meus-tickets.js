@@ -267,6 +267,8 @@ function mtCarregaTrans(it){
 async function mtExecuta(){
   const m=estado.meus; const id=idApontar(); if(!id){ abreIdentidade(); return; }
   if(m.executando) return;
+  const diasPl=mtAtivos(m).filter(it=>!(it.exec&&it.exec.apontou)&&(parseTempo(String(it.tempo||'').trim())||0)>=60).map(it=>it.dia||m.dia);
+  if(!(await planGate(diasPl))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   m.executando=true; m.executou=true; m.passo=5; m.feito=false; renderMeusTickets();
   // O relato virou ações: o rascunho sai já (recarregar a página não pode oferecer lançar tudo de novo).
   // O "Tentar de novo" não depende dele — usa o estado em memória (it.exec).

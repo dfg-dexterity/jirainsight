@@ -112,6 +112,7 @@ async function qkConfirma(){
     if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb erro'; fb.textContent='Escreva o comentário — é nele que as pessoas marcadas serão avisadas.'; } return; }
   const bt=document.getElementById('qk-prev-conf'); if(bt) bt.disabled=true;
   if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Criando o ticket e executando as ações…'; }
+  if(tempoSeg>0&&!(await planGate(hojeSP()))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   try{
     const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({magico:1, confirmar:1, projeto:p.projeto, epicoKey:p.epicoKey||'',
@@ -236,6 +237,7 @@ async function cvEnviar(){
   if(!seg||seg<60||seg>24*3600) return erroFb('Tempo inválido — use por exemplo 1h30, 45m ou 2:15.');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return erroFb('Informe o dia do apontamento.');
   if(inclEu) pessoas.push({accountId:id.accountId, nome:id.nome||'', email:String(id.email||'').toLowerCase()});
+  if(inclEu&&!(await planGate(dia))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   const bt=document.getElementById('cv-enviar'); if(bt) bt.disabled=true;
   if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'; fb.textContent='Enviando convites…'; }
   try{

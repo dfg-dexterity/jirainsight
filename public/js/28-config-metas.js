@@ -225,6 +225,20 @@ function renderConfig(){
           <textarea id="cf-gestores" class="pl-texto" style="min-height:90px;margin-top:8px" placeholder="ana@empresa.com.br&#10;712020:abcd-…">${esc((cfg.gestores||[]).map(g=>String((g&&(g.a||g.email))||g||'')).join('\n'))}</textarea>
           <div style="margin-top:8px"><button class="btn primario" id="cf-gestores-salvar">Salvar gestores</button></div>
         </div>
+        <div class="cfgc-sec" id="cf-plan-gate-sec">
+          <h3>🚧 Apontar horas em dia sem planejamento</h3>
+          <div class="muted small">Vale para todo o time, em todos os lugares que gravam horas (⏱ Apontar, convites, 👥 em grupo, 🛠 Gestão,
+            🧾 Preciso criar meus tickets, 📞 Ligações, ➗ Rateio, 🔁 Transformar, 📍 Meu dia, 🎫 criação rápida, 🔗 vincular).
+            <strong>Dia planejado</strong> = o plano da semana da pessoa foi <strong>enviado ou aprovado</strong> e tem pelo menos uma atividade naquele dia.
+            Fim de semana, feriado, ausência e semanas antes do início da apuração não contam. Só gestores e admin mudam.</div>
+          <label class="cfgc-tog" style="align-items:flex-start;flex-direction:column;gap:4px"><strong>Comportamento</strong>
+            <select id="cf-plan-gate">
+              <option value="off" ${planGateCfg().modo==='off'?'selected':''}>Desligado — não conferir o planejamento ao apontar</option>
+              <option value="aviso" ${planGateCfg().modo==='aviso'?'selected':''}>Avisar — mostra que o planejamento está pendente e deixa apontar mesmo assim (fica no 🗒 Histórico)</option>
+              <option value="bloqueio" ${planGateCfg().modo==='bloqueio'?'selected':''}>Bloquear — só aponta depois de planejar o dia e enviar</option>
+            </select></label>
+          <label class="cfgc-tog"><input type="checkbox" id="cf-plan-gate-rasc" ${planGateCfg().rascunho?'checked':''}> <strong>Plano em elaboração ou devolvido vale como planejado</strong> <span class="muted small">(só exige a atividade no dia)</span></label>
+        </div>
       </div>
 
       <div class="card cfgc cfgc-perfis">
@@ -388,6 +402,13 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     toast(`📣 Ranking no Teams: envio a partir das ${t.value}.`,'ok'); } }
   else if(t.id==='cf-res-ativo'){ const r=cfgResumoTeams(); r.ativo=!!t.checked; cfg.teamsResumo=r; salvaCfg();
     toast(r.ativo?'🧠 Resumo IA no Teams: ATIVADO.':'Resumo IA no Teams: desativado.','ok'); renderConfig(); }
+  // 🚧 Trava do planejamento ao apontar (2026-10-20): chave de papel — só gestor/admin (o servidor também recusa).
+  else if(t.id==='cf-plan-gate'||t.id==='cf-plan-gate-rasc'){
+    if(!souAprovador()&&!temPapel('admin')){ toast('Só gestores ou admin do painel mudam a regra do planejamento.','warn'); renderConfig(); return; }
+    const g=planGateCfg();
+    if(t.id==='cf-plan-gate') g.modo=['off','aviso','bloqueio'].includes(t.value)?t.value:'off'; else g.rascunho=!!t.checked;
+    cfg.planGate=g; salvaCfg();
+    toast(g.modo==='off'?'🚧 Trava do planejamento: desligada.':g.modo==='aviso'?'🚧 Apontar em dia sem planejamento: AVISA e deixa seguir.':'🚧 Apontar em dia sem planejamento: BLOQUEADO.','ok'); }
   else if(t.id==='cf-res-freq'){ const r=cfgResumoTeams(); r.freq=(t.value==='diario'?'diario':'semanal'); cfg.teamsResumo=r; salvaCfg(); renderConfig(); }
   else if(t.id==='cf-res-dia'){ const r=cfgResumoTeams(); r.dia=Math.min(5,Math.max(1,Number(t.value)||5)); cfg.teamsResumo=r; salvaCfg(); }
   else if(t.id==='cf-res-hora'){ if(/^\d{2}:\d{2}$/.test(t.value)){ const r=cfgResumoTeams(); r.hora=t.value; cfg.teamsResumo=r; salvaCfg(); } }

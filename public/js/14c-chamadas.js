@@ -391,6 +391,7 @@ async function chmConfirma(btn){
   const seg=parseTempo(String(m.tempo||'').trim());
   if(!(seg>=60&&seg<=86400)) return chmErro('Tempo inválido — use 30m, 1h ou 1h30 (de 1 minuto a 24 horas).');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(m.dia||'')||m.dia>hojeSP()) return chmErro('Escolha um dia válido (hoje ou antes).');
+  if(!(await planGate(m.dia))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   const ev=chmEventoDe(c);
   let key='', criado=false;
   m.executando=true; ocupado(btn,true);

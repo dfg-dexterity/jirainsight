@@ -108,8 +108,9 @@ function renderRvModal(){
     : `<div class="ap-id sem" style="margin-top:12px">Para ${G?'transferir':'vincular'}, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
   abreModal(`<h2>${TIT}</h2>${met}${modoBtns}${form}${passos}${aviso}${rv.erro?`<div class="erro">${esc(rv.erro)}</div>`:''}${rodape}`);
 }
-function rvExecuta(){
+async function rvExecuta(){
   const rv=_rv; const id=idApontar(); if(!rv||!rv.m||!id||rv.executando) return;
+  if(rv.worklog&&Number(rv.horas)>0&&!(await planGate(String(rv.m.criado||'').slice(0,10)||hojeSP()))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   rv.executando=true; rv.erro=''; renderRvModal();
   const body={ vincular:1, email:id.email, token:id.token, reuniao:rv.m.k, modo:rv.modo,
     horas:Number(rv.horas)||0, worklog:!!rv.worklog, ...(rv.generico?{transferir:1}:{}) };

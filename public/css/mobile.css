@@ -631,6 +631,11 @@
   .chm-modal .chm-tk,.chm-modal .chm-chips .chip,.chm-modal .check{min-height:36px}
   .tela-chamadas .chm-acoes-l .btn{min-height:36px}
 }
+@media (max-width:600px){
+  /* 🚧 trava do planejamento: caixa justa e botões de dedo */
+  .pg-bg{padding:10px;align-items:flex-end} .pg-box{padding:14px;border-radius:12px}
+  .pg-acoes .btn{flex:1 1 100%;min-height:44px}
+}
 /* ---- fim: apontar ---- */
 
 /* ---- 📱 grupo: projetos (Prioridades, Visão Geral, Resumo, Projetos, Cronograma) ---- */

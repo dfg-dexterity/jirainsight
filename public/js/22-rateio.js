@@ -127,6 +127,7 @@ async function rtExecuta(){
     .filter(k=>!(rt.resultados&&rt.resultados[k]&&rt.resultados[k].ok));
   if(!alvos.length){ toast('Nada a apontar — todos os tickets com horas já foram apontados.','warn'); return; }
   const inicio=rt.data||hojeSP();
+  if(!(await planGate(inicio))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   const totAlvo=alvos.reduce((s,k)=>s+calc.segs[k],0);
   if(!window.confirm(`Criar ${alvos.length} apontamento(s) somando ${fmtH(totAlvo)} em ${fmtBR(inicio)}?`)) return;
   rt.executando=true;

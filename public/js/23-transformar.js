@@ -113,6 +113,7 @@ async function trfExecuta(){
   const fb=document.getElementById('trf-fb'); const bt=document.getElementById('trf-executar');
   const diz=(txt,cls)=>{ if(fb){ fb.hidden=false; fb.className='alx-fb ap-fb'+(cls?' '+cls:''); fb.innerHTML=txt; } };
   if(seg!=null&&(seg<60||seg>24*3600)){ diz('Tempo inválido — use 1h30, 45m ou 2:15 (mínimo 1m, máximo 24h).','erro'); return; }
+  if(seg!=null&&!(await planGate(data))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   if(bt) bt.disabled=true;
   const passos=[]; let alvo=t.fd.k; let novaKey='';
   // Detalhes da origem que viajam junto (worklogs por pessoa + resumo).

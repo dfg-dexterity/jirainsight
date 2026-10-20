@@ -526,14 +526,18 @@ function renderAcoes(){
     const itensP=(meuPl&&meuPl.itens)||[];
     const planH=itensP.reduce((s,i)=>s+(Number(i.horas)||0),0);
     const stP=meuPl?meuPl.status:'';
+    const plEnviado=!!(meuPl&&(stP==='enviado'||stP==='aprovado'));
+    // 🚧 trava do planejamento ligada (cfg.planGate): quem ainda não enviou o plano precisa saber que o apontar avisa/bloqueia
+    const gateOn=(typeof planGateAtivo==='function')&&planGateAtivo(); const gateBloq=gateOn&&planGateCfg().modo==='bloqueio';
+    const gateTxt=gateOn&&meuPl!==undefined&&!plEnviado?` · 🚧 apontar ${gateBloq?'está bloqueado':'avisa'} até enviar o plano`:'';
     const stTxt=meuPl===undefined?'carregando seu planejamento…'
       :!meuPl||!itensP.length?'você ainda não planejou esta semana'
       :{elaboracao:'em elaboração — envie para aprovação', enviado:'enviado — aguardando aprovação',
         aprovado:'aprovado', devolvido:'devolvido para ajustes — corrija e reenvie'}[stP]||'';
     const cPlano=meuPl===undefined
       ?pcard('load','📋','Seu planejamento','<div class="ax-num muted">…</div><div class="ax-det">Carregando…</div>','minhasemana','Abrir Meu Planejamento →')
-      :pcard(stP==='aprovado'?'ok':stP==='devolvido'?'crit':itensP.length&&stP==='enviado'?'ok':'aten','📋','Seu planejamento',
-        `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt)}</div>`,'minhasemana', itensP.length?'Abrir Meu Planejamento →':'Planejar agora →');
+      :pcard(stP==='aprovado'?'ok':stP==='devolvido'?'crit':(gateBloq&&!plEnviado)?'crit':itensP.length&&stP==='enviado'?'ok':'aten','📋','Seu planejamento',
+        `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt+gateTxt)}</div>`,'minhasemana', itensP.length?'Abrir Meu Planejamento →':'Planejar agora →');
     // 📅 reuniões sem ticket
     if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
     const agp=agPendentes();
@@ -553,6 +557,32 @@ function renderAcoes(){
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
       `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
+    // 💬 AGUARDANDO SUA RESPOSTA (2026-10-20, a pedido do usuário): menções sem resposta + comentários de OUTRAS pessoas
+    // nos SEUS tickets sem nenhuma ação sua depois (atividade de 7 dias do Radar, já carregada) + plano devolvido. Sem
+    // leitura nova. O clique abre a 🛠 Gestão nesses tickets (ou as 💬 Menções, quando é só menção).
+    const nMen=(typeof mencoesPend==='function')?mencoesPend():0;
+    const menKeys=new Set((((estado.inbox||{}).mencoes||{}).mencoes||[]).filter(m=>!m.respondido).map(m=>m.k));
+    const meusKeys=new Set((tks||[]).filter(t=>t.respId===acc).map(t=>t.k));
+    const ultPorK={};   // último evento de cada ticket meu: quem fez e quando
+    (((ax.radAtv||{}).eventos)||[]).forEach(ev=>{ if(!meusKeys.has(ev.k)) return; const u=ultPorK[ev.k]; if(!u||String(ev.d||'')>String(u.d||'')) ultPorK[ev.k]=ev; });
+    const respKeys=Object.keys(ultPorK).filter(k=>{ const u=ultPorK[k]; return u.e==='comentario'&&u.a&&u.a!==acc&&!menKeys.has(k); });
+    const plDev=!!(meuPl&&meuPl.status==='devolvido');
+    const nResp=nMen+respKeys.length+(plDev?1:0);
+    const partesResp=[nMen?`${nMen} menção(ões)`:'', respKeys.length?`${respKeys.length} comentário(s) nos seus tickets`:'', plDev?'seu planejamento devolvido':''].filter(Boolean);
+    ax.respKeys=respKeys; ax.respGoto=respKeys.length?'gestao':(nMen?'mencoes':(plDev?'minhasemana':'mencoes'));
+    const cResp=(tks==null&&!ax.radAtv)
+      ?pcard('load','💬','Aguardando sua resposta','<div class="ax-num muted">…</div><div class="ax-det">Carregando…</div>','aguardando-resposta','Ver →')
+      :pcard(nResp?(nResp>3?'crit':'aten'):'ok','💬','Aguardando sua resposta',
+        `<div class="ax-num">${nResp}</div><div class="ax-det">${nResp?esc(partesResp.join(' · ')):'ninguém está esperando resposta sua 👌'}</div>`,
+        'aguardando-resposta', nResp?'Responder →':'Ver menções →');
+    // ⏳ COM O CLIENTE: meus tickets parados num status que aguarda o cliente (mesma régua do preset da 🛠 Gestão)
+    const meusCli=tks?tks.filter(t=>t.respId===acc&&/aguard|pendente.*client|waiting/i.test(t.status||'')):null;
+    ax.cliKeys=(meusCli||[]).map(t=>t.k);
+    const cCli=meusCli==null
+      ?pcard('load','⏳','Com o cliente','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Jira…</div>','gestao-cliente','Ver →')
+      :pcard(meusCli.length?'aten':'ok','⏳','Com o cliente',
+        `<div class="ax-num">${meusCli.length}</div><div class="ax-det">${meusCli.length?'seus tickets parados aguardando o cliente — vale cobrar':'nenhum ticket seu parado no cliente'}</div>`,
+        'gestao-cliente', meusCli.length?'Cobrar →':'Ver na Gestão →');
     // 🗓 meus tickets SEM DATA (sem prazo não há planejamento)
     const meusSemData=tks?tks.filter(t=>t.respId===acc&&!t.venc).length:null;
     const cSemData=meusSemData==null
@@ -567,20 +597,23 @@ function renderAcoes(){
       :pcard(meusHoje===0?'ok':'aten','⏰','Vencem hoje',
         `<div class="ax-num">${meusHoje}</div><div class="ax-det">${meusHoje?'priorize estes no seu dia':'nada vencendo hoje 🎉'}</div>`,
         'apontar-vencehoje', meusHoje?'Atacar agora →':'Abrir Apontar →');
-    // 🧑‍💼 PROJETOS em que estou ALOCADO nesta semana (alocação macro)
-    const wFimAloc=somaDias(wAtual,6);
-    const minhasAloc={};
-    (cfg.alocacoes||[]).forEach(x=>{ if(x.accountId!==acc) return;
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(x.fim)) return;
-      if(x.inicio<=wFimAloc&&x.fim>=wAtual) minhasAloc[x.projeto||'—']=(minhasAloc[x.projeto||'—']||0)+(Number(x.hSemana)||0); });
-    const alocPs=Object.entries(minhasAloc).sort((x,y)=>y[1]-x[1]);
-    const alocTotH=alocPs.reduce((s,[,h])=>s+h,0);
-    const cAloc=pcard(alocPs.length?'ok':'aten','🧑‍💼','Projetos da semana',
-      `<div class="ax-num">${alocPs.length}</div>
-       <div class="ax-det" title="${escA(alocPs.map(([p,h])=>`${p} (${fmtHd(h)}/sem)`).join(' · '))}">${alocPs.length
-         ?`${esc(alocPs.slice(0,3).map(([p])=>p).join(' · '))}${alocPs.length>3?' …':''} — ${fmtHd(alocTotH)}/sem alocadas`
-         :'sem alocação macro nesta semana — combine com o gestor'}</div>`,
-      'minhasemana', alocPs.length?'Planejar a semana →':'Abrir Minha Semana →');
+    // 🗂 PROJETOS da semana — pelo MEU planejamento semanal (2026-10-20, a pedido do usuário; antes lia a alocação macro
+    // cfg.alocacoes, que a tela aposentada deixou de escrever). Planejado × feito por projeto, da janela do ⏱ Apontar.
+    const wFimPl=somaDias(wAtual,6);
+    const planProjs={}; itensP.forEach(i=>{ if(i.projeto) planProjs[i.projeto]=(planProjs[i.projeto]||0)+(Number(i.horas)||0); });
+    const feitoProjs={};
+    ((typeof minhasLogsEntre==='function')?minhasLogsEntre(wAtual,wFimPl):[]).forEach(w2=>{ feitoProjs[w2.p||'—']=(feitoProjs[w2.p||'—']||0)+w2.s/3600; });
+    (estado.apontar.extraLogs||[]).forEach(x=>{ if(x.d>=wAtual&&x.d<=wFimPl) feitoProjs[x.p||'—']=(feitoProjs[x.p||'—']||0)+x.s/3600; });
+    const projsPl=Object.entries(planProjs).sort((x,y)=>y[1]-x[1]);
+    const feitoPl=projsPl.reduce((s,[p])=>s+(feitoProjs[p]||0),0);
+    const cAloc=meuPl===undefined
+      ?pcard('load','🗂','Projetos da semana','<div class="ax-num muted">…</div><div class="ax-det">Carregando seu planejamento…</div>','minhasemana-projetos','Abrir Meu Planejamento →')
+      :pcard(projsPl.length?((gateOn&&!plEnviado)?'aten':'ok'):(gateBloq?'crit':'aten'),'🗂','Projetos da semana',
+        `<div class="ax-num">${projsPl.length}</div>
+         <div class="ax-det" title="${escA(projsPl.map(([p,h])=>`${p}: ${fmtHd(h)} planejadas · ${fmtHd(feitoProjs[p]||0)} feitas`).join(' · '))}">${projsPl.length
+           ?`${esc(projsPl.slice(0,3).map(([p,h])=>`${p} ${fmtHd(h)}`).join(' · '))}${projsPl.length>3?' …':''} — ${fmtHd(feitoPl)} feitas de ${fmtHd(planH)} planejadas`
+           :(gateOn?`🚧 sem planejamento: apontar ${gateBloq?'está bloqueado':'vai avisar'} até você planejar`:'sem planejamento esta semana — planeje para o time saber onde você está')}</div>`,
+        'minhasemana-projetos', projsPl.length?'Ver o planejamento →':'Planejar agora →');
     // 🏅 MEU RANKING de apontamento na semana (% da meta até hoje, entre o time)
     const rankDias=[]; for(let i=0;i<7;i++){ const d2=somaDias(wAtual,i); if(d2>hoje) break; rankDias.push(d2); }
     const porPessoaSem={};
@@ -662,7 +695,7 @@ function renderAcoes(){
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Meu Planejamento →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cRank}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cCli}${cRank}${cAg}${cIb}</div>
       <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
     </div>`;
   } else {
@@ -936,6 +969,12 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(g==='apontar-meus'){ hxAbreApontar('todos', { semVenc:true, ate:somaDias(hojeSP(),30) }); return; }   // o bloco "meus tickets" lê a base inteira (30 dias + sem data)
   if(g==='apontar-semdata'){ hxAbreApontar('semvenc', { semVenc:true }); return; }
   if(g==='apontar-vencehoje'){ hxAbreApontar('vencehoje'); return; }
+  if(g==='minhasemana-projetos'){ vaiPara('minhasemana'); return; }
+  // 💬 Aguardando sua resposta / ⏳ Com o cliente: abre a 🛠 Gestão na ▤ Lista só com esses tickets (como os vencidos por projeto)
+  if(g==='aguardando-resposta'||g==='gestao-cliente'){ const ax=estado.acoes; const ks=(g==='gestao-cliente'?ax.cliKeys:ax.respKeys)||[];
+    if(ks.length){ const gs=estado.gestao; gs.soKeys=ks.slice(0,200); gs.origem=g==='gestao-cliente'?'⏳ Com o cliente':'💬 Aguardando sua resposta';
+      gs.preset=''; gs.busca=''; gs.fProj=''; gs.fResp=''; gs.fStatus=''; gs.semTrat=false; gs.sel={}; gs.visSo='lista'; gs.visSoDe=gs.origem; vaiPara('gestao'); return; }
+    vaiPara(g==='gestao-cliente'?'gestao':(ax.respGoto||'mencoes')); return; }
   vaiPara(g);
 });
 // Os cards "meus" da Início abrem o ⏱ Apontar com a MESMA base do número mostrado (2026-10-01): "Só os meus"

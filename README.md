@@ -814,6 +814,33 @@ pedido é limitado a 400 dias e a janela guarda o intervalo que o servidor devol
 de usuário descarta a janela. Se o Clockwork não responder, a mensagem diz que o total não
 foi conferido.
 
+### 🚧 Trava do planejamento ao apontar (2026-10-20)
+
+Configuração dos gestores em **⚙️ Configurações › 📋 Meu Planejamento** (`cfg.planGate =
+{modo:'off'|'aviso'|'bloqueio', rascunho}`, chave de papel: o `api/config.js` recusa a mudança
+de quem não é gestor/admin). Com a regra ligada, lançar horas num dia que **não está no seu
+planejamento semanal enviado** (plano da semana inexistente, em elaboração/devolvido sem a
+opção `rascunho`, ou sem atividade naquele dia) mostra uma sobreposição própria (`.pg-bg`):
+**Avisar** explica, registra `apontar-sem-plano` no 🗒 Histórico e deixa seguir; **Bloquear**
+só oferece "📋 Ir para o Meu Planejamento" (já na semana certa). Fim de semana, feriado,
+ausência (`mpCapDia === 0`) e dias antes do início da apuração (`mpInicioVig`) são dispensados.
+A porta é **uma** — `planGate(dias)` em `04-meu-planejamento.js`, que lê o plano com
+`planGateCarrega` (aguardável, mesmo cache de `mpGaranteMeu`) — e todo lugar que grava worklog
+próprio a chama **antes do POST**: ⏱ Apontar (linha, convite, 👥 em grupo), 🛠 Gestão, 🧾
+Preciso criar meus tickets, 📞 Ligações, ➗ Rateio, 🔁 Transformar, 📍 Meu dia, 🎫 criação
+rápida e 🔗 vincular. Falha ao ler o plano não bloqueia (toast e segue). É regra de tela: o
+servidor ainda não a impõe (roadmap).
+
+### Indicadores do planejamento na 🏠 Início (2026-10-20)
+
+No bloco "seu dia": **🗂 Projetos da semana** (projetos do MEU plano da semana, planejado ×
+feito pela janela do ⏱ Apontar — substitui o card da alocação macro aposentada), **💬
+Aguardando sua resposta** (menções sem resposta + comentários de OUTRAS pessoas nos meus
+tickets sem ação minha depois, pela atividade de 7 dias do Radar + plano devolvido; abre a
+🛠 Gestão só nesses tickets via `soKeys`) e **⏳ Com o cliente** (meus tickets em status
+"aguardando cliente"). Nenhuma leitura nova: tudo vem do que a Início já carrega
+(`/api/vencimentos`, `/api/atividade`, Inbox, plano da semana).
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do

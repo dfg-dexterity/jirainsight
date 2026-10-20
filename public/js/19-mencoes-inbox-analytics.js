@@ -263,7 +263,7 @@ function carregaInbox(forca){
     ? mpApi({acao:'pendencias'}).then(j=>{ ib.planos=(j&&j.ok&&j.pendencias)||[]; }).catch(()=>{ ib.planos=ib.planos||[]; })
     : Promise.resolve(ib.planos=[]);
   Promise.all([pC,pM,pP]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
-    if(estado.vista==='inbox') renderInbox(); });
+    if(estado.vista==='inbox') renderInbox(); else agendaRenderAcoes(); });   // o card 💬 Aguardando sua resposta da Início lê as menções
 }
 function renderInbox(){
   const cont=document.getElementById('conteudo');

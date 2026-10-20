@@ -242,6 +242,33 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `apontar-dia-test.mjs` (Playwright, 32 casos, um por achado; fixture `MEUS_WL` relativo a hoje + `/api/vencimentos` no
   `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou e imita a queda nos "7 dias"
   acima de 400 dias). Fica no roadmap: a hora do apontamento na própria linha.
+- **🚧 Trava do planejamento ao apontar + indicadores do planejamento na Início (2026-10-20, a pedido do usuário:
+  "bloquear lançamento em dia que não foi planejado no planejamento semanal, ou deixar só como aviso, bem explícito;
+  e o painel de entrada com projetos da semana pelo planejamento, tickets sem data, ticket aguardando minha
+  resposta"):** `cfg.planGate={modo:'off'|'aviso'|'bloqueio', rascunho}` (⚙️ Configurações › 📋 Meu Planejamento, só
+  gestor/admin; **`planGate` entrou em `CHAVES_PAPEL` do `api/config.js`** — o servidor recusa a mudança de quem não é).
+  **A porta é UMA: `planGate(dias)` em `04-meu-planejamento.js`**, chamada ANTES do POST em todo lugar que grava worklog
+  próprio (13 `fazApontamento`/`respondeConvite`/`enviaReuniaoGrupo`, 20 `gxApontaConfirma`, 14b `mtExecuta`, 14c
+  `chmConfirma`, 22 `rtExecuta`, 23 `trfExecuta`, 09 `mdAponta`, 21 `cvEnviar`/`qkConfirma`, 24 `rvExecuta`) — lugar novo
+  que grava horas = `if(!(await planGate(dia))) return;`. `planGateDia(dia)` é a régua (sem identidade, antes de
+  `mpInicioVig` e `mpCapDia===0` dispensam; plano ausente / em elaboração / devolvido sem `rascunho` / sem atividade
+  no dia reprovam); `planGateCarrega(w)` é a leitura AGUARDÁVEL do plano (o `mpGaranteMeu` é dispara-e-segue) com o
+  mesmo cache `estado.minhasemana.meu[w]`; falha ao ler → toast e segue (nunca bloqueia por erro). O aviso/bloqueio é
+  uma **sobreposição própria `.pg-bg`** (não o `#modal` — Gestão, 📞 e convite já estão num modal), Esc capturado
+  antes do Esc global; "Apontar mesmo assim" (só no aviso) grava `logAcao('apontar-sem-plano')`; "Ir para o Meu
+  Planejamento" abre a semana reprovada. Leitores `planGateCfg`/`planGateAtivo` não criam o objeto. É regra de tela —
+  o servidor não impõe (roadmap). **Início (08):** `cAloc` virou **🗂 Projetos da semana** (do MEU plano, planejado ×
+  feito via `minhasLogsEntre` + `extraLogs`; a alocação macro `cfg.alocacoes` ficou órfã da tela aposentada), **💬
+  Aguardando sua resposta** (`mencoesPend` + último evento `comentario` de outra pessoa nos meus tickets em
+  `ax.radAtv` + plano devolvido → `ax.respKeys`, rota `aguardando-resposta` → Gestão `soKeys`) e **⏳ Com o cliente**
+  (`ax.cliKeys`, rota `gestao-cliente`); o 🗓 Tickets sem data já existia. `carregaInbox` redesenha a Início ao chegar
+  (19). **Cuidado aprendido:** um handler local chamado `esc` dentro de uma função que usa o `esc()` global de HTML
+  antes dele = TDZ ("Cannot access 'esc' before initialization") e a faixa nunca nascia — o teste pegou; handlers
+  locais nunca com nome de helper global. Teste: `plan-gate-test.mjs` (Playwright, 69 casos: régua do dia, aviso/
+  bloqueio/Esc/ir ao plano, falha de leitura, 📞 por cima do modal, config por gestor × recusa de não-gestor na tela e
+  no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
+  `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
+  (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão
