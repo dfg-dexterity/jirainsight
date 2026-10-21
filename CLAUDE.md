@@ -269,6 +269,25 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
   `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
   (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
+- **📈 Análise do app × mercado e plano de melhorias (2026-10-20, a pedido do usuário: "verifique meu aplicativo
+  como um todo, analise outras ferramentas de mercado semelhantes, sugira como melhorar — funcionalidades,
+  usabilidade e facilidade para a pessoa organizar seu trabalho — e crie itens no roadmap"):** o documento mora em
+  **`docs/analise-mercado-e-melhorias-2026-10-20.md`** (método, inventário, achados com evidência arquivo:linha,
+  mercado com fontes, oportunidades em três ondas, o que ficou de fora de propósito) e a tela do 🗺️ Roadmap linka
+  para ele (`[data-rm-analise]`, com passo no guia). Os **27 itens novos** entraram no topo do `ROADMAP` numa leva
+  comentada (`// ---- 📈 Análise do app × mercado`), cada descrição começando por "Análise de 2026-10-20:" com a
+  evidência e as ferramentas que fazem igual; 4 itens foram **reescritos** (📋 Carga das próximas semanas, 📣 Cobrar o
+  apontamento, 📊 Uso do painel, ⚡ Carregar sob demanda → "Abertura mais leve", que subiu para planejado). O estágio é
+  sugestão da análise; o usuário decide. Números que a análise fixou e que valem como régua para as próximas
+  entregas: 2,5 MB de JS em 45 módulos; 13 leituras da API na abertura da Início (18 requisições com identidade;
+  atividade 2×, tempo 4×); 12 pontos gravam worklog (os 12 do planGate; 4 sem `registraExtraDia`); mobile-audit com
+  transbordo 0 nas 15 telas medidas e alvos de toque < 44 px em 111/114 no Apontar. Dado de uso real não entrou (o
+  Supabase do painel não estava acessível daqui). Lições de método: a auditoria do código, a pesquisa de mercado e a
+  medição mobile rodaram em paralelo (dois agentes + script) e o documento consolidou os três; o agente de mercado não
+  sabia que "Copiar semana anterior" e "Criar rotina" já existiam — conferir no código antes de propor; e a
+  **verificação adversarial** (8 agentes, 230 afirmações, 39 corrigidas — 4 erradas, 35 imprecisas) pegou contagens
+  feitas de cabeça ("só 3 chamam registraExtraDia" eram 8; "95 abreModal" eram 94; "📞 tem sobreposição própria" não
+  tem) — número ou "não existe X" só entra no texto depois do grep.
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão
@@ -537,6 +556,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-021 | Relatório semanal de sexta e pendências do projeto (gerente) | `3e9c6937-1e17-817a-a612-f3ecaae95503` |
   | TI-14-022 | Portal do projeto para o cliente (modo projeto + módulo 🌐 Portal do cliente) | `3e9c6937-1e17-81f2-b00e-d788e99c5d33` |
   | TI-14-023 | Ligações (Call tracking): detector do Mac e apontamento das chamadas | `3f4c6937-1e17-81f5-8bb7-c31280615ed8` |
+  | TI-14-024 | Roadmap da solução: base no Notion sincronizada com o app (base `🗂 Roadmap da solução`, data source `bf1de04e-1690-4571-a225-c8bb79e0da03`, URL `https://app.notion.com/p/f6bcbeaa327c4fcc91b4852769cd257b`) | `400c6937-1e17-8140-9d5e-c68fa5bbd9f1` |
 
   (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
   com SharePoint, Odoo e Finder.)
@@ -713,3 +733,38 @@ push na main, `.github/workflows/check.yml`, com `fetch-depth: 0`):
 
 Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
 de itens — quem lê sabe se está olhando algo atual.
+
+## 🗂 Roadmap no Notion — MANTER SINCRONIZADO (acordo de 2026-10-21, a pedido do usuário)
+
+> Pedido literal: *"crie uma página vinculada a essa igual às demais do Notion; nessa página crie uma base
+> de dados do Notion com o Roadmap, com mais campos — categoria da melhoria, esforço em tokens estimado,
+> tamanho, vínculo em pré-requisitos e outras dimensões úteis para roadmap de solução — e, além de manter o
+> roadmap da solução atualizado, sempre atualize essa nova base do Notion."*
+
+- **Onde:** processo **TI-14-024** (`400c6937-1e17-8140-9d5e-c68fa5bbd9f1`) → base **🗂 Roadmap da solução**
+  (data source `bf1de04e-1690-4571-a225-c8bb79e0da03`). Campos: Nome · ID no app · Estágio · Onda · Categoria ·
+  Área · Telas · Tamanho · Esforço (M tokens) · Horas estimadas · Impacto · Prioridade (fórmula Impacto × Tamanho)
+  · Valor para · Origem · Referência de mercado · Dependência externa · Decisão pendente · Pré-requisitos /
+  Desbloqueia (relação consigo mesma) · Entrou em · Entregue em · Saiu do app em · Última sincronização · Ordem no
+  app · Ticket Jira · PR · Descrição.
+- **Chave:** `id:'R###'` em cada item do `ROADMAP` (05). Item novo = **próximo número livre**; o id **nunca muda nem
+  é reaproveitado**, mesmo que o título seja reescrito. `scripts/check-entrega.mjs` reprova id ausente ou repetido.
+- **Quem manda em quê:** o **app** é a fonte de Nome, Estágio, Descrição e Ordem no app; o **Notion** é a fonte de
+  todas as dimensões de planejamento — `scripts/roadmap-notion.mjs` grava só os campos do app (+ Última
+  sincronização / Saiu do app em) e nunca toca nas outras. Régua de tamanho: P ≈ 1 dia (1,5 M tokens · 2 h) · M ≈
+  2–4 dias (4 M · 4 h) · G ≈ 1–2 semanas (8 M · 8 h) · GG ≈ mais de 2 semanas ou peça fora do painel (15 M · 12 h).
+- **A cada commit que mexe no `ROADMAP`** (junto com a revisão do roadmap acima), refletir na base pelo MCP do
+  Notion (`mcp__Notion__notion-create-pages` com `data_source_id` / `notion-update-page` com `update_properties`):
+  item novo → linha nova **já classificada** (categoria, área, telas, tamanho, esforço, horas, impacto, valor para,
+  origem, Entrou em, pré-requisitos, decisão/dependência); item reescrito → Nome/Descrição/Estágio (e Tamanho/Impacto
+  se mudaram); item **entregue** (saiu do array) → `Estágio = Entregue`, `Entregue em`, `Ticket Jira`, `PR` — nunca
+  apagar a linha. Conferir com `notion-query-data-sources` (SQL: contagem e ids repetidos) quando mexer em vários.
+- **Rede de segurança:** `.github/workflows/roadmap-notion.yml` roda o script a cada push na main que mexa no 05
+  (upsert por id; o que saiu do array e não está "Entregue" vira "Fora do roadmap"). Precisa dos secrets
+  `NOTION_TOKEN` (integração interna do Notion com acesso à base — ticket [Manual step]) e `NOTION_ROADMAP_DB`
+  (`f6bcbeaa327c4fcc91b4852769cd257b`); sem eles o job só avisa. O `api.notion.com` é bloqueado pelo proxy deste
+  ambiente: o script é testado contra um Notion falso (`roadmap-notion-test.mjs` no scratchpad; o servidor falso vive
+  no mesmo processo, por isso o script roda com `execFile` assíncrono — `execFileSync` bloqueia o laço e o filho
+  nunca recebe resposta).
+- **Para o time:** a tela 🗺️ Roadmap do app mostra o id de cada item e linka a base (`[data-rm-notion]`); mudar o
+  estágio de um item é mudança no app (pedir na entrega ou pelo 🐞 Reportar), não no Notion.

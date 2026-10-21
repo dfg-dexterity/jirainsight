@@ -1,0 +1,53 @@
+name: Roadmap → Notion
+
+# Cumpre o acordo de 2026-10-21 do CLAUDE.md ("além de manter o roadmap da solução atualizado, sempre
+# atualize a base do Notion"): a cada push na main que mexa no 05-novidades-roadmap.js, o script faz o
+# upsert dos itens do array ROADMAP na base "Roadmap da solução" (processo TI-14-024), pela chave `id`.
+#
+# O app manda em Nome, Estágio, Descrição e Ordem; o Notion manda nas dimensões de planejamento
+# (categoria, tamanho, esforço, impacto, pré-requisitos…) — o script nunca as toca. Item que saiu do
+# array vira "Fora do roadmap" (a entrega marca "Entregue" pelo MCP).
+#
+# Pré-requisitos (secrets do repositório):
+#   · NOTION_TOKEN       → integração interna do Notion com acesso à base (Settings › Connections › Develop)
+#   · NOTION_ROADMAP_DB  → id da base "Roadmap da solução"
+# Sem eles o job só avisa e termina verde: a sincronização fica por conta da entrega (MCP do Notion).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/js/05-novidades-roadmap.js'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'dry=1 só mostra o que criaria/atualizaria (não grava)'
+        required: false
+        default: '1'
+
+concurrency:
+  group: roadmap-notion
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sincronizar o ROADMAP com a base do Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_ROADMAP_DB: ${{ secrets.NOTION_ROADMAP_DB }}
+          DRY: ${{ github.event.inputs.dry }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOTION_TOKEN:-}" ] || [ -z "${NOTION_ROADMAP_DB:-}" ]; then
+            echo "::notice::NOTION_TOKEN / NOTION_ROADMAP_DB não configurados — a base do Notion segue atualizada pela entrega (MCP). Para ligar a sincronização automática, veja o processo TI-14-024."
+            exit 0
+          fi
+          ARGS=()
+          if [ "${DRY:-0}" = "1" ]; then ARGS+=(--dry); fi
+          node scripts/roadmap-notion.mjs "${ARGS[@]}"

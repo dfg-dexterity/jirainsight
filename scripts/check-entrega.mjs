@@ -98,12 +98,18 @@ if (ULTIMA && typeof NOV_VER === 'string' && !NOV_VER.startsWith(ULTIMA)) {
   erros.push(`NOV_VER ("${NOV_VER}") não corresponde à última novidade (${ULTIMA}) — use "${ULTIMA}.1" (ou .2, .3… no mesmo dia).`);
 }
 
-// Sanidade do roadmap: estágio válido, título e descrição preenchidos, sem repetidos.
+// Sanidade do roadmap: id estável (chave da sincronização com a base do Notion — processo TI-14-024),
+// estágio válido, título e descrição preenchidos, sem repetidos.
 if (Array.isArray(ROADMAP)) {
   const ESTAGIOS = new Set(['fazendo', 'planejado', 'avaliacao']);
   const vistos = new Set();
+  const ids = new Set();
+  const RE_ID = /^R\d{3,}$/;
   ROADMAP.forEach((x, i) => {
     if (!x || typeof x !== 'object') { erros.push(`ROADMAP[${i}]: item inválido.`); return; }
+    if (!RE_ID.test(String(x.id || ''))) erros.push(`ROADMAP[${i}] ("${String(x.t || '').slice(0, 40)}"): id ausente ou fora do padrão — use id:'R###' (o próximo número livre; o id nunca muda nem é reaproveitado: é a chave da base do Notion).`);
+    else if (ids.has(x.id)) erros.push(`ROADMAP: id repetido — ${x.id} ("${String(x.t || '').slice(0, 40)}").`);
+    ids.add(x.id);
     if (!ESTAGIOS.has(x.s)) erros.push(`ROADMAP[${i}] ("${String(x.t || '').slice(0, 40)}"): estágio "${x.s}" inválido — use fazendo, planejado ou avaliacao.`);
     if (!String(x.t || '').trim()) erros.push(`ROADMAP[${i}]: título (t) vazio.`);
     if (!String(x.d || '').trim()) erros.push(`ROADMAP[${i}] ("${String(x.t || '').slice(0, 40)}"): descrição (d) vazia — explique o que é, para quem lê o roadmap na tela.`);

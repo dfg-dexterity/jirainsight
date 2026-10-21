@@ -841,6 +841,43 @@ tickets sem ação minha depois, pela atividade de 7 dias do Radar + plano devol
 "aguardando cliente"). Nenhuma leitura nova: tudo vem do que a Início já carrega
 (`/api/vencimentos`, `/api/atividade`, Inbox, plano da semana).
 
+### 📈 Análise do app × mercado e plano de melhorias (2026-10-20)
+
+A pedido do usuário, o app inteiro foi auditado (44 telas, 9 fluxos da pessoa e do gestor, capturas no
+computador e no celular, `scripts/mobile-audit.mjs`) e comparado com 36 ferramentas de mercado em seis
+categorias (apontamento sobre o Jira — Clockwork Pro, Tempo, Everhour, Clockify —, apontamento automático —
+Toggl, Timely, Memtime, Timing, Rize —, organização pessoal — Sunsama, Akiflow, Reclaim, Jira *For you*,
+Linear, Asana —, capacidade do time — Float, Runn, ActivityTimeline —, rituais no Teams e IA aplicada).
+O resultado está em **`docs/analise-mercado-e-melhorias-2026-10-20.md`** (resumo executivo, achados com
+evidência arquivo:linha, tabela de mercado, padrões de UX, oportunidades priorizadas em três ondas e as
+fontes) e virou **27 itens novos + 4 reescritos no 🗺️ Roadmap** (revisão `2026-10-20.4`), com um link
+para o documento no topo da tela do Roadmap. As três ondas: **apontar com menos atrito** (cronômetro,
+editar/desfazer, "continuar de onde parei", lembrete pessoal de fim de dia, rascunho do dia em cartões,
+componente único de apontamento), **organizar o meu trabalho** (lista única dos meus tickets, plano ligado
+a tickets, grade semanal, Início com ações no lugar e modo foco, atalhos, Hoje em linha do tempo, rituais)
+e **o time e a plataforma** (bom-dia no Teams, config fatiada por perfil, abertura mais leve, alvos de
+toque de 44 px, fechamento semanal do timesheet). O estágio de cada item é a sugestão da análise; o time decide.
+
+### 🗂 Roadmap da solução no Notion (2026-10-21)
+
+A pedido do usuário, o 🗺️ Roadmap passou a existir também como **base de dados no Notion** (processo
+**TI-14-024**, filha do TI-14 como os demais), com as dimensões que a tela do app não tem: **onda,
+categoria da melhoria, área, telas, tamanho (P/M/G/GG), esforço estimado em tokens e em horas, impacto,
+prioridade** (fórmula Impacto × Tamanho), **valor para, origem, pré-requisitos/desbloqueia, dependência
+externa, decisão pendente, referência de mercado, datas e links** (Jira, PR). Regras:
+
+- **Chave:** cada item do array `ROADMAP` tem um `id:'R###'` estável (`scripts/check-entrega.mjs` reprova
+  id ausente ou repetido). A tela do app mostra o id ao lado de cada item e linka a base.
+- **Quem manda em quê:** o app é a fonte de Nome, Estágio, Descrição e Ordem; o Notion é a fonte das
+  dimensões de planejamento — a sincronização nunca as toca. Item que sai do array vira "Fora do roadmap"
+  (a entrega marca "Entregue").
+- **Sincronização:** (1) a cada entrega, pelo MCP do Notion (item novo já classificado); (2) na CI,
+  `.github/workflows/roadmap-notion.yml` roda `scripts/roadmap-notion.mjs` a cada push na `main` que mexa no
+  05 — upsert por id; precisa dos secrets `NOTION_TOKEN` (integração interna com acesso à base) e
+  `NOTION_ROADMAP_DB`, e sem eles só avisa; (3) à mão, `node scripts/roadmap-notion.mjs --dry` mostra o plano.
+  O script tem teste contra um Notion falso (criação, atualização, "fora do roadmap", descrição longa
+  fatiada em blocos de 2.000, paginação, dry-run, id duplicado).
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
