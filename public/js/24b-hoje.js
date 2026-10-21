@@ -34,10 +34,16 @@ const HJ_EXP_INI=8*60, HJ_EXP_FIM=18*60;   // expediente para procurar lacunas (
 
 // ---------------- estado, identidade e leitura ----------------
 function hjSt(){ const h=estado.hoje; const id=idApontar(); const acc=(id&&id.accountId)||'';
-  if(h.a!==acc){ h.a=acc; h.dias={}; h.diasB={}; h.erro=''; h.ritual=null; h.sug={}; h.time={}; h.timeB={}; }   // trocou de identidade: nada da outra pessoa vale
+  if(h.a!==acc){ h.a=acc; h.dias={}; h.diasB={}; h.erro=''; h.erroEm=0; h.ritual=null; h.sug={}; h.time={}; h.timeB={}; h.timeErro=''; h.sv={}; h.sujo={}; h.salvando=0; h._salvaT={}; h._logsP=''; }   // trocou de identidade: nada da outra pessoa vale (gravação em voo da anterior é descartada pelo `acc` capturado)
+  if(!h.sv) h.sv={}; if(!h.sujo||typeof h.sujo!=='object') h.sujo={}; if(!h._salvaT||typeof h._salvaT!=='object') h._salvaT={};
   return h; }
 function hjAcc(){ const id=idApontar(); return (id&&id.accountId)||''; }
-function hjD(){ const h=hjSt(); if(!h.d||!/^\d{4}-\d{2}-\d{2}$/.test(h.d)) h.d=hojeSP(); return h.d; }
+// O dia aberto. Virou o dia (aba aberta de madrugada): volta para hoje — senão o 🌅 planejaria ontem.
+function hjD(){ const h=hjSt(); const hoje=hojeSP(); if(!h.d||!/^\d{4}-\d{2}-\d{2}$/.test(h.d)||(h.dRef&&h.dRef!==hoje)){ h.d=hoje; } h.dRef=hoje; return h.d; }
+function hjVaiDia(d){ const h=hjSt(); h.d=d; h.dRef=hojeSP(); }
+function hjSujo(d){ const h=hjSt(); return !!h.sujo[d||hjD()]; }
+const HJ_MAX_ITENS=60;          // o servidor recusa o dia inteiro acima disso — a guarda fica aqui também
+const hjEstClamp=(seg)=>Math.max(0,Math.min(24*3600,Math.round(Number(seg)||0)));
 function hjDia(d){ const h=hjSt(); return h.dias[d||hjD()]; }   // undefined | null | {…}
 function hjItens(d){ const x=hjDia(d); return (x&&Array.isArray(x.itens))?x.itens:[]; }
 function hjNovoDia(d){ return { d, rev:'', st:'rascunho', itens:[], nota:'', planejadoEm:'', fechadoEm:'' }; }
@@ -51,38 +57,46 @@ function hjGarante(d, forca){
   if(!forca){ let ok=true; for(let i=0;i<=7;i++){ if(h.dias[mtsSoma(de,i)]===undefined){ ok=false; break; } } if(ok) return Promise.resolve(h.dias[d]||null); }
   if(h.diasB[chave]) return h.diasB[chave];
   if(!forca&&h.erroEm&&Date.now()-h.erroEm<30000) return Promise.resolve(undefined);   // acabou de falhar: não insiste (cada render chama)
+  const acc=hjAcc();
   const p=hjApi({ acao:'ler', de, ate }).then(j=>{
+    if(estado.hoje.a!==acc) return undefined;   // trocou de identidade enquanto lia: o dia da pessoa anterior não entra
     if(!(j&&j.ok)) throw new Error((j&&j.erro)||'Falha ao ler o seu dia.');
-    for(let i=0;i<=7;i++){ const x=mtsSoma(de,i); if(forca||h.dias[x]===undefined) h.dias[x]=null; }
-    // Dia já em memória NÃO é atropelado pela leitura (é a cópia em edição, com a rev): só o ↻ (forca) e o conflito trocam
-    (j.dias||[]).forEach(x=>{ if(x&&x.d){ if(!Array.isArray(x.itens)) x.itens=[]; if(forca||!h.dias[x.d]) h.dias[x.d]=x; } });
+    for(let i=0;i<=7;i++){ const x=mtsSoma(de,i); if((forca&&!h.sujo[x])||h.dias[x]===undefined) h.dias[x]=null; }
+    // Dia já em memória NÃO é atropelado pela leitura (é a cópia em edição, com a rev): só o ↻ (forca, e sem edição
+    // pendente naquele dia) e o conflito trocam
+    (j.dias||[]).forEach(x=>{ if(x&&x.d){ if(!Array.isArray(x.itens)) x.itens=[]; if((forca&&!h.sujo[x.d])||!h.dias[x.d]) h.dias[x.d]=x; } });
     h.erro=''; h.erroEm=0; return h.dias[d]||null;
-  }).catch(e=>{ h.erro=humanizaErro(e); h.erroEm=Date.now(); return undefined; })
+  }).catch(e=>{ if(estado.hoje.a===acc){ h.erro=humanizaErro(e); h.erroEm=Date.now(); } return undefined; })
     .then(x=>{ delete h.diasB[chave]; hjRedesenha(); return x; });
   h.diasB[chave]=p; return p;
 }
 function hjVistaAberta(){ return estado.vista==='hoje'||estado.vista==='hojetime'; }
 function hjRedesenha(){ if(hjVistaAberta()){ try{ renderHoje(); }catch(e){} } else if(estado.vista==='acoes'){ try{ agendaRenderAcoes(); }catch(e){} } }
-// Gravação: UMA por vez; a que chega com outra no ar sai depois, com o objeto atual e a rev nova.
-function hjAgendaSalvar(d){ const h=hjSt(); h.sujo=true; clearTimeout(h._salvaT); h._salvaT=setTimeout(()=>{ hjSalvar(d); },500); }
-async function hjSalvar(d){
-  const h=hjSt(); d=d||hjD(); const dia=h.dias[d]; if(!dia||!hjAcc()) return false;
-  if(h.salvandoP){ h.deNovo=d; return h.salvandoP; }
-  h.salvando=true; hjPintaSalvando();
+// Gravação: UMA por vez POR DIA (fila `h.sv[d]`); a que chega com outra no ar do mesmo dia sai depois, com o objeto atual e
+// a rev nova. Dias diferentes gravam em paralelo e cada um tem o seu timer de debounce e a sua marca de "sujo".
+function hjAgendaSalvar(d){ const h=hjSt(); d=d||hjD(); h.sujo[d]=true; hjPintaSalvando(); clearTimeout(h._salvaT[d]); h._salvaT[d]=setTimeout(()=>{ delete h._salvaT[d]; hjSalvar(d); },500); }
+// Devolve true só quando o servidor confirmou ESTA gravação (false = conflito, recusa ou falha de rede).
+function hjSalvar(d){
+  const h=hjSt(); d=d||hjD(); const dia=h.dias[d]; if(!dia||!hjAcc()) return Promise.resolve(false);
+  clearTimeout(h._salvaT[d]); delete h._salvaT[d];
+  const q=h.sv[d]||(h.sv[d]={});
+  if(q.p){ if(!q.prox) q.prox=q.p.then(()=>{ q.prox=null; return hjSalvar(d); }); return q.prox; }
+  const acc=hjAcc(); h.salvando=(h.salvando||0)+1; hjPintaSalvando();
   const corpo={ st:dia.st, itens:dia.itens, nota:dia.nota||'', planejadoEm:dia.planejadoEm||'', fechadoEm:dia.fechadoEm||'' };
   const p=hjApi({ acao:'salvar', d, dia:corpo, base:dia.rev||'' }).then(j=>{
+    if(estado.hoje.a!==acc) return false;   // trocou de identidade no meio: o resultado não é desta pessoa
     if(j&&j.ok&&j.dia){ const atual=h.dias[d]; j.dia.itens=Array.isArray(j.dia.itens)?j.dia.itens:[];
       // o servidor devolve o que gravou (rev nova); se a pessoa mexeu enquanto gravava, a cópia local segue na frente e grava de novo
-      if(atual===dia){ dia.rev=j.dia.rev; dia.st=j.dia.st; } else { h.dias[d]=j.dia; }
-      h.sujo=false; h.erro=''; return true; }
-    if(j&&j.conflito){ h.dias[d]=j.dia?Object.assign({ itens:[] },j.dia):null; h.sujo=false;
+      if(atual===dia){ dia.rev=j.dia.rev; } else { h.dias[d]=j.dia; }
+      if(!h._salvaT[d]) h.sujo[d]=false; h.erro=''; return true; }
+    if(j&&j.conflito){ h.dias[d]=j.dia?Object.assign({ itens:[] },j.dia):null; h.sujo[d]=false;
       toast('O seu dia foi alterado em outra aba/aparelho — recarreguei a versão mais nova.','warn'); hjRedesenha(); return false; }
     toast((j&&j.erro)||'Não consegui salvar o seu dia.','err'); return false;
   }).catch(e=>{ toast('Falha ao salvar o dia: '+humanizaErro(e),'err'); return false; })
-    .then(ok=>{ h.salvandoP=null; h.salvando=false; hjPintaSalvando(); if(h.deNovo){ const dn=h.deNovo; h.deNovo=''; return hjSalvar(dn); } return ok; });
-  h.salvandoP=p; return p;
+    .then(ok=>{ q.p=null; h.salvando=Math.max(0,(h.salvando||1)-1); hjPintaSalvando(); return ok; });
+  q.p=p; return p;
 }
-function hjPintaSalvando(){ const e=document.getElementById('hj-salvo'); if(!e) return; const h=estado.hoje; e.textContent=h.salvando?'salvando…':(h.sujo?'alterações pendentes':'salvo'); }
+function hjPintaSalvando(){ const e=document.getElementById('hj-salvo'); if(!e) return; const h=estado.hoje; e.textContent=h.salvando?'salvando…':(hjSujo()?'alterações pendentes':'salvo'); }
 // Contador da aba (ABAS_N): itens do dia de hoje ainda não feitos — só com o dado já em memória.
 function hjPendentesN(){ const x=estado.hoje&&estado.hoje.dias&&estado.hoje.dias[hojeSP()]; if(!x||!Array.isArray(x.itens)) return null; return x.itens.filter(i=>!i.feito&&!i.movido).length; }
 
@@ -98,7 +112,8 @@ function hjRotuloDia(d){ const hoje=hojeSP(); const dt=new Date(`${d}T12:00:00-0
   const base=`${sem}, ${d.slice(8,10)}/${d.slice(5,7)}`;
   return d===hoje?`Hoje · ${base}`:d===mtsSoma(hoje,1)?`Amanhã · ${base}`:d===mtsSoma(hoje,-1)?`Ontem · ${base}`:base; }
 // Próximo dia com capacidade (dia útil sem feriado/ausência), até 14 dias à frente — senão d+1.
-function hjProxUtil(d){ const acc=hjAcc(); for(let i=1;i<=14;i++){ const x=mtsSoma(d,i); if(mpCapDia(acc,x)>0) return x; } return mtsSoma(d,1); }
+// Num dia passado, "amanhã" conta a partir de hoje (mover um item de segunda retrasada não pode cair numa terça que já passou).
+function hjProxUtil(d){ const acc=hjAcc(); const base=d<hojeSP()?hojeSP():d; for(let i=1;i<=14;i++){ const x=mtsSoma(base,i); if(mpCapDia(acc,x)>0) return x; } return mtsSoma(base,1); }
 function hjCapSeg(d){ return Math.round(mpCapDia(hjAcc(),d)*3600); }
 
 // ---------------- o dia: eventos, apontamentos, derivadas ----------------
@@ -132,15 +147,19 @@ function hjLacunas(d){
   if(HJ_EXP_FIM-cur>=HJ_LACUNA_MIN) out.push({ a:cur, b:HJ_EXP_FIM });
   return out.filter(l=>l.b-l.a>=HJ_LACUNA_MIN);
 }
+// O item de uma reunião não conflita com a própria reunião (é o mesmo horário por definição).
 function hjConflito(d, it){ const a=hjMin(it.ini), b=hjItemFim(it); if(a==null||b==null) return null;
-  return hjOcupados(d, it.id).find(o=>o.a<b&&o.b>a)||null; }
+  return hjOcupados(d, it.id).find(o=>o.a<b&&o.b>a&&!(o.tipo==='ev'&&it.ev&&o.ev&&o.ev.id===it.ev))||null; }
+// Os itens que são reuniões da agenda (ev) — quando a agenda cobre o dia, as horas deles já saíram do "livre":
+// não entram no "Planejado" (senão contavam duas vezes e acendiam um ⚠ falso).
+function hjEhReuniaoContada(d, it){ return !!(it.ev&&hjAgendaCobre(d)); }
 // Capacidade × planejado × apontado do dia.
 function hjResumo(d){
   const itens=hjItens(d).filter(i=>!i.movido);
   const cap=hjCapSeg(d), reun=hjAgendaCobre(d)?hjReunioesSeg(d):null;
   const livre=Math.max(0,cap-(reun||0));
-  const plan=itens.filter(i=>!i.feito).reduce((s,i)=>s+(i.est||0),0);
-  const planTot=itens.reduce((s,i)=>s+(i.est||0),0);
+  const plan=itens.filter(i=>!i.feito&&!hjEhReuniaoContada(d,i)).reduce((s,i)=>s+(i.est||0),0);
+  const planTot=itens.filter(i=>!hjEhReuniaoContada(d,i)).reduce((s,i)=>s+(i.est||0),0);
   const ap=hjApontadoSeg(d); const meta=metaSegDe(hjAcc())||8*3600;
   return { cap, reun, livre, plan, planTot, ap, meta, n:itens.length, feitos:itens.filter(i=>i.feito).length, acima:Math.max(0,plan-livre) };
 }
@@ -151,7 +170,7 @@ function hjUltimoPlanejado(d){ const h=hjSt(); for(let i=1;i<=7;i++){ const x=mt
 // Cada candidato: { cid, k, t, p, est, orig, ev, ini, why }. Fontes: o que ficou de antes, 📋 plano da semana (o dia),
 // ⏰ vencidos/vencem hoje (meus), 🎯 prioridades do time (minhas), 🔄 em andamento (meus), 📅 reuniões do dia, 🕑 recentes.
 function hjSugestoes(d){
-  const acc=hjAcc(); const h=hjSt(); const grupos=[]; const atuais=hjItens(d);
+  const acc=hjAcc(); const h=hjSt(); const grupos=[]; const atuais=hjItens(d).filter(i=>!i.movido);   // o movido não está mais neste dia
   const temK=new Set(atuais.filter(i=>i.k).map(i=>i.k)), temEv=new Set(atuais.filter(i=>i.ev).map(i=>i.ev));
   const temT=new Set(atuais.filter(i=>!i.k&&!i.ev).map(i=>`${i.p}|${String(i.t||'').trim().toLowerCase()}`));
   const vistos=new Set();
@@ -217,11 +236,14 @@ function hjOrdenaUrgencia(d){ const dia=hjGaranteObj(d); const idx=new Map(dia.i
 
 // ---------------- mutações da lista ----------------
 function hjAdiciona(d, c, opts){
-  const dia=hjGaranteObj(d); const o=opts||{};
+  const o=opts||{};
+  if(hjDia(d)===undefined){ if(!o.quieto) toast('O seu dia ainda está sendo lido — tente de novo em instantes.','warn'); return null; }   // sem a rev, a gravação viraria conflito e o item sumiria
+  const dia=hjGaranteObj(d);
   if(c.k&&dia.itens.some(i=>i.k===c.k&&!i.movido)){ if(!o.quieto) toast(`${c.k} já está no seu dia.`,'info'); return null; }
   if(c.ev&&dia.itens.some(i=>i.ev===c.ev&&!i.movido)){ if(!o.quieto) toast('Essa reunião já está no seu dia.','info'); return null; }
+  if(dia.itens.length>=HJ_MAX_ITENS){ if(!o.quieto) toast(`Máximo de ${HJ_MAX_ITENS} itens num dia — tire ou mova alguns antes.`,'warn'); return null; }
   const it={ id:hjId(), k:String(c.k||'').toUpperCase(), t:String(c.t||'').trim().slice(0,200), p:String(c.p||(c.k?String(c.k).split('-')[0]:'')).toUpperCase(),
-    est:Math.max(0,Math.round(Number(c.est)||0)), feito:false, feitoEm:'', ini:c.ini||'', orig:c.orig||'manual', ev:c.ev||'', nota:'', movido:'' };
+    est:hjEstClamp(c.est), feito:false, feitoEm:'', ini:c.ini||'', orig:c.orig||'manual', ev:c.ev||'', nota:'', movido:'' };
   if(dia.st==='fechado'){ dia.st='planejado'; }   // mexeu depois de fechar: o dia reabre
   if(o.inicio) dia.itens.unshift(it); else dia.itens.push(it);
   if(!o.semSalvar) hjAgendaSalvar(d);
@@ -234,18 +256,39 @@ function hjMove(d, id, delta){ const dia=hjGaranteObj(d); const i=dia.itens.find
   const [it]=dia.itens.splice(i,1); dia.itens.splice(j,0,it); hjAgendaSalvar(d); }
 function hjMovePara(d, id, pos){ const dia=hjGaranteObj(d); const i=dia.itens.findIndex(x=>x.id===id); if(i<0) return;
   const [it]=dia.itens.splice(i,1); dia.itens.splice(Math.max(0,Math.min(dia.itens.length,pos)),0,it); hjAgendaSalvar(d); }
+// Leva itens para OUTRO dia: lê o destino (falha → nada muda), põe os itens lá e grava o destino PRIMEIRO; só com o servidor
+// confirmando é que a origem marca `movido`. Conflito/falha no destino → os itens voltam a ser só da origem (nada some).
+// Devolve { ok, prox, n } — quem chama grava a origem.
+async function hjLevaPara(d, itens, prox){
+  prox=prox||hjProxUtil(d); const h=hjSt();
+  if(!itens.length) return { ok:true, prox, n:0 };
+  const lido=await hjGarante(prox);
+  if(lido===undefined){ toast(`Não consegui ler o dia ${fmtBR(prox)} — nada foi movido. Tente de novo.`,'err'); return { ok:false, prox, n:0 }; }
+  const novos=[];
+  itens.forEach(i=>{ const n=hjAdiciona(prox,{ k:i.k, t:i.t, p:i.p, est:i.est, orig:'ontem', ev:'' },{ quieto:true, semSalvar:true }); if(n) novos.push(n); });
+  const ok=await hjSalvar(prox);
+  if(!ok){ const dp=h.dias[prox]; if(dp&&Array.isArray(dp.itens)){ const ids=new Set(novos.map(n=>n.id)); dp.itens=dp.itens.filter(x=>!ids.has(x.id)); }
+    toast(`O dia ${fmtBR(prox)} não gravou — nada foi movido.`,'err'); return { ok:false, prox, n:0 }; }
+  itens.forEach(i=>{ i.movido=prox; i.ini=''; });
+  return { ok:true, prox, n:itens.length };
+}
 // Mover para o próximo dia útil: o item nasce lá (orig 'ontem', sem bloco) e aqui fica marcado `movido`.
 async function hjParaAmanha(d, id){
-  const it=hjItem(d,id); if(!it) return; const prox=hjProxUtil(d);
-  await hjGarante(prox);
-  const novo=hjAdiciona(prox,{ k:it.k, t:it.t, p:it.p, est:it.est, orig:'ontem', ev:'' },{ quieto:true, semSalvar:true });
-  it.movido=prox; it.ini='';
-  await hjSalvar(prox); hjAgendaSalvar(d);
-  toast(`↪ ${it.k||it.t} foi para ${fmtBR(prox)}.`,'ok'); hjRedesenha();
-  return novo;
+  const it=hjItem(d,id); if(!it||it.movido) return;
+  const r=await hjLevaPara(d,[it]); if(!r.ok){ hjRedesenha(); return; }
+  hjAgendaSalvar(d);
+  toast(`↪ ${it.k||it.t} foi para ${fmtBR(r.prox)}.`,'ok'); hjRedesenha();
 }
 function hjAgenda(d, id, ini){ const it=hjItem(d,id); if(!it) return; it.ini=ini||''; if(it.ini&&!it.est) it.est=3600; hjAgendaSalvar(d); }
-function hjSetEst(d, id, seg){ const it=hjItem(d,id); if(!it) return; it.est=Math.max(0,Math.min(24*3600,Math.round(seg||0))); hjAgendaSalvar(d); }
+function hjSetEst(d, id, seg){ const it=hjItem(d,id); if(!it) return; it.est=hjEstClamp(seg); hjAgendaSalvar(d); }
+// Ticket entrou pela chave (texto ou busca sem ficha): completa resumo/projeto/estimativa pela ficha.
+async function hjEnriquece(d, itId){
+  const it0=hjItem(d,itId); if(!it0||!it0.k) return;
+  try{ const j=await fetch(`/api/vencimentos?detalhe=${encodeURIComponent(it0.k)}`).then(r=>r.json());
+    const x=hjItem(d,itId); if(!x) return;
+    if(j&&!j.erro){ x.t=x.t||j.resumo||''; x.p=j.p||x.p; if(!x.est&&j.est) x.est=hjEstClamp(j.est-(j.seg||0)); hjAgendaSalvar(d); hjRedesenha(); }
+    else if(!x.t){ x.t='(ticket não encontrado — confira a chave)'; hjRedesenha(); } }catch(e){}
+}
 
 // ---------------- adicionar por texto / chave / busca ----------------
 // Chave de ticket (ABC-123) → confere pela ficha e entra com o resumo; texto livre → item livre no projeto escolhido.
@@ -254,30 +297,30 @@ async function hjAdicionaTexto(d, txt, proj){
   const m=/^([A-Za-z][A-Za-z0-9_]*-\d+)\b\s*(.*)$/.exec(txt);
   if(m){ const k=m[1].toUpperCase(); const resto=m[2].trim();
     const it=hjAdiciona(d,{ k, t:resto, p:k.split('-')[0], est:0, orig:'busca' }); if(!it) return;
-    hjRedesenha();
-    try{ const j=await fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json());
-      if(j&&!j.erro){ const x=hjItem(d,it.id); if(x){ x.t=x.t||j.resumo||''; x.p=j.p||x.p; if(!x.est&&j.est) x.est=Math.max(0,j.est-(j.seg||0)); hjAgendaSalvar(d); hjRedesenha(); } }
-      else { const x=hjItem(d,it.id); if(x&&!x.t){ x.t='(ticket não encontrado — confira a chave)'; hjRedesenha(); } } }catch(e){}
+    hjRedesenha(); await hjEnriquece(d, it.id);
     return; }
   hjAdiciona(d,{ k:'', t:txt, p:proj||'', est:0, orig:'manual' }); hjRedesenha();
 }
 // 🎫 busca de tickets no modo "escolher" (12b): o ticket escolhido entra no dia (ou vira a chave de um item livre).
-function hjBuscaParaDia(d, idItem){
+// `depois(it)` roda com o item já ligado — é o que faz o ⏱ de um item sem ticket seguir para o apontamento.
+function hjBuscaParaDia(d, idItem, depois){
   abreBuscaTickets('', (k, info)=>{ info=info||{};
-    if(idItem){ const it=hjItem(d,idItem); if(it){ it.k=k; it.p=info.p||k.split('-')[0]; if(!it.t) it.t=info.resumo||''; hjAgendaSalvar(d); hjRedesenha(); toast(`🎫 ${k} ligado ao item.`,'ok'); } return; }
-    const it=hjAdiciona(d,{ k, t:info.resumo||'', p:info.p||k.split('-')[0], est:0, orig:'busca' }); if(it){ hjRedesenha(); toast(`🎫 ${k} entrou no seu dia.`,'ok'); }
+    if(idItem){ const it=hjItem(d,idItem); if(it){ it.k=k; it.p=info.p||k.split('-')[0]; if(!it.t) it.t=info.resumo||''; hjAgendaSalvar(d); hjRedesenha(); toast(`🎫 ${k} ligado ao item.`,'ok'); if(!info.resumo) hjEnriquece(d,it.id); if(depois) depois(it); } return; }
+    const it=hjAdiciona(d,{ k, t:info.resumo||'', p:info.p||k.split('-')[0], est:0, orig:'busca' }); if(it){ hjRedesenha(); toast(`🎫 ${k} entrou no seu dia.`,'ok'); if(!info.resumo) hjEnriquece(d,it.id); if(depois) depois(it); }
   });
 }
 
 // ---------------- ⏱ apontar a partir de um item ----------------
 let _hjAp=null;
+// `extra.cand` = candidato ainda FORA do dia (lacuna → ⏱): o item só entra na lista depois de o apontamento gravar.
 function hjApontaModal(d, id, extra){
-  const it=hjItem(d,id); const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
+  const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
+  const cand=extra&&extra.cand; const it=cand||hjItem(d,id);
   if(!it) return;
-  if(!it.k){ hjBuscaParaDia(d, id); return; }   // item sem ticket: escolhe o ticket primeiro
+  if(!it.k){ hjBuscaParaDia(d, id, (it2)=>hjApontaModal(d, it2.id, extra)); return; }   // item sem ticket: escolhe o ticket e SEGUE para o apontamento
   const jaSeg=hjApontadoPorTicket(d)[it.k]||0;
-  const sug=Math.max(900,(it.est||0)-jaSeg||0)||3600;
-  _hjAp={ d, id, k:it.k };
+  const resta=(it.est||0)-jaSeg; const sug=it.est?Math.max(900,resta):3600;
+  _hjAp={ d, id:cand?'':id, k:it.k, cand:cand||null };
   const hora=(extra&&extra.hora)||it.ini||'';
   abreModal(`<div class="hj-modal"><h2>⏱ Apontar · ${esc(it.k)}</h2>
     <div class="muted small">${esc((it.t||'').slice(0,120))||'—'}${it.p?` · ${esc(projNome(it.p))}`:''}${jaSeg?` · já apontadas hoje: <b>${hjH(jaSeg)}</b>`:''}${it.est?` · estimativa ${hjH(it.est)}`:''}</div>
@@ -299,10 +342,15 @@ async function hjGravaWorklog(k, seg, dia, hora, coment, opts){
   const id=idApontar(); if(!id) return { ok:false, erro:'Identifique-se para apontar.' };
   const o=opts||{};
   if(!o.semGate){ if(!(await planGate(dia))) return { ok:false, cancelado:true }; }
-  const j=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({ issue:k, segundos:seg, inicio:dia, hora:hora||'', comentario:coment||'', email:id.email, token:id.token }) }).then(r=>r.json());
+  let j=null;
+  try{ j=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ issue:k, segundos:seg, inicio:dia, hora:hora||'', comentario:coment||'', email:id.email, token:id.token }) }).then(r=>r.json()); }
+  catch(e){ return { ok:false, erro:'Falha de rede ao apontar: '+humanizaErro(e) }; }   // a rede caiu: o modal não pode ficar preso em "Apontando…"
   if(!(j&&j.ok)) return { ok:false, erro:humanizaErro((j&&j.erro)||'Falha ao apontar.') };
-  try{ registraExtraDia(dia, seg, k); const ex=estado.apontar.extraLogs; const ult=ex&&ex[ex.length-1]; if(ult&&hora) ult.m=hjMin(hora); }catch(e){}
+  // `m` = hora REAL de início (só quando foi informada): é o que a linha do tempo desenha; sem hora o servidor usa 09:00 e aqui fica null.
+  // Apontado às 09:00 DE VERDADE: a sessão lembra (`nove`), porque depois da releitura o worklog volta igual a um sem hora.
+  try{ registraExtraDia(dia, seg, k); const ex=estado.apontar.extraLogs; const ult=ex&&ex[ex.length-1]; if(ult) ult.m=hora?hjMin(hora):null;
+    if(hora&&hjMin(hora)===9*60){ const h=hjSt(); h.nove=h.nove||{}; h.nove[`${dia}|${k}|${seg}`]=1; } }catch(e){}
   logAcao({ acao:'apontar', t:k, para:`${fmtH(seg)} em ${dia}${hora?' '+hora:''}`, ok:true }, o.semSalvar===true?false:undefined);
   invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
   return { ok:true };
@@ -319,15 +367,22 @@ async function hjApontaConfirma(){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)||dia>hojeSP()) return erro('Escolha um dia válido (hoje ou antes).');
   if(bt) bt.disabled=true; if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; }
   const r=await hjGravaWorklog(m.k, seg, dia, hora, coment);
+  if(_hjAp!==m) return;   // a pessoa fechou o modal (Esc) no meio: nada de mexer no que está aberto agora
   if(r.cancelado){ if(bt) bt.disabled=false; if(fb) fb.hidden=true; return; }
   if(!r.ok) return erro(r.erro);
-  const it=hjItem(m.d, m.id); if(it&&marcar&&!it.feito){ it.feito=true; it.feitoEm=new Date().toISOString(); hjAgendaSalvar(m.d); }
+  // o candidato da lacuna só entra no dia agora, com o apontamento gravado (antes, cancelar deixava um item fantasma)
+  const it=m.cand?hjAdiciona(m.d,{ ...m.cand },{ quieto:true, semSalvar:true }):hjItem(m.d, m.id);
+  if(it&&marcar&&!it.feito){ it.feito=true; it.feitoEm=new Date().toISOString(); }
+  if(it&&(marcar||m.cand)) hjAgendaSalvar(m.d);
   _hjAp=null; fechaModal(); toast(`✓ ${fmtH(seg)} apontadas em ${m.k}.`,'ok'); hjRedesenha();
 }
 
 // ---------------- ⏱ cronômetro (R001) ----------------
-function hjTimerLe(){ try{ const t=JSON.parse(localStorage.getItem(HJ_TIMER_KEY)||'null'); return (t&&t.ini&&t.k)?t:null; }catch(e){ return null; } }
-function hjTimerGrava(t){ try{ if(t) localStorage.setItem(HJ_TIMER_KEY, JSON.stringify(t)); else localStorage.removeItem(HJ_TIMER_KEY); }catch(e){} }
+// O cronômetro é de QUEM o iniciou (`a` = accountId): "esquecer credenciais" ou trocar de usuário descarta — senão
+// virava worklog de outra pessoa.
+function hjTimerLe(){ try{ const t=JSON.parse(localStorage.getItem(HJ_TIMER_KEY)||'null'); if(!(t&&t.ini&&t.k)) return null;
+  if((t.a||'')!==hjAcc()){ localStorage.removeItem(HJ_TIMER_KEY); return null; } return t; }catch(e){ return null; } }
+function hjTimerGrava(t){ try{ if(t){ t.a=hjAcc(); localStorage.setItem(HJ_TIMER_KEY, JSON.stringify(t)); } else localStorage.removeItem(HJ_TIMER_KEY); }catch(e){} }
 function hjTimerSeg(t){ t=t||hjTimerLe(); if(!t) return 0; return Math.max(0,Math.round((Date.now()-Date.parse(t.ini))/1000)); }
 // Inicia (k = ticket; itemId/d = o item do dia, opcional). Com outro rodando: para o atual (oferece apontar) e segue.
 function hjTimerInicia(k, t, itemId, d){
@@ -357,7 +412,7 @@ function hjTimerParaModal(t, proximo){
     </div>
     <div class="muted small" style="margin-top:6px">O worklog nasce às <b>${esc(hora)}</b> (hora real de início) quando o dia é ${esc(fmtBR(dia))}; trocando o dia, entra às 09:00.${proximo?` Depois disso o cronômetro começa em <b>${esc(proximo.k)}</b>.`:''}</div>
     <div class="ap-fb" id="hj-tp-fb" hidden></div>
-    <div class="alx-modal-acoes"><button class="btn primario" id="hj-tp-ok">⏱ Apontar</button><button class="btn" id="hj-tp-descarta">Descartar</button><button class="btn" data-hj-fecha>Voltar</button></div></div>`);
+    <div class="alx-modal-acoes"><button class="btn primario" id="hj-tp-ok">⏱ Apontar</button><button class="btn" id="hj-tp-descarta">Descartar (sem apontar)</button><button class="btn" data-hj-fecha>Continuar rodando</button></div></div>`);
 }
 async function hjTimerConfirma(descartar){
   const m=_hjTp; if(!m) return; const fb=document.getElementById('hj-tp-fb'); const bt=document.getElementById('hj-tp-ok');
@@ -371,6 +426,7 @@ async function hjTimerConfirma(descartar){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)||dia>hojeSP()) return erro('Escolha um dia válido (hoje ou antes).');
   if(bt) bt.disabled=true; if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; }
   const r=await hjGravaWorklog(m.t.k, seg, dia, dia===m.dia?hjHoraSP(m.t.ini):'', coment);
+  if(_hjTp!==m) return;   // fechou com Esc no meio
   if(r.cancelado){ if(bt) bt.disabled=false; if(fb) fb.hidden=true; return; }
   if(!r.ok) return erro(r.erro);
   toast(`✓ ${fmtH(seg)} apontadas em ${m.t.k}.`,'ok'); fim();
@@ -379,7 +435,8 @@ async function hjTimerConfirma(descartar){
 function hjTimerPinta(){
   let p=document.getElementById('hj-timer'); const t=hjTimerLe();
   if(!t){ if(p) p.remove(); return; }
-  if(!p){ p=el('<div id="hj-timer" class="hj-timer" role="status" aria-live="polite"><button class="hj-timer-k" data-hj-timer-ir title="Abrir o 📆 Hoje"></button><span class="hj-timer-t"></span><button class="btn hj-timer-stop" data-hj-timer-stop title="Parar e apontar" aria-label="Parar o cronômetro e apontar">■</button></div>'); document.body.appendChild(p); }
+  // sem aria-live: o relógio muda a cada 30 s e o leitor de tela anunciaria sem parar
+  if(!p){ p=el('<div id="hj-timer" class="hj-timer" aria-label="Cronômetro rodando"><button class="hj-timer-k" data-hj-timer-ir title="Abrir o 📆 Hoje" aria-label="Cronômetro — abrir o Hoje"></button><span class="hj-timer-t"></span><button class="btn hj-timer-stop" data-hj-timer-stop title="Parar e apontar" aria-label="Parar o cronômetro e apontar">■</button></div>'); document.body.appendChild(p); }
   const seg=hjTimerSeg(t); const h=Math.floor(seg/3600), mi=Math.floor((seg%3600)/60);
   p.querySelector('.hj-timer-k').textContent=`⏱ ${t.k}`; p.querySelector('.hj-timer-t').textContent=`${h}:${String(mi).padStart(2,'0')}`;
   p.classList.toggle('longo', seg>10*3600);
@@ -390,21 +447,25 @@ function hjTimerAvisoEsquecido(){ const t=hjTimerLe(); if(!t) return; if(hjTimer
 // ---------------- 🌅 Planejar o dia / 🌙 Fechar o dia (rituais) ----------------
 function hjRitualPlanejar(d){
   d=d||hjD(); const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
-  const h=hjSt(); h.ritual={ tipo:'planejar', d, passo:1, sel:{}, est:{}, adiar:{}, grupos:null };
+  const h=hjSt(); h.ritual={ tipo:'planejar', d, passo:1, sel:{}, est:{}, estTxt:{}, adiar:{}, visto:{}, grupos:null };
   abreModal('<div class="hj-modal hj-rit"><h2>🌅 Planejar o dia</h2><div class="estado">Reunindo as sugestões…</div></div>');
-  // dados que as sugestões usam (agenda, vencidos, prioridades, plano) — dispara e redesenha quando chegar
+  // dados que as sugestões usam (agenda, vencidos, prioridades, plano) — dispara e redesenha quando chegar: a lista de
+  // candidatos é recalculada a cada pintura dos passos 1–2, e o que chega depois nasce com a marcação padrão (`visto`)
   if(!estado.agenda.dados&&!estado.agenda.carregando&&!estado.agenda.erro) carregaAgenda(false);
   Promise.all([hjGarante(d), planGateCarrega(semChave(d)), apGaranteMeusLogs(d)]).then(()=>hjRitualPinta());
   hjRitualPinta();
 }
 function hjRitualFechar(d){
   d=d||hjD(); const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
-  const h=hjSt(); const dia=hjGaranteObj(d);
+  if(d>hojeSP()){ toast('Só dá para fechar um dia que já chegou — abra o dia de hoje.','warn'); return; }   // fechar o futuro gravaria worklog no futuro
+  const h=hjSt(); if(hjDia(d)===undefined){ toast('O seu dia ainda está sendo lido — tente de novo em instantes.','warn'); return; }
+  const dia=hjGaranteObj(d);
   const naoFeitos={}, apontar={}, tempos={};
   const por=hjApontadoPorTicket(d);
-  dia.itens.filter(i=>!i.movido).forEach(i=>{ if(!i.feito) naoFeitos[i.id]='amanha';
+  // reunião não feita fica (não vira pendência de texto no dia seguinte ao lado da própria reunião); o resto vai para amanhã
+  dia.itens.filter(i=>!i.movido).forEach(i=>{ if(!i.feito) naoFeitos[i.id]=i.ev?'deixar':'amanha';
     if(i.feito&&i.k&&!por[i.k]&&i.orig!=='reuniao'){ apontar[i.id]=true; tempos[i.id]=i.est||3600; } });
-  h.ritual={ tipo:'fechar', d, passo:1, naoFeitos, apontar, tempos, nota:dia.nota||'' };
+  h.ritual={ tipo:'fechar', d, passo:1, naoFeitos, apontar, tempos, tempoTxt:{}, nota:dia.nota||'' };
   abreModal('<div class="hj-modal hj-rit"><h2>🌙 Fechar o dia</h2><div class="estado">…</div></div>');
   apGaranteMeusLogs(d).then(()=>hjRitualPinta()); hjRitualPinta();
 }
@@ -412,11 +473,13 @@ function hjRitualAberto(){ const m=document.getElementById('modal'); return !!(e
 function hjRitualPinta(){
   const h=hjSt(); const r=h.ritual; if(!r||!hjRitualAberto()) return;
   const d=r.d; const box=document.querySelector('#modal-body .hj-rit'); if(!box) return;
-  const foco=document.activeElement&&document.activeElement.id; const sel0=document.activeElement&&document.activeElement.selectionStart;
+  const ae=document.activeElement; const foco=ae&&ae.id; let sel0=null; try{ sel0=ae&&ae.selectionStart; }catch(e){}
   const esq=(n)=>`<div class="hj-rit-passos">${[1,2,3].map(i=>`<span class="${i===r.passo?'on':(i<r.passo?'ok':'')}">${i}</span>`).join('')}</div>`;
   let corpo='';
   if(r.tipo==='planejar'){
-    if(!r.grupos||r.passo===1){ r.grupos=hjSugestoes(d); if(!r._sel0){ r._sel0=true; r.grupos.forEach(g=>g.itens.forEach(c=>{ r.sel[c.cid]=g.id!=='rec'&&g.id!=='andamento'; if(c.est) r.est[c.cid]=c.est; })); } }
+    if(!r.grupos||r.passo<3){ r.grupos=hjSugestoes(d);
+      // candidato que aparece pela primeira vez (inclusive o que chegou depois: vencidos, agenda) nasce com a marcação padrão
+      r.grupos.forEach(g=>g.itens.forEach(c=>{ if(r.visto[c.cid]) return; r.visto[c.cid]=true; r.sel[c.cid]=g.id!=='rec'&&g.id!=='andamento'; if(c.est) r.est[c.cid]=hjEstClamp(c.est); })); }
     const res=hjResumo(d);
     if(r.passo===1){
       const g=r.grupos.find(x=>x.id==='ontem'); const ult=hjUltimoPlanejado(d);
@@ -433,16 +496,19 @@ function hjRitualPinta(){
     } else {
       const escolhidos=[]; r.grupos.forEach(g=>g.itens.forEach(c=>{ if(r.sel[c.cid]) escolhidos.push(c); }));
       escolhidos.sort((a,b)=>hjUrgencia({ ...a, feito:false },d)-hjUrgencia({ ...b, feito:false },d));
-      const atual=hjItens(d).filter(i=>!i.feito&&!i.movido).reduce((s,i)=>s+(i.est||0),0);
-      const novo=escolhidos.filter(c=>!r.adiar[c.cid]).reduce((s,c)=>s+(Number(r.est[c.cid])||0),0);
+      const atual=hjItens(d).filter(i=>!i.feito&&!i.movido&&!hjEhReuniaoContada(d,i)).reduce((s,i)=>s+(i.est||0),0);
+      const novo=escolhidos.filter(c=>!r.adiar[c.cid]&&!hjEhReuniaoContada(d,c)).reduce((s,c)=>s+(Number(r.est[c.cid])||0),0);
       const total=atual+novo; const livre=res.livre; const acima=Math.max(0,total-livre);
+      const ruins=Object.keys(r.estTxt).filter(cid=>r.estTxt[cid]&&r.estTxt[cid].trim()&&parseTempo(r.estTxt[cid])==null);
       corpo=`<h3>3 · Estimativas × capacidade</h3>
         <div class="hj-cap"><span>Capacidade <b>${hjH(res.cap)}</b></span><span>Reuniões <b>${res.reun==null?'—':hjH(res.reun)}</b></span><span>Livre <b>${hjH(livre)}</b></span><span class="${acima?'hj-acima':''}">Planejado <b>${hjH(total)}</b>${acima?` · ⚠ ${hjH(acima)} acima`:''}</span></div>
         ${acima?`<div class="aviso">⚠ Dia cheio: <b>${hjH(acima)}</b> acima do que cabe. Marque "amanhã" no que pode esperar — vai para o próximo dia útil.</div>`:''}
-        <div class="hj-cands hj-cands-est">${escolhidos.map(c=>`<div class="hj-cand${r.adiar[c.cid]?' adiado':''}">
+        ${ruins.length?'<div class="ap-fb err">Estimativa inválida — use 1h30, 45m ou 2:15 (até 24 h).</div>':''}
+        <div class="hj-cands hj-cands-est">${escolhidos.map((c,i)=>`<div class="hj-cand${r.adiar[c.cid]?' adiado':''}">
           <span class="hj-cand-t"><b>${esc(c.k||'')}</b> ${esc(c.t||'')}<span class="muted small"> · ${esc(HJ_ORIG_ROT[c.orig]||c.orig)}</span></span>
-          <input type="text" class="hj-cand-est" data-hj-rit-est="${escA(c.cid)}" value="${escA(r.est[c.cid]?fmtH(r.est[c.cid]):'')}" placeholder="1h30" aria-label="Estimativa">
-          <label class="hj-check small"><input type="checkbox" data-hj-rit-adiar="${escA(c.cid)}" ${r.adiar[c.cid]?'checked':''}> amanhã</label></div>`).join('')||'<div class="muted small">Nada escolhido — o dia fica como está.</div>'}</div>
+          <input type="text" class="hj-cand-est${r.estTxt[c.cid]!=null&&r.estTxt[c.cid].trim()&&parseTempo(r.estTxt[c.cid])==null?' invalido':''}" id="hj-rit-est-${i}" data-hj-rit-est="${escA(c.cid)}" value="${escA(r.estTxt[c.cid]!=null?r.estTxt[c.cid]:(r.est[c.cid]?fmtH(r.est[c.cid]):''))}" placeholder="1h30" aria-label="Estimativa">
+          <label class="hj-check small"><input type="checkbox" id="hj-rit-adiar-${i}" data-hj-rit-adiar="${escA(c.cid)}" ${r.adiar[c.cid]?'checked':''}> amanhã</label></div>`).join('')||'<div class="muted small">Nada escolhido — o dia fica como está.</div>'}</div>
+        ${hjRitualFbHTML(r)}
         <div class="alx-modal-acoes"><button class="btn" data-hj-rit-passo="2">← Voltar</button><button class="btn primario" data-hj-rit-ok>✓ Planejar o dia</button><button class="btn" data-hj-fecha>Cancelar</button></div>`;
     }
   } else {
@@ -460,12 +526,12 @@ function hjRitualPinta(){
       const semAp=feitos.filter(i=>i.k&&i.orig!=='reuniao');
       corpo=`<h3>2 · Feitos sem apontamento</h3>
         <div class="muted small">Marque o que apontar agora; o tempo vem da estimativa (ajuste). Itens com bloco entram na hora do bloco.</div>
-        ${semAp.length?`<div class="hj-cands">${semAp.map(i=>`<div class="hj-cand"><label class="hj-check"><input type="checkbox" data-hj-rit-ap="${escA(i.id)}" ${r.apontar[i.id]?'checked':''}> <b>${esc(i.k)}</b> ${esc(i.t||'')}</label>
+        ${semAp.length?`<div class="hj-cands">${semAp.map((i,n)=>`<div class="hj-cand"><label class="hj-check"><input type="checkbox" id="hj-rit-ap-${n}" data-hj-rit-ap="${escA(i.id)}" ${r.apontar[i.id]?'checked':''}> <b>${esc(i.k)}</b> ${esc(i.t||'')}</label>
             <span class="muted small">${por[i.k]?`já tem ${hjH(por[i.k])} hoje`:'sem horas hoje'}${i.ini?` · 🕘 ${esc(i.ini)}`:''}</span>
-            <input type="text" class="hj-cand-est" data-hj-rit-tempo="${escA(i.id)}" value="${escA(r.tempos[i.id]?fmtH(r.tempos[i.id]):'')}" placeholder="1h" aria-label="Tempo"></div>`).join('')}</div>`
+            <input type="text" class="hj-cand-est" id="hj-rit-tempo-${n}" data-hj-rit-tempo="${escA(i.id)}" value="${escA(r.tempoTxt[i.id]!=null?r.tempoTxt[i.id]:(r.tempos[i.id]?fmtH(r.tempos[i.id]):''))}" placeholder="1h" aria-label="Tempo"></div>`).join('')}</div>`
           :'<div class="muted small">Nenhum item feito com ticket sem apontamento.</div>'}
         <div class="campo full" style="margin-top:10px"><label>Nota para amanhã <span class="muted small">(opcional)</span></label><textarea id="hj-rit-nota" rows="2" maxlength="1000" placeholder="onde parei, o que atacar primeiro…">${esc(r.nota||'')}</textarea></div>
-        <div class="ap-fb" id="hj-rit-fb" hidden></div>
+        ${hjRitualFbHTML(r)}
         <div class="alx-modal-acoes"><button class="btn" data-hj-rit-passo="1">← Voltar</button><button class="btn primario" data-hj-rit-ok>🌙 Fechar o dia</button><button class="btn" data-hj-fecha>Cancelar</button></div>`;
     }
   }
@@ -477,50 +543,76 @@ function hjCandHTML(r, c){
     <span class="hj-cand-t">${c.k?`<b>${esc(c.k)}</b> `:''}${esc(c.t||'')}${c.p&&!c.k?`<span class="muted small"> · ${esc(projNome(c.p))}</span>`:''}</span>
     <span class="hj-cand-why muted small">${esc(c.why||'')}${c.est?` · ${hjH(c.est)}`:''}</span></label>`;
 }
+// Lê os campos de texto do ritual: o texto cru fica guardado (`estTxt`/`tempoTxt`) para o redesenho não apagar o que está
+// sendo digitado; o número só vale quando o texto é válido (inválido = 0 e a tela avisa).
 function hjRitualLeCampos(){
   const r=estado.hoje.ritual; if(!r) return;
-  document.querySelectorAll('#modal-body [data-hj-rit-est]').forEach(i=>{ const s=parseTempo(i.value); r.est[i.getAttribute('data-hj-rit-est')]=s==null?0:s; });
-  document.querySelectorAll('#modal-body [data-hj-rit-tempo]').forEach(i=>{ const s=parseTempo(i.value); r.tempos[i.getAttribute('data-hj-rit-tempo')]=s==null?0:s; });
+  document.querySelectorAll('#modal-body [data-hj-rit-est]').forEach(i=>{ const cid=i.getAttribute('data-hj-rit-est'); r.estTxt[cid]=i.value; const s=parseTempo(i.value); r.est[cid]=s==null?0:hjEstClamp(s); });
+  document.querySelectorAll('#modal-body [data-hj-rit-tempo]').forEach(i=>{ const id=i.getAttribute('data-hj-rit-tempo'); r.tempoTxt[id]=i.value; const s=parseTempo(i.value); r.tempos[id]=s==null?0:s; });
   const n=document.getElementById('hj-rit-nota'); if(n) r.nota=n.value;
 }
+// A mensagem do rodapé do ritual vive em `r.fb` — o redesenho do modal (que acontece a cada dado novo) a mantém.
+function hjRitualFb(txt, cls){ const r=estado.hoje.ritual; if(r) r.fb=txt?{ txt, cls:cls||'' }:null; const fb=document.getElementById('hj-rit-fb'); if(!fb) return; fb.hidden=!txt; fb.className='ap-fb '+(cls||''); fb.textContent=txt||''; }
+function hjRitualFbHTML(r){ return `<div class="ap-fb ${r.fb?escA(r.fb.cls):''}" id="hj-rit-fb" ${r.fb?'':'hidden'}>${r.fb?esc(r.fb.txt):''}</div>`; }
+// Aplica o ritual. Ordem das gravações: o DESTINO (amanhã) primeiro — só com ele confirmado a origem marca `movido`;
+// depois o dia; o "ficou de antes" por último. Conflito/falha em qualquer passo: a tela avisa e NADA fica marcado como
+// movido sem o item existir no destino. `executando` sempre volta a false (finally) — o botão nunca fica preso.
 async function hjRitualAplica(){
   const h=hjSt(); const r=h.ritual; if(!r||r.executando) return; hjRitualLeCampos();
   const d=r.d; const dia=hjGaranteObj(d);
+  const bt=document.querySelector('#modal-body [data-hj-rit-ok]');
+  const aindaAberto=()=>h.ritual===r&&hjRitualAberto();
+  r.executando=true; if(bt) bt.disabled=true;
+  try{
   if(r.tipo==='planejar'){
+    const ruins=Object.keys(r.estTxt).filter(cid=>r.estTxt[cid]&&r.estTxt[cid].trim()&&parseTempo(r.estTxt[cid])==null);
+    if(ruins.length){ hjRitualPinta(); return; }
     const escolhidos=[]; (r.grupos||[]).forEach(g=>g.itens.forEach(c=>{ if(r.sel[c.cid]) escolhidos.push(c); }));
     escolhidos.sort((a,b)=>hjUrgencia({ ...a, feito:false },d)-hjUrgencia({ ...b, feito:false },d));
     const adiados=escolhidos.filter(c=>r.adiar[c.cid]); const hoje=escolhidos.filter(c=>!r.adiar[c.cid]);
-    hoje.forEach(c=>hjAdiciona(d,{ ...c, est:Number(r.est[c.cid])||0 },{ quieto:true, semSalvar:true }));
-    // o que ficou de antes e entrou hoje: a origem fica marcada como movida (não aparece de novo)
-    const ult=hjUltimoPlanejado(d);
-    if(ult){ (h.dias[ult].itens||[]).forEach(i=>{ if(!i.feito&&!i.movido&&hoje.some(c=>c.orig==='ontem'&&((c.k&&c.k===i.k)||(!c.k&&c.t===i.t&&c.p===i.p)))) i.movido=d; }); }
-    dia.st='planejado'; dia.planejadoEm=new Date().toISOString();
-    r.executando=true;
+    if(dia.itens.filter(i=>!i.movido).length+hoje.length>HJ_MAX_ITENS){ hjRitualFb(`Máximo de ${HJ_MAX_ITENS} itens num dia — desmarque alguns ou mande para amanhã.`,'err'); return; }
+    hjRitualFb(adiados.length?`Gravando ${fmtBR(hjProxUtil(d))}…`:'Gravando o seu dia…');
+    // 1) amanhã primeiro
     let prox='';
-    if(adiados.length){ prox=hjProxUtil(d); await hjGarante(prox); adiados.forEach(c=>hjAdiciona(prox,{ ...c, est:Number(r.est[c.cid])||0, orig:c.orig==='reuniao'?'manual':c.orig, ev:'', ini:'' },{ quieto:true, semSalvar:true })); }
-    await hjSalvar(d); if(prox) await hjSalvar(prox); if(ult&&h.dias[ult]) await hjSalvar(ult);
-    h.ritual=null; fechaModal(); toast(`🌅 Dia planejado: ${hoje.length} item(ns)${adiados.length?` · ${adiados.length} para ${fmtBR(prox)}`:''}.`,'ok'); hjRedesenha();
+    if(adiados.length){ const lv=await hjLevaPara(d, adiados.map(c=>({ k:c.k, t:c.t, p:c.p, est:hjEstClamp(r.est[c.cid]) }))); if(!lv.ok){ hjRitualFb(`O dia ${fmtBR(lv.prox)} não gravou — o plano não foi aplicado. Tente de novo.`,'err'); return; } prox=lv.prox; }
+    // 2) hoje
+    hoje.forEach(c=>hjAdiciona(d,{ ...c, est:hjEstClamp(r.est[c.cid]) },{ quieto:true, semSalvar:true }));
+    dia.st='planejado'; dia.planejadoEm=new Date().toISOString();
+    const okD=await hjSalvar(d);
+    if(!okD){ hjRitualFb('O seu dia não gravou (conflito ou falha) — confira a lista e planeje de novo.','err'); if(!aindaAberto()) hjRedesenha(); return; }
+    // 3) o que ficou de antes e entrou hoje: a origem fica marcada como movida (não aparece de novo)
+    const ult=hjUltimoPlanejado(d); let okU=true;
+    if(ult&&h.dias[ult]){ let mexeu=false; (h.dias[ult].itens||[]).forEach(i=>{ if(!i.feito&&!i.movido&&hoje.some(c=>c.orig==='ontem'&&((c.k&&c.k===i.k)||(!c.k&&c.t===i.t&&c.p===i.p)))){ i.movido=d; mexeu=true; } });
+      if(mexeu) okU=await hjSalvar(ult); }
+    h.ritual=null; fechaModal();
+    toast(`🌅 Dia planejado: ${hoje.length} item(ns)${adiados.length?` · ${adiados.length} para ${fmtBR(prox)}`:''}.`,'ok');
+    if(!okU) toast(`O dia ${fmtBR(ult)} não gravou a marca "movido" — os itens podem aparecer de novo no próximo 🌅.`,'warn');
+    hjRedesenha();
     return;
   }
   // 🌙 fechar
-  const fb=document.getElementById('hj-rit-fb'); const bt=document.querySelector('#modal-body [data-hj-rit-ok]');
   const lote=Object.keys(r.apontar).filter(id=>r.apontar[id]).map(id=>({ it:hjItem(d,id), seg:Number(r.tempos[id])||0 })).filter(x=>x.it&&x.it.k);
   const ruim=lote.find(x=>!(x.seg>=60&&x.seg<=24*3600));
-  if(ruim){ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=`Tempo inválido em ${ruim.it.k} — use 1h30, 45m ou 2:15.`; } return; }
+  if(ruim){ hjRitualFb(`Tempo inválido em ${ruim.it.k} — use 1h30, 45m ou 2:15 (até 24 h).`,'err'); return; }
   if(lote.length&&!(await planGate(d))) return;
-  r.executando=true; if(bt) bt.disabled=true; if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent=lote.length?`Apontando ${lote.length} item(ns)…`:'Fechando…'; }
+  if(!aindaAberto()) return;
+  hjRitualFb(lote.length?`Apontando ${lote.length} item(ns)…`:'Fechando…');
   let okN=0; const falhas=[];
-  for(const x of lote){ const res=await hjGravaWorklog(x.it.k, x.seg, d, x.it.ini||'', '', { semGate:true, semSalvar:true }); if(res.ok) okN++; else falhas.push(`${x.it.k}: ${res.erro}`); }
-  if(lote.length){ try{ salvaCfg(); }catch(e){} }   // UMA gravação da config para o lote (logAcao foi com false)
-  const prox=hjProxUtil(d); const paraAmanha=dia.itens.filter(i=>!i.movido&&!i.feito&&r.naoFeitos[i.id]==='amanha');
+  for(const x of lote){ const res=await hjGravaWorklog(x.it.k, x.seg, d, x.it.ini||'', '', { semGate:true, semSalvar:true }); if(res.ok){ okN++; r.apontar[x.it.id]=false; } else falhas.push(`${x.it.k}: ${res.erro}`); }
+  if(okN){ try{ salvaCfg(); }catch(e){} }   // UMA gravação da config para o lote (logAcao foi com false)
+  if(falhas.length){ hjRitualFb(`⚠ ${falhas.length} apontamento(s) falharam: ${falhas.slice(0,2).join(' · ')}. ${okN?`${okN} gravado(s) (desmarcados). `:''}Corrija ou desmarque e confirme de novo.`,'err'); hjRitualPinta(); return; }
+  const paraAmanha=dia.itens.filter(i=>!i.movido&&!i.feito&&r.naoFeitos[i.id]==='amanha');
   const descartar=new Set(dia.itens.filter(i=>!i.movido&&!i.feito&&r.naoFeitos[i.id]==='descartar').map(i=>i.id));
-  if(paraAmanha.length){ await hjGarante(prox); paraAmanha.forEach(i=>{ hjAdiciona(prox,{ k:i.k, t:i.t, p:i.p, est:i.est, orig:'ontem', ev:'' },{ quieto:true, semSalvar:true }); i.movido=prox; i.ini=''; }); }
+  let prox='';
+  if(paraAmanha.length){ hjRitualFb(`Gravando ${fmtBR(hjProxUtil(d))}…`); const lv=await hjLevaPara(d, paraAmanha); if(!lv.ok){ hjRitualFb(`O dia ${fmtBR(lv.prox)} não gravou — o fechamento não foi aplicado. Tente de novo.`,'err'); return; } prox=lv.prox; }
   dia.itens=dia.itens.filter(i=>!descartar.has(i.id));
   dia.nota=String(r.nota||'').slice(0,1000); dia.st='fechado'; dia.fechadoEm=new Date().toISOString();
-  await hjSalvar(d); if(paraAmanha.length) await hjSalvar(prox);
+  hjRitualFb('Fechando…');
+  const okD=await hjSalvar(d);
+  if(!okD){ hjRitualFb('O seu dia não gravou (conflito ou falha) — confira a lista e feche de novo.','err'); if(!aindaAberto()) hjRedesenha(); return; }
   h.ritual=null; fechaModal();
-  if(falhas.length) toast(`⚠ ${falhas.length} apontamento(s) falharam: ${falhas.slice(0,2).join(' · ')}`,'err');
   toast(`🌙 Dia fechado${okN?` · ${okN} apontamento(s)`:''}${paraAmanha.length?` · ${paraAmanha.length} item(ns) para ${fmtBR(prox)}`:''}.`,'ok'); hjRedesenha();
+  } finally { r.executando=false; const b2=document.querySelector('#modal-body [data-hj-rit-ok]'); if(b2&&h.ritual===r) b2.disabled=false; }
 }
 
 // ---------------- 📅 agendar (bloco de tempo) e 🗓 Outlook ----------------
@@ -546,14 +638,19 @@ function hjOutlookUrl(d, it){
 }
 
 // ---------------- 👥 dia do time (gestores) ----------------
+// Falha (ou 403 de não-gestor) NÃO relê a cada redesenho: fica 30 s de folga (`timeErroEm`) e o 403 só volta pelo ↻.
 function hjTimeGarante(d, forca){
-  const h=hjSt(); if(!hjAcc()) return; if(!forca&&(h.time[d]||h.timeB[d])) return; h.timeB[d]=1; h.timeErro='';
+  const h=hjSt(); if(!hjAcc()) return; if(!forca&&(h.time[d]||h.timeB[d])) return;
+  if(!forca&&h.timeErro&&(h.timeSo||Date.now()-(h.timeErroEm||0)<30000)) return;
+  h.timeB[d]=1; h.timeErro=''; h.timeSo=false; const acc=hjAcc();
   Promise.all([ hjApi({ acao:'time', d }), fetch(`/api/tempo?desde=${d}&ate=${d}${forca?'&nocache=1':''}`).then(r=>r.json()).catch(()=>null) ]).then(([j,tp])=>{
-    h.timeB[d]=0;
-    if(!(j&&j.ok)){ h.timeErro=(j&&j.erro)||'Falha ao ler o dia do time.'; h.timeSo=j&&/gestor/i.test(j.erro||''); }
-    else { const wl={}; ((tp&&tp.worklogs)||[]).forEach(w=>{ if((w.d||'').slice(0,10)===d) wl[w.a]=(wl[w.a]||0)+(Number(w.s)||0); }); h.time[d]={ pessoas:j.pessoas||[], wl, pessoasTp:(tp&&tp.pessoas)||{} }; }
+    h.timeB[d]=0; if(estado.hoje.a!==acc) return;
+    if(!(j&&j.ok)){ h.timeErro=(j&&j.erro)||'Falha ao ler o dia do time.'; h.timeSo=!!(j&&/gestor/i.test(j.erro||'')); h.timeErroEm=Date.now(); }
+    else { const wl=(tp&&Array.isArray(tp.worklogs))?{}:null;   // sem o /api/tempo, "Apontado" vira "—" (não 0h para todo mundo)
+      if(wl) tp.worklogs.forEach(w=>{ if((w.d||'').slice(0,10)===d) wl[w.a]=(wl[w.a]||0)+(Number(w.s)||0); });
+      h.time[d]={ pessoas:j.pessoas||[], wl, pessoasTp:(tp&&tp.pessoas)||{} }; }
     if(estado.vista==='hojetime') renderHoje();
-  }).catch(e=>{ h.timeB[d]=0; h.timeErro=humanizaErro(e); if(estado.vista==='hojetime') renderHoje(); });
+  }).catch(e=>{ h.timeB[d]=0; h.timeErro=humanizaErro(e); h.timeErroEm=Date.now(); if(estado.vista==='hojetime') renderHoje(); });
 }
 function hjTimeHTML(d){
   const h=hjSt(); const t=h.time[d];
@@ -564,15 +661,16 @@ function hjTimeHTML(d){
   const porAcc=new Map(t.pessoas.map(p=>[p.accountId,p]));
   const todos=new Set([...Object.keys(pessoas), ...porAcc.keys()].filter(a=>!ocultos.has(a)&&!String(a).startsWith('plan_')));
   const linhas=[...todos].map(a=>{ const p=porAcc.get(a)||null; const nome=(p&&p.nome)||(pessoas[a]&&pessoas[a].nome)||(t.pessoasTp[a]&&t.pessoasTp[a].nome)||a;
-    const cap=mpCapDia(a,d)*3600; const ap=t.wl[a]||0;
+    const cap=mpCapDia(a,d)*3600; const ap=t.wl?(t.wl[a]||0):null;
     return { a, nome, p, cap, ap }; }).filter(x=>x.p||x.cap>0).sort((x,y)=>(y.p?1:0)-(x.p?1:0)||String(x.nome).localeCompare(String(y.nome),'pt-BR'));
   const st=(p)=>!p?'<span class="badge">sem plano</span>':p.st==='fechado'?'<span class="badge com-horas">🌙 fechado</span>':p.st==='planejado'?'<span class="badge">🌅 planejado</span>':'<span class="badge">rascunho</span>';
   const n={ plan:linhas.filter(x=>x.p&&x.p.st!=='rascunho').length, fech:linhas.filter(x=>x.p&&x.p.st==='fechado').length, sem:linhas.filter(x=>!x.p).length };
   return `<div class="card full hj-time"><h2>👥 Dia do time <span>${esc(hjRotuloDia(d))} · quem planejou e fechou o dia</span></h2>
     <div class="hj-cap"><span>Planejaram <b>${n.plan}</b></span><span>Fecharam <b>${n.fech}</b></span><span>Sem plano <b>${n.sem}</b></span><span class="spacer"></span><button class="btn" data-hj-time-retry>↻ Atualizar</button></div>
     <div class="scroll-x"><table class="hj-time-tab"><thead><tr><th>Pessoa</th><th>Dia</th><th>Itens</th><th>Planejado</th><th>Apontado</th><th>Capacidade</th></tr></thead><tbody>
-      ${linhas.map(x=>`<tr><td><span class="lnk" data-pessoa="${escA(x.a)}">${esc(x.nome)}</span></td><td>${st(x.p)}</td><td>${x.p?`${x.p.feitos}/${x.p.n}`:'—'}</td><td>${x.p?hjH(x.p.estSeg):'—'}</td><td class="${x.cap&&x.ap<x.cap*0.5?'hj-baixo':''}">${hjH(x.ap)}</td><td>${hjH(x.cap)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted small">Ninguém com capacidade neste dia.</td></tr>'}
+      ${linhas.map(x=>`<tr><td><span class="lnk" data-pessoa="${escA(x.a)}">${esc(x.nome)}</span></td><td>${st(x.p)}</td><td>${x.p?`${x.p.feitos}/${x.p.n}`:'—'}</td><td>${x.p?hjH(x.p.estSeg):'—'}</td><td class="${x.ap!=null&&x.cap&&x.ap<x.cap*0.5?'hj-baixo':''}">${x.ap==null?'—':hjH(x.ap)}</td><td>${hjH(x.cap)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted small">Ninguém com capacidade neste dia.</td></tr>'}
     </tbody></table></div>
+    ${t.wl?'':'<div class="aviso small" style="margin-top:6px">⚠ O Clockwork não respondeu — a coluna "Apontado" ficou vazia. ↻ Atualizar tenta de novo.</div>'}
     <div class="muted small" style="margin-top:6px">O planejamento do dia é pessoal — aqui só o estado (sem os itens). "Apontado" vem do Clockwork; "Capacidade" é a meta da pessoa sem feriado/ausência.</div></div>`;
 }
 
@@ -603,13 +701,13 @@ function hjItemHTML(d, it, idx, ctx){
         ${ap?`<span class="badge com-horas" title="Apontado hoje neste ticket">⏱ ${hjH(ap)} hoje</span>`:''}${ev&&!it.k&&!hjEvTicket(ev,d)?`<button class="badge ms-b-atra" data-hj-ev-ticket="${escA(ev.id)}" title="Reunião sem ticket — criar/vincular">📝 sem ticket</button>`:''}
         ${rodando?'<span class="badge hj-rod">▶ rodando</span>':''}</div>
     </div>
-    <button class="hj-est${it.est?'':' vazio'}" data-hj-est="${escA(it.id)}" title="Estimativa — clique para editar">${it.est?esc(fmtH(it.est)):'est.'}</button>
+    <button class="hj-est${it.est?'':' vazio'}" data-hj-est="${escA(it.id)}" title="Estimativa — clique para editar" aria-label="Estimativa${it.est?': '+escA(fmtH(it.est)):' (vazia)'} — editar">${it.est?esc(fmtH(it.est)):'est.'}</button>
     <div class="hj-acoes">
-      ${it.k?(rodando?`<button class="btn hj-b" data-hj-timer-stop title="Parar o cronômetro e apontar">■</button>`:`<button class="btn hj-b" data-hj-timer="${escA(it.id)}" title="Iniciar o cronômetro neste ticket">▶</button>`):''}
-      <button class="btn hj-b" data-hj-apontar="${escA(it.id)}" title="${it.k?'Apontar horas':'Escolher o ticket e apontar'}">⏱</button>
-      <button class="btn hj-b" data-hj-agendar="${escA(it.id)}" title="Agendar um bloco na linha do tempo">📅</button>
-      ${it.k?`<button class="btn hj-b" data-hj-ficha="${escA(it.k)}" title="Ficha do ticket">🔍</button>`:''}
-      <button class="btn hj-b" data-hj-menu="${escA(it.id)}" title="Mais ações" aria-haspopup="true">⋯</button>
+      ${it.k?(rodando?`<button class="btn hj-b" data-hj-timer-stop title="Parar o cronômetro e apontar" aria-label="Parar o cronômetro e apontar">■</button>`:`<button class="btn hj-b" data-hj-timer="${escA(it.id)}" title="Iniciar o cronômetro neste ticket" aria-label="Iniciar o cronômetro">▶</button>`):''}
+      <button class="btn hj-b" data-hj-apontar="${escA(it.id)}" title="${it.k?'Apontar horas':'Escolher o ticket e apontar'}" aria-label="${it.k?'Apontar horas':'Escolher o ticket e apontar'}">⏱</button>
+      <button class="btn hj-b" data-hj-agendar="${escA(it.id)}" title="Agendar um bloco na linha do tempo" aria-label="Agendar um bloco">📅</button>
+      ${it.k?`<button class="btn hj-b" data-hj-ficha="${escA(it.k)}" title="Ficha do ticket" aria-label="Ficha do ticket">🔍</button>`:''}
+      <button class="btn hj-b" data-hj-menu="${escA(it.id)}" title="Mais ações" aria-label="Mais ações" aria-haspopup="true">⋯</button>
       <span class="hj-updown"><button class="btn hj-b" data-hj-up="${escA(it.id)}" title="Subir" aria-label="Subir">↑</button><button class="btn hj-b" data-hj-down="${escA(it.id)}" title="Descer" aria-label="Descer">↓</button></span>
     </div>
   </div>`;
@@ -641,10 +739,15 @@ function hjSugestoesHTML(d){
   const gs=hjSugestoes(d);
   if(!gs.length) return '<div class="muted small" style="margin-top:6px">Sem sugestões agora — tudo que o painel conhece já está no seu dia.</div>';
   return gs.map(g=>`<div class="hj-sug-g"><div class="hj-sug-t">${esc(g.rot)} <button class="lnk small" data-hj-sug-todos="${escA(g.id)}">+ todos</button></div>
-    ${g.itens.map(c=>`<div class="hj-sug-i"><button class="btn hj-b" data-hj-sug-add="${escA(c.cid)}" title="Adicionar ao dia">+</button><span class="hj-cand-t">${c.k?`<b>${esc(c.k)}</b> `:''}${esc(c.t||'')}</span><span class="muted small">${esc(c.why||'')}${c.est?` · ${hjH(c.est)}`:''}</span></div>`).join('')}</div>`).join('');
+    ${g.itens.map(c=>`<div class="hj-sug-i"><button class="btn hj-b" data-hj-sug-add="${escA(c.cid)}" title="Adicionar ao dia" aria-label="Adicionar ao dia">+</button><span class="hj-cand-t">${c.k?`<b>${esc(c.k)}</b> `:''}${esc(c.t||'')}</span><span class="muted small">${esc(c.why||'')}${c.est?` · ${hjH(c.est)}`:''}</span></div>`).join('')}</div>`).join('');
 }
 function hjLinhaTempoHTML(d, dia){
-  const evs=hjEventosDia(d); const itens=(dia&&dia.itens||[]).filter(i=>!i.movido&&i.ini&&!i.feito); const logs=hjLogsDia(d).filter(w=>w.m!=null&&w.m!==9*60);
+  const evs=hjEventosDia(d); const itens=(dia&&dia.itens||[]).filter(i=>!i.movido&&i.ini&&!i.feito);
+  // Worklog lido do Clockwork às 09:00 é ambíguo (é a hora padrão de quem aponta sem hora). Conta como hora real quando o
+  // que esta sessão gravou tinha hora (`extra`, m vem de `hora`) ou quando um item do dia naquele ticket tem bloco às 09:00.
+  const ini9=new Set((dia&&dia.itens||[]).filter(i=>i.k&&i.ini==='09:00').map(i=>i.k)); const nove=estado.hoje.nove||{};
+  const comHora=(w)=>w.m!=null&&(w.m!==9*60||w.extra||ini9.has(w.k)||!!nove[`${d}|${w.k}|${w.s}`]);
+  const logs=hjLogsDia(d).filter(comHora);
   let h0=7, h1=19;
   evs.forEach(ev=>{ if(ev.diaTodo) return; const a=hjMin((ev.inicio||'').slice(11,16)), b=hjMin((ev.fim||'').slice(11,16)); if(a!=null) h0=Math.min(h0,Math.floor(a/60)); if(b!=null) h1=Math.max(h1,Math.ceil(b/60)); });
   itens.forEach(it=>{ const a=hjMin(it.ini), b=hjItemFim(it); h0=Math.min(h0,Math.floor(a/60)); h1=Math.max(h1,Math.ceil(b/60)); });
@@ -664,7 +767,7 @@ function hjLinhaTempoHTML(d, dia){
       <span class="hj-lt-blk-t">${it.k?`<b>${esc(it.k)}</b> `:''}${esc(it.t||'')}</span><span class="hj-lt-blk-s">${esc(it.ini)}–${esc(hjHHMM(b))}${conf?' ⚠':''} <a class="small" href="${escA(hjOutlookUrl(d,it))}" target="_blank" rel="noopener" title="Reservar este bloco no seu Outlook (abre o compose já preenchido)">🗓 Outlook</a></span></div>`; }).join('');
   const wlHtml=logs.map(w=>`<div class="hj-lt-wl" style="top:${top(w.m)}px;height:${Math.max(6,(w.s/60)*esc1)}px" title="${escA((w.k||'sem ticket')+' · '+hjHHMM(w.m)+' · '+fmtH(w.s))}"></div>`).join('');
   const agora=(d===hojeSP())?`<div class="hj-lt-agora" style="top:${top(hjAgoraMin())}px"><span>${esc(hjHHMM(hjAgoraMin()))}</span></div>`:'';
-  const semHora=hjLogsDia(d).filter(w=>w.m==null||w.m===9*60);
+  const semHora=hjLogsDia(d).filter(w=>!comHora(w));
   const diaTodo=evs.filter(e=>e.diaTodo);
   return `<div class="card hj-lt-card" id="hj-lt-card">
     <h2>🕘 Linha do tempo <span>agenda, blocos planejados, apontado e lacunas — arraste um item para cá</span></h2>
@@ -690,18 +793,24 @@ function renderHoje(){
   // Dia no futuro não tem worklog (a janela nunca o cobre: pedir de novo seria outro laço); e só redesenha se a leitura
   // passou a cobrir o dia — senão a guarda fica armada e a tela segue com o que tem.
   const apx=estado.apontar; const precisaLogs=d<=hojeSP()&&(!apMeusLogsCobre(d)||apx.meusLogsEscreveu||apx.meusLogsSujo);
-  if(precisaLogs&&h._logsP!==d){ h._logsP=d; apGaranteMeusLogs(d).then(x=>{ if(x&&apMeusLogsCobre(d)){ h._logsP=''; if(hjVistaAberta()) renderHoje(); } }); }
+  // A guarda solta em QUALQUER desfecho (senão uma leitura que falhou ou não cobriu o dia deixava a tela sem reler para sempre);
+  // o redesenho só acontece quando a leitura passou a cobrir o dia — e o apGaranteMeusLogs tem folga de 30 s na falha.
+  if(precisaLogs&&h._logsP!==d){ h._logsP=d; apGaranteMeusLogs(d).then(x=>{ h._logsP=''; if(x&&apMeusLogsCobre(d)&&!apx.meusLogsEscreveu&&!apx.meusLogsSujo&&hjVistaAberta()) renderHoje(); }); }
   const dia=hjDia(d); if(dia===undefined) hjGarante(d);
+  // Foco: quem redesenha a tela devolve o foco ao MESMO controle (pelo id ou pelo atributo data-hj-*) — ↵ no "+ Adicionar",
+  // ✓ feito, ↑↓ e a estimativa inline não jogam o foco para o body.
+  const foco=hjFocoSel(cont);
   const topo=`<div class="hj-topo">
     <h2>📆 Hoje <span>o seu dia num lugar só: o que fazer, quando, e o que já foi apontado</span></h2>
     <div class="hj-nav">
-      <button class="btn" data-hj-nav="-1" title="Dia anterior">‹</button><button class="btn" data-hj-nav="0" title="Voltar a hoje">hoje</button><button class="btn" data-hj-nav="1" title="Próximo dia">›</button>
+      <button class="btn" data-hj-nav="-1" title="Dia anterior" aria-label="Dia anterior">‹</button><button class="btn" data-hj-nav="0" title="Voltar a hoje">hoje</button><button class="btn" data-hj-nav="1" title="Próximo dia" aria-label="Próximo dia">›</button>
       <strong class="hj-data">${esc(hjRotuloDia(d))}</strong>
       ${dia&&dia.st==='planejado'?`<span class="badge com-horas" title="Planejado às ${escA(hjHoraSP(dia.planejadoEm))}">🌅 planejado</span>`:dia&&dia.st==='fechado'?`<span class="badge" title="Fechado às ${escA(hjHoraSP(dia.fechadoEm))}">🌙 fechado</span>`:''}
+      <button class="btn hj-b" data-hj-retry title="Reler o dia no servidor (o que outra aba/aparelho gravou)" aria-label="Atualizar">↻</button>
       <span class="spacer"></span>
-      ${time?'':`<button class="btn primario" data-hj-rit="planejar">🌅 Planejar o dia</button><button class="btn" data-hj-rit="fechar">🌙 Fechar o dia</button><button class="btn" data-hj-urg title="Reordena pela urgência: vencidos → vence hoje → prioridade do time → em andamento → vence esta semana → sem data">⚡ Ordenar por urgência</button>`}
+      ${time?'':`<button class="btn primario" data-hj-rit="planejar">🌅 Planejar o dia</button><button class="btn" data-hj-rit="fechar" ${d>hojeSP()?'disabled title="Só um dia que já chegou pode ser fechado"':''}>🌙 Fechar o dia</button><button class="btn" data-hj-urg title="Reordena pela urgência: vencidos → vence hoje → prioridade do time → em andamento → vence esta semana → sem data">⚡ Ordenar por urgência</button>`}
     </div></div>`;
-  if(time){ hjTimeGarante(d); cont.replaceChildren(el(`<div class="hj-tela">${topo}${hjTimeHTML(d)}</div>`)); return; }
+  if(time){ hjTimeGarante(d); cont.replaceChildren(el(`<div class="hj-tela">${topo}${hjTimeHTML(d)}</div>`)); hjFocoVolta(cont,foco); return; }
   if(dia===undefined&&!h.erro){ cont.replaceChildren(el(`<div class="hj-tela">${topo}<div class="card full"><div class="estado">Carregando o seu dia…</div></div></div>`)); return; }
   const res=hjResumo(d);
   const nota=dia&&dia.nota?`<div class="aviso hj-nota">📝 <b>Nota do fechamento:</b> ${esc(dia.nota)}</div>`:'';
@@ -709,17 +818,28 @@ function renderHoje(){
   const avisoFicou=(ficou&&(!dia||!dia.itens.length))?`<div class="aviso">↩ <b>${ficou} item(ns)</b> ficaram de ${esc(fmtBR(ultP))}. O 🌅 Planejar o dia traz o que ainda vale.</div>`:'';
   const erro=h.erro?`<div class="erro">${esc(h.erro)} <button class="btn" data-hj-retry>Tentar de novo</button></div>`:'';
   cont.replaceChildren(el(`<div class="hj-tela">${topo}${erro}${hjCardKpis(d,res)}${nota}${avisoFicou}
-    <div class="hj-2col"><div>${hjListaHTML(d,dia)}</div><div class="hj-ltwrap${estado.hoje.lt?'':' fechado'}">${hjLinhaTempoHTML(d,dia)}</div></div></div>`));
-  hjPintaSalvando();
+    <div class="hj-2col"><div>${hjListaHTML(d,dia)}</div><div class="hj-ltwrap">${hjLinhaTempoHTML(d,dia)}</div></div></div>`));
+  hjPintaSalvando(); hjFocoVolta(cont,foco);
+  try{ renderAbas(); }catch(e){}   // contador da aba (itens a fazer) acompanha o ✓
+  if(hjRitualAberto()) hjRitualPinta();   // dado novo (agenda, vencidos, dias) chegou com o 🌅/🌙 aberto: as sugestões acompanham
   // ⏱ a cada minuto a linha "agora" anda (só com a tela aberta)
   clearInterval(h._tick); h._tick=setInterval(()=>{ if(!hjVistaAberta()){ clearInterval(h._tick); return; } const a=document.querySelector('.hj-lt-agora'); const lt=document.querySelector('[data-hj-lt]'); if(a&&lt){ const h0=+lt.getAttribute('data-hj-h0'); a.style.top=Math.max(0,(hjAgoraMin()-h0*60)*HJ_PX_HORA/60)+'px'; a.querySelector('span').textContent=hjHHMM(hjAgoraMin()); } hjTimerPinta(); },60000);
 }
 
+// Seletor do controle com foco dentro de `cont` (id ou o 1º atributo data-hj-*) e a volta do foco depois do redesenho.
+function hjFocoSel(cont){
+  const ae=document.activeElement; if(!ae||ae===document.body||!cont.contains(ae)) return '';
+  if(ae.id) return '#'+CSS.escape(ae.id);
+  const at=[...ae.attributes].find(a=>a.name.startsWith('data-hj-')); return at?`[${at.name}="${CSS.escape(at.value)}"]`:'';
+}
+function hjFocoVolta(cont, sel){ if(!sel) return; try{ const f=cont.querySelector(sel); if(f&&document.activeElement!==f) f.focus({ preventScroll:true }); }catch(e){} }
+
 // ---------------- 🏠 card da Início ----------------
 function hjCardInicio(hoje){
-  const d=hoje||hojeSP(); const dia=hjDia(d); if(dia===undefined) hjGarante(d);
+  const d=hoje||hojeSP(); const h=hjSt(); if(!hjAcc()) return ''; const dia=hjDia(d); if(dia===undefined) hjGarante(d);
   const hSP=hjAgoraMin();
-  const corpo=(x)=>`<div class="ax-card ${x.cls}"><div class="ax-top"><span>📆</span> Seu dia${x.selo||''}</div>${x.corpo}<div class="ax-foot">${x.btns}</div></div>`;
+  const corpo=(x)=>`<div class="ax-card hj-card-inicio ${x.cls}"><div class="ax-top"><span>📆</span> Seu dia${x.selo||''}</div>${x.corpo}<div class="ax-foot">${x.btns}</div></div>`;
+  if(dia===undefined&&h.erro) return corpo({ cls:'aten', corpo:`<div class="ax-num muted">!</div><div class="ax-det">${esc(h.erro)}</div>`, btns:'<button class="btn" data-hj-retry-inicio>Tentar de novo</button>' });
   if(dia===undefined) return corpo({ cls:'load', corpo:'<div class="ax-num muted">…</div><div class="ax-det">Carregando o seu dia…</div>', btns:'<button class="btn" data-hx-goto="hoje">Abrir o 📆 Hoje →</button>' });
   const itens=(dia&&dia.itens||[]).filter(i=>!i.movido); const ativos=itens.filter(i=>!i.feito);
   if(!dia||!itens.length){ const ult=hjUltimoPlanejado(d); const ficou=ult?(estado.hoje.dias[ult].itens||[]).filter(i=>!i.feito&&!i.movido).length:0;
@@ -745,13 +865,14 @@ document.addEventListener('click', async (e)=>{
   const tk=t.closest('[data-hj-timer-k]'); if(tk){ hjTimerInicia(tk.getAttribute('data-hj-timer-k'), tk.getAttribute('data-hj-timer-t')||''); return; }
   if(t.closest('#hj-tp-ok')){ hjTimerConfirma(false); return; }
   if(t.closest('#hj-tp-descarta')){ hjTimerConfirma(true); return; }
-  if(t.closest('[data-hj-fecha]')){ estado.hoje.ritual=null; _hjAp=null; _hjTp=null; fechaModal(); return; }
+  if(t.closest('[data-hj-fecha]')){ const r=estado.hoje.ritual; if(r&&r.executando) return; estado.hoje.ritual=null; _hjAp=null; _hjTp=null; fechaModal(); return; }
   if(t.closest('[data-hj-ident]')){ abreIdentidade(); return; }
+  if(t.closest('[data-hj-retry-inicio]')){ estado.hoje.erro=''; estado.hoje.erroEm=0; hjGarante(hojeSP(),true); if(estado.vista==='acoes') agendaRenderAcoes(); return; }
   // ✓ feito (lista e card da Início)
-  const fe=t.closest('[data-hj-feito]'); if(fe){ const d=dAttr(fe); hjToggleFeito(d, fe.getAttribute('data-hj-feito'), fe.checked); if(hjVistaAberta()) renderHoje(); else if(estado.vista==='acoes') setTimeout(()=>agendaRenderAcoes(),250); return; }
+  const fe=t.closest('[data-hj-feito]'); if(fe){ const d=dAttr(fe); hjToggleFeito(d, fe.getAttribute('data-hj-feito'), fe.checked); if(hjVistaAberta()) renderHoje(); else { try{ renderAbas(); }catch(e){} if(estado.vista==='acoes') setTimeout(()=>agendaRenderAcoes(),250); } return; }
   if(!hjVistaAberta()&&!t.closest('#modal-body')) return;   // daqui para baixo: a tela e os modais dela
-  const nav=t.closest('[data-hj-nav]'); if(nav){ const n=+nav.getAttribute('data-hj-nav'); estado.hoje.d=n?mtsSoma(hjD(),n):hojeSP(); estado.hoje.sugAberta=false; renderHoje(); return; }
-  if(t.closest('[data-hj-retry]')){ estado.hoje.erro=''; estado.hoje.erroEm=0; hjGarante(hjD(),true); renderHoje(); return; }
+  const nav=t.closest('[data-hj-nav]'); if(nav){ const n=+nav.getAttribute('data-hj-nav'); hjVaiDia(n?mtsSoma(hjD(),n):hojeSP()); estado.hoje.sugAberta=false; renderHoje(); return; }
+  if(t.closest('[data-hj-retry]')){ hjRele(hjD()); return; }
   if(t.closest('[data-hj-time-retry]')){ hjTimeGarante(hjD(),true); renderHoje(); return; }
   const aba=t.closest('[data-hj-aba]'); if(aba){ vaiPara(aba.getAttribute('data-hj-aba')); return; }
   const rit=t.closest('[data-hj-rit]'); if(rit){ if(rit.getAttribute('data-hj-rit')==='planejar') hjRitualPlanejar(hjD()); else hjRitualFechar(hjD()); return; }
@@ -778,8 +899,9 @@ document.addEventListener('click', async (e)=>{
       ${cand.length?`<div class="hj-cands" style="margin-top:8px">${cand.map(i=>`<button class="hj-cand hj-cand-b" data-hj-lac-item="${escA(i.id)}" data-hj-lac-ini="${escA(ini)}"><span class="hj-cand-t">${i.k?`<b>${esc(i.k)}</b> `:''}${esc(i.t||'')}</span><span class="muted small">${i.est?hjH(i.est):'sem est.'}</span></button>`).join('')}</div>`:'<div class="muted small" style="margin-top:8px">Nenhum item sem horário na lista.</div>'}
       <div class="alx-modal-acoes"><button class="btn" data-hj-lac-apontar="${escA(ini)}" data-hj-lac-fim="${escA(fim)}">⏱ Apontar neste horário</button><button class="btn" data-hj-fecha>Fechar</button></div></div>`); return; }
   const li=t.closest('[data-hj-lac-item]'); if(li){ hjAgenda(hjD(), li.getAttribute('data-hj-lac-item'), li.getAttribute('data-hj-lac-ini')); fechaModal(); renderHoje(); return; }
+  // ⏱ na lacuna: o ticket escolhido vai direto ao modal de apontar como CANDIDATO — só entra no dia se o apontamento gravar
   const la=t.closest('[data-hj-lac-apontar]'); if(la){ const ini=la.getAttribute('data-hj-lac-apontar'), fim=la.getAttribute('data-hj-lac-fim'); const seg=(hjMin(fim)-hjMin(ini))*60; fechaModal();
-    abreBuscaTickets('', (k, info)=>{ const it=hjAdiciona(hjD(),{ k, t:(info&&info.resumo)||'', p:(info&&info.p)||k.split('-')[0], est:seg, orig:'busca', ini },{ quieto:true }); if(it){ renderHoje(); hjApontaModal(hjD(), it.id, { hora:ini, seg }); } }); return; }
+    abreBuscaTickets('', (k, info)=>{ const cand={ k, t:(info&&info.resumo)||'', p:(info&&info.p)||k.split('-')[0], est:seg, orig:'busca', ini }; hjApontaModal(hjD(), '', { hora:ini, seg, cand }); }); return; }
   const fi=t.closest('[data-hj-ficha]'); if(fi){ abreModalTicket(fi.getAttribute('data-hj-ficha'), null); return; }
   const evt=t.closest('[data-hj-ev-ticket]'); if(evt){ agAbreTicket(evt.getAttribute('data-hj-ev-ticket')); return; }
   const est=t.closest('[data-hj-est]'); if(est){ const id=est.getAttribute('data-hj-est'); const it=hjItem(hjD(), id); if(!it) return;
@@ -801,9 +923,8 @@ document.addEventListener('click', async (e)=>{
   const am=t.closest('[data-hj-amanha]'); if(am){ fechaModal(); await hjParaAmanha(hjD(), am.getAttribute('data-hj-amanha')); return; }
   const lig=t.closest('[data-hj-ligar]'); if(lig){ fechaModal(); hjBuscaParaDia(hjD(), lig.getAttribute('data-hj-ligar')); return; }
   const rm=t.closest('[data-hj-remover]'); if(rm){ hjRemove(hjD(), rm.getAttribute('data-hj-remover')); fechaModal(); renderHoje(); return; }
-  if(t.closest('[data-hj-lt-toggle]')){ estado.hoje.lt=!estado.hoje.lt; renderHoje(); return; }
   // rituais
-  const rp=t.closest('[data-hj-rit-passo]'); if(rp){ const r=estado.hoje.ritual; if(!r) return; hjRitualLeCampos(); r.passo=+rp.getAttribute('data-hj-rit-passo'); hjRitualPinta(); return; }
+  const rp=t.closest('[data-hj-rit-passo]'); if(rp){ const r=estado.hoje.ritual; if(!r||r.executando) return; hjRitualLeCampos(); r.passo=+rp.getAttribute('data-hj-rit-passo'); r.fb=null; hjRitualPinta(); return; }
   if(t.closest('[data-hj-rit-ok]')){ hjRitualAplica(); return; }
   const rtd=t.closest('[data-hj-rit-todos]'); if(rtd){ e.preventDefault(); const r=estado.hoje.ritual; const g=r&&(r.grupos||[]).find(x=>x.id===rtd.getAttribute('data-hj-rit-todos')); if(g){ g.itens.forEach(c=>{ r.sel[c.cid]=true; }); hjRitualPinta(); } return; }
   const rtn=t.closest('[data-hj-rit-nenhum]'); if(rtn){ e.preventDefault(); const r=estado.hoje.ritual; const g=r&&(r.grupos||[]).find(x=>x.id===rtn.getAttribute('data-hj-rit-nenhum')); if(g){ g.itens.forEach(c=>{ r.sel[c.cid]=false; }); hjRitualPinta(); } return; }
@@ -815,14 +936,25 @@ document.addEventListener('change',(e)=>{
   const nf=t.getAttribute('data-hj-rit-nf'); if(nf!=null){ r.naoFeitos[nf]=t.value; return; }
   const apx=t.getAttribute('data-hj-rit-ap'); if(apx!=null){ r.apontar[apx]=t.checked; return; }
   const es=t.getAttribute('data-hj-rit-est'); if(es!=null){ hjRitualLeCampos(); hjRitualPinta(); return; }
+  const tp=t.getAttribute('data-hj-rit-tempo'); if(tp!=null){ hjRitualLeCampos(); return; }
+});
+// Esc: roda ANTES do Esc global (30) — limpa o estado dos modais desta tela; durante uma gravação do ritual o Esc não fecha.
+document.addEventListener('keydown',(e)=>{
+  if(e.key!=='Escape') return; const mb=document.getElementById('modal-body'); const m=document.getElementById('modal');
+  if(!mb||!m||m.hidden||!mb.querySelector('.hj-modal')) return;
+  const r=estado.hoje.ritual; if(r&&r.executando){ e.stopImmediatePropagation(); e.preventDefault(); return; }
+  estado.hoje.ritual=null; _hjAp=null; _hjTp=null;
 });
 document.addEventListener('keydown',(e)=>{
   const t=e.target; if(!t||!t.id) return;
   if(t.id==='hj-add-txt'&&e.key==='Enter'){ e.preventDefault(); const v=t.value; const p=document.getElementById('hj-add-proj'); if(v.trim()){ t.value=''; hjAdicionaTexto(hjD(), v, p?p.value:''); } return; }
   if((t.id==='hj-ap-tempo'||t.id==='hj-ap-coment'||t.id==='hj-ap-hora'||t.id==='hj-ap-dia')&&e.key==='Enter'){ e.preventDefault(); hjApontaConfirma(); return; }
   if((t.id==='hj-tp-tempo'||t.id==='hj-tp-coment')&&e.key==='Enter'){ e.preventDefault(); hjTimerConfirma(false); return; }
-  if(t.id==='hj-ag-ini'&&e.key==='Enter'){ e.preventDefault(); const b=document.querySelector('#modal-body [data-hj-ag-ok]'); if(b) b.click(); }
+  if((t.id==='hj-ag-ini'||t.id==='hj-ag-est')&&e.key==='Enter'){ e.preventDefault(); const b=document.querySelector('#modal-body [data-hj-ag-ok]'); if(b) b.click(); }
 });
+// Relê o dia no servidor (↻ e volta à aba): o que esta sessão ainda não gravou é gravado antes, para não se perder.
+function hjRele(d){ const h=hjSt(); h.erro=''; h.erroEm=0; const p=hjSujo(d)?hjSalvar(d):Promise.resolve(true); p.then(()=>{ hjGarante(d,true); }); renderHoje(); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState!=='visible'||!hjVistaAberta()||!hjAcc()) return; const h=hjSt(); const d=hjD(); if(hjSujo(d)||h.ritual||_hjAp||_hjTp) return; hjGarante(d,true); });
 // Arrastar: item da lista → reordenar (solta em cima de outro item) ou → linha do tempo (vira bloco, grade de 15 min);
 // bloco da linha do tempo → mover de horário.
 document.addEventListener('dragstart',(e)=>{

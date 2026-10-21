@@ -428,7 +428,7 @@ function diaLimpa(b) {
   for (const it of itensSrc) {
     if (!it || typeof it !== 'object') return { ok: false, erro: 'Item inválido.' };
     let id = String(it.id || '').trim().slice(0, 24);
-    if (!id || ids.has(id)) id = `i${Math.random().toString(36).slice(2, 9)}`;
+    if (!/^[A-Za-z0-9_-]{1,24}$/.test(id) || ids.has(id)) id = `i${Math.random().toString(36).slice(2, 9)}`;
     ids.add(id);
     const k = String(it.k || '').trim().toUpperCase();
     if (k && !RE_ISSUE_D.test(k)) return { ok: false, erro: `Ticket inválido: ${k.slice(0, 30)}.` };
@@ -443,16 +443,18 @@ function diaLimpa(b) {
     const movido = String(it.movido || '').slice(0, 10);
     if (movido && !RE_DATA_P.test(movido)) return { ok: false, erro: 'Data de "movido" inválida.' };
     itens.push({
-      id, k, t, p, est, feito: !!it.feito, feitoEm: String(it.feitoEm || '').slice(0, 30), ini,
+      id, k, t, p, est, feito: !!it.feito, feitoEm: diaIso(it.feitoEm), ini,
       orig: DIA_ORIG.includes(it.orig) ? it.orig : 'manual', ev: String(it.ev || '').slice(0, 200),
       nota: String(it.nota || '').slice(0, 300), movido,
     });
   }
   return { ok: true, dia: {
     st, itens, nota: String(src.nota || '').slice(0, 1000),
-    planejadoEm: String(src.planejadoEm || '').slice(0, 30), fechadoEm: String(src.fechadoEm || '').slice(0, 30),
+    planejadoEm: diaIso(src.planejadoEm), fechadoEm: diaIso(src.fechadoEm),
   } };
 }
+// Carimbo de data/hora vindo do cliente: só um ISO de verdade entra (qualquer outro texto vira '').
+function diaIso(v) { const s = String(v || '').slice(0, 30); return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/.test(s) ? s : ''; }
 function diaPublico(row, acc) {
   if (!row || !row.data) return null;
   const d = String(row.id || '').slice(`dia_${acc}_`.length);
@@ -472,9 +474,11 @@ async function planejamentoDia(req, res, base, headers) {
   if (acao === 'ler') {
     const de = String(b.de || b.d || '').slice(0, 10); const ate = String(b.ate || b.d || de).slice(0, 10);
     if (!RE_DATA_P.test(de) || !RE_DATA_P.test(ate) || ate < de || addDiasIso(de, 14) < ate) return json(res, 400, { ok: false, erro: 'Intervalo inválido (até 14 dias).' });
+    // faixa gte/lte sobre o id (mesmo prefixo e mesmo formato de data em todas as linhas: a collation não muda a ordem dos
+    // dígitos) + limite de 15 linhas (14 dias + 1) e a data conferida aqui também
     const rows = await sbRows(await sbFetch(base, headers,
-      `${TABELA}?id=gte.${encodeURIComponent(diaId(acc, de))}&id=lte.${encodeURIComponent(diaId(acc, ate))}&select=id,data,updated_at&order=id.asc`));
-    const dias = (Array.isArray(rows) ? rows : []).filter((r) => String(r.id || '').startsWith(`dia_${acc}_`)).map((r) => diaPublico(r, acc));
+      `${TABELA}?id=gte.${encodeURIComponent(diaId(acc, de))}&id=lte.${encodeURIComponent(diaId(acc, ate))}&select=id,data,updated_at&order=id.asc&limit=15`));
+    const dias = (Array.isArray(rows) ? rows : []).filter((r) => String(r.id || '').startsWith(`dia_${acc}_`)).map((r) => diaPublico(r, acc)).filter((x) => x && RE_DATA_P.test(x.d) && x.d >= de && x.d <= ate);
     return json(res, 200, { ok: true, dias });
   }
 
@@ -498,7 +502,8 @@ async function planejamentoDia(req, res, base, headers) {
     if (JSON.stringify(data).length > 65536) return json(res, 413, { ok: false, erro: 'Dia grande demais.' });
     let row;
     if (atual) {
-      const filtro = atual.updated_at ? `&updated_at=eq.${encodeURIComponent(atual.updated_at)}` : '';
+      // o filtro pelo updated_at lido é a trava de verdade (linha sem updated_at: `is.null` — nunca PATCH sem filtro)
+      const filtro = atual.updated_at ? `&updated_at=eq.${encodeURIComponent(atual.updated_at)}` : '&updated_at=is.null';
       const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}${filtro}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data, updated_at: agora }),
       }));
@@ -508,10 +513,15 @@ async function planejamentoDia(req, res, base, headers) {
         return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi alterado em outra aba/aparelho — recarregado.', dia: diaPublico(dep, acc) });
       }
     } else {
-      const rows = await sbRows(await sbFetch(base, headers, TABELA, {
-        method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([{ id, data, updated_at: agora }]),
+      // criação: duas abas criando o mesmo dia ao mesmo tempo → a 2ª não vira "Supabase 409" cru, vira conflito com a linha da 1ª
+      const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?on_conflict=id`, {
+        method: 'POST', headers: { Prefer: 'return=representation,resolution=ignore-duplicates' }, body: JSON.stringify([{ id, data, updated_at: agora }]),
       }));
-      row = rows[0] || { id, data, updated_at: agora };
+      row = rows[0] || null;
+      if (!row) {
+        const dep = (await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}&select=id,data,updated_at`)))[0] || null;
+        return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia acabou de ser criado em outra aba/aparelho — recarregado.', dia: diaPublico(dep, acc) });
+      }
     }
     return json(res, 200, { ok: true, dia: diaPublico({ id, data: row.data || data, updated_at: row.updated_at || agora }, acc) });
   }

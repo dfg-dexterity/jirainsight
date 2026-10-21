@@ -269,6 +269,19 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
   `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
   (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
+- **📅 Marcos e Cronograma totalmente editável (2026-10-21, a pedido do usuário: "transforme essa tela em algo totalmente
+  editável"):** a tela (`02b-cronograma.js`) grava no Jira **com o token da pessoa** — arrastar barra/bordas/◆ (grade de 1
+  dia, `pointer:fine`), duplo clique renomeia, ✎ formulário (nome, início `customfield_10015`, marco `duedate`,
+  responsável, transições lazy, dependências *Blocks* entre épicos, 📐 alinhar filhos ao marco), + Nova fase (tipo de
+  hierarquia 1). **Otimista**: `crPatchLocal` → `crReRender` → `crGrava` (`POST /api/criar {editar:1, itens, links}`);
+  falha reverte + toast; sucesso = `↩ Desfazer` 10 s + `crReleFicha` (nocache, debounce). `crLinhas` NÃO muda (gate de
+  paridade). Servidor: `editaLote` aceita `resumo`, `inicio`, `links:[{acao:'add',de,para}|{acao:'rm',id}]`; a ficha traz
+  o `id` dos links. Regra aprendida: clique simples no nome espera 300 ms pelo duplo (abrir o épico no 1º clique engolia
+  o 2º no modal). Teste: `cronograma-test.mjs` (41 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
+  **Revisão do 📆 Hoje (mesmo dia):** fila de gravação POR DIA (`h.sv[d]`), destino gravado antes de marcar `movido`
+  (`hjLevaPara`), `hjEstClamp`/`HJ_MAX_ITENS` no cliente, reuniões fora do Planejado, ↻ + `visibilitychange`, cronômetro
+  com `a`=accountId, foco devolvido pelo seletor (`hjFocoSel`), `:has(:focus-visible)` para ↑↓ (o `:focus-within` deslocava
+  a linha no mousedown e o clique real caía fora do alvo — um teste Playwright "real" pega isso, `el.click()` não).
 - **📆 Hoje — o planejamento do dia como ponto central (2026-10-21, a pedido do usuário: "ajudar meu time a organizar seu
   trabalho, usar o Jira Insight como ponto central de planejamento do dia, incluindo controle da agenda e priorização de
   tarefas; veja o que o mercado tem para inspiração"):** tela nova `📆 Hoje` (`public/js/24b-hoje.js`, prefixo `hj`; vistas
