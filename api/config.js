@@ -23,6 +23,13 @@
 //                                           x-jira-token) — o accountId é resolvido no
 //                                           servidor, nunca confiado do corpo.
 //
+// POST /api/config?dia=1                 -> 📆 Hoje (planejamento do DIA de cada pessoa, 2026-10-21):
+//                                           ler {de, ate} · salvar {d, dia, base} (trava otimista) ·
+//                                           time {d} (só gestor). Uma linha por pessoa e dia nesta mesma
+//                                           tabela (`dia_<accountId>_<AAAA-MM-DD>`), como as fotos
+//                                           `semanal_*`: é dado pessoal — nunca na config compartilhada.
+//                                           Identidade = headers x-jira-* validados no Jira (planAuth).
+//
 // GET  /api/config?semanal=1[&semana=AAAA-MM-DD][&n=8] -> 📊 fotos do relatório semanal
 //                                           (as n mais recentes até a semana), recortadas
 //                                           pelo PAPEL da pessoa — identidade conferida no
@@ -383,6 +390,145 @@ async function planejamento(req, res, base, headers) {
       executado_em: agora, comentario, snapshot: { total: Number(p.total_planejado) || 0, itens },
     });
     return json(res, 200, { ok: true, plano: planPublico(upd, itens) });
+  }
+
+  return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
+}
+
+// ============================================================================
+// 📆 Hoje — o planejamento do DIA de cada pessoa (POST /api/config?dia=1, 2026-10-21, a pedido do usuário:
+// "usar o Jira Insight como ponto central de planejamento do dia, incluindo controle da agenda e priorização").
+// Modelo (um JSON por pessoa e dia, linha `dia_<accountId>_<AAAA-MM-DD>` desta tabela):
+//   { st:'rascunho'|'planejado'|'fechado', planejadoEm, fechadoEm, nota,
+//     itens:[{ id, k (ticket|''), t (texto), p (projeto|''), est (seg), feito, feitoEm, ini ('HH:MM'|''),
+//              orig ('plano'|'venc'|'hoje'|'prio'|'andamento'|'reuniao'|'ontem'|'manual'|'busca'), ev (evento da agenda|''),
+//              nota, movido ('AAAA-MM-DD'|'') }] }
+// Regras: o dono (accountId do token validado) só lê/grava o PRÓPRIO dia; `time` lista o dia do time só para
+// gestores (planEhGestor); trava otimista pelo updated_at (base) como o planejamento semanal; nada vai para a
+// config compartilhada (ela desce inteira para o navegador de todo o time).
+const DIA_ST = ['rascunho', 'planejado', 'fechado'];
+const DIA_ORIG = ['plano', 'venc', 'hoje', 'prio', 'andamento', 'reuniao', 'ontem', 'manual', 'busca'];
+const RE_ISSUE_D = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+const RE_HORA_D = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DIA_MAX_ITENS = 60;
+const diaId = (acc, d) => `dia_${acc}_${d}`;
+const diaHojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+function diaValido(d) {
+  if (!RE_DATA_P.test(String(d || ''))) return false;
+  const h = diaHojeSP(); return d >= addDiasIso(h, -400) && d <= addDiasIso(h, 60);
+}
+// Normaliza e valida o dia vindo do cliente; devolve { ok, dia } ou { ok:false, erro }.
+function diaLimpa(b) {
+  const src = (b && typeof b === 'object') ? b : {};
+  const st = DIA_ST.includes(src.st) ? src.st : 'rascunho';
+  const itensSrc = Array.isArray(src.itens) ? src.itens : [];
+  if (itensSrc.length > DIA_MAX_ITENS) return { ok: false, erro: `Máximo de ${DIA_MAX_ITENS} itens num dia.` };
+  const ids = new Set();
+  const itens = [];
+  for (const it of itensSrc) {
+    if (!it || typeof it !== 'object') return { ok: false, erro: 'Item inválido.' };
+    let id = String(it.id || '').trim().slice(0, 24);
+    if (!id || ids.has(id)) id = `i${Math.random().toString(36).slice(2, 9)}`;
+    ids.add(id);
+    const k = String(it.k || '').trim().toUpperCase();
+    if (k && !RE_ISSUE_D.test(k)) return { ok: false, erro: `Ticket inválido: ${k.slice(0, 30)}.` };
+    const t = String(it.t || '').trim().slice(0, 200);
+    if (!k && !t) return { ok: false, erro: 'Item sem ticket e sem texto.' };
+    const p = String(it.p || (k ? k.split('-')[0] : '')).trim().toUpperCase().slice(0, 20);
+    if (p && !RE_PROJ_P.test(p)) return { ok: false, erro: 'Projeto inválido.' };
+    const est = Math.round(Number(it.est) || 0);
+    if (est < 0 || est > 24 * 3600) return { ok: false, erro: 'Estimativa fora do limite (0 a 24 h).' };
+    const ini = String(it.ini || '').trim();
+    if (ini && !RE_HORA_D.test(ini)) return { ok: false, erro: 'Hora do bloco inválida (use HH:MM).' };
+    const movido = String(it.movido || '').slice(0, 10);
+    if (movido && !RE_DATA_P.test(movido)) return { ok: false, erro: 'Data de "movido" inválida.' };
+    itens.push({
+      id, k, t, p, est, feito: !!it.feito, feitoEm: String(it.feitoEm || '').slice(0, 30), ini,
+      orig: DIA_ORIG.includes(it.orig) ? it.orig : 'manual', ev: String(it.ev || '').slice(0, 200),
+      nota: String(it.nota || '').slice(0, 300), movido,
+    });
+  }
+  return { ok: true, dia: {
+    st, itens, nota: String(src.nota || '').slice(0, 1000),
+    planejadoEm: String(src.planejadoEm || '').slice(0, 30), fechadoEm: String(src.fechadoEm || '').slice(0, 30),
+  } };
+}
+function diaPublico(row, acc) {
+  if (!row || !row.data) return null;
+  const d = String(row.id || '').slice(`dia_${acc}_`.length);
+  return { d, rev: row.updated_at || '', ...(row.data || {}), nome: undefined, email: undefined };
+}
+async function planejamentoDia(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const acc = String(quem.accountId || '');
+  if (!acc) return json(res, 401, { ok: false, erro: 'Sem accountId no Jira.' });
+  const b = await lerBody(req);
+  const acao = String(b.acao || '');
+  const agora = new Date().toISOString();
+  const emMs = (s) => { const t = Date.parse(String(s || '')); return Number.isFinite(t) ? t : null; };
+
+  // ---- ler: os meus dias num intervalo (até 14 dias) ----
+  if (acao === 'ler') {
+    const de = String(b.de || b.d || '').slice(0, 10); const ate = String(b.ate || b.d || de).slice(0, 10);
+    if (!RE_DATA_P.test(de) || !RE_DATA_P.test(ate) || ate < de || addDiasIso(de, 14) < ate) return json(res, 400, { ok: false, erro: 'Intervalo inválido (até 14 dias).' });
+    const rows = await sbRows(await sbFetch(base, headers,
+      `${TABELA}?id=gte.${encodeURIComponent(diaId(acc, de))}&id=lte.${encodeURIComponent(diaId(acc, ate))}&select=id,data,updated_at&order=id.asc`));
+    const dias = (Array.isArray(rows) ? rows : []).filter((r) => String(r.id || '').startsWith(`dia_${acc}_`)).map((r) => diaPublico(r, acc));
+    return json(res, 200, { ok: true, dias });
+  }
+
+  // ---- salvar: substitui o MEU dia (trava otimista pelo updated_at em que o cliente se baseou) ----
+  if (acao === 'salvar') {
+    const d = String(b.d || '').slice(0, 10);
+    if (!diaValido(d)) return json(res, 400, { ok: false, erro: 'Dia inválido.' });
+    const lim = diaLimpa(b.dia);
+    if (!lim.ok) return json(res, 400, { ok: false, erro: lim.erro });
+    const id = diaId(acc, d);
+    const atual = (await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}&select=id,data,updated_at`)))[0] || null;
+    const baseRev = String(b.base || '');
+    if (atual && atual.updated_at && emMs(baseRev) !== emMs(atual.updated_at)) {
+      return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi alterado em outra aba/aparelho — recarregado para você conferir.', dia: diaPublico(atual, acc) });
+    }
+    if (!atual && baseRev) {
+      // o cliente acha que existe uma linha (base) e ela sumiu: não grava por cima às cegas
+      return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi removido em outro lugar — recarregado.', dia: null });
+    }
+    const data = { ...lim.dia, nome: quem.nome || '', email: quem.email || '' };
+    if (JSON.stringify(data).length > 65536) return json(res, 413, { ok: false, erro: 'Dia grande demais.' });
+    let row;
+    if (atual) {
+      const filtro = atual.updated_at ? `&updated_at=eq.${encodeURIComponent(atual.updated_at)}` : '';
+      const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}${filtro}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data, updated_at: agora }),
+      }));
+      row = rows[0] || null;
+      if (!row) {   // a rev mudou entre a leitura e a escrita (outra aba gravou agora)
+        const dep = (await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}&select=id,data,updated_at`)))[0] || null;
+        return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi alterado em outra aba/aparelho — recarregado.', dia: diaPublico(dep, acc) });
+      }
+    } else {
+      const rows = await sbRows(await sbFetch(base, headers, TABELA, {
+        method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([{ id, data, updated_at: agora }]),
+      }));
+      row = rows[0] || { id, data, updated_at: agora };
+    }
+    return json(res, 200, { ok: true, dia: diaPublico({ id, data: row.data || data, updated_at: row.updated_at || agora }, acc) });
+  }
+
+  // ---- time: o dia de todo mundo (só gestores) ----
+  if (acao === 'time') {
+    const d = String(b.d || '').slice(0, 10);
+    if (!RE_DATA_P.test(d)) return json(res, 400, { ok: false, erro: 'Dia inválido.' });
+    if (!(await planEhGestor(base, headers, quem))) return json(res, 403, { ok: false, erro: 'Só gestores veem o dia do time.' });
+    const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?id=like.dia_*_${d}&select=id,data,updated_at&limit=200`));
+    const pessoas = (Array.isArray(rows) ? rows : []).map((r) => {
+      const m = /^dia_(.+)_(\d{4}-\d{2}-\d{2})$/.exec(String(r.id || '')); if (!m || m[2] !== d) return null;
+      const x = r.data || {}; const itens = Array.isArray(x.itens) ? x.itens : [];
+      return { accountId: m[1], nome: x.nome || '', st: x.st || 'rascunho', n: itens.length, feitos: itens.filter((i) => i && i.feito).length,
+        estSeg: itens.reduce((s, i) => s + (Number(i && i.est) || 0), 0), planejadoEm: x.planejadoEm || '', fechadoEm: x.fechadoEm || '', atualizadoEm: r.updated_at || '' };
+    }).filter(Boolean);
+    return json(res, 200, { ok: true, d, pessoas });
   }
 
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
@@ -1212,6 +1358,12 @@ export default async function handler(req, res) {
     if (req.query && req.query.plan) {
       if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
       return await planejamento(req, res, base, headers);
+    }
+
+    // 📆 Hoje: o planejamento do dia da pessoa (sempre POST, com identidade do Jira).
+    if (req.query && req.query.dia) {
+      if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
+      return await planejamentoDia(req, res, base, headers);
     }
 
     // 📊 Uso do painel: grava o lote (POST) e devolve o período somado (GET).

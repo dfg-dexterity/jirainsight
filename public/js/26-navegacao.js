@@ -12,6 +12,7 @@ function render(){
   renderAbas();     // 🗂 barra de abas do grupo (Inbox, Apontar, Tickets do time…) quando a vista é uma aba
   relCtxRender();   // 📚 faixa do relatório aberto pela Central (só na tela dele)
   if(estado.vista==='acoes') return renderAcoes();
+  if(estado.vista==='hoje'||estado.vista==='hojetime') return renderHoje();   // 📆 o dia da pessoa · 👥 o dia do time (abas, 24b)
   if(estado.vista==='visao') return renderVisao();
   if(estado.vista==='timesheet') return renderTimesheet();
   if(estado.vista==='ranking') return renderRanking();
@@ -82,6 +83,8 @@ function fechaModal(){ document.getElementById('modal').hidden=true;
 // que têm algo esperando ação mostram o número (ABAS_N: pendências do Inbox, menções sem resposta, vencidos entre os
 // tickets abertos). A 🏦 Controladoria segue tela única, agora com o 📁 Resultado do projeto (18-controladoria).
 const ABAS=[
+  // 2026-10-21 (📆 Hoje — o planejamento do dia como ponto central): o meu dia e, para gestores, o dia do time.
+  { id:'hoje',         rot:'📆 Hoje',                   abas:[ {v:'hoje',rot:'📆 Meu dia'}, {v:'hojetime',rot:'👥 Dia do time'} ] },
   { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
   // 2026-10-02 (a pedido do usuário: "o controle poluía a tela"): os eventos e o 🎫 Controle de tickets viraram abas.
@@ -118,6 +121,7 @@ function abaUltima(gid){ const g=ABAS.find(x=>x.id===gid); if(!g) return null; c
 // ---- 🔢 Contadores das abas (fase 4): número de coisas esperando ação, só onde o dado já está carregado (barato —
 // nada é buscado por causa da aba). Cada função devolve um número ou null; o texto é o tooltip. ----
 const ABAS_N={
+  hoje:    { n:()=>(typeof hjPendentesN==='function')?hjPendentesN():null, tip:'item(ns) do seu dia ainda não feito(s)' },
   inbox:   { n:()=>(typeof inboxPend==='function'&&estado.inbox&&estado.inbox.carregou)?inboxPend():null, tip:'pendência(s) aguardando você (convites, menções, planos para aprovar)' },
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
@@ -199,6 +203,8 @@ function vaiPara(v){
 const NAVCAT=[
   // Dexterity Hub — para todos
   ['acoes','🏠 Início — Ações de hoje','hub','hoje pendencias novidades inicio home principal minhas horas vencidos fechamento do mes'],
+  ['hoje','📆 Hoje › 📆 Meu dia','hub','meu dia planejar o dia lista do dia prioridades foco estimativa capacidade linha do tempo agenda blocos cronometro timer fechar o dia rollover amanha organizar meu trabalho'],
+  ['hojetime','📆 Hoje › 👥 Dia do time','hub','dia do time quem planejou fechou o dia gestor acompanhamento diario checkin'],
   ['apontar','⏱ Apontar','hub','worklog horas lancar apontamento registrar tempo meu trabalho novo'],
   ['inbox','📥 Inbox › 📥 Pendências','hub','convites mencoes pendencias caixa entrada aprovacoes meu trabalho'],
   ['prioridades','🎯 Prioridades do time','hub','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],

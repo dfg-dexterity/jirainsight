@@ -1955,3 +1955,34 @@
   .rep-acoes .btn{min-height:44px}
 }
 /* ---- fim: 🐞 reportar ---- */
+
+/* ---- 📱 grupo: hoje (📆 Hoje — lista do dia, linha do tempo, rituais, pílula do cronômetro) ---- */
+@media (max-width:880px){
+  .hj-2col{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .hj-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .hj-kpi{padding:8px 10px} .hj-kpi-v{font-size:19px}
+  .hj-nav .hj-data{flex:1 1 100%;order:-1;font-size:14px}
+  .hj-it{flex-wrap:wrap;padding:8px}
+  .hj-main{flex:1 1 60%}
+  .hj-acoes{flex:1 1 100%;justify-content:flex-start;gap:4px;margin-top:4px;padding-left:28px}
+  .hj-add input{flex:1 1 100%} .hj-add select{max-width:100%;flex:1 1 55%}
+  .hj-lt-ev,.hj-lt-blk{font-size:10.5px}
+  .hj-cand{flex-wrap:wrap} .hj-cand-why{max-width:100%;text-align:left;flex:1 1 100%;padding-left:22px}
+  .hj-cand-est{width:64px}
+  .hj-rit .alx-modal-acoes .btn{min-height:44px}
+  .hj-timer{max-width:calc(100% - 24px);font-size:12.5px}
+  .hj-time-tab{min-width:520px}
+}
+@media (pointer:coarse){
+  .hj-updown{display:inline-flex;gap:2px}
+  .hj-drag{display:none}
+  .hj-b{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+  .hj-chk{width:24px;height:24px;margin-top:4px}
+  .hj-est{min-height:32px}
+  .hj-lt-lac{min-height:32px}
+  .hj-mini input{width:20px;height:20px}
+  .hj-timer-stop{min-width:44px;min-height:36px}
+}
+/* ---- fim: hoje ---- */

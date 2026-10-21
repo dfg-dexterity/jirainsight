@@ -269,6 +269,28 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
   `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
   (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
+- **📆 Hoje — o planejamento do dia como ponto central (2026-10-21, a pedido do usuário: "ajudar meu time a organizar seu
+  trabalho, usar o Jira Insight como ponto central de planejamento do dia, incluindo controle da agenda e priorização de
+  tarefas; veja o que o mercado tem para inspiração"):** tela nova `📆 Hoje` (`public/js/24b-hoje.js`, prefixo `hj`; vistas
+  `hoje` + `hojetime` num grupo de abas; botão fixo depois da 🏠 Início) com a ✅ lista do dia (ticket, atividade do 📋 plano
+  da semana, reunião da Agenda ou tarefa livre; ordem manual, 🎯 foco nos 3 primeiros, estimativa × capacidade = `mpCapDia`
+  − reuniões), ⚡ ordenar por urgência (`hjUrgencia`, regra dita na tela), 💡 sugestões por fonte (`hjSugestoes`), a 🕘 linha
+  do tempo (Outlook + blocos `ini` + worklogs com hora + "agora" + lacunas clicáveis; arrastar = bloco; 🗓 deep link de
+  compose do Outlook — **a Agenda segue só leitura**), os rituais 🌅 Planejar (ficou de antes → sugestões → estimativas ×
+  capacidade com "amanhã") e 🌙 Fechar (não feitos → amanhã/deixar/descartar; feitos sem apontamento → lote de worklogs;
+  nota), o ⏱ cronômetro (pílula em todas as telas, `localStorage`, ■ → worklog com `hora` real; ▶ também na ficha 🔍) e,
+  para gestores, 👥 Dia do time. **Dados por pessoa e dia** em `POST /api/config?dia=1` (`planejamentoDia`: `ler`/`salvar`/
+  `time`; linha `dia_<accountId>_<AAAA-MM-DD>` em `jirainsight_config`, trava otimista pelo `updated_at`) — **nunca em
+  `cfg`**. Regras: `hjGravaWorklog` é a porta única de worklog da tela (planGate antes, registraExtraDia + logAcao depois;
+  o lote do 🌙 grava a config UMA vez); `hjGarante` não atropela dia em memória (só ↻/conflito trocam); dia no futuro não
+  pede worklogs; nada move sozinho (o que ficou de antes é sugestão; "amanhã" é item a item e marca `movido` na origem).
+  **Cuidado aprendido:** `.then(render)` numa promessa já resolvida (a janela do Apontar cobrindo o dia) virou laço de
+  microtarefas que travou a página — toda leitura disparada no render precisa de guarda (`_logsP`) e só redesenha quando
+  o dado MUDOU. A busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`). A 🏠 Início tem o card 📆 Seu
+  dia (`hjCardInicio`, ✓ nos 3 do foco). Pesquisa de mercado e decisões: `docs/hoje-planejamento-do-dia-2026-10-21.md`.
+  Teste: `hoje-test.mjs` (Playwright, 79 casos; fixture `?dia=1` + `/api/_dias` no `servidor-mini.mjs`). Fixture: o
+  "hoje−20" das fixtures relativas desvia das datas FIXAS do AMS (`DIA20()`), senão o `apontar-dia-test` quebra num dia
+  do calendário.
 - **📈 Análise do app × mercado e plano de melhorias (2026-10-20, a pedido do usuário: "verifique meu aplicativo
   como um todo, analise outras ferramentas de mercado semelhantes, sugira como melhorar — funcionalidades,
   usabilidade e facilidade para a pessoa organizar seu trabalho — e crie itens no roadmap"):** o documento mora em

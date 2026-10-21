@@ -250,10 +250,12 @@ function tkbRealce(){
 }
 
 // ---- Abertura, navegação e teclado ----
-function abreBuscaTickets(proj){
-  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'' };
-  abreModal(`<h2 class="tkb-h">🎫 Buscar ticket <span class="muted small">projeto → ticket, só os abertos</span></h2>
-    <div class="muted small">Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.</div>
+// `aoEscolher(k, info)` (2026-10-21, 📆 Hoje): modo ESCOLHER — clicar num ticket devolve a escolha a quem chamou
+// (a chave e o que a busca sabe dele) em vez de abrir a ficha; o modal fecha. Sem callback, é a busca de sempre.
+function abreBuscaTickets(proj, aoEscolher){
+  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'', pick:(typeof aoEscolher==='function')?aoEscolher:null };
+  abreModal(`<h2 class="tkb-h">🎫 ${_tkb.pick?'Escolher ticket':'Buscar ticket'} <span class="muted small">projeto → ticket, só os abertos</span></h2>
+    <div class="muted small">${_tkb.pick?'Clique no ticket (ou ↵) para escolhê-lo.':'Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.'}</div>
     <input class="pal-q" id="tkb-q" type="text" autocomplete="off" spellcheck="false"
       placeholder="projeto, ou a chave do ticket (ex.: RDF-123)…" aria-label="Buscar projeto ou ticket">
     <div id="tkb-cab"></div>
@@ -314,7 +316,9 @@ document.addEventListener('click',(e)=>{
   const p=t.closest('[data-tkb-p]'); if(p){ tkbVaiProjeto(p.getAttribute('data-tkb-p')); return; }
   if(t.closest('[data-tkb-projetos]')){ tkbVaiProjeto(''); return; }
   if(t.closest('[data-tkb-rec]')){ if(_tkb&&_tkb.proj&&_tkb.proj!=='*') tkbBusca(_tkb.proj,true); return; }
-  const ir=t.closest('[data-tkb-ir]'); if(ir){ tkbAbreFicha(ir.getAttribute('data-tkb-ir')); return; }
+  const ir=t.closest('[data-tkb-ir]'); if(ir){ const k=ir.getAttribute('data-tkb-ir');
+    if(_tkb&&_tkb.pick){ const cb=_tkb.pick; const info=tkbInfo(k); _tkb=null; fechaModal(); try{ cb(k, info||{ k }); }catch(err){} return; }   // modo escolher
+    tkbAbreFicha(k); return; }
   const ap=t.closest('[data-tkb-ap]');
   if(ap){ e.preventDefault(); if(typeof abreModalApontarGx==='function') abreModalApontarGx(ap.getAttribute('data-tkb-ap')); return; }
   // ↩ Voltar à busca (botão da ficha do ticket, quando ela foi aberta por aqui)

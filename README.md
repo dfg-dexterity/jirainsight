@@ -858,6 +858,43 @@ a tickets, grade semanal, Início com ações no lugar e modo foco, atalhos, Hoj
 e **o time e a plataforma** (bom-dia no Teams, config fatiada por perfil, abertura mais leve, alvos de
 toque de 44 px, fechamento semanal do timesheet). O estágio de cada item é a sugestão da análise; o time decide.
 
+### 📆 Hoje — o planejamento do dia como ponto central (2026-10-21)
+
+Pedido do usuário: *"ajudar meu time a organizar seu trabalho, usar o Jira Insight como ponto central de planejamento do
+dia, incluindo controle da agenda e priorização de tarefas — veja o que o mercado possui para inspiração"*. A pesquisa
+(43 ferramentas: Sunsama, Akiflow, Toggl, Clockify, Reclaim, Motion, Tempo, Todoist, Things, MS To Do, Jira "For you",
+Linear…) e as decisões estão em `docs/hoje-planejamento-do-dia-2026-10-21.md`.
+
+- **Tela `📆 Hoje`** (`public/js/24b-hoje.js`, prefixo `hj`; vistas `hoje` e `hojetime`, grupo de abas `hoje`): KPIs
+  (capacidade = `mpCapDia` − reuniões · planejado · apontado · feitos), **✅ lista do dia** (ticket, atividade do plano
+  semanal, reunião ou tarefa livre; ordem manual — arrastar/↑↓ —; os 3 primeiros são o 🎯 foco; estimativa editável; ✓
+  feito; ⏱ apontar com a hora do bloco; ▶ cronômetro; 📅 agendar; ⋯ amanhã/ligar a ticket/tirar), **⚡ ordenar por
+  urgência** (`hjUrgencia`: vencidos → vence hoje → 🎯 prioridade do time → em andamento → vence na semana → sem data),
+  **💡 sugestões por fonte** (`hjSugestoes`: ficou de antes, plano da semana, vencidos, vence hoje, prioridades,
+  andamento, reuniões, recentes) e a **🕘 linha do tempo** (eventos do Outlook, blocos com `ini`, worklogs com hora
+  (`mtsMinSP`), "agora", lacunas ≥ 30 min do expediente 08–18h; arrastar item → bloco na grade de 15 min; ⚠ conflito;
+  🗓 deep link de *compose* do Outlook — o painel não escreve na agenda).
+- **Rituais**: `hjRitualPlanejar` (ficou de antes → sugestões → estimativas × capacidade com "amanhã" item a item) e
+  `hjRitualFechar` (não feitos → amanhã/deixar/descartar; feitos sem apontamento → worklogs em lote; nota). O item
+  movido fica marcado `movido:'AAAA-MM-DD'` na origem e nasce com `orig:'ontem'` no destino (`hjProxUtil` = próximo
+  dia com capacidade).
+- **⏱ Cronômetro** (`hjTimerInicia`/`hjTimerParaModal`/`hjTimerPinta`): `localStorage` `jirainsight_timer_v1`; pílula
+  `#hj-timer` em todas as telas; ■ → worklog com `hora` real; ▶ também na 🔍 ficha do ticket (`data-hj-timer-k`).
+- **Dados**: `POST /api/config?dia=1` (`planejamentoDia` em `api/config.js`): `ler {de, ate}` (≤ 14 dias) · `salvar {d,
+  dia, base}` (trava otimista pelo `updated_at`; `diaLimpa` valida ≤ 60 itens, chave, hora, est ≤ 24 h) · `time {d}`
+  (só gestor). Uma linha `dia_<accountId>_<AAAA-MM-DD>` por pessoa e dia em `jirainsight_config` (como `semanal_*`) —
+  **nunca em `cfg`**. No navegador: `estado.hoje.dias[d]` (undefined = não lido · null = sem plano · objeto com `rev`);
+  `hjGarante(d)` lê [d−7, d] sem atropelar dia em memória; `hjSalvar` grava uma por vez (`salvandoP`/`deNovo`).
+- **Regras**: todo worklog passa por `planGate(dia)` antes e `registraExtraDia` depois (`hjGravaWorklog`); o lote do 🌙
+  grava a config uma vez; a busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`); a 🏠 Início tem o
+  card 📆 Seu dia (`hjCardInicio`) com ✓ nos 3 do foco e as rotas `hoje`/`hoje-planejar`/`hoje-fechar`.
+- **Cuidado aprendido**: um `.then(renderHoje)` numa promessa já resolvida (a janela do Apontar já cobria o dia) virava
+  laço de microtarefas e travava a página — a leitura das horas é guardada por `estado.hoje._logsP` e só redesenha
+  quando passou a cobrir o dia; dia no futuro nunca é pedido.
+- **Teste**: `hoje-test.mjs` (Playwright, 79 casos: adicionar por chave/texto/busca, estimativa, ordem, urgência, feito,
+  agendar/conflito/arrastar/lacuna/Outlook, apontar com hora, 🚧 trava, cronômetro (F5, parar, trocar), rituais com
+  rollover e lote, conflito entre abas, 👥 time × não gestor, celular) contra a fixture `?dia=1` do `servidor-mini.mjs`.
+
 ### 🗂 Roadmap da solução no Notion (2026-10-21)
 
 A pedido do usuário, o 🗺️ Roadmap passou a existir também como **base de dados no Notion** (processo

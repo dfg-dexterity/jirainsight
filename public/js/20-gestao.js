@@ -447,6 +447,7 @@ function renderModalTicket(d){
       ${anx||'<div class="muted small" style="margin-top:6px">Nenhum anexo.</div>'}</details>
     <div class="alx-modal-acoes">
       <button class="btn primario" data-gx-apont="${escA(d.k)}">⏱ Apontar</button>
+      <button class="btn" data-hj-timer-k="${escA(d.k)}" data-hj-timer-t="${escA((d.resumo||'').slice(0,120))}" data-tip="Inicia o cronômetro neste ticket (pílula em todas as telas; ■ vira apontamento com a hora real)">▶ Cronômetro</button>
       <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
       <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>

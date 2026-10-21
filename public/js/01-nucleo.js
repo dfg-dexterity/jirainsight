@@ -128,6 +128,9 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   inbox:{ mencoes:null, carregando:false, carregou:false, erro:'' },
   // 📍 Meu dia (timetracking assistido: blocos do Mac + sugestões da IA).
   meudia:{ dados:null, carregando:false, erro:'' },
+  // 📆 Hoje (24b): o planejamento do DIA — dias lidos do servidor por data (dias[d] = {…} | null = sem plano),
+  // leituras em voo (diasB), o dia aberto (d), o rascunho em edição (rasc/rascD), estado dos rituais e o 👥 time.
+  hoje:{ d:'', dias:{}, diasB:{}, erro:'', rasc:null, rascD:'', sujo:false, salvando:false, ritual:null, sug:{}, lt:true, time:{}, timeB:{}, timeErro:'' },
   // ⏳ Como estou gastando meu tempo?: pessoa, período próprio e caches (worklogs com
   // comentários por período; análise por IA por pessoa|período).
   meutempo:{ a:'', de:'', ate:'', chave:'', tempo:{}, tempoB:{}, tempoErro:{}, ia:{}, iaB:{}, iaErro:{} },
@@ -711,7 +714,7 @@ const VCHROME={
   visao:{per:1,exp:1}, acoes:{}, resumo:{per:1,fil:1,exp:1}, timesheet:{per:1,fil:1,exp:1},
   ranking:{per:1,fil:1,exp:1}, tickets:{per:1,fil:1,exp:1}, qualidade:{}, receita:{per:1,exp:1}, controladoria:{},
   ams:{exp:1}, apontar:{}, rateio:{}, planejar:{}, ondecrio:{}, meustickets:{}, reclassificar:{},
-  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, chamadas:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{}, portal:{} };
+  reuvinc:{}, gestao:{}, alertas:{}, admin:{}, parcerias:{}, config:{}, audit:{}, meudia:{}, analytics:{}, relatorios:{}, metricas:{exp:1}, rentab:{}, meutempo:{}, cronograma:{exp:1}, mencoes:{}, inbox:{}, projetos:{}, agenda:{}, chamadas:{}, minhasemana:{}, prioridades:{}, roadmap:{}, planrel:{}, uso:{}, gp:{}, portal:{}, hoje:{}, hojetime:{} };
 function aplicaChrome(){
   const c=VCHROME[estado.vista]||{per:1,fil:1,exp:1};
   const mostra=(sel,on)=>{ const e=document.querySelector(sel); if(e) e.style.display=on?'':'none'; };
