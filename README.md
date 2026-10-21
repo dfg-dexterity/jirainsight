@@ -858,6 +858,26 @@ a tickets, grade semanal, Início com ações no lugar e modo foco, atalhos, Hoj
 e **o time e a plataforma** (bom-dia no Teams, config fatiada por perfil, abertura mais leve, alvos de
 toque de 44 px, fechamento semanal do timesheet). O estágio de cada item é a sugestão da análise; o time decide.
 
+### 🗂 Roadmap da solução no Notion (2026-10-21)
+
+A pedido do usuário, o 🗺️ Roadmap passou a existir também como **base de dados no Notion** (processo
+**TI-14-024**, filha do TI-14 como os demais), com as dimensões que a tela do app não tem: **onda,
+categoria da melhoria, área, telas, tamanho (P/M/G/GG), esforço estimado em tokens e em horas, impacto,
+prioridade** (fórmula Impacto × Tamanho), **valor para, origem, pré-requisitos/desbloqueia, dependência
+externa, decisão pendente, referência de mercado, datas e links** (Jira, PR). Regras:
+
+- **Chave:** cada item do array `ROADMAP` tem um `id:'R###'` estável (`scripts/check-entrega.mjs` reprova
+  id ausente ou repetido). A tela do app mostra o id ao lado de cada item e linka a base.
+- **Quem manda em quê:** o app é a fonte de Nome, Estágio, Descrição e Ordem; o Notion é a fonte das
+  dimensões de planejamento — a sincronização nunca as toca. Item que sai do array vira "Fora do roadmap"
+  (a entrega marca "Entregue").
+- **Sincronização:** (1) a cada entrega, pelo MCP do Notion (item novo já classificado); (2) na CI,
+  `.github/workflows/roadmap-notion.yml` roda `scripts/roadmap-notion.mjs` a cada push na `main` que mexa no
+  05 — upsert por id; precisa dos secrets `NOTION_TOKEN` (integração interna com acesso à base) e
+  `NOTION_ROADMAP_DB`, e sem eles só avisa; (3) à mão, `node scripts/roadmap-notion.mjs --dry` mostra o plano.
+  O script tem teste contra um Notion falso (criação, atualização, "fora do roadmap", descrição longa
+  fatiada em blocos de 2.000, paginação, dry-run, id duplicado).
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
