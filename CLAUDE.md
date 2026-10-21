@@ -592,6 +592,9 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-022 | Portal do projeto para o cliente (modo projeto + módulo 🌐 Portal do cliente) | `3e9c6937-1e17-81f2-b00e-d788e99c5d33` |
   | TI-14-023 | Ligações (Call tracking): detector do Mac e apontamento das chamadas | `3f4c6937-1e17-81f5-8bb7-c31280615ed8` |
   | TI-14-024 | Roadmap da solução: base no Notion sincronizada com o app (base `🗂 Roadmap da solução`, data source `bf1de04e-1690-4571-a225-c8bb79e0da03`, URL `https://app.notion.com/p/f6bcbeaa327c4fcc91b4852769cd257b`) | `400c6937-1e17-8140-9d5e-c68fa5bbd9f1` |
+  | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
+
+  (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
   (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
   com SharePoint, Odoo e Finder.)
