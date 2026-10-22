@@ -102,14 +102,16 @@ function crGanttHTML(rows, esc_){
   const axis=`<div class="cr-row cr-cab"><div class="cr-lbl"><b>Épico</b></div><div class="cr-track cr-axis">${E.ticks.map(t=>`<span class="cr-tick ${t.forte?'forte':''}" style="left:${t.x.toFixed(2)}%"><i></i>${t.rot?`<em>${esc(t.rot)}</em>`:''}</span>`).join('')}${E.hojeDentro?`<span class="cr-hoje-rot" style="left:${E.hoje.toFixed(2)}%">hoje</span>`:''}</div></div>`;
   const linhas=rows.map(r=>{
     const [ic,rot,cor]=CR_ST[r.st]; const tips=[];
-    let plan=''; if(r.iniPlan||r.fimRef){ const a=r.iniPlan||r.iniReal||r.criado; const b=r.fimRef||r.previsao||hojeSP(); if(a&&b&&b>=a){ plan=`<i class="cr-plan ${r.fimRef?'':'aberta'} ${r.fimDerivado?'derivada':''}" style="left:${E.pos(a).toFixed(2)}%;width:${Math.max(0.4,E.pos(b)-E.pos(a)).toFixed(2)}%" data-tip="${escA(`Planejado: ${r.iniPlan?dataBR(r.iniPlan):'início não informado'} → ${r.fimPlan?dataBR(r.fimPlan):(r.fimDerivado?dataBR(r.fimRef)+' (maior vencimento dos filhos)':'sem data limite')}`)}"></i>`; } }
+    // ✎ (2026-10-21, cronograma editável): a barra planejada tem alças nas bordas (início / marco) e se arrasta inteira
+    // (`data-cr-bar`); o ◆ também se arrasta (`data-cr-marco`). Só com ponteiro fino — no toque, o ✎ e os campos.
+    let plan=''; if(r.iniPlan||r.fimRef){ const a=r.iniPlan||r.iniReal||r.criado; const b=r.fimRef||r.previsao||hojeSP(); if(a&&b&&b>=a){ plan=`<i class="cr-plan ${r.fimRef?'':'aberta'} ${r.fimDerivado?'derivada':''}${r.cancel||r.done?'':' editavel'}" data-cr-bar="${escA(r.k)}" data-cr-a="${escA(a)}" data-cr-b="${escA(b)}" style="left:${E.pos(a).toFixed(2)}%;width:${Math.max(0.4,E.pos(b)-E.pos(a)).toFixed(2)}%" data-tip="${escA(`Planejado: ${r.iniPlan?dataBR(r.iniPlan):'início não informado'} → ${r.fimPlan?dataBR(r.fimPlan):(r.fimDerivado?dataBR(r.fimRef)+' (maior vencimento dos filhos)':'sem data limite')}${r.cancel||r.done?'':' · arraste a barra (move), as bordas (início / marco) ou o ◆'}`)}">${r.cancel||r.done?'':'<b class="cr-h cr-h-l" data-cr-h="ini" title="Arraste: data de início"></b><b class="cr-h cr-h-r" data-cr-h="fim" title="Arraste: marco (data limite)"></b>'}</i>`; } }
     let real=''; if(r.iniReal){ const b=r.fimReal||(r.done?r.iniReal:hojeSP()); if(b>=r.iniReal){ const w=Math.max(0.6,E.pos(b)-E.pos(r.iniReal));
       real=`<i class="cr-real" style="left:${E.pos(r.iniReal).toFixed(2)}%;width:${w.toFixed(2)}%;--cor:${cor}" data-tip="${escA(`Real: 1º item ${dataBR(r.iniReal)} → ${r.fimReal?'concluído '+dataBR(r.fimReal):'em andamento'} · ${r.nConcluidos}/${r.nFilhos} itens (${r.pct}%)`)}"><b style="width:${r.pct}%"></b><span>${r.pct}%</span></i>`; } }
-    const marco=r.fimPlan?`<i class="cr-marco ${r.st==='atrasado'||(r.done&&r.fimReal>r.fimPlan)?'tarde':(r.done?'ok':'')}" style="left:${E.pos(r.fimPlan).toFixed(2)}%" data-tip="${escA(`◆ Marco: ${dataBR(r.fimPlan)}${r.atraso?` · ${r.atraso} dia(s) de atraso`:''}`)}"></i>`:'';
+    const marco=r.fimPlan?`<i class="cr-marco ${r.st==='atrasado'||(r.done&&r.fimReal>r.fimPlan)?'tarde':(r.done?'ok':'')}${r.cancel||r.done?'':' editavel'}" ${r.cancel||r.done?'':`data-cr-marco="${escA(r.k)}" data-cr-b="${escA(r.fimPlan)}"`} style="left:${E.pos(r.fimPlan).toFixed(2)}%" data-tip="${escA(`◆ Marco: ${dataBR(r.fimPlan)}${r.atraso?` · ${r.atraso} dia(s) de atraso`:''}${r.cancel||r.done?'':' · arraste para mudar'}`)}"></i>`:'';
     const prev=r.previsao&&!r.done?`<i class="cr-prev ${r.fimRef&&r.previsao>r.fimRef?'tarde':''}" style="left:${E.pos(r.previsao).toFixed(2)}%" data-tip="${escA(`▲ Previsão pelo ritmo: ${dataBR(r.previsao)} (${r.restantes} item(ns) restante(s), ${(Math.round(r.ritmo*10)/10).toLocaleString('pt-BR')}/semana)`)}"></i>`:'';
     const semDatas=!plan&&!real?'<span class="cr-semdatas">sem datas</span>':'';
     return `<div class="cr-row lvl-${Math.min(3,r.pfx.nivel)}" data-cr-ep="${escA(r.k)}" role="button" tabindex="0" data-tipk="clique para ver a evolução e a composição">
-      <div class="cr-lbl"><span class="cr-ic" style="color:${cor}">${ic}</span><b>${esc(r.k)}</b> <span class="cr-nome" title="${escA(r.resumo)}">${esc(r.resumo)}</span>${r.alertas.length?`<span class="cr-alerta" data-tip="${escA(r.alertas.join(' · '))}">⚠</span>`:''}</div>
+      <div class="cr-lbl"><span class="cr-ic" style="color:${cor}">${ic}</span><b>${esc(r.k)}</b> <span class="cr-nome" title="${escA(r.resumo)}${r.cancel?'':' · duplo clique renomeia'}" data-cr-nome="${escA(r.k)}">${esc(r.resumo)}</span>${r.alertas.length?`<span class="cr-alerta" data-tip="${escA(r.alertas.join(' · '))}">⚠</span>`:''}<button class="cr-ed" data-cr-editar="${escA(r.k)}" title="Editar a fase (nome, datas, responsável, status, dependências)" aria-label="Editar ${escA(r.k)}">✎</button></div>
       <div class="cr-track">${E.hojeDentro?`<i class="cr-hoje" style="left:${E.hoje.toFixed(2)}%"></i>`:''}${plan}${real}${marco}${prev}${semDatas}</div></div>`; }).join('');
   // dependências (blocks): do fim do bloqueador ao início do bloqueado
   const idx={}; rows.forEach((r,i)=>{ idx[r.k]=i; }); const linhasSvg=[];
@@ -134,7 +136,7 @@ function renderCronograma(){
     <div class="campo"><label>Mostrar</label><div class="ap-chips">${[['todos','Todos'],['abertos','Abertos'],['atrasados','🔴 Atrasados'],['risco','🟠 Em risco'],['atencao','Atrasados e em risco'],['marcos30','◆ Marcos em 30 dias'],['concluidos','✅ Concluídos']].map(([v,l])=>`<button class="chip ${c.fil===v?'on':''}" data-cr-fil="${v}">${l}</button>`).join('')}</div></div>
     <div class="campo"><label>Ordem</label><select id="cr-ord"><option value="auto" ${c.ord==='auto'?'selected':''}>cascata (fase e início)</option><option value="inicio" ${c.ord==='inicio'?'selected':''}>início</option><option value="fim" ${c.ord==='fim'?'selected':''}>marco (data limite)</option><option value="status" ${c.ord==='status'?'selected':''}>status</option><option value="nome" ${c.ord==='nome'?'selected':''}>nome</option></select></div>
     <div class="campo"><label>Escala</label><select id="cr-escala"><option value="auto" ${c.escala==='auto'?'selected':''}>automática</option><option value="semanas" ${c.escala==='semanas'?'selected':''}>semanas</option><option value="meses" ${c.escala==='meses'?'selected':''}>meses</option></select></div>
-    <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px">${c.proj?`<button class="btn" data-proj-ficha="${escA(c.proj)}" data-tip="Voltar à ficha do projeto em 📁 Portfólio e ficha (🦴 espinha)">📁 Ficha</button>`:''}${c.proj?'<button class="btn" data-cr-refresh="1" data-tip="Rebusca a ficha do Jira ignorando o cache">⟳ Atualizar</button>':''}${c.proj?'<button class="btn" data-cr-csv="1" data-tip="Baixa o cronograma em CSV">⬇ CSV</button>':''}</div></div></div>`;
+    <div class="campo"><label>&nbsp;</label><div style="display:flex;gap:6px;flex-wrap:wrap">${c.proj?`<button class="btn primario" data-cr-nova="${escA(c.proj)}" data-tip="Cria um épico (fase) novo no Jira com nome, Data de início, marco e responsável">+ Nova fase</button>`:''}${c.proj?`<button class="btn" data-proj-ficha="${escA(c.proj)}" data-tip="Voltar à ficha do projeto em 📁 Portfólio e ficha (🦴 espinha)">📁 Ficha</button>`:''}${c.proj?'<button class="btn" data-cr-refresh="1" data-tip="Rebusca a ficha do Jira ignorando o cache">⟳ Atualizar</button>':''}${c.proj?'<button class="btn" data-cr-csv="1" data-tip="Baixa o cronograma em CSV">⬇ CSV</button>':''}</div></div></div>`;
   const cab=(sub)=>`<div class="card full"><h2>📅 Marcos e Cronograma <span>${sub}</span></h2>
     <div class="muted small">O relatório <b>R04</b> da Central: os épicos do projeto como fases de um cronograma em cascata — o que foi <b>planejado</b> (Data de início → Data limite do épico no Jira), o que está <b>acontecendo</b> (1º item criado → último concluído, com o % de itens), os <b>marcos</b>, a <b>previsão de término pelo ritmo</b> e as <b>dependências</b>. Clique num épico para ver a evolução e a composição.</div>${filtros}</div>`;
   if(!c.proj){ cont.replaceChildren(el(`<div class="cro-tela">${cab('escolha um projeto')}<div class="card full"><div class="estado">Escolha o projeto para montar o cronograma dos épicos.${projs.length?'':' <br><span class="muted small">⏳ carregando o catálogo do Jira…</span>'}</div></div></div>`)); return; }
@@ -145,7 +147,7 @@ function renderCronograma(){
   const proxMarcos=abertos.filter(r=>r.fimPlan&&r.fimPlan>=hoje&&crDias(hoje,r.fimPlan)<=30).sort((a,b)=>a.fimPlan.localeCompare(b.fimPlan));
   const proxSet=new Set(proxMarcos.map(r=>r.k));
   const filtradas=todas.filter(r=>c.fil==='abertos'?!r.done&&!r.cancel:c.fil==='atencao'?(r.st==='atrasado'||r.st==='risco'):c.fil==='atrasados'?r.st==='atrasado':c.fil==='risco'?r.st==='risco':c.fil==='marcos30'?proxSet.has(r.k):c.fil==='concluidos'?r.done:true);
-  const rows=crOrdena(filtradas,c.ord); const E=crEscala(rows.length?rows:todas,c.escala);
+  const rows=crOrdena(filtradas,c.ord); const E=crEscala(rows.length?rows:todas,c.escala); c._E={ de:E.de, dias:E.dias };   // a escala desenhada: o arrasto converte px → dias por ela
   const itensTot=todas.reduce((s,r)=>s+(r.nFilhos||0),0), itensConc=todas.reduce((s,r)=>s+(r.nConcluidos||0),0);
   const fimProj=todas.reduce((s,r)=>(r.fimRef&&r.fimRef>s?r.fimRef:s),''); const prevProj=abertos.reduce((s,r)=>(r.previsao&&r.previsao>s?r.previsao:s),'');
   const ultimo=fimProj?todas.find(r=>r.fimRef===fimProj):null;
@@ -203,7 +205,7 @@ function crAbreEpico(k, soHoras){
     ${r.alertas.length?`<div class="aviso">${r.alertas.map(a=>`⚠ ${esc(a)}`).join('<br>')}</div>`:''}
     <div class="rm-2col"><div><div class="mp-h3">📈 Evolução — itens criados × concluídos (acumulado)</div>${serie}</div><div><div class="mp-h3">⏱ Horas apontadas por mês</div><div id="cr-horas">${horas}</div></div></div>
     <div class="mp-h3" style="margin-top:10px">🧩 Composição <span class="mp-dim">${filhos.length} item(ns) · abertos primeiro</span></div>${projTabelaItens(filhos,200)}
-    <div class="alx-modal-acoes"><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>${abertosK.length?`<button class="btn" data-ct-gestao="${escA(abertosK.slice(0,200).join(','))}">🛠 Abrir os ${Math.min(abertosK.length,200)} abertos na Gestão</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
+    <div class="alx-modal-acoes"><button class="btn primario" data-cr-editar-m="${escA(k)}">✎ Editar fase</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>${abertosK.length?`<button class="btn" data-ct-gestao="${escA(abertosK.slice(0,200).join(','))}">🛠 Abrir os ${Math.min(abertosK.length,200)} abertos na Gestão</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
   if(soHoras){ /* redesenhado inteiro acima — mantém o modal aberto com as horas carregadas */ }
 }
 // KPI "Progresso geral": itens do projeto por épico (barra de progresso) + itens abertos, com ação na Gestão.
@@ -251,8 +253,15 @@ document.getElementById('conteudo').addEventListener('keydown',(e)=>{
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='cronograma') return; const c=estado.cronograma;
   const kp=e.target.closest&&e.target.closest('[data-cr-kpi]'); if(kp){ crAcaoKpi(kp.getAttribute('data-cr-kpi')); return; }
-  const row=e.target.closest&&e.target.closest('[data-cr-ep]'); if(row&&!e.target.closest('a')&&!e.target.closest('button')){ crAbreEpico(row.getAttribute('data-cr-ep')); return; }
+  if(_crDrag&&_crDrag.arrastou){ _crDrag=null; return; }   // soltou a barra: o clique que acompanha o pointerup não abre o épico
+  if(e.target.closest&&e.target.closest('.cr-nome-inp')) return;   // renomeando em linha
+  const row=e.target.closest&&e.target.closest('[data-cr-ep]'); if(row&&!e.target.closest('a')&&!e.target.closest('button')){
+    // no NOME, o clique simples espera 300 ms pelo duplo clique (renomear): abrir o épico no 1º clique engolia o 2º no modal
+    if(e.target.closest('[data-cr-nome]')){ clearTimeout(_crClickT); const k=row.getAttribute('data-cr-ep'); _crClickT=setTimeout(()=>{ if(!document.querySelector('.cr-nome-inp')) crAbreEpico(k); },300); return; }
+    crAbreEpico(row.getAttribute('data-cr-ep')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
+  if(t.hasAttribute('data-cr-editar')){ crAbreEditar(t.getAttribute('data-cr-editar')); return; }
+  if(t.hasAttribute('data-cr-nova')){ crAbreNova(t.getAttribute('data-cr-nova')); return; }
   if(t.hasAttribute('data-cr-fil')){ c.fil=t.getAttribute('data-cr-fil'); renderCronograma(); return; }
   if(t.hasAttribute('data-cr-refresh')){ crGaranteFicha(c.proj,true); renderCronograma(); return; }
   if(t.hasAttribute('data-cr-retry')){ delete c.fichaErr[c.proj]; renderCronograma(); return; }
@@ -262,9 +271,256 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   if(estado.vista==='cronograma'){ const r=e.target.closest&&e.target.closest('[data-cr-ep]'); if(r&&!e.target.closest('a')&&!e.target.closest('button')){ crAbreEpico(r.getAttribute('data-cr-ep')); return; } }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-cr-horas')){ crGaranteTempo(); const h=document.getElementById('cr-horas'); if(h) h.innerHTML='<div class="muted small">⏳ Lendo as horas apontadas (12 meses)…</div>'; }
+  if(t.hasAttribute('data-cr-editar-m')){ crAbreEditar(t.getAttribute('data-cr-editar-m')); }
 });
 // Atalho vindo de outras telas (ficha do projeto, catálogo): abre o cronograma do projeto.
 document.addEventListener('click',(e)=>{
   const t=e.target.closest&&e.target.closest('[data-cr-abrir]'); if(!t) return;
   const k=t.getAttribute('data-cr-abrir'); if(k) estado.cronograma.proj=k; if(estado.vista!=='cronograma') vaiPara('cronograma'); else renderCronograma();
 });
+
+// ===========================================================================
+// ✎ CRONOGRAMA EDITÁVEL (2026-10-21, a pedido do usuário: "transforme essa tela em algo totalmente editável").
+// Tudo que a tela mostra do épico passa a ser editável com o token da PRÓPRIA pessoa (como ⏱ Apontar e 🛠 Gestão),
+// gravando no Jira — a fonte continua sendo o Jira, sem modelo paralelo: nome (summary), Data de início
+// (customfield_10015), marco (duedate), responsável, status (transições), dependências (links "Blocks" entre épicos
+// do projeto), itens vencendo depois do marco (📐 alinhar) e "+ Nova fase". Gestos: arrastar a barra planejada move as
+// duas datas, as bordas mudam início/marco, o ◆ muda o marco (grade de 1 dia, só com ponteiro fino); duplo clique no
+// nome renomeia; ✎ abre o formulário. A escrita é OTIMISTA (a ficha em memória muda e a tela redesenha na hora), o
+// servidor confirma (POST /api/criar {editar:1}); falha → reverte + toast; depois a ficha é relida com nocache em
+// segundo plano. `crLinhas` (o semáforo, com gate de paridade com o servidor) NÃO muda: só os dados de entrada mudam.
+let _crDrag=null, _crUndo=null, _crUndoT=null, _crReleT=null, _crEd=null, _crClickT=null;
+function crIdent(){ const id=idApontar(); if(!id){ abreIdentidade(); return null; } return id; }
+function crEpicoLocal(k){ const c=estado.cronograma; const d=crFicha(c.proj); return d?((d.epicos||[]).find(e=>e.k===k)||null):null; }
+// Releitura da ficha (nocache) com debounce — várias edições seguidas pedem UMA leitura.
+function crReleFicha(){ const c=estado.cronograma; clearTimeout(_crReleT); _crReleT=setTimeout(()=>{ delete c.fichaErr[c.proj]; crGaranteFicha(c.proj,true); },1500); }
+// Patch otimista no épico em memória (campos: ini, fim, resumo, resp, status, sc, links) e nos itens espelho.
+function crPatchLocal(k, campos){
+  const e=crEpicoLocal(k); if(!e) return; const antes={};
+  Object.keys(campos).forEach(f=>{ antes[f]=e[f]; e[f]=campos[f]; });
+  const d=crFicha(estado.cronograma.proj); const it=d&&(d.itens||[]).find(x=>x.k===k);
+  if(it){ if('ini' in campos) it.si=campos.ini||''; if('fim' in campos) it.v=campos.fim||''; if('resumo' in campos) it.s=String(campos.resumo||'').slice(0,90); if('status' in campos) it.st=campos.status; if('sc' in campos) it.sc=campos.sc; if('resp' in campos) it.r=campos.resp||''; }
+  return antes;
+}
+// Grava no Jira: itens [{key, venc?, inicio?, resumo?, respId?}] e/ou links [{acao, de, para}|{acao:'rm', id}].
+async function crGrava(itens, links){
+  const id=crIdent(); if(!id) return { ok:false, erro:'sem identidade' };
+  try{
+    const j=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ editar:1, itens:itens||[], links:links||[], email:id.email, token:id.token }) }).then(r=>r.json());
+    if(!j||j.erro) return { ok:false, erro:humanizaErro((j&&j.erro)||'Falha ao gravar.') };
+    const ruim=(j.resultados||[]).find(r=>!r.ok)||(j.links||[]).find(r=>!r.ok);
+    return { ok:!!j.ok, erro:ruim?humanizaErro(ruim.erro||'Falha ao gravar.'):'', resultados:j.resultados||[], links:j.links||[] };
+  }catch(e){ return { ok:false, erro:humanizaErro(e) }; }
+}
+// Edita datas/nome/responsável de UM épico: otimista + grava + ↩ desfazer (10 s).
+async function crEdita(k, campos, rotulo, opts){
+  const o=opts||{}; const e=crEpicoLocal(k); if(!e) return false; const id=crIdent(); if(!id) return false;
+  const corpo={ key:k }; const local={};
+  if('ini' in campos){ corpo.inicio=campos.ini||''; local.ini=campos.ini||''; }
+  if('fim' in campos){ corpo.venc=campos.fim||''; local.fim=campos.fim||''; }
+  if('resumo' in campos){ corpo.resumo=campos.resumo; local.resumo=campos.resumo; }
+  if('respId' in campos){ corpo.respId=campos.respId||''; local.resp=campos.respNome||''; }
+  const antes=crPatchLocal(k, local); crReRender();
+  const r=await crGrava([corpo]);
+  if(!r.ok){ crPatchLocal(k, antes); crReRender(); toast(`Não gravou ${k}: ${r.erro}`,'err'); return false; }
+  logAcao({ acao:'cronograma-editar', t:k, para:rotulo||Object.keys(campos).join(', '), ok:true });
+  if(!o.semUndo){ const volta={}; if('ini' in campos) volta.ini=antes.ini||''; if('fim' in campos) volta.fim=antes.fim||''; if('resumo' in campos) volta.resumo=antes.resumo; if('respId' in campos){ volta.respId=o.respIdAntes||''; volta.respNome=antes.resp||''; }
+    crUndoMostra(`${k}: ${rotulo||'editado'}`, ()=>crEdita(k, volta, 'desfazer', { semUndo:true })); }
+  else toast(`↩ ${k} voltou como estava.`,'ok');
+  crReleFicha(); return true;
+}
+// Barra "↩ desfazer" (10 s), uma de cada vez.
+function crUndoMostra(txt, fn){
+  clearTimeout(_crUndoT); _crUndo=fn; let b=document.getElementById('cr-undo');
+  if(!b){ b=el('<div id="cr-undo" class="cr-undo" role="status"><span class="cr-undo-t"></span><button class="btn" data-cr-undo>↩ Desfazer</button><button class="btn cr-undo-x" data-cr-undo-x aria-label="Fechar">×</button></div>'); document.body.appendChild(b); }
+  b.querySelector('.cr-undo-t').textContent=`✓ ${txt}`;
+  _crUndoT=setTimeout(crUndoSome, 10000);
+}
+function crUndoSome(){ clearTimeout(_crUndoT); _crUndo=null; const b=document.getElementById('cr-undo'); if(b) b.remove(); }
+// ---- arrastar na linha do tempo (ponteiro fino) ----
+function crDragInicia(e){
+  if(!matchMedia('(pointer:fine)').matches) return;
+  const alca=e.target.closest&&e.target.closest('[data-cr-h]'); const bar=e.target.closest&&e.target.closest('[data-cr-bar]'); const mk=e.target.closest&&e.target.closest('[data-cr-marco]');
+  if(!bar&&!mk) return; if(e.button!==0) return;
+  const c=estado.cronograma; const E=c._E; if(!E||!E.dias) return;
+  const track=(bar||mk).closest('.cr-track'); if(!track) return;
+  const k=(bar||mk).getAttribute(bar?'data-cr-bar':'data-cr-marco'); const r=crLinhas(crFicha(c.proj)||{}).find(x=>x.k===k); if(!r||r.done||r.cancel) return;
+  const modo=mk?'marco':(alca?alca.getAttribute('data-cr-h'):'move');
+  _crDrag={ k, modo, x0:e.clientX, pxDia:track.getBoundingClientRect().width/E.dias, a:(bar||mk).getAttribute('data-cr-a')||r.iniPlan||r.iniReal||r.criado||'', b:(bar||mk).getAttribute('data-cr-b')||r.fimRef||'', el:bar||mk, track, dias:0, arrastou:false, r };
+  try{ (bar||mk).setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+}
+function crDragMove(e){
+  const g=_crDrag; if(!g) return; const dias=Math.round((e.clientX-g.x0)/g.pxDia); if(dias===g.dias&&g.arrastou) return;
+  if(Math.abs(e.clientX-g.x0)<3&&!g.arrastou) return;
+  g.arrastou=true; g.dias=dias; const n=crDragNovo(g); const E=estado.cronograma._E; const pos=(iso)=>Math.max(0,Math.min(100,crDias(E.de,iso)/E.dias*100));
+  g.el.classList.add('arrastando');
+  if(g.modo==='marco'){ g.el.style.left=pos(n.fim).toFixed(2)+'%'; }
+  else { const a=n.ini||g.a, b=n.fim||g.b; g.el.style.left=pos(a).toFixed(2)+'%'; g.el.style.width=Math.max(0.4,pos(b)-pos(a)).toFixed(2)+'%'; }
+  let tip=document.getElementById('cr-drag-tip'); if(!tip){ tip=el('<div id="cr-drag-tip" class="cr-drag-tip"></div>'); document.body.appendChild(tip); }
+  tip.textContent=g.modo==='marco'||g.modo==='fim'?`◆ marco → ${dataBR(n.fim)}`:g.modo==='ini'?`início → ${dataBR(n.ini)}`:`${dataBR(n.ini)} → ${dataBR(n.fim)} (${dias>0?'+':''}${dias} d)`;
+  tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-30)+'px';
+}
+function crDragNovo(g){
+  const d=g.dias; if(g.modo==='move') return { ini:g.a?crAddDias(g.a,d):'', fim:g.b?crAddDias(g.b,d):'' };
+  if(g.modo==='ini'){ const ini=crAddDias(g.a,d); return { ini:ini>g.b&&g.b?g.b:ini, fim:g.b }; }
+  const fim=crAddDias(g.b,d); return { ini:g.a, fim:(g.a&&fim<g.a)?g.a:fim };
+}
+async function crDragFim(e){
+  const g=_crDrag; if(!g) return; const tip=document.getElementById('cr-drag-tip'); if(tip) tip.remove();
+  try{ g.el.releasePointerCapture(e.pointerId); }catch(_){} g.el.classList.remove('arrastando');
+  if(!g.arrastou||!g.dias){ _crDrag=null; return; }
+  const n=crDragNovo(g); const campos={};
+  if(g.modo==='move'){ if(g.r.iniPlan||g.a) campos.ini=n.ini; campos.fim=n.fim; }
+  else if(g.modo==='ini') campos.ini=n.ini; else campos.fim=n.fim;
+  const rot=g.modo==='move'?`movido ${g.dias>0?'+':''}${g.dias} d (${dataBR(n.ini)} → ${dataBR(n.fim)})`:g.modo==='ini'?`início ${dataBR(n.ini)}`:`marco ${dataBR(n.fim)}`;
+  // o pointerup vem antes do click: _crDrag fica até o click ser engolido (ver o listener de clique); limpa depois
+  setTimeout(()=>{ if(_crDrag===g) _crDrag=null; },0);
+  await crEdita(g.k, campos, rot);
+}
+// ---- renomear em linha (duplo clique no nome) ----
+function crRenomeia(k){
+  const span=document.querySelector(`.cr-nome[data-cr-nome="${CSS.escape(k)}"]`); const e=crEpicoLocal(k); if(!span||!e) return; if(!crIdent()) return;
+  const inp=el(`<input class="cr-nome-inp" type="text" value="${escA(e.resumo||'')}" maxlength="255" aria-label="Nome da fase">`); span.replaceWith(inp); inp.focus(); inp.select();
+  let feito=false; const onBlur=()=>fim(true);
+  const fim=(grava)=>{ if(feito) return; feito=true; inp.removeEventListener('blur',onBlur); const v=inp.value.trim();
+    if(grava&&v&&v!==e.resumo) crEdita(k,{ resumo:v },`renomeado para "${v.slice(0,40)}"`); else crReRender(); };
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); fim(true); } if(ev.key==='Escape'){ ev.stopPropagation(); fim(false); } ev.stopPropagation(); });
+  inp.addEventListener('blur',onBlur);
+}
+// ---- ✎ formulário da fase ----
+function crEpicosDoProjeto(){ const d=crFicha(estado.cronograma.proj); return d?crOrdena(crLinhas(d),'auto'):[]; }
+function crBloqueadoresDe(e){ return (e.links||[]).filter(l=>l.d==='in'&&/block|bloque|depend/i.test(l.n+' '+l.rot)); }
+async function crAbreEditar(k){
+  const id=crIdent(); if(!id) return; const e=crEpicoLocal(k); if(!e) return;
+  _crEd={ k, trans:null, transB:false, resp:e.resp||'', respId:'' };
+  abreModal('<div class="cr-ed-modal"><h2>✎ Editar fase</h2><div class="estado">Carregando…</div></div>');
+  let pessoas={}; try{ const j=await usuariosP(); pessoas=(j&&j.pessoas)||{}; }catch(_){}
+  if(!_crEd||_crEd.k!==k) return;
+  _crEd.pessoas=pessoas; const atual=Object.entries(pessoas).find(([,u])=>u&&u.nome===e.resp); _crEd.respId=atual?atual[0]:'';
+  crPintaEditar();
+}
+function crPintaEditar(){
+  const m=_crEd; if(!m) return; const box=document.querySelector('#modal-body .cr-ed-modal'); if(!box) return; const e=crEpicoLocal(m.k); if(!e) return;
+  const d=crFicha(estado.cronograma.proj); const rows=crEpicosDoProjeto(); const r=rows.find(x=>x.k===m.k)||{};
+  const bloq=crBloqueadoresDe(e); const bloqSet=new Set(bloq.map(l=>l.k));
+  const filhosDepois=e.fim?(d.itens||[]).filter(i=>i.e===m.k&&i.v&&i.v>e.fim&&i.sc!=='done'&&!/cancel/i.test(i.st||'')):[];
+  const pessoas=Object.entries(m.pessoas||{}).map(([a,u])=>({ a, nome:(u&&u.nome)||a })).sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
+  const transHtml=m.trans===null?`<button class="btn" data-cr-ed-trans>🔁 Carregar as transições do fluxo</button>`:m.transB?'<span class="muted small">Carregando…</span>':(m.trans.length?m.trans.map(t=>`<button class="chip st-${escA(t.categoria)}" data-cr-ed-ir="${escA(t.id)}" data-cr-ed-nome="${escA(t.para||t.nome)}" data-cr-ed-cat="${escA(t.categoria)}">${esc(t.para||t.nome)}</button>`).join(' '):'<span class="muted small">Nenhuma transição disponível para você neste épico.</span>');
+  box.innerHTML=`<h2>✎ Editar fase <span class="muted small">${esc(m.k)} · ${esc(e.status||'')}</span></h2>
+    <div class="rv-form" style="margin-top:8px">
+      <div class="campo full"><label>Nome <span class="muted small">(o prefixo "1.", "2.3" ordena a cascata)</span></label><input type="text" id="cr-ed-nome" value="${escA(e.resumo||'')}" maxlength="255"></div>
+      <div class="campo"><label>Data de início</label><input type="date" id="cr-ed-ini" value="${escA(e.ini||'')}"></div>
+      <div class="campo"><label>Marco (data limite)</label><input type="date" id="cr-ed-fim" value="${escA(e.fim||'')}"></div>
+      <div class="campo full"><label>Responsável</label><select id="cr-ed-resp"><option value="">— sem responsável —</option>${pessoas.map(p=>`<option value="${escA(p.a)}" ${p.a===m.respId?'selected':''}>${esc(p.nome)}</option>`).join('')}${(e.resp&&!m.respId)?`<option value="__atual" selected>${esc(e.resp)} (atual)</option>`:''}</select></div>
+    </div>
+    <div class="mp-h3" style="margin-top:12px">🔁 Status <span class="mp-dim">${esc(e.status||'—')}</span></div><div class="ap-chips" id="cr-ed-trans">${transHtml}</div>
+    <div class="mp-h3" style="margin-top:12px">⏮ Bloqueado por <span class="mp-dim">dependências "Blocks" entre épicos deste projeto</span></div>
+    <div class="cr-ed-deps">${rows.filter(x=>x.k!==m.k).map(x=>`<label class="hj-check small"><input type="checkbox" data-cr-ed-dep="${escA(x.k)}" ${bloqSet.has(x.k)?'checked':''}> <b>${esc(x.k)}</b> ${esc((x.resumo||'').slice(0,60))}</label>`).join('')||'<span class="muted small">Não há outros épicos no projeto.</span>'}</div>
+    ${filhosDepois.length?`<div class="aviso" style="margin-top:10px">⚠ ${filhosDepois.length} item(ns) deste épico vencem DEPOIS do marco (${esc(dataBR(e.fim))}). <button class="btn" data-cr-ed-alinhar="${escA(m.k)}">📐 Alinhar ${filhosDepois.length} ao marco</button></div>`:''}
+    <div class="ap-fb" id="cr-ed-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" data-cr-ed-ok>Salvar</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(m.k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a><button class="btn" data-cr-ed-fecha>Cancelar</button></div>`;
+}
+async function crEditarTrans(){
+  const m=_crEd; const id=idApontar(); if(!m||!id) return; m.trans=[]; m.transB=true; crPintaEditar();
+  try{ const j=await fetch('/api/transicao',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ listar:true, issue:m.k, email:id.email, token:id.token }) }).then(r=>r.json());
+    m.transB=false; m.trans=(j&&j.ok)?(j.transicoes||[]):[]; if(j&&!j.ok) toast(j.erro||'Falha ao listar transições.','err'); }
+  catch(e){ m.transB=false; m.trans=[]; toast(humanizaErro(e),'err'); }
+  if(_crEd===m) crPintaEditar();
+}
+async function crEditarIr(tid, nome, cat){
+  const m=_crEd; const id=idApontar(); if(!m||!id) return; const e=crEpicoLocal(m.k); if(!e) return;
+  const fb=document.getElementById('cr-ed-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Movendo…'; }
+  try{ const j=await fetch('/api/transicao',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ issue:m.k, transitionId:tid, email:id.email, token:id.token }) }).then(r=>r.json());
+    if(!(j&&j.ok)) throw new Error((j&&j.erro)||'Falha ao mover.');
+    crPatchLocal(m.k,{ status:nome, sc:cat==='done'?'done':(cat==='new'?'new':'indeterminate') }); if(cat==='done'){ const x=crEpicoLocal(m.k); if(x){ x.aberto=false; x.resolvido=hojeSP(); } }
+    logAcao({ acao:'transicao', t:m.k, para:nome, ok:true }); invalidaCacheDados(); crReRender(); m.trans=null; crPintaEditar(); toast(`✓ ${m.k} → ${nome}.`,'ok'); crReleFicha();
+  }catch(e){ if(fb){ fb.className='ap-fb err'; fb.textContent=humanizaErro(e); } }
+}
+async function crEditarSalva(){
+  const m=_crEd; if(!m) return; const e=crEpicoLocal(m.k); if(!e) return; const fb=document.getElementById('cr-ed-fb'); const bt=document.querySelector('#modal-body [data-cr-ed-ok]');
+  const nome=((document.getElementById('cr-ed-nome')||{}).value||'').trim(); const ini=((document.getElementById('cr-ed-ini')||{}).value||'').trim(); const fim=((document.getElementById('cr-ed-fim')||{}).value||'').trim();
+  const respSel=(document.getElementById('cr-ed-resp')||{}).value; const erro=(t)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=t; } if(bt) bt.disabled=false; };
+  if(!nome) return erro('O nome da fase não pode ficar vazio.'); if(ini&&fim&&fim<ini) return erro('O marco não pode ser antes do início.');
+  const campos={}; if(nome!==(e.resumo||'')) campos.resumo=nome; if(ini!==(e.ini||'')) campos.ini=ini; if(fim!==(e.fim||'')) campos.fim=fim;
+  if(respSel!=null&&respSel!=='__atual'&&respSel!==m.respId){ campos.respId=respSel; campos.respNome=respSel?((m.pessoas[respSel]||{}).nome||''):''; }
+  // dependências: o que marcou a mais vira link novo; o que desmarcou some pelo id
+  const bloq=crBloqueadoresDe(e); const marcados=new Set([...document.querySelectorAll('[data-cr-ed-dep]:checked')].map(x=>x.getAttribute('data-cr-ed-dep')));
+  const links=[]; marcados.forEach(k=>{ if(!bloq.some(l=>l.k===k)) links.push({ acao:'add', de:k, para:m.k }); });
+  bloq.forEach(l=>{ if(!marcados.has(l.k)){ if(l.id) links.push({ acao:'rm', id:l.id }); else erro(`Não sei o id do link com ${l.k} — atualize a ficha (↻) e tente de novo.`); } });
+  if(!Object.keys(campos).length&&!links.length){ fechaModal(); _crEd=null; return; }
+  if(bt) bt.disabled=true; if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Gravando…'; }
+  let ok=true;
+  if(Object.keys(campos).length){ ok=await crEdita(m.k, campos, [campos.resumo!=null?'nome':'', campos.ini!=null?'início':'', campos.fim!=null?'marco':'', campos.respId!=null?'responsável':''].filter(Boolean).join(', '), { respIdAntes:m.respId }); }
+  if(ok&&links.length){ const r=await crGrava([], links);
+    if(!r.ok){ toast(`Dependências: ${r.erro}`,'err'); ok=false; }
+    else { const x=crEpicoLocal(m.k); if(x){ x.links=(x.links||[]).filter(l=>!links.some(y=>y.acao==='rm'&&y.id===l.id)); (r.links||[]).forEach(y=>{ if(y.acao==='add'&&y.ok) x.links.push({ d:'in', n:'Blocks', rot:'is blocked by', k:y.de, id:'' }); const o=crEpicoLocal(y.de); if(o&&y.acao==='add'&&y.ok) o.links=(o.links||[]).concat({ d:'out', n:'Blocks', rot:'blocks', k:m.k, id:'' }); }); }
+      logAcao({ acao:'cronograma-dependencias', t:m.k, para:links.map(l=>l.acao==='add'?`+${l.de}`:`−${l.id}`).join(' '), ok:true }); crReRender(); crReleFicha(); } }
+  if(ok){ _crEd=null; fechaModal(); toast(`✓ ${m.k} atualizado.`,'ok'); } else { if(bt) bt.disabled=false; if(fb) fb.hidden=true; }
+}
+async function crAlinhaFilhos(k){
+  const id=crIdent(); if(!id) return; const e=crEpicoLocal(k); const d=crFicha(estado.cronograma.proj); if(!e||!e.fim||!d) return;
+  const filhos=(d.itens||[]).filter(i=>i.e===k&&i.v&&i.v>e.fim&&i.sc!=='done'&&!/cancel/i.test(i.st||'')); if(!filhos.length) return;
+  const fb=document.getElementById('cr-ed-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent=`Alinhando ${filhos.length} item(ns) ao marco…`; }
+  const r=await crGrava(filhos.map(i=>({ key:i.k, venc:e.fim })));
+  if(!r.ok){ if(fb){ fb.className='ap-fb err'; fb.textContent=r.erro; } return; }
+  filhos.forEach(i=>{ i.v=e.fim; }); e.filhosDepois=0; logAcao({ acao:'cronograma-alinhar', t:k, para:`${filhos.length} item(ns) → ${e.fim}`, ok:true }); invalidaCacheDados();
+  crReRender(); crPintaEditar(); toast(`✓ ${filhos.length} item(ns) alinhados ao marco ${dataBR(e.fim)}.`,'ok'); crReleFicha();
+}
+// ---- + Nova fase ----
+function crTipoEpico(proj){ const p=(_projetosCache||[]).find(x=>x.key===proj); const t=p&&(p.tipos||[]).find(x=>x.nivel===1||/^epic$|épico/i.test(x.nome||'')); return t?t.id:''; }
+async function crAbreNova(proj){
+  const id=crIdent(); if(!id) return; if(!_projetosCache){ try{ await garanteProjetos(); }catch(_){} }
+  const rows=crEpicosDoProjeto(); const topo=rows.map(r=>r.pfx.nums.length===1?r.pfx.nums[0]:0).reduce((a,b)=>Math.max(a,b),0);
+  let pessoas={}; try{ const j=await usuariosP(); pessoas=(j&&j.pessoas)||{}; }catch(_){}
+  const lista=Object.entries(pessoas).map(([a,u])=>({ a, nome:(u&&u.nome)||a })).sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
+  const tipo=crTipoEpico(proj);
+  abreModal(`<div class="cr-ed-modal"><h2>+ Nova fase <span class="muted small">${esc(projNome(proj))} (${esc(proj)})</span></h2>
+    ${tipo?'':'<div class="aviso">⚠ Este projeto não tem um tipo de épico (hierarquia 1) no catálogo — não dá para criar a fase por aqui.</div>'}
+    <div class="rv-form" style="margin-top:8px">
+      <div class="campo full"><label>Nome <span class="muted small">(use o prefixo numérico para ordenar: "${topo+1}. …")</span></label><input type="text" id="cr-nv-nome" value="${escA(topo?`${topo+1}. `:'')}" maxlength="255" placeholder="ex.: 3. Testes integrados"></div>
+      <div class="campo"><label>Data de início</label><input type="date" id="cr-nv-ini"></div>
+      <div class="campo"><label>Marco (data limite)</label><input type="date" id="cr-nv-fim"></div>
+      <div class="campo full"><label>Responsável</label><select id="cr-nv-resp"><option value="">— sem responsável —</option>${lista.map(p=>`<option value="${escA(p.a)}" ${p.a===id.accountId?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></div>
+    </div>
+    <div class="muted small" style="margin-top:6px">O épico nasce no Jira com o seu usuário como relator; aparece aqui na hora e no portal do cliente no próximo refresh.</div>
+    <div class="ap-fb" id="cr-nv-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" data-cr-nv-ok="${escA(proj)}" ${tipo?'':'disabled'}>Criar fase</button><button class="btn" data-cr-ed-fecha>Cancelar</button></div></div>`);
+  setTimeout(()=>{ const i=document.getElementById('cr-nv-nome'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },50);
+}
+async function crCriaFase(proj){
+  const id=crIdent(); if(!id) return; const fb=document.getElementById('cr-nv-fb'); const bt=document.querySelector('#modal-body [data-cr-nv-ok]');
+  const nome=((document.getElementById('cr-nv-nome')||{}).value||'').trim(); const ini=((document.getElementById('cr-nv-ini')||{}).value||'').trim(); const fim=((document.getElementById('cr-nv-fim')||{}).value||'').trim(); const resp=((document.getElementById('cr-nv-resp')||{}).value||'');
+  const erro=(t)=>{ if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=t; } if(bt) bt.disabled=false; };
+  if(!nome) return erro('Dê um nome à fase.'); if(ini&&fim&&fim<ini) return erro('O marco não pode ser antes do início.');
+  const tipoId=crTipoEpico(proj); if(!tipoId) return erro('Projeto sem tipo de épico no catálogo.');
+  if(bt) bt.disabled=true; if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Criando no Jira…'; }
+  try{
+    const j=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ itens:[{ projeto:proj, tipoId, resumo:nome, venc:fim||undefined, inicio:ini||undefined, respId:resp||undefined }], email:id.email, token:id.token }) }).then(r=>r.json());
+    const c=(j&&j.criados&&j.criados[0])||null; const e1=(j&&j.erros&&j.erros[0])||null;
+    if(!c||!c.key) throw new Error((e1&&e1.erro)||(j&&j.erro)||'Não consegui criar a fase.');
+    const d=crFicha(proj); const resumo=nome; const pessoas=(await usuariosP().catch(()=>({})))||{};
+    if(d){ d.epicos=d.epicos||[]; d.epicos.push({ k:c.key, resumo, status:'A fazer', nFilhos:0, nConcluidos:0, pct:0, estH:0, gastoH:0, sc:'new', ini, fim, criado:hojeSP(), resolvido:'', resp:resp?(((pessoas.pessoas||{})[resp]||{}).nome||''):'', emAnd:0, filhosAbertos:0, filhosVenc:0, filhosDepois:0, iniItens:'', fimItens:'', vencFilhos:'', ultAtiv:'', porMes:{}, links:[] }); }
+    logAcao({ acao:'cronograma-nova-fase', t:c.key, para:resumo.slice(0,80), ok:true }); invalidaCacheDados(); fechaModal(); crReRender(); toast(`✓ Fase ${c.key} criada.`,'ok'); crReleFicha();
+  }catch(e){ erro(humanizaErro(e)); }
+}
+// ---- listeners da edição (delegados; os da tela ficam no fim do arquivo) ----
+document.getElementById('conteudo').addEventListener('pointerdown',(e)=>{ if(estado.vista==='cronograma') crDragInicia(e); });
+document.addEventListener('pointermove',(e)=>{ if(_crDrag) crDragMove(e); });
+document.addEventListener('pointerup',(e)=>{ if(_crDrag) crDragFim(e); });
+document.addEventListener('pointercancel',()=>{ if(_crDrag){ const tip=document.getElementById('cr-drag-tip'); if(tip) tip.remove(); _crDrag=null; crReRender(); } });
+document.getElementById('conteudo').addEventListener('dblclick',(e)=>{ if(estado.vista!=='cronograma') return; const n=e.target.closest&&e.target.closest('[data-cr-nome]'); if(n){ e.preventDefault(); clearTimeout(_crClickT); crRenomeia(n.getAttribute('data-cr-nome')); } });
+document.addEventListener('click',(e)=>{
+  const t=e.target; if(!t||!t.closest) return;
+  if(t.closest('[data-cr-undo]')){ const fn=_crUndo; crUndoSome(); if(fn) fn(); return; }
+  if(t.closest('[data-cr-undo-x]')){ crUndoSome(); return; }
+  if(!t.closest('#modal-body')) return;
+  if(t.closest('[data-cr-ed-fecha]')){ _crEd=null; fechaModal(); return; }
+  if(t.closest('[data-cr-ed-ok]')){ crEditarSalva(); return; }
+  if(t.closest('[data-cr-ed-trans]')){ crEditarTrans(); return; }
+  const ir=t.closest('[data-cr-ed-ir]'); if(ir){ crEditarIr(ir.getAttribute('data-cr-ed-ir'), ir.getAttribute('data-cr-ed-nome'), ir.getAttribute('data-cr-ed-cat')); return; }
+  const al=t.closest('[data-cr-ed-alinhar]'); if(al){ crAlinhaFilhos(al.getAttribute('data-cr-ed-alinhar')); return; }
+  const nv=t.closest('[data-cr-nv-ok]'); if(nv){ crCriaFase(nv.getAttribute('data-cr-nv-ok')); return; }
+});
+document.addEventListener('keydown',(e)=>{ const t=e.target; if(!t||!t.id||e.key!=='Enter') return;
+  if(/^cr-ed-(nome|ini|fim)$/.test(t.id)){ e.preventDefault(); crEditarSalva(); } else if(/^cr-nv-(nome|ini|fim)$/.test(t.id)){ e.preventDefault(); const b=document.querySelector('#modal-body [data-cr-nv-ok]'); if(b&&!b.disabled) b.click(); } });

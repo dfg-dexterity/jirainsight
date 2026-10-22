@@ -166,8 +166,9 @@ export function agregaProjeto(issues, { detalhe = false } = {}) {
       e.ini = dia10(f[CF_INICIO]); e.fim = dia10(f.duedate); e.criado = dia10(f.created); e.resolvido = feito ? dia10(f.resolutiondate) : ''; e.resp = resp;
       (Array.isArray(f.issuelinks) ? f.issuelinks : []).forEach((l) => {
         const t = (l && l.type) || {};
-        if (l && l.outwardIssue && l.outwardIssue.key) e.links.push({ d: 'out', n: t.name || '', rot: t.outward || t.name || '', k: l.outwardIssue.key });
-        if (l && l.inwardIssue && l.inwardIssue.key) e.links.push({ d: 'in', n: t.name || '', rot: t.inward || t.name || '', k: l.inwardIssue.key });
+        // `id` do link (2026-10-21, cronograma editável): é o que a tela manda para REMOVER a dependência
+        if (l && l.outwardIssue && l.outwardIssue.key) e.links.push({ d: 'out', n: t.name || '', rot: t.outward || t.name || '', k: l.outwardIssue.key, id: String(l.id || '') });
+        if (l && l.inwardIssue && l.inwardIssue.key) e.links.push({ d: 'in', n: t.name || '', rot: t.inward || t.name || '', k: l.inwardIssue.key, id: String(l.id || '') });
       });
     }
 

@@ -151,6 +151,7 @@ function axCarregaVenc(forca){
   fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
       if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; }
+      if(typeof hjVistaAberta==='function'&&hjVistaAberta()){ try{ renderHoje(); }catch(e){} }   // 📆 Hoje: as sugestões leem esta base
       agendaRenderAcoes();
     }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); agendaRenderAcoes(); });
 }
@@ -499,6 +500,8 @@ function renderAcoes(){
     // ⏱ suas horas de hoje × meta
     const metaSeg=metaSegDe(acc)||8*3600;
     const meuSeg=estado.tempo?(minhasHorasPorDia()[hoje]||0):null;
+    // 📆 Seu dia (24b, 2026-10-21): o plano do dia — os 3 do foco com ✓ na hora, feitos/apontado, Planejar/Fechar o dia
+    const cHoje=(typeof hjCardInicio==='function')?hjCardInicio(hoje):'';
     let cHoras;
     if(meuSeg==null) cHoras=pcard('load','⏱','Suas horas de hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>','apontar','Apontar horas →');
     else{ const falta=Math.max(0,metaSeg-meuSeg); const pc=Math.min(100,Math.round(meuSeg/metaSeg*100));
@@ -695,7 +698,7 @@ function renderAcoes(){
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Meu Planejamento →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cCli}${cRank}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoje}${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cCli}${cRank}${cAg}${cIb}</div>
       <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
     </div>`;
   } else {
@@ -970,6 +973,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(g==='apontar-semdata'){ hxAbreApontar('semvenc', { semVenc:true }); return; }
   if(g==='apontar-vencehoje'){ hxAbreApontar('vencehoje'); return; }
   if(g==='minhasemana-projetos'){ vaiPara('minhasemana'); return; }
+  // 📆 Seu dia (24b): abre o Hoje — e já com o ritual quando o card pediu
+  if(g==='hoje-planejar'||g==='hoje-fechar'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); setTimeout(()=>{ try{ if(g==='hoje-planejar') hjRitualPlanejar(hojeSP()); else hjRitualFechar(hojeSP()); }catch(e){} },80); return; }
+  if(g==='hoje'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); return; }
   // 💬 Aguardando sua resposta / ⏳ Com o cliente: abre a 🛠 Gestão na ▤ Lista só com esses tickets (como os vencidos por projeto)
   if(g==='aguardando-resposta'||g==='gestao-cliente'){ const ax=estado.acoes; const ks=(g==='gestao-cliente'?ax.cliKeys:ax.respKeys)||[];
     if(ks.length){ const gs=estado.gestao; gs.soKeys=ks.slice(0,200); gs.origem=g==='gestao-cliente'?'⏳ Com o cliente':'💬 Aguardando sua resposta';

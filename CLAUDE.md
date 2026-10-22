@@ -269,6 +269,41 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no servidor, cards da Início com plano enviado/em elaboração/sem plano, celular; fixture `PLANOS`/`MENCOES`/
   `ATIVIDADE` + recusa de chave de papel no `servidor-mini.mjs`). Com `ctx.clock.setFixedTime` a Início entra em laço
   (relê o status da ordem do Odoo e regrava a config): artefato do relógio parado — os blocos da Início rodam sem ele.
+- **📅 Marcos e Cronograma totalmente editável (2026-10-21, a pedido do usuário: "transforme essa tela em algo totalmente
+  editável"):** a tela (`02b-cronograma.js`) grava no Jira **com o token da pessoa** — arrastar barra/bordas/◆ (grade de 1
+  dia, `pointer:fine`), duplo clique renomeia, ✎ formulário (nome, início `customfield_10015`, marco `duedate`,
+  responsável, transições lazy, dependências *Blocks* entre épicos, 📐 alinhar filhos ao marco), + Nova fase (tipo de
+  hierarquia 1). **Otimista**: `crPatchLocal` → `crReRender` → `crGrava` (`POST /api/criar {editar:1, itens, links}`);
+  falha reverte + toast; sucesso = `↩ Desfazer` 10 s + `crReleFicha` (nocache, debounce). `crLinhas` NÃO muda (gate de
+  paridade). Servidor: `editaLote` aceita `resumo`, `inicio`, `links:[{acao:'add',de,para}|{acao:'rm',id}]`; a ficha traz
+  o `id` dos links. Regra aprendida: clique simples no nome espera 300 ms pelo duplo (abrir o épico no 1º clique engolia
+  o 2º no modal). Teste: `cronograma-test.mjs` (41 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
+  **Revisão do 📆 Hoje (mesmo dia):** fila de gravação POR DIA (`h.sv[d]`), destino gravado antes de marcar `movido`
+  (`hjLevaPara`), `hjEstClamp`/`HJ_MAX_ITENS` no cliente, reuniões fora do Planejado, ↻ + `visibilitychange`, cronômetro
+  com `a`=accountId, foco devolvido pelo seletor (`hjFocoSel`), `:has(:focus-visible)` para ↑↓ (o `:focus-within` deslocava
+  a linha no mousedown e o clique real caía fora do alvo — um teste Playwright "real" pega isso, `el.click()` não).
+- **📆 Hoje — o planejamento do dia como ponto central (2026-10-21, a pedido do usuário: "ajudar meu time a organizar seu
+  trabalho, usar o Jira Insight como ponto central de planejamento do dia, incluindo controle da agenda e priorização de
+  tarefas; veja o que o mercado tem para inspiração"):** tela nova `📆 Hoje` (`public/js/24b-hoje.js`, prefixo `hj`; vistas
+  `hoje` + `hojetime` num grupo de abas; botão fixo depois da 🏠 Início) com a ✅ lista do dia (ticket, atividade do 📋 plano
+  da semana, reunião da Agenda ou tarefa livre; ordem manual, 🎯 foco nos 3 primeiros, estimativa × capacidade = `mpCapDia`
+  − reuniões), ⚡ ordenar por urgência (`hjUrgencia`, regra dita na tela), 💡 sugestões por fonte (`hjSugestoes`), a 🕘 linha
+  do tempo (Outlook + blocos `ini` + worklogs com hora + "agora" + lacunas clicáveis; arrastar = bloco; 🗓 deep link de
+  compose do Outlook — **a Agenda segue só leitura**), os rituais 🌅 Planejar (ficou de antes → sugestões → estimativas ×
+  capacidade com "amanhã") e 🌙 Fechar (não feitos → amanhã/deixar/descartar; feitos sem apontamento → lote de worklogs;
+  nota), o ⏱ cronômetro (pílula em todas as telas, `localStorage`, ■ → worklog com `hora` real; ▶ também na ficha 🔍) e,
+  para gestores, 👥 Dia do time. **Dados por pessoa e dia** em `POST /api/config?dia=1` (`planejamentoDia`: `ler`/`salvar`/
+  `time`; linha `dia_<accountId>_<AAAA-MM-DD>` em `jirainsight_config`, trava otimista pelo `updated_at`) — **nunca em
+  `cfg`**. Regras: `hjGravaWorklog` é a porta única de worklog da tela (planGate antes, registraExtraDia + logAcao depois;
+  o lote do 🌙 grava a config UMA vez); `hjGarante` não atropela dia em memória (só ↻/conflito trocam); dia no futuro não
+  pede worklogs; nada move sozinho (o que ficou de antes é sugestão; "amanhã" é item a item e marca `movido` na origem).
+  **Cuidado aprendido:** `.then(render)` numa promessa já resolvida (a janela do Apontar cobrindo o dia) virou laço de
+  microtarefas que travou a página — toda leitura disparada no render precisa de guarda (`_logsP`) e só redesenha quando
+  o dado MUDOU. A busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`). A 🏠 Início tem o card 📆 Seu
+  dia (`hjCardInicio`, ✓ nos 3 do foco). Pesquisa de mercado e decisões: `docs/hoje-planejamento-do-dia-2026-10-21.md`.
+  Teste: `hoje-test.mjs` (Playwright, 79 casos; fixture `?dia=1` + `/api/_dias` no `servidor-mini.mjs`). Fixture: o
+  "hoje−20" das fixtures relativas desvia das datas FIXAS do AMS (`DIA20()`), senão o `apontar-dia-test` quebra num dia
+  do calendário.
 - **📈 Análise do app × mercado e plano de melhorias (2026-10-20, a pedido do usuário: "verifique meu aplicativo
   como um todo, analise outras ferramentas de mercado semelhantes, sugira como melhorar — funcionalidades,
   usabilidade e facilidade para a pessoa organizar seu trabalho — e crie itens no roadmap"):** o documento mora em
@@ -557,6 +592,9 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-022 | Portal do projeto para o cliente (modo projeto + módulo 🌐 Portal do cliente) | `3e9c6937-1e17-81f2-b00e-d788e99c5d33` |
   | TI-14-023 | Ligações (Call tracking): detector do Mac e apontamento das chamadas | `3f4c6937-1e17-81f5-8bb7-c31280615ed8` |
   | TI-14-024 | Roadmap da solução: base no Notion sincronizada com o app (base `🗂 Roadmap da solução`, data source `bf1de04e-1690-4571-a225-c8bb79e0da03`, URL `https://app.notion.com/p/f6bcbeaa327c4fcc91b4852769cd257b`) | `400c6937-1e17-8140-9d5e-c68fa5bbd9f1` |
+  | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
+
+  (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
   (001–006 já existiam: Overview, Criar ticket onde é necessário, Extensão, integrações
   com SharePoint, Odoo e Finder.)

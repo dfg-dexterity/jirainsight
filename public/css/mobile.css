@@ -92,7 +92,8 @@
 @media (max-width:600px){
   /* cards do "seu dia" em 2 colunas; o de horas (com o anel) ocupa a linha toda */
   .ax-grid.ax-hero{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .ax-grid.ax-hero>.ax-card:first-child{grid-column:1/-1}
+  /* linha inteira: o card de horas (com o anel) — que desde o 📆 Hoje é o 2º, atrás do card "Seu dia" — e o próprio "Seu dia" */
+  .ax-grid.ax-hero>.ax-card:first-child,.ax-grid.ax-hero>.hj-card-inicio+.ax-card{grid-column:1/-1}
   .ax-hero .ax-card{padding:12px 12px 8px;min-height:0;gap:4px;border-radius:12px}
   .ax-hero .ax-top{font-size:12.5px;line-height:1.3;padding-right:4px}
   .ax-hero .ax-top>span:first-child{display:none}   /* marca d'água: em meia largura caía em cima do link */
@@ -815,6 +816,16 @@
 }
 /* ---- fim: projetos ---- */
 
+/* ✎ cronograma editável (2026-10-21): no toque não há arrasto — o ✎ (sempre visível, 44px) e os campos fazem tudo */
+@media (pointer:coarse){
+  .cr-ed{opacity:1;min-width:44px;min-height:30px}
+  .cr-h{display:none}
+  .cr-plan.editavel,.cr-marco.editavel{cursor:default}
+}
+@media (max-width:600px){
+  .cr-undo{top:auto;bottom:70px;bottom:calc(70px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 24px);font-size:12.5px}
+  .cr-ed-modal .alx-modal-acoes .btn{min-height:44px}
+}
 /* ---- 📱 grupo: time (Timesheet, Ranking, Tickets, Qualidade, Auditoria, Gestão, Alertas) ---- */
 /* Escopo: a raiz de cada tela ganhou uma classe (vtm + vtm-ts/vtm-rk/vtm-tk/vtm-qa/vtm-aud/vtm-gx/vtm-alx)
    — só marcadores, sem regra fora daqui, então o computador não muda. Nada do que é compartilhado
@@ -1955,3 +1966,37 @@
   .rep-acoes .btn{min-height:44px}
 }
 /* ---- fim: 🐞 reportar ---- */
+
+/* ---- 📱 grupo: hoje (📆 Hoje — lista do dia, linha do tempo, rituais, pílula do cronômetro) ---- */
+@media (max-width:880px){
+  .hj-2col{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .hj-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .hj-kpi{padding:8px 10px} .hj-kpi-v{font-size:19px}
+  .hj-nav .hj-data{flex:1 1 100%;order:-1;font-size:14px}
+  .hj-it{flex-wrap:wrap;padding:8px}
+  .hj-main{flex:1 1 60%}
+  .hj-acoes{flex:1 1 100%;justify-content:flex-start;gap:4px;margin-top:4px;padding-left:28px;flex-wrap:wrap}   /* 7 botões de 44px não cabem numa linha: quebram, nada é cortado */
+  .hj-lt-ev-t{white-space:normal;overflow-wrap:anywhere}
+  .hj-add input{flex:1 1 100%} .hj-add select{max-width:100%;flex:1 1 55%}
+  .hj-lt-ev,.hj-lt-blk{font-size:10.5px}
+  .hj-cand{flex-wrap:wrap} .hj-cand-why{max-width:100%;text-align:left;flex:1 1 100%;padding-left:22px}
+  .hj-cand-est{width:64px}
+  .hj-rit .alx-modal-acoes .btn{min-height:44px}
+  .hj-timer{max-width:calc(100% - 24px);font-size:12.5px}
+  .hj-time-tab{min-width:520px}
+}
+@media (pointer:coarse){
+  .hj-updown{display:inline-flex;gap:2px}
+  .hj-drag{display:none}
+  .hj-b{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+  .hj-chk{width:28px;height:28px;margin:8px 4px 8px 0}   /* 28px + 8px de margem de cada lado = alvo de 44px */
+  .hj-est{min-height:32px}
+  .hj-lt-lac{min-height:32px}
+  .hj-sub .badge.hj-bloco,.hj-sub .badge[data-hj-ev-ticket],.hj-lt-ev-s .badge[data-hj-ev-ticket]{min-height:32px;display:inline-flex;align-items:center}
+  .hj-sug-t .lnk,.hj-grp>summary .lnk{min-height:32px;display:inline-flex;align-items:center;padding:0 6px}
+  .hj-mini input{width:24px;height:24px}
+  .hj-timer-stop{min-width:44px;min-height:36px}
+}
+/* ---- fim: hoje ---- */

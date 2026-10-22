@@ -105,6 +105,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
+| `24b-hoje.js` | 📆 Hoje — lista do dia, linha do tempo, rituais 🌅/🌙, ⏱ cronômetro (pílula em todas as telas), 👥 Dia do time, card da Início |
 | `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
 | `25b-reportar.js` | 🐞 Reportar bug ou melhoria (ticket no Jira + issue no GitHub, `POST /api/criar {reportar:1}`) |
 | `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas; fase 4: **memória** `abaLembra`/`abaUltima` — o menu volta à última aba do grupo — e **contadores** `ABAS_N`), favoritos, paleta Ctrl+K |
@@ -857,6 +858,81 @@ componente único de apontamento), **organizar o meu trabalho** (lista única do
 a tickets, grade semanal, Início com ações no lugar e modo foco, atalhos, Hoje em linha do tempo, rituais)
 e **o time e a plataforma** (bom-dia no Teams, config fatiada por perfil, abertura mais leve, alvos de
 toque de 44 px, fechamento semanal do timesheet). O estágio de cada item é a sugestão da análise; o time decide.
+
+### 📅 Marcos e Cronograma totalmente editável (2026-10-21)
+
+Pedido do usuário: *"transforme essa tela em algo totalmente editável"* (`?v=cronograma&cproj=KEY`). A tela só lia o
+Jira; agora tudo que ela mostra do épico se edita ali, **com o token da própria pessoa** (como ⏱ Apontar e 🛠 Gestão) e
+gravando no Jira — a fonte continua sendo o Jira, sem modelo paralelo. Desenho em `docs/cronograma-editavel-2026-10-21.md`.
+
+- **Gestos** (`public/js/02b-cronograma.js`, camada "✎ CRONOGRAMA EDITÁVEL"): arrastar a barra planejada move início
+  e marco (`data-cr-bar`), as bordas (`[data-cr-h="ini|fim"]`) mudam um só, o ◆ (`data-cr-marco`) muda o marco — grade
+  de 1 dia pela escala desenhada (`c._E`), só com `pointer:fine`; duplo clique no nome (`[data-cr-nome]`) renomeia em
+  linha (o clique simples no nome espera 300 ms pelo duplo); **✎** (`[data-cr-editar]`, também no detalhe do épico)
+  abre o formulário: nome, Data de início, marco, responsável (`usuariosP`), status (transições lazy via
+  `/api/transicao`), dependências "bloqueado por" (links *Blocks* entre épicos do projeto, add/rm) e **📐 Alinhar ao
+  marco** os filhos que vencem depois dele; **+ Nova fase** (`[data-cr-nova]`) cria o épico (tipo de hierarquia 1 do
+  catálogo) com `inicio`/`venc`/`respId`.
+- **Otimista + desfazer**: `crPatchLocal` muda a ficha em memória e redesenha; `crGrava` confirma (`POST /api/criar
+  {editar:1, itens, links}`); falha → reverte + toast; sucesso → `↩ Desfazer` por 10 s (`crUndoMostra`) e releitura da
+  ficha com `nocache` em segundo plano (`crReleFicha`, debounce 1,5 s). `crLinhas` (semáforo, gate de paridade com o
+  servidor) **não muda**.
+- **Servidor** (`api/criar.js` `editaLote`): campos novos `resumo` (1–255), `inicio` (`customfield_10015`, '' limpa) e
+  `links:[{acao:'add', de, para, tipo?}|{acao:'rm', id}]` (≤ 40; `POST/DELETE /rest/api/3/issueLink`); `inicio`
+  também na criação; a ficha (`api/_lib/projetos.js`) passa a trazer o `id` de cada link. Caches `atividade:`,
+  `venc:`, `visao:`, `epicos:` são limpos na gravação.
+- Teste: `cronograma-test.mjs` (Playwright, 41 casos — ✎ salvar/undo, renomear, arrastar barra/alça/◆, falha reverte,
+  dependências add/rm, 📐 alinhar, transições, + Nova fase, sem identidade, celular) contra o `servidor-mini.mjs`
+  (`FICHA_ACME` editável, `/api/_edicoes`).
+
+### 📆 Hoje — o planejamento do dia como ponto central (2026-10-21)
+
+Pedido do usuário: *"ajudar meu time a organizar seu trabalho, usar o Jira Insight como ponto central de planejamento do
+dia, incluindo controle da agenda e priorização de tarefas — veja o que o mercado possui para inspiração"*. A pesquisa
+(43 ferramentas: Sunsama, Akiflow, Toggl, Clockify, Reclaim, Motion, Tempo, Todoist, Things, MS To Do, Jira "For you",
+Linear…) e as decisões estão em `docs/hoje-planejamento-do-dia-2026-10-21.md`.
+
+- **Tela `📆 Hoje`** (`public/js/24b-hoje.js`, prefixo `hj`; vistas `hoje` e `hojetime`, grupo de abas `hoje`): KPIs
+  (capacidade = `mpCapDia` − reuniões · planejado · apontado · feitos), **✅ lista do dia** (ticket, atividade do plano
+  semanal, reunião ou tarefa livre; ordem manual — arrastar/↑↓ —; os 3 primeiros são o 🎯 foco; estimativa editável; ✓
+  feito; ⏱ apontar com a hora do bloco; ▶ cronômetro; 📅 agendar; ⋯ amanhã/ligar a ticket/tirar), **⚡ ordenar por
+  urgência** (`hjUrgencia`: vencidos → vence hoje → 🎯 prioridade do time → em andamento → vence na semana → sem data),
+  **💡 sugestões por fonte** (`hjSugestoes`: ficou de antes, plano da semana, vencidos, vence hoje, prioridades,
+  andamento, reuniões, recentes) e a **🕘 linha do tempo** (eventos do Outlook, blocos com `ini`, worklogs com hora
+  (`mtsMinSP`), "agora", lacunas ≥ 30 min do expediente 08–18h; arrastar item → bloco na grade de 15 min; ⚠ conflito;
+  🗓 deep link de *compose* do Outlook — o painel não escreve na agenda).
+- **Rituais**: `hjRitualPlanejar` (ficou de antes → sugestões → estimativas × capacidade com "amanhã" item a item) e
+  `hjRitualFechar` (não feitos → amanhã/deixar/descartar; feitos sem apontamento → worklogs em lote; nota). O item
+  movido fica marcado `movido:'AAAA-MM-DD'` na origem e nasce com `orig:'ontem'` no destino (`hjProxUtil` = próximo
+  dia com capacidade).
+- **⏱ Cronômetro** (`hjTimerInicia`/`hjTimerParaModal`/`hjTimerPinta`): `localStorage` `jirainsight_timer_v1`; pílula
+  `#hj-timer` em todas as telas; ■ → worklog com `hora` real; ▶ também na 🔍 ficha do ticket (`data-hj-timer-k`).
+- **Dados**: `POST /api/config?dia=1` (`planejamentoDia` em `api/config.js`): `ler {de, ate}` (≤ 14 dias) · `salvar {d,
+  dia, base}` (trava otimista pelo `updated_at`; `diaLimpa` valida ≤ 60 itens, chave, hora, est ≤ 24 h) · `time {d}`
+  (só gestor). Uma linha `dia_<accountId>_<AAAA-MM-DD>` por pessoa e dia em `jirainsight_config` (como `semanal_*`) —
+  **nunca em `cfg`**. No navegador: `estado.hoje.dias[d]` (undefined = não lido · null = sem plano · objeto com `rev`);
+  `hjGarante(d)` lê [d−7, d] sem atropelar dia em memória; `hjSalvar` grava uma por vez (`salvandoP`/`deNovo`).
+- **Regras**: todo worklog passa por `planGate(dia)` antes e `registraExtraDia` depois (`hjGravaWorklog`); o lote do 🌙
+  grava a config uma vez; a busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`); a 🏠 Início tem o
+  card 📆 Seu dia (`hjCardInicio`) com ✓ nos 3 do foco e as rotas `hoje`/`hoje-planejar`/`hoje-fechar`.
+- **Revisão adversarial (mesmo dia, 84 achados triados, ~45 corrigidos)**: gravação em fila **por dia** (`h.sv[d]`,
+  timer e "sujo" por dia; `hjSalvar` devolve true só com o servidor confirmando); **mover para amanhã / 🌅 / 🌙 gravam o
+  DESTINO primeiro** (`hjLevaPara`) e só então marcam `movido` — conflito/falha não perde item; estimativa limitada a
+  24 h no cliente (`hjEstClamp`) e 60 itens (`HJ_MAX_ITENS`); reuniões da agenda fora do "Planejado"
+  (`hjEhReuniaoContada`) e sem conflito consigo mesmas; `_logsP` solta em qualquer desfecho; 👥 Dia do time com folga de
+  30 s na falha (403 só pelo ↻); `hjGravaWorklog` com try/catch (rede caída não prende o modal); ritual com `finally` e
+  mensagem preservada no redesenho (`r.fb`); ⏱ num item livre segue para o apontamento; ⏱ da lacuna só põe o item no dia
+  depois de gravar (`cand`); cronômetro preso ao `accountId`; ↻ e releitura ao voltar à aba (`visibilitychange`, só
+  sem edição pendente); Esc limpa `_hjAp/_hjTp/ritual` (e não fecha durante a gravação); foco devolvido depois do
+  redesenho (`hjFocoSel/hjFocoVolta`); pílula abaixo dos modais (z-index 45); cores do tema escuro; alvos de toque;
+  `on_conflict=id` na criação concorrente e `updated_at=is.null` no PATCH sem rev. **Lição**: ↑↓ aparecendo em
+  `:focus-within` deslocava a linha no mousedown e o clique caía fora do alvo — por isso é `:has(:focus-visible)`.
+- **Cuidado aprendido**: um `.then(renderHoje)` numa promessa já resolvida (a janela do Apontar já cobria o dia) virava
+  laço de microtarefas e travava a página — a leitura das horas é guardada por `estado.hoje._logsP` e só redesenha
+  quando passou a cobrir o dia; dia no futuro nunca é pedido.
+- **Teste**: `hoje-test.mjs` (Playwright, 79 casos: adicionar por chave/texto/busca, estimativa, ordem, urgência, feito,
+  agendar/conflito/arrastar/lacuna/Outlook, apontar com hora, 🚧 trava, cronômetro (F5, parar, trocar), rituais com
+  rollover e lote, conflito entre abas, 👥 time × não gestor, celular) contra a fixture `?dia=1` do `servidor-mini.mjs`.
 
 ### 🗂 Roadmap da solução no Notion (2026-10-21)
 

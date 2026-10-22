@@ -483,7 +483,9 @@ async function agConfirma(){
       if(extras.length) logAcao({acao:'agenda-convidar-extra', t:key, para:extras.join(', ').slice(0,200), motivo:`fora do convite: ${String(ev.titulo||'').slice(0,100)}`, n:extras.length, ok:true});
     }
     toast(`✓ ${key}${convidados?` · ${convidados} convite(s) de apontamento enviados${extras.length?` (${extras.length} fora do convite)`:''}`:''}`,'ok');
-    _agM=null; fechaModal(); renderAgenda();
+    _agM=null; fechaModal();
+    // o 📝 pode ter sido aberto pelo 📆 Hoje (24b) ou pela Início: redesenha a tela que está aberta — nunca troca pela Agenda
+    if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes(); else renderAgenda();
   }catch(err){ if(fb){ fb.classList.add('err'); fb.textContent=humanizaErro(err); } }
 }
 function carregaAgenda(forca){
@@ -495,9 +497,9 @@ function carregaAgenda(forca){
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
-      if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else agendaRenderAcoes();
+      if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else agendaRenderAcoes();   // 📆 Hoje (24b) também desenha a agenda
       try{ agAutoCria(); }catch(e){} })
-    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else agendaRenderAcoes(); });
+    .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else agendaRenderAcoes(); });
 }
 // Tipo "Reunião" do projeto RDF (resolvido uma vez pelo catálogo de projetos).
 async function agRdfTipoReuniao(){

@@ -5,6 +5,7 @@
 // Corpo: { itens:[{projeto, tipoId, resumo, descricao?, respId?, paiKey?}], email, token }
 // Resposta: { ok, criados:[{indice,key,resumo}], erros:[{indice,erro}] }
 import { jiraBase, jiraAuthHeader, cacheClear, cacheGet, cacheSetTTL, json, jiraUsuariosAtivos, jiraSearchAll } from './_lib/util.js';
+import { CF_INICIO } from './_lib/projetos.js';   // 📅 "Data de início" do épico (cronograma editável, 2026-10-21)
 
 // Campo "Departamento Dexterity" (tarefas avulsas/TAD): o id do custom field é
 // resolvido pelo NOME via createmeta do projeto (cache 30 min). Se o campo não
@@ -105,6 +106,7 @@ function validaItem(it) {
     return 'Estimativa inválida — use o formato do Jira: 4h, 2d, 1w 2d…';
   }
   if (it.venc && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.venc))) return 'Vencimento inválido (use AAAA-MM-DD).';
+  if (it.inicio && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.inicio))) return 'Data de início inválida (use AAAA-MM-DD).';
   if (it.labels != null) {
     if (!Array.isArray(it.labels) || it.labels.length > 10) return 'Labels inválidas (máx. 10).';
     if (it.labels.some((l) => !/^\S{1,60}$/.test(String(l)))) return 'Labels não podem ter espaços (máx. 60 caracteres).';
@@ -316,24 +318,41 @@ async function reportar(res, b, base, headersPessoa, quem) {
 
 // ---- Edição EM MASSA (grade pós-criação estilo planilha): data limite e/ou
 // responsável de vários tickets de uma vez, com o token da própria pessoa.
-// Corpo: { editar:1, itens:[{key, venc?, respId?}], email, token }
+// Corpo: { editar:1, itens:[{key, venc?, respId?, resumo?, inicio?}], links?:[…], email, token }
 //   - 'venc' presente e vazio  -> LIMPA a data limite; 'AAAA-MM-DD' -> define.
 //   - 'respId' presente e vazio -> REMOVE o responsável; accountId -> define.
-// Resposta: { ok, resultados:[{key, ok, erro?}] }
+//   - 'resumo' (2026-10-21, 📅 cronograma editável) -> renomeia (summary, 1–255 caracteres);
+//   - 'inicio' presente e vazio -> LIMPA a Data de início (CF_INICIO); 'AAAA-MM-DD' -> define.
+//   - 'links' (mesma entrega): [{acao:'add', de, para, tipo?}] cria um link "Blocks" (de bloqueia para);
+//     [{acao:'rm', id}] remove o link pelo id (a ficha do projeto traz o id de cada link). `itens` pode vir vazio.
+// Resposta: { ok, resultados:[{key, ok, erro?}], links:[{acao, ok, id?, erro?}] }
 const RE_ACC = /^[\w:.-]{1,128}$/;
+const RE_LINK_ID = /^\d{1,12}$/;
+const MAX_LINKS = 40;
 async function editaLote(res, b, base, headers) {
   const itens = Array.isArray(b.itens) ? b.itens : [];
-  if (!itens.length) return json(res, 400, { erro: 'Nenhum ticket para alterar.' });
+  const links = Array.isArray(b.links) ? b.links : [];
+  if (!itens.length && !links.length) return json(res, 400, { erro: 'Nenhum ticket para alterar.' });
   if (itens.length > MAX_ITENS) return json(res, 400, { erro: `Máximo de ${MAX_ITENS} tickets por vez.` });
+  if (links.length > MAX_LINKS) return json(res, 400, { erro: `Máximo de ${MAX_LINKS} dependências por vez.` });
   for (const it of itens) {
     if (!it || !RE_ISSUE.test(String(it.key || ''))) return json(res, 400, { erro: `Ticket inválido: ${String((it && it.key) || '?').slice(0, 30)}` });
     if ('venc' in it && it.venc !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.venc))) {
       return json(res, 400, { erro: `Data limite inválida em ${it.key} (use AAAA-MM-DD).` });
     }
+    if ('inicio' in it && it.inicio !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.inicio))) {
+      return json(res, 400, { erro: `Data de início inválida em ${it.key} (use AAAA-MM-DD).` });
+    }
     if ('respId' in it && it.respId !== '' && !RE_ACC.test(String(it.respId))) {
       return json(res, 400, { erro: `Responsável inválido em ${it.key}.` });
     }
-    if (!('venc' in it) && !('respId' in it)) return json(res, 400, { erro: `Nada para alterar em ${it.key}.` });
+    if ('resumo' in it) { const r = String(it.resumo || '').trim(); if (!r || r.length > 255) return json(res, 400, { erro: `Nome inválido em ${it.key} (1 a 255 caracteres).` }); }
+    if (!('venc' in it) && !('respId' in it) && !('resumo' in it) && !('inicio' in it)) return json(res, 400, { erro: `Nada para alterar em ${it.key}.` });
+  }
+  for (const l of links) {
+    if (!l || (l.acao !== 'add' && l.acao !== 'rm')) return json(res, 400, { erro: 'Dependência inválida (acao add|rm).' });
+    if (l.acao === 'add' && (!RE_ISSUE.test(String(l.de || '')) || !RE_ISSUE.test(String(l.para || '')) || String(l.de).toUpperCase() === String(l.para).toUpperCase())) return json(res, 400, { erro: 'Dependência inválida (de/para).' });
+    if (l.acao === 'rm' && !RE_LINK_ID.test(String(l.id || ''))) return json(res, 400, { erro: 'Dependência inválida (id).' });
   }
   const resultados = [];
   // Lotes de 5 em paralelo — gentil com o rate limit do Jira.
@@ -343,6 +362,8 @@ async function editaLote(res, b, base, headers) {
       const fields = {};
       if ('venc' in it) fields.duedate = it.venc ? String(it.venc) : null;
       if ('respId' in it) fields.assignee = it.respId ? { id: String(it.respId) } : null;
+      if ('resumo' in it) fields.summary = String(it.resumo).trim();
+      if ('inicio' in it) fields[CF_INICIO] = it.inicio ? String(it.inicio) : null;
       try {
         const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(key)}`, {
           method: 'PUT', headers, body: JSON.stringify({ fields }),
@@ -357,12 +378,33 @@ async function editaLote(res, b, base, headers) {
       }
     }));
   }
-  // Datas/responsáveis mudaram: derruba caches de leitura desta instância.
+  // Dependências (links "Blocks" entre épicos do cronograma): um a um, na ordem pedida.
+  const linksRes = [];
+  for (const l of links) {
+    try {
+      if (l.acao === 'add') {
+        const tipo = String(l.tipo || 'Blocks').slice(0, 40);
+        const r = await fetch(`${base}/rest/api/3/issueLink`, { method: 'POST', headers,
+          body: JSON.stringify({ type: { name: tipo }, inwardIssue: { key: String(l.para).toUpperCase() }, outwardIssue: { key: String(l.de).toUpperCase() } }) });
+        if (r.status === 201 || r.ok) { linksRes.push({ acao: 'add', de: String(l.de).toUpperCase(), para: String(l.para).toUpperCase(), ok: true }); continue; }
+        let msg = ''; try { const j = await r.json(); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join(' '); } catch (e) { /* sem corpo */ }
+        linksRes.push({ acao: 'add', de: l.de, para: l.para, ok: false, erro: (msg || `Jira ${r.status}`).slice(0, 300) });
+      } else {
+        const r = await fetch(`${base}/rest/api/3/issueLink/${encodeURIComponent(String(l.id))}`, { method: 'DELETE', headers });
+        if (r.status === 204 || r.status === 404 || r.ok) { linksRes.push({ acao: 'rm', id: String(l.id), ok: true }); continue; }
+        let msg = ''; try { const j = await r.json(); msg = [...(j.errorMessages || []), ...Object.values(j.errors || {})].join(' '); } catch (e) { /* sem corpo */ }
+        linksRes.push({ acao: 'rm', id: String(l.id), ok: false, erro: (msg || `Jira ${r.status}`).slice(0, 300) });
+      }
+    } catch (e) { linksRes.push({ acao: l.acao, ok: false, erro: String(e && e.message ? e.message : e).slice(0, 300) }); }
+  }
+  // Datas/responsáveis/nomes/links mudaram: derruba caches de leitura desta instância (inclusive a ficha do projeto).
   cacheClear('atividade:');
   cacheClear('venc:');
+  cacheClear('visao:');
+  cacheClear('epicos:');
   const ordem = new Map(itens.map((it, i) => [String(it.key).toUpperCase(), i]));
   resultados.sort((a, b2) => (ordem.get(a.key) || 0) - (ordem.get(b2.key) || 0));
-  return json(res, 200, { ok: resultados.every((r) => r.ok), resultados });
+  return json(res, 200, { ok: resultados.every((r) => r.ok) && linksRes.every((r) => r.ok), resultados, links: linksRes });
 }
 
 // ===========================================================================
@@ -1230,6 +1272,7 @@ export default async function handler(req, res) {
         if (it.paiKey) fields.parent = { key: String(it.paiKey).toUpperCase() };
         if (it.estimativa) fields.timetracking = { originalEstimate: String(it.estimativa).trim() };
         if (it.venc) fields.duedate = String(it.venc);
+        if (it.inicio && /^\d{4}-\d{2}-\d{2}$/.test(String(it.inicio))) fields[CF_INICIO] = String(it.inicio);   // 📅 cronograma: nova fase com Data de início
         if (Array.isArray(it.labels) && it.labels.length) fields.labels = it.labels.map(String);
         if (it.departamento) {
           const m = metaDepto[String(it.projeto || '').toUpperCase()];
