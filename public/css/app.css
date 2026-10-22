@@ -3239,6 +3239,15 @@
   .hj-grp>summary .spacer{flex:1} .hj-grp>summary .lnk{font-weight:400}
   .hj-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer} .hj-check input{accent-color:var(--cerceta)}
   .hj-menu{display:flex;flex-direction:column;gap:6px;margin-top:10px} .hj-menu .btn{justify-content:flex-start;text-align:left}
+  /* 📝 criar tickets a partir do dia: uma linha por ticket (título · projeto · tipo · est. · ✕) */
+  .hj-cr-rows{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+  .hj-cr-row{display:grid;grid-template-columns:minmax(0,1fr) 170px 120px 64px 30px;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);min-width:0}
+  .hj-cr-row input,.hj-cr-row select{min-width:0;font-size:12.5px;padding:4px 6px} .hj-cr-row .hj-cand-est{width:auto}
+  .hj-cr-row.err{border-color:#B91C1C} .hj-cr-row.ok{display:block;opacity:.8;border-style:dashed}
+  .hj-cr-ok a{color:var(--cerceta);text-decoration:none} .hj-cr-ok a:hover{text-decoration:underline}
+  .hj-cr-tag{grid-column:1/-1;font-size:11px} .hj-cr-err{grid-column:1/-1;font-size:12px;color:#B91C1C}
+  .hj-cr-tools{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .hj-add .lnk.small{flex:1 1 100%;text-align:left;padding:0}
   .hj-timer-big{font-size:30px;font-weight:300;margin:8px 0 2px;font-variant-numeric:tabular-nums}
   /* ⏱ pílula do cronômetro (todas as telas) */
   /* z-index 45: ABAIXO do modal (50) — a pílula não cobre o rodapé de um modal aberto */
