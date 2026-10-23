@@ -422,6 +422,7 @@ async function chmConfirma(btn){
     const hora=m.dia===chmDiaSP(c.ini)?chmHoraSP(c.ini):'';
     const j2=await chmPost('/api/apontar',{ issue:key, segundos:seg, inicio:m.dia, hora, comentario:String(m.coment||'').trim().slice(0,200) }, id);
     if(!j2||!j2.ok) throw new Error((j2&&j2.erro)||'Não consegui apontar.');
+    const concl=await agConcluiReuniao(key, id);   // ✅ JI-153: "📆 Reunião Agendada" → Feito (03); noutro status não mexe; falha vira aviso
     chmMuda(c.id, x=>{ x.st='feito'; x.res={ key, seg, dia:m.dia, criado, em:new Date().toISOString(), ev:ev?ev.titulo:'' }; delete x.parcial; });
     try{ registraExtraDia(m.dia, seg, key); }catch(e){}
     logAcao({ acao:'chamada-apontar', t:key, para:`${fmtH(seg)} em ${m.dia}`, motivo:`${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)}${ev?` · ${ev.titulo}`:''}`.slice(0,200), ok:true }, false);
@@ -430,7 +431,8 @@ async function chmConfirma(btn){
     if(ev&&m.vincular&&!agTicketDe(ev.id)){ try{ agMarcaTicket(ev.id, key); gravou=true; }catch(e){} }
     if(!gravou){ try{ salvaCfg(); }catch(e){} }
     invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
-    toast(`✓ ${fmtH(seg)} apontadas em ${key}${criado?' (ticket novo)':''}.`,'ok');
+    toast(`✓ ${fmtH(seg)} apontadas em ${key}${criado?' (ticket novo)':''}${concl.feito?` · status ${concl.para}`:''}.`,'ok');
+    if(concl.motivo==='erro'||concl.motivo==='sem-transicao') toast(`⚠ Não consegui concluir ${key}${concl.erro?` (${concl.erro})`:''} — mude o status no Jira.`,'warn');
     m.executando=false;
     if(_chm===m&&chmModalAberto()) chmProxima();
     else { estado.chamadas.fila=(estado.chamadas.fila||[]).filter(x=>x!==m.id); if(estado.vista==='chamadas'&&!chmModalAberto()) renderChamadas(); try{ renderAbas(); }catch(e){} }

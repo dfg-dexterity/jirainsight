@@ -252,6 +252,17 @@ Teams, consultado na hora; exige `OnlineMeetings.Read.All` + `OnlineMeetingArtif
 política de acesso a reuniões do Teams) e **✎ manual** (digitada: `1h30`, `45m`). O valor é conferido antes de
 criar ou vincular.
 
+**🙋 Você aponta na mesma confirmação + ✅ ticket para Feito (2026-10-23, JI-153):** a linha "você" da lista
+"Quem aponta" é uma caixa real (`[data-agm-eu]`), marcada por padrão — ao confirmar, você entra em `pessoas` e o
+`criarConvites` do `api/apontar.js` cria o seu worklog na hora, com o seu token (`proprio` na resposta); o
+painel então faz `registraExtraDia` + `logAcao('apontar')`. Reunião futura → caixa desabilitada; 👥 convidar de
+reunião que já tem ticket → nasce desmarcada (as horas já saíram). O `planGate` roda **antes** de criar o ticket
+quando você está marcado. Depois, `agConcluiReuniao(key)` (03) lê `POST /api/transicao {listar:true}` — que agora
+devolve também o **status atual** — e, só se o status for de reunião agendada (`/agendad|marcad/i`), executa a
+transição de categoria *done* cujo nome não é "cancelar" (no COP: "Participar da Reunião" → Feito). O mesmo
+helper roda quando um convidado confirma o convite (13) e nas 📞 Ligações (14c). Teste: `agenda-eu-test.mjs`
+(Playwright, 29 casos).
+
 **➕ Convidar quem não está no convite (2026-10-08):** a lista de convidados do modal nasce dos participantes do
 evento casados com os usuários ativos do Jira (por e-mail), mas quem participou **sem estar no convite** do Outlook
 (entrou pelo link, foi chamado na hora, ou é o 21º convidado — o painel leva só os 20 primeiros do convite,

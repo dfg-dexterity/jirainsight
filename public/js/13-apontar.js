@@ -1173,6 +1173,9 @@ async function respondeConvite(btn, recusa){
       estado.apontar.convites=(estado.apontar.convites||[]).filter(c=>c.id!==cid);
       pintaBadgeConvites(estado.apontar.convites.length); pintaBadgeInbox();
       if(!recusa && j.inicio && j.segundos){ registraExtraDia(j.inicio, j.segundos, j.issue); atualizaPainelHoras(); }
+      // ✅ JI-153: o ticket da reunião ainda em "📆 Reunião Agendada" (convite antigo, ou o organizador não conseguiu) sai
+      // para Feito com o token de quem confirma; em qualquer outro status o agConcluiReuniao (03) não mexe — e falha é silenciosa aqui.
+      if(!recusa && j.issue){ agConcluiReuniao(j.issue, id).then(c=>{ if(c&&c.feito){ salvaCfg(); toast(`✓ ${j.issue} → ${c.para}`,'ok'); } }).catch(()=>{}); }
       invalidaCacheDados();   // painéis recarregam dados frescos na próxima navegação
       setTimeout(()=>{ if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='inbox') renderInbox(); }, recusa?600:1400);
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao confirmar.';
