@@ -1980,6 +1980,8 @@
   .hj-acoes{flex:1 1 100%;justify-content:flex-start;gap:4px;margin-top:4px;padding-left:28px;flex-wrap:wrap}   /* 7 botões de 44px não cabem numa linha: quebram, nada é cortado */
   .hj-lt-ev-t{white-space:normal;overflow-wrap:anywhere}
   .hj-add input{flex:1 1 100%} .hj-add select{max-width:100%;flex:1 1 55%}
+  .hj-cr-row{grid-template-columns:minmax(0,1fr) 80px 60px 44px} .hj-cr-row input[data-hj-cr-resumo]{grid-column:1/-1}
+  .hj-cr-row input,.hj-cr-row select{min-height:44px;font-size:16px}
   .hj-lt-ev,.hj-lt-blk{font-size:10.5px}
   .hj-cand{flex-wrap:wrap} .hj-cand-why{max-width:100%;text-align:left;flex:1 1 100%;padding-left:22px}
   .hj-cand-est{width:64px}

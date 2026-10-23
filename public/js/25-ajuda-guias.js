@@ -502,7 +502,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-10-21';
+const GUIAS_REV='2026-10-22';
 const GUIAS={
   hoje:{t:'📆 Hoje — Meu dia',p:[
     {s:'#conteudo .hj-nav',ti:'O dia aberto',tx:'‹ › andam um dia; "hoje" volta. O selo diz se o dia está planejado (🌅) ou fechado (🌙). Dá para abrir ontem para rever, ou amanhã para já deixar pronto.'},
@@ -511,6 +511,7 @@ const GUIAS={
     {s:'#conteudo #hj-lista',ti:'✅ A lista do dia, na sua ordem',tx:'Arraste (⠿) ou use ↑↓ no celular; os 3 primeiros são o 🎯 foco. Em cada item: ✓ feito, a estimativa (clique para editar), o apontado de hoje naquele ticket, ▶ cronômetro, ⏱ apontar (com a hora do bloco, se tiver), 📅 agendar, 🔍 ficha e ⋯ (mover para amanhã, ligar a um ticket, Outlook, tirar).'},
     {s:'#conteudo [data-hj-urg]',ti:'⚡ Ordenar por urgência',tx:'Uma regra só, dita na cara: vencidos (mais antigo primeiro) → vence hoje → 🎯 prioridade do time → em andamento → vence esta semana → sem data; feitos no fim. Depois disso a sua ordem manual vale.'},
     {s:'#conteudo .hj-add',ti:'+ Adicionar',tx:'Digite a chave (ACME-12 — o resumo vem do Jira) ou uma tarefa livre com o projeto; 🎫 Buscar ticket abre a busca entre os abertos e o escolhido entra no dia. As 💡 Sugestões logo abaixo trazem o mesmo que o ritual, para adicionar um a um.'},
+    {s:'#conteudo [data-hj-criar]',ti:'📝 Criar ticket — um ou vários',tx:'Cria tickets no Jira sem sair do dia: uma linha por ticket, cada uma com o seu projeto, tipo e estimativa; vencimento e responsável valem para todos; 📋 colar várias linhas (título ; descrição); ↵ pula para a próxima linha, Ctrl+↵ cria. Cada ticket criado já entra na lista com a chave. Uma tarefa livre vira ticket pelo ⋯ › 📝 Criar o ticket deste item — ou todas de uma vez pelo atalho "Criar tickets dos N itens livres", que aparece quando há itens sem ticket.'},
     {s:'#conteudo #hj-lt-card',ti:'🕘 Linha do tempo',tx:'À esquerda as reuniões do Outlook (✓ com ticket ou 📝 sem ticket — clique e crie), à direita os blocos planejados (arraste um item da lista para cá; o bloco em cima de reunião fica ⚠), a barra verde é o apontado com hora real, a linha vermelha é agora. As faixas "livre" são lacunas: clique para agendar um item ali ou apontar o que fez nesse horário. 🗓 Outlook reserva o bloco na sua agenda (abre o compose preenchido — o painel não escreve no Outlook).'},
     {s:'#conteudo [data-hj-rit="fechar"]',ti:'🌙 Fechar o dia',tx:'O ritual da tarde: o que não foi feito vai para amanhã (ou fica, ou sai), os feitos sem apontamento viram worklogs em lote (estimativa pré-preenchida, hora do bloco), e uma nota para amanhã. O card 📆 Seu dia da Início lembra depois das 17h.'},
     {ti:'⏱ Cronômetro',tx:'▶ num item (ou na ficha 🔍 de qualquer ticket) liga a pílula no rodapé — ela aparece em todas as telas e sobrevive ao F5. ■ abre a confirmação com o tempo arredondado e a hora real de início; o worklog nasce nessa hora. Mais de 10 h rodando? O painel avisa.',quando:'A pílula aparece enquanto um cronômetro estiver rodando.'}]},

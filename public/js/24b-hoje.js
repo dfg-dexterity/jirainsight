@@ -25,7 +25,7 @@
 // REGRAS DO PROJETO respeitadas aqui: todo worklog passa por planGate(dia) ANTES do POST e por registraExtraDia
 // depois; logAcao('apontar') como os demais pontos; o lote do fechamento grava a config UMA vez; leitores não
 // criam objeto em cfg; listeners delegados ficam no fim deste arquivo.
-const HJ_ORIG_ROT={ plano:'📋 plano da semana', venc:'⏰ vencido', hoje:'⏰ vence hoje', prio:'🎯 prioridade do time', andamento:'🔄 em andamento', reuniao:'📅 reunião', ontem:'↩ ficou de antes', manual:'✎ manual', busca:'🎫 busca' };
+const HJ_ORIG_ROT={ plano:'📋 plano da semana', venc:'⏰ vencido', hoje:'⏰ vence hoje', prio:'🎯 prioridade do time', andamento:'🔄 em andamento', reuniao:'📅 reunião', ontem:'↩ ficou de antes', manual:'✎ manual', busca:'🎫 busca', criado:'📝 criado aqui' };
 const HJ_PX_HORA=48;            // altura de 1 hora na linha do tempo
 const HJ_LACUNA_MIN=30;         // lacuna menor que isto não aparece
 const HJ_TIMER_KEY='jirainsight_timer_v1';
@@ -308,6 +308,145 @@ function hjBuscaParaDia(d, idItem, depois){
     if(idItem){ const it=hjItem(d,idItem); if(it){ it.k=k; it.p=info.p||k.split('-')[0]; if(!it.t) it.t=info.resumo||''; hjAgendaSalvar(d); hjRedesenha(); toast(`🎫 ${k} ligado ao item.`,'ok'); if(!info.resumo) hjEnriquece(d,it.id); if(depois) depois(it); } return; }
     const it=hjAdiciona(d,{ k, t:info.resumo||'', p:info.p||k.split('-')[0], est:0, orig:'busca' }); if(it){ hjRedesenha(); toast(`🎫 ${k} entrou no seu dia.`,'ok'); if(!info.resumo) hjEnriquece(d,it.id); if(depois) depois(it); }
   });
+}
+
+// ---------------- 📝 criar tickets a partir do dia (2026-10-22, a pedido do usuário: "criar tickets em massa ou
+// individualmente, não apenas criar uma tarefa e ligar a um ticket") ----------------
+// Um modal com LINHAS — uma por ticket, cada uma com o seu projeto, tipo e estimativa (o dia mistura projetos). Entra por:
+// 📝 Criar ticket na linha de adicionar (o texto digitado vira a 1ª linha), ⋯ › 📝 Criar o ticket deste item (tarefa livre)
+// e "📝 Criar tickets dos N itens livres" (em massa). O lote vai ao /api/criar como o 📝 Criar ticket (mesma validação,
+// token da pessoa); cada ticket criado entra no dia com a chave (ou vira a chave do item livre de onde saiu). Linha que
+// falhou fica no modal com o erro e "↻ Tentar de novo" só reenvia o que falhou — o criado nunca é recriado.
+let _hjCr=null;
+const HJ_CR_PROJ_KEY='jirainsight_hoje_criar_proj';
+function hjProjetosCriacao(){
+  const pl=estado.planejar; if(Array.isArray(pl.projetos)) return Promise.resolve(pl.projetos);
+  if(pl._hjProjP) return pl._hjProjP;
+  pl._hjProjP=fetch('/api/projetos').then(r=>r.json()).then(j=>{ if(j&&j.erro) throw new Error(j.erro); pl.projetos=(j&&j.projetos)||[]; pl.projetosErro=''; return pl.projetos; })
+    .finally(()=>{ pl._hjProjP=null; });
+  return pl._hjProjP;
+}
+// Tipos que dá para criar direto no projeto (nível 0, não sub-tarefa) e o padrão (Tarefa/Task, senão o primeiro).
+function hjTiposDe(p){ const pr=(estado.planejar.projetos||[]).find(x=>x.key===p); return ((pr&&pr.tipos)||[]).filter(t=>!t.subtarefa&&t.nivel===0); }
+function hjTipoPadrao(p){ const ts=hjTiposDe(p); const t=ts.find(x=>/tarefa|task/i.test(x.nome||''))||ts[0]; return t?t.id:''; }
+// Estimativa do item (segundos) no formato do Jira ("1h 30m") — o servidor confere `\d+[wdhm]`.
+function hjEstJira(seg){ seg=hjEstClamp(seg); if(!seg) return ''; const h=Math.floor(seg/3600), m=Math.round((seg%3600)/60); return [h?`${h}h`:'', m?`${m}m`:''].filter(Boolean).join(' '); }
+function hjCrLinha(x){ return { rid:hjId(), itemId:x.itemId||'', resumo:String(x.resumo||'').trim().slice(0,255), desc:String(x.desc||'').trim(), p:String(x.p||'').toUpperCase(), tipoId:x.tipoId||'', estTxt:x.est?fmtH(hjEstClamp(x.est)):'', erro:'', key:'' }; }
+// Abre o modal. `o.ids` = itens livres do dia que viram tickets · `o.texto`/`o.proj` = o que estava na linha de adicionar.
+function hjCriarModal(d, o){
+  o=o||{}; const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
+  if(hjDia(d)===undefined){ toast('O seu dia ainda está sendo lido — tente de novo em instantes.','warn'); return; }
+  let lembrado=''; try{ lembrado=localStorage.getItem(HJ_CR_PROJ_KEY)||''; }catch(e){}
+  const padrao=String(o.proj||lembrado||'').toUpperCase();
+  const linhas=[];
+  (o.ids||[]).forEach(id=>{ const it=hjItem(d,id); if(it&&!it.k&&!it.ev) linhas.push(hjCrLinha({ itemId:it.id, resumo:it.t, p:it.p||padrao, est:it.est })); });
+  if(o.texto&&String(o.texto).trim()) linhas.push(hjCrLinha({ resumo:o.texto, p:padrao }));
+  if(!linhas.length) linhas.push(hjCrLinha({ p:padrao }));
+  _hjCr={ d, linhas, venc:d, resp:'eu', enviando:false, fb:null, cola:false, acc:hjAcc() };
+  abreModal('<div class="hj-modal hj-cr"><h2>📝 Criar tickets</h2><div class="estado">Carregando os projetos do Jira…</div></div>');
+  hjProjetosCriacao().then(()=>{ const m=_hjCr; if(!m||!hjCrAberto()) return; m.linhas.forEach(l=>{ if(!l.tipoId) l.tipoId=hjTipoPadrao(l.p); }); hjCriarPinta(); })
+    .catch(e=>{ const m=_hjCr; if(!m||!hjCrAberto()) return; m.fb={ txt:'Não consegui listar os projetos do Jira: '+humanizaErro(e), cls:'err' }; m.semProjetos=true; hjCriarPinta(); });
+}
+function hjCrAberto(){ const m=document.getElementById('modal'); return !!(_hjCr&&m&&!m.hidden&&document.querySelector('#modal-body .hj-cr')); }
+function hjCriarPinta(){
+  const m=_hjCr; if(!m||!hjCrAberto()) return; const box=document.querySelector('#modal-body .hj-cr'); if(!box) return;
+  const ae=document.activeElement; const foco=ae&&ae.id; let sel0=null; try{ sel0=ae&&ae.selectionStart; }catch(e){}
+  const projs=(estado.planejar.projetos||[]).slice().sort((a,b)=>String(a.nome||a.key).localeCompare(String(b.nome||b.key),'pt-BR'));
+  const optP=(sel)=>`<option value="">projeto…</option>${projs.map(p=>`<option value="${escA(p.key)}" ${p.key===sel?'selected':''}>${esc(p.nome||p.key)}</option>`).join('')}`;
+  const optT=(p,sel)=>{ const ts=hjTiposDe(p); return ts.length?ts.map(t=>`<option value="${escA(t.id)}" ${t.id===sel?'selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">— sem tipo —</option>'; };
+  const pend=m.linhas.filter(l=>!l.key); const criados=m.linhas.filter(l=>l.key);
+  const rows=m.linhas.map((l,i)=>l.key
+    ?`<div class="hj-cr-row ok" data-hj-cr-rid="${escA(l.rid)}"><span class="hj-cr-ok">✓ <a href="${jiraBase()}/browse/${encodeURIComponent(l.key)}" target="_blank" rel="noopener"><b>${esc(l.key)}</b></a> ${esc(l.resumo)}<span class="muted small"> · já está no seu dia</span></span></div>`
+    :`<div class="hj-cr-row${l.erro?' err':''}" data-hj-cr-rid="${escA(l.rid)}">
+      <input type="text" id="hj-cr-resumo-${i}" data-hj-cr-resumo="${escA(l.rid)}" value="${escA(l.resumo)}" maxlength="255" placeholder="título do ticket${l.desc?'':' (título ; descrição)'}" aria-label="Título do ticket">
+      <select id="hj-cr-p-${i}" data-hj-cr-p="${escA(l.rid)}" aria-label="Projeto">${optP(l.p)}</select>
+      <select id="hj-cr-tipo-${i}" data-hj-cr-tipo="${escA(l.rid)}" aria-label="Tipo" ${hjTiposDe(l.p).length?'':'disabled'}>${optT(l.p,l.tipoId)}</select>
+      <input type="text" id="hj-cr-est-${i}" class="hj-cand-est${l.estTxt&&l.estTxt.trim()&&parseTempo(l.estTxt)==null?' invalido':''}" data-hj-cr-est="${escA(l.rid)}" value="${escA(l.estTxt)}" placeholder="est." aria-label="Estimativa">
+      <button class="btn hj-b" data-hj-cr-rm="${escA(l.rid)}" title="Tirar esta linha" aria-label="Tirar esta linha" ${m.linhas.filter(x=>!x.key).length>1?'':'disabled'}>✕</button>
+      ${l.itemId?'<span class="hj-cr-tag muted small">↳ do item do dia</span>':''}${l.desc?`<span class="hj-cr-tag muted small" title="${escA(l.desc)}">📄 com descrição</span>`:''}
+      ${l.erro?`<div class="hj-cr-err">✕ ${esc(l.erro)}</div>`:''}
+    </div>`).join('');
+  const nome=(idApontar()||{}).nome||(idApontar()||{}).email||'você';
+  box.innerHTML=`<h2>📝 Criar tickets <span class="muted small">${esc(hjRotuloDia(m.d))} · cada ticket criado entra no seu dia</span></h2>
+    <div class="muted small">Uma linha por ticket, com o projeto e o tipo de cada um. ↵ pula para a próxima linha (e cria uma nova no fim); Ctrl+↵ cria os tickets. "título ; descrição" leva a descrição.</div>
+    ${m.semProjetos?'':`<div class="hj-cr-rows" id="hj-cr-rows">${rows}</div>
+    <div class="hj-cr-tools"><button class="btn" data-hj-cr-add>+ linha</button><button class="btn" data-hj-cr-cola-abre>${m.cola?'📋 fechar a colagem':'📋 colar várias linhas'}</button>
+      ${criados.length?`<span class="muted small">${criados.length} criado(s)</span>`:''}</div>
+    ${m.cola?`<div class="campo full"><textarea id="hj-cr-cola" rows="4" placeholder="uma linha por ticket — título ; descrição&#10;Rever cadastro de fornecedores ; conferir os 12 do lote de outubro&#10;Ajustar relatório de caixa">${esc(m.colaTxt||'')}</textarea><div style="margin-top:4px"><button class="btn" data-hj-cr-cola-ok>↓ Adicionar as linhas</button> <span class="muted small">no projeto da última linha</span></div></div>`:''}
+    <div class="rv-form" style="margin-top:10px">
+      <div class="campo"><label>📅 Vencimento <span class="muted small">(todos)</span></label><input type="date" id="hj-cr-venc" value="${escA(m.venc||'')}"></div>
+      <div class="campo"><label>👤 Responsável <span class="muted small">(todos)</span></label><select id="hj-cr-resp"><option value="eu" ${m.resp==='eu'?'selected':''}>${esc(nome)} (você)</option><option value="" ${m.resp===''?'selected':''}>— sem responsável —</option></select></div>
+    </div>
+    <div class="muted small" style="margin-top:6px">Criados no Jira com o <strong>seu usuário</strong>, como no 📝 Criar ticket; a estimativa da linha vai para o ticket e para o item do dia.</div>`}
+    <div class="ap-fb ${m.fb?escA(m.fb.cls):''}" id="hj-cr-fb" ${m.fb?'':'hidden'}>${m.fb?esc(m.fb.txt):''}</div>
+    <div class="alx-modal-acoes">${m.semProjetos?'':`<button class="btn primario" data-hj-cr-ok ${m.enviando?'disabled':''}>${m.linhas.some(l=>l.erro)?'↻ Tentar de novo':`✓ Criar ${pend.length} ticket(s)`}</button>`}<button class="btn" data-hj-fecha>${criados.length&&!pend.length?'Fechar':'Cancelar'}</button></div>`;
+  if(foco){ const f=document.getElementById(foco); if(f){ f.focus(); try{ if(sel0!=null&&f.setSelectionRange) f.setSelectionRange(sel0,sel0); }catch(e){} } }
+}
+// Lê o DOM para o estado (o redesenho acontece a cada mudança de projeto/linha e não pode apagar o que está sendo digitado).
+function hjCriarLe(){
+  const m=_hjCr; if(!m) return;
+  m.linhas.forEach(l=>{ if(l.key) return; const r=document.querySelector(`#modal-body [data-hj-cr-resumo="${CSS.escape(l.rid)}"]`); if(r){ const v=r.value; const i=v.indexOf(';'); if(i>=0&&!l.desc){ l.resumo=v.slice(0,i).trim().slice(0,255); l.desc=v.slice(i+1).trim(); } else l.resumo=v.trim().slice(0,255); }
+    const p=document.querySelector(`#modal-body [data-hj-cr-p="${CSS.escape(l.rid)}"]`); if(p) l.p=String(p.value||'').toUpperCase();
+    const t=document.querySelector(`#modal-body [data-hj-cr-tipo="${CSS.escape(l.rid)}"]`); if(t) l.tipoId=t.value||'';
+    const e=document.querySelector(`#modal-body [data-hj-cr-est="${CSS.escape(l.rid)}"]`); if(e) l.estTxt=e.value; });
+  const v=document.getElementById('hj-cr-venc'); if(v) m.venc=v.value||'';
+  const rs=document.getElementById('hj-cr-resp'); if(rs) m.resp=rs.value;
+  const c=document.getElementById('hj-cr-cola'); if(c) m.colaTxt=c.value;
+}
+function hjCriarFb(txt, cls){ const m=_hjCr; if(m) m.fb=txt?{ txt, cls:cls||'' }:null; const fb=document.getElementById('hj-cr-fb'); if(!fb) return; fb.hidden=!txt; fb.className='ap-fb '+(cls||''); fb.textContent=txt||''; }
+function hjCriarAddLinha(x){ const m=_hjCr; if(!m) return null; const ult=m.linhas.filter(l=>!l.key).slice(-1)[0]; const l=hjCrLinha(Object.assign({ p:(ult&&ult.p)||'' }, x||{})); if(!l.tipoId) l.tipoId=hjTipoPadrao(l.p); m.linhas.push(l); return l; }
+// Valida tudo ANTES de mandar (o servidor confere de novo): título, projeto com tipo, estimativa, vencimento, teto do dia.
+function hjCriarValida(){
+  const m=_hjCr; const pend=m.linhas.filter(l=>!l.key);
+  if(!pend.length) return 'Nada para criar.';
+  for(const l of pend){ l.erro='';
+    if(!l.resumo) l.erro='Dê um título ao ticket.';
+    else if(l.resumo.length>255) l.erro='Título com mais de 255 caracteres.';
+    else if(!l.p) l.erro='Escolha o projeto.';
+    else if(!l.tipoId) l.erro='Este projeto não tem um tipo de ticket que dê para criar daqui — use o 📝 Criar ticket.';
+    else if(l.estTxt&&l.estTxt.trim()&&parseTempo(l.estTxt)==null) l.erro='Estimativa inválida — use 1h30, 45m ou 2:15.'; }
+  if(pend.some(l=>l.erro)) return 'Corrija as linhas marcadas.';
+  if(m.venc&&!/^\d{4}-\d{2}-\d{2}$/.test(m.venc)) return 'Vencimento inválido.';
+  if(pend.length>100) return 'Máximo de 100 tickets por vez.';
+  const novos=pend.filter(l=>!l.itemId||!hjItem(m.d,l.itemId)).length; const atuais=hjItens(m.d).length;
+  if(atuais+novos>HJ_MAX_ITENS) return `O dia ficaria com ${atuais+novos} itens (máximo ${HJ_MAX_ITENS}) — tire ou mova alguns antes de criar.`;
+  return '';
+}
+async function hjCriarExecuta(){
+  const m=_hjCr; if(!m||m.enviando) return; hjCriarLe();
+  const idp=idApontar(); if(!idp){ abreIdentidade(); return; }
+  const ruim=hjCriarValida(); if(ruim){ hjCriarFb(ruim,'err'); hjCriarPinta(); return; }
+  const d=m.d; if(hjDia(d)===undefined){ hjCriarFb('O seu dia ainda não foi lido — espere um instante e tente de novo.','err'); return; }
+  const pend=m.linhas.filter(l=>!l.key); const respId=m.resp==='eu'?(idp.accountId||''):'';
+  const itens=pend.map(l=>{ const it={ projeto:l.p, tipoId:l.tipoId, resumo:l.resumo, descricao:l.desc||'', respId }; const est=hjEstJira(parseTempo(l.estTxt)||0); if(est) it.estimativa=est; if(m.venc) it.venc=m.venc; return it; });
+  m.enviando=true; hjCriarFb(`Criando ${itens.length} ticket(s) no Jira…`); hjCriarPinta();
+  let j=null;
+  try{ j=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ itens, email:idp.email, token:idp.token }) }).then(r=>r.json()); }
+  catch(e){ j={ erro:'Falha de rede: '+humanizaErro(e) }; }
+  m.enviando=false;
+  const aberto=_hjCr===m&&hjCrAberto();
+  // trocou de identidade no meio: o dia em memória já é de outra pessoa — os tickets ficam só no Jira (aviso)
+  if(estado.hoje.a!==m.acc){ if(j&&Array.isArray(j.criados)&&j.criados.length) toast(`📝 ${j.criados.length} ticket(s) criado(s) no Jira, mas a identidade mudou — eles não entraram no dia.`,'warn'); return; }
+  if(!j||j.erro){ if(aberto){ hjCriarFb((j&&j.erro)||'Falha ao criar.','err'); hjCriarPinta(); } else toast((j&&j.erro)||'Falha ao criar os tickets.','err'); return; }
+  const criados=Array.isArray(j.criados)?j.criados:[], erros=Array.isArray(j.erros)?j.erros:[];
+  const porIdx=new Map(criados.map(c=>[c.indice,c])), errIdx=new Map(erros.map(e=>[e.indice,e.erro]));
+  let n=0; const dia=hjGaranteObj(d);
+  pend.forEach((l,i)=>{ const c=porIdx.get(i);
+    if(!c||!c.key){ l.erro=errIdx.get(i)||(erros.length?'Não enviado — o Jira recusou o lote antes deste item.':'Não criado.'); return; }
+    l.key=String(c.key).toUpperCase(); l.erro=''; n++;
+    const est=hjEstClamp(parseTempo(l.estTxt)||0);
+    const it=l.itemId?hjItem(d,l.itemId):null;
+    if(it&&!it.k){ it.k=l.key; it.p=l.p; it.t=it.t||l.resumo; it.orig='criado'; if(est) it.est=est; }
+    else hjAdiciona(d,{ k:l.key, t:l.resumo, p:l.p, est, orig:'criado' },{ quieto:true, semSalvar:true });
+    logAcao({ acao:'hoje-criar', t:l.key, para:l.p, motivo:'📆 Hoje', ok:true }, false); });
+  if(n){ if(dia.st==='fechado') dia.st='planejado'; hjAgendaSalvar(d); try{ salvaCfg(); }catch(e){} invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
+    try{ const ult=pend.filter(l=>l.key).slice(-1)[0]; if(ult) localStorage.setItem(HJ_CR_PROJ_KEY, ult.p); }catch(e){} }
+  (j.avisos||[]).forEach(a=>toast(a,'warn'));
+  const falhas=pend.filter(l=>l.erro);
+  // o modal foi fechado (Esc) com a criação em voo: o que o Jira criou entra no dia do mesmo jeito — o ticket existe
+  if(!aberto){ toast(`📝 ${n} ticket(s) criado(s) e no seu dia${falhas.length?` · ${falhas.length} falharam`:''}.`, falhas.length?'warn':'ok'); hjRedesenha(); return; }
+  if(!falhas.length){ _hjCr=null; fechaModal(); toast(`📝 ${n} ticket(s) criado(s) e no seu dia.`,'ok'); hjRedesenha(); return; }
+  hjCriarFb(`${n?`${n} criado(s) e já no seu dia. `:''}${falhas.length} linha(s) falharam — corrija e tente de novo (só elas são reenviadas).`,'err'); hjRedesenha(); hjCriarPinta();
 }
 
 // ---------------- ⏱ apontar a partir de um item ----------------
@@ -721,6 +860,7 @@ function hjListaHTML(d, dia){
   const movidos=(dia&&dia.itens||[]).filter(i=>i.movido);
   const projs=Object.entries(projNomes()).sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'pt-BR'));
   const sugN=hjSugestoes(d).reduce((s,g)=>s+g.itens.length,0);
+  const livres=ativos.filter(i=>!i.k&&!i.ev);   // tarefas livres (sem ticket e sem reunião): candidatas a virar ticket em massa
   return `<div class="card hj-lista" id="hj-lista">
     <h2>✅ Lista do dia <span>${ativos.length?`${ativos.length} a fazer${ativos.length>HJ_FOCO?` · os ${HJ_FOCO} primeiros são o 🎯 foco`:''}`:'o que você vai fazer, na sua ordem'}</span><span class="spacer"></span><span class="muted small" id="hj-salvo"></span></h2>
     ${rows.length?`<div class="hj-itens" id="hj-itens">${rows.join('')}</div>`:`<div class="hj-vazio"><div>Nada planejado para ${esc(fmtBR(d))}.</div><div class="muted small">Comece pelo 🌅 Planejar o dia (traz o que ficou de antes, o plano da semana, vencidos, reuniões) ou adicione abaixo.</div></div>`}
@@ -730,6 +870,8 @@ function hjListaHTML(d, dia){
       <select id="hj-add-proj" aria-label="Projeto da tarefa livre"><option value="">projeto…</option>${projs.map(([k,n])=>`<option value="${escA(k)}">${esc(n)}</option>`).join('')}</select>
       <button class="btn" data-hj-add>+ Adicionar</button>
       <button class="btn" data-hj-busca title="Buscar entre os tickets abertos (tecla /)">🎫 Buscar ticket</button>
+      <button class="btn" data-hj-criar title="Criar um ou vários tickets no Jira — cada um entra no seu dia">📝 Criar ticket</button>
+      ${livres.length?`<button class="lnk small" data-hj-criar-livres title="Os itens sem ticket viram tickets no Jira, um por linha">📝 Criar tickets dos ${livres.length} itens livres</button>`:''}
     </div>
     <details class="hj-sug" ${estado.hoje.sugAberta?'open':''} data-hj-sug-det><summary>💡 Sugestões <span class="muted small">(${sugN})</span> — o que ficou de antes, plano da semana, vencidos, prioridades, reuniões, recentes</summary>
       <div id="hj-sug-corpo">${estado.hoje.sugAberta?hjSugestoesHTML(d):''}</div></details>
@@ -865,7 +1007,7 @@ document.addEventListener('click', async (e)=>{
   const tk=t.closest('[data-hj-timer-k]'); if(tk){ hjTimerInicia(tk.getAttribute('data-hj-timer-k'), tk.getAttribute('data-hj-timer-t')||''); return; }
   if(t.closest('#hj-tp-ok')){ hjTimerConfirma(false); return; }
   if(t.closest('#hj-tp-descarta')){ hjTimerConfirma(true); return; }
-  if(t.closest('[data-hj-fecha]')){ const r=estado.hoje.ritual; if(r&&r.executando) return; estado.hoje.ritual=null; _hjAp=null; _hjTp=null; fechaModal(); return; }
+  if(t.closest('[data-hj-fecha]')){ const r=estado.hoje.ritual; if(r&&r.executando) return; if(_hjCr&&_hjCr.enviando) return; estado.hoje.ritual=null; _hjAp=null; _hjTp=null; _hjCr=null; fechaModal(); return; }
   if(t.closest('[data-hj-ident]')){ abreIdentidade(); return; }
   if(t.closest('[data-hj-retry-inicio]')){ estado.hoje.erro=''; estado.hoje.erroEm=0; hjGarante(hojeSP(),true); if(estado.vista==='acoes') agendaRenderAcoes(); return; }
   // ✓ feito (lista e card da Início)
@@ -879,6 +1021,21 @@ document.addEventListener('click', async (e)=>{
   if(t.closest('[data-hj-urg]')){ hjOrdenaUrgencia(hjD()); renderHoje(); toast('⚡ Ordenado por urgência — arraste para ajustar.','ok'); return; }
   if(t.closest('[data-hj-add]')){ const i=document.getElementById('hj-add-txt'); const p=document.getElementById('hj-add-proj'); if(i&&i.value.trim()){ const v=i.value; i.value=''; await hjAdicionaTexto(hjD(), v, p?p.value:''); } else if(i) i.focus(); return; }
   if(t.closest('[data-hj-busca]')){ hjBuscaParaDia(hjD()); return; }
+  // 📝 criar tickets: da linha de adicionar (o texto digitado vira a 1ª linha), dos itens livres (em massa) e do ⋯ de um item
+  if(t.closest('[data-hj-criar]')){ const i=document.getElementById('hj-add-txt'); const p=document.getElementById('hj-add-proj'); const txt=i?i.value:''; if(i) i.value=''; hjCriarModal(hjD(),{ texto:txt, proj:p?p.value:'' }); return; }
+  if(t.closest('[data-hj-criar-livres]')){ const ids=hjItens(hjD()).filter(i=>!i.k&&!i.ev&&!i.feito&&!i.movido).map(i=>i.id); if(!ids.length){ toast('Nenhum item livre no dia.','info'); return; } hjCriarModal(hjD(),{ ids }); return; }
+  const cri=t.closest('[data-hj-criar-item]'); if(cri){ fechaModal(); hjCriarModal(hjD(),{ ids:[cri.getAttribute('data-hj-criar-item')] }); return; }
+  if(t.closest('[data-hj-cr-ok]')){ hjCriarExecuta(); return; }
+  if(t.closest('[data-hj-cr-add]')){ hjCriarLe(); const l=hjCriarAddLinha(); hjCriarPinta(); const i=l&&document.querySelector(`#modal-body [data-hj-cr-resumo="${CSS.escape(l.rid)}"]`); if(i) i.focus(); return; }
+  const crRm=t.closest('[data-hj-cr-rm]'); if(crRm){ const m=_hjCr; if(!m||m.enviando) return; hjCriarLe(); m.linhas=m.linhas.filter(l=>l.rid!==crRm.getAttribute('data-hj-cr-rm')); if(!m.linhas.some(l=>!l.key)) hjCriarAddLinha(); hjCriarPinta(); return; }
+  if(t.closest('[data-hj-cr-cola-abre]')){ const m=_hjCr; if(!m) return; hjCriarLe(); m.cola=!m.cola; hjCriarPinta(); const c=document.getElementById('hj-cr-cola'); if(c) c.focus(); return; }
+  if(t.closest('[data-hj-cr-cola-ok]')){ const m=_hjCr; if(!m) return; hjCriarLe(); const linhas=String(m.colaTxt||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!linhas.length){ toast('Cole uma linha por ticket.','warn'); return; }
+    // a única linha vazia do modal é substituída pela primeira colada (não sobra uma linha em branco para o ✓ reprovar)
+    const vazia=m.linhas.find(l=>!l.key&&!l.resumo&&!l.itemId); if(vazia) m.linhas=m.linhas.filter(l=>l!==vazia);
+    const ult=m.linhas.filter(l=>!l.key).slice(-1)[0]; const pDef=(ult&&ult.p)||(vazia&&vazia.p)||'';   // o projeto da última linha (ou o da linha vazia que saiu)
+    linhas.slice(0,100).forEach(s=>{ const i=s.indexOf(';'); hjCriarAddLinha({ resumo:i>=0?s.slice(0,i):s, desc:i>=0?s.slice(i+1):'', p:pDef }); });
+    m.colaTxt=''; m.cola=false; hjCriarPinta(); toast(`+ ${Math.min(100,linhas.length)} linha(s).`,'ok'); return; }
   const sd=t.closest('[data-hj-sug-det]'); if(sd&&t.closest('summary')){ setTimeout(()=>{ estado.hoje.sugAberta=sd.open; const c=document.getElementById('hj-sug-corpo'); if(c&&sd.open&&!c.innerHTML) c.innerHTML=hjSugestoesHTML(hjD()); },0); return; }
   const sa=t.closest('[data-hj-sug-add]'); if(sa){ const cid=sa.getAttribute('data-hj-sug-add'); const c=hjSugestoes(hjD()).flatMap(g=>g.itens).find(x=>x.cid===cid); if(c){ hjAdiciona(hjD(), c); estado.hoje.sugAberta=true; renderHoje(); } return; }
   const st=t.closest('[data-hj-sug-todos]'); if(st){ const g=hjSugestoes(hjD()).find(x=>x.id===st.getAttribute('data-hj-sug-todos')); if(g){ g.itens.forEach(c=>hjAdiciona(hjD(), c, { quieto:true, semSalvar:true })); hjAgendaSalvar(hjD()); estado.hoje.sugAberta=true; renderHoje(); toast(`+ ${g.itens.length} item(ns) no seu dia.`,'ok'); } return; }
@@ -916,7 +1073,7 @@ document.addEventListener('click', async (e)=>{
   const menu=t.closest('[data-hj-menu]'); if(menu){ const id=menu.getAttribute('data-hj-menu'); const it=hjItem(hjD(), id); if(!it) return;
     abreModal(`<div class="hj-modal"><h2>⋯ ${esc(it.k||it.t)}</h2><div class="hj-menu">
       <button class="btn" data-hj-amanha="${escA(id)}">↪ Mover para o próximo dia útil (${esc(fmtBR(hjProxUtil(hjD())))})</button>
-      ${it.k?`<button class="btn" data-hj-ficha="${escA(it.k)}">🔍 Ficha do ticket</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(it.k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>`:`<button class="btn" data-hj-ligar="${escA(id)}">🎫 Ligar a um ticket</button>`}
+      ${it.k?`<button class="btn" data-hj-ficha="${escA(it.k)}">🔍 Ficha do ticket</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(it.k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>`:`${it.ev?'':`<button class="btn" data-hj-criar-item="${escA(id)}">📝 Criar o ticket deste item</button>`}<button class="btn" data-hj-ligar="${escA(id)}">🎫 Ligar a um ticket</button>`}
       ${it.ini?`<a class="btn" href="${escA(hjOutlookUrl(hjD(),it))}" target="_blank" rel="noopener">🗓 Reservar no Outlook (${esc(it.ini)})</a>`:''}
       <button class="btn" data-hj-remover="${escA(id)}">✕ Tirar do dia</button></div>
       <div class="alx-modal-acoes"><button class="btn" data-hj-fecha>Fechar</button></div></div>`); return; }
@@ -930,7 +1087,10 @@ document.addEventListener('click', async (e)=>{
   const rtn=t.closest('[data-hj-rit-nenhum]'); if(rtn){ e.preventDefault(); const r=estado.hoje.ritual; const g=r&&(r.grupos||[]).find(x=>x.id===rtn.getAttribute('data-hj-rit-nenhum')); if(g){ g.itens.forEach(c=>{ r.sel[c.cid]=false; }); hjRitualPinta(); } return; }
 });
 document.addEventListener('change',(e)=>{
-  const t=e.target; if(!t||!t.closest||!t.closest('#modal-body .hj-rit')) return; const r=estado.hoje.ritual; if(!r) return;
+  const t=e.target; if(!t||!t.closest) return;
+  // 📝 criar: trocar o projeto de uma linha redesenha os tipos dela (o resto do que está digitado é lido antes)
+  if(t.closest('#modal-body .hj-cr')){ const m=_hjCr; if(!m||m.enviando) return; hjCriarLe(); const rid=t.getAttribute('data-hj-cr-p'); if(rid!=null){ const l=m.linhas.find(x=>x.rid===rid); if(l){ l.tipoId=hjTipoPadrao(l.p); } hjCriarPinta(); } return; }
+  if(!t.closest('#modal-body .hj-rit')) return; const r=estado.hoje.ritual; if(!r) return;
   const s=t.getAttribute('data-hj-rit-sel'); if(s!=null){ r.sel[s]=t.checked; return; }
   const a=t.getAttribute('data-hj-rit-adiar'); if(a!=null){ hjRitualLeCampos(); r.adiar[a]=t.checked; hjRitualPinta(); return; }
   const nf=t.getAttribute('data-hj-rit-nf'); if(nf!=null){ r.naoFeitos[nf]=t.value; return; }
@@ -942,8 +1102,18 @@ document.addEventListener('change',(e)=>{
 document.addEventListener('keydown',(e)=>{
   if(e.key!=='Escape') return; const mb=document.getElementById('modal-body'); const m=document.getElementById('modal');
   if(!mb||!m||m.hidden||!mb.querySelector('.hj-modal')) return;
-  const r=estado.hoje.ritual; if(r&&r.executando){ e.stopImmediatePropagation(); e.preventDefault(); return; }
-  estado.hoje.ritual=null; _hjAp=null; _hjTp=null;
+  const r=estado.hoje.ritual; if((r&&r.executando)||(_hjCr&&_hjCr.enviando)){ e.stopImmediatePropagation(); e.preventDefault(); return; }
+  estado.hoje.ritual=null; _hjAp=null; _hjTp=null; _hjCr=null;
+});
+// 📝 criar: ↵ num título pula para a próxima linha (cria uma no fim); Ctrl/Cmd+↵ em qualquer campo cria os tickets.
+document.addEventListener('keydown',(e)=>{
+  const t=e.target; if(!t||!t.closest||!_hjCr||!t.closest('#modal-body .hj-cr')) return;
+  if(e.key!=='Enter') return;
+  if(e.ctrlKey||e.metaKey){ e.preventDefault(); hjCriarExecuta(); return; }
+  if(t.id==='hj-cr-cola'){ return; }   // Enter na colagem é quebra de linha
+  if(t.tagName==='INPUT'){ e.preventDefault(); if(_hjCr.enviando) return; hjCriarLe(); const rid=t.getAttribute('data-hj-cr-resumo')||t.getAttribute('data-hj-cr-est'); const pend=_hjCr.linhas.filter(l=>!l.key); const i=pend.findIndex(l=>l.rid===rid);
+    let prox=i>=0?pend[i+1]:null; if(i>=0&&!prox){ if(!pend[i].resumo) return; prox=hjCriarAddLinha(); } if(!prox) return; hjCriarPinta();
+    const f=document.querySelector(`#modal-body [data-hj-cr-resumo="${CSS.escape(prox.rid)}"]`); if(f) f.focus(); }
 });
 document.addEventListener('keydown',(e)=>{
   const t=e.target; if(!t||!t.id) return;

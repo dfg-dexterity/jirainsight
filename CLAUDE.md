@@ -301,7 +301,17 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   microtarefas que travou a página — toda leitura disparada no render precisa de guarda (`_logsP`) e só redesenha quando
   o dado MUDOU. A busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`). A 🏠 Início tem o card 📆 Seu
   dia (`hjCardInicio`, ✓ nos 3 do foco). Pesquisa de mercado e decisões: `docs/hoje-planejamento-do-dia-2026-10-21.md`.
-  Teste: `hoje-test.mjs` (Playwright, 79 casos; fixture `?dia=1` + `/api/_dias` no `servidor-mini.mjs`). Fixture: o
+  **📝 Criar tickets a partir do dia (2026-10-22, a pedido do usuário: "criar tickets em massa ou individualmente, não
+  apenas criar uma tarefa e ligar a um ticket"):** `hjCriarModal` → modal com UMA LINHA POR TICKET (projeto e tipo por
+  linha — `hjTiposDe`/`hjTipoPadrao` sobre `estado.planejar.projetos`, carregados por `hjProjetosCriacao` do mesmo
+  `/api/projetos`), vencimento e responsável para todos, 📋 colar várias (`título ; descrição`), ↵ próxima linha, Ctrl+↵
+  cria. Entradas: 📝 Criar ticket na linha de adicionar, ⋯ › 📝 Criar o ticket deste item (tarefa livre) e "Criar tickets dos
+  N itens livres". **Sem endpoint novo**: o lote vai ao `POST /api/criar {itens}` do 📝 Criar ticket; o criado entra no dia com
+  `orig:'criado'` ou vira a chave do item livre (mesmo item, nada duplica); dia gravado UMA vez; `logAcao('hoje-criar')` por
+  ticket + `salvaCfg()` uma vez; ↻ reenvia SÓ as linhas sem `key`; o teto de 60 itens é conferido ANTES de criar (ticket
+  criado sem lugar no dia seria pior); modal fechado com a criação em voo → o que o Jira criou entra no dia mesmo assim.
+  Teste: `hoje-test.mjs` (Playwright, 129 casos; fixture `?dia=1` + `/api/_dias` no `servidor-mini.mjs`; o `/api/criar` da
+  fixture repete a `validaItem` da produção e simula falha por item com `[falha]` no resumo). Fixture: o
   "hoje−20" das fixtures relativas desvia das datas FIXAS do AMS (`DIA20()`), senão o `apontar-dia-test` quebra num dia
   do calendário.
 - **📈 Análise do app × mercado e plano de melhorias (2026-10-20, a pedido do usuário: "verifique meu aplicativo

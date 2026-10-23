@@ -915,6 +915,19 @@ Linear…) e as decisões estão em `docs/hoje-planejamento-do-dia-2026-10-21.md
 - **Regras**: todo worklog passa por `planGate(dia)` antes e `registraExtraDia` depois (`hjGravaWorklog`); o lote do 🌙
   grava a config uma vez; a busca 🎫 ganhou o modo escolher (`abreBuscaTickets(proj, aoEscolher)`); a 🏠 Início tem o
   card 📆 Seu dia (`hjCardInicio`) com ✓ nos 3 do foco e as rotas `hoje`/`hoje-planejar`/`hoje-fechar`.
+- **📝 Criar tickets a partir do dia (2026-10-22, a pedido do usuário: "criar tickets em massa ou individualmente, não
+  apenas criar uma tarefa e ligar a um ticket")**: `hjCriarModal(d, {ids|texto, proj})` → `hjCriarPinta` → `hjCriarExecuta`.
+  Modal com **uma linha por ticket** (`_hjCr.linhas[{rid, itemId, resumo, desc, p, tipoId, estTxt, erro, key}]`: projeto e
+  tipo por linha — `hjTiposDe`/`hjTipoPadrao` leem `estado.planejar.projetos`, carregados por `hjProjetosCriacao` do mesmo
+  `/api/projetos` do 📝 Criar ticket), vencimento e responsável (eu / sem) para todos, 📋 colar várias (`título ; descrição`),
+  ↵ = próxima linha, Ctrl+↵ = criar. Entradas: 📝 Criar ticket na linha de adicionar (o texto digitado vira a 1ª linha),
+  ⋯ › 📝 Criar o ticket deste item (tarefa livre) e "📝 Criar tickets dos N itens livres" (em massa). O lote vai ao
+  **mesmo `POST /api/criar {itens}`** (validação e token da pessoa iguais ao 📝 Criar ticket; estimativa no formato do
+  Jira por `hjEstJira`). Cada criado entra no dia com `orig:'criado'` — ou vira a chave do item livre de onde saiu (mesmo
+  item, nada duplica) — e o dia grava **uma** vez; `logAcao('hoje-criar')` por ticket + `salvaCfg()` uma vez. Linha que o
+  Jira recusou fica com o erro e **↻ só reenvia as que falharam** (`key` marca o criado). Antes de mandar: título,
+  projeto com tipo criável, estimativa, vencimento e o **teto de 60 itens do dia** (um ticket criado sem lugar no dia seria
+  pior que recusar). Fechou o modal com a criação em voo? O que o Jira criou entra no dia do mesmo jeito.
 - **Revisão adversarial (mesmo dia, 84 achados triados, ~45 corrigidos)**: gravação em fila **por dia** (`h.sv[d]`,
   timer e "sujo" por dia; `hjSalvar` devolve true só com o servidor confirmando); **mover para amanhã / 🌅 / 🌙 gravam o
   DESTINO primeiro** (`hjLevaPara`) e só então marcam `movido` — conflito/falha não perde item; estimativa limitada a
