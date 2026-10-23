@@ -268,7 +268,12 @@ export default async function handler(req, res) {
 
     // ---- Modo listagem: quais movimentos o workflow permite para ESTE usuário ----
     if (b.listar) {
-      const r = await fetch(url, { headers });
+      // O status ATUAL vai junto (JI-153, 2026-10-23): o painel só conclui o ticket da reunião quando ele ainda
+      // está em "📆 Reunião Agendada" — e o /transitions do Jira não diz de onde o ticket está saindo.
+      const [r, ri] = await Promise.all([
+        fetch(url, { headers }),
+        fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}?fields=status`, { headers }).catch(() => null),
+      ]);
       if (r.status === 401 || r.status === 403) {
         return json(res, 200, { ok: false, erro: 'Sem permissão — token inválido/expirado ou sem acesso ao projeto.' });
       }
@@ -284,7 +289,11 @@ export default async function handler(req, res) {
         para: (t.to && t.to.name) || '',
         categoria: (t.to && t.to.statusCategory && t.to.statusCategory.key) || '',  // new|indeterminate|done
       }));
-      return json(res, 200, { ok: true, issue, transicoes });
+      let status = null;   // falha ao ler o status não derruba a lista — o cliente trata "sem status" como "não mexe"
+      try {
+        if (ri && ri.ok) { const s = ((await ri.json()).fields || {}).status; if (s) status = { nome: s.name || '', categoria: (s.statusCategory && s.statusCategory.key) || '' }; }
+      } catch (e) { status = null; }
+      return json(res, 200, { ok: true, issue, transicoes, status });
     }
 
     // ---- Modo execução ----

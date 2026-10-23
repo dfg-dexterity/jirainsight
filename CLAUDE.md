@@ -159,11 +159,24 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   trocava o conteúdo de QUALQUER modal aberto pelo 📝 com o botão Confirmar); falha do `/api/usuarios` não vira
   `{}` (`ag.usuErro` + `[data-agm-usu-retry]`), senão todo convidado contava como externo e a busca mentia.
   `logAcao('agenda-convidar-extra')` grava no formato que o 🗒 Histórico mostra: `t`=ticket, `para`=quem entrou
-  fora do convite, `motivo`=a reunião. Achado de
-  passagem (não mexido): a linha "(você — o convite aponta as suas horas automaticamente)" é um checkbox
-  desabilitado sem `data-agm-p`, então o organizador NÃO entra em `pessoas` e o worklog dele não é criado por este
-  modal — decisão pendente do usuário. Teste: `agenda-extra-test.mjs` (Playwright, 44 casos, inclusive um por achado da revisão, celular e tablet; fixture
+  fora do convite, `motivo`=a reunião. Teste: `agenda-extra-test.mjs` (Playwright, 44 casos, inclusive um por achado da revisão, celular e tablet; fixture
   `AGENDA_EVENTOS` + `/api/_convites` no `servidor-mini.mjs`).
+  **🙋 Você aponta ao enviar o convite + ✅ ticket para Feito (2026-10-23, JI-153, a pedido do usuário: "na hora que
+  eu mando o invite deve ser apontado as minhas horas; para esses tickets você precisa passar do status reunião
+  agendada para concluído"):** a linha "você" (antes um checkbox desabilitado sem `data-agm-p` — o achado de 2026-10-08)
+  virou caixa real `[data-agm-p=<accountId>][data-agm-eu]`, marcada; você entra em `pessoas` e o `criarConvites` já
+  apontava quem tem o accountId do token (`proprio`). Regras: reunião futura → desabilitada (worklog no futuro não);
+  `m.fixo` (👥 de reunião que já tem ticket) → nasce desmarcada (segundo worklog seu no mesmo ticket); `planGate(dia)`
+  ANTES de criar o ticket quando você está marcado (nada criado se a trava fechar; o `#agm-fb` explica como seguir);
+  `proprio.ok` → `registraExtraDia` + `logAcao('apontar',…,false)`; falha do próprio → toast de aviso, convites seguem.
+  **`agConcluiReuniao(key, id)`** (03) é a porta única da conclusão: `listar` (que no `api/transicao.js` passou a devolver
+  `status:{nome,categoria}` do ticket) → só mexe se o status atual casa `AG_RE_AGENDADA` (`/agendad|marcad/i`) → escolhe a
+  transição de categoria `done` cujo nome NÃO é cancelar (o COP tem "Participar da Reunião" → Feito e "Cancelar Reunião"
+  → Cancelado, as duas done) → executa → `logAcao('status',…,false)`; devolve `{feito, motivo}` e quem chama grava a
+  config UMA vez e decide o aviso. Chamado pelo 📝 (reunião não futura), pelo `respondeConvite` (13, silencioso) e pelo
+  `chmConfirma` (14c). Teste: `agenda-eu-test.mjs` (Playwright, 29 casos: próprio worklog, transição 3 e nunca a 2, 👥
+  desmarcado, futura, 🔗 em agendada × em andamento, falha do próprio, trava antes de criar, convidado confirmando,
+  celular; fixture `STATUS_FIX`/`CONV_PEND` + `POST /api/_convites {limpar|pendente|status}` no `servidor-mini.mjs`).
 - **📞 Ligações — Call tracking (2026-10-09, a pedido do usuário: "qualquer ligação no meu computador — WhatsApp,
   Teams, Google Meet —, assim que acabar, um pop-up para criar um ticket daquela reunião ou apontar minhas horas num
   ticket já criado; igual ao Call Timing do Timing, integrado ao Jira Insights"):** o usuário usa **Mac** (o Timing é

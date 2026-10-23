@@ -55,6 +55,34 @@ function agAchadoDe(evId){
   const ag=estado.agenda; const h=ag&&ag.achados&&ag.achados[evId]; if(!h||!h.k) return null;
   const nao=cfg.agendaNao&&cfg.agendaNao[evId]; return (nao&&nao.k===h.k)?null:h;
 }
+// ✅ Ticket da reunião → concluído (JI-153, 2026-10-23, a pedido do usuário: "para esses tickets você precisa passar
+// do status reunião agendada para concluído"). O tipo Reunião de alguns projetos (ex.: COP) nasce em
+// "📆 Reunião Agendada" e tem DUAS transições de categoria done — "Participar da Reunião" (Feito) e "Cancelar
+// Reunião" (Cancelado) —, então a escolha é pelo NOME, nunca só pela categoria. Regras: (1) só mexe se o status
+// ATUAL é de reunião agendada (AG_RE_AGENDADA) — um ticket qualquer vinculado à reunião (tarefa em andamento) fica
+// como está; (2) com o token da pessoa (/api/transicao, que no `listar` devolve o status atual); (3) nunca derruba
+// o fluxo: devolve {feito, motivo} e quem chama decide o aviso. Usado pelo 📝 da Agenda, pelo convite confirmado
+// (13) e pelas 📞 Ligações (14c).
+const AG_RE_AGENDADA=/agendad|marcad/i;
+async function agConcluiReuniao(key, id){
+  id=id||idApontar(); if(!id||!key) return { feito:false, motivo:'sem-identidade' };
+  const post=(corpo)=>fetch('/api/transicao',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({ issue:key, email:id.email, token:id.token }, corpo)) }).then(r=>r.json());
+  try{
+    const j=await post({ listar:true });
+    if(!j||!j.ok) return { feito:false, motivo:'erro', erro:(j&&j.erro)||'não consegui ler as transições do ticket' };
+    const st=String((j.status&&j.status.nome)||'');
+    if(!AG_RE_AGENDADA.test(st)) return { feito:false, motivo:'status', status:st };   // sem status no retorno = não mexe
+    const done=(j.transicoes||[]).filter(t=>t.categoria==='done'&&!/cancel/i.test(`${t.nome} ${t.para}`));
+    const tr=done.find(t=>/particip|realiz|feito|conclu|done/i.test(`${t.nome} ${t.para}`))||done[0];
+    if(!tr) return { feito:false, motivo:'sem-transicao', status:st };
+    const r=await post({ transitionId:tr.id });
+    if(!r||!r.ok) return { feito:false, motivo:'erro', erro:(r&&r.erro)||'o Jira recusou a transição' };
+    logAcao({ acao:'status', t:key, de:st, para:tr.para||tr.nome, motivo:'📅 reunião realizada', ok:true }, false);   // quem chama grava a config
+    invalidaCacheDados();
+    return { feito:true, de:st, para:tr.para||tr.nome };
+  }catch(e){ return { feito:false, motivo:'erro', erro:humanizaErro(e) }; }
+}
 // As duas telas do grupo 📅 Agenda (2026-10-02, "o controle poluía a tela"): 'agenda' = os eventos dia a
 // dia com a faixa-resumo; 'agcontrole' = o 🎫 Controle de tickets inteiro. Quem redesenha testa as duas.
 function agVistaAberta(){ return estado.vista==='agenda'||estado.vista==='agcontrole'; }
@@ -383,11 +411,24 @@ function agAtualizaModal(){
   const conv=agPessoasConvite(ev);
   if(conv){
     const chkDe=(acc)=>(primeira||!noDom.has(acc))?true:marcados.has(acc);
-    const linhas=conv.internos.map(p=>p.eu
-      ?`<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(p.nome)} <span class="muted small">(você — o convite aponta as suas horas automaticamente)</span></label>`
-      :`<label class="check"><input type="checkbox" data-agm-p="${escA(p.acc)}" data-agm-nome="${escA(p.nome)}" ${chkDe(p.acc)?'checked':''}> ${esc(p.nome)}</label>`).join('');
+    // 🙋 Você (JI-153, 2026-10-23): a linha era uma caixa desabilitada que dizia "o convite aponta as suas horas
+    // automaticamente" — e não apontava (você não entrava em `pessoas`). Agora é uma caixa REAL, marcada: o
+    // servidor aponta o organizador na hora, com o próprio token (api/apontar.js, criarConvites). Reunião que
+    // ainda não aconteceu fica desabilitada (worklog no futuro não) — aponte depois, pelo ⏱ Apontar ou 📆 Hoje.
+    const euAcc=String(id.accountId||''); const futura=(ev.inicio||'').slice(0,10)>hojeSP();
+    // No 👥 convidar de uma reunião que JÁ tem ticket (m.fixo) você nasce DESMARCADO: as suas horas saíram quando o
+    // ticket foi criado — marcado de novo seria um segundo worklog seu no mesmo ticket.
+    const euChk=(primeira||!noDom.has(euAcc))?!m.fixo:marcados.has(euAcc);
+    const euLinha=(nome)=>!euAcc
+      ?`<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(nome)} <span class="muted small">(você — identifique-se no ⏱ Apontar para apontar as suas horas daqui)</span></label>`
+      :futura?`<label class="check" style="opacity:.65"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" disabled> ${esc(nome)} <span class="muted small">(você — a reunião ainda não aconteceu; as suas horas você aponta depois, pelo ⏱ Apontar ou 📆 Hoje)</span></label>`
+      :`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" ${euChk?'checked':''}> ${esc(nome)} <span class="muted small">${m.fixo?'(você — marque só se ainda não lançou as suas horas neste ticket)':'(você — as suas horas saem agora, no seu usuário, junto com os convites)'}</span></label>`;
+    const linhas=conv.internos.map(p=>p.eu?euLinha(p.nome)
+      :`<label class="check"><input type="checkbox" data-agm-p="${escA(p.acc)}" data-agm-nome="${escA(p.nome)}" ${chkDe(p.acc)?'checked':''}> ${esc(p.nome)}</label>`).join('')
+      // você não está no convite (criou o ticket por um colega, ou o e-mail do Outlook não é o do Jira): a linha existe, desmarcada
+      +(euAcc&&!conv.internos.some(p=>p.eu)&&!futura?`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(id.nome||id.email||'você')}" data-agm-eu="1" ${(!primeira&&noDom.has(euAcc)&&marcados.has(euAcc))?'checked':''}> ${esc(id.nome||id.email||'você')} <span class="muted small">(você — não está no convite; marque para apontar as suas horas também)</span></label>`:'');
     const extras=(m.extras||[]).map(x=>`<div class="agm-extra-row"><label class="check"><input type="checkbox" data-agm-p="${escA(x.acc)}" data-agm-nome="${escA(x.nome)}" data-agm-extra="1" ${chkDe(x.acc)?'checked':''}> ${esc(x.nome)} <span class="badge" data-tip="Não está no convite do Outlook — adicionado à mão neste modal; recebe o convite de apontamento como os demais">➕ fora do convite</span></label><button type="button" class="agm-extra-rm" data-agm-extra-rm="${escA(x.acc)}" data-tip="Tirar da lista" aria-label="Tirar ${escA(x.nome)} da lista">✕</button></div>`).join('');
-    pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno além de você.</span>')+extras
+    pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno.</span>')+extras
       +(conv.externos?`<div class="muted small" style="margin-top:6px">👤 ${conv.externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
     m.prechecked=true;
     extraHtml=`<div class="agm-extra">
@@ -421,7 +462,7 @@ function agAtualizaModal(){
       <label class="check"><input type="radio" name="agm-dur" value="manual" ${durModo==='manual'?'checked':''}> ✎ manual <input type="text" id="agm-dur-manual" value="${escA(m.manualTxt||'')}" placeholder="ex.: 1h30" maxlength="8" style="width:84px;margin-left:4px" ${durModo==='manual'?'':'disabled'} aria-label="Horas do convite (manual)"></label>
     </div>
     ${m.realNota?`<div class="muted small" style="margin:-2px 0 6px">${esc(m.realNota)}</div>`:''}
-    <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Convidar para apontar <span class="muted" style="font-weight:400">· cada um confirma com 1 clique (Inbox/Apontar) e o worklog de <b id="agm-dur-ef">${esc(hFmt)}</b> sai no usuário da pessoa</span></div>
+    <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Quem aponta <span class="muted" style="font-weight:400">· você aponta na hora; cada convidado confirma com 1 clique (Inbox/Apontar) — o worklog de <b id="agm-dur-ef">${esc(hFmt)}</b> sai no usuário de cada um</span></div>
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
     ${extraHtml}
     <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
@@ -446,11 +487,20 @@ async function agConfirma(){
   const pessoas=[...document.querySelectorAll('[data-agm-p]:checked')].map(x=>({ accountId:x.getAttribute('data-agm-p'), nome:x.getAttribute('data-agm-nome')||'' }));
   // ➕ quem não estava no convite do Outlook — vai no mesmo lote; fica no 🗒 histórico de ações (quem incluiu quem).
   const extras=[...document.querySelectorAll('[data-agm-p][data-agm-extra]:checked')].map(x=>x.getAttribute('data-agm-nome')||'');
+  // 🙋 você marcado (JI-153): o seu worklog sai no MESMO lote (o servidor aponta quem tem o accountId do token) —
+  // por isso a trava do planejamento (porta única, 04) vem ANTES de qualquer escrita, inclusive de criar o ticket.
+  const eu=!!(id.accountId&&pessoas.some(p=>p.accountId===id.accountId));
+  const futura=dia>hojeSP();
   try{
     // ⏱ As horas do convite são conferidas ANTES de criar/vincular: um ticket criado com o convite
     // recusado deixaria a reunião pela metade.
     const seg=pessoas.length?agSegConvite(ev,m):null;
     if(pessoas.length&&!seg) throw new Error(m.durModo==='manual'?'Informe as horas do convite no campo ✎ manual (ex.: 1h30, 45m).':'A duração real do Teams não está disponível — escolha 📅 estimada ou ✎ manual.');
+    if(eu&&futura) throw new Error('A reunião ainda não aconteceu — desmarque você: as suas horas você aponta depois (⏱ Apontar ou 📆 Hoje).');
+    if(eu&&!(await planGate(dia))){   // 🚧 dia sem planejamento: avisa ou bloqueia — nada foi criado ainda
+      if(fb){ fb.className='ap-fb'; fb.textContent='Nada foi criado. Para criar o ticket e enviar os convites sem apontar as suas horas agora, desmarque você na lista.'; }
+      return; }
+    if(_agM!==m||!agAgModalAberto()) return;   // a pessoa fechou o 📝 enquanto a trava estava na tela
     let key=m.fixo;
     if(!key){
       const modo=((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'criar';
@@ -472,17 +522,32 @@ async function agConfirma(){
       }
       agMarcaTicket(ev.id, key);
     }
-    let convidados=0;
+    let convidados=0, meu=null, avisos=[], gravar=false;   // gravar = houve logAcao(…,false) → UMA salvaCfg() no fim
     if(pessoas.length){
       const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ convidar:true, issue:key, segundos:seg, inicio:dia,
           comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
       const jv=await rv.json(); if(!jv||jv.ok===false) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');
-      convidados=pessoas.length;
+      convidados=pessoas.length-(eu?1:0);
+      if(eu){
+        meu=jv.proprio||null;
+        if(meu&&meu.ok){
+          // o mesmo pós-apontamento das outras portas: total do dia, 🕑 recentes e 🗒 Histórico (formato do ⏱ Apontar)
+          try{ registraExtraDia(dia, seg, key); atualizaPainelHoras(); }catch(e){}
+          estado.apontar.porData={}; estado.apontar.recentes=null;
+          logAcao({ acao:'apontar', t:key, para:`${fmtH(seg)} em ${dia}`, motivo:`📅 ${String(ev.titulo||'').slice(0,100)}`, ok:true }, false); gravar=true;
+        } else avisos.push(`⚠ O seu apontamento não saiu${meu&&meu.erro?` (${meu.erro})`:''} — lance pelo ⏱ Apontar.`);
+      }
       // No formato que o 🗒 Histórico mostra: t = ticket (vira link), para = quem entrou fora do convite, motivo = a reunião.
-      if(extras.length) logAcao({acao:'agenda-convidar-extra', t:key, para:extras.join(', ').slice(0,200), motivo:`fora do convite: ${String(ev.titulo||'').slice(0,100)}`, n:extras.length, ok:true});
+      if(extras.length){ logAcao({acao:'agenda-convidar-extra', t:key, para:extras.join(', ').slice(0,200), motivo:`fora do convite: ${String(ev.titulo||'').slice(0,100)}`, n:extras.length, ok:true}, false); gravar=true; }
     }
-    toast(`✓ ${key}${convidados?` · ${convidados} convite(s) de apontamento enviados${extras.length?` (${extras.length} fora do convite)`:''}`:''}`,'ok');
+    // ✅ reunião realizada → o ticket sai de "📆 Reunião Agendada" (só nesse status; nunca em reunião futura).
+    let concl=null;
+    if(!futura){ concl=await agConcluiReuniao(key, id); if(concl.feito) gravar=true;
+      else if(concl.motivo==='erro'||concl.motivo==='sem-transicao') avisos.push(`⚠ Não consegui concluir o ticket${concl.erro?` (${concl.erro})`:' (o fluxo não tem a transição)'} — mude o status no Jira.`); }
+    if(gravar) salvaCfg();
+    toast(`✓ ${key}${meu&&meu.ok?` · ${fmtH(seg)} apontadas no seu usuário`:''}${convidados?` · ${convidados} convite(s) de apontamento enviados${extras.length?` (${extras.length} fora do convite)`:''}`:''}${concl&&concl.feito?` · status ${concl.para}`:''}`,'ok');
+    avisos.forEach(a=>toast(a,'warn'));
     _agM=null; fechaModal();
     // o 📝 pode ter sido aberto pelo 📆 Hoje (24b) ou pela Início: redesenha a tela que está aberta — nunca troca pela Agenda
     if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes(); else renderAgenda();
