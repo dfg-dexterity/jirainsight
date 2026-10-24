@@ -255,6 +255,16 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `apontar-dia-test.mjs` (Playwright, 32 casos, um por achado; fixture `MEUS_WL` relativo a hoje + `/api/vencimentos` no
   `servidor-mini.mjs` — o `/api/tempo` com `desde&ate` devolve também o que a rodada apontou e imita a queda nos "7 dias"
   acima de 400 dias). Fica no roadmap: a hora do apontamento na própria linha.
+  **🏠 Início lê a mesma janela (2026-10-24, a pedido do usuário: "0m de 8h" na Início com 2h35 no Timesheet):** o card
+  ⏱ Suas horas de hoje somava `minhasHorasPorDia()[hoje]` com `estado.tempo` como única exigência — o PERÍODO do topo
+  (escondido na Início, `VCHROME.acoes={}`), que pode não incluir hoje e cujo `estado.cache[periodo]` vive a sessão inteira
+  (a aba do celular fica aberta o dia todo). Agora: `cobreHoje = apMeusLogsCobre(hoje) || apTempoCobre(hoje)` decide se há
+  número; `axGaranteMeusLogs(hoje)` (08) chama `apGaranteMeusLogs` quando a janela não cobre hoje ou está suja/escreveu,
+  UMA leitura em voo e redesenho só se a "foto" (cobertura | horas | erro) mudou — sem laço; `carrega()` marca
+  `meusLogsSujo`, então o ↻ relê a janela com `nocache=1` (horas lançadas direto no Jira/Clockwork aparecem no ↻); falha
+  da leitura → card "não consegui ler… use o ↻" (`meusLogsErro`), nunca "Carregando…" para sempre. Teste:
+  `inicio-horas-test.mjs` (Playwright, 13 casos: período sem hoje, ↻ sem cache, período "ontem", sem laço, falha, celular).
+  Cuidado: a Início faz OUTRAS leituras `/api/tempo?desde&ate` (fechamento do mês, radar) — a janela é a que começa em hoje−13.
 - **🚧 Trava do planejamento ao apontar + indicadores do planejamento na Início (2026-10-20, a pedido do usuário:
   "bloquear lançamento em dia que não foi planejado no planejamento semanal, ou deixar só como aviso, bem explícito;
   e o painel de entrada com projetos da semana pelo planejamento, tickets sem data, ticket aguardando minha
