@@ -373,6 +373,15 @@ function agendaRenderAcoes(){
   if(_axRaf) return;
   _axRaf=requestAnimationFrame(()=>{ _axRaf=0; if(estado.vista==='acoes') try{ renderAcoes(); }catch(e){} });
 }
+// Lê a janela das MINHAS horas (apGaranteMeusLogs, 13) para a Início sem laço (lição do 📆 Hoje: `.then(render)` numa
+// promessa já resolvida travou a página): uma leitura em voo por vez, e só redesenha quando o que o card mostra MUDOU
+// (cobertura de hoje, horas de hoje ou o estado de erro). A falha da leitura não insiste (o 13 segura 30 s).
+function axGaranteMeusLogs(hoje){
+  const ax=estado.acoes; if(ax.logsP) return;
+  const foto=()=>`${apMeusLogsCobre(hoje)?1:0}|${minhasHorasPorDia()[hoje]||0}|${estado.apontar.meusLogsErro?1:0}`;
+  const antes=foto(); ax.logsP=true;
+  apGaranteMeusLogs(hoje).then(()=>{ ax.logsP=false; if(estado.vista==='acoes'&&foto()!==antes) renderAcoes(); }).catch(()=>{ ax.logsP=false; });
+}
 function renderAcoes(){
   const cont=document.getElementById('conteudo');
   const ax=estado.acoes; const hoje=hojeSP();
@@ -497,13 +506,20 @@ function renderAcoes(){
     const hSP=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date()));
     const sauda=hSP<12?'Bom dia':hSP<18?'Boa tarde':'Boa noite';
     const dataExt=new Intl.DateTimeFormat('pt-BR',{dateStyle:'full',timeZone:'America/Sao_Paulo'}).format(new Date());
-    // ⏱ suas horas de hoje × meta
+    // ⏱ suas horas de hoje × meta — pela JANELA própria do Apontar (meusLogs, 13), não pelo período do topo (2026-10-24,
+    // a pedido do usuário: "0m de 8h" na Início com 2h35 no Timesheet). O período fica escondido nesta tela e pode nem
+    // incluir hoje, e o estado.tempo da sessão pode ter horas de idade; a janela sempre cobre hoje e é relida SEM o cache
+    // do servidor depois de cada carrega() (meusLogsSujo) e de cada apontamento desta sessão (meusLogsEscreveu).
     const metaSeg=metaSegDe(acc)||8*3600;
-    const meuSeg=estado.tempo?(minhasHorasPorDia()[hoje]||0):null;
+    const apx=estado.apontar; const cobreHoje=apMeusLogsCobre(hoje)||apTempoCobre(hoje);
+    const meuSeg=cobreHoje?(minhasHorasPorDia()[hoje]||0):null;
+    if(!apMeusLogsCobre(hoje)||apx.meusLogsSujo||apx.meusLogsEscreveu) axGaranteMeusLogs(hoje);
+    const logsFalhou=!!(apx.meusLogsErro&&!apx.meusLogsP);
     // 📆 Seu dia (24b, 2026-10-21): o plano do dia — os 3 do foco com ✓ na hora, feitos/apontado, Planejar/Fechar o dia
     const cHoje=(typeof hjCardInicio==='function')?hjCardInicio(hoje):'';
     let cHoras;
-    if(meuSeg==null) cHoras=pcard('load','⏱','Suas horas de hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>','apontar','Apontar horas →');
+    if(meuSeg==null&&logsFalhou) cHoras=pcard('aten','⏱','Suas horas de hoje','<div class="ax-num muted">—</div><div class="ax-det">não consegui ler as suas horas de hoje no Clockwork — use o ↻ para tentar de novo</div>','apontar','Apontar horas →');
+    else if(meuSeg==null) cHoras=pcard('load','⏱','Suas horas de hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>','apontar','Apontar horas →');
     else{ const falta=Math.max(0,metaSeg-meuSeg); const pc=Math.min(100,Math.round(meuSeg/metaSeg*100));
       const cls=meuSeg>=metaSeg?'ok':(pc>=50?'aten':'crit');
       cHoras=`<div class="ax-card ${cls}"><div class="ax-top"><span>⏱</span> Suas horas de hoje</div>

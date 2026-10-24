@@ -502,7 +502,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-10-23';
+const GUIAS_REV='2026-10-24';
 const GUIAS={
   hoje:{t:'📆 Hoje — Meu dia',p:[
     {s:'#conteudo .hj-nav',ti:'O dia aberto',tx:'‹ › andam um dia; "hoje" volta. O selo diz se o dia está planejado (🌅) ou fechado (🌙). Dá para abrir ontem para rever, ou amanhã para já deixar pronto.'},
@@ -521,6 +521,7 @@ const GUIAS={
     {s:'#conteudo [data-hj-time-retry]',ti:'↻ Atualizar',tx:'Relê o dia do time e as horas do dia no Clockwork.',quando:'Aparece para gestores.'}]},
   acoes:{t:'🏠 Início — Ações de hoje',p:[
     {c:'👋',ti:'Seu dia num relance',tx:'O topo é SEU: 📆 o plano do dia (os 3 do foco com ✓ na hora, feitos e apontado; Planejar/Fechar o dia), horas de hoje × meta, seus tickets vencidos, o plano da semana, reuniões sem ticket e o Inbox. Cada número é clicável e leva à tela que resolve aquilo — já filtrada no que o card contou.'},
+    {ti:'⏱ Suas horas de hoje × meta',tx:'As horas que você já apontou hoje, na MESMA base do ⏱ Apontar e do Timesheet (não dependem do período escolhido no topo). O que você aponta pelo painel entra na hora; o que foi lançado direto no Jira ou no Clockwork aparece no próximo ↻ Atualizar. Se a leitura falhar, o card diz isso.',quando:'Aparece no bloco "seu dia", quando você está identificado.'},
     {s:'#conteudo .hj-card-inicio',ti:'📆 Seu dia',tx:'O plano de hoje: sem plano, o botão abre o 🌅 Planejar o dia; com plano, os 3 itens do foco com ✓ ali mesmo, feitos/total e o apontado; depois das 17h, 🌙 Fechar o dia.',quando:'Aparece no bloco "seu dia", quando você está identificado.'},
     {s:'#conteudo [data-hx-goto="apontar-vencidos"]',ti:'⚠ Meus tickets vencidos',tx:'O número é o seu (só os tickets em que você é o responsável) e o botão abre o ⏱ Apontar com a MESMA base: só os seus, vencidos, filtros de projeto/categoria/busca limpos e a lista relida — a lista mostra exatamente o que o card contou. O card é relido em segundo plano depois de qualquer ação, a cada 5 min e na virada do dia.',quando:'Aparece no bloco "seu dia", quando você está identificado.'},
     {s:'#conteudo [data-hx-goto="minhasemana-projetos"]',ti:'🗂 Projetos da semana',tx:'Os projetos do SEU planejamento semanal (📋 Meu Planejamento), com as horas planejadas e as já feitas em cada um — a resposta a "em que estou trabalhando esta semana". Sem plano, o card pede para planejar; com a 🚧 trava do planejamento ligada pelos gestores, ele avisa que o apontar vai avisar ou bloquear até você enviar o plano.',quando:'Aparece no bloco "seu dia", quando você está identificado.'},

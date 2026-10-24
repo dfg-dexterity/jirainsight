@@ -824,7 +824,11 @@ traz um worklog **novo** com o mesmo dia + ticket + segundos (um igual que já e
 engole). A releitura depois de gravar ou do ↻ vai sem o cache do servidor (`nocache=1`); o
 pedido é limitado a 400 dias e a janela guarda o intervalo que o servidor devolveu; trocar
 de usuário descarta a janela. Se o Clockwork não responder, a mensagem diz que o total não
-foi conferido.
+foi conferido. **A 🏠 Início lê a mesma janela (2026-10-24):** o card ⏱ Suas horas de hoje
+somava o período do topo (escondido na Início e podendo nem incluir hoje) e mostrava 0m com
+2h35 no Timesheet; agora `axGaranteMeusLogs(hoje)` (08) garante a janela, o ↻ Atualizar a relê
+sem cache (`carrega()` marca `meusLogsSujo`) e a falha da leitura vira "não consegui ler" no
+próprio card. Teste: `inicio-horas-test.mjs` (13 casos).
 
 ### 🚧 Trava do planejamento ao apontar (2026-10-20)
 
