@@ -20,7 +20,7 @@ const RE_EXCLUIR = /automation for jira|biggantt|gantt chart for jira|microsoft 
 // mudar, troque aqui. (Usa o que vier do servidor em meta.jiraBase, se existir.)
 const JIRA_BASE_PADRAO = 'https://dexterityit.atlassian.net';
 const jiraBase = () => ((estado.atividade&&estado.atividade.meta&&estado.atividade.meta.jiraBase) || JIRA_BASE_PADRAO).replace(/\/+$/,'');
-const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuarios:{}, avisoAtiv:'', tkGroup:'', cache:{},
+const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuarios:{}, usuariosInativos:{}, avisoAtiv:'', tkGroup:'', cache:{},
   // 🎯 Prioridades do time: base da reunião (?reuniao=1), vencidos até hoje,
   // log de decisões, diff de atividade e o estado do Modo reunião.
   prioridades:{ dados:null, carregando:false, erro:'', venc:null, vencB:false, decs:null, decsB:false,
@@ -154,7 +154,7 @@ function cfgDefaults(){ return { metaGlobalH:8, metasPessoa:{}, ausencias:[], fe
   vigencias:{},                       // 🪪 {accountId:{ini,fim}} — admissão/desligamento (relatórios respeitam)
   agendaAuto:{},                      // 🔁 {serie:{projeto,titulo,por,quando}} — reunião recorrente vira ticket sozinha
   agendaIgnorar:{},                   // 🚫 {'s:serie'|'e:evento':{titulo,serie,por,quando}} — reunião que NÃO precisa de ticket
-  scoreHist:{}, scoreInicio:'',       // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer
+  scoreHist:{}, scoreInicio:'', scoreNomes:{},   // 🏅 Scoreboard: fotos diárias + data em que o placar começa a valer + nome de quem foi fotografado (quem sai do Jira continua com nome)
   teamsResumo:{ ativo:false, freq:'semanal', dia:5, hora:'17:00' },
   relSemanal:{ ativo:false, dia:5, hora:'16:00', parado:5 },   // 📊 Relatório semanal de sexta: dia/hora da foto + "parado" = N dias sem atualização
   // 🎯 Prioridades do time — configuração do painel/reunião semanal.
@@ -487,7 +487,7 @@ function prefetchDados(periodo){ _prefetch={ periodo, p: buscaDados(periodo, fal
 // voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
 async function carrega(periodo, forca){
   if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
-    estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
+    estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.usuariosInativos=c.inativos||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
   let pend=null;
   if(!forca && _prefetch && _prefetch.periodo===periodo) pend=_prefetch.p;   // aproveita o que o boot já pediu
   _prefetch=null;
@@ -499,11 +499,13 @@ async function carrega(periodo, forca){
     a = { meta:{ ...(t.meta||{}), concluidasPorProjeto:{}, concluidasTotal:0 }, pessoas:{}, projetos:{}, resumos:{}, eventos:[] };
   }
   const usuarios = (u && u.pessoas && typeof u.pessoas==='object') ? u.pessoas : {};
+  // quem saiu do Jira (2026-10-24): só para dar NOME ao que ficou guardado pelo accountId (🏅 Scoreboard) — nunca entra no elenco
+  const inativos = (u && u.inativos && typeof u.inativos==='object') ? u.inativos : {};
   const ocultos=new Set((cfg.ocultos||[]).map(o=>o.a));
   Object.keys(usuarios).forEach(id=>{ if(RE_EXCLUIR.test((usuarios[id]&&usuarios[id].nome)||'') || ocultos.has(id)) delete usuarios[id]; });
   removeUsuariosTecnicos(t, a);
   aplicaVigenciaUsuarios(usuarios, t, a);
-  estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.avisoAtiv=aviso;
+  estado.tempo=t; estado.atividade=a; estado.usuarios=usuarios; estado.usuariosInativos=inativos; estado.avisoAtiv=aviso;
   // Dados frescos do Clockwork já incluem o que foi apontado nos dias que o período cobre: o acumulador otimista desses
   // dias sai. Dentro da janela própria do ⏱ Apontar (meusLogs) ele FICA — a releitura dela (sem cache, marcada aqui)
   // é quem reconcilia, senão um apontamento recém-feito sumiria até o Clockwork responder de novo.
@@ -513,7 +515,7 @@ async function carrega(periodo, forca){
     ap.extraLogs=(ap.extraLogs||[]).filter(x=>cobre(x.d)||!noPeriodo(x.d));
     const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
     ap.meusLogsSujo=true; ap.recentes=null; }
-  estado.cache[periodo]={tempo:t,atividade:a,usuarios,avisoAtiv:aviso};
+  estado.cache[periodo]={tempo:t,atividade:a,usuarios,inativos,avisoAtiv:aviso};
 }
 
 // Remove apps/bots do Jira (Automation, BigGantt…) dos dados antes de usar,
@@ -572,6 +574,16 @@ function projetosUnidos(){
 function pessoasUnidas(){
   return Object.assign({}, estado.usuarios||{}, (estado.atividade&&estado.atividade.pessoas)||{}, (estado.tempo&&estado.tempo.pessoas)||{});
 }
+// Nome de QUALQUER accountId guardado pelo painel (2026-10-24, a pedido do usuário: o 🏅 Scoreboard mostrava
+// "712020:…" para quem saiu do time): elenco atual → inativos do Jira (/api/usuarios) → nomes que o painel
+// guardou ao fotografar (cfg.scoreNomes) → o próprio id. `pessoaForaDoTime(a)` = não está no elenco atual.
+function nomePessoaDe(a){
+  const p=pessoasUnidas()[a]; if(p&&p.nome) return p.nome;
+  const i=(estado.usuariosInativos||{})[a]; if(i&&i.nome) return i.nome;
+  const g=(cfg.scoreNomes||{})[a]; if(g) return g;
+  return a;
+}
+function pessoaForaDoTime(a){ return !pessoasUnidas()[a]; }
 // Títulos (summary) das issues, vindos do Jira (atividade) e do Clockwork (tempo).
 function resumosUnidos(){
   return Object.assign({}, (estado.atividade&&estado.atividade.resumos)||{}, (estado.tempo&&estado.tempo.resumos)||{});

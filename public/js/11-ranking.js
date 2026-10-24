@@ -457,6 +457,7 @@ function rkScoreCongela(){
     t.worklogs.forEach(w=>{ const d2=(w.d||'').slice(0,10);
       const m2=porDia[d2]=porDia[d2]||{}; m2[w.a]=(m2[w.a]||0)+(Number(w.s)||0); });
     let mudou=false;
+    const nomesAtuais=pessoasUnidas();
     for(let d2=(de>minDia?de:minDia); d2<=ate&&d2<hoje; d2=somaDias(d2,1)){
       if(!ehUtil(d2)||ehFeriado(d2)) continue;
       if(cfg.scoreHist[d2]) continue;                // a foto de um dia congelado não muda
@@ -465,11 +466,16 @@ function rkScoreCongela(){
         const m=metaSegDe(a);
         if(!(m>0)) return;                           // meta 0 = pessoa isenta: fora do placar
         const h=(porDia[d2]||{})[a]||0;
-        dia[a]={p:Math.min(100,Math.round(h/m*100)), h:Math.round(h/60), m:Math.round(m/60)}; });
+        dia[a]={p:Math.min(100,Math.round(h/m*100)), h:Math.round(h/60), m:Math.round(m/60)};
+        // o NOME vai junto com a foto (cfg.scoreNomes): quem sair do Jira continua com nome no placar dos 120 dias
+        const nm=nomesAtuais[a]&&nomesAtuais[a].nome; if(nm){ cfg.scoreNomes=cfg.scoreNomes||{}; if(cfg.scoreNomes[a]!==nm) cfg.scoreNomes[a]=nm; } });
       cfg.scoreHist[d2]=dia; mudou=true;
     }
     const ks=Object.keys(cfg.scoreHist).sort();
     while(ks.length>120){ delete cfg.scoreHist[ks.shift()]; mudou=true; }
+    // higiene: nome guardado de quem não está em NENHUMA foto que sobrou sai junto
+    if(mudou&&cfg.scoreNomes){ const vivos=new Set(); Object.values(cfg.scoreHist).forEach(d=>Object.keys(d).forEach(a=>vivos.add(a)));
+      Object.keys(cfg.scoreNomes).forEach(a=>{ if(!vivos.has(a)) delete cfg.scoreNomes[a]; }); }
     if(mudou) salvaCfg();
   }catch(e){}
 }
@@ -492,7 +498,6 @@ function rkScoreboardHTML(){
   if(!dias.length) return `<div class="card full">${cab}${chips}
     <div class="estado">Ainda sem dias congelados${iniSc?` a partir de ${fmtBR(iniSc)}`:''} — a partir de agora, cada dia útil é fotografado no dia seguinte e fica guardado aqui (o placar começa a valer amanhã).</div></div>`;
   const oc=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o));
-  const nomes=pessoasUnidas();
   const pess={};
   dias.forEach(d2=>{ Object.keys(sh[d2]).forEach(a=>{ if(a!=='_q'&&!oc.has(a)) pess[a]=1; }); });
   // Colunas por granularidade: dia (últimos 10) · semana (média, últimas 12) · mês (média, últimos 12).
@@ -523,11 +528,13 @@ function rkScoreboardHTML(){
     const med=vals.length?Math.round(vals.reduce((s2,v)=>s2+v,0)/vals.length):null;
     let streak=0;
     for(let i=cels.length-1;i>=0;i--){ const c=cels[i]; if(c==null) continue; if(c.p>=90) streak++; else break; }
-    return { a, nome:(nomes[a]&&nomes[a].nome)||a, cels, med, streak };
-  }).filter(l=>l.med!=null).sort((x,y)=>y.med-x.med||y.streak-x.streak);
+    // 2026-10-24: quem saiu do time (não está mais no elenco do Jira) fica com o nome que o Jira/painel guardou, o
+    // selo "saiu do time" e vai para o FIM — as medalhas são de quem está jogando. Antes aparecia o accountId cru.
+    return { a, nome:nomePessoaDe(a), fora:pessoaForaDoTime(a), cels, med, streak };
+  }).filter(l=>l.med!=null).sort((x,y)=>(x.fora?1:0)-(y.fora?1:0)||y.med-x.med||y.streak-x.streak);
   const rotSeq=gran==='dia'?'dias':(gran==='sem'?'semanas':'meses');
-  const rows=linhas.map((l,i)=>`<tr>
-    <td>${i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':''}${esc(l.nome)}</td>
+  const rows=linhas.map((l,i)=>`<tr${l.fora?' class="sc-fora"':''}>
+    <td>${(!l.fora&&i===0)?'🥇 ':(!l.fora&&i===1)?'🥈 ':(!l.fora&&i===2)?'🥉 ':''}${esc(l.nome)}${l.fora?' <span class="badge sc-fora-selo" data-tip="Não está mais entre os usuários ativos do Jira — as fotos dos dias em que estava no time continuam no placar">saiu do time</span>':''}</td>
     ${l.cels.map((c,j)=>`<td>${c==null
       ?'<span class="sc-cell sc-na" data-tip="Ausência, feriado, meta isenta ou período sem foto">—</span>'
       :`<span class="sc-cell ${cor(c.p)}" data-tip="${escA(cols[j].rot+' · '+c.p+' ponto(s)'+(c.n>1?' (média de '+c.n+' dias)':'')+' · '+(Math.round(c.h/6)/10)+'h apontadas de '+(Math.round(c.m/6)/10)+'h de meta')}">${c.p}</span>`}</td>`).join('')}

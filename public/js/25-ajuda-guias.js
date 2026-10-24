@@ -678,6 +678,7 @@ const GUIAS={
     {s:'#conteudo .ap-vis,#conteudo .rc-tab',ti:'Semana · mês · ano',tx:'O cumprimento de apontamento no tempo: 📅 esta semana, 🗓 este mês e 📆 este ano.'},
     {s:'#conteudo .rk-list',ti:'A régua é a meta',tx:'Cada pessoa aparece com o % da meta batida no recorte — não é quem apontou mais horas, é quem fechou o combinado.',quando:'Aparece quando houver apontamentos no recorte escolhido.'},
     {s:'#conteudo .rk-medal',ti:'🏆 Pódio, ⭐ estrelinhas e 🔥 sequências',tx:'Fechou a semana na meta, ganhou uma estrelinha; semanas seguidas viram sequência. O pódio destaca os três primeiros.',quando:'Aparece quando alguém já tiver batido meta no recorte.'},
+    {s:'#conteudo .sc-tab',ti:'🏅 Scoreboard — a foto de cada dia',tx:'Cada dia útil é fotografado NO DIA SEGUINTE (apontar atrasado não muda o placar): pontos = horas ÷ meta × 100, por dia, semana ou mês; os gestores definem o início do placar. Quem saiu do time aparece no fim, com o selo "saiu do time" — as fotos dos dias em que estava ficam, mas as medalhas são de quem está jogando.',quando:'Aparece quando já houver dias fotografados.'},
     {ti:'Engajamento',tx:'A outra aba mede o uso do Jira (comentários, transições, criações) — atividade, não horas.',quando:'Aparece na aba Engajamento desta tela.'}]},
   tickets:{t:'Tickets',p:[
     {s:'#tk-group',ti:'Agrupar do seu jeito',tx:'Os tickets do período agrupados por projeto, tipo, categoria ou pessoa.'},

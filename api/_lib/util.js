@@ -292,16 +292,17 @@ export async function jiraResolveIssues(ids, extras) {
 // for Jira", "Automation for Jira") e clientes do JSM (accountType "customer").
 // Serve de "elenco" para o ranking/timesheet: quem está ativo no Jira aparece mesmo
 // sem ter apontado horas no período (assim ninguém some por não ter lançado nada).
-export async function jiraUsuariosAtivos() {
-  // Cache de 30 min por instância: convites, bot do Teams, criação por IA e /api/usuarios
-  // repaginavam /users/search a cada chamada.
-  const ckU = 'jira:usuariosAtivos';
+// Pessoas do Jira em DUAS listas: `ativos` (o elenco do time) e `inativos` (quem saiu — só nome e e-mail, para o
+// painel dar nome ao que ficou guardado com o accountId: 🏅 Scoreboard, histórico). Cache de 30 min por instância:
+// convites, bot do Teams, criação por IA e /api/usuarios repaginavam /users/search a cada chamada.
+export async function jiraUsuariosTodos() {
+  const ckU = 'jira:usuariosTodos';
   const copia = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, { ...v }]));   // quem chama pode mexer no resultado
   const hit = cacheGet(ckU);
-  if (hit) return copia(hit);
+  if (hit) return { ativos: copia(hit.ativos), inativos: copia(hit.inativos) };
   const base = jiraBase();
   const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
-  const out = {};
+  const ativos = {}; const inativos = {};
   const max = 100;
   for (let startAt = 0, page = 0; page < 30; page += 1, startAt += max) {
     const resp = await fetch(`${base}/rest/api/3/users/search?startAt=${startAt}&maxResults=${max}`, { headers });
@@ -313,13 +314,16 @@ export async function jiraUsuariosAtivos() {
     if (!Array.isArray(lote) || lote.length === 0) break;
     for (const u of lote) {
       if (u.accountType !== 'atlassian') continue;     // só pessoas (exclui app/customer)
-      if (u.active === false) continue;                // só ativos
-      out[u.accountId] = { nome: u.displayName || u.accountId, email: u.emailAddress || '' };
+      (u.active === false ? inativos : ativos)[u.accountId] = { nome: u.displayName || u.accountId, email: u.emailAddress || '' };
     }
     if (lote.length < max) break;
   }
-  if (Object.keys(out).length) cacheSetTTL(ckU, out, 30);
-  return copia(out);
+  if (Object.keys(ativos).length) cacheSetTTL(ckU, { ativos, inativos }, 30);
+  return { ativos: copia(ativos), inativos: copia(inativos) };
+}
+// Só os ativos (contrato antigo — convites, Teams, criação por IA).
+export async function jiraUsuariosAtivos() {
+  return (await jiraUsuariosTodos()).ativos;
 }
 
 // Heurística de faturável a partir do tipo de issue. Considera tanto o NOME do tipo

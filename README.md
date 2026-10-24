@@ -569,6 +569,15 @@ CSS e **respeita `prefers-reduced-motion`** (sem animação para quem pediu meno
 > O filtro global **"Ocultar rotinas e reuniões automáticas"** foi **removido** (não fazia
 > sentido manter): as horas de rotinas/reuniões agora entram normalmente nas visões.
 
+**🏅 Scoreboard e quem saiu do time (2026-10-24):** o placar guarda 120 dias de fotos por
+accountId (`cfg.scoreHist`); quando uma pessoa deixa de ser usuária ativa do Jira ela some do
+elenco (`pessoasUnidas`) e a linha mostrava "712020:…". Agora `/api/usuarios` devolve também
+`inativos` (`jiraUsuariosTodos` em `api/_lib/util.js`; `estado.usuariosInativos`), cada foto
+guarda o nome em `cfg.scoreNomes` (higienizado junto com as fotos) e `nomePessoaDe(a)` resolve
+elenco → inativos → nome guardado → id. No placar, `pessoaForaDoTime(a)` manda a pessoa para o
+fim com o selo "saiu do time" (`.sc-fora`), sem medalha. Teste: `scoreboard-nomes-test.mjs`
+(12 casos).
+
 ### ⚙️ Administração — Contratos & Valores
 
 Aba **Admin**: cadastro de **clientes/contratos** que destrava AMS e Receita.
