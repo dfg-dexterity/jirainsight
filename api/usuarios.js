@@ -1,4 +1,4 @@
-// GET /api/usuarios            -> { pessoas: { accountId: {nome,email} } }
+// GET /api/usuarios            -> { pessoas: { accountId: {nome,email} }, inativos: { accountId: {nome,email} } }
 // GET /api/usuarios?custos=1   -> { configurado, campo, custos:[{nome,email,custo}] }
 //                                 custo/h dos funcionários vindo do Odoo (hr.employee).
 // Lista os usuários humanos e ativos do Jira (o "elenco" do time). Usado para que o
@@ -9,7 +9,7 @@
 // Envs: ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_API_KEY e, opcional, ODOO_CAMPO_CUSTO
 // (padrão: hourly_cost do hr.employee). O front casa por e-mail/nome e grava o
 // custo na config compartilhada (cfg.custosPessoa) — o Odoo não é consultado a cada tela.
-import { cacheGet, cacheSet, cacheSetTTL, json, jiraUsuariosAtivos } from './_lib/util.js';
+import { cacheGet, cacheSet, cacheSetTTL, json, jiraUsuariosTodos } from './_lib/util.js';
 
 async function custosOdoo(res) {
   const url = (process.env.ODOO_URL || '').replace(/\/+$/, '');
@@ -47,11 +47,13 @@ async function custosOdoo(res) {
 export default async function handler(req, res) {
   try {
     if (req.query && req.query.custos) return await custosOdoo(res);
-    const ck = 'usuarios:ativos';
+    const ck = 'usuarios:v2';
     const cached = cacheGet(ck);
     if (cached) return json(res, 200, cached);
-    const pessoas = await jiraUsuariosAtivos();
-    return json(res, 200, cacheSet(ck, { pessoas, total: Object.keys(pessoas).length }));
+    // `inativos` (2026-10-24): quem saiu do Jira continua existindo no que o painel guardou pelo accountId (fotos do
+    // 🏅 Scoreboard, histórico) — sem esta lista a tela mostrava "712020:…" no lugar do nome.
+    const { ativos: pessoas, inativos } = await jiraUsuariosTodos();
+    return json(res, 200, cacheSet(ck, { pessoas, inativos, total: Object.keys(pessoas).length }));
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });
   }

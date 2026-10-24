@@ -2293,6 +2293,8 @@
   .sc-tab td,.sc-tab th{text-align:center;padding:4px 6px}
   .sc-tab td:first-child,.sc-tab th:first-child{text-align:left;white-space:nowrap}
   .sc-cell{display:inline-block;min-width:34px;padding:2px 4px;border-radius:6px;font-weight:700;font-size:12px}
+  .sc-tab tr.sc-fora td{opacity:.62}
+  .sc-tab .sc-fora-selo{margin-left:6px;font-size:10px;font-weight:600;opacity:1}
   .sc-100{background:rgba(24,137,24,.18);color:#188918}
   .sc-70{background:rgba(232,163,61,.2);color:#8A5200}
   .sc-1{background:rgba(231,101,0,.16);color:#B45309}

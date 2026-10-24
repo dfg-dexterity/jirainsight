@@ -356,6 +356,16 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   **verificação adversarial** (8 agentes, 230 afirmações, 39 corrigidas — 4 erradas, 35 imprecisas) pegou contagens
   feitas de cabeça ("só 3 chamam registraExtraDia" eram 8; "95 abreModal" eram 94; "📞 tem sobreposição própria" não
   tem) — número ou "não existe X" só entra no texto depois do grep.
+- **🏅 Scoreboard — nome de quem saiu do time (2026-10-24, a pedido do usuário: "isso aqui está errado", com
+  duas linhas "712020:…" no placar):** eram pessoas **inativas no Jira**; o placar guarda 120 dias por accountId e
+  `pessoasUnidas()` só conhece o elenco atual. Regras: `/api/usuarios` devolve também `inativos` (`jiraUsuariosTodos`
+  no util — `jiraUsuariosAtivos` virou atalho dela, contrato intacto; cache `usuarios:v2`); o cliente guarda
+  `estado.usuariosInativos` (também no `estado.cache[periodo]`) **só para dar nome**, nunca entra no elenco;
+  `rkScoreCongela` grava o nome junto com a foto em **`cfg.scoreNomes`** (higienizado com as fotos: nome sem foto sai);
+  **`nomePessoaDe(a)`** (01) é a régua: elenco → inativos → `scoreNomes` → id; `pessoaForaDoTime(a)` = fora do elenco →
+  no placar vai para o **fim**, com o selo "saiu do time" (`tr.sc-fora`) e sem medalha (as medalhas são de quem está
+  jogando). Tela nova que mostre accountId guardado = usar `nomePessoaDe`, nunca `pessoasUnidas()[a].nome||a`. Teste:
+  `scoreboard-nomes-test.mjs` (Playwright, 12 casos; fixture `/api/usuarios` com `inativos` no `servidor-mini.mjs`).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão
