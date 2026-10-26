@@ -11,6 +11,11 @@
 //   destino    → cria o ticket novo OU comenta o cabeçalho da transferência no existente
 //   comentarios / anexos / vinculos / filhos / historico / horas → copiam, em lotes, o que a tela pedir
 //   excluir    → apaga a origem — recusa se ela ainda tiver filhos (subtarefas/itens), que sumiriam junto
+// IDEMPOTÊNCIA (revisão de 2026-10-26): tudo o que é escrito no destino leva um MARCADOR com o id da origem
+// ("comentário copiado de K #123", "⏩ Transferido de K #456", "🕓 Histórico de K", "📦 Transferido de K", anexo de mesmo
+// nome e tamanho, remote link de mesma URL, propriedade tft.origem no ticket criado) e cada etapa LÊ o destino antes de
+// escrever — repetir uma etapa (timeout, aba recarregada, ↻) nunca duplica. O excluir relê a origem e recusa se apareceu
+// conteúdo novo desde o inventário ou se a conta de serviço enxerga comentários/apontamentos que a pessoa não enxerga.
 // As horas de OUTRAS pessoas não passam por aqui: a API do Jira só cria worklog no nome de quem tem o token,
 // então a tela manda um CONVITE (POST /api/apontar {convidar}) por pessoa e dia, e cada uma confirma com 1 clique.
 import { jiraBase, cacheClear, json } from './util.js';
@@ -22,8 +27,8 @@ export const TF_LIMITES = {
   worklogs: 1000,
   filhos: 100,
   anexoBytes: 25 * 1024 * 1024,
-  loteComentarios: 20, loteAnexos: 3, loteVinculos: 40, loteFilhos: 25, loteHoras: 50,
-  historico: 30000,          // caracteres do comentário do histórico
+  loteComentarios: 10, loteAnexos: 3, loteVinculos: 40, loteFilhos: 25, loteHoras: 10,
+  historico: 15000,          // caracteres do comentário do histórico (ADF de um parágrafo por linha pesa)
 };
 
 const auth = (email, token) => 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
@@ -112,7 +117,7 @@ async function lerWorklogs(base, headers, k) {
 async function lerFilhos(base, headers, k) {
   const r = await jira(base, headers, '/rest/api/3/search/jql', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jql: `parent = ${k} ORDER BY created ASC`, fields: ['summary', 'status', 'issuetype', 'project'], maxResults: TF_LIMITES.filhos }),
+    body: JSON.stringify({ jql: `parent = ${k} ORDER BY created ASC`, fields: ['summary', 'status', 'issuetype', 'project'], maxResults: TF_LIMITES.filhos + 1 }),
   });
   if (!r.ok) throw new Error(`Filhos de ${k}: ${erroJira(r)}`);
   return ((r.j && r.j.issues) || []).map((it) => {
@@ -120,6 +125,38 @@ async function lerFilhos(base, headers, k) {
     return { k: it.key, resumo: txt(f.summary, 200), status: (f.status && f.status.name) || '', tipo: t.name || '',
       nivel: t.subtask ? -1 : (Number.isFinite(t.hierarchyLevel) ? t.hierarchyLevel : 0), projeto: (f.project && f.project.key) || '' };
   });
+}
+async function lerRemotos(base, headers, k) {
+  const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(k)}/remotelink`);
+  return r.ok && Array.isArray(r.j) ? r.j : [];
+}
+// O que NÃO vai na transferência (a tela lista): prioridade/componentes/versões/campos personalizados preenchidos.
+function naoVaiDe(f) {
+  const out = [];
+  if (f.components && f.components.length) out.push(`componentes (${f.components.map((c) => c.name).join(', ')})`);
+  if (f.fixVersions && f.fixVersions.length) out.push(`versões (${f.fixVersions.map((c) => c.name).join(', ')})`);
+  if (f.timeoriginalestimate) out.push('estimativa original');
+  if (f.security) out.push('nível de segurança');
+  const cf = Object.entries(f).filter(([k, v]) => /^customfield_/.test(k) && v != null && !(Array.isArray(v) && !v.length) && v !== '').length;
+  if (cf) out.push(`${cf} campo(s) personalizado(s) preenchido(s) (ex.: campos AMS de causa raiz/produto/processo)`);
+  return out;
+}
+// Marcadores lidos do DESTINO para não escrever duas vezes.
+const escRx = (t) => String(t).replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+function idsMarcados(textos, rotulo, k) {
+  const rx = new RegExp(`${rotulo} ${escRx(k)} #(\\d+)`, 'g'); const set = new Set();
+  textos.forEach((t) => { let m; while ((m = rx.exec(t))) set.add(m[1]); });
+  return set;
+}
+async function marcasDoDestino(base, headers, k, d) {
+  const [coms, wls] = await Promise.all([lerComentarios(base, headers, d), lerWorklogs(base, headers, d)]);
+  const tc = coms.map((c) => adfParaTexto(c.body)); const tw = wls.map((w) => adfParaTexto(w.comment));
+  return {
+    com: idsMarcados(tc, 'comentário copiado de', k),
+    wl: idsMarcados(tw, 'Transferido de', k),
+    hist: tc.some((t) => t.includes(`🕓 Histórico de ${k} —`)),
+    cab: tc.some((t) => t.includes(`📦 Transferido de ${k} —`)),
+  };
 }
 async function lerChangelog(base, headers, k, it) {
   const cl = it.changelog || {};
@@ -184,11 +221,11 @@ async function ler(base, headers, b) {
   const k = String(b.origem || '').trim().toUpperCase();
   if (!RE_ISSUE.test(k)) return { status: 400, corpo: { erro: 'Ticket de origem inválido.' } };
   const me = await eu(base, headers);
-  const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(k)}?fields=summary,description,issuetype,project,status,parent,issuelinks,attachment,created,reporter,creator,assignee,duedate,labels&expand=changelog`);
+  const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(k)}?fields=*all&expand=changelog`);
   if (r.status === 404) return { status: 200, corpo: { ok: false, erro: `${k} não existe ou você não tem acesso a ele.` } };
   if (!r.ok) return { status: 200, corpo: { ok: false, erro: erroJira(r) } };
   const it = r.j; const f = it.fields || {};
-  const [coms, wls, filhos, hs] = await Promise.all([lerComentarios(base, headers, k), lerWorklogs(base, headers, k), lerFilhos(base, headers, k), lerChangelog(base, headers, k, it)]);
+  const [coms, wls, filhos, hs, rem] = await Promise.all([lerComentarios(base, headers, k), lerWorklogs(base, headers, k), lerFilhos(base, headers, k), lerChangelog(base, headers, k, it), lerRemotos(base, headers, k)]);
   const hist = historicoDe(it, hs);
   return { status: 200, corpo: {
     ok: true,
@@ -200,8 +237,12 @@ async function ler(base, headers, b) {
     anexos: (f.attachment || []).map((a) => ({ id: String(a.id), nome: a.filename || '', bytes: Number(a.size) || 0, mime: a.mimeType || '',
       autor: nomeDe(a.author), quando: a.created || '', grande: (Number(a.size) || 0) > TF_LIMITES.anexoBytes })),
     vinculos: (f.issuelinks || []).map(vinculoDe).filter((l) => l.k),
-    filhos,
+    filhos: filhos.slice(0, TF_LIMITES.filhos),
+    filhosMais: filhos.length > TF_LIMITES.filhos,
+    remotos: rem.map((x) => ({ id: String(x.id), titulo: txt((x.object || {}).title, 160), url: txt((x.object || {}).url, 400) })),
+    naoVai: naoVaiDe(f),
     worklogs: wls.map((w) => ({ id: String(w.id), autorId: (w.author && w.author.accountId) || '', autor: nomeDe(w.author),
+      ativo: !(w.author && w.author.active === false),
       inicio: w.started || '', dia: String(w.started || '').slice(0, 10), seg: Number(w.timeSpentSeconds) || 0,
       comentario: adfParaTexto(w.comment).trim().slice(0, 200) })),
     worklogsMais: wls.length >= TF_LIMITES.worklogs,
@@ -236,7 +277,7 @@ async function destino(base, headers, b) {
   const k = String(b.origem || '').trim().toUpperCase();
   if (!RE_ISSUE.test(k)) return { status: 400, corpo: { erro: 'Ticket de origem inválido.' } };
   const me = await eu(base, headers);
-  const ro = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(k)}?fields=summary,description,issuetype,project,status,created,reporter,assignee,duedate,labels,parent`);
+  const ro = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(k)}?fields=summary,description,issuetype,project,status,created,reporter,assignee,duedate,labels,parent,priority`);
   if (!ro.ok) return { status: 200, corpo: { ok: false, erro: `Origem ${k}: ${erroJira(ro)}` } };
   const o = fichaDe(ro.j); const desc = (ro.j.fields || {}).description;
   const cab = cabecalhoOrigem(o, me);
@@ -248,7 +289,13 @@ async function destino(base, headers, b) {
     if (!/^\d+$/.test(tipoId)) return { status: 400, corpo: { erro: 'Tipo do ticket inválido.' } };
     const base0 = { project: { key: projeto }, issuetype: { id: tipoId }, summary: resumo, description: adfComCabecalho(cab.titulo, desc, cab.linhas) };
     // Leva junto o que for possível (responsável, vencimento, rótulos); se o projeto recusar algum, cria sem eles.
-    const extras = { ...(o.respId ? { assignee: { accountId: o.respId } } : {}), ...(o.venc ? { duedate: o.venc } : {}), ...(o.labels.length ? { labels: o.labels } : {}) };
+    // Já criado por uma tentativa anterior (resposta perdida, aba recarregada)? A propriedade tft.origem diz.
+    const ja = await jira(base, headers, '/rest/api/3/search/jql', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jql: `issue.property[tft].origem = "${k}"`, fields: ['summary'], maxResults: 1 }) });
+    const achado = ja.ok && ja.j && (ja.j.issues || [])[0];
+    if (achado && achado.key) return { status: 200, corpo: { ok: true, destino: achado.key, criado: true, reaproveitado: true } };
+    const pri = (ro.j.fields || {}).priority;
+    const extras = { ...(o.respId ? { assignee: { accountId: o.respId } } : {}), ...(o.venc ? { duedate: o.venc } : {}), ...(o.labels.length ? { labels: o.labels } : {}), ...(pri && pri.id ? { priority: { id: pri.id } } : {}) };
     let rc = await jira(base, headers, '/rest/api/3/issue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { ...base0, ...extras } }) });
     let semExtras = false;
     if (rc.status === 400 && Object.keys(extras).length) {
@@ -257,6 +304,7 @@ async function destino(base, headers, b) {
     }
     if (rc.status === 401 || rc.status === 403) return { status: 200, corpo: { ok: false, erro: `Sem permissão para criar no projeto ${projeto}.` } };
     if (!rc.ok || !(rc.j && rc.j.key)) return { status: 200, corpo: { ok: false, erro: `Falha ao criar o destino: ${erroJira(rc)}` } };
+    await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(rc.j.key)}/properties/tft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origem: k }) });
     cacheClear('reuvinc:'); cacheClear('venc:');
     return { status: 200, corpo: { ok: true, destino: rc.j.key, criado: true, semExtras } };
   }
@@ -266,6 +314,7 @@ async function destino(base, headers, b) {
   const rd = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(d)}?fields=parent`);
   if (!rd.ok) return { status: 200, corpo: { ok: false, erro: `Destino ${d}: ${erroJira(rd)}` } };
   if (((rd.j.fields || {}).parent || {}).key === k) return { status: 200, corpo: { ok: false, erro: `${d} é filho de ${k} — seria excluído junto. Escolha outro destino.` } };
+  if ((await marcasDoDestino(base, headers, k, d)).cab) return { status: 200, corpo: { ok: true, destino: d, criado: false, reaproveitado: true } };
   const rc = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(d)}/comment`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: adfComCabecalho(cab.titulo, desc, cab.linhas) }),
   });
@@ -284,11 +333,14 @@ function parOrigemDestino(b) {
 async function comentarios(base, headers, b) {
   const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
   const feitos = []; const erros = {};
+  const ja = (await marcasDoDestino(base, headers, p.k, p.d)).com;
   for (const id of idsDe(b, TF_LIMITES.loteComentarios)) {
+    if (ja.has(id)) { feitos.push(id); continue; }
     const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.k)}/comment/${id}`);
+    if (r.status === 404) { feitos.push(id); continue; }            // apagado na origem depois do inventário: nada a levar
     if (!r.ok) { erros[id] = erroJira(r); continue; }
     const c = r.j || {};
-    const corpo = { body: adfComCabecalho(`💬 ${nomeDe(c.author)} em ${dataHoraBR(c.created)} (comentário copiado de ${p.k})`, c.body) };
+    const corpo = { body: adfComCabecalho(`💬 ${nomeDe(c.author)} em ${dataHoraBR(c.created)} (comentário copiado de ${p.k} #${id})`, c.body) };
     if (c.visibility && c.visibility.type && c.visibility.value) corpo.visibility = { type: c.visibility.type, value: c.visibility.value };
     const w = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.d)}/comment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
     if (w.ok) feitos.push(id); else erros[id] = erroJira(w);
@@ -299,13 +351,18 @@ async function comentarios(base, headers, b) {
 async function anexos(base, headers, b) {
   const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
   const feitos = []; const erros = {};
+  const rd = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.d)}?fields=attachment`);
+  if (!rd.ok) return { status: 200, corpo: { ok: false, erro: `Destino ${p.d}: ${erroJira(rd)}` } };
+  const noDestino = new Set((((rd.j || {}).fields || {}).attachment || []).map((a) => `${a.filename}|${a.size}`));
   for (const id of idsDe(b, TF_LIMITES.loteAnexos)) {
     const m = await jira(base, headers, `/rest/api/3/attachment/${id}`);
+    if (m.status === 404) { feitos.push(id); continue; }
     if (!m.ok) { erros[id] = erroJira(m); continue; }
     const meta = m.j || {};
+    if (noDestino.has(`${meta.filename}|${meta.size}`)) { feitos.push(id); continue; }   // já foi numa tentativa anterior
     if ((Number(meta.size) || 0) > TF_LIMITES.anexoBytes) { erros[id] = `Arquivo de ${Math.round(meta.size / 1048576)} MB — acima do limite de ${TF_LIMITES.anexoBytes / 1048576} MB da transferência. Baixe e anexe à mão.`; continue; }
-    // O conteúdo redireciona para o armazenamento de mídia da Atlassian (URL assinada) — o fetch segue sozinho.
-    const rc = await fetch(`${base}/rest/api/3/attachment/content/${id}`, { headers: { Authorization: headers.Authorization } });
+    // redirect=false: o Jira entrega o conteúdo direto (sem depender de como o fetch trata o Authorization num redirect).
+    const rc = await fetch(`${base}/rest/api/3/attachment/content/${id}?redirect=false`, { headers: { Authorization: headers.Authorization } });
     if (!rc.ok) { erros[id] = `Download do anexo: Jira ${rc.status}`; continue; }
     const buf = Buffer.from(await rc.arrayBuffer());
     const fd = new FormData();
@@ -327,7 +384,7 @@ async function vinculos(base, headers, b) {
   const feitos = []; const erros = {};
   for (const id of idsDe(b, TF_LIMITES.loteVinculos)) {
     const v = mapa[id];
-    if (!v) { erros[id] = 'vínculo não existe mais na origem'; continue; }
+    if (!v) { feitos.push(id); continue; }                       // removido da origem depois do inventário: nada a refazer
     if (v.k === p.d) { feitos.push(id); continue; }          // ligava origem ↔ destino: deixa de fazer sentido
     // No ticket, "outwardIssue" = o OUTRO está na ponta de saída, então a origem é a inwardIssue — e o destino herda o lado.
     const corpo = { type: { id: v.tipoId }, inwardIssue: { key: v.lado === 'out' ? p.d : v.k }, outwardIssue: { key: v.lado === 'out' ? v.k : p.d } };
@@ -335,6 +392,21 @@ async function vinculos(base, headers, b) {
     if (w.ok) feitos.push(id); else erros[id] = erroJira(w);
   }
   return { status: 200, corpo: { ok: true, feitos, erros } };
+}
+
+// Remote links (Confluence, o issue do GitHub do 🐞 Reportar…): todos de uma vez, sem repetir URL que o destino já tem.
+async function remotos(base, headers, b) {
+  const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
+  const [ro, rd] = await Promise.all([lerRemotos(base, headers, p.k), lerRemotos(base, headers, p.d)]);
+  const ja = new Set(rd.map((x) => (x.object || {}).url));
+  const erros = {}; let n = 0;
+  for (const x of ro) {
+    const obj = x.object || {}; if (!obj.url || ja.has(obj.url)) continue;
+    const w = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.d)}/remotelink`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ object: { url: obj.url, title: obj.title || obj.url, ...(obj.summary ? { summary: obj.summary } : {}), ...(obj.icon ? { icon: obj.icon } : {}) }, ...(x.relationship ? { relationship: x.relationship } : {}) }) });
+    if (w.ok) n += 1; else erros[String(x.id)] = erroJira(w);
+  }
+  return { status: 200, corpo: { ok: !Object.keys(erros).length, n, erros, ...(Object.keys(erros).length ? { erro: Object.values(erros)[0] } : {}) } };
 }
 
 async function filhosMover(base, headers, b) {
@@ -355,6 +427,7 @@ async function filhosMover(base, headers, b) {
 
 async function historico(base, headers, b) {
   const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
+  if ((await marcasDoDestino(base, headers, p.k, p.d)).hist) return { status: 200, corpo: { ok: true, ja: true } };
   // Remonta do changelog da origem (o texto não vem da tela).
   const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.k)}?fields=summary,created,reporter,creator,issuetype,project&expand=changelog`);
   if (!r.ok) return { status: 200, corpo: { ok: false, erro: erroJira(r) } };
@@ -371,14 +444,17 @@ async function horas(base, headers, b) {
   const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
   const me = await eu(base, headers);
   const feitos = []; const erros = {};
+  const ja = (await marcasDoDestino(base, headers, p.k, p.d)).wl;
   for (const id of idsDe(b, TF_LIMITES.loteHoras)) {
+    if (ja.has(id)) { feitos.push(id); continue; }
     const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.k)}/worklog/${id}`);
+    if (r.status === 404) { feitos.push(id); continue; }
     if (!r.ok) { erros[id] = erroJira(r); continue; }
     const w = r.j || {};
     if (((w.author || {}).accountId || '') !== me.accountId) { erros[id] = 'apontamento de outra pessoa — vai por convite'; continue; }
     const orig = adfParaTexto(w.comment).trim();
     const corpo = { timeSpentSeconds: Number(w.timeSpentSeconds) || 0, started: w.started,
-      comment: textoParaAdf(`⏩ Transferido de ${p.k}${orig ? ` — ${orig}` : ''}`.slice(0, 2000)) };
+      comment: textoParaAdf(`⏩ Transferido de ${p.k} #${id}${orig ? ` — ${orig}` : ''}`.slice(0, 2000)) };
     const c = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.d)}/worklog?adjustEstimate=leave&notifyUsers=false`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
     });
@@ -388,13 +464,47 @@ async function horas(base, headers, b) {
   return { status: 200, corpo: { ok: true, feitos, erros } };
 }
 
+// Conta de serviço (só leitura): para saber se existe na origem algo que a PESSOA não enxerga (comentário ou
+// apontamento restrito a um papel/grupo) — o DELETE apagaria junto sem ninguém ter visto.
+function authSvc() {
+  const e = process.env.JIRA_EMAIL, t = process.env.JIRA_API_TOKEN;
+  return e && t ? 'Basic ' + Buffer.from(`${e}:${t}`).toString('base64') : '';
+}
 async function excluir(base, headers, b) {
   const p = parOrigemDestino(b); if (!p) return { status: 400, corpo: { erro: 'Origem/destino inválidos.' } };
+  const nao = (erro, extra) => ({ status: 200, corpo: { ok: false, excluida: false, erro: `${erro} — ${p.k} NÃO foi excluído.`, ...(extra || {}) } });
   // O destino tem que existir de verdade antes de apagar a origem.
   const rd = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.d)}?fields=summary`);
-  if (!rd.ok) return { status: 200, corpo: { ok: false, erro: `O destino ${p.d} não respondeu (${erroJira(rd)}) — a origem NÃO foi excluída.` } };
-  const filhos = await lerFilhos(base, headers, p.k);
-  if (filhos.length) return { status: 200, corpo: { ok: false, erro: `${p.k} ainda tem ${filhos.length} filho(s) (${filhos.slice(0, 5).map((f) => f.k).join(', ')}) — eles seriam excluídos junto. Mova-os antes; a origem NÃO foi excluída.` } };
+  if (!rd.ok) return nao(`O destino ${p.d} não respondeu (${erroJira(rd)})`);
+  // Filhos: a busca JQL (pode atrasar) E o campo subtasks do próprio ticket (imediato).
+  const ro = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.k)}?fields=subtasks,attachment,issuelinks`);
+  if (!ro.ok) return nao(`Origem: ${erroJira(ro)}`);
+  const fo = ro.j.fields || {};
+  const filhos = [...new Set([...(await lerFilhos(base, headers, p.k)).map((f) => f.k), ...(fo.subtasks || []).map((x) => x.key)])];
+  if (filhos.length) return nao(`${p.k} ainda tem ${filhos.length} filho(s) (${filhos.slice(0, 5).join(', ')}) que seriam excluídos junto; mova-os antes`);
+  // Nada novo desde o inventário: a tela manda TODOS os ids que viu (vistos), copiados ou não por escolha dela.
+  const v = b.vistos || {};
+  const viu = (k) => new Set((Array.isArray(v[k]) ? v[k] : []).map(String));
+  const [coms, wls] = await Promise.all([lerComentarios(base, headers, p.k), lerWorklogs(base, headers, p.k)]);
+  const novos = [
+    ...coms.filter((c) => !viu('com').has(String(c.id))).map(() => 'comentário'),
+    ...wls.filter((w) => !viu('wl').has(String(w.id))).map(() => 'apontamento'),
+    ...(fo.attachment || []).filter((a) => !viu('anx').has(String(a.id))).map(() => 'anexo'),
+    ...(fo.issuelinks || []).filter((l) => !viu('vin').has(String(l.id))).map(() => 'vínculo'),
+  ];
+  if (novos.length) {
+    const cont = {}; novos.forEach((x) => { cont[x] = (cont[x] || 0) + 1; });
+    return nao(`Apareceu conteúdo novo em ${p.k} depois que a transferência começou (${Object.entries(cont).map(([x, n]) => `${n} ${x}(s)`).join(', ')}). Feche e transfira de novo — o que já foi copiado não se repete`, { novos: cont });
+  }
+  const sv = authSvc();
+  if (sv) {
+    const hs = { Authorization: sv, Accept: 'application/json' };
+    try {
+      const [c2, w2] = await Promise.all([lerComentarios(base, hs, p.k), lerWorklogs(base, hs, p.k)]);
+      const ocultos = c2.length - coms.length + w2.length - wls.length;
+      if (ocultos > 0) return nao(`${p.k} tem ${ocultos} comentário(s)/apontamento(s) restritos que você não enxerga — eles seriam apagados sem cópia. Peça a quem tem acesso para transferir`);
+    } catch (e) { /* conta de serviço indisponível: segue só com a visão da pessoa */ }
+  }
   const r = await jira(base, headers, `/rest/api/3/issue/${encodeURIComponent(p.k)}?deleteSubtasks=false`, { method: 'DELETE' });
   cacheClear('reunioes:'); cacheClear('reuvinc:'); cacheClear('atividade:'); cacheClear('venc:'); cacheClear('tempo:');
   if (r.status === 204) return { status: 200, corpo: { ok: true, excluida: true } };
@@ -402,7 +512,7 @@ async function excluir(base, headers, b) {
   return { status: 200, corpo: { ok: false, excluida: false, erro: `Tudo foi copiado para ${p.d}, mas a exclusão de ${p.k} falhou (${erroJira(r)}).` } };
 }
 
-const ETAPAS = { ler, conferir, destino, comentarios, anexos, vinculos, filhos: filhosMover, historico, horas, excluir };
+const ETAPAS = { ler, conferir, destino, comentarios, anexos, vinculos, remotos, filhos: filhosMover, historico, horas, excluir };
 
 export async function transferir(req, res, b) {
   const email = String(b.email || '').trim(); const token = String(b.token || '').trim();

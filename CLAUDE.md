@@ -400,8 +400,22 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   anexo > 25 MB; > 300 comentários / 1000 worklogs) e dos avisos de perda (caixa desmarcada); o servidor relê a origem em
   cada etapa (vínculos, filhos, worklog é meu?) e o `excluir` recusa com filho pendente ou destino que não responde;
   comentários com "autor em data" no cabeçalho e `visibility` mantida; mídia ADF da origem vira texto (`adfSemMidia`).
-  **Sem planGate de propósito** — a transferência MOVE horas que já existem. Testes: `agsem/transferir-servidor-test.mjs`
-  (24 casos, Jira falso em memória) e `transferir-test.mjs` (Playwright, 36 casos).
+  **Sem planGate de propósito** — a transferência MOVE horas que já existem.
+  **Regras da revisão (mesmo dia, 13 achados — os de risco corrigidos):** (1) toda função da execução recebe o estado `t`
+  dela (`tftChama(t,…)`, `tftLotes(t,…)`, `tftContas(t)`) — nunca lê o `_tft` global; `abreTransferir` no meio de uma
+  execução (ou de uma que parou) volta ao progresso dela; Esc/×/clique fora não fecham durante a execução (captura no
+  document); a conclusão é medida POR ID (`tftItens`), não por contagem; resposta sem `ok:true` (400, 504 em HTML) = lote
+  falhou. (2) **Idempotência no servidor**: tudo o que vai ao destino leva marcador com o id da origem ("comentário copiado
+  de K #id", "⏩ Transferido de K #id", "🕓 Histórico de K", "📦 Transferido de K", anexo de mesmo nome+tamanho, remote link
+  de mesma URL, propriedade `tft.origem` no ticket criado — o `destino` criar procura por ela antes) e cada etapa lê o
+  destino antes de escrever — repetir (timeout, aba recarregada) não duplica; item apagado da origem depois do inventário
+  conta como feito. (3) O `excluir` recebe os `vistos` (todos os ids do inventário) e recusa se a origem ganhou comentário,
+  apontamento, anexo ou vínculo novo; com a conta de serviço, recusa se existe comentário/apontamento restrito que a pessoa
+  não enxerga; filhos pela JQL E pelo `fields.subtasks`. (4) Convite por pessoa e dia em pedaços de até 24h, com os
+  comentários originais; colega inativo = aviso (as horas dele não terão quem confirme). (5) Links externos (remote
+  links) e a prioridade vão junto; componentes, versões e campos personalizados são LISTADOS como "não vão" (`naoVai`).
+  Ficou de fora (R154): conferir a permissão de apontar do colega no destino. Testes: `agsem/transferir-servidor-test.mjs`
+  (32 casos, Jira falso em memória com conta de serviço) e `transferir-test.mjs` (Playwright, 48 casos).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

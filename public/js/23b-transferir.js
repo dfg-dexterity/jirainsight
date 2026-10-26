@@ -15,42 +15,58 @@
 let _tft=null;
 const TFT_ETAPAS=[
   ['destino','📦 Destino'], ['com','💬 Comentários'], ['anx','📎 Anexos'], ['vin','🔗 Vínculos'], ['fil','🧩 Filhos'],
-  ['hist','🕓 Histórico'], ['hor','⏱ Suas horas'], ['conv','📨 Convites aos colegas'], ['excl','🗑 Excluir a origem'] ];
+  ['rem','🌐 Links externos'], ['hist','🕓 Histórico'], ['hor','⏱ Suas horas'], ['conv','📨 Convites aos colegas'], ['excl','🗑 Excluir a origem'] ];
 function tftAberto(){ const b=document.querySelector('#modal:not([hidden]) .tft-modal'); return !!(b&&_tft&&b.getAttribute('data-tft-k')===_tft.k); }
 function abreTransferir(k){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   k=String(k||'').trim().toUpperCase(); if(!k) return;
-  _tft={ k, carregando:true, erro:'', L:null, destModo:'existente', destKey:'', d:null, conferindo:false, destErro:'',
+  // Uma transferência por vez (revisão de 2026-10-26): reabrir no meio volta ao progresso dela, nunca recria o
+  // estado — senão a execução em voo passaria a ler o estado novo (outra origem) e marcaria progresso errado.
+  if(_tft&&(_tft.executando||(_tft.k===k&&_tft.prog&&_tft.fase!=='fim'))){
+    if(_tft.k!==k) toast(`Termine antes a transferência de ${_tft.k}.`,'warn');
+    tftRender(); return; }
+  const t=_tft={ k, carregando:true, erro:'', L:null, destModo:'existente', destKey:'', d:null, conferindo:false, destErro:'',
     destProj:'', destTipo:'', destResumo:'', opc:{com:true, anx:true, vin:true, hist:true}, entendi:false,
     executando:false, fase:'form', prog:null, fim:null };
   tftRender();
-  garanteProjetos().catch(()=>null).then(()=>{ if(_tft&&_tft.k===k&&tftAberto()) tftRender(); });
-  tftChama({transf:'ler'}).then(j=>{ if(!_tft||_tft.k!==k) return; _tft.carregando=false;
-    if(!j||!j.ok){ _tft.erro=(j&&j.erro)||'Não consegui ler o ticket.'; } else { _tft.L=j; _tft.destProj=j.o.projeto; _tft.destResumo=j.o.resumo; }
+  garanteProjetos().catch(()=>null).then(()=>{ if(_tft===t&&tftAberto()) tftRender(); });
+  tftChama(t, {transf:'ler'}).then(j=>{ if(_tft!==t) return; t.carregando=false;
+    if(!j||!j.ok){ t.erro=(j&&j.erro)||'Não consegui ler o ticket.'; } else { t.L=j; t.destProj=j.o.projeto; t.destResumo=j.o.resumo; }
     if(tftAberto()) tftRender(); })
-  .catch(e=>{ if(_tft&&_tft.k===k){ _tft.carregando=false; _tft.erro=humanizaErro(e); if(tftAberto()) tftRender(); } });
+  .catch(e=>{ if(_tft===t){ t.carregando=false; t.erro=humanizaErro(e); if(tftAberto()) tftRender(); } });
 }
-function tftChama(corpo){ const id=idApontar(); const t=_tft;
+// Toda função da execução recebe o estado `t` dela — nunca lê o _tft global (que pode ser outro).
+function tftChama(t, corpo){ const id=idApontar();
   return fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ ...corpo, origem:t&&t.k, email:id&&id.email, token:id&&id.token })}).then(r=>r.json()); }
 const tftMB=(b)=>(b/1048576).toLocaleString('pt-BR',{maximumFractionDigits:1})+' MB';
 // Separa os worklogs: os meus (vão direto) e os dos colegas, somados por pessoa e dia (um convite cada).
+// O convite aceita até 24h por lançamento: o dia que passar disso vira mais de um convite (…|2, …|3).
 function tftHoras(L){
-  const eu=(L.me&&L.me.accountId)||''; const meus=[]; const conv={};
-  (L.worklogs||[]).forEach(w=>{ if(w.autorId===eu) meus.push(w);
-    else { const ch=`${w.autorId}|${w.dia}`; const c=conv[ch]||(conv[ch]={ch, a:w.autorId, nome:w.autor, dia:w.dia, seg:0}); c.seg+=w.seg; } });
-  return { meus, convites:Object.values(conv).sort((x,y)=>(x.nome+x.dia).localeCompare(y.nome+y.dia)) };
+  const eu=(L.me&&L.me.accountId)||''; const meus=[]; const dias={}; const inativos=new Set();
+  (L.worklogs||[]).forEach(w=>{ if(w.autorId===eu){ meus.push(w); return; }
+    if(w.ativo===false||(estado.usuariosInativos||{})[w.autorId]) inativos.add(w.autor);
+    const ch=`${w.autorId}|${w.dia}`; const c=dias[ch]||(dias[ch]={a:w.autorId, nome:w.autor, dia:w.dia, seg:0, coms:[]}); c.seg+=w.seg; if(w.comentario) c.coms.push(w.comentario); });
+  const convites=[];
+  Object.entries(dias).sort((x,y)=>(x[1].nome+x[1].dia).localeCompare(y[1].nome+y[1].dia)).forEach(([ch,c])=>{
+    let resto=c.seg, i=1;
+    while(resto>0){ const seg=Math.min(resto, 24*3600); convites.push({ ch:i>1?`${ch}|${i}`:ch, a:c.a, nome:c.nome, dia:c.dia, seg, coms:c.coms }); resto-=seg; i++; } });
+  return { meus, convites, inativos:[...inativos] };
 }
+// Os ids de cada etapa — a conclusão é medida POR ID (não pela contagem).
+function tftItens(t){ const L=t.L; const H=tftHoras(L);
+  return { com:t.opc.com?(L.comentarios||[]).map(c=>c.id):[], anx:t.opc.anx?(L.anexos||[]).map(a=>a.id):[], vin:t.opc.vin?(L.vinculos||[]).map(v=>v.id):[],
+    fil:(L.filhos||[]).map(f=>f.k), hor:H.meus.map(w=>w.id), conv:H.convites.map(c=>c.ch) }; }
 // Tipo (e nível) do destino: o conferido no Jira, ou o tipo escolhido no projeto para o ticket novo.
-function tftDestinoInfo(){ const t=_tft; if(!t) return null;
+function tftDestinoInfo(t){ if(!t) return null;
   if(t.destModo==='existente') return t.d?{ k:t.d.k, projeto:t.d.projeto, nivel:t.d.nivel, tipo:t.d.tipo, pai:t.d.pai }:null;
   const p=(_projetosCache||[]).find(x=>x.key===t.destProj); const tp=p&&(p.tipos||[]).find(x=>String(x.id)===String(t.destTipo));
   if(!p||!tp||!String(t.destResumo||'').trim()) return null;
   return { k:'', projeto:p.key, nivel:tp.subtarefa?-1:(Number(tp.nivel)||0), tipo:tp.nome, pai:'' };
 }
 // Régua única do que impede (bloqueios) e do que se perde (avisos) — usada no render e antes de executar.
-function tftChecagem(){ const t=_tft; const L=t&&t.L; const out={bloq:[], avisos:[]}; if(!L) return out;
-  const o=L.o; const d=tftDestinoInfo();
+function tftChecagem(t){ const L=t&&t.L; const out={bloq:[], avisos:[]}; if(!L) return out;
+  const o=L.o; const d=tftDestinoInfo(t);
   if(!d) out.bloq.push(t.destModo==='existente'?'Escolha e confira o ticket de destino.':'Escolha o projeto, o tipo e o resumo do ticket novo.');
   else {
     if(d.k&&d.k===o.k) out.bloq.push('O destino não pode ser o próprio ticket.');
@@ -62,13 +78,19 @@ function tftChecagem(){ const t=_tft; const L=t&&t.L; const out={bloq:[], avisos
     });
   }
   if(L.comentariosMais) out.bloq.push(`${o.k} tem mais de ${L.limites.comentarios} comentários — grande demais para transferir com segurança pelo painel.`);
+  if(L.filhosMais) out.bloq.push(`${o.k} tem mais de ${L.limites.filhos} filhos — grande demais para transferir com segurança pelo painel.`);
   if(L.worklogsMais) out.bloq.push(`${o.k} tem mais de ${L.limites.worklogs} apontamentos — grande demais para transferir com segurança pelo painel.`);
   const grandes=(L.anexos||[]).filter(a=>a.grande);
   if(t.opc.anx&&grandes.length) out.bloq.push(`${grandes.map(a=>`“${a.nome}” (${tftMB(a.bytes)})`).join(', ')} passa(m) do limite de ${tftMB(L.limites.anexoBytes)}: baixe e anexe no destino à mão e desmarque 📎 Anexos — ou não transfira.`);
   if(!t.opc.anx&&(L.anexos||[]).length) out.avisos.push(`📎 ${L.anexos.length} anexo(s) NÃO vão — serão perdidos com a exclusão.`);
   if(!t.opc.com&&(L.comentarios||[]).length) out.avisos.push(`💬 ${L.comentarios.length} comentário(s) NÃO vão — serão perdidos com a exclusão.`);
   if(!t.opc.vin&&(L.vinculos||[]).length) out.avisos.push(`🔗 ${L.vinculos.length} vínculo(s) NÃO serão refeitos.`);
+  if(!t.opc.vin&&(L.remotos||[]).length) out.avisos.push(`🌐 ${L.remotos.length} link(s) externo(s) NÃO serão refeitos.`);
   if(!t.opc.hist&&L.historico&&L.historico.n) out.avisos.push('🕓 O histórico de status NÃO vai — fica só no que já foi registrado nos comentários.');
+  const H=tftHoras(L);
+  if(H.inativos.length) out.avisos.push(`⏱ ${H.inativos.join(', ')} saiu do time (inativo no Jira): o convite das horas dessa pessoa não terá quem confirme — essas horas deixam de existir com a exclusão.`);
+  if((L.naoVai||[]).length) out.avisos.push(`Não vão (o Jira não copia entre tickets por aqui): ${L.naoVai.join('; ')}.`);
+  if(t.opc.com&&(L.comentarios||[]).length>5) out.avisos.push(`💬 Quem observa o destino recebe um aviso do Jira por comentário copiado (${L.comentarios.length}), e as @menções avisam de novo.`);
   return out;
 }
 function tftRender(){ const t=_tft; if(!t) return;
@@ -77,7 +99,7 @@ function tftRender(){ const t=_tft; if(!t) return;
   if(t.carregando){ casca(`${cab}<div class="estado">Lendo ${esc(t.k)} no Jira (comentários, anexos, vínculos, horas e histórico)…</div>`); return; }
   if(!t.L){ casca(`${cab}<div class="erro">${esc(t.erro||'Falha ao ler o ticket.')}</div><div class="alx-modal-acoes"><span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
   if(t.fase!=='form'){ tftRenderProgresso(casca, cab); return; }
-  const L=t.L; const o=L.o; const H=tftHoras(L); const ck=tftChecagem(); const id=idApontar();
+  const L=t.L; const o=L.o; const H=tftHoras(L); const ck=tftChecagem(t); const id=idApontar();
   const segMeus=H.meus.reduce((s,w)=>s+w.seg,0); const segConv=H.convites.reduce((s,c)=>s+c.seg,0);
   const bytes=(L.anexos||[]).reduce((s,a)=>s+a.bytes,0);
   const caixa=(k,rot,n,det)=>`<label class="tft-item${n?'':' vazio'}"><input type="checkbox" data-tft-opc="${k}" ${t.opc[k]?'checked':''} ${n?'':'disabled'}> <span><b>${rot}</b> <span class="muted small">${det}</span></span></label>`;
@@ -86,7 +108,7 @@ function tftRender(){ const t=_tft; if(!t) return;
     <div class="tft-item fixo">📝 <span><b>Descrição e dados</b> <span class="muted small">tipo, status, criação, relator e responsável abrem a transferência no destino</span></span></div>
     ${caixa('com','💬 Comentários',(L.comentarios||[]).length,`${(L.comentarios||[]).length} — cada um com o autor e a data originais no cabeçalho${(L.comentarios||[]).some(c=>c.restrito)?' (os restritos continuam restritos)':''}`)}
     ${caixa('anx','📎 Anexos',(L.anexos||[]).length,`${(L.anexos||[]).length}${bytes?` · ${tftMB(bytes)}`:''} — baixados de ${esc(o.k)} e anexados no destino`)}
-    ${caixa('vin','🔗 Vínculos',(L.vinculos||[]).length,`${(L.vinculos||[]).length}${(L.vinculos||[]).length?` (${esc(L.vinculos.slice(0,3).map(v=>`${v.rotulo} ${v.k}`).join(' · '))}${L.vinculos.length>3?'…':''})`:''} — refeitos no destino`)}
+    ${caixa('vin','🔗 Vínculos',(L.vinculos||[]).length+(L.remotos||[]).length,`${(L.vinculos||[]).length}${(L.vinculos||[]).length?` (${esc(L.vinculos.slice(0,3).map(v=>`${v.rotulo} ${v.k}`).join(' · '))}${L.vinculos.length>3?'…':''})`:''}${(L.remotos||[]).length?` + ${L.remotos.length} link(s) externo(s)`:''} — refeitos no destino`)}
     <div class="tft-item fixo">🧩 <span><b>Filhos</b> <span class="muted small">${(L.filhos||[]).length?`${L.filhos.length} (${esc(L.filhos.slice(0,4).map(f=>f.k).join(', '))}${L.filhos.length>4?'…':''}) — passam a ser filhos do destino`:'nenhum'}</span></span></div>
     ${caixa('hist','🕓 Histórico',(L.historico&&L.historico.n)||1,`${(L.historico&&L.historico.n)||0} mudança(s) de status/responsável — um comentário com a linha do tempo`)}
     <div class="tft-item fixo">⏱ <span><b>Horas</b> <span class="muted small">${segMeus?`suas <b>${esc(fmtH(segMeus))}</b> (${H.meus.length} lançamento(s)) vão direto, com o dia e a duração originais`:'nenhuma hora sua'}${segConv?` · colegas: <b>${esc(fmtH(segConv))}</b> de ${esc(pessoasConv.join(', '))} — cada um recebe um 📨 convite no 📥 Inbox para confirmar no destino`:''}</span></span></div>
@@ -107,7 +129,7 @@ function tftRender(){ const t=_tft; if(!t) return;
       :`<div class="ap-filtros"><div class="campo"><label>Projeto</label><select id="tft-proj">${projs.map(p=>`<option value="${escA(p.key)}" ${t.destProj===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('')||'<option value="">carregando…</option>'}</select></div>
           <div class="campo"><label>Tipo</label><select id="tft-tipo">${tipos.map(x=>`<option value="${escA(String(x.id))}" ${String(t.destTipo)===String(x.id)?'selected':''}>${esc(x.nome)}</option>`).join('')||'<option value="">—</option>'}</select></div>
           <div class="campo" style="flex:1;min-width:220px"><label>Resumo</label><input type="text" id="tft-resumo" maxlength="255" value="${escA(t.destResumo)}"></div></div>
-        <div class="muted small">O responsável, o vencimento e os rótulos de ${esc(o.k)} vão junto quando o projeto aceitar.</div>`}
+        <div class="muted small">O responsável, o vencimento, a prioridade e os rótulos de ${esc(o.k)} vão junto quando o projeto aceitar.</div>`}
   </div>`;
   const checks=(ck.bloq.length?`<div class="tft-bloq"><b>⛔ Não dá para transferir ainda:</b><ul>${ck.bloq.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'')
     +(ck.avisos.length?`<div class="aviso tft-avisos"><ul>${ck.avisos.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:'');
@@ -122,15 +144,16 @@ function tftRender(){ const t=_tft; if(!t) return;
       <span class="spacer"></span><button class="btn" id="gx-fechar">Cancelar</button></div>`);
 }
 // Quantos itens cada etapa tem e quantos já foram feitos.
-function tftContas(){ const t=_tft; const L=t.L; const P=t.prog; const H=tftHoras(L);
-  const n={ destino:1, com:t.opc.com?(L.comentarios||[]).length:0, anx:t.opc.anx?(L.anexos||[]).length:0, vin:t.opc.vin?(L.vinculos||[]).length:0,
-    fil:(L.filhos||[]).length, hist:t.opc.hist?1:0, hor:H.meus.length, conv:H.convites.length, excl:1 };
-  const f={ destino:P.destino?1:0, com:Object.keys(P.com.ok).length, anx:Object.keys(P.anx.ok).length, vin:Object.keys(P.vin.ok).length,
-    fil:Object.keys(P.fil.ok).length, hist:P.hist.ok?1:0, hor:Object.keys(P.hor.ok).length, conv:Object.keys(P.conv.ok).length, excl:P.excl&&P.excl.excluida?1:0 };
+function tftContas(t){ const P=t.prog; const I=tftItens(t);
+  const feitos=(k)=>I[k].filter(id=>P[k].ok[id]).length;
+  const nRem=t.opc.vin&&(t.L.remotos||[]).length?1:0;
+  const n={ destino:1, com:I.com.length, anx:I.anx.length, vin:I.vin.length, rem:nRem, fil:I.fil.length, hist:t.opc.hist?1:0, hor:I.hor.length, conv:I.conv.length, excl:1 };
+  const f={ destino:P.destino?1:0, com:feitos('com'), anx:feitos('anx'), vin:feitos('vin'), rem:P.rem.ok?1:0, fil:feitos('fil'), hist:P.hist.ok?1:0,
+    hor:feitos('hor'), conv:feitos('conv'), excl:P.excl&&P.excl.excluida?1:0 };
   return {n,f};
 }
-function tftRenderProgresso(casca, cab){ const t=_tft; const P=t.prog; const {n,f}=tftContas();
-  const errosDe=(k)=>k==='destino'?(P.erroDestino?[P.erroDestino]:[]):k==='hist'?(P.hist.erro?[P.hist.erro]:[]):k==='excl'?((P.excl&&!P.excl.excluida&&P.excl.erro)?[P.excl.erro]:[]):Object.entries((P[k]||{}).erros||{}).map(([id,e])=>`${id}: ${e}`);
+function tftRenderProgresso(casca, cab){ const t=_tft; const P=t.prog; const {n,f}=tftContas(t);
+  const errosDe=(k)=>k==='destino'?(P.erroDestino?[P.erroDestino]:[]):k==='hist'?(P.hist.erro?[P.hist.erro]:[]):k==='rem'?(P.rem.erro?[P.rem.erro]:[]):k==='excl'?((P.excl&&!P.excl.excluida&&P.excl.erro)?[P.excl.erro]:[]):Object.entries((P[k]||{}).erros||{}).map(([id,e])=>`${id}: ${e}`);
   const linhas=TFT_ETAPAS.filter(([k])=>n[k]).map(([k,rot])=>{ const er=errosDe(k); const ok=f[k]>=n[k];
     const ic=ok?'✅':er.length?'⚠️':(t.executando&&P.atual===k?'⏳':'·');
     return `<li class="tft-et${ok?' ok':er.length?' err':''}"><span>${ic} <b>${rot}</b>${n[k]>1?` <span class="muted small">${f[k]}/${n[k]}</span>`:''}</span>${er.length?`<div class="muted small">${er.slice(0,3).map(esc).join('<br>')}${er.length>3?`<br>… e mais ${er.length-3}`:''}</div>`:''}</li>`; }).join('');
@@ -150,68 +173,77 @@ function tftRenderProgresso(casca, cab){ const t=_tft; const P=t.prog; const {n,
   }
   casca(`${cab}${topo}<ul class="tft-etapas">${linhas}</ul><div class="alx-modal-acoes">${acoes}</div>`);
 }
-function tftProgNovo(){ const v=()=>({ok:{}, erros:{}}); return { destino:null, erroDestino:'', com:v(), anx:v(), vin:v(), fil:v(), hor:v(), conv:v(), hist:{ok:false, erro:''}, excl:null, atual:'' }; }
+function tftProgNovo(){ const v=()=>({ok:{}, erros:{}}); return { destino:null, erroDestino:'', com:v(), anx:v(), vin:v(), fil:v(), hor:v(), conv:v(), rem:{ok:false, erro:''}, hist:{ok:false, erro:''}, excl:null, atual:'' }; }
+const tftVisivel=(t)=>_tft===t&&tftAberto();
 // Roda uma etapa em lotes: só os itens ainda não feitos; o erro de um item fica até ele dar certo.
-async function tftLotes(chave, itens, tam, chamada){
-  const st=_tft.prog[chave]; const pend=itens.filter(x=>!st.ok[x]);
+// Resposta sem ok:true (400, 504 em HTML, rede) = o lote inteiro falhou — o servidor não duplica ao repetir (marcadores).
+async function tftLotes(t, chave, itens, tam, chamada){
+  const st=t.prog[chave]; const pend=itens.filter(x=>!st.ok[x]);
   for(let i=0;i<pend.length;i+=tam){ const lote=pend.slice(i,i+tam);
     let j; try{ j=await chamada(lote); }catch(e){ j={ok:false, erro:humanizaErro(e)}; }
-    if(!j||j.ok===false){ lote.forEach(x=>{ st.erros[x]=(j&&j.erro)||'falha'; }); }
+    if(!j||j.ok!==true){ lote.forEach(x=>{ st.erros[x]=(j&&j.erro)||'falha'; }); }
     else { (j.feitos||[]).forEach(x=>{ st.ok[x]=true; delete st.erros[x]; }); Object.entries(j.erros||{}).forEach(([x,e])=>{ st.erros[x]=e; }); }
-    if(tftAberto()) tftRender(); }
+    if(tftVisivel(t)) tftRender(); }
 }
-async function tftExecuta(){ const t=_tft; if(!t||!t.L||t.executando) return;
-  const ck=tftChecagem(); if(ck.bloq.length||!t.entendi) return;
-  const L=t.L; const H=tftHoras(L); const id=idApontar(); if(!id){ abreIdentidade(); return; }
+const tftUma=(p)=>p.then(j=>({ ok:!!(j&&j.ok===true), erro:(j&&j.ok===true)?'':((j&&j.erro)||'falha') })).catch(e=>({ok:false, erro:humanizaErro(e)}));
+async function tftExecuta(t){ if(!t||!t.L||t.executando) return;
+  const ck=tftChecagem(t); if(ck.bloq.length||!t.entendi) return;
+  const L=t.L; const H=tftHoras(L); const I=tftItens(t); const id=idApontar(); if(!id){ abreIdentidade(); return; }
   if(!t.prog) t.prog=tftProgNovo(); const P=t.prog;
-  t.executando=true; t.fase='exec'; tftRender();
+  t.executando=true; t.fase='exec'; if(tftVisivel(t)) tftRender();
   try{
     if(!P.destino){ P.atual='destino';
       const corpo=t.destModo==='criar'?{transf:'destino', modo:'criar', projeto:t.destProj, tipoId:t.destTipo, resumo:String(t.destResumo||'').trim()}
         :{transf:'destino', modo:'existente', destino:t.d.k};
-      const j=await tftChama(corpo).catch(e=>({ok:false, erro:humanizaErro(e)}));
-      if(!j||!j.ok){ P.erroDestino=(j&&j.erro)||'Falha ao preparar o destino.'; }
+      const j=await tftChama(t, corpo).catch(e=>({ok:false, erro:humanizaErro(e)}));
+      if(!j||j.ok!==true){ P.erroDestino=(j&&j.erro)||'Falha ao preparar o destino.'; }
       else { P.destino={k:j.destino, criado:!!j.criado, semExtras:!!j.semExtras}; P.erroDestino=''; } }
     const D=P.destino&&P.destino.k;
     if(D){
-      const lote=(transf,campo)=>(xs)=>tftChama({transf, destino:D, [campo]:xs});
-      P.atual='com'; if(t.opc.com) await tftLotes('com', (L.comentarios||[]).map(c=>c.id), 10, lote('comentarios','ids'));
-      P.atual='anx'; if(t.opc.anx) await tftLotes('anx', (L.anexos||[]).map(a=>a.id), 1, lote('anexos','ids'));
-      P.atual='vin'; if(t.opc.vin) await tftLotes('vin', (L.vinculos||[]).map(v=>v.id), 20, lote('vinculos','ids'));
-      P.atual='fil'; await tftLotes('fil', (L.filhos||[]).map(f=>f.k), 10, lote('filhos','chaves'));
-      P.atual='hist'; if(t.opc.hist&&!P.hist.ok){ const j=await tftChama({transf:'historico', destino:D}).catch(e=>({ok:false, erro:humanizaErro(e)}));
-        P.hist={ok:!!(j&&j.ok), erro:(j&&j.ok)?'':((j&&j.erro)||'falha')}; if(tftAberto()) tftRender(); }
-      P.atual='hor'; await tftLotes('hor', H.meus.map(w=>w.id), 25, lote('horas','ids'));
-      // Convites: um por pessoa e dia, no nome de quem apontou (aviso no Teams só no 1º convite de cada pessoa).
+      const lote=(transf,campo)=>(xs)=>tftChama(t, {transf, destino:D, [campo]:xs});
+      P.atual='com'; await tftLotes(t, 'com', I.com, 5, lote('comentarios','ids'));
+      P.atual='anx'; await tftLotes(t, 'anx', I.anx, 1, lote('anexos','ids'));
+      P.atual='vin'; await tftLotes(t, 'vin', I.vin, 20, lote('vinculos','ids'));
+      P.atual='rem'; if(t.opc.vin&&(L.remotos||[]).length&&!P.rem.ok){ P.rem=await tftUma(tftChama(t, {transf:'remotos', destino:D})); if(tftVisivel(t)) tftRender(); }
+      P.atual='fil'; await tftLotes(t, 'fil', I.fil, 10, lote('filhos','chaves'));
+      P.atual='hist'; if(t.opc.hist&&!P.hist.ok){ P.hist=await tftUma(tftChama(t, {transf:'historico', destino:D})); if(tftVisivel(t)) tftRender(); }
+      P.atual='hor'; await tftLotes(t, 'hor', I.hor, 5, lote('horas','ids'));
+      // Convites: por pessoa e dia (até 24h cada), no nome de quem apontou, com os comentários originais; aviso no
+      // Teams só no 1º convite de cada pessoa.
       P.atual='conv'; const avisada={};
-      await tftLotes('conv', H.convites.map(c=>c.ch), 1, async ([ch])=>{ const c=H.convites.find(x=>x.ch===ch);
+      await tftLotes(t, 'conv', I.conv, 1, async ([ch])=>{ const c=H.convites.find(x=>x.ch===ch);
+        const coment=`⏩ Transferido de ${t.k} — apontamento de ${fmtBR(c.dia)}${c.coms.length?`: ${c.coms.join(' · ')}`:''}`.slice(0,300);
         const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ convidar:true, issue:D,
-          segundos:c.seg, inicio:c.dia, comentario:`⏩ Transferido de ${t.k} — apontamento de ${fmtBR(c.dia)}`, pessoas:[{accountId:c.a, nome:c.nome}],
+          segundos:c.seg, inicio:c.dia, comentario:coment, pessoas:[{accountId:c.a, nome:c.nome}],
           avisarTeams:!avisada[c.a], email:id.email, token:id.token })}).then(r=>r.json());
         avisada[c.a]=true;
-        return (j&&j.ok)?{ok:true, feitos:[ch]}:{ok:false, erro:(j&&j.erro)||'falha ao convidar'}; });
-      // Exclusão: só com TUDO feito.
-      const {n,f}=tftContas();
-      const falta=['com','anx','vin','fil','hist','hor','conv'].some(k=>f[k]<n[k]);
+        return (j&&j.ok===true)?{ok:true, feitos:[ch]}:{ok:false, erro:(j&&j.erro)||'falha ao convidar'}; });
+      // Exclusão: só com TUDO feito (por id). O servidor ainda relê a origem: conteúdo novo desde o inventário
+      // (vistos = TUDO o que a tela viu, copiado ou não por escolha) ou restrito que a pessoa não vê → recusa.
+      const {n,f}=tftContas(t);
+      const falta=['com','anx','vin','rem','fil','hist','hor','conv'].some(k=>f[k]<n[k]);
       if(!falta){ P.atual='excl';
-        const j=await tftChama({transf:'excluir', destino:D}).catch(e=>({ok:false, erro:humanizaErro(e)}));
-        P.excl={ excluida:!!(j&&j.excluida), erro:(j&&j.erro)||'' }; }
+        const vistos={ com:(L.comentarios||[]).map(c=>c.id), wl:(L.worklogs||[]).map(w=>w.id), anx:(L.anexos||[]).map(a=>a.id), vin:(L.vinculos||[]).map(v=>v.id) };
+        const j=await tftChama(t, {transf:'excluir', destino:D, vistos}).catch(e=>({ok:false, erro:humanizaErro(e)}));
+        P.excl={ excluida:!!(j&&j.excluida===true), erro:(j&&j.erro)||(j&&j.excluida===true?'':'falha ao excluir') }; }
     }
   } finally {
     t.executando=false; P.atual='';
     const excluida=!!(P.excl&&P.excl.excluida); const D=P.destino&&P.destino.k;
     t.fase=excluida?'fim':'parou';
-    const {n,f}=tftContas();
-    logAcao({acao:'transferir ticket', t:t.k, para:D||'', ok:excluida,
-      motivo:`${f.com} coment. · ${f.anx} anexo(s) · ${f.vin} vínculo(s) · ${f.fil} filho(s) · ${f.hor} apont. seu(s) · ${f.conv}/${n.conv} convite(s)${excluida?'':' — origem mantida'}`});
+    try{
+      const {n,f}=tftContas(t);
+      logAcao({acao:'transferir ticket', t:t.k, para:D||'', ok:excluida,
+        motivo:`${f.com} coment. · ${f.anx} anexo(s) · ${f.vin} vínculo(s) · ${f.fil} filho(s) · ${f.hor} apont. seu(s) · ${f.conv}/${n.conv} convite(s)${excluida?'':' — origem mantida'}`});
+      if(f.hor){ estado.apontar.meusLogsSujo=true; estado.apontar.meusLogsEscreveu=true; }
+    }catch(e){}
     if(excluida){
       const g=estado.gestao; if(g){ delete (g.sel||{})[t.k]; if(g.dados&&g.dados.tickets) g.dados.tickets=g.dados.tickets.filter(x=>x.k!==t.k); }
       apExtrasRemoveTicket(t.k);
       toast(`✓ ${t.k} transferido para ${D} e excluído.`,'ok');
     } else toast(`⚠ Transferência de ${t.k} incompleta — ${t.k} não foi excluído.`,'warn');
-    if(f.hor){ estado.apontar.meusLogsSujo=true; estado.apontar.meusLogsEscreveu=true; }
     estado.apontar.porData={}; estado.apontar.recentes=null; invalidaCacheDados();
-    if(tftAberto()) tftRender(); else if(estado.vista==='gestao') renderGestao();
+    if(tftVisivel(t)) tftRender(); else if(estado.vista==='gestao') renderGestao();
   }
 }
 function tftConfere(){ const t=_tft; if(!t) return;
@@ -222,7 +254,7 @@ function tftConfere(){ const t=_tft; if(!t) return;
   if(k===t.k){ t.destErro='O destino não pode ser o próprio ticket.'; tftRender(); return; }
   if(t.conferindo===k) return;   // o change (ao sair do campo) e o clique em Conferir chegam juntos
   t.conferindo=k; tftRender();
-  tftChama({transf:'conferir', destino:k}).then(j=>{ if(!_tft||_tft!==t) return; t.conferindo=false;
+  tftChama(t, {transf:'conferir', destino:k}).then(j=>{ if(!_tft||_tft!==t) return; t.conferindo=false;
     if(t.destKey!==k){ if(tftAberto()) tftRender(); return; }   // a pessoa já trocou a chave
     if(j&&j.ok) t.d=j.d; else t.destErro=(j&&j.erro)||'Não consegui conferir o destino.';
     if(tftAberto()) tftRender(); })
@@ -230,6 +262,12 @@ function tftConfere(){ const t=_tft; if(!t) return;
 }
 
 // ---- Listeners desta tela ----
+// Durante a execução o modal NÃO fecha (Esc, ×, clique fora): fechar no meio deixava a execução órfã. Captura no
+// document, antes dos fechamentos globais do 30-eventos-boot.
+const tftTrava=(e)=>{ if(!(_tft&&_tft.executando&&tftAberto())) return false;
+  e.preventDefault(); e.stopImmediatePropagation(); toast(`Aguarde: a transferência de ${_tft.k} está em andamento.`,'warn'); return true; };
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') tftTrava(e); }, true);
+document.addEventListener('click',(e)=>{ const id=e.target&&e.target.id; if(id==='modal-x'||id==='modal') tftTrava(e); }, true);
 // Entradas: [data-tft-abre="KEY"] em qualquer lugar (Gestão, ficha 🔍, ⏱ Apontar).
 document.addEventListener('click',(e)=>{
   const a=e.target.closest&&e.target.closest('[data-tft-abre]'); if(!a) return;
@@ -243,8 +281,8 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(b.id==='tft-conferir'){ const i=document.getElementById('tft-dest'); if(i) _tft.destKey=i.value; tftConfere(); }
   else if(b.id==='tft-buscar'){ const t=_tft; const proj=(t.d&&t.d.projeto)||(t.L&&t.L.o.projeto)||'';
     abreBuscaTickets(proj, (k)=>{ if(_tft!==t) return; t.destKey=String(k||'').toUpperCase(); tftRender(); tftConfere(); }); }
-  else if(b.id==='tft-executar'){ tftExecuta(); }
-  else if(b.id==='tft-retentar'){ if(_tft.prog&&_tft.prog.excl&&!_tft.prog.excl.excluida) _tft.prog.excl=null; tftExecuta(); }
+  else if(b.id==='tft-executar'){ tftExecuta(_tft); }
+  else if(b.id==='tft-retentar'){ if(_tft.prog&&_tft.prog.excl&&!_tft.prog.excl.excluida) _tft.prog.excl=null; tftExecuta(_tft); }
 });
 document.getElementById('modal-body').addEventListener('change',(e)=>{
   if(!_tft||!e.target.closest('.tft-modal')) return; const el=e.target;

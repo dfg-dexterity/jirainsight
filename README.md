@@ -1049,8 +1049,14 @@ As horas dos **colegas** vão por **convite** (`POST /api/apontar {convidar}`, u
 1º de cada pessoa): a API do Jira só cria worklog no nome de quem tem o token. A tela guarda o que cada etapa já fez; se
 algo falha, **nada é excluído** e "↻ Tentar de novo" refaz só o que faltou. Bloqueios mostrados antes: filho que não
 cabe no destino (subtarefa não muda de projeto; o nível do destino tem que ser o da origem), anexo acima do limite,
-origem com mais de 300 comentários ou 1000 apontamentos. Testes: `agsem/transferir-servidor-test.mjs` (24 casos, Jira
-falso) e `transferir-test.mjs` (Playwright, 36 casos).
+origem com mais de 300 comentários, 1000 apontamentos ou 100 filhos.
+
+**Repetir é seguro:** tudo o que vai ao destino leva um marcador com o id da origem e cada etapa lê o destino antes de
+escrever, então um timeout ou uma aba recarregada não duplica nada (o ticket criado é achado pela propriedade
+`tft.origem`). **O `excluir` só apaga** se a origem não ganhou nada desde o inventário (a tela manda os ids que viu) e se
+a conta de serviço não enxerga comentário/apontamento restrito que a pessoa não vê. Também vão os links externos e a
+prioridade; componentes, versões e campos personalizados aparecem na tela como "não vão". Testes:
+`agsem/transferir-servidor-test.mjs` (32 casos, Jira falso) e `transferir-test.mjs` (Playwright, 48 casos).
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
