@@ -187,6 +187,7 @@ function agAvisoDe(evId){
   Object.values(cfg.inboxAvisos||{}).forEach(l=>(l||[]).forEach(a=>{ if(!achado&&a&&a.evId===evId) achado=a; }));
   return achado;
 }
+const AG_CONF_MAX=48;   // teto de reuniões conferidas no Jira por abertura da aba 🎫 (6 lotes de 8)
 function agDiasAtras(dia){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dia||''))) return 0;
   const a=Date.parse(`${dia}T12:00:00-03:00`), b=Date.parse(`${projHoje()}T12:00:00-03:00`);
@@ -689,9 +690,15 @@ function renderAgenda(){
   const pendSem=pend.concat(aguard);
   if(ctrl && pendSem.length && !ag.conferiu && !ag.conferindo){   // só a aba do controle mostra o "🟡 achei no Jira"
     ag.conferindo=true;
-    fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({conferir:1,itens:pendSem.map(ev=>({titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}))})})
-      .then(r=>r.json()).then(j=>{ ag.conferindo=false; ag.conferiu=true;
+    // O servidor confere até 8 por pedido: com a semana passada na agenda (2026-10-26) vão LOTES de 8, as mais
+    // recentes primeiro, até AG_CONF_MAX — antes as 8 primeiras da lista eram as únicas conferidas.
+    const fila=pendSem.slice().sort((x,y)=>String(y.inicio||'').localeCompare(String(x.inicio||''))).slice(0,AG_CONF_MAX);
+    const lotes=[]; for(let i=0;i<fila.length;i+=8) lotes.push(fila.slice(i,i+8));
+    Promise.all(lotes.map(l=>fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({conferir:1,itens:l.map(ev=>({titulo:ev.titulo,dia:(ev.inicio||'').slice(0,10)}))})})
+      .then(r=>r.json()).catch(()=>({}))))
+      .then(js=>({achados:Object.assign({},...js.map(j=>(j&&j.achados)||{}))}))
+      .then(j=>{ ag.conferindo=false; ag.conferiu=true;
         const a=(j&&j.achados)||{};
         pendSem.forEach(ev=>{ const h=a[agAchKey(ev)]; if(h&&h.k) ag.achados[ev.id]=h; });
         if(agVistaAberta()) renderAgenda(); if(_agM) agAtualizaModal(); })
@@ -801,7 +808,7 @@ function renderAgenda(){
   </div>`:'';
   const porDia={}; evs.forEach(ev=>{ const dia=(ev.inicio||'').slice(0,10)||'(sem data)'; (porDia[dia]=porDia[dia]||[]).push(ev); });
   const dias=Object.keys(porDia).sort();
-  const blocos=dias.map(dia=>{
+  const blocoDia=(dia)=>{
     const rows=porDia[dia].map(ev=>{
       const hora=ev.diaTodo?'dia todo':`${(ev.inicio||'').slice(11,16)}–${(ev.fim||'').slice(11,16)}`;
       const badge=ev.meu?'<span class="badge com-horas" data-tip="Você é o organizador">você organizou</span>'
@@ -824,7 +831,15 @@ function renderAgenda(){
         <div class="ag-acao">${acao}</div></div>`;
     }).join('');
     return `<div class="vg-card" style="margin-bottom:12px"><h3>${esc(agRotuloDia(dia))} <span class="muted small" style="font-weight:400">· ${porDia[dia].length} evento(s)</span></h3>${rows}</div>`;
-  }).join('');
+  };
+  // 🕗 Dias antes de ontem (a agenda vem desde a segunda da semana passada): recolhidos num bloco no topo, com a
+  // contagem — ontem, hoje e os próximos dias continuam à vista, como antes. Aberto/fechado em estado.agenda.secoes.
+  const ontem=voltaDias(hoje,1);
+  const diasPass=dias.filter(d=>d<ontem), diasProx=dias.filter(d=>!(d<ontem));
+  const nPass=diasPass.reduce((s2,d)=>s2+porDia[d].length,0);
+  const nPassSem=diasPass.reduce((s2,d)=>s2+porDia[d].filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&!agIgnorado(ev)).length,0);
+  const blocos=(diasPass.length?`<details class="ag-sec ag-passados"${aberto('diasPassados')?' open':''}><summary data-ag-sec="diasPassados">🕗 Dias anteriores <span class="muted small">· ${esc(alxDataBR(diasPass[0]))} → ${esc(alxDataBR(diasPass[diasPass.length-1]))} · ${nPass} evento(s)${nPassSem?` · <b>${nPassSem} sem ticket</b>`:''} — clique para ver</span></summary><div class="ag-sec-corpo">${diasPass.map(blocoDia).join('')}</div></details>`:'')
+    +diasProx.map(blocoDia).join('');
   try{ renderAbas(); }catch(e){}   // o contador da aba 🎫 (pendências suas) nasce com os dados da agenda, não só no render() geral
   if(ctrl){   // aba 🎫: só o controle — a lista de eventos fica na aba 📅
     cont.replaceChildren(el(`<div class="tela-agenda tela-agctrl">${caixaPend||`<div class="card full"><h2>${h2}</h2><div class="estado">Nenhuma reunião (fora as 🔒 particulares) no período da agenda.</div></div>`}</div>`));

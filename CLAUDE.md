@@ -177,6 +177,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `chmConfirma` (14c). Teste: `agenda-eu-test.mjs` (Playwright, 29 casos: próprio worklog, transição 3 e nunca a 2, 👥
   desmarcado, futura, 🔗 em agendada × em andamento, falha do próprio, trava antes de criar, convidado confirmando,
   celular; fixture `STATUS_FIX`/`CONV_PEND` + `POST /api/_convites {limpar|pendente|status}` no `servidor-mini.mjs`).
+  **📅 Semana passada na agenda (2026-10-26, a pedido do usuário: "não está aparecendo eventos que ocorreram na semana
+  passada"):** o `calendarView` do `api/reunioes.js` vai desde a **segunda da semana passada** (dia de SP; era `agendaDiaSP(-1)`)
+  até +14. Na 📅 Agenda os dias **antes de ontem** ficam no `<details class="ag-passados">` (`data-ag-sec="diasPassados"`,
+  recolhido; ontem/hoje/próximos à vista — os testes antigos clicam no evento de ontem); o 🎫 Controle os mostra em 🕗 Já
+  aconteceram. A conferência geral no Jira vai em **lotes de 8** (o servidor corta em 8 por pedido), das mais recentes,
+  até `AG_CONF_MAX`=48 — antes só as 8 primeiras eram conferidas. `agAutoCria` continua só para HOJE. Testes:
+  `agsem/janela-test.mjs` (handler real com fetch simulado e relógio fixo) e `agenda-semana-test.mjs` (Playwright, 15).
 - **📞 Ligações — Call tracking (2026-10-09, a pedido do usuário: "qualquer ligação no meu computador — WhatsApp,
   Teams, Google Meet —, assim que acabar, um pop-up para criar um ticket daquela reunião ou apontar minhas horas num
   ticket já criado; igual ao Call Timing do Timing, integrado ao Jira Insights"):** o usuário usa **Mac** (o Timing é

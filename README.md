@@ -1016,6 +1016,14 @@ da sugestão, `tipoPorFreq`/`tipoPorNovo` pré-selecionam o tipo. O antigo ramo 
 nome e a categoria "Delivery", inexistentes) virou o ramo de escopo fechado. Teste: `arvore-test.mjs` (Playwright,
 40 casos, com a lista real de projetos de 26/10/2026 no lugar do `/api/projetos`).
 
+### 📅 Agenda desde a segunda da semana passada (2026-10-26)
+
+A agenda do Outlook (`POST /api/reunioes {agenda:1}`) é lida desde a **segunda-feira da semana passada** (dia de São
+Paulo) até 14 dias à frente — antes começava ontem. Na 📅 Agenda, os dias antes de ontem ficam no bloco recolhido
+**🕗 Dias anteriores** (com a contagem de eventos e de "sem ticket"); no 🎫 Controle, as pendentes antigas entram em
+🕗 Já aconteceram, e a conferência "achei no Jira" vai em lotes de 8 (limite por pedido do servidor), das mais recentes,
+até 48 reuniões.
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do
