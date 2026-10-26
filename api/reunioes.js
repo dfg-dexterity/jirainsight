@@ -8,9 +8,12 @@
 // POST /api/reunioes { taskId, ... }      -> consulta o andamento de um move
 // POST /api/reunioes { vincular:1, ... }  -> vincula reunião a ticket de AMS (cria OU comenta,
 //                                            worklog opcional) e EXCLUI a reunião — token da pessoa
+// POST /api/reunioes { transf:'ler'|'conferir'|'destino'|…|'excluir' } -> 🔗 Transferir ticket com o histórico
+//                                            inteiro, em etapas (api/_lib/transferir.js) — token da pessoa
 import {
   cacheGet, cacheSetTTL, cacheClear, jiraBase, jiraSearchAll, json,
 } from './_lib/util.js';
+import { transferir } from './_lib/transferir.js';
 
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
@@ -125,7 +128,10 @@ async function agenda(req, res, b) {
   if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
 
   const tok = await graphToken();
-  const de = agendaDiaSP(-1); const ate = agendaDiaSP(14);
+  // Desde a SEGUNDA da semana passada (2026-10-26, a pedido do usuário: "não está aparecendo eventos que ocorreram na
+  // semana passada") — era só desde ontem. Na segunda, volta 7 dias; no domingo, 13. Até 14 dias à frente, como antes.
+  const dowSP = new Date(`${agendaDiaSP(0)}T12:00:00-03:00`).getUTCDay();
+  const de = agendaDiaSP(-(((dowSP + 6) % 7) + 7)); const ate = agendaDiaSP(14);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
     + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
     + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity,seriesMasterId,type';
@@ -654,6 +660,7 @@ export default async function handler(req, res) {
       if (b.presenca) return await presenca(req, res, b);
       if (b.conferir) return await conferirTickets(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
+      if (b.transf) return await transferir(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.
       req.body = b;
       return await mover(req, res);

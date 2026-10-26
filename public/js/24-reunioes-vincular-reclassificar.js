@@ -19,24 +19,23 @@ function rvProjetosAMS(){ const ps=_projetosCache||[];
   return [...ams, ...ps.filter(p=>!ehCategoriaAMS(p.categoria))]; }
 function rvTipoPadrao(p){ const ts=((p&&p.tipos)||[]).filter(t=>!t.subtarefa && t.nivel===0);
   const ap=ts.find(t=>/apoio|funcional|suporte/i.test(t.nome))||ts.find(t=>/task|tarefa/i.test(t.nome)); return String((ap||ts[0]||{}).id||''); }
-function abreRvWizard(key, generico){
+function abreRvWizard(key){
   _rv={ key, m:null, erro:'', modo:'criar', projeto:'', tipoId:'', resumo:'', horas:1, worklog:true,
-        ticket:'', tbusca:'', abertos:null, carregandoAb:false, executando:false, resultado:null,
-        generico:!!generico };
-  abreModal(`<h2>${_rv.generico?'Transferir ticket':'Vincular reunião'}</h2><div class="estado">Carregando detalhes…</div>`);
+        ticket:'', tbusca:'', abertos:null, carregandoAb:false, executando:false, resultado:null };
+  abreModal(`<h2>Vincular reunião</h2><div class="estado">Carregando detalhes…</div>`);
   Promise.all([ fetch(`/api/reunioes?detalhe=${encodeURIComponent(key)}`).then(r=>r.json()), garanteProjetos().catch(()=>null) ])
     .then(([j])=>{ if(!_rv||_rv.key!==key) return;
       if(j.erro){ _rv.erro=j.erro; renderRvModal(); return; }
       _rv.m=j;
       const p0=rvProjetosDo()[0];
       _rv.projeto=(p0&&p0.key)||''; _rv.tipoId=rvTipoPadrao(p0);
-      _rv.resumo=(_rv.generico?(j.resumo||key):`Apoio funcional — ${j.resumo||key}`).slice(0,255);
+      _rv.resumo=`Apoio funcional — ${j.resumo||key}`.slice(0,255);
       _rv.horas=j.totalSeg>0? Math.max(0.5, Math.round(j.totalSeg/360)/10) : 1;
       renderRvModal();
     }).catch(e=>{ if(_rv){ _rv.erro=String(e.message||e); renderRvModal(); } });
 }
-// Projetos que o assistente oferece: AMS no fluxo de reunião; TODOS na transferência.
-function rvProjetosDo(){ return (_rv&&_rv.generico) ? (_projetosCache||[]) : rvProjetosAMS(); }
+// Projetos que o assistente oferece: AMS primeiro (o 🔗 Transferir ticket genérico mora no 23b desde 2026-10-26).
+function rvProjetosDo(){ return rvProjetosAMS(); }
 function rvCarregaAbertos(){
   const rv=_rv; if(!rv) return;
   if(!rv.projeto){ renderRvModal(); return; }
@@ -50,34 +49,33 @@ function rvCarregaAbertos(){
 }
 function renderRvModal(){
   const rv=_rv; if(!rv) return;
-  const G=!!rv.generico;                                   // transferência de ticket (Gestão)
-  const ORIG=G?'o ticket':'a reunião';
-  const TIT=G?'Transferir ticket para outro':'Vincular reunião a um ticket';
+  const ORIG='a reunião';
+  const TIT='Vincular reunião a um ticket';
   if(rv.resultado){ const r=rv.resultado; const url=`${jiraBase()}/browse/${encodeURIComponent(r.destino)}`;
-    abreModal(`<h2>${G?'Ticket transferido':'Reunião vinculada'}</h2>
+    abreModal(`<h2>Reunião vinculada</h2>
       <div class="pl-res-ok">✓ ${r.modo==='criar'?'Ticket criado:':'Comentário registrado em'} <a href="${url}" target="_blank" rel="noopener">${esc(r.destino)} ↗</a></div>
       ${r.worklogOk===false?'<div class="aviso" style="margin-top:8px">O apontamento de horas falhou — registre manualmente no ticket.</div>':''}
-      ${r.excluida?`<div class="muted small" style="margin-top:8px">🗑 ${G?'O ticket original foi excluído':'A reunião foi excluída'} do Jira.</div>`:`<div class="aviso" style="margin-top:8px">${esc(r.erro||`A exclusão d${G?'o ticket original':'a reunião'} falhou — exclua manualmente.`)}</div>`}
+      ${r.excluida?`<div class="muted small" style="margin-top:8px">🗑 A reunião foi excluída do Jira.</div>`:`<div class="aviso" style="margin-top:8px">${esc(r.erro||`A exclusão da reunião falhou — exclua manualmente.`)}</div>`}
       <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primario" id="rv-fechar">Fechar</button></div>`);
     return; }
   if(rv.erro && !rv.m){
-    abreModal(`<h2>${G?'Transferir ticket':'Vincular reunião'}</h2><div class="erro">${esc(rv.erro)}</div>
+    abreModal(`<h2>Vincular reunião</h2><div class="erro">${esc(rv.erro)}</div>
       <div style="display:flex;gap:10px;margin-top:12px"><button class="btn" id="rv-fechar">Fechar</button></div>`);
     return; }
   if(!rv.m) return;
   const m=rv.m; const id=idApontar();
   const ams=rvProjetosDo(); const pSel=ams.find(p=>p.key===rv.projeto);
   const horasBox=m.totalSeg>0?`<div class="muted small" style="margin-top:4px">⏱ <strong>${alocH(m.totalSeg/3600)}</strong> apontadas: ${m.horas.map(h=>`${esc(h.nome)} ${alocH(h.seg/3600)}`).join(' · ')}</div>`:'';
-  const descBox=m.desc?`<details style="margin-top:6px"><summary class="muted small" style="cursor:pointer">ver descrição ${G?'do ticket':'da reunião'}</summary><div class="muted small" style="white-space:pre-wrap;margin-top:4px">${esc(m.desc.slice(0,1200))}</div></details>`:'';
+  const descBox=m.desc?`<details style="margin-top:6px"><summary class="muted small" style="cursor:pointer">ver descrição da reunião</summary><div class="muted small" style="white-space:pre-wrap;margin-top:4px">${esc(m.desc.slice(0,1200))}</div></details>`:'';
   const met=`<div class="rv-met"><span class="k">${esc(m.k)}</span> — ${esc(m.resumo)}
-    <div class="muted small" style="margin-top:2px">criad${G?'o':'a'} em ${esc(fmtBR(m.criado))}${m.relator?` · por ${esc(m.relator)}`:''} · status ${esc(m.status)}</div>${horasBox}${descBox}</div>`;
+    <div class="muted small" style="margin-top:2px">criada em ${esc(fmtBR(m.criado))}${m.relator?` · por ${esc(m.relator)}`:''} · status ${esc(m.status)}</div>${horasBox}${descBox}</div>`;
   const modoBtns=`<div class="rv-modo">
-    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">${G?'cria um ticket novo no projeto escolhido com os detalhes deste':'não existe ticket — cria como apoio funcional no projeto escolhido'}</span></button>
-    <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra ${G?'os detalhes':'a reunião'} nos comentários de um ticket aberto</span></button></div>`;
+    <button id="rv-modo-criar" class="${rv.modo==='criar'?'on':''}">➕ Criar ticket novo<br><span class="muted small" style="font-weight:400">não existe ticket — cria como apoio funcional no projeto escolhido</span></button>
+    <button id="rv-modo-exist" class="${rv.modo==='existente'?'on':''}">🔗 Usar ticket existente<br><span class="muted small" style="font-weight:400">registra a reunião nos comentários de um ticket aberto</span></button></div>`;
   const projOpt=ams.map(p=>`<option value="${escA(p.key)}" ${rv.projeto===p.key?'selected':''}>${esc(p.nome||p.key)} (${esc(p.key)})</option>`).join('');
   const horasCampos=`<div class="campo"><label>Duração (horas)</label><input type="number" id="rv-horas" value="${rv.horas}" min="0" step="0.5"></div>
       <div class="campo" style="display:flex;align-items:end"><label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:0;color:var(--grafite);text-transform:none;letter-spacing:0"><input type="checkbox" id="rv-worklog" ${rv.worklog?'checked':''}> registrar como <strong>meu apontamento</strong> no destino</label></div>`;
-  const rotProj=G?'Projeto destino':'Projeto destino (AMS primeiro)';
+  const rotProj='Projeto destino (AMS primeiro)';
   let form='';
   if(rv.modo==='criar'){
     const tipos=((pSel&&pSel.tipos)||[]).filter(t=>!t.subtarefa&&t.nivel===0);
@@ -97,15 +95,15 @@ function renderRvModal(){
       <div class="campo full"><label>Ticket aberto ${rv.carregandoAb?'(carregando…)':(rv.abertos?`(${rv.abertos.length})`:'')}</label><select id="rv-ticket" ${rv.carregandoAb||!rv.abertos?'disabled':''}>${tickOpt}</select></div>
       ${horasCampos}</div>`;
   }
-  const detTxt=G?'os detalhes do ticket':'os detalhes da reunião';
+  const detTxt='os detalhes da reunião';
   const passos = rv.modo==='criar'
     ? `<ol class="ap-passos"><li>Cria o ticket em <strong>${esc(rv.projeto||'…')}</strong> com ${detTxt} (data, quem, horas, descrição).</li>${rv.worklog&&rv.horas>0?`<li>Registra <strong>${rv.horas}h</strong> como seu apontamento no ticket novo.</li>`:''}<li>Exclui ${ORIG} <strong>${esc(m.k)}</strong>.</li></ol>`
     : `<ol class="ap-passos"><li>Comenta ${detTxt} (data, quem, horas, descrição) no ticket <strong>${esc(rv.ticket||'…')}</strong>.</li>${rv.worklog&&rv.horas>0?`<li>Registra <strong>${rv.horas}h</strong> como seu apontamento no ticket.</li>`:''}<li>Exclui ${ORIG} <strong>${esc(m.k)}</strong>.</li></ol>`;
-  const aviso=`<div class="rv-del">⚠️ Ao confirmar, ${ORIG} <strong>${esc(m.k)}</strong> será <strong>excluíd${G?'o':'a'} do Jira</strong> (não dá para desfazer)${m.totalSeg>0?` — junto com as horas apontadas nel${G?'e':'a'}; elas ficam registradas no texto do destino${rv.worklog?' e no seu apontamento':''}.`:'. Os detalhes ficam registrados no destino.'}</div>`;
+  const aviso=`<div class="rv-del">⚠️ Ao confirmar, ${ORIG} <strong>${esc(m.k)}</strong> será <strong>excluída do Jira</strong> (não dá para desfazer)${m.totalSeg>0?` — junto com as horas apontadas nela; elas ficam registradas no texto do destino${rv.worklog?' e no seu apontamento':''}.`:'. Os detalhes ficam registrados no destino.'}</div>`;
   const valido = rv.modo==='criar' ? !!(rv.projeto&&rv.tipoId&&rv.resumo.trim()) : !!rv.ticket;
   const rodape = id
-    ? `<div style="display:flex;gap:10px;margin-top:12px"><button class="btn" id="rv-cancelar">Cancelar</button><span class="spacer"></span><button class="btn primario" id="rv-confirm" ${valido&&!rv.executando?'':'disabled'}>${rv.executando?'Executando…':`Confirmar e excluir ${G?'o original':'a reunião'}`}</button></div>`
-    : `<div class="ap-id sem" style="margin-top:12px">Para ${G?'transferir':'vincular'}, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
+    ? `<div style="display:flex;gap:10px;margin-top:12px"><button class="btn" id="rv-cancelar">Cancelar</button><span class="spacer"></span><button class="btn primario" id="rv-confirm" ${valido&&!rv.executando?'':'disabled'}>${rv.executando?'Executando…':`Confirmar e excluir a reunião`}</button></div>`
+    : `<div class="ap-id sem" style="margin-top:12px">Para vincular, identifique-se uma vez (e-mail + token de API do Jira).<span class="spacer"></span><button class="btn" data-ap-act="config-id">Identificar-se</button></div>`;
   abreModal(`<h2>${TIT}</h2>${met}${modoBtns}${form}${passos}${aviso}${rv.erro?`<div class="erro">${esc(rv.erro)}</div>`:''}${rodape}`);
 }
 async function rvExecuta(){
@@ -113,20 +111,15 @@ async function rvExecuta(){
   if(rv.worklog&&Number(rv.horas)>0&&!(await planGate(String(rv.m.criado||'').slice(0,10)||hojeSP()))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   rv.executando=true; rv.erro=''; renderRvModal();
   const body={ vincular:1, email:id.email, token:id.token, reuniao:rv.m.k, modo:rv.modo,
-    horas:Number(rv.horas)||0, worklog:!!rv.worklog, ...(rv.generico?{transferir:1}:{}) };
+    horas:Number(rv.horas)||0, worklog:!!rv.worklog };
   if(rv.modo==='criar'){ body.projeto=rv.projeto; body.tipoId=rv.tipoId; body.resumo=rv.resumo.trim(); }
   else body.ticket=rv.ticket;
   fetch('/api/reunioes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(r=>r.json()).then(j=>{ if(!_rv) return; _rv.executando=false;
-      if(!j.ok){ _rv.erro=j.erro||(rv.generico?'Falha ao transferir.':'Falha ao vincular.'); renderRvModal(); return; }
-      logAcao({acao:rv.generico?'transferir ticket':'vincular reunião', t:rv.m.k, para:j.destino||'', motivo:rv.modo==='criar'?'ticket novo':'ticket existente', ok:true});
+      if(!j.ok){ _rv.erro=j.erro||'Falha ao vincular.'; renderRvModal(); return; }
+      logAcao({acao:'vincular reunião', t:rv.m.k, para:j.destino||'', motivo:rv.modo==='criar'?'ticket novo':'ticket existente', ok:true});
       _rv.resultado=j; renderRvModal();
-      if(rv.generico){
-        // O ticket original saiu do Jira: tira das listas da Gestão sem refetch.
-        const g=estado.gestao; delete g.sel[rv.m.k];
-        if(g.dados&&g.dados.tickets) g.dados.tickets=g.dados.tickets.filter(x=>x.k!==rv.m.k);
-        estado.reuvinc.dados=null;
-      } else { estado.reuvinc.dados=null; carregaReuVinc(true); }
+      estado.reuvinc.dados=null; carregaReuVinc(true);
       // O original foi excluído: a aba Apontar recarrega as listas ao fechar o modal.
       apExtrasRemoveTicket(rv.m.k);
       estado.apontar.porData={}; estado.apontar.recentes=null; estado.apontar.meusLogsSujo=true; invalidaCacheDados();
@@ -449,7 +442,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     const k=String((inp&&inp.value)||'').trim().toUpperCase();
     if(!/^[A-Z][A-Z0-9]*-\d+$/.test(k)){ toast('Informe a chave do ticket (ex.: TAD-123).','warn'); if(inp) inp.focus(); return; }
     if(!idApontar()){ abreIdentidade(); return; }
-    abreRvWizard(k, true); return; }
+    abreTransferir(k); return; }
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   const t=e.target; if(!t) return;

@@ -104,6 +104,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `20b-gestao-projeto.js` | 🧭 **Pendências do projeto** (R29, `?v=gp`, aba do grupo 🛠 Tickets do time; chip 🧭 na espinha do projeto; escopo na URL em `gproj` para não disputar com o filtro global `proj`): a visão do **gerente** — meus projetos (`cfg.projGerentes`, editado na ficha do 📁 projeto com o líder do Jira como sugestão; `meusProjetos()` é leitor), N dias sem atualização, blocos por pessoa com o pior caso primeiro (⏰ vencidos · 🧊 parados · ⏳ vencem em 7 dias · 📝 cadastro incompleto · ⏱ sem apontamento · 📅 reuniões vencidas · 📊 plano × orçado × realizado da foto) e as **ações de cobrança**: 📋 copiar a mensagem da pessoa (com o link filtrado), 💬 abrir o chat do Teams, 📣 comentar no Jira em lote (token da própria pessoa, modelo "Cobrar atualização"), 📥 aviso no Inbox (um por remetente+pessoa), 🛠 abrir na Gestão. Dados: `/api/vencimentos?analytics=1&dias=N&projetos=A,B` (chaves validadas e entre aspas; nenhuma válida → 400) |
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
+| `23b-transferir.js` | 🔗 Transferir ticket: o histórico inteiro (comentários, anexos, vínculos, filhos, status, horas) para outro ticket, e o original é excluído |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
 | `24b-hoje.js` | 📆 Hoje — lista do dia, linha do tempo, rituais 🌅/🌙, ⏱ cronômetro (pílula em todas as telas), 👥 Dia do time, card da Início |
 | `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
@@ -990,6 +991,72 @@ externa, decisão pendente, referência de mercado, datas e links** (Jira, PR). 
   `NOTION_ROADMAP_DB`, e sem eles só avisa; (3) à mão, `node scripts/roadmap-notion.mjs --dry` mostra o plano.
   O script tem teste contra um Notion falso (criação, atualização, "fora do roadmap", descrição longa
   fatiada em blocos de 2.000, paginação, dry-run, id duplicado).
+
+### 🌳 Onde crio o ticket? — perguntas pelos projetos de hoje (2026-10-26)
+
+A árvore (`ARV_NOS` em `public/js/14-planejar.js`, vista `ondecrio` e embutida na 🏠 Início) foi reescrita a partir
+dos projetos ativos do Jira. A 1ª pergunta é **para quem é o trabalho**:
+
+| Caminho | Projeto |
+| --- | --- |
+| Cliente › AMS direto (atendimento / reunião / administrativo) | projeto AMS do cliente (categoria DAMS, sem o DCP), tipo não faturável na reunião e no administrativo |
+| Cliente › AMS por consultoria parceira | DCP (fixo) + campo "AMS \| Consultoria > Cliente" |
+| Cliente › alocado por hora num projeto de parceiro | cards da categoria **PEA** (Copel, Cast Sumitomo, Convista MRV, Cast Hi-Mix) |
+| Cliente › escopo fechado | categoria **PEF/DEF**: entregável planejado → apontar na história · surgiu agora → subtarefa do responsável · alinhamento → épico de Gestão · nada disso → fale com o GP |
+| Cliente › proposta ou oportunidade | PV (fixo) |
+| Cliente › o projeto ainda não existe no Jira | ADM (fixo), com o tipo do pedido escolhido pela resposta (Projeto AMS / Dexterity / Terceirizado / Hora Aberta) |
+| Dexterity › rotina | IFCEC (finanças, contabilidade, controladoria) ou RDF (demais), tipo pela frequência |
+| Dexterity › melhoria / produto | cards **IMI** / **IPA** (projeto sem categoria no Jira entra pelo prefixo do nome, ex.: IMECI) |
+| Dexterity › estudo | DU (gera material reaproveitável) ou TAD › Pessoas & Cultura |
+| Dexterity › pedido pontual | TAD + departamento |
+| Ausência | pedido no Odoo (sem ticket) |
+
+As folhas acham os projetos pela **categoria** (`filtro:'cat'` + `catRe`), então projeto novo numa categoria entra
+sozinho; chave fixa = `soProjeto` (string ou função do formulário — a rotina escolhe IFCEC/RDF), `excl` tira chaves
+da sugestão, `tipoPorFreq`/`tipoPorNovo` pré-selecionam o tipo. O antigo ramo "Projeto SAP" (que procurava "SAP" no
+nome e a categoria "Delivery", inexistentes) virou o ramo de escopo fechado. Teste: `arvore-test.mjs` (Playwright,
+40 casos, com a lista real de projetos de 26/10/2026 no lugar do `/api/projetos`).
+
+### 📅 Agenda desde a segunda da semana passada (2026-10-26)
+
+A agenda do Outlook (`POST /api/reunioes {agenda:1}`) é lida desde a **segunda-feira da semana passada** (dia de São
+Paulo) até 14 dias à frente — antes começava ontem. Na 📅 Agenda, os dias antes de ontem ficam no bloco recolhido
+**🕗 Dias anteriores** (com a contagem de eventos e de "sem ticket"); no 🎫 Controle, as pendentes antigas entram em
+🕗 Já aconteceram, e a conferência "achei no Jira" vai em lotes de 8 (limite por pedido do servidor), das mais recentes,
+até 48 reuniões.
+
+### 🔗 Transferir ticket — o histórico inteiro para outro ticket (2026-10-26)
+
+Botão **🔗 transferir** em cada ticket da 🛠 Gestão, do ⏱ Apontar e da ficha 🔍 (e o "Transferir →" da 🗂 Reuniões).
+Leva TODO o histórico de um ticket para outro — existente ou novo, no mesmo projeto ou em outro — e **só então**
+exclui o original. Tela: `public/js/23b-transferir.js` (prefixo `tft`); servidor: `api/_lib/transferir.js`, sub-rota
+`POST /api/reunioes {transf}` (sem função nova), **tudo com o token da pessoa**.
+
+| Etapa (`transf`) | O que faz |
+| --- | --- |
+| `ler` | inventário da origem: comentários, anexos, vínculos, filhos (`parent = KEY`), worklogs, changelog |
+| `conferir` | ficha do destino (tipo, nível, projeto) para as checagens da tela |
+| `destino` | cria o ticket novo (com responsável/vencimento/rótulos quando o projeto aceita) ou comenta o cabeçalho no existente |
+| `comentarios` | copia cada comentário com "autor em data" no cabeçalho, mantendo a restrição; mídia da origem vira texto |
+| `anexos` | baixa da origem e reenvia ao destino (até 25 MB cada) |
+| `vinculos` | refaz cada vínculo no destino, com o mesmo lado |
+| `filhos` | muda o pai dos filhos para o destino |
+| `historico` | um comentário com a linha do tempo (status, responsável, resolução…) |
+| `horas` | recria SÓ os worklogs da própria pessoa (mesmo `started` e duração) |
+| `excluir` | apaga a origem — recusa se ela ainda tiver filhos ou se o destino não responder |
+
+As horas dos **colegas** vão por **convite** (`POST /api/apontar {convidar}`, um por pessoa e dia, aviso no Teams só no
+1º de cada pessoa): a API do Jira só cria worklog no nome de quem tem o token. A tela guarda o que cada etapa já fez; se
+algo falha, **nada é excluído** e "↻ Tentar de novo" refaz só o que faltou. Bloqueios mostrados antes: filho que não
+cabe no destino (subtarefa não muda de projeto; o nível do destino tem que ser o da origem), anexo acima do limite,
+origem com mais de 300 comentários, 1000 apontamentos ou 100 filhos.
+
+**Repetir é seguro:** tudo o que vai ao destino leva um marcador com o id da origem e cada etapa lê o destino antes de
+escrever, então um timeout ou uma aba recarregada não duplica nada (o ticket criado é achado pela propriedade
+`tft.origem`). **O `excluir` só apaga** se a origem não ganhou nada desde o inventário (a tela manda os ids que viu) e se
+a conta de serviço não enxerga comentário/apontamento restrito que a pessoa não vê. Também vão os links externos e a
+prioridade; componentes, versões e campos personalizados aparecem na tela como "não vão". Testes:
+`agsem/transferir-servidor-test.mjs` (32 casos, Jira falso) e `transferir-test.mjs` (Playwright, 48 casos).
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 

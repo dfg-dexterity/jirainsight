@@ -177,6 +177,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `chmConfirma` (14c). Teste: `agenda-eu-test.mjs` (Playwright, 29 casos: próprio worklog, transição 3 e nunca a 2, 👥
   desmarcado, futura, 🔗 em agendada × em andamento, falha do próprio, trava antes de criar, convidado confirmando,
   celular; fixture `STATUS_FIX`/`CONV_PEND` + `POST /api/_convites {limpar|pendente|status}` no `servidor-mini.mjs`).
+  **📅 Semana passada na agenda (2026-10-26, a pedido do usuário: "não está aparecendo eventos que ocorreram na semana
+  passada"):** o `calendarView` do `api/reunioes.js` vai desde a **segunda da semana passada** (dia de SP; era `agendaDiaSP(-1)`)
+  até +14. Na 📅 Agenda os dias **antes de ontem** ficam no `<details class="ag-passados">` (`data-ag-sec="diasPassados"`,
+  recolhido; ontem/hoje/próximos à vista — os testes antigos clicam no evento de ontem); o 🎫 Controle os mostra em 🕗 Já
+  aconteceram. A conferência geral no Jira vai em **lotes de 8** (o servidor corta em 8 por pedido), das mais recentes,
+  até `AG_CONF_MAX`=48 — antes só as 8 primeiras eram conferidas. `agAutoCria` continua só para HOJE. Testes:
+  `agsem/janela-test.mjs` (handler real com fetch simulado e relógio fixo) e `agenda-semana-test.mjs` (Playwright, 15).
 - **📞 Ligações — Call tracking (2026-10-09, a pedido do usuário: "qualquer ligação no meu computador — WhatsApp,
   Teams, Google Meet —, assim que acabar, um pop-up para criar um ticket daquela reunião ou apontar minhas horas num
   ticket já criado; igual ao Call Timing do Timing, integrado ao Jira Insights"):** o usuário usa **Mac** (o Timing é
@@ -366,6 +373,49 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no placar vai para o **fim**, com o selo "saiu do time" (`tr.sc-fora`) e sem medalha (as medalhas são de quem está
   jogando). Tela nova que mostre accountId guardado = usar `nomePessoaDe`, nunca `pessoasUnidas()[a].nome||a`. Teste:
   `scoreboard-nomes-test.mjs` (Playwright, 12 casos; fixture `/api/usuarios` com `inativos` no `servidor-mini.mjs`).
+- **🌳 Onde crio o ticket? reformulada pelos projetos de hoje (2026-10-26, a pedido do usuário: "veja os projetos que
+  temos hoje e reformule as perguntas que levarão a cada projeto"):** a 1ª pergunta é **para quem é** (cliente ×
+  Dexterity × ausência × não sei); no cliente, o **tipo de contrato = categoria do Jira** (DAMS direto sem o DCP /
+  DCP por parceira / **PEA** cards / **PEF·DEF** com as perguntas de entregável que eram do "Projeto SAP" / **PV**
+  pré-venda / **ADM** pedido de projeto novo com o tipo do pedido pela resposta — o ADM é a fila "Novo Projeto" com os
+  tipos Projeto AMS · Projeto Dexterity · Projeto Terceirizado · Proj. Terc. Hora Aberta); no interno, rotina → **IFCEC**
+  (finanças/contábil/controladoria) ou **RDF** (decisão do usuário: era TAD, mas o time já abria as rotinas lá), IMI/IPA
+  em cards, estudo → DU/TAD, pedido pontual → TAD + departamento. Folha nova = `filtro:'cat'`+`catRe` (acha pela
+  categoria; projeto SEM categoria entra pelo prefixo do nome — o IMECI está sem categoria no Jira) ou `soProjeto`
+  (string ou função do form, resolvida por `arvChaveFixa`); `excl`, `tipoPorFreq`, `tipoPorNovo`. Decisões do usuário:
+  DMCDCS ("ARQ | Melhoria Centro de Custo", categoria DEF) está **encerrado**; o ADM está em uso. Exemplos do
+  `caminhoArvore` da IA do 🕑 Meu dia (`api/resumo.js`) seguem os rótulos novos. Teste: `arvore-test.mjs` (40 casos).
+- **🔗 Transferir ticket com o histórico inteiro (2026-10-26, a pedido do usuário: "todo o histórico de um ticket é enviado
+  para outro ticket e o ticket original é deletado; entre projetos ou dentro do mesmo projeto"):** tela `23b-transferir.js`
+  (prefixo `tft`, entrada `[data-tft-abre="KEY"]` em qualquer lugar — Gestão, ⏱ Apontar, ficha 🔍, "Transferir →" da 🗂
+  Reuniões) + motor `api/_lib/transferir.js` (sub-rota `POST /api/reunioes {transf:'ler'|'conferir'|'destino'|'comentarios'|
+  'anexos'|'vinculos'|'filhos'|'historico'|'horas'|'excluir'}`, **tudo com o token da pessoa**). Substituiu o 🔗 transferir
+  antigo (modo `generico` do assistente de reuniões, que só levava um texto e as horas totais em nome de quem transferia —
+  removido do 24; a rota `vincular {transferir:1}` segue aceita para abas antigas). Decisões do usuário: horas dos COLEGAS
+  = **convite** (`/api/apontar {convidar}` por pessoa e dia; a API do Jira só cria worklog no nome do dono do token) — as da
+  pessoa vão direto com o `started` e a duração originais; levar comentários, anexos, vínculos + filhos e o resumo do
+  histórico; o botão em mais telas. Regras: a tela guarda o progresso por item (`_tft.prog`) e **só chama `excluir` com
+  tudo feito**; ↻ refaz só o que falhou (o destino criado não é recriado); `tftChecagem()` é a régua única dos bloqueios
+  (filho que não cabe: nível do destino = nível do filho + 1 e subtarefa no mesmo projeto; destino = origem ou filho dela;
+  anexo > 25 MB; > 300 comentários / 1000 worklogs) e dos avisos de perda (caixa desmarcada); o servidor relê a origem em
+  cada etapa (vínculos, filhos, worklog é meu?) e o `excluir` recusa com filho pendente ou destino que não responde;
+  comentários com "autor em data" no cabeçalho e `visibility` mantida; mídia ADF da origem vira texto (`adfSemMidia`).
+  **Sem planGate de propósito** — a transferência MOVE horas que já existem.
+  **Regras da revisão (mesmo dia, 13 achados — os de risco corrigidos):** (1) toda função da execução recebe o estado `t`
+  dela (`tftChama(t,…)`, `tftLotes(t,…)`, `tftContas(t)`) — nunca lê o `_tft` global; `abreTransferir` no meio de uma
+  execução (ou de uma que parou) volta ao progresso dela; Esc/×/clique fora não fecham durante a execução (captura no
+  document); a conclusão é medida POR ID (`tftItens`), não por contagem; resposta sem `ok:true` (400, 504 em HTML) = lote
+  falhou. (2) **Idempotência no servidor**: tudo o que vai ao destino leva marcador com o id da origem ("comentário copiado
+  de K #id", "⏩ Transferido de K #id", "🕓 Histórico de K", "📦 Transferido de K", anexo de mesmo nome+tamanho, remote link
+  de mesma URL, propriedade `tft.origem` no ticket criado — o `destino` criar procura por ela antes) e cada etapa lê o
+  destino antes de escrever — repetir (timeout, aba recarregada) não duplica; item apagado da origem depois do inventário
+  conta como feito. (3) O `excluir` recebe os `vistos` (todos os ids do inventário) e recusa se a origem ganhou comentário,
+  apontamento, anexo ou vínculo novo; com a conta de serviço, recusa se existe comentário/apontamento restrito que a pessoa
+  não enxerga; filhos pela JQL E pelo `fields.subtasks`. (4) Convite por pessoa e dia em pedaços de até 24h, com os
+  comentários originais; colega inativo = aviso (as horas dele não terão quem confirme). (5) Links externos (remote
+  links) e a prioridade vão junto; componentes, versões e campos personalizados são LISTADOS como "não vão" (`naoVai`).
+  Ficou de fora (R154): conferir a permissão de apontar do colega no destino. Testes: `agsem/transferir-servidor-test.mjs`
+  (32 casos, Jira falso em memória com conta de serviço) e `transferir-test.mjs` (Playwright, 48 casos).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão
