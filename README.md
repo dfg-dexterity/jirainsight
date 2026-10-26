@@ -104,6 +104,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `20b-gestao-projeto.js` | 🧭 **Pendências do projeto** (R29, `?v=gp`, aba do grupo 🛠 Tickets do time; chip 🧭 na espinha do projeto; escopo na URL em `gproj` para não disputar com o filtro global `proj`): a visão do **gerente** — meus projetos (`cfg.projGerentes`, editado na ficha do 📁 projeto com o líder do Jira como sugestão; `meusProjetos()` é leitor), N dias sem atualização, blocos por pessoa com o pior caso primeiro (⏰ vencidos · 🧊 parados · ⏳ vencem em 7 dias · 📝 cadastro incompleto · ⏱ sem apontamento · 📅 reuniões vencidas · 📊 plano × orçado × realizado da foto) e as **ações de cobrança**: 📋 copiar a mensagem da pessoa (com o link filtrado), 💬 abrir o chat do Teams, 📣 comentar no Jira em lote (token da própria pessoa, modelo "Cobrar atualização"), 📥 aviso no Inbox (um por remetente+pessoa), 🛠 abrir na Gestão. Dados: `/api/vencimentos?analytics=1&dias=N&projetos=A,B` (chaves validadas e entre aspas; nenhuma válida → 400) |
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
+| `23b-transferir.js` | 🔗 Transferir ticket: o histórico inteiro (comentários, anexos, vínculos, filhos, status, horas) para outro ticket, e o original é excluído |
 | `24-reunioes-vincular-reclassificar.js` | 🔗 Vincular reuniões a AMS, 🔁 Reclassificar |
 | `24b-hoje.js` | 📆 Hoje — lista do dia, linha do tempo, rituais 🌅/🌙, ⏱ cronômetro (pílula em todas as telas), 👥 Dia do time, card da Início |
 | `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
@@ -1023,6 +1024,33 @@ Paulo) até 14 dias à frente — antes começava ontem. Na 📅 Agenda, os dias
 **🕗 Dias anteriores** (com a contagem de eventos e de "sem ticket"); no 🎫 Controle, as pendentes antigas entram em
 🕗 Já aconteceram, e a conferência "achei no Jira" vai em lotes de 8 (limite por pedido do servidor), das mais recentes,
 até 48 reuniões.
+
+### 🔗 Transferir ticket — o histórico inteiro para outro ticket (2026-10-26)
+
+Botão **🔗 transferir** em cada ticket da 🛠 Gestão, do ⏱ Apontar e da ficha 🔍 (e o "Transferir →" da 🗂 Reuniões).
+Leva TODO o histórico de um ticket para outro — existente ou novo, no mesmo projeto ou em outro — e **só então**
+exclui o original. Tela: `public/js/23b-transferir.js` (prefixo `tft`); servidor: `api/_lib/transferir.js`, sub-rota
+`POST /api/reunioes {transf}` (sem função nova), **tudo com o token da pessoa**.
+
+| Etapa (`transf`) | O que faz |
+| --- | --- |
+| `ler` | inventário da origem: comentários, anexos, vínculos, filhos (`parent = KEY`), worklogs, changelog |
+| `conferir` | ficha do destino (tipo, nível, projeto) para as checagens da tela |
+| `destino` | cria o ticket novo (com responsável/vencimento/rótulos quando o projeto aceita) ou comenta o cabeçalho no existente |
+| `comentarios` | copia cada comentário com "autor em data" no cabeçalho, mantendo a restrição; mídia da origem vira texto |
+| `anexos` | baixa da origem e reenvia ao destino (até 25 MB cada) |
+| `vinculos` | refaz cada vínculo no destino, com o mesmo lado |
+| `filhos` | muda o pai dos filhos para o destino |
+| `historico` | um comentário com a linha do tempo (status, responsável, resolução…) |
+| `horas` | recria SÓ os worklogs da própria pessoa (mesmo `started` e duração) |
+| `excluir` | apaga a origem — recusa se ela ainda tiver filhos ou se o destino não responder |
+
+As horas dos **colegas** vão por **convite** (`POST /api/apontar {convidar}`, um por pessoa e dia, aviso no Teams só no
+1º de cada pessoa): a API do Jira só cria worklog no nome de quem tem o token. A tela guarda o que cada etapa já fez; se
+algo falha, **nada é excluído** e "↻ Tentar de novo" refaz só o que faltou. Bloqueios mostrados antes: filho que não
+cabe no destino (subtarefa não muda de projeto; o nível do destino tem que ser o da origem), anexo acima do limite,
+origem com mais de 300 comentários ou 1000 apontamentos. Testes: `agsem/transferir-servidor-test.mjs` (24 casos, Jira
+falso) e `transferir-test.mjs` (Playwright, 36 casos).
 
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 

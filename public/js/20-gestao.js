@@ -451,6 +451,7 @@ function renderModalTicket(d){
       <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
       <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>
+      <button class="btn" data-tft-abre="${escA(d.k)}" data-tip="Transferir ticket: leva TODO o histórico (comentários, anexos, vínculos, filhos, horas e status) para outro ticket, de qualquer projeto — e exclui este">🔗 Transferir ticket</button>
       <button class="btn" data-gx-conv="${escA(d.k)}" data-tip="Convida pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique e o aviso vai por chat individual do Teams">📨 Convidar para apontar</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
       ${(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:''}
@@ -706,7 +707,7 @@ function renderGestao(){
     <button data-gx-conv="${escA(t.k)}" title="Convidar pessoas do time a apontar horas neste ticket (aviso por chat individual)">📨 convidar</button>
     <button data-gx-det="${escA(t.k)}" title="Ficha completa do ticket (descrição, comentários, anexos, horas) sem abrir o Jira">🔍 detalhes</button>
     <button data-gx-apont="${escA(t.k)}" title="Apontar horas neste ticket (worklog no seu usuário)">⏱ apontar</button>
-    <button data-gx-transf="${escA(t.k)}" title="Transferir para outro ticket: copia os detalhes (e horas) para um ticket novo ou existente e EXCLUI este — igual ao Vincular Reuniões">🔗 transferir</button></span>`;
+    <button data-tft-abre="${escA(t.k)}" title="Transferir ticket: leva TODO o histórico (comentários, anexos, vínculos, filhos, horas e status) para outro ticket, novo ou existente, de qualquer projeto — e EXCLUI este">🔗 transferir</button></span>`;
   // ---- Tabela (densa; padrão) ----
   const htmlTabela=()=>{
     const linha=(t)=>{ const atras=gxAtrasoDias(t,hoje);
@@ -900,7 +901,6 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute&&t.hasAttribute('data-gx-r')){ const [k,acao]=t.getAttribute('data-gx-r').split('|');
     abreModalReprog([k], acao==='DATA'?'HOJE':acao); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-msg')){ abreModalComentarLote([t.getAttribute('data-gx-msg')],'cobrar'); return; }
-  if(t.hasAttribute&&t.hasAttribute('data-gx-transf')){ abreRvWizard(t.getAttribute('data-gx-transf'), true); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-apont')){ abreModalApontarGx(t.getAttribute('data-gx-apont')); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-st')){ abreModalStatusLote([t.getAttribute('data-gx-st')]); return; }
   if(t.hasAttribute&&t.hasAttribute('data-gx-trf')){ abreTransformar(t.getAttribute('data-gx-trf')); return; }

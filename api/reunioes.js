@@ -8,9 +8,12 @@
 // POST /api/reunioes { taskId, ... }      -> consulta o andamento de um move
 // POST /api/reunioes { vincular:1, ... }  -> vincula reunião a ticket de AMS (cria OU comenta,
 //                                            worklog opcional) e EXCLUI a reunião — token da pessoa
+// POST /api/reunioes { transf:'ler'|'conferir'|'destino'|…|'excluir' } -> 🔗 Transferir ticket com o histórico
+//                                            inteiro, em etapas (api/_lib/transferir.js) — token da pessoa
 import {
   cacheGet, cacheSetTTL, cacheClear, jiraBase, jiraSearchAll, json,
 } from './_lib/util.js';
+import { transferir } from './_lib/transferir.js';
 
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
@@ -657,6 +660,7 @@ export default async function handler(req, res) {
       if (b.presenca) return await presenca(req, res, b);
       if (b.conferir) return await conferirTickets(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
+      if (b.transf) return await transferir(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.
       req.body = b;
       return await mover(req, res);

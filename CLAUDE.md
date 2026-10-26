@@ -385,6 +385,23 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (string ou função do form, resolvida por `arvChaveFixa`); `excl`, `tipoPorFreq`, `tipoPorNovo`. Decisões do usuário:
   DMCDCS ("ARQ | Melhoria Centro de Custo", categoria DEF) está **encerrado**; o ADM está em uso. Exemplos do
   `caminhoArvore` da IA do 🕑 Meu dia (`api/resumo.js`) seguem os rótulos novos. Teste: `arvore-test.mjs` (40 casos).
+- **🔗 Transferir ticket com o histórico inteiro (2026-10-26, a pedido do usuário: "todo o histórico de um ticket é enviado
+  para outro ticket e o ticket original é deletado; entre projetos ou dentro do mesmo projeto"):** tela `23b-transferir.js`
+  (prefixo `tft`, entrada `[data-tft-abre="KEY"]` em qualquer lugar — Gestão, ⏱ Apontar, ficha 🔍, "Transferir →" da 🗂
+  Reuniões) + motor `api/_lib/transferir.js` (sub-rota `POST /api/reunioes {transf:'ler'|'conferir'|'destino'|'comentarios'|
+  'anexos'|'vinculos'|'filhos'|'historico'|'horas'|'excluir'}`, **tudo com o token da pessoa**). Substituiu o 🔗 transferir
+  antigo (modo `generico` do assistente de reuniões, que só levava um texto e as horas totais em nome de quem transferia —
+  removido do 24; a rota `vincular {transferir:1}` segue aceita para abas antigas). Decisões do usuário: horas dos COLEGAS
+  = **convite** (`/api/apontar {convidar}` por pessoa e dia; a API do Jira só cria worklog no nome do dono do token) — as da
+  pessoa vão direto com o `started` e a duração originais; levar comentários, anexos, vínculos + filhos e o resumo do
+  histórico; o botão em mais telas. Regras: a tela guarda o progresso por item (`_tft.prog`) e **só chama `excluir` com
+  tudo feito**; ↻ refaz só o que falhou (o destino criado não é recriado); `tftChecagem()` é a régua única dos bloqueios
+  (filho que não cabe: nível do destino = nível do filho + 1 e subtarefa no mesmo projeto; destino = origem ou filho dela;
+  anexo > 25 MB; > 300 comentários / 1000 worklogs) e dos avisos de perda (caixa desmarcada); o servidor relê a origem em
+  cada etapa (vínculos, filhos, worklog é meu?) e o `excluir` recusa com filho pendente ou destino que não responde;
+  comentários com "autor em data" no cabeçalho e `visibility` mantida; mídia ADF da origem vira texto (`adfSemMidia`).
+  **Sem planGate de propósito** — a transferência MOVE horas que já existem. Testes: `agsem/transferir-servidor-test.mjs`
+  (24 casos, Jira falso em memória) e `transferir-test.mjs` (Playwright, 36 casos).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

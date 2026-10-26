@@ -521,6 +521,7 @@ function renderApontar(){
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-conv="${escA(t.k)}" data-tip="Convidar pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique (aviso por chat individual do Teams)">📨 convidar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
+        ${id?`<button class="badge st-btn" data-tft-abre="${escA(t.k)}" data-tip="Transferir ticket: leva todo o histórico (comentários, anexos, vínculos, horas e status) para outro ticket e exclui este">🔗 transferir</button>`:''}
         ${id&&ehReuniao?`<button class="badge st-btn" data-ap-vinc="${escA(t.k)}" data-tip="Vincular esta reunião a um ticket: cria um ticket de apoio funcional (ou comenta num ticket aberto) com os detalhes e EXCLUI a reunião — o mesmo assistente da tela Vincular Reuniões">🔗 vincular a ticket</button>`:''}
       </div>
       ${logCtrl}
