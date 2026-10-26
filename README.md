@@ -991,6 +991,31 @@ externa, decisão pendente, referência de mercado, datas e links** (Jira, PR). 
   O script tem teste contra um Notion falso (criação, atualização, "fora do roadmap", descrição longa
   fatiada em blocos de 2.000, paginação, dry-run, id duplicado).
 
+### 🌳 Onde crio o ticket? — perguntas pelos projetos de hoje (2026-10-26)
+
+A árvore (`ARV_NOS` em `public/js/14-planejar.js`, vista `ondecrio` e embutida na 🏠 Início) foi reescrita a partir
+dos projetos ativos do Jira. A 1ª pergunta é **para quem é o trabalho**:
+
+| Caminho | Projeto |
+| --- | --- |
+| Cliente › AMS direto (atendimento / reunião / administrativo) | projeto AMS do cliente (categoria DAMS, sem o DCP), tipo não faturável na reunião e no administrativo |
+| Cliente › AMS por consultoria parceira | DCP (fixo) + campo "AMS \| Consultoria > Cliente" |
+| Cliente › alocado por hora num projeto de parceiro | cards da categoria **PEA** (Copel, Cast Sumitomo, Convista MRV, Cast Hi-Mix) |
+| Cliente › escopo fechado | categoria **PEF/DEF**: entregável planejado → apontar na história · surgiu agora → subtarefa do responsável · alinhamento → épico de Gestão · nada disso → fale com o GP |
+| Cliente › proposta ou oportunidade | PV (fixo) |
+| Cliente › o projeto ainda não existe no Jira | ADM (fixo), com o tipo do pedido escolhido pela resposta (Projeto AMS / Dexterity / Terceirizado / Hora Aberta) |
+| Dexterity › rotina | IFCEC (finanças, contabilidade, controladoria) ou RDF (demais), tipo pela frequência |
+| Dexterity › melhoria / produto | cards **IMI** / **IPA** (projeto sem categoria no Jira entra pelo prefixo do nome, ex.: IMECI) |
+| Dexterity › estudo | DU (gera material reaproveitável) ou TAD › Pessoas & Cultura |
+| Dexterity › pedido pontual | TAD + departamento |
+| Ausência | pedido no Odoo (sem ticket) |
+
+As folhas acham os projetos pela **categoria** (`filtro:'cat'` + `catRe`), então projeto novo numa categoria entra
+sozinho; chave fixa = `soProjeto` (string ou função do formulário — a rotina escolhe IFCEC/RDF), `excl` tira chaves
+da sugestão, `tipoPorFreq`/`tipoPorNovo` pré-selecionam o tipo. O antigo ramo "Projeto SAP" (que procurava "SAP" no
+nome e a categoria "Delivery", inexistentes) virou o ramo de escopo fechado. Teste: `arvore-test.mjs` (Playwright,
+40 casos, com a lista real de projetos de 26/10/2026 no lugar do `/api/projetos`).
+
 ### Reclassificar (mover de projeto) na aba ⏱ Apontar
 
 Cada chamado tem **🔀 mover** para **reclassificá-lo para outro projeto** sem sair do

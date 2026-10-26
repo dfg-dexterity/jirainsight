@@ -366,6 +366,18 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   no placar vai para o **fim**, com o selo "saiu do time" (`tr.sc-fora`) e sem medalha (as medalhas são de quem está
   jogando). Tela nova que mostre accountId guardado = usar `nomePessoaDe`, nunca `pessoasUnidas()[a].nome||a`. Teste:
   `scoreboard-nomes-test.mjs` (Playwright, 12 casos; fixture `/api/usuarios` com `inativos` no `servidor-mini.mjs`).
+- **🌳 Onde crio o ticket? reformulada pelos projetos de hoje (2026-10-26, a pedido do usuário: "veja os projetos que
+  temos hoje e reformule as perguntas que levarão a cada projeto"):** a 1ª pergunta é **para quem é** (cliente ×
+  Dexterity × ausência × não sei); no cliente, o **tipo de contrato = categoria do Jira** (DAMS direto sem o DCP /
+  DCP por parceira / **PEA** cards / **PEF·DEF** com as perguntas de entregável que eram do "Projeto SAP" / **PV**
+  pré-venda / **ADM** pedido de projeto novo com o tipo do pedido pela resposta — o ADM é a fila "Novo Projeto" com os
+  tipos Projeto AMS · Projeto Dexterity · Projeto Terceirizado · Proj. Terc. Hora Aberta); no interno, rotina → **IFCEC**
+  (finanças/contábil/controladoria) ou **RDF** (decisão do usuário: era TAD, mas o time já abria as rotinas lá), IMI/IPA
+  em cards, estudo → DU/TAD, pedido pontual → TAD + departamento. Folha nova = `filtro:'cat'`+`catRe` (acha pela
+  categoria; projeto SEM categoria entra pelo prefixo do nome — o IMECI está sem categoria no Jira) ou `soProjeto`
+  (string ou função do form, resolvida por `arvChaveFixa`); `excl`, `tipoPorFreq`, `tipoPorNovo`. Decisões do usuário:
+  DMCDCS ("ARQ | Melhoria Centro de Custo", categoria DEF) está **encerrado**; o ADM está em uso. Exemplos do
+  `caminhoArvore` da IA do 🕑 Meu dia (`api/resumo.js`) seguem os rótulos novos. Teste: `arvore-test.mjs` (40 casos).
 - **⚠ Meus tickets vencidos × ⏱ Apontar (2026-10-01, a pedido do usuário: "quando eu clico, a informação está
   errada"):** o card da 🏠 Início lê `estado.acoes.venc` (`/api/vencimentos?ate=+30d&incluirSemVenc=1`) e o
   ⏱ Apontar lê `estado.apontar.porData[ate|sv]` — DUAS cópias da mesma base, as duas guardadas pela sessão

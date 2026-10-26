@@ -181,19 +181,29 @@ function renderPlanejar(){
 // Guia de governança (TI-04-006): perguntas encadeadas até a recomendação — e,
 // quando a recomendação é abrir um ticket, o ÚLTIMO PASSO cria o ticket ali mesmo.
 // Folhas "sap_fale_gp" NÃO criam ticket (a regra é justamente não criar paralelo).
+// Revisão de 2026-10-26 (a pedido do usuário: "veja os projetos que temos hoje e reformule as perguntas"): a
+// 1ª pergunta é PARA QUEM é o trabalho (cliente × Dexterity × ausência) e o ramo do cliente segue o TIPO DE
+// CONTRATO = a categoria do Jira (DAMS / PEA / PEF·DEF / PV / ADM) — as folhas acham os projetos pela categoria,
+// então projeto novo entra sozinho. O antigo "Projeto SAP" (que procurava "SAP" no nome e a categoria "Delivery",
+// que não existem mais) virou o ramo de escopo fechado; rotina vai para RDF (finanças/controladoria: IFCEC), não TAD.
+// Campos de folha: filtro ('ams'|'cat'|'avulsa') + catRe/catNome · excl (chaves fora) · soProjeto (chave ou
+// função do formulário) · escolheProjeto (cards) · tipoPorFreq/tipoPorNovo (tipo pré-selecionado pela resposta).
+const ARV_CAT_EF=/^\s*(PEF|DEF)\b|escopo\s+fechado/i;
 const ARV_NOS={
-  start:{ q:'A atividade pertence claramente a um cliente, contrato ou iniciativa já existente?',
-    helper:'Se já existe um projeto, contrato ou frente formal, o ticket deve nascer lá.',
-    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal'}, {label:'Não', next:'adminOuAvulsa', tone:'grafite'},
-      {label:'Estou em dúvida', next:'duvida_apoio', tone:'orange', desc:'Sem certeza de onde encaixar? Responda mais 2–3 perguntas rápidas.'} ] },
-  duvida_apoio:{ q:'Sua tarefa é de apoio ou acompanhamento com alguma pessoa?',
-    helper:'Se você está apoiando ou acompanhando alguém que atua num cliente, contrato ou iniciativa, o registro segue o mesmo caminho dessa frente.',
-    op:[ {label:'Sim', next:'tipoProjeto', tone:'teal', desc:'Apoio/acompanhamento de alguém numa frente existente — o ticket nasce no contexto dessa frente.'},
+  start:{ q:'Para quem é esse trabalho?',
+    helper:'Pense em quem se beneficia do resultado: um cliente (direto ou por meio de uma consultoria parceira) ou a própria Dexterity.',
+    op:[ {label:'Para um cliente', next:'cliente_tipo', tone:'teal', desc:'Atendimento, projeto ou proposta para uma empresa cliente — direto ou por uma consultoria parceira.'},
+      {label:'Para a própria Dexterity', next:'interno', tone:'moss', desc:'Rotinas, melhorias, produtos, estudos e pedidos internos.'},
+      {label:'Quero registrar uma ausência', next:'ausencia', tone:'orange', desc:'Compensação de horas, atestado médico ou férias — o pedido vai para o Odoo, não vira ticket.'},
+      {label:'Não sei dizer', next:'duvida_apoio', tone:'grafite', desc:'Responda mais 2–3 perguntas rápidas.'} ] },
+  duvida_apoio:{ q:'Você está apoiando ou acompanhando alguém que atende um cliente?',
+    helper:'Se você está apoiando ou acompanhando alguém numa frente de cliente, o registro segue o mesmo caminho dessa frente.',
+    op:[ {label:'Sim', next:'cliente_tipo', tone:'teal', desc:'O ticket nasce no projeto do cliente que essa pessoa atende.'},
       {label:'Não', next:'duvida_estudo', tone:'grafite'} ] },
   duvida_estudo:{ q:'Você está estudando ou se capacitando?',
     helper:'Estudos, treinamentos e certificações têm caminho próprio.',
     op:[ {label:'Sim', next:'duvida_doc', tone:'purple', desc:'Cursos, certificações, estudo de ferramenta/tecnologia.'},
-      {label:'Não', next:'adminOuAvulsa', tone:'grafite', desc:'Sem frente, sem apoio a alguém e sem estudo — trate como demanda administrativa/avulsa.'} ] },
+      {label:'Não', next:'interno', tone:'grafite', desc:'Sem cliente e sem estudo — veja os tipos de trabalho interno.'} ] },
   duvida_doc:{ q:'Você está gerando algum manual ou documentação que será reaproveitado por outras pessoas?',
     helper:'Conteúdo reutilizável (manuais, guias, materiais de treinamento) vira um ativo da Dexterity University.',
     op:[ {label:'Sim, vou gerar material reaproveitável', next:'duvida_du', tone:'teal', desc:'Manual, guia, documentação ou treinamento que outras pessoas vão usar.'},
@@ -208,11 +218,17 @@ const ARV_NOS={
     bullets:['O pedido é criado em SEU nome (use a identificação do painel).',
       'Depois de aprovado no Odoo, o painel cria automaticamente o ticket de folga no Jira e registra as horas (sincronização diária).',
       'Para atestado, anexe o documento no próprio pedido dentro do Odoo.'] },
-  tipoProjeto:{ q:'Qual é o contexto principal da atividade?', helper:'Escolha a natureza do vínculo da atividade.',
-    op:[ {label:'Projeto AMS', next:'ams_parceria', tone:'teal'}, {label:'Projeto SAP', next:'sap_entregavel', tone:'purple'},
-      {label:'Projeto Interno', next:'interno', tone:'moss'}, {label:'Nenhum destes', next:'adminOuAvulsa', tone:'grafite'} ] },
-  ams_parceria:{ q:'O AMS é por parceria?',
-    helper:'Atendimentos AMS executados por meio de uma consultoria PARCEIRA têm projeto próprio (DAMS | Consultorias Parceiras). AMS direto com o cliente segue no projeto do cliente.',
+
+  // ---- 🏢 Para um cliente: o tipo de contrato decide o projeto ----
+  cliente_tipo:{ q:'Como esse cliente é atendido?',
+    helper:'É o tipo de contrato que define o projeto. Na dúvida, pergunte ao gerente do projeto ou veja o contrato em 📑 Contratos.',
+    op:[ {label:'Suporte contínuo (AMS)', next:'ams_parceria', tone:'teal', desc:'Chamados, incidentes, pequenas melhorias e sustentação de um contrato recorrente.'},
+      {label:'Alocado num projeto de parceiro, por hora', next:'pea', tone:'purple', desc:'Uma consultoria parceira nos contrata por hora e quem planeja é ela (escopo aberto) — ex.: Copel, Cast, Convista.'},
+      {label:'Projeto com escopo fechado e entregáveis', next:'ef_entregavel', tone:'moss', desc:'Implantação ou melhoria vendida com escopo e prazo definidos — direto pela Dexterity ou por meio de um parceiro.'},
+      {label:'Ainda é proposta ou oportunidade', next:'pv', tone:'orange', desc:'Lead, levantamento, proposta ou estimativa de algo que ainda não foi vendido.'},
+      {label:'O projeto desse cliente ainda não existe no Jira', next:'novo_tipo', tone:'grafite', desc:'Contrato novo, sem projeto aberto — peça a criação do projeto.'} ] },
+  ams_parceria:{ q:'O AMS é por meio de uma consultoria parceira?',
+    helper:'Atendimentos AMS executados por meio de uma consultoria PARCEIRA têm projeto próprio (DCP | Consultorias Parceiras). AMS direto com o cliente segue no projeto AMS do cliente.',
     op:[ {label:'Sim, é via consultoria parceira', next:'ams_dams', tone:'teal'},
       {label:'Não, é AMS direto com o cliente', next:'ams_natureza', tone:'grafite'} ] },
   ams_natureza:{ q:'É uma reunião de alinhamento ou uma atividade administrativa?',
@@ -220,121 +236,147 @@ const ARV_NOS={
     op:[ {label:'Não — é atendimento do contrato', next:'ams', tone:'teal', desc:'Incidente, atendimento recorrente, pequena melhoria ou suporte — consome o pacote (faturável).'},
       {label:'Reunião de alinhamento', next:'ams_reuniao', tone:'orange', desc:'Alinhamento com o cliente ou interno sobre o contrato — vira REUNIÃO NÃO FATURÁVEL.'},
       {label:'Atividade administrativa', next:'ams_admin', tone:'orange', desc:'Gestão do contrato, relatórios, organização interna — vira TAREFA NÃO FATURÁVEL.'} ] },
-  ams_reuniao:{ result:true, tone:'orange', badge:'AMS — Reunião não faturável', title:'Abrir no projeto AMS do cliente como REUNIÃO NÃO FATURÁVEL', cria:true, filtro:'ams', tipoNaoFat:'reuniao',
+  ams:{ result:true, tone:'teal', badge:'Projeto AMS', title:'Abrir no projeto AMS do cliente', cria:true, filtro:'ams', excl:['DCP'],
+    text:'Use o projeto AMS quando a atividade fizer parte da sustentação, suporte recorrente, pequenas melhorias ou operação contínua de um contrato AMS.',
+    bullets:['Incidente, atendimento recorrente, pequena melhoria, suporte funcional ou técnico.',
+      'Se existe cliente e contrato AMS ativo, não abra como administrativo nem avulso.',
+      'O ticket deve refletir o cliente e a frente correta de atendimento.'] },
+  ams_reuniao:{ result:true, tone:'orange', badge:'AMS — Reunião não faturável', title:'Abrir no projeto AMS do cliente como REUNIÃO NÃO FATURÁVEL', cria:true, filtro:'ams', excl:['DCP'], tipoNaoFat:'reuniao',
     text:'Reuniões de alinhamento do AMS são registradas no projeto AMS do cliente com o tipo "Reunião não faturável" — ficam fora da apuração do pacote (a apuração usa o TIPO do chamado como fonte de verdade).',
     bullets:['O tipo do ticket já vem selecionado como o de REUNIÃO NÃO FATURÁVEL do projeto (ajuste se o projeto usar outro nome).',
       'Só as horas de tipos faturáveis consomem o pacote/excedente do contrato.',
       'Descreva no resumo o assunto do alinhamento e quem participou.'] },
-  ams_admin:{ result:true, tone:'orange', badge:'AMS — Tarefa não faturável', title:'Abrir no projeto AMS do cliente como TAREFA NÃO FATURÁVEL', cria:true, filtro:'ams', tipoNaoFat:'tarefa',
+  ams_admin:{ result:true, tone:'orange', badge:'AMS — Tarefa não faturável', title:'Abrir no projeto AMS do cliente como TAREFA NÃO FATURÁVEL', cria:true, filtro:'ams', excl:['DCP'], tipoNaoFat:'tarefa',
     text:'Atividades administrativas do AMS (gestão do contrato, relatórios, organização interna) são registradas no projeto AMS do cliente com o tipo "Tarefa não faturável" — fora da apuração do pacote.',
     bullets:['O tipo do ticket já vem selecionado como o de TAREFA NÃO FATURÁVEL do projeto (ajuste se o projeto usar outro nome).',
       'Só as horas de tipos faturáveis consomem o pacote/excedente do contrato.',
-      'Se a atividade não é de um contrato AMS específico, volte e use "Nenhum destes" → tarefa administrativa (TAD).'] },
+      'Se a atividade não é de um contrato AMS específico, volte ao início e escolha "Para a própria Dexterity".'] },
   ams_dams:{ result:true, tone:'teal', badge:'AMS — Parceria', title:'Abrir no projeto DCP | Consultorias Parceiras', cria:true, filtro:'ams', soProjeto:'DCP', camposAms:true,
     text:'Atendimentos AMS feitos por meio de consultorias parceiras nascem SEMPRE no projeto DCP (DAMS | Consultorias Parceiras).',
     bullets:['O projeto é fixo: DCP (único permitido neste caminho).',
       'Informe a CONSULTORIA parceira e o CLIENTE — vão no campo "AMS | Consultoria > Cliente" do ticket (obrigatórios).',
       'Os demais campos funcionam como no AMS direto.'] },
-  sap_entregavel:{ q:'A atividade ajuda na entrega de algum entregável do projeto SAP?',
-    helper:'Entregável é qualquer item formal que será entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
-    op:[ {label:'Sim, ajuda em um entregável', next:'sap_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'sap_alinhamento', tone:'grafite'} ] },
-  sap_alinhamento:{ q:'É uma tarefa de alinhamento que não está relacionada a nenhum entregável?',
+  pea:{ result:true, tone:'purple', badge:'Parceria por hora (PEA)', title:'Escolha o projeto da parceria', cria:true, escolheProjeto:true,
+    filtro:'cat', catRe:/^\s*PEA\b|escopo\s+aberto/i, catNome:'PEA | Parceria - Escopo Aberto',
+    text:'Você está alocado num projeto de uma consultoria parceira e recebemos pelas horas. Quem planeja é o parceiro — o ticket nasce no projeto dessa parceria no nosso Jira.',
+    bullets:['Antes de criar, procure no projeto se já existe um ticket para essa atividade (🎫 Buscar ticket, tecla /) e aponte nele.',
+      'No resumo, use o nome que a atividade tem no plano do parceiro — fica fácil conferir as horas com ele.',
+      'Escolha o projeto pelo nome do parceiro e do cliente final.'] },
+  ef_entregavel:{ q:'A atividade ajuda em algum entregável do projeto?',
+    helper:'Entregável é qualquer item formal entregue ao cliente ou usado para cumprir o escopo: configuração, especificação, teste, documento, desenvolvimento, migração, integração, treinamento, validação ou gestão da entrega.',
+    op:[ {label:'Sim, ajuda em um entregável', next:'ef_planejado', tone:'purple'}, {label:'Não ou não está claro', next:'ef_alinhamento', tone:'grafite'} ] },
+  ef_planejado:{ q:'Esse entregável está no planejamento do projeto?',
+    helper:'Se já estava planejado, a atividade entra na estrutura que já existe (épico e história). Se surgiu agora, ela vai para o ticket responsável pelo entregável, como subtarefa.',
+    op:[ {label:'Sim, está no planejamento', next:'ef_planejados', tone:'grafite'}, {label:'Não, surgiu agora', next:'ef_ticket_responsavel', tone:'purple'} ] },
+  ef_planejados:{ result:true, tone:'purple', badge:'Escopo fechado — planejado', title:'Aponte no ticket que JÁ FOI planejado', cria:false, planejados:true, escolheProjeto:true,
+    filtro:'cat', catRe:ARV_CAT_EF, catNome:'PEF / DEF — escopo fechado',
+    text:'O entregável já estava planejado — não crie ticket paralelo. Escolha o projeto e localize o ÉPICO (nível 1) e a HISTÓRIA (nível 2) planejados para apontar no lugar certo.',
+    bullets:['Aponte as horas direto na história planejada (ou nas sub-tarefas dela) — não abra tarefa administrativa ou avulsa.',
+      'Não achou o épico/história do seu trabalho? Fale com o gerente do projeto ANTES de criar qualquer coisa.',
+      'Precisa detalhar? Combine com o GP a criação de sub-tarefas dentro da história planejada.'] },
+  ef_ticket_responsavel:{ result:true, tone:'purple', badge:'Escopo fechado', title:'Coloque no ticket responsável', cria:true, filtro:'cat', catRe:ARV_CAT_EF, subtarefa:true,
+    text:'Quando a atividade ajuda em um entregável que não foi planejado, ela deve ser registrada no ticket responsável pelo entregável ou criada como SUBTAREFA vinculada a ele.',
+    bullets:['Não abrir como tarefa administrativa ou avulsa.',
+      'Vincular ao entregável, fase ou frente correta do projeto.',
+      'Se o ticket responsável ainda não existir, alinhar com o gerente de projeto para criar com a estrutura correta.'] },
+  ef_alinhamento:{ q:'É alinhamento ou gestão do projeto, sem um entregável específico?',
     helper:'Alinhamentos, reuniões de acompanhamento, status e atividades de gestão do projeto não produzem um entregável específico — e são registrados no épico de GESTÃO do projeto.',
-    op:[ {label:'Sim, é alinhamento/gestão', next:'sap_gestao', tone:'purple'},
-      {label:'Não', next:'sap_fale_gp', tone:'grafite'} ] },
-  sap_gestao:{ result:true, tone:'purple', badge:'Projeto SAP — Gestão', title:'Crie o ticket no épico de Gestão do projeto', cria:true, filtro:'sap', epico:true,
+    op:[ {label:'Sim, é alinhamento/gestão', next:'ef_gestao', tone:'purple'},
+      {label:'Não', next:'ef_fale_gp', tone:'grafite'} ] },
+  ef_gestao:{ result:true, tone:'purple', badge:'Escopo fechado — Gestão', title:'Crie o ticket no épico de Gestão do projeto', cria:true, filtro:'cat', catRe:ARV_CAT_EF, epico:true,
     text:'Tarefas de alinhamento e gestão que não estão ligadas a nenhum entregável nascem DENTRO do épico de Gestão do projeto em questão.',
     bullets:['Alinhamentos, reuniões de acompanhamento, status report e gestão do projeto.',
       'Escolha o projeto e o épico de Gestão — o ticket é criado dentro dele.',
       'Se o projeto não tiver épico de Gestão, fale com o gerente do projeto.'] },
-  sap_planejado:{ q:'Esse entregável não foi planejado?',
-    helper:'Se o entregável já estava planejado, a atividade deve ser tratada dentro da estrutura/ticket já existente. Se não estava planejado, precisa ser vinculada ao ticket responsável ou criada sob orientação do responsável.',
-    op:[ {label:'Sim, não foi planejado', next:'sap_ticket_responsavel', tone:'purple'}, {label:'Não, já estava planejado', next:'sap_planejados', tone:'grafite'} ] },
-  sap_planejados:{ result:true, tone:'purple', badge:'Projeto SAP — planejado', title:'Aponte no ticket que JÁ FOI planejado', cria:false, planejados:true, escolheProjeto:true, filtro:'cat', catRe:/delivery/i, catNome:'Delivery',
-    text:'O entregável já estava planejado — não crie ticket paralelo. Escolha o projeto SAP (categoria Delivery, em aberto) e localize o ÉPICO (nível 1) e a HISTÓRIA (nível 2) planejados para apontar no lugar certo.',
-    bullets:['Aponte as horas direto na história planejada (ou nas sub-tarefas dela) — não abra tarefa administrativa ou avulsa.',
-      'Não achou o épico/história do seu trabalho? Fale com o gerente do projeto ANTES de criar qualquer coisa.',
-      'Precisa detalhar? Combine com o GP a criação de sub-tarefas dentro da história planejada.'] },
-  adminOuAvulsa:{ q:'A atividade existe para manter a empresa funcionando no dia a dia?',
-    helper:'Se for rotina operacional recorrente, é administrativa. Se for uma demanda pontual e excepcional, é avulsa. Ausências (folga, atestado, férias) não viram ticket — são registradas no Odoo.',
-    op:[ {label:'Sim, é manutenção operacional/recorrente', next:'adm_freq', tone:'orange'}, {label:'Não, é algo pontual/ad hoc', next:'departamento', tone:'grafite'},
-      {label:'Quero registrar uma AUSÊNCIA', next:'ausencia', tone:'teal', desc:'Compensação de horas, atestado médico ou férias — o pedido vai para o Odoo, não vira ticket.'} ] },
+  ef_fale_gp:{ result:true, tone:'grafite', badge:'Escopo fechado', title:'Fale com o gerente de projeto', cria:false,
+    text:'Não crie um ticket paralelo quando a atividade não estiver claramente ligada a um entregável nem à gestão do projeto.',
+    bullets:['O gerente de projeto deve indicar o ticket correto para apontamento.',
+      'Evite duplicar tickets de entregáveis já planejados.',
+      'Se for necessário novo ticket, ele deve manter vínculo com o escopo, fase e entregável correto.'] },
+  pv:{ result:true, tone:'orange', badge:'Pré-venda', title:'Abrir no projeto PV | Pré-Venda e Oportunidades', cria:true, filtro:'', soProjeto:'PV',
+    text:'Leads, levantamentos, propostas e estimativas de algo que ainda não foi vendido nascem no projeto de Pré-Venda. Quando virar contrato, o trabalho passa para o projeto do cliente.',
+    bullets:['O projeto é fixo: PV.',
+      'No resumo, o cliente e a oportunidade (ex.: "Lead: Melhorias 2027 — Cliente X").',
+      'Follow-up comercial pontual de um cliente que já existe continua em "Para a própria Dexterity" › pedido pontual › Comercial & Relacionamento.'] },
+  novo_tipo:{ q:'Que tipo de contrato o cliente fechou?',
+    helper:'O projeto de um contrato novo nasce de um pedido no ADM | Novo Projeto — e o tipo do pedido já diz que projeto criar.',
+    op:[ {label:'Suporte contínuo (AMS)', next:'novo_projeto', tone:'teal', set:{tipoNovo:'ams'}, desc:'Chamados escalados de um contrato recorrente.'},
+      {label:'Projeto nosso, de ponta a ponta', next:'novo_projeto', tone:'moss', set:{tipoNovo:'dexterity'}, desc:'Vendemos e somos responsáveis por planejamento, execução e faturamento.'},
+      {label:'Escopo fechado por meio de um parceiro', next:'novo_projeto', tone:'purple', set:{tipoNovo:'terc'}, desc:'Projeto terceirizado: escopo fechado, recebemos por hora fechada.'},
+      {label:'Alocação por hora num projeto de parceiro', next:'novo_projeto', tone:'orange', set:{tipoNovo:'hora'}, desc:'Terceirizado por hora aberta: seguimos o planejamento de outra pessoa.'} ] },
+  novo_projeto:{ result:true, tone:'grafite', badge:'Projeto novo', title:'Peça a criação do projeto no ADM', cria:true, filtro:'', soProjeto:'ADM', tipoPorNovo:true,
+    text:'Quando o contrato ainda não tem projeto no Jira, o primeiro passo é o pedido de criação no ADM | Novo Projeto.',
+    bullets:['O projeto é fixo: ADM. O tipo do pedido já vem escolhido pela resposta anterior.',
+      'No resumo: o tipo e o cliente (ex.: "Novo Projeto PEA | Hi-mix Electronic").',
+      'Depois que o projeto existir, os tickets do trabalho nascem nele — volte à árvore.'] },
+
+  // ---- 🏠 Para a própria Dexterity ----
+  interno:{ q:'Que tipo de trabalho interno é esse?',
+    helper:'Cada tipo tem os seus projetos no Jira — as descrições ajudam a escolher.',
+    op:[ {label:'Uma rotina que se repete', next:'adm_area', tone:'orange', desc:'Algo que você faz todo dia, semana ou mês para a empresa funcionar: conferências, conciliações, fechamentos, aprovações.'},
+      {label:'Melhorar um processo, controle ou ferramenta', next:'interno_imi', tone:'moss', desc:'Iniciativa com dono e entregável para a Dexterity trabalhar melhor — Jira, POPs, controles internos.'},
+      {label:'Construir um produto ou acelerador', next:'interno_ipa', tone:'teal', desc:'Algo reutilizável que vira ativo da empresa: acelerador SAP, relatório, componente, boas práticas.'},
+      {label:'Estudar ou me capacitar', next:'duvida_doc', tone:'purple', desc:'Cursos, certificações, estudo de ferramenta ou tecnologia.'},
+      {label:'Um pedido pontual que não se encaixa acima', next:'departamento', tone:'grafite', desc:'Demanda única, fora da rotina — vira tarefa avulsa no departamento dono.'} ] },
+  adm_area:{ q:'A rotina é de finanças, contabilidade ou controladoria?',
+    helper:'Rotinas financeiras têm projeto próprio (IFCEC); as demais rotinas da empresa ficam no RDF | Rotinas e Procedimentos ADM.',
+    op:[ {label:'Sim — finanças, contabilidade ou controladoria', next:'adm_freq', tone:'moss', set:{rotArea:'fin'}, desc:'Conciliação bancária, contas a pagar/receber, fechamento contábil, faturamento.'},
+      {label:'Não — outra rotina da empresa', next:'adm_freq', tone:'orange', set:{rotArea:'adm'}, desc:'Planejamento do dia, conferência de tickets, validação de horas, aprovações, acompanhamentos.'} ] },
   adm_freq:{ q:'Isso se repete com que frequência?',
     helper:'A frequência da rotina define o tipo do ticket — ele já vem pré-selecionado na tela de criação.',
     op:[ {label:'Diariamente', next:'adm_primeira', tone:'orange', set:{freqAdm:'diária'}, desc:'Rotina executada todo dia útil (ex.: conferências diárias, monitoramentos).'},
       {label:'Semanalmente', next:'adm_primeira', tone:'teal', set:{freqAdm:'semanal'}, desc:'Rotina executada 1× por semana (ex.: fechamentos semanais, relatórios).'},
-      {label:'Mensalmente', next:'adm_primeira', tone:'purple', set:{freqAdm:'mensal'}, desc:'Rotina executada 1× por mês (ex.: faturamento, folha, apurações mensais).'} ] },
+      {label:'Mensalmente', next:'adm_primeira', tone:'purple', set:{freqAdm:'mensal'}, desc:'Rotina executada 1× por mês (ex.: faturamento, folha, apurações mensais).'},
+      {label:'Trimestral, semestral ou anual', next:'adm_primeira', tone:'grafite', set:{freqAdm:'periódica'}, desc:'Revisões e fechamentos de período mais longo.'} ] },
   adm_primeira:{ q:'É a primeira vez que você está fazendo esta atividade?',
     helper:'Rotinas recorrentes reutilizam o ticket: o anterior precisa ser finalizado antes de criar o próximo.',
     op:[ {label:'Sim, é a primeira vez', next:'administrativa', tone:'orange'},
       {label:'Não, já fiz antes', next:'adm_repetida', tone:'grafite'} ] },
-  adm_repetida:{ result:true, tone:'grafite', badge:'Tarefa Administrativa', title:'Finalize o ticket anterior antes de criar outro', cria:false,
+  adm_repetida:{ result:true, tone:'grafite', badge:'Rotina', title:'Finalize o ticket anterior antes de criar outro', cria:false,
     text:'Você provavelmente não finalizou o ticket anterior desta rotina — e ele é necessário para poder criar o próximo.',
     bullets:['Localize o ticket da rotina (aba Gestão de Tickets ou Apontar) e conclua-o.',
       'Rotinas recorrentes não devem acumular tickets abertos em paralelo.',
       'Depois de concluir o anterior, volte aqui e crie o novo pela árvore.'] },
-  departamento:{ q:'Qual departamento é o dono da demanda avulsa?', helper:'Abra o ticket como tarefa avulsa no departamento responsável — as descrições ajudam a escolher.',
-    op:[ {label:'Comercial & Relacionamento', next:'dept_comercial', tone:'teal', desc:'Propostas e materiais comerciais, contato com clientes/parceiros, follow-ups de venda e relacionamento.'},
-      {label:'Projetos & Entregas', next:'dept_projetos', tone:'purple', desc:'Operação de delivery: ritos, formatos de entrega, apoio operacional a projetos sem projeto formal.'},
-      {label:'Financeiro', next:'dept_financeiro', tone:'moss', desc:'Faturamento, pagamentos, cobranças, análises e levantamentos financeiros pontuais.'},
-      {label:'Pessoas & Cultura', next:'dept_pessoas', tone:'orange', desc:'Onboarding, comunicação interna, treinamentos, clima e dinâmicas de equipe.'},
-      {label:'Administrativo & Compliance', next:'dept_admin', tone:'grafite', desc:'Documentos, contratos, cadastros, acessos e demandas de conformidade.'},
-      {label:'Inovação & Melhoria', next:'dept_inovacao', tone:'teal', desc:'Provas de conceito, automações e experimentos de melhoria que ainda não viraram projeto.'},
-      {label:'Governança & Estratégia', next:'dept_governanca', tone:'purple', desc:'Indicadores, análises executivas, definição de regras e direcionamento estratégico.'} ] },
-  ams:{ result:true, tone:'teal', badge:'Projeto AMS', title:'Abrir no projeto AMS do cliente', cria:true, filtro:'ams',
-    text:'Use o projeto AMS quando a atividade fizer parte da sustentação, suporte recorrente, pequenas melhorias ou operação contínua de um contrato AMS.',
-    bullets:['Incidente, atendimento recorrente, pequena melhoria, suporte funcional ou técnico.',
-      'Se existe cliente e contrato AMS ativo, não abra como administrativo nem avulso.',
-      'O ticket deve refletir o cliente e a frente correta de atendimento.'] },
-  sap_fale_gp:{ result:true, tone:'grafite', badge:'Projeto SAP', title:'Fale com o gerente de projeto', cria:false,
-    text:'Não crie um ticket paralelo quando a atividade não estiver claramente ligada a um entregável ou quando o entregável já estava planejado e você não sabe qual ticket usar.',
-    bullets:['O gerente de projeto deve indicar o ticket correto para apontamento.',
-      'Evite duplicar tickets de entregáveis já planejados.',
-      'Se for necessário novo ticket, ele deve manter vínculo com o escopo, fase e entregável correto.'] },
-  sap_ticket_responsavel:{ result:true, tone:'purple', badge:'Projeto SAP', title:'Coloque no ticket responsável', cria:true, filtro:'', subtarefa:true,
-    text:'Quando a atividade ajuda em um entregável que não foi planejado, ela deve ser registrada no ticket responsável pelo entregável ou criada como SUBTAREFA vinculada a ele.',
-    bullets:['Não abrir como tarefa administrativa ou avulsa.',
-      'Vincular ao entregável, fase ou frente correta do projeto SAP.',
-      'Se o ticket responsável ainda não existir, alinhar com o gerente de projeto para criar com a estrutura correta.'] },
-  interno:{ q:'Qual é a natureza do trabalho interno?',
-    helper:'Cada frente interna tem os seus próprios projetos no Jira — escolha a que descreve melhor a atividade.',
-    op:[ {label:'Melhorias Internas', next:'interno_imi', tone:'moss'},
-      {label:'Produtos e aceleradores Dexterity', next:'interno_ipa', tone:'teal'},
-      {label:'Tarefas, Processos e Rotinas', next:'interno_itpr', tone:'purple'} ] },
+  administrativa:{ result:true, tone:'orange', badge:'Rotina', title:'Abrir a rotina no projeto de rotinas', cria:true, filtro:'', tipoPorFreq:true,
+    soProjeto:(f)=>f.rotArea==='fin'?'IFCEC':'RDF',
+    text:'Trabalho recorrente e operacional que sustenta a empresa: finanças, contabilidade e controladoria no IFCEC; as demais rotinas no RDF | Rotinas e Procedimentos ADM.',
+    bullets:['O projeto vem da resposta sobre a área da rotina; o tipo, da frequência.',
+      'A lógica é sustentação da operação da empresa, não transformação.',
+      'Um ticket por rotina: conclua o anterior antes de abrir o próximo.'] },
   interno_imi:{ result:true, tone:'moss', badge:'Melhorias Internas', title:'Escolha o projeto de melhoria interna', cria:true,
     filtro:'cat', catRe:/^\s*IMI\b|melhorias\s+internas/i, catNome:'IMI | Interno - Melhorias Internas', escolheProjeto:true,
-    text:'Iniciativas de evolução da própria Dexterity: melhorar processos, ferramentas e formas de trabalhar.',
-    bullets:['Implantação do Odoo, revisão de processo, construção de playbooks.',
+    text:'Iniciativas de evolução da própria Dexterity: melhorar processos, controles, ferramentas e formas de trabalhar.',
+    bullets:['Organização do Jira, POPs e processos, controles internos, descoberta de iniciativas, automações.',
       'Precisa ter dono, objetivo e entregável claro.',
       'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
   interno_ipa:{ result:true, tone:'teal', badge:'Produtos e aceleradores', title:'Escolha o projeto de produto ou acelerador', cria:true,
     filtro:'cat', catRe:/^\s*IPA\b|produtos\s+e\s+aceleradores/i, catNome:'IPA | Interno - Produtos e aceleradores Dexterity', escolheProjeto:true,
     text:'Construção de produtos próprios e aceleradores reutilizáveis da Dexterity.',
-    bullets:['Aceleradores SAP, componentes reutilizáveis, produtos internos.',
+    bullets:['Aceleradores SAP, relatórios, componentes reutilizáveis, boas práticas.',
       'O resultado é um ativo da empresa, não uma entrega para um cliente específico.',
       'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
-  interno_itpr:{ result:true, tone:'purple', badge:'Tarefas, Processos e Rotinas', title:'Escolha o projeto de tarefas, processos e rotinas', cria:true,
-    filtro:'cat', catRe:/^\s*ITPR\b|tarefas.{0,3}\s*processos\s+e\s+rotinas/i, catNome:'ITPR | Interno - Tarefas, Processos e Rotinas', escolheProjeto:true,
-    text:'Trabalho interno estruturado em processos e rotinas contínuas que têm projeto próprio no Jira.',
-    bullets:['Rotinas internas organizadas em projeto próprio (diferente das tarefas avulsas do TAD).',
-      'Escolha o projeto abaixo pelo nome e pela descrição do objetivo.'] },
-  administrativa:{ result:true, tone:'orange', badge:'Tarefa Administrativa', title:'Abrir como tarefa administrativa', cria:true, filtro:'avulsa', tipoPorFreq:true,
-    text:'Use essa categoria para o trabalho recorrente e operacional que sustenta a empresa.',
-    bullets:['Rotinas financeiras, cadastros, controles obrigatórios, acessos, contratos, pagamentos e agenda operacional.',
-      'A lógica é sustentação da operação da empresa, não transformação.',
-      'Se a atividade se repete ou faz parte do funcionamento normal da empresa, tende a ser administrativa.'] },
+  departamento:{ q:'Qual departamento é o dono do pedido?', helper:'O pedido pontual vira tarefa avulsa (TAD) no departamento responsável — as descrições ajudam a escolher.',
+    op:[ {label:'Comercial & Relacionamento', next:'dept_comercial', tone:'teal', desc:'Materiais comerciais, contato com clientes/parceiros, follow-ups e relacionamento (proposta de algo novo vai em Cliente › proposta).'},
+      {label:'Projetos & Entregas', next:'dept_projetos', tone:'purple', desc:'Operação de delivery: ritos, formatos de entrega, apoio operacional a projetos sem projeto formal.'},
+      {label:'Financeiro', next:'dept_financeiro', tone:'moss', desc:'Análises e levantamentos financeiros pontuais, fora das rotinas.'},
+      {label:'Pessoas & Cultura', next:'dept_pessoas', tone:'orange', desc:'Onboarding, comunicação interna, treinamentos, clima e dinâmicas de equipe.'},
+      {label:'Administrativo & Compliance', next:'dept_admin', tone:'grafite', desc:'Documentos, contratos, cadastros, acessos e demandas de conformidade.'},
+      {label:'Inovação & Melhoria', next:'dept_inovacao', tone:'teal', desc:'Provas de conceito, automações e experimentos de melhoria que ainda não viraram projeto.'},
+      {label:'Governança & Estratégia', next:'dept_governanca', tone:'purple', desc:'Indicadores, análises executivas, definição de regras e direcionamento estratégico.'} ] },
   dept_comercial:{ result:true, tone:'teal', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Comercial & Relacionamento', cria:true, filtro:'avulsa', depto:'Comercial & Relacionamento',
     text:'Use quando a demanda for pontual e o dono natural for a área comercial ou de relacionamento.',
-    bullets:['Material comercial específico, follow-up especial, contato com parceiro, apoio a proposta pontual.'] },
+    bullets:['Material comercial específico, follow-up especial, contato com parceiro.',
+      'Proposta, lead ou estimativa de algo novo vai no PV: volte e escolha "Para um cliente" › "Ainda é proposta".'] },
   dept_projetos:{ result:true, tone:'purple', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Projetos & Entregas', cria:true, filtro:'avulsa', depto:'Projetos & Entregas',
     text:'Use quando a demanda for pontual e ligada à operação de delivery, mas sem pertencer a um projeto formal.',
     bullets:['Apoio operacional isolado, ajuste de rito, revisão pontual de formato de entrega.'] },
   dept_financeiro:{ result:true, tone:'moss', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Financeiro', cria:true, filtro:'avulsa', depto:'Financeiro',
     text:'Use quando a demanda financeira for pontual, específica e fora da rotina padrão.',
-    bullets:['Análise extraordinária, levantamento especial, ajuste não recorrente.'] },
+    bullets:['Análise extraordinária, levantamento especial, ajuste não recorrente.',
+      'Rotina financeira (conciliação, fechamento) vai no IFCEC: volte e escolha "Uma rotina que se repete".'] },
   dept_pessoas:{ result:true, tone:'orange', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Pessoas & Cultura', cria:true, filtro:'avulsa', depto:'Pessoas & Cultura',
     text:'Use quando a demanda for pontual e ligada a pessoas, cultura ou desenvolvimento interno.',
-    bullets:['Ação específica de onboarding, comunicação interna isolada, dinâmica pontual de equipe.'] },
+    bullets:['Ação específica de onboarding, comunicação interna isolada, dinâmica pontual de equipe, estudo individual.'] },
   dept_admin:{ result:true, tone:'grafite', badge:'Tarefa Avulsa', title:'Abrir como tarefa avulsa — Administrativo & Compliance', cria:true, filtro:'avulsa', depto:'Administrativo & Compliance',
     text:'Use quando a demanda for pontual em temas administrativos, contratuais ou de conformidade, sem virar rotina operacional.',
     bullets:['Solicitação específica de documento, revisão pontual de cláusula, demanda eventual de compliance.'] },
@@ -346,25 +388,31 @@ const ARV_NOS={
     bullets:['Análise executiva específica, definição pontual de regra, estudo isolado de estrutura.'] },
 };
 const ARV_DEFS=[
-  ['Projetos AMS','Atividades executadas dentro de um contrato recorrente de suporte, sustentação, pequenas melhorias ou atendimento contínuo a cliente.'],
-  ['Projetos SAP','Atividades vinculadas a entregáveis formais de cliente. Exigem validação do entregável e do planejamento antes de decidir o ticket.'],
-  ['Projetos Internos','Iniciativas estruturadas da própria Dexterity com objetivo, dono, entregáveis e continuidade.'],
-  ['Tarefa Administrativa','Trabalho recorrente e operacional para manter a empresa funcionando. Sustenta a operação, não transforma a empresa.'],
-  ['Tarefa Avulsa','Demanda pontual, ad hoc, não recorrente e que não pertence a um projeto já existente. Classificada pelo departamento dono da necessidade.'],
+  ['Cliente — AMS (DAMS / DCP)','Suporte contínuo de um contrato recorrente: chamados, incidentes, pequenas melhorias. Direto no projeto AMS do cliente; por consultoria parceira no DCP.'],
+  ['Cliente — parceria por hora (PEA)','Alocação num projeto de uma consultoria parceira: recebemos pelas horas e quem planeja é o parceiro.'],
+  ['Cliente — escopo fechado (PEF / DEF)','Implantação ou melhoria com escopo e prazo definidos. O ticket segue o planejamento: história planejada, ticket responsável ou épico de Gestão.'],
+  ['Pré-venda (PV) e projeto novo (ADM)','Proposta ou oportunidade ainda não vendida nasce no PV; contrato fechado sem projeto no Jira vira pedido no ADM.'],
+  ['Interno — rotina (RDF / IFCEC)','Trabalho recorrente para a empresa funcionar. Finanças, contabilidade e controladoria no IFCEC; as demais no RDF.'],
+  ['Interno — melhoria (IMI) e produto (IPA)','Iniciativas com dono, objetivo e entregável: melhorar a Dexterity (IMI) ou construir um ativo reutilizável (IPA).'],
+  ['Tarefa avulsa (TAD)','Demanda pontual, não recorrente, que não pertence a nenhum projeto. Classificada pelo departamento dono.'],
 ];
 function arvEstado(){ const pl=estado.planejar;
-  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null,freqAdm:'',amsConsId:'',amsCliId:''}, criando:false, feito:null, erro:'' };
+  if(!pl.arv) pl.arv={ no:'start', hist:[], form:{projeto:'',tipoId:'',resumo:'',descricao:'',respId:null,venc:'',paiKey:'',epicoKey:'',depto:null,freqAdm:'',rotArea:'',tipoNovo:'',amsConsId:'',amsCliId:''}, criando:false, feito:null, erro:'' };
   return pl.arv; }
-// Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe),
-// interno genérico ou tarefas avulsas/ADM.
-function arvProjetosSugeridos(filtro, catRe){
-  const ps=(_projetosCache||[]);
-  const m=(p)=>`${p.key} ${p.nome||''} ${p.categoria||''}`;
+// Projeto único da folha: TAD nas avulsas, `soProjeto` (chave fixa ou função do formulário — a rotina vai a
+// IFCEC/RDF conforme a área respondida) nas demais; '' = a pessoa escolhe.
+function arvChaveFixa(no, f){
+  if(!no) return '';
+  if(no.filtro==='avulsa') return 'TAD';
+  const s=no.soProjeto; return (typeof s==='function' ? s(f||{}) : s) || '';
+}
+// Sugestão de projeto conforme a folha: AMS (categoria), categoria específica (catRe — e, para projeto SEM
+// categoria no Jira, o prefixo do nome: "IMI | …"), ou tarefas avulsas. `excl` tira chaves (o DCP do AMS direto).
+function arvProjetosSugeridos(filtro, catRe, excl){
+  const ps=(_projetosCache||[]).filter(p=>!(excl||[]).includes(p.key));
   if(filtro==='ams') return ps.filter(p=>ehCategoriaAMS(p.categoria));
-  if(filtro==='sap') return ps.filter(p=>/\bsap\b/i.test(m(p)) && !ehCategoriaAMS(p.categoria));
-  if(filtro==='cat') return ps.filter(p=>catRe && catRe.test(p.categoria||'') && p.key!=='TAD');
-  if(filtro==='interno') return ps.filter(p=>/intern/i.test(m(p)) && !/avuls|tad/i.test(m(p)));
-  if(filtro==='avulsa') return ps.filter(p=>/avuls|(^|\s)adm|tad/i.test(m(p)));
+  if(filtro==='cat') return ps.filter(p=>catRe && p.key!=='TAD' && (catRe.test(p.categoria||'') || (!p.categoria && catRe.test(p.nome||''))));
+  if(filtro==='avulsa') return ps.filter(p=>p.key==='TAD');
   return [];
 }
 
@@ -400,7 +448,7 @@ function arvHTML(){
     // em aberto) e veja os ÉPICOS (nível 1) com as HISTÓRIAS (nível 2) planejadas,
     // com link ao Jira, para apontar no ticket certo.
     const f=a.form;
-    const sug=arvProjetosSugeridos('cat', no.catRe);
+    const sug=arvProjetosSugeridos('cat', no.catRe, no.excl);
     let corpoP;
     if(!_projetosCache){ corpoP='<div class="muted" style="margin-top:8px">Carregando projetos…</div>'; }
     else if(!f.projeto){
@@ -456,9 +504,9 @@ function arvHTML(){
       // Tarefas AVULSAS/administrativas: o ÚNICO projeto permitido é o TAD.
       const ehAvulsa=no.filtro==='avulsa';
       const escolhe=!!no.escolheProjeto;      // folha com escolha explícita de projeto (cards)
-      // Projeto ÚNICO permitido na folha: TAD (avulsas/administrativas) ou soProjeto (ex.: DAMS).
-      const chaveFixa = ehAvulsa ? 'TAD' : (no.soProjeto||'');
-      let sug=arvProjetosSugeridos(no.filtro||'', no.catRe);
+      // Projeto ÚNICO permitido na folha: TAD (avulsas) ou soProjeto (ex.: DCP, PV, ADM; rotina → IFCEC/RDF).
+      const chaveFixa = arvChaveFixa(no, f);
+      let sug=arvProjetosSugeridos(no.filtro||'', no.catRe, no.excl);
       if(chaveFixa){ const px=ps.find(p=>p.key===chaveFixa)||sug[0]; sug=px?[px]:[]; f.projeto=(sug[0]&&sug[0].key)||''; }
       else if(!escolhe && !f.projeto && sug.length) f.projeto=sug[0].key;   // 1º sugerido já selecionado
       if(f.respId==null && id && id.accountId) f.respId=id.accountId;   // atribuído a quem cria
@@ -494,7 +542,7 @@ function arvHTML(){
             <div class="arv-proj-fixo"><span><strong>${esc(f.projeto)}</strong> — ${esc((proj&&proj.nome)||'')}</span>
               <button class="btn arv-troca" data-arv-trocaproj="1" data-tip="Voltar à lista de projetos desta categoria">trocar</button></div>
             ${proj&&proj.descricao?`<div class="muted small" style="margin-top:4px">${esc(proj.descricao)}</div>`:''}</div>`
-        : `<div class="campo"><label>Projeto${chaveFixa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${chaveFixa?`disabled data-tip="${ehAvulsa?'Tarefas avulsas/administrativas só podem nascer no projeto TAD':escA('Este caminho só permite criar no projeto '+chaveFixa)}"`:''}>${optProj}</select></div>`;
+        : `<div class="campo"><label>Projeto${chaveFixa?' <span class="muted">(fixo)</span>':''}</label><select class="arv-in" data-arv-f="projeto" ${chaveFixa?`disabled data-tip="${ehAvulsa?'Tarefas avulsas só podem nascer no projeto TAD':escA('Este caminho só permite criar no projeto '+chaveFixa)}"`:''}>${optProj}</select></div>`;
       // Folha "no épico de Gestão": o ticket nasce DENTRO de um épico do projeto —
       // carrega os épicos (mesmo cache do Planejar) e pré-seleciona o de Gestão (⭐).
       let campoEpico='';
@@ -558,9 +606,11 @@ function arvHTML(){
       const tipos=((proj&&proj.tipos)||[]).filter(t=> no.subtarefa ? t.subtarefa : (!t.subtarefa&&t.nivel===0));
       // Rotina administrativa: a FREQUÊNCIA respondida na árvore pré-seleciona o tipo
       // (ex.: "Rotina Semanal"); se o projeto não tiver tipo equivalente, cai no padrão.
-      if(no.tipoPorFreq && f.freqAdm && !f.tipoId){
-        const REF={ 'diária':/di[aá]ri/i, semanal:/semana/i, mensal:/mensal|m[eê]s/i }[f.freqAdm];
-        const tf=REF?tipos.find(t2=>REF.test(t2.nome||'')):null;
+      // Projeto novo (ADM): o TIPO de contrato respondido escolhe o tipo do pedido ("Projeto AMS"…).
+      const refTipo = no.tipoPorFreq&&f.freqAdm ? { 'diária':/di[aá]ri/i, semanal:/semana/i, mensal:/mensal|m[eê]s/i, 'periódica':/trimestr|semestr|anual/i }[f.freqAdm]
+        : no.tipoPorNovo&&f.tipoNovo ? { ams:/projeto\s+ams/i, dexterity:/projeto\s+dexterity/i, terc:/^\s*projeto\s+terceirizado/i, hora:/hora\s+aberta/i }[f.tipoNovo] : null;
+      if(refTipo && !f.tipoId){
+        const tf=tipos.find(t2=>refTipo.test(t2.nome||''));
         if(tf) f.tipoId=tf.id;
       }
       // Folha AMS não faturável: pré-seleciona o TIPO "não faturável" do projeto
@@ -589,7 +639,7 @@ function arvHTML(){
           ${camposAms}
           ${ehAvulsa?`<div class="campo"><label>Departamento Dexterity <span class="muted">(obrigatório)</span></label>
             <select class="arv-in" data-arv-f="depto"><option value="">— escolha —</option>${ARV_NOS.departamento.op.map(o=>`<option value="${escA(o.label)}" ${f.depto===o.label?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`:''}
-          ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: SAP1-123"></div>`:''}
+          ${no.subtarefa?`<div class="campo"><label>Ticket responsável (pai)</label><input type="text" class="arv-in" data-arv-f="paiKey" value="${escA(f.paiKey||'')}" placeholder="ex.: CV-123"></div>`:''}
           <div class="campo"><label>Tipo${no.tipoPorFreq&&f.freqAdm?` <span class="muted">(rotina ${esc(f.freqAdm)})</span>`:''}${no.tipoNaoFat?' <span class="muted">(não faturável)</span>':''}</label><select class="arv-in" data-arv-f="tipoId" ${tipos.length?'':'disabled'}>${optTipos}</select>${avisoNF}</div>
           <div class="campo"><label>Responsável</label><select class="arv-in" data-arv-f="respId">${optResp}</select></div>
           <div class="campo"><label>Vencimento <span class="muted">(opcional)</span></label><input type="date" class="arv-in" data-arv-f="venc" value="${escA(f.venc||'')}"></div>
@@ -654,7 +704,7 @@ async function arvCria(){
   if(no.filtro==='avulsa' && !(f.depto||'').trim()){ a.erro='Escolha o Departamento Dexterity (obrigatório nas tarefas avulsas).'; arvRender(); return; }
   if(!f.tipoId){ a.erro='Escolha o tipo do ticket.'; arvRender(); return; }
   if(no.subtarefa && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.paiKey||'').trim().toUpperCase())){
-    a.erro='Informe o ticket responsável (pai) — ex.: SAP1-123.'; arvRender(); return; }
+    a.erro='Informe o ticket responsável (pai) — ex.: CV-123.'; arvRender(); return; }
   if(no.epico && !/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test((f.epicoKey||'').trim().toUpperCase())){
     a.erro='Escolha o épico de Gestão do projeto — o ticket é criado dentro dele.'; arvRender(); return; }
   if(no.camposAms){
@@ -1466,8 +1516,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       const prox=ARV_NOS[o.next];
       if(prox && prox.result && (prox.cria||prox.planejados)){
         const ps=(_projetosCache||[]);
-        let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe);
-        const fixo=prox.filtro==='avulsa'?'TAD':(prox.soProjeto||'');
+        let sug=arvProjetosSugeridos(prox.filtro||'', prox.catRe, prox.excl);
+        const fixo=arvChaveFixa(prox, a.form);
         if(fixo){ const px=ps.find(p=>p.key===fixo)||sug[0]; sug=px?[px]:[]; }
         // Folhas com escolha explícita (cards) começam SEM projeto — a pessoa escolhe.
         a.form.projeto=prox.escolheProjeto?'':((sug[0]&&sug[0].key)||'');
