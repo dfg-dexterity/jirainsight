@@ -252,10 +252,13 @@ function tkbRealce(){
 // ---- Abertura, navegação e teclado ----
 // `aoEscolher(k, info)` (2026-10-21, 📆 Hoje): modo ESCOLHER — clicar num ticket devolve a escolha a quem chamou
 // (a chave e o que a busca sabe dele) em vez de abrir a ficha; o modal fecha. Sem callback, é a busca de sempre.
-function abreBuscaTickets(proj, aoEscolher){
-  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'', pick:(typeof aoEscolher==='function')?aoEscolher:null };
-  abreModal(`<h2 class="tkb-h">🎫 ${_tkb.pick?'Escolher ticket':'Buscar ticket'} <span class="muted small">projeto → ticket, só os abertos</span></h2>
-    <div class="muted small">${_tkb.pick?'Clique no ticket (ou ↵) para escolhê-lo.':'Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.'}</div>
+// `titulo` (2026-10-27, menu 👤 Meu trabalho): no modo escolher, o título diz a AÇÃO que vem depois ("🔗 Transferir:
+// escolha o ticket de origem") — sem ele, o clique no menu parecia ter aberto a busca errada.
+function abreBuscaTickets(proj, aoEscolher, titulo){
+  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'', pick:(typeof aoEscolher==='function')?aoEscolher:null,
+    titulo:(typeof titulo==='string'&&titulo)?titulo:'' };
+  abreModal(`<h2 class="tkb-h">${_tkb.titulo?esc(_tkb.titulo):`🎫 ${_tkb.pick?'Escolher ticket':'Buscar ticket'}`} <span class="muted small">projeto → ticket, só os abertos</span></h2>
+    <div class="muted small">${_tkb.pick?'Clique no ticket (ou ↵) para escolhê-lo. Ticket já concluído ou de outro projeto: digite a <b>chave</b> (ex.: RDF-123).':'Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.'}</div>
     <input class="pal-q" id="tkb-q" type="text" autocomplete="off" spellcheck="false"
       placeholder="projeto, ou a chave do ticket (ex.: RDF-123)…" aria-label="Buscar projeto ou ticket">
     <div id="tkb-cab"></div>

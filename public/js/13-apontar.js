@@ -658,11 +658,13 @@ function renderApontar(){
   </div>`));
 }
 
-// Modal de identificação (uma vez por navegador).
-function abreIdentidade(){
+// Modal de identificação (uma vez por navegador). `motivo` (2026-10-27, opcional): quando uma ação "a frio" do menu
+// 👤 Meu trabalho pede a identidade, o modal diz PARA QUÊ — senão parece erro.
+function abreIdentidade(motivo){
   const id=idApontar()||{};
+  const pq=(typeof motivo==='string'&&motivo)?`<div class="aviso" style="margin:6px 0 10px">Para <b>${esc(motivo)}</b> o painel usa o <strong>seu</strong> token do Jira — a ação sai no seu nome. Identifique-se uma vez e volte ao menu.</div>`:'';
   abreModal(`
-    <h2>Identificação para apontar</h2>
+    <h2>Identificação para apontar</h2>${pq}
     <div class="muted small">O apontamento é criado <strong>no seu usuário do Jira</strong> (vale para Clockwork,
       ranking e timesheet). Para isso você precisa de um token de API — é grátis e leva 2 minutos:</div>
     <ol class="ap-passos">

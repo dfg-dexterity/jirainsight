@@ -625,7 +625,9 @@
   .navg.ativo>.navg-b,.navg-b[aria-pressed="true"]{color:var(--cerceta);border-bottom-color:var(--cerceta)}
   .navg-menu{position:absolute;top:100%;left:0;z-index:60;min-width:190px;background:var(--cartao);
     border:1px solid var(--linha);border-radius:10px;box-shadow:0 14px 38px rgba(34,54,79,.20);
-    padding:6px;display:none;flex-direction:column;gap:1px;margin-top:2px}
+    padding:6px;display:none;flex-direction:column;gap:1px;margin-top:2px;
+    /* 👤 Meu trabalho tem 17 linhas (~560 px): num notebook de 768 px com a barra aberta, o menu rola por dentro */
+    max-height:calc(100vh - 110px);overflow-y:auto;overscroll-behavior:contain}
   .navg.open>.navg-menu{display:flex}
   .navg-menu button{border:0;border-bottom:0;margin:0;background:transparent;text-align:left;white-space:nowrap;
     padding:9px 12px;border-radius:7px;font-family:var(--corpo);font-size:13.5px;font-weight:600;color:var(--grafite);cursor:pointer}
@@ -638,13 +640,18 @@
   .seg button[aria-pressed="true"] .nav-ic{opacity:1}
   .nav-car{font-size:10px;opacity:.7;margin-left:1px}
   /* 🧭 Navegação por perfil: áreas "Dexterity Entrega/Negócio/Insights" (a marca em caixa alta, menor),
-     cabeçalho dentro de cada menu, grupos escondidos pela lente e o botão de ações ➕ Novo */
+     cabeçalho dentro de cada menu, grupos escondidos pela lente e o botão verde ➕ Criar ticket */
   .navg[hidden]{display:none!important}
   .nav-marca{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;opacity:.72;margin-right:-2px}
   .navg-cab{padding:6px 12px 5px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--linha);margin-bottom:3px;white-space:nowrap}
-  .navg-novo>.navg-b{color:#fff;background:var(--cerceta);border-radius:999px;padding:7px 12px;margin:5px 2px 6px 6px;border-bottom:0;line-height:1}
-  .navg-novo>.navg-b:hover,.navg-novo>.navg-b[aria-expanded="true"]{color:#fff;background:var(--grafite)}
-  .navg-novo>.navg-menu{left:auto;right:0}
+  /* 👤 Meu trabalho (2026-10-27): seções por intenção dentro do dropdown — cabeçalho menor, separado por cima */
+  .navg-sec{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
+  .navg-cab+.navg-sec{border-top:0;margin-top:0;padding-top:4px}
+  .navg-menu.navg-largo{min-width:300px}
+  /* ➕ Criar ticket (2026-10-27): era o dropdown "➕ Novo ▾"; agora é um clique direto. Seletor com id para vencer o
+     realce genérico do item ativo (.seg button[aria-pressed]) — pressionado fica grafite, nunca transparente. */
+  #seg-vista #navg-novo-b{color:#fff;background:var(--cerceta);border-radius:999px;padding:7px 12px;margin:5px 2px 6px 6px;border-bottom:0;line-height:1;box-shadow:none}
+  #seg-vista #navg-novo-b:hover,#seg-vista #navg-novo-b[aria-pressed="true"]{color:#fff;background:var(--grafite);border-bottom-color:transparent}
   .hdrmenu-m .hdr-cab{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
   /* 🗂 Barra de abas dos grupos (fase 2): Inbox, Apontar, Tickets do time, Reuniões, Projetos, Horas do time… */
   .abas-tela{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;margin:10px 0 0;border-bottom:2px solid var(--linha);padding:0 4px}
@@ -2840,8 +2847,16 @@
       box-shadow:inset 3px 0 0 var(--cerceta)}
     .navg.ativo > .navg-b[aria-pressed="true"]{background:var(--hoverbg)}
     .nt-label{font-size:14px}
-    .navg-novo>.navg-b{border-radius:8px;margin:6px 0;padding:13px 12px}
+    #seg-vista #navg-novo-b{border-radius:8px;margin:6px 0;padding:13px 12px;line-height:1.2}
     .navg-cab{white-space:normal;padding-left:12px}
+    .navg-sec{white-space:normal;padding:10px 12px 4px 20px}
+    .navg-menu.navg-largo{min-width:0}
+    /* na gaveta o menu é um acordeão no fluxo — quem rola é a gaveta inteira, não o menu */
+    .navg-menu{max-height:none;overflow:visible}
+    /* item recuado (aba da tela de cima) precisa ficar MAIS fundo que o item comum (38px), senão parece solto */
+    .navg-menu .nav-sub{padding-left:56px}
+    /* na gaveta o ícone de linha sai (o emoji já identifica): são 24px a mais para o rótulo caber numa linha a 360px */
+    .navg-menu button .nav-ic{display:none}
   }
   /* 📱 iPhone/iPad (PWA) — áreas seguras do iOS, toque e teclado.
      Só vale em telas de toque/instalado; o desktop não muda nada. */

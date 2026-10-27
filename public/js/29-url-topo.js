@@ -163,16 +163,17 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   if(hb){ const g=hb.closest('.navg'); const abrir=!g.classList.contains('open');
     fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); }
     ev.stopPropagation(); return; }
-  // Item de ação (abre modal, não troca de aba).
+  // Item de ação (abre modal, não troca de aba) — a porta única é navAcao (26-navegacao.js).
   const ac=ev.target.closest('[data-acao]');
-  if(ac){ fechaMenusNav(); fechaDrawer(); const a=ac.getAttribute('data-acao');
-    if(a==='metas') abreMetas(); else if(a==='log') abreLogAcoes();
+  if(ac){ fechaMenusNav(); fechaDrawer(); navAcao(ac.getAttribute('data-acao'));
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
   let v=b.dataset.v;
   if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
-  else if(!b.closest('#nav-favs')&&typeof abaUltima==='function'){   // 🧠 a entrada do grupo volta à última aba usada (favoritos ⭐ abrem a aba exata)
+  // 🧠 a entrada do GRUPO volta à última aba usada; favoritos ⭐ e os itens explícitos do 👤 Meu trabalho
+  // (data-exata — o rótulo diz a tela) abrem exatamente a aba pedida.
+  else if(!b.closest('#nav-favs')&&!b.hasAttribute('data-exata')&&typeof abaUltima==='function'){
     const m=abaUltima(v); if(m){ if(m.aud) estado.planrel.aud=m.aud; v=m.v; } }
   estado.vista=v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });

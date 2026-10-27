@@ -153,9 +153,16 @@ document.addEventListener('click',(e)=>{
 function marcaVista(v){
   const seg=document.getElementById('seg-vista'); if(!seg) return;
   seg.querySelectorAll('[data-v],.navg-b').forEach(b=>b.setAttribute('aria-pressed','false'));
-  const it=seg.querySelector(`[data-v="${abaAlvoMenu(v)}"]`);   // aba de um grupo → marca a tela principal do grupo
-  if(it){ it.setAttribute('aria-pressed','true');
-    const g=it.closest('.navg'); if(g){ const hb=g.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-pressed','true'); } }
+  // A entrada EXATA da vista quando o menu a lista por nome (👤 Meu trabalho lista abas como ações explícitas);
+  // senão, a tela principal do grupo de abas. TODAS as entradas da vista acendem (📝 Criar ticket está no 👤 e no
+  // botão ➕); entre entradas com audiência (📈 planrel: "minha" no 👤, o time em Entrega) só a da audiência atual.
+  let its=[...seg.querySelectorAll(`[data-v="${v}"]`)];
+  if(!its.length) its=[...seg.querySelectorAll(`[data-v="${abaAlvoMenu(v)}"]`)];
+  const aud=(typeof estado!=='undefined'&&estado.planrel&&estado.planrel.aud)||'';
+  const daAud=its.filter(it=>it.dataset.aud&&it.dataset.aud===aud);
+  its=daAud.length?daAud:its.filter(it=>!it.dataset.aud);
+  its.forEach(it=>{ it.setAttribute('aria-pressed','true');
+    const g=it.closest('.navg'); if(g){ const hb=g.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-pressed','true'); } });
 }
 function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').forEach(x=>{ x.classList.remove('open');
   const hb=x.querySelector('.navg-b'); if(hb) hb.setAttribute('aria-expanded','false'); }); }
@@ -208,17 +215,24 @@ const NAVCAT=[
   ['apontar','⏱ Apontar','hub','worklog horas lancar apontamento registrar tempo meu trabalho novo'],
   ['inbox','📥 Inbox › 📥 Pendências','hub','convites mencoes pendencias caixa entrada aprovacoes meu trabalho'],
   ['prioridades','🎯 Prioridades do time','hub','prioridades semana reuniao semanal decisao pauta modo reuniao vencidos time equipe'],
-  ['minhasemana','📋 Meu Planejamento › 📋 Minha semana','hub','planejamento semanal planejar semana atividades horas enviar aprovacao gestor rotina realizado alocacao macro planejamento macro capacidade meu trabalho'],
-  ['agenda','📅 Agenda › 📅 Eventos (Outlook → ticket)','hub','outlook reuniao eventos calendario convite meu trabalho novo'],
-  ['agcontrole','📅 Agenda › 🎫 Controle de tickets','hub','controle de tickets reunioes sem ticket pendentes depende de voce colegas cobrar ignorar desvincular vinculo achei no jira usar este ticket meu trabalho'],
-  ['chamadas','📅 Agenda › 📞 Ligações (Call tracking)','hub','call tracking ligacoes chamadas telefonema teams whatsapp google meet zoom facetime microfone mac barra de menus pop-up apontar horas criar ticket reuniao meu trabalho novo'],
-  ['rateio','⏱ Apontar › ➗ Rateio de horas','hub','rateio massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
+  ['minhasemana','📋 Meu Planejamento › 📋 Minha semana','hub','planejamento semanal planejar minha semana atividades horas enviar aprovacao gestor rotina realizado alocacao macro planejamento macro capacidade meu trabalho'],
+  ['agenda','📅 Agenda › 📅 Eventos (Outlook → ticket)','hub','outlook reuniao reunioes do outlook ticket eventos calendario convite meu trabalho novo minhas horas e reunioes'],
+  ['agcontrole','📅 Agenda › 🎫 Controle de tickets','hub','controle de tickets reunioes sem ticket cobrar ou criar pendentes depende de voce colegas cobrar ignorar desvincular vinculo achei no jira usar este ticket meu trabalho'],
+  ['chamadas','📅 Agenda › 📞 Ligações (Call tracking)','hub','call tracking ligacoes chamadas apontar minhas ligacoes telefonema teams whatsapp google meet zoom facetime microfone mac barra de menus pop-up apontar horas criar ticket reuniao meu trabalho novo'],
+  ['rateio','⏱ Apontar › ➗ Rateio de horas','hub','rateio ratear horas em varios tickets massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
   ['meudia','⏱ Apontar › 📍 Sugestões do dia (Meu dia)','hub','timetracking dia atividade sugestoes ia meu trabalho meu dia'],
   ['mencoes','📥 Inbox › 💬 Menções','hub','comentarios marcado responder citacoes meu trabalho'],
-  ['meutempo','⏳ Como estou gastando meu tempo?','hub','meu tempo historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao meu trabalho'],
-  ['planejar','📝 Criar ticket › 📝 Criar (lote, IA, voz)','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento'],
-  ['ondecrio','📝 Criar ticket › 🌳 Passo 0 · Onde crio?','hub','arvore decisao projeto duvida novo planejamento onde crio o ticket'],
-  ['meustickets','📝 Criar ticket › 🧾 Preciso criar meus tickets','hub','preciso criar meus tickets o que fiz hoje relato texto livre por projeto achar ticket criar apontar horas status assistente dia fechar o dia timesheet novo'],
+  ['meutempo','⏳ Como estou gastando meu tempo?','hub','meu tempo ver como gasto meu tempo como estou gastando historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao meu trabalho minha semana'],
+  ['planejar','📝 Criar ticket › 📝 Criar (lote, IA, voz)','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento botao verde'],
+  ['ondecrio','📝 Criar ticket › 🌳 Passo 0 · Onde crio?','hub','arvore decisao projeto duvida novo planejamento onde crio o ticket descobrir em que projeto criar'],
+  // 👤 Meu trabalho — ações sem tela própria (2026-10-27): o Ctrl+K também as acha; navAcao é a porta.
+  // 👤 Meu trabalho › ações sem tela própria (navAcao): o rótulo é o mesmo do menu; 🔀 e 🎫 Buscar só no Ctrl+K
+  ['acao:meusproj','🎫 Ver meus tickets de um projeto…','hub','meus tickets por projeto em tal projeto so os meus apontar filtrar por projeto abertos no meu nome'],
+  ['acao:transferir','🔗 Transferir ticket com o histórico…','hub','transferir um ticket para outro com todo o historico inteiro juntar mover excluir original comentarios anexos horas'],
+  ['acao:convidar','📨 Convidar colegas a apontar…','hub','convidar para apontar num ticket convite apontamento horas colegas time reuniao em grupo'],
+  ['acao:transformar','🔀 Transformar chamado em atividade…','hub','transformar chamado atividade subtarefa origem destino levar para dentro de outro'],
+  ['acao:buscar','🎫 Buscar um ticket…','hub','buscar ticket abertos por projeto chave ficha tecla barra'],
+  ['meustickets','📝 Criar ticket › 🧾 Preciso criar meus tickets','hub','preciso criar meus tickets criar tickets do que eu ja fiz o que fiz hoje relato texto livre por projeto achar ticket criar apontar horas status assistente dia fechar o dia timesheet novo'],
   // Dexterity Entrega — gestores de entrega e PMs
   ['alertas','🚨 Alertas','entrega','central atrasados vencidos reprogramar gestao'],
   ['gestao','🛠 Tickets do time › 🛠 Ações em massa (Gestão)','entrega','massa atribuir status transferir epico duplicados excluir gestao de tickets'],
@@ -310,12 +324,74 @@ function abrePaleta(){
 }
 function navPaletaVai(slug){
   fechaModal();
-  if(slug==='acao:metas'){ abreMetas(); return; }
-  if(slug==='acao:log'){ abreLogAcoes(); return; }
-  if(slug==='acao:reportar'){ abreReportar(); return; }
-  if(slug.startsWith('acao:')) return;
+  if(slug.startsWith('acao:')){ navAcao(slug.slice(5)); return; }
   vaiPara(slug);
 }
+// ---- 🧭 Ações do menu (2026-10-27, a pedido do usuário: "o menu 👤 Meu trabalho mais explícito — transferir
+// ticket, convidar para apontar, meus tickets em tal projeto"). Item de menu `[data-acao="x"]` (29-url-topo.js) e
+// slug `acao:x` do Ctrl+K caem AQUI: é a porta única das ações sem tela própria. As que precisam de um ticket abrem
+// o seletor 🎫 (projeto → ticket aberto, 12b) e seguem para o modal da ação; as que precisam de identidade pedem
+// antes (o seletor fechado no meio confundiria). ----
+function navAcao(a){
+  // sem identidade, o modal diz PARA QUÊ ela é pedida (senão parece erro); o seletor 🎫 leva no título a ação
+  // que vai acontecer (senão parece que o clique abriu a busca errada).
+  const comId=(motivo,fn)=>{ if(!idApontar()){ abreIdentidade(motivo); return; } fn(); };
+  switch(String(a||'')){
+    case 'metas': abreMetas(); return;
+    case 'log': abreLogAcoes(); return;
+    case 'reportar': abreReportar(); return;
+    case 'buscar': abreBuscaTickets(); return;
+    case 'transferir': comId('transferir um ticket com todo o histórico', ()=>abreBuscaTickets('', (k)=>abreTransferir(k), '🔗 Transferir: escolha o ticket de origem')); return;
+    case 'convidar': comId('convidar colegas a apontar num ticket', ()=>abreBuscaTickets('', (k)=>abreConvidarApontar(k), '📨 Convidar a apontar: escolha o ticket')); return;
+    case 'transformar': comId('transformar um chamado em atividade', ()=>abreTransformar('')); return;
+    case 'meusproj': abreMeusTicketsProjeto(); return;
+    default: return;
+  }
+}
+// 🎫 Meus tickets por projeto: lista os projetos em que EU tenho tickets abertos (a mesma base do card "meus
+// tickets" da Início: até +30 dias e os sem vencimento), com a contagem, e abaixo os demais projetos do catálogo.
+// Escolher um abre o ⏱ Apontar com "Só os meus" + o filtro do projeto (hxAbreApontar, 08).
+const MTP_ATE=()=>somaDias(hojeSP(),30);
+function abreMeusTicketsProjeto(){
+  const id=idApontar(); if(!id){ abreIdentidade('ver os seus tickets por projeto'); return; }
+  abreModal(`<h2>🎫 Ver meus tickets de um projeto <span class="muted small">escolha o projeto — abre o ⏱ Apontar só com os seus</span></h2>
+    <input class="pal-q" id="mtp-q" type="text" autocomplete="off" spellcheck="false" placeholder="filtrar projeto…" aria-label="Filtrar projeto">
+    <div id="mtp-lista" class="tkb-lista"><div class="estado">Contando os seus tickets abertos…</div></div>`);
+  const q=document.getElementById('mtp-q'); if(q){ q.addEventListener('input',()=>mtpPinta()); setTimeout(()=>q.focus(),50); }
+  _mtp={ meus:null, erro:'' };
+  estado.apontar.semVenc=true;   // a base com os sem vencimento (a chave do cache leva o semVenc)
+  Promise.all([ carregaVenc(MTP_ATE(), false).catch(e=>{ _mtp.erro=humanizaErro(e); return null; }), (typeof garanteProjetos==='function'?garanteProjetos():Promise.resolve()).catch(()=>null) ])
+    .then(([j])=>{ if(!_mtp) return;
+      const cont={}; ((j&&j.tickets)||[]).forEach(t=>{ if(t.respId===id.accountId&&t.p) cont[t.p]=(cont[t.p]||0)+1; });
+      _mtp.meus=cont; mtpPinta(); });
+}
+let _mtp=null;
+function mtpPinta(){
+  const box=document.getElementById('mtp-lista'); if(!box||!_mtp) return;
+  const q=normPal((document.getElementById('mtp-q')||{}).value||'');
+  const nomes=(typeof projNomes==='function')?projNomes():{};
+  const todos=(typeof tkbProjetos==='function')?tkbProjetos():Object.keys(nomes).map(k=>({k, nome:nomes[k]||k, arq:false}));
+  const meus=_mtp.meus||{};
+  const linha=(p,n)=>`<div class="tkb-l"><button class="pal-row${p.arq?' pal-dim':''}" data-mtp-p="${escA(p.k)}" title="${escA(p.nome)}">
+      <span class="tkb-nome">${esc(p.nome)}</span><span class="muted small">${esc(p.k)}</span>${n?`<span class="tkb-n" data-tip="seus tickets abertos neste projeto">${n}</span>`:''}</button></div>`;
+  const bate=(p)=>!q||normPal(p.k+' '+p.nome).includes(q);
+  const comMeus=todos.filter(p=>meus[p.k]&&bate(p)).sort((a,b)=>meus[b.k]-meus[a.k]||a.nome.localeCompare(b.nome,'pt'));
+  const outros=todos.filter(p=>!meus[p.k]&&bate(p));
+  const semBase=_mtp.meus===null;
+  box.innerHTML=(semBase?'<div class="estado">Contando os seus tickets abertos…</div>':'')
+    +(_mtp.erro?`<div class="aviso">Não consegui contar os seus tickets (${esc(_mtp.erro)}) — a lista abaixo é o catálogo.</div>`:'')
+    +(comMeus.length?`<div class="pal-area">🎫 Com tickets seus em aberto</div>${comMeus.map(p=>linha(p,meus[p.k])).join('')}`
+      :(!semBase&&!_mtp.erro&&!q?'<div class="muted small" style="padding:6px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Nenhum ticket aberto no seu nome (até 30 dias e os sem vencimento). <button class="btn" data-mtp-criar="1">📝 Criar ticket</button></div>':''))
+    +(outros.length?`<div class="pal-area">${comMeus.length?'Outros projetos':'Projetos'}</div>${outros.slice(0,60).map(p=>linha(p,0)).join('')}${outros.length>60?`<div class="muted small" style="padding:6px 10px">… e mais ${outros.length-60} — filtre pelo nome.</div>`:''}`:'')
+    ||'<div class="muted small" style="padding:8px">Nenhum projeto com esse nome.</div>';
+}
+document.addEventListener('click',(e)=>{
+  const cr=e.target.closest&&e.target.closest('[data-mtp-criar]');
+  if(cr){ _mtp=null; fechaModal(); vaiPara('planejar'); return; }   // lista vazia → 📝 Criar ticket, em vez de uma tela em branco
+  const b=e.target.closest&&e.target.closest('[data-mtp-p]'); if(!b) return;
+  const k=b.getAttribute('data-mtp-p'); _mtp=null; fechaModal();
+  hxAbreApontar('todos', { semVenc:true, ate:MTP_ATE(), proj:k });
+});
 document.addEventListener('click',(e)=>{
   const bp=e.target.closest&&e.target.closest('#btn-paleta'); if(bp){ abrePaleta(); return; }
   const pv=e.target.closest&&e.target.closest('[data-pal-v]'); if(pv){ navPaletaVai(pv.getAttribute('data-pal-v')); return; }

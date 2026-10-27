@@ -3,7 +3,7 @@
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
 - **Navegação por perfil (2026-09-13, a pedido do usuário):** o **Dexterity Hub** é o conteúdo
-  genérico (para todos: Início, ⏱ Apontar, 📥 Inbox, 🎯 Prioridades, 👤 Meu trabalho, ➕ Novo);
+  genérico (para todos: Início, 📆 Hoje, ⏱ Apontar, 📥 Inbox, 🎯 Prioridades, 👤 Meu trabalho, ➕ Criar ticket);
   as áreas **Dexterity Entrega** (gestores de entrega/PMs), **Dexterity Negócio** (comercial,
   financeiro, controladoria) e **Dexterity Insights** (diretoria e governança) são grupos
   `data-area` no `index.html` que aparecem pela **lente do perfil** (`cfg.papeis`, `AREAS`,
@@ -29,6 +29,26 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   Central, selo "R08" do outro lado (`relCodigosDe`). Tela nova que entrega um relatório oficial
   = acrescentar o id em `anl`/`rm` do item de `REL_CAT`.
 
+- **👤 Meu trabalho por intenção + ➕ Criar ticket (2026-10-27, a pedido do usuário: "organize melhor o menu Meu
+  trabalho, mais explícito — transferir ticket, convidar para apontar, meus tickets em tal projeto"):** o menu do
+  `index.html` tem **4 seções** `.navg-sec` (MEUS TICKETS · CRIAR TICKETS · MINHAS HORAS E REUNIÕES · MINHA SEMANA)
+  e **uma regra de leitura só** (está no tour e na ❓ Ajuda): cada linha é **verbo + objeto**; **"…" no fim = o app
+  pergunta o ticket/projeto antes**; **linha recuada (`.nav-sub`) = aba da tela de cima**. Desenho escolhido por um
+  painel de 3 propostas × 3 juízes (`docs/menu-meu-trabalho-2026-10-27.md`). Mecânica: item de **ação** =
+  `[data-acao="x"]` → **`navAcao(x)`** (26-navegacao.js), a porta única das ações sem tela própria (também os slugs
+  `acao:x` do NAVCAT/Ctrl+K, sem ⭐); `meusproj` abre o seletor de projetos `abreMeusTicketsProjeto` (conta os meus
+  abertos pela base do card da Início, `carregaVenc(+30d, semVenc)`) e cai no ⏱ Apontar por `hxAbreApontar(fil,
+  {proj})`; `transferir`/`convidar` passam pelo seletor 🎫 em modo escolher **com o título da ação**
+  (`abreBuscaTickets(proj, aoEscolher, titulo)`) e, sem identidade, `abreIdentidade(motivo)` diz para quê. Todo item
+  de tela do 👤 leva **`data-exata`** (o rótulo diz a tela → o 29 não aplica a memória de abas `abaUltima`; ⭐,
+  links e Ctrl+K não mudam) e o 📈 leva `data-aud="minha"`; `marcaVista` acende TODAS as entradas da vista e, entre
+  entradas com audiência, só a da audiência atual. O **➕ Novo ▾ virou o botão direto `#navg-novo-b` "➕ Criar
+  ticket"** (`data-v="planejar" data-exata`; estilo por id para vencer o realce genérico) — os 7 itens dele moram no
+  👤; **regra: o ➕ nunca é a única porta de nada**. ⏱ Apontar não se repete no menu (está na barra); 🔀 Transformar e
+  🎫 Buscar ficaram só no Ctrl+K. Títulos das abas (`ABAS.rot`) **não** foram renomeados de propósito (R155). CSS:
+  `.navg-menu` rola por dentro no desktop (`max-height`), na gaveta do celular o `.nav-sub` recua 56px. Item novo no
+  menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
+  Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px).
 - **🤝 Contratos de parceria (2026-09-15, a pedido do usuário):** além do cadastro, cada contrato guarda a
   **📂 pasta do SharePoint** e os **📄 documentos** (`c.pasta`, `c.docs[]`) — só **links** validados por `pcUrl`
   (http/https), abertos em nova aba com a conta de quem clica: **o painel nunca guarda o arquivo nem

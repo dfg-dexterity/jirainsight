@@ -94,14 +94,33 @@
       <button class="navtab" data-v="inbox"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📥 Inbox</button>
       <button class="navtab" data-v="prioridades"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🎯 Prioridades</button>
       <span id="nav-favs" style="display:contents"></span>
+      <!-- 👤 Meu trabalho (2026-10-27, a pedido do usuário: "transferir ticket, convidar para apontar, meus tickets em
+           tal projeto — o que fica mais intuitivo"): o menu é organizado por INTENÇÃO, em 4 seções (.navg-sec) e
+           com uma regra de leitura só — cada linha diz o que a pessoa quer fazer (verbo + objeto); "…" no fim = o
+           app pergunta o ticket/projeto antes (data-acao → navAcao em 26-navegacao.js); linha recuada (.nav-sub) =
+           aba da tela de cima. Todo item leva data-exata: o rótulo diz a tela, então a memória de abas não troca
+           o destino. ⏱ Apontar não se repete aqui (está fixo na barra). -->
       <div class="navg" data-area="hub">
         <button class="navg-b" id="navg-op-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-apontar"/></svg>👤 Meu trabalho <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
-          <div class="navg-cab">Dexterity Hub · para todos</div>
-          <button data-v="minhasemana"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Meu Planejamento</button>
-          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Agenda</button>
-          <button data-v="meutempo"><svg class="nav-ic"><use href="#ic-analise"/></svg>⏳ Como estou gastando meu tempo?</button>
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
+        <div class="navg-menu navg-largo" role="menu">
+          <div class="navg-cab">Dexterity Hub · para todos · o que você quer fazer</div>
+          <div class="navg-sec">Meus tickets</div>
+          <button type="button" data-acao="meusproj" title="Escolha o projeto e veja só os seus tickets abertos nele (abre o ⏱ Apontar já filtrado)"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🎫 Ver meus tickets de um projeto…</button>
+          <button type="button" data-acao="transferir" title="Leva comentários, anexos, vínculos, subtarefas, horas e o histórico para outro ticket e exclui o original — pede o ticket de origem primeiro"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🔗 Transferir ticket com o histórico…</button>
+          <button type="button" data-acao="convidar" title="Convide colegas a apontar horas num ticket: cada um confirma e as horas ficam no nome dele — pede o ticket primeiro"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📨 Convidar colegas a apontar…</button>
+          <div class="navg-sec">Criar tickets</div>
+          <button data-v="planejar" data-exata title="Criar ticket — um, vários de uma vez (ou colando do Excel), por IA ou por voz"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
+          <button data-v="ondecrio" data-exata class="nav-sub" title="A árvore de decisão: responda para quem é o trabalho e o app diz o projeto certo (Onde crio o ticket?)">🌳 Descobrir em que projeto criar</button>
+          <button data-v="meustickets" data-exata class="nav-sub" title="Conte o que fez por projeto: o app acha o ticket ou cria, pergunta as horas e atualiza o status (Preciso criar meus tickets)">🧾 Criar tickets do que eu já fiz</button>
+          <div class="navg-sec">Minhas horas e reuniões</div>
+          <button data-v="rateio" data-exata title="Cole vários tickets, informe o total e divida as horas (aba do ⏱ Apontar)"><svg class="nav-ic"><use href="#ic-apontar"/></svg>➗ Ratear horas em vários tickets</button>
+          <button data-v="agenda" data-exata title="Agenda: seus eventos do Outlook por dia — cada reunião vira ticket (ou vínculo) com os convites de apontamento ao time"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Reuniões do Outlook → ticket</button>
+          <button data-v="agcontrole" data-exata class="nav-sub" title="Controle de tickets das reuniões: as que dependem de você, as que estão com quem organizou (cobrar) e as ignoradas">🎫 Reuniões sem ticket: cobrar ou criar</button>
+          <button data-v="chamadas" data-exata class="nav-sub" title="Ligações (Teams, WhatsApp, Google Meet…) que o detector do Mac percebeu — aponte num ticket ou crie o da reunião">📞 Apontar minhas ligações (Mac)</button>
+          <div class="navg-sec">Minha semana</div>
+          <button data-v="minhasemana" data-exata title="Meu Planejamento: planeje a semana por atividade (projeto + horas), envie ao gestor"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Planejar minha semana</button>
+          <button data-v="planrel" data-aud="minha" data-exata class="nav-sub" title="Planejado × realizado da SUA semana (a visão do time fica em Dexterity Entrega)">📈 Comparar planejado × realizado</button>
+          <button data-v="meutempo" data-exata title="Como estou gastando meu tempo? — o seu histórico de apontamentos em gráficos e a análise por IA"><svg class="nav-ic"><use href="#ic-analise"/></svg>⏳ Ver como gasto meu tempo</button>
         </div>
       </div>
       <div class="navg" data-area="entrega">
@@ -136,19 +155,10 @@
           <button data-v="uso"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Uso do painel</button>
         </div>
       </div>
-      <div class="navg navg-novo" data-area="hub">
-        <button class="navg-b" id="navg-novo-b" type="button" aria-haspopup="true" aria-expanded="false">➕ Novo <span class="nav-car">▾</span></button>
-        <div class="navg-menu" role="menu">
-          <div class="navg-cab">Ações · criar e apontar</div>
-          <button data-v="planejar"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
-          <button data-v="ondecrio" class="nav-sub">🌳 Onde crio o ticket?</button>
-          <button data-v="meustickets" class="nav-sub">🧾 Preciso criar meus tickets</button>
-          <button data-v="chamadas" class="nav-sub">📞 Ligações para apontar</button>
-          <button data-v="apontar"><svg class="nav-ic"><use href="#ic-apontar"/></svg>⏱ Apontar horas</button>
-          <button data-v="rateio" class="nav-sub">➗ Ratear horas em vários tickets</button>
-          <button data-v="agenda"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>📅 Reunião do Outlook → ticket</button>
-        </div>
-      </div>
+      <!-- ➕ Criar ticket (2026-10-27): o antigo "➕ Novo ▾" listava 7 itens que agora moram no 👤 Meu trabalho — dois
+           catálogos da mesma coisa eram a dúvida "em qual dos dois clico?". O botão verde fica (a convenção que todo
+           mundo reconhece) como UM clique direto, e o ➕ nunca é a única porta de nada. O id #navg-novo-b é o alvo do tour. -->
+      <button class="navtab" id="navg-novo-b" type="button" data-v="planejar" data-exata title="Criar ticket — um, vários de uma vez, por IA ou por voz. Os outros caminhos (🌳 em que projeto, 🧾 do que eu já fiz) estão em 👤 Meu trabalho › Criar tickets">➕ Criar ticket</button>
       <button class="navtab" id="btn-paleta" type="button" title="Buscar tela — Ctrl+K" aria-label="Buscar tela (Ctrl+K)">🔍</button>
       <button class="navtab" id="btn-tkb" type="button" title="Buscar ticket — tecla / (ou Ctrl+J)" aria-label="Buscar ticket (tecla barra ou Ctrl+J)">🎫</button>
     </div>
