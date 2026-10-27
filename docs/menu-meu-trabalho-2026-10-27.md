@@ -48,9 +48,9 @@ por dentro quando a janela é baixa.
 
 ## O que mudou fora do menu
 
-- **➕ Novo ▾ virou o botão direto "➕ Criar ticket"** (mesmo id `#navg-novo-b`, mesma cor). Os sete
-  itens do dropdown antigo moram no 👤 Meu trabalho, cada um com o nome do que faz. Regra: o ➕ nunca é a
-  única porta de nada.
+- **➕ Novo ▾ virou o botão direto "➕ Criar ticket"** (mesmo id `#navg-novo-b`, mesma cor). Seis dos sete
+  itens do dropdown antigo moram no 👤 Meu trabalho, cada um com o nome do que faz; o ⏱ Apontar horas segue
+  fixo na barra. Regra: o ➕ nunca é a única porta de nada.
 - O seletor 🎫 em modo escolher ganhou o **título da ação** e a dica "ticket concluído ou de outro
   projeto: digite a chave".
 - O modal de identidade diz **para quê** a identidade é pedida quando a ação veio do menu.

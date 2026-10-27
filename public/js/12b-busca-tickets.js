@@ -163,8 +163,8 @@ function tkbLinhaTicket(x, comProj){
     <button class="pal-row" data-tkb-ir="${escA(x.k)}" title="${escA(x.resumo||x.k)}">
       <span class="tkb-k">${esc(x.k)}</span><span class="tkb-res">${x.resumo?esc(x.resumo):'<span class="muted">(sem resumo)</span>'}</span>
       <span class="pal-g">${esc(dir)}</span></button>
-    <button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket"
-      aria-label="Apontar horas em ${escA(x.k)}">⏱</button>
+    ${(_tkb&&_tkb.pick)?'':`<button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket"
+      aria-label="Apontar horas em ${escA(x.k)}">⏱</button>`}
     <a class="pal-fav" href="${url}" target="_blank" rel="noopener" data-tip="Abrir no Jira"
       aria-label="Abrir ${escA(x.k)} no Jira">↗</a>
   </div>`;
@@ -234,7 +234,9 @@ function tkbPinta(){
       +(extra.length?tkbTitulo('🕘 Fora dos abertos — do período carregado no painel')+extra.map(x=>tkbLinhaTicket(x,true)).join(''):'');
     rod.innerHTML=(_tkbCache[_tkb.proj]&&_tkbCache[_tkb.proj].truncado)
       ? '⚠ O projeto tem mais abertos do que cabe numa busca (300): estes são os <b>mais recentes</b> — refine ou digite a chave.'
-      : 'Digitar filtra <b>em memória</b> (nada vai à rede). ↑ ↓ escolhem · Enter abre a ficha · ⏱ aponta horas · ↗ abre no Jira.';
+      : (_tkb.pick
+          ? 'Digitar filtra <b>em memória</b>. ↑ ↓ escolhem · <b>Enter ou clique escolhe o ticket</b> para a ação · ↗ abre no Jira.'   // modo escolher: nada de ⏱ nem "abre a ficha"
+          : 'Digitar filtra <b>em memória</b> (nada vai à rede). ↑ ↓ escolhem · Enter abre a ficha · ⏱ aponta horas · ↗ abre no Jira.');
   }
   tkbRealce();
 }

@@ -651,7 +651,12 @@
   /* ➕ Criar ticket (2026-10-27): era o dropdown "➕ Novo ▾"; agora é um clique direto. Seletor com id para vencer o
      realce genérico do item ativo (.seg button[aria-pressed]) — pressionado fica grafite, nunca transparente. */
   #seg-vista #navg-novo-b{color:#fff;background:var(--cerceta);border-radius:999px;padding:7px 12px;margin:5px 2px 6px 6px;border-bottom:0;line-height:1;box-shadow:none}
-  #seg-vista #navg-novo-b:hover,#seg-vista #navg-novo-b[aria-pressed="true"]{color:#fff;background:var(--grafite);border-bottom-color:transparent}
+  /* pressionado/hover: fundo --grafite (a cor do TEXTO do tema — clara no dark e no dexterity), então o texto é --cartao,
+     que inverte junto; #fff fixo sumia sobre o grafite claro dos temas escuros */
+  #seg-vista #navg-novo-b:hover,#seg-vista #navg-novo-b[aria-pressed="true"]{color:var(--cartao);background:var(--grafite);border-bottom-color:transparent}
+  /* o cabeçalho do 👤 é a linha mais longa do menu: quebra, em vez de alargar o dropdown até sair da tela no tablet em pé */
+  .navg-largo .navg-cab{white-space:normal}
+  .navg-menu{max-width:calc(100vw - 32px)}
   .hdrmenu-m .hdr-cab{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
   /* 🗂 Barra de abas dos grupos (fase 2): Inbox, Apontar, Tickets do time, Reuniões, Projetos, Horas do time… */
   .abas-tela{display:flex;align-items:flex-end;gap:2px;flex-wrap:wrap;margin:10px 0 0;border-bottom:2px solid var(--linha);padding:0 4px}
@@ -3146,6 +3151,7 @@
   [data-theme="dexterity"] #seg-vista > .navtab,
   [data-theme="dexterity"] .navg-b,
   [data-theme="dexterity"] .navg-menu button{border-radius:2px}
+  [data-theme="dexterity"] #seg-vista #navg-novo-b{border-radius:2px}   /* o ➕ Criar ticket segue a regra do tema: nada de pílula */
   /* Opção de tema ativa no menu 🎨 (vale para todos os temas). */
   .hdrmenu-m button[aria-pressed="true"]{color:var(--cerceta);font-weight:600}
   /* ---- 🧭 Gerente(s) do projeto (ficha do 📁 projeto, 2026-09-28) ---- */

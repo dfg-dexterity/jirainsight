@@ -44,7 +44,7 @@ function abreAjuda(){
     <details class="help-sec"><summary>TODAS as telas (por área do Dexterity Hub — clique para abrir)</summary><div class="help-body">
       <div class="muted small">Desde 2026-09-13 o app é o <b>Dexterity Hub</b>: o conteúdo genérico (para todos) fica fixo na barra e as áreas <b>Dexterity Entrega</b>, <b>Dexterity Negócio</b> e <b>Dexterity Insights</b> aparecem pelo seu perfil (lente, não permissão — tudo abre pelo 🔍 Ctrl+K ou por link; em ⋯ Mais dá para "ver todas as áreas"). Desde 2026-09-14, telas que respondem a mesma pergunta são <b>abas de um grupo</b> (a barra acima do conteúdo): Inbox (Pendências · Menções), Apontar (Chamados · Rateio · Sugestões do dia), Meu Planejamento (Minha semana · Planejado × realizado), Criar ticket (Onde crio? · Criar), Tickets do time (Ações em massa · Lista · Qualidade · Regras), Reuniões, Projetos (Portfólio · Cronograma), Horas do time (Timesheet · Ranking), Planejamento do time e a Central de configurações (Central · Metas · Histórico).</div><ul>
       <li><b>Dexterity Hub — para todos:</b></li>
-      <li>· <b>👤 Meu trabalho</b> — o menu organizado pelo que você quer fazer (cada linha é verbo + objeto; "…" = o app pergunta o ticket ou o projeto antes; linha recuada = aba da tela de cima). Três ações moram só nele e no 🔍 Ctrl+K: <span class="lnk" data-aj-acao="meusproj"><b>🎫 Ver meus tickets de um projeto…</b></span> (abre o ⏱ Apontar já filtrado, "Só os meus"), <span class="lnk" data-aj-acao="transferir"><b>🔗 Transferir ticket com o histórico…</b></span> (leva tudo e exclui o original) e <span class="lnk" data-aj-acao="convidar"><b>📨 Convidar colegas a apontar…</b></span> (as duas pedem o ticket pelo seletor 🎫).</li>
+      <li>· <b>👤 Meu trabalho</b> — o menu organizado pelo que você quer fazer (cada linha é verbo + objeto; "…" = o app pergunta o ticket ou o projeto antes; linha recuada = aba da tela de cima). Três ações têm porta própria aqui e no 🔍 Ctrl+K (o app pergunta o ticket ou o projeto antes): <span class="lnk" data-aj-acao="meusproj"><b>🎫 Ver meus tickets de um projeto…</b></span> (abre o ⏱ Apontar já filtrado, "Só os meus" — abertos no seu nome vencendo até 30 dias ou sem vencimento), <span class="lnk" data-aj-acao="transferir"><b>🔗 Transferir ticket com o histórico…</b></span> (leva tudo e exclui o original) e <span class="lnk" data-aj-acao="convidar"><b>📨 Convidar colegas a apontar…</b></span> — 🔗 e 📨 também aparecem em cada ticket do ⏱ Apontar, da 🛠 Gestão e da ficha 🔍.</li>
       <li>· <span class="lnk" data-aj-goto="acoes"><b>🏠 Início — Ações de hoje</b></span> — a página principal: SEU dia num relance (horas × meta, vencidos, plano da semana, reuniões sem ticket, Inbox), ações do time, a 🌳 árvore "Onde crio meu ticket?" e os atalhos 🚀; perfil negócio ganha o 📆 Fechamento do mês.<button class="aj-g" data-aj-guia="acoes">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="hoje"><b>📆 Hoje › 📆 Meu dia</b></span> — o planejamento do dia como ponto central: lista do dia na sua ordem (🎯 foco nos 3 primeiros, estimativa × capacidade, ✓ feito, ⏱ apontar, ▶ cronômetro, 📅 agendar), linha do tempo (agenda do Outlook + blocos + apontado + lacunas) e os rituais 🌅 Planejar o dia / 🌙 Fechar o dia.<button class="aj-g" data-aj-guia="hoje">🧭 guia</button></li>
       <li>· <span class="lnk" data-aj-goto="hojetime"><b>📆 Hoje › 👥 Dia do time</b></span> — para gestores: quem planejou e fechou o dia, feitos/total, planejado e apontado × capacidade.<button class="aj-g" data-aj-guia="hojetime">🧭 guia</button></li>
@@ -244,7 +244,7 @@ function abreAjuda(){
       O plano antigo por tickets fica disponível como <b>Modelo anterior</b>, somente leitura.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="minhasemana">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>Agenda (Outlook → ticket) e o controle de tickets</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 📅 Agenda</b>: seus eventos do Outlook, agrupados por dia. <b>Todo evento não
+      Em <b>👤 Meu trabalho › 📅 Reuniões do Outlook → ticket</b> (a tela 📅 Agenda): seus eventos do Outlook, agrupados por dia. <b>Todo evento não
       particular precisa de ticket</b>: quem organiza cria (organizador <b>externo</b> → qualquer participante interno);
       🔒 particulares ficam de fora. O assistente cria o ticket no <b>projeto à escolha</b> (ou <b>vincula a um
       existente</b>) e envia <b>convites de apontamento</b> aos participantes <b>internos</b> — cada um confirma com 1
@@ -267,13 +267,13 @@ function abreAjuda(){
       sabe <b>qual app</b> usou o microfone — nunca ouve nem grava — e a ligação fica só no seu navegador até você apontar.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="agenda">🧭 ver na tela (guia interativo)</button> <button class="aj-g" data-aj-guia="agcontrole">🧭 guia do 🎫 Controle</button> <button class="aj-g" data-aj-guia="chamadas">🧭 guia das 📞 Ligações</button></div></div></details>
     <details class="help-sec"><summary>Inbox (suas pendências)</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 📥 Inbox</b>: tudo que depende de você — <b>🤝 convites</b> de apontamento coletivo
+      No <b>📥 Inbox</b> (botão fixo da barra): tudo que depende de você — <b>🤝 convites</b> de apontamento coletivo
       (confirme com 1 clique), <b>💬 menções</b> sem resposta, <b>📅 reuniões sem ticket</b> (avisos do time pela
       Agenda) e, para o aprovador, <b>🔒 alocações/planos</b> aguardando decisão. O selo vermelho no menu soma tudo
       e atualiza na hora.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="inbox">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>Menções (responder onde fui marcado)</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 💬 Menções</b>: os comentários do Jira onde você foi <b>@marcado</b> nos últimos dias.
+      Em <b>📥 Inbox › 💬 Menções</b>: os comentários do Jira onde você foi <b>@marcado</b> nos últimos dias.
       Responda direto do painel (com <b>@marcações</b> de várias pessoas e <b>anexos/print colado</b>), abra a ficha
       completa do ticket, aponte horas ou <b>🔕 ignore</b> (some só para você; reversível).
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="mencoes">🧭 ver na tela (guia interativo)</button></div></div></details>
@@ -292,7 +292,7 @@ function abreAjuda(){
       descrição, épico…), para acompanhar a conformidade de quem cria tickets.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="analytics">🧭 ver na tela (guia interativo)</button></div></div></details>
     <details class="help-sec"><summary>Meu dia (timetracking assistido — beta)</summary><div class="help-body">
-      Em <b>👤 Meu trabalho › 📍 Meu dia</b>: com a ponte do ActivityWatch instalada no computador, o painel mostra
+      Em <b>⏱ Apontar › 📍 Sugestões do dia</b> (o Meu dia): com a ponte do ActivityWatch instalada no computador, o painel mostra
       em que apps/janelas o seu dia foi e a <b>IA sugere apontamentos</b> (ticket + duração) — revise, ajuste e
       confirme; nada é gravado sem a sua confirmação.
     <div style="margin-top:8px"><button class="aj-g" data-aj-guia="meudia">🧭 ver na tela (guia interativo)</button></div></div></details>
@@ -338,7 +338,7 @@ const TOUR=[
   {sel:'#abas',titulo:'🗂 Abas do grupo',texto:'Telas que respondem a mesma pergunta viraram abas de um grupo: a barra acima do conteúdo troca entre elas sem sair do lugar (ex.: Inbox → Pendências e Menções; Apontar → Chamados, Rateio e Sugestões do dia). Cada aba continua com o seu link próprio. O menu lembra a última aba que você abriu em cada grupo, e a aba que tem algo esperando você mostra o número (pendências, menções sem resposta, vencidos).', se:()=>!document.getElementById('abas').hidden},
   {sel:'#navg-ne-b',titulo:'Dexterity Negócio',texto:'A área comercial, financeira e de controladoria, em 4 entradas: 📑 Contratos (abas 🏢 Clientes · 🤝 Parceiros), 🛡 Apuração de contratos (abas AMS por ciclo · 💰 Bolsa de horas & projetos), 💹 Rentabilidade (com a ordem de venda no Odoo) e 🏦 Controladoria. Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="negocio"][hidden]')},
   {sel:'#navg-in-b',titulo:'Dexterity Insights',texto:'A leitura da diretoria e da governança, em 3 entradas: 📊 Visão Geral (a tela inicial da diretoria, com a aba 🧠 Resumo com IA), 📚 Central de Relatórios — a porta única das análises (abas Catálogo R01–R29 · 📈 Analytics · 📈 Métricas por tipo · 📊 Relatório semanal) — e 📊 Uso do painel (quem usa o quê). Aparece pelo seu perfil.', se:()=>!document.querySelector('.navg[data-area="insights"][hidden]')},
-  {sel:'#navg-novo-b',titulo:'➕ Criar ticket',texto:'Um clique, de qualquer tela, abre o 📝 Criar ticket (um, vários de uma vez, por IA ou por voz). Era o "➕ Novo ▾" com sete itens — todos moram agora em 👤 Meu trabalho, cada um com o nome do que faz (🌳 Descobrir em que projeto criar, 🧾 Criar tickets do que eu já fiz, ➗ Ratear horas, 📅 Reuniões do Outlook → ticket, 📞 Apontar minhas ligações).'},
+  {sel:'#navg-novo-b',titulo:'➕ Criar ticket',texto:'Um clique, de qualquer tela, abre o 📝 Criar ticket (um por linha ou vários de uma vez, colando do Excel ou a estrutura Épico → História → Task; a criação rápida com IA fica na 🏠 Início). Era o "➕ Novo ▾" com sete itens — seis moram agora em 👤 Meu trabalho, cada um com o nome do que faz (🌳 Descobrir em que projeto criar, 🧾 Criar tickets do que eu já fiz, ➗ Ratear horas, 📅 Reuniões do Outlook → ticket, 📞 Apontar minhas ligações), e o ⏱ Apontar horas continua fixo na barra.'},
   {sel:'#hdr-periodo',titulo:'Período',texto:'Escolha o intervalo de análise — hoje, semana, mês, ano… Ele aparece só nas telas de análise; as telas operacionais têm controles próprios.'},
   {sel:'.filtros',titulo:'Filtros',texto:'Filtre por pessoa, categoria, projeto e tipo nas telas de análise.'},
   {sel:'#btn-refresh',titulo:'Atualizar',texto:'Os dados ficam em cache por alguns minutos — clique para recarregar na hora.'},

@@ -161,7 +161,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   // Cabeçalho de grupo: abre/fecha o dropdown (não troca de aba).
   const hb=ev.target.closest('.navg-b');
   if(hb){ const g=hb.closest('.navg'); const abrir=!g.classList.contains('open');
-    fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); }
+    fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); if(typeof navMenuAltura==='function') navMenuAltura(g); }
     ev.stopPropagation(); return; }
   // Item de ação (abre modal, não troca de aba) — a porta única é navAcao (26-navegacao.js).
   const ac=ev.target.closest('[data-acao]');
@@ -171,10 +171,14 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   const b=ev.target.closest('[data-v]'); if(!b) return;
   let v=b.dataset.v;
   if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
-  // 🧠 a entrada do GRUPO volta à última aba usada; favoritos ⭐ e os itens explícitos do 👤 Meu trabalho
-  // (data-exata — o rótulo diz a tela) abrem exatamente a aba pedida.
-  else if(!b.closest('#nav-favs')&&!b.hasAttribute('data-exata')&&typeof abaUltima==='function'){
-    const m=abaUltima(v); if(m){ if(m.aud) estado.planrel.aud=m.aud; v=m.v; } }
+  else {
+    // a entrada SEM audiência do 📊 planrel é a do time (Dexterity Entrega): a audiência "minha" que o 👤 › 📈 deixou
+    // não pode vazar para ela (abriria a Minha visão com as abas do 📋 Meu Planejamento) — volta ao padrão do grupo.
+    if(v==='planrel'&&estado.planrel&&estado.planrel.aud==='minha') estado.planrel.aud='gestor';
+    // 🧠 a entrada do GRUPO volta à última aba usada; favoritos ⭐ e os itens explícitos do 👤 Meu trabalho
+    // (data-exata — o rótulo diz a tela) abrem exatamente a aba pedida.
+    if(!b.closest('#nav-favs')&&!b.hasAttribute('data-exata')&&typeof abaUltima==='function'){
+      const m=abaUltima(v); if(m){ if(m.aud) estado.planrel.aud=m.aud; v=m.v; } } }
   estado.vista=v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 });

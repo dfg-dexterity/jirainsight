@@ -37,16 +37,26 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   painel de 3 propostas × 3 juízes (`docs/menu-meu-trabalho-2026-10-27.md`). Mecânica: item de **ação** =
   `[data-acao="x"]` → **`navAcao(x)`** (26-navegacao.js), a porta única das ações sem tela própria (também os slugs
   `acao:x` do NAVCAT/Ctrl+K, sem ⭐); `meusproj` abre o seletor de projetos `abreMeusTicketsProjeto` (conta os meus
-  abertos pela base do card da Início, `carregaVenc(+30d, semVenc)`) e cai no ⏱ Apontar por `hxAbreApontar(fil,
-  {proj})`; `transferir`/`convidar` passam pelo seletor 🎫 em modo escolher **com o título da ação**
-  (`abreBuscaTickets(proj, aoEscolher, titulo)`) e, sem identidade, `abreIdentidade(motivo)` diz para quê. Todo item
+  abertos pela base do card da Início: `carregaVenc(MTP_ATE(), velho)` — assinatura `carregaVenc(ate, forca)` — com
+  `estado.apontar.semVenc` ligado SÓ durante a chamada e devolvido ao que era, porque a chave do cache e a URL levam o
+  semVenc e Esc no modal não pode deixar o Apontar com "Incluir sem vencimento" marcado; cache de outro dia ou > 5 min
+  é relido; exige `id.accountId`, senão revalida) e cai no ⏱ Apontar por `hxAbreApontar(fil, {proj})` — projeto sem
+  chamado na lista ganha `<option>` própria no select, para o filtro não ficar invisível; `transferir`/`convidar`
+  passam pelo seletor 🎫 em modo escolher **com o título da ação** (`abreBuscaTickets(proj, aoEscolher, titulo)`; no
+  modo escolher a linha não tem ⏱ e o rodapé diz "Enter escolhe") e, sem identidade, `abreIdentidade(motivo, {leitura,
+  depois})` diz para quê e **continua a ação** depois da validação (`_idDepois`). Todo item
   de tela do 👤 leva **`data-exata`** (o rótulo diz a tela → o 29 não aplica a memória de abas `abaUltima`; ⭐,
   links e Ctrl+K não mudam) e o 📈 leva `data-aud="minha"`; `marcaVista` acende TODAS as entradas da vista e, entre
   entradas com audiência, só a da audiência atual. O **➕ Novo ▾ virou o botão direto `#navg-novo-b` "➕ Criar
-  ticket"** (`data-v="planejar" data-exata`; estilo por id para vencer o realce genérico) — os 7 itens dele moram no
-  👤; **regra: o ➕ nunca é a única porta de nada**. ⏱ Apontar não se repete no menu (está na barra); 🔀 Transformar e
-  🎫 Buscar ficaram só no Ctrl+K. Títulos das abas (`ABAS.rot`) **não** foram renomeados de propósito (R155). CSS:
-  `.navg-menu` rola por dentro no desktop (`max-height`), na gaveta do celular o `.nav-sub` recua 56px. Item novo no
+  ticket"** (`data-v="planejar" data-exata`; estilo por id para vencer o realce genérico — pressionado/hover é `color:var(--cartao)`
+  sobre `--grafite`, que inverte com o tema; no Dexterity canto 2px) — 6 dos 7 itens dele moram no 👤 e o ⏱ Apontar
+  segue fixo na barra; **regra: o ➕ nunca é a única porta de nada**. 🔀 Transformar só no Ctrl+K; a 🎫 busca já tem a
+  linha fixa da paleta (não entra no NAVCAT). `marcaVista` acende também a tela principal do grupo quando ela é botão
+  fixo da barra (⏱ Apontar na aba ➗ Rateio) — nunca o ➕. A entrada de Entrega do 📊 planrel (sem `data-aud`) volta a
+  audiência de `minha` para `gestor` (o 29) — a "minha" do 👤 não vaza para o time. Títulos das abas (`ABAS.rot`)
+  **não** foram renomeados de propósito (R155). CSS: `.navg-menu` rola por dentro no desktop (teto medido ao abrir por
+  `navMenuAltura`, limpo em `fechaMenusNav`; `max-width:calc(100vw - 32px)`; o cabeçalho do 👤 quebra linha), na gaveta
+  do celular o `.nav-sub` recua 56px e os ícones de linha saem. Item novo no
   menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
   Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px).
 - **🤝 Contratos de parceria (2026-09-15, a pedido do usuário):** além do cadastro, cada contrato guarda a
