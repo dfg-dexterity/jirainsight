@@ -44,23 +44,36 @@ export async function resolvePais(issues, maxRodadas = 3) {
     if (par.id) fila.push(String(par.id));
   };
   for (const it of issues || []) anota((it.fields || {}).parent);
+  // A JQL `id in (…)` recusa o lote INTEIRO quando um id não pode ser lido (épico com segurança, projeto que a conta de
+  // serviço não enxerga, pai apagado no meio). Então o lote que falha é partido ao meio até isolar o id ruim — só ELE
+  // fica sem o pai de cima; os outros seguem. Teto de buscas por chamada, para um Jira fora do ar não virar uma enxurrada.
+  let orcamento = 40;
+  const busca = async (ids) => {
+    if (!ids.length || orcamento <= 0) return [];
+    orcamento -= 1;
+    try {
+      const { issues: achados } = await jiraSearchAll({
+        jql: `id in (${ids.join(',')})`,
+        fields: ['summary', 'issuetype', 'status', 'parent'],
+        pageSize: 100,
+        maxPages: 2,
+      });
+      return achados;
+    } catch (e) {
+      if (ids.length === 1) return [];              // o id que não dá para ler: pai fica null (o cartão para ali)
+      const meio = Math.ceil(ids.length / 2);
+      return [...(await busca(ids.slice(0, meio))), ...(await busca(ids.slice(meio)))];
+    }
+  };
   for (let rodada = 0; rodada < maxRodadas && fila.length; rodada += 1) {
     const ids = [...new Set(fila)]; fila = [];
-    try {
-      for (let i = 0; i < ids.length; i += 100) {
-        const { issues: achados } = await jiraSearchAll({
-          jql: `id in (${ids.slice(i, i + 100).join(',')})`,
-          fields: ['summary', 'issuetype', 'status', 'parent'],
-          pageSize: 100,
-          maxPages: 2,
-        });
-        for (const a of achados) {
-          const f = a.fields || {};
-          pais[a.key] = { ...nodoPai(f), pai: (f.parent && f.parent.key) || '' };
-          if (f.parent) anota(f.parent);
-        }
+    for (let i = 0; i < ids.length; i += 100) {
+      for (const a of await busca(ids.slice(i, i + 100))) {
+        const f = a.fields || {};
+        pais[a.key] = { ...nodoPai(f), pai: (f.parent && f.parent.key) || '' };
+        if (f.parent) anota(f.parent);
       }
-    } catch (e) { break; }                          // cadeia parcial: os `pai: null` param o cartão ali
+    }
   }
   return pais;
 }

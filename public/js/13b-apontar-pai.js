@@ -18,6 +18,7 @@ const APH_AGRUPA_LS='jirainsight_ap_agrupa_pai_v1';   // só conveniência deste
 const APH_CAND_TTL_MS=2*60*1000;
 const _aphCand={};                                    // `P|nivel` → {ts, itens, truncado, semTipo} | {p: Promise}
 let _aphFiltro={};                                    // chave do ticket → texto do filtro do seletor aberto
+let _aphForca=false;                                  // depois de um vínculo, os candidatos são relidos sem o cache do servidor
 
 function aphDados(){ const ap=estado.apontar; return (ap&&ap.porData&&ap.porData[chaveVenc()])||null; }
 function aphAgrupaLigado(){
@@ -34,23 +35,28 @@ function aphNivel(t){
   if(t && t.sub) return -1;
   return /épico|epic/i.test((t&&t.t)||'')?1:0;
 }
-// Nó de um ancestral: mapa de pais da lista, depois os próprios tickets da lista, depois as fichas dos 🕑 recentes.
+// Nó de um ancestral. Fontes: o mapa de pais da lista, as fichas dos 🕑 recentes e o próprio ticket (da lista ou ficha).
+// Regra da revisão (2026-10-27): o TICKET manda no próprio `pai` — é a cópia que o vínculo atualiza na hora; o nó do
+// mapa só completa resumo/tipo/ícone/nível. Senão, mover uma história que também é pai de uma sub-tarefa da lista
+// deixava a sub-tarefa (e o agrupado) no épico antigo até reler a lista.
 function aphNodo(k){
   if(!k) return null;
   const d=aphDados();
-  if(d && d.pais && d.pais[k]) return Object.assign({k}, d.pais[k]);
-  const tk=d && (d.tickets||[]).find(x=>x.k===k);
-  if(tk) return {k, r:tk.resumo||'', t:tk.t||'', ic:tk.tIcon||'', n:aphNivel(tk), st:tk.status||'', pai:tk.pai||''};
-  const rd=(estado.apontar.recDet)||{};
-  for(const kk in rd){ const f=rd[kk]; if(f && f.pais && f.pais[k]) return Object.assign({k}, f.pais[k]); }
-  return null;
+  let mp=(d && d.pais && d.pais[k]) || null;
+  if(!mp){ const rd=(estado.apontar.recDet)||{}; for(const kk in rd){ const f=rd[kk]; if(f && f.pais && f.pais[k]){ mp=f.pais[k]; break; } } }
+  const tk=(d && (d.tickets||[]).find(x=>x.k===k)) || ((estado.apontar.recDet||{})[k]) || null;
+  if(!mp && !tk) return null;
+  const m=mp||{};
+  if(!tk) return Object.assign({k}, m);
+  return {k, r:tk.resumo||m.r||'', t:tk.t||m.t||'', ic:tk.tIcon||m.ic||'', n:(typeof tk.n==='number')?tk.n:(typeof m.n==='number'?m.n:aphNivel(tk)),
+    st:tk.status||m.st||'', pai:tk.pai||''};
 }
 // Grava/atualiza um nó no mapa de pais da lista (sem apagar o `pai` que já se sabia).
 function aphGuardaNodo(k, nodo){
   const d=aphDados(); if(!d||!k) return;
   d.pais=d.pais||{};
-  const velho=d.pais[k]||{};
-  const novo=Object.assign({r:'', t:'', ic:'', n:null, st:'', pai:null}, velho);
+  const velho=d.pais[k]||aphNodo(k)||{};          // parte do que já se sabe (mapa, ficha ou o ticket da lista)
+  const novo=Object.assign({r:'', t:'', ic:'', n:null, st:'', pai:null}, velho); delete novo.k;
   Object.keys(nodo||{}).forEach(c=>{
     const v=nodo[c];
     if(v===null||v===undefined) return;                // vazio/desconhecido não apaga o que já se sabia
@@ -157,6 +163,7 @@ function aphGrupoHTML(grupo, linhaTicket, pk){
 // ---- 🧩 Seletor de pai (painel no cartão) ----
 function aphNivelPai(t){ const n=aphNivel(t); return n===-1?0:n+1; }
 function aphCandidatos(p, nivel, forca){
+  if(_aphForca){ forca=true; _aphForca=false; }
   const ck=p+'|'+nivel; const c=_aphCand[ck];
   if(c && c.p) return c.p;
   if(c && c.itens && !forca && Date.now()-c.ts<APH_CAND_TTL_MS) return Promise.resolve(c);
@@ -256,6 +263,13 @@ function aphDepoisDeVincular(ks, paiKey, info){
   ((d&&d.tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; });
   Object.values(estado.apontar.porData||{}).forEach(dd=>((dd&&dd.tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; }));
   const rd=estado.apontar.recDet||{}; ks.forEach(k=>{ if(rd[k]) rd[k].pai=paiKey; });
+  // o ticket movido também pode ser NÓ de algum mapa (é pai de outro da lista ou de um 🕑 recente): o pai dele muda lá também
+  const mapas=[...Object.values(estado.apontar.porData||{}).map(dd=>dd&&dd.pais), ...Object.values(rd).map(f=>f&&f.pais)].filter(Boolean);
+  mapas.forEach(m=>ks.forEach(k=>{ if(m[k]) m[k].pai=paiKey; }));
+  // candidatos guardados trazem o pai de cada um (o movido pode estar entre eles) → relê; e a próxima leitura da lista vai
+  // sem o cache do servidor (cada função da Vercel tem o seu: o /api/transicao não limpa o do /api/vencimentos)
+  Object.keys(_aphCand).forEach(c=>{ delete _aphCand[c]; });
+  _aphForca=true; estado.apontar.paiSujo=true;
   (((estado.gestao&&estado.gestao.dados||{}).tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; });
   if(info){
     const avo=info.pai&&info.pai.k?info.pai:null;
@@ -285,10 +299,12 @@ async function aphUsaChave(btn){
 }
 function aphAbreLote(btn){
   const p=btn.getAttribute('data-aph-lote');
-  const ks=String(btn.getAttribute('data-aph-lote-ks')||'').split(',').filter(Boolean);
-  const so=ks.length?new Set(ks):null;
+  let ks=String(btn.getAttribute('data-aph-lote-ks')||'').split(',').filter(Boolean);
+  // sem lista no botão (o do seletor do cartão): os tickets À VISTA na tela — filtros e "Só os meus" valem aqui também
+  if(!ks.length) ks=(estado.apontar.listaVisivel||[]).slice();
+  const so=new Set(ks);
   abreModalEpicos({
-    lista:()=>((aphDados()||{}).tickets||[]).filter(t=>t.p===p && (!so||so.has(t.k))),
+    lista:()=>((aphDados()||{}).tickets||[]).filter(t=>t.p===p && so.has(t.k)),
     depois:(oks, paiKey, ep)=>{ aphDepoisDeVincular(oks, paiKey, ep?{r:ep.resumo, t:ep.tipo, st:ep.status, n:1}:null);
       if(estado.vista==='apontar') renderApontar(); },
   });
@@ -320,5 +336,9 @@ document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   const f=e.target; if(e.key!=='Enter'||!f||!f.classList) return;
   const area=f.closest&&f.closest('.aph-painel'); if(!area) return;
   if(f.classList.contains('aph-chave')){ e.preventDefault(); const b=area.querySelector('[data-aph-chave-do]'); if(b) aphUsaChave(b); }
-  else if(f.classList.contains('aph-filtro')){ e.preventDefault(); const b=area.querySelector('.aph-cand:not(.atual)'); if(b) b.click(); }
+  else if(f.classList.contains('aph-filtro')){ e.preventDefault();
+    // Enter só escolhe quando o filtro deixou UM candidato — Enter "de reflexo" com a lista inteira gravaria um épico qualquer
+    const cs=[...area.querySelectorAll('.aph-cand:not(.atual)')];
+    if(String(f.value||'').trim() && cs.length===1) cs[0].click();
+    else if(cs.length) cs[0].focus(); }
 });

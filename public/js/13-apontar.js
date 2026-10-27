@@ -40,9 +40,11 @@ async function carregaVenc(ate, forca){
   const ap=estado.apontar;
   const key=ate+'|'+(ap.semVenc?1:0);
   if(!forca && ap.porData[key]) return ap.porData[key];
-  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${forca?'&nocache=1':''}`);
+  const nc=forca||ap.paiSujo;   // 🧩 depois de trocar um pai, a próxima leitura não pode vir do cache antigo do servidor
+  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${nc?'&nocache=1':''}`);
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
+  if(nc) ap.paiSujo=false;
   j.lidoEm=hojeSP();      // dia (SP) em que o navegador leu — a lista de ontem não serve para o "vencido" de hoje
   j.lidoTs=Date.now();    // e a hora: o seletor 🎫 Ver meus tickets… relê quando a contagem tem mais de 5 min
   ap.porData[key]=j;
@@ -395,6 +397,7 @@ function renderApontar(){
   if(ap.soMeus && id && id.accountId) lista=lista.filter(t=>t.respId===id.accountId);
   if(ap.busca){ const q=ap.busca.toLowerCase();
     lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.p+' '+(t.resp||'')).toLowerCase().includes(q)); }
+  ap.listaVisivel=lista.map(t=>t.k);   // 🧩 o "vincular vários" do seletor só pega o que está à vista
 
   // ---- Faixa de identidade ----
   const faixaId = id
@@ -728,7 +731,9 @@ async function fazApontamento(btn){
   let row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-key');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  let tempoEl=row.querySelector('.ap-tempo'), comEl=row.querySelector('.ap-coment'), fb=row.querySelector('.ap-fb');
+  // o retorno vai para o .ap-fb da LINHA DE APONTAR — os painéis abertos no cartão (🧩, status…) têm o deles
+  const fbDe=(r)=>r.querySelector('.ap-log .ap-fb')||r.querySelector('.ap-fb');
+  let tempoEl=row.querySelector('.ap-tempo'), comEl=row.querySelector('.ap-coment'), fb=fbDe(row);
   const dataEl=row.querySelector('.ap-data');
   const seg=parseTempo(tempoEl.value);
   fb.hidden=false; fb.className='ap-fb';
@@ -743,7 +748,7 @@ async function fazApontamento(btn){
     await apGaranteMeusLogs(inicio);
     // A janela chegando redesenha a lista (apCarregaRecentes → renderApontar): a linha capturada pode ter saído da tela.
     const rowNova=document.querySelector(`#conteudo .ap-row[data-k="${CSS.escape(k)}"]`);
-    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=row.querySelector('.ap-fb');
+    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=fbDe(row);
       btn=row.querySelector(`[data-ap-key="${CSS.escape(k)}"]`)||btn; fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; ocupado(btn,true); }
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({issue:k,segundos:seg,inicio,comentario,email:id.email,token:id.token})}).then(r=>r.json());
@@ -791,7 +796,7 @@ async function toggleTransicoes(btn){
   const row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-st');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  const aberto=row.querySelector('.ap-trans');
+  const aberto=row.querySelector('.ap-trans:not(.aph-painel)');   // o 🧩 seletor de pai (13b) é outro painel: não conta
   if(aberto){ aberto.remove(); return; }                 // segundo clique fecha
   const area=document.createElement('div'); area.className='ap-trans';
   area.innerHTML='<span class="muted small">Carregando transições…</span>';

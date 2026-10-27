@@ -124,12 +124,16 @@ export default async function handler(req, res) {
           else if (r.status === 401 || r.status === 403) falhas.push({ k, erro: 'sem permissão' });
           else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
           else {
-            const txt = (await r.text()).slice(0, 300);
+            const txt = (await r.text()).slice(0, 600);
             // 🧩 (2026-10-27) a recusa mais comum é de HIERARQUIA (o Jira só aceita pai um nível acima; sub-tarefa só com
-            // pai no mesmo projeto) — dita em português, para a pessoa saber o que escolher em vez de ler o JSON do Jira.
-            if (r.status === 400 && /hierarch|parent|pai/i.test(txt)) {
+            // pai no mesmo projeto) — dita em português. A classificação olha a MENSAGEM do Jira, não o nome do campo: toda
+            // recusa do PUT vem em `errors.parent` (chave que o token da pessoa não enxerga, campo fora da tela…), e essas
+            // precisam do texto real, não de "escolha outro nível".
+            let msg = txt;
+            try { const jj = JSON.parse(txt); msg = [...Object.values(jj.errors || {}), ...(jj.errorMessages || [])].join(' ') || txt; } catch (e) { /* texto puro */ }
+            if (r.status === 400 && /hierarch|sub-?task|same project|mesmo projeto|subtarefa|n[ií]vel/i.test(msg)) {
               falhas.push({ k, erro: `o Jira não aceita ${paiKey} como pai de ${k}: tarefa/história fica sob um épico; sub-tarefa, sob uma história ou tarefa do MESMO projeto`, hierarquia: true });
-            } else falhas.push({ k, erro: `Jira ${r.status}: ${txt.slice(0, 160)}` });
+            } else falhas.push({ k, erro: `Jira ${r.status}: ${String(msg).slice(0, 200)}` });
           }
         } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 160) }); }
       };

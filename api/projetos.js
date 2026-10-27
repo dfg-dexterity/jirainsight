@@ -81,7 +81,7 @@ async function listarEpicos(projeto, res, nocache) {
 async function listarPais(projeto, nivel, res, nocache) {
   if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
   if (![0, 1, 2].includes(nivel)) return json(res, 400, { erro: 'Nível inválido (0, 1 ou 2).' });
-  const ck = `epicos:pais:${projeto}:${nivel}`;            // prefixo `epicos:` — o vínculo (api/transicao) limpa junto
+  const ck = `epicos:pais:${projeto}:${nivel}`;            // cache desta função só (2 min); depois de um vínculo a tela pede nocache=1
   if (!nocache) { const cached = cacheGet(ck); if (cached) return json(res, 200, cached); }
   const base = jiraBase();
   const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };

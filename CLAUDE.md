@@ -77,8 +77,17 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `aphDepoisDeVincular` atualiza TODAS as cópias (porData, 🕑 recentes, Gestão) e o mapa (`aphGuardaNodo`: vazio nunca apaga
   o que se sabia). O **lote** reusa o 🧩 Ajustar épicos da Gestão: `abreModalEpicos({lista, depois})` (20) — sem opções segue
   igual na Gestão; `gxSoltos` usa `t.n` quando existe. Ficou de fora (R156/R157): o mesmo na Gestão/📆 Hoje/ficha, tirar do
-  épico e virar sub-tarefa. Testes: `hierarquia-test.mjs` (Playwright, 79 casos; fixture `POST /api/_hier {ligar|falha|limpar}`
-  no `servidor-mini.mjs`, desligada por padrão) e `agsem/hier-servidor-test.mjs` (handlers reais, Jira falso, 22 casos).
+  épico e virar sub-tarefa. **Regras da revisão (mesmo dia, 12 achados corrigidos):** em `aphNodo` o TICKET (da lista ou
+  ficha) manda no próprio `pai` e o mapa só completa — e o vínculo também reescreve `pais[k].pai` em todos os mapas (mover a
+  história leva a sub-tarefa e o bloco junto); `aphGuardaNodo` parte do que já se sabe; depois de um vínculo o `_aphCand`
+  some e a próxima leitura dos candidatos e da lista vai com `nocache=1` (`_aphForca`, `estado.apontar.paiSujo` lido pelo
+  `carregaVenc`) — **cada função da Vercel tem o seu cache em memória: o `cacheClear` do /api/transicao não limpa o do
+  /api/vencimentos**; Enter no filtro só escolhe quando sobra UM candidato; o servidor classifica a recusa pela MENSAGEM
+  do Jira (toda recusa do PUT vem em `errors.parent`); no `resolvePais` o lote `id in (…)` que falha é partido ao meio até
+  isolar o id ilegível (teto de 40 buscas); o "vários soltos" do seletor usa `estado.apontar.listaVisivel`; o status ▾ e o
+  retorno do apontar ignoram o painel 🧩 (`.ap-trans:not(.aph-painel)`, `.ap-log .ap-fb`). Testes: `hierarquia-test.mjs`
+  (Playwright, 91 casos; fixture `POST /api/_hier {ligar|falha|limpar}` no `servidor-mini.mjs`, desligada por padrão) e
+  `agsem/hier-servidor-test.mjs` (handlers reais, Jira falso, 25 casos).
 - **🤝 Contratos de parceria (2026-09-15, a pedido do usuário):** além do cadastro, cada contrato guarda a
   **📂 pasta do SharePoint** e os **📄 documentos** (`c.pasta`, `c.docs[]`) — só **links** validados por `pcUrl`
   (http/https), abertos em nova aba com a conta de quem clica: **o painel nunca guarda o arquivo nem

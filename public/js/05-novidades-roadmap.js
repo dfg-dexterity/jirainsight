@@ -13,7 +13,7 @@
 //   • scripts/check-roadmap-commits.mjs — o commit que mexe no app sem mudar ROADMAP nem ROADMAP_REV;
 //   • scripts/check-entrega.mjs — ROADMAP_REV para trás da última entrada de NOVIDADES.
 // É a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-10-27.3';   // 🧩 hierarquia no ⏱ Apontar (caminho do pai, agrupar por épico, seletor de pai) + R156/R157
+const ROADMAP_REV='2026-10-27.4';   // revisão da 🧩 hierarquia (12 achados: pai movido leva os filhos, Enter seguro, erro real do Jira, pai ilegível isolado…)
 // Cada item tem um `id` ESTÁVEL (R###): é a chave que liga este array à base "Roadmap da solução" no Notion
 // (processo TI-14-024, scripts/roadmap-notion.mjs). Item novo = próximo número livre; o id nunca muda nem é
 // reaproveitado, mesmo que o título seja reescrito — scripts/check-entrega.mjs reprova id ausente ou repetido.
