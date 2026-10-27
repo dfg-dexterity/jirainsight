@@ -8,6 +8,63 @@ import {
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
+// 🧩 Cadeia de pais (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai, inclusive
+// quando possui mais de um nível"): mapa {CHAVE: {r, t, ic, n, st, pai}} com TODOS os ancestrais dos tickets pedidos,
+// até 4 níveis acima (sub-tarefa › história › épico › iniciativa). O 1º nível sai do próprio campo `parent` (o Jira já
+// manda resumo, tipo e status do pai, mas não o pai DELE); os de cima saem de buscas `id in (…)` em lote, uma por nível.
+// `pai: null` = não deu para saber (a busca falhou ou o teto de níveis acabou) — o cartão para ali, sem inventar.
+// Falha numa busca NUNCA derruba a lista: a cadeia só fica mais curta.
+const nivelDe = (it) => {
+  const n = it && it.hierarchyLevel;
+  if (typeof n === 'number') return n;
+  return it && it.subtask ? -1 : 0;
+};
+const nodoPai = (f) => ({
+  r: f.summary || '',
+  t: (f.issuetype && f.issuetype.name) || '',
+  ic: (f.issuetype && f.issuetype.iconUrl) || '',
+  n: nivelDe(f.issuetype),
+  st: (f.status && f.status.name) || '',
+  pai: null,
+});
+export async function resolvePais(issues, maxRodadas = 3) {
+  const pais = {};
+  const daLista = new Map((issues || []).map((it) => [it.key, it]));
+  let fila = [];                                    // ids a conferir no Jira (o pai DELES ainda é desconhecido)
+  const anota = (par) => {
+    if (!par || !par.key || pais[par.key]) return;
+    const li = daLista.get(par.key);
+    if (li) {                                       // o pai também está na lista: já sabemos o pai dele
+      const f = li.fields || {};
+      pais[par.key] = { ...nodoPai(f), pai: (f.parent && f.parent.key) || '' };
+      if (f.parent) anota(f.parent);
+      return;
+    }
+    pais[par.key] = nodoPai(par.fields || {});
+    if (par.id) fila.push(String(par.id));
+  };
+  for (const it of issues || []) anota((it.fields || {}).parent);
+  for (let rodada = 0; rodada < maxRodadas && fila.length; rodada += 1) {
+    const ids = [...new Set(fila)]; fila = [];
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const { issues: achados } = await jiraSearchAll({
+          jql: `id in (${ids.slice(i, i + 100).join(',')})`,
+          fields: ['summary', 'issuetype', 'status', 'parent'],
+          pageSize: 100,
+          maxPages: 2,
+        });
+        for (const a of achados) {
+          const f = a.fields || {};
+          pais[a.key] = { ...nodoPai(f), pai: (f.parent && f.parent.key) || '' };
+          if (f.parent) anota(f.parent);
+        }
+      }
+    } catch (e) { break; }                          // cadeia parcial: os `pai: null` param o cartão ali
+  }
+  return pais;
+}
+
 function hojeSP() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 }
@@ -357,6 +414,8 @@ async function detalheTicket(q, res) {
     prio: (f.priority && f.priority.name) || '', prioIcon: (f.priority && f.priority.iconUrl) || '',
     p: (f.project && f.project.key) || '', pNome: (f.project && f.project.name) || '',
     pai: (f.parent && f.parent.key) || '', paiResumo: (f.parent && f.parent.fields && f.parent.fields.summary) || '',
+    n: nivelDe(f.issuetype), sub: !!(f.issuetype && f.issuetype.subtask),
+    pais: await resolvePais([{ key: d.key, fields: f }]),   // 🧩 cadeia inteira (os 🕑 recentes fora da lista mostram o caminho também)
     labels: (f.labels || []).slice(0, 15),
     resp: pessoa(f.assignee), respId: (f.assignee && f.assignee.accountId) || '', relator: pessoa(f.reporter),
     criado: dia(f.created), atualizado: dia(f.updated), venc: f.duedate || '',
@@ -533,12 +592,14 @@ export default async function handler(req, res) {
         seg: Number(f.timespent || 0),   // segundos já apontados no ticket (total)
         up: f.updated || '',             // última atividade (qualquer alteração no ticket)
         est: Number(f.timeoriginalestimate || 0),  // estimativa original (segundos), se houver
-        pai: (f.parent && f.parent.key) || '',     // épico/pai (para o "Ajustar épicos")
+        pai: (f.parent && f.parent.key) || '',     // épico/pai (para o "Ajustar épicos" e a 🧩 cadeia do Apontar)
         sub: !!(f.issuetype && f.issuetype.subtask),
+        n: nivelDe(f.issuetype),                   // nível na hierarquia do Jira: -1 sub-tarefa · 0 tarefa/história · 1 épico
       };
     });
+    const pais = await resolvePais(issues);    // 🧩 todos os ancestrais (até 4 níveis), para o caminho "Épico › História › este"
 
-    const payload = { meta: { ate, hoje: hojeSP(), total: tickets.length, truncado, semVenc }, projetos, tickets };
+    const payload = { meta: { ate, hoje: hojeSP(), total: tickets.length, truncado, semVenc }, projetos, tickets, pais };
     return json(res, 200, cacheSetTTL(ck, payload, 5));   // TTL curto: tela de ação
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });

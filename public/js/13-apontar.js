@@ -494,7 +494,8 @@ function renderApontar(){
   const respBtn=(t)=> t.resp
     ? `<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
     : `<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`;
-  const linhaTicket=(t,extras)=>{
+  // `pula` (🧩 2026-10-27): níveis do topo do caminho que o cartão não repete — no agrupado por épico, a raiz é o cabeçalho.
+  const linhaTicket=(t,extras,pula)=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
@@ -508,7 +509,8 @@ function renderApontar(){
         ${ehReuniao?`<button class="btn" data-ap-grupo="${escA(t.k)}" data-tip="Apontar esta reunião para o time inteiro ou para algumas pessoas">👥 em grupo</button>`:''}
         <div class="ap-fb" hidden></div>
       </div>` : '';
-    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}" data-k="${escA(t.k)}">
+    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}${t.pai?' aph-com-pai':''}" data-k="${escA(t.k)}">
+      ${aphCadeiaHTML(t, pula)}
       <div class="ap-l1">
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
@@ -520,6 +522,7 @@ function renderApontar(){
         ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge prio-badge" data-tip="Prioridade: ${escA(t.prio)}">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
+        ${id?aphBotaoHTML(t):''}
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
@@ -567,7 +570,7 @@ function renderApontar(){
     const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
     const tr=arr.map(t=>`<tr>
       <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
-      <td class="ap-tab-res">${esc(t.resumo||'')}</td>
+      <td class="ap-tab-res">${esc(t.resumo||'')}${t.pai?`<div class="aph-tab-cad" title="Caminho até este ticket">🧩 ${esc(aphCadeia(t).map(n=>n.k+(n.r?' '+n.r:'')).join(' › '))}</div>`:''}</td>
       <td data-tip="${escA(t.p)}">${esc(projNome(t.p))}</td>
       <td>${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:''}${esc(t.t)}</td>
       <td>${esc(t.status)}</td>
@@ -604,7 +607,8 @@ function renderApontar(){
   const viewToggle=`<div class="ap-vis"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${ap.vis==='lista'}" data-ap-vis="lista">▤ Lista</button>
     <button class="chip" aria-pressed="${ap.vis==='tabela'}" data-ap-vis="tabela">▦ Tabela</button>
-    <button class="chip" aria-pressed="${ap.vis==='quadro'}" data-ap-vis="quadro">🗂 Quadro</button></div>`;
+    <button class="chip" aria-pressed="${ap.vis==='quadro'}" data-ap-vis="quadro">🗂 Quadro</button>
+    ${(ap.vis||'lista')==='lista'?`<button class="chip aph-agrupa" aria-pressed="${aphAgrupaLigado()}" data-aph-agrupa data-tip="Dentro de cada projeto, um bloco por épico (ou pai): os filhos aparecem recuados debaixo do pai, e os soltos ficam em “Sem épico/pai”">🧩 Agrupar por épico/pai</button>`:''}</div>`;
 
   const vazio = `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
      ${ap.soMeus&&id?'<br><span class="small">Dica: desmarque “Só os meus” para ver os chamados de todo o time.</span>':''}</div>`;
@@ -626,7 +630,7 @@ function renderApontar(){
         <span class="ap-proj-nome">${esc(pk)}</span>
         <span class="spacer"></span>
         <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
-      return cab + (recolhido?'':grupo.map(t=>linhaTicket(t)).join(''));   // sem o índice do map: ele caía em `extras` e virava um número solto ao lado das horas
+      return cab + (recolhido?'':(aphAgrupaLigado()?aphGrupoHTML(grupo, linhaTicket, pk):grupo.map(t=>linhaTicket(t)).join('')));   // sem o índice do map: ele caía em `extras` e virava um número solto ao lado das horas
     }).join('');
     const barraGrupos = chavesProj.length>1
       ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>

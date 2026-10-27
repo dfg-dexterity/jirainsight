@@ -59,6 +59,26 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   do celular o `.nav-sub` recua 56px e os ícones de linha saem. Item novo no
   menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
   Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px).
+- **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
+  inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
+  `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais
+  (`resolvePais`: o 1º nível sai do campo `parent`, os de cima de buscas `id in (…)` por nível, até 3 rodadas; `pai:null` =
+  desconhecido; falha = cadeia mais curta, nunca derruba a lista) e `n` = `hierarchyLevel` por ticket (-1 sub-tarefa · 0
+  tarefa/história · 1 épico · 2 iniciativa). Tela em **`public/js/13b-apontar-pai.js`** (prefixo `aph`): **`aphCadeia(t)` é a
+  leitura ÚNICA da cadeia** (cartão, ▦ Tabela, agrupado, seletor); o cartão ganha `.aph-cadeia` acima do `.ap-l1` (uma linha
+  por nível, recuo `--aph-i`, chave → ficha 🔍) — `linhaTicket(t, extras, pula)`, `pula` = níveis do topo que o agrupado não
+  repete. **🧩 Agrupar por épico/pai** (`[data-aph-agrupa]`, só na ▤ Lista, lembrado em `localStorage`
+  `jirainsight_ap_agrupa_pai_v1`): dentro do projeto, bloco por raiz (`aphGruposDe`; filhos logo depois do pai que está na
+  lista, recuo `--aph-p`); soltos em "Sem épico/pai" com o lote. **Seletor** `[data-aph-pai]`: pede ao servidor SÓ o nível
+  que o Jira aceita (`GET /api/projetos?pais=P&nivel=N` — 1 épicos, 0 histórias+tarefas para sub-tarefa, 2 iniciativas;
+  cada candidato traz o pai DELE, para o caminho mudar sem reler), cache 2 min (`_aphCand`), filtro em memória sem acento,
+  Enter escolhe o 1º, "outra chave" confere por `?chaves=`; grava por `POST /api/transicao {epico:true}` com o token da
+  pessoa, que agora diz em português a recusa de hierarquia (`hierarquia:true`) e recusa pai = ele mesmo. Depois do vínculo,
+  `aphDepoisDeVincular` atualiza TODAS as cópias (porData, 🕑 recentes, Gestão) e o mapa (`aphGuardaNodo`: vazio nunca apaga
+  o que se sabia). O **lote** reusa o 🧩 Ajustar épicos da Gestão: `abreModalEpicos({lista, depois})` (20) — sem opções segue
+  igual na Gestão; `gxSoltos` usa `t.n` quando existe. Ficou de fora (R156/R157): o mesmo na Gestão/📆 Hoje/ficha, tirar do
+  épico e virar sub-tarefa. Testes: `hierarquia-test.mjs` (Playwright, 79 casos; fixture `POST /api/_hier {ligar|falha|limpar}`
+  no `servidor-mini.mjs`, desligada por padrão) e `agsem/hier-servidor-test.mjs` (handlers reais, Jira falso, 22 casos).
 - **🤝 Contratos de parceria (2026-09-15, a pedido do usuário):** além do cadastro, cada contrato guarda a
   **📂 pasta do SharePoint** e os **📄 documentos** (`c.pasta`, `c.docs[]`) — só **links** validados por `pcUrl`
   (http/https), abertos em nova aba com a conta de quem clica: **o painel nunca guarda o arquivo nem

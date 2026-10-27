@@ -1023,6 +1023,41 @@
   .ap-trans{display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--cartao2);
     border:1px dashed var(--linha);border-radius:8px;padding:8px 10px;font-size:12px}
   .ap-trans-rot{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  /* 🧩 Hierarquia no ⏱ Apontar (2026-10-27): o caminho "Épico › História › este" no topo do cartão — uma linha por
+     nível, recuada; o agrupado por épico/pai (bloco por raiz, filhos recuados) e o seletor de pai do cartão. */
+  .aph-cadeia{display:flex;flex-direction:column;gap:2px;padding:6px 9px;border-radius:8px;background:var(--cartao2);
+    border:1px solid var(--linha);font-size:12px;min-width:0}
+  .aph-cad{display:flex;align-items:center;gap:6px;min-width:0;padding-left:calc(var(--aph-i,0) * 16px)}
+  .aph-ramo{color:var(--muted2);flex:0 0 auto}
+  .aph-tipo{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);flex:0 0 auto;white-space:nowrap}
+  .aph-k{border:0;background:none;padding:0;font-family:var(--corpo);font-size:12px;font-weight:700;color:var(--cerceta);
+    cursor:pointer;flex:0 0 auto;white-space:nowrap}
+  .aph-k:hover{text-decoration:underline}
+  .aph-res{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--grafite)}
+  .aph-este .aph-tipo{color:var(--cerceta);font-weight:700}
+  .aph-grp{display:flex;flex-direction:column;gap:10px;border-left:3px solid #8B5CF6;padding-left:10px;margin:4px 0}
+  .aph-grp.aph-grp-sem{border-left-color:var(--linha)}
+  .aph-grp-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12.5px;padding:2px 0;min-width:0}
+  .aph-grp-h .aph-res{flex:1 1 160px;font-weight:600}
+  .aph-grp-h .aph-tipo{font-weight:700}
+  .aph-cont{font-size:11px;color:var(--muted);white-space:nowrap}
+  .aph-niv{margin-left:calc(var(--aph-p,0) * 18px);min-width:0}
+  .aph-niv>.ap-row{height:100%}
+  .chip.aph-agrupa{margin-left:6px}
+  .ap-trans.aph-painel{flex-direction:column;align-items:stretch;gap:7px}
+  .aph-p-top{display:flex;gap:4px 10px;flex-wrap:wrap;align-items:baseline}
+  .aph-filtro,.aph-chave{font-family:var(--corpo);font-size:13px;padding:6px 9px;border:1px solid var(--linha);
+    border-radius:8px;background:var(--cartao);color:var(--grafite);box-sizing:border-box}
+  .aph-chave{width:140px;text-transform:uppercase}
+  .aph-lista{display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto}
+  .aph-cand{display:flex;align-items:center;gap:7px;text-align:left;border:1px solid var(--linha);border-radius:7px;
+    background:var(--cartao);padding:6px 9px;font-family:var(--corpo);font-size:12.5px;color:var(--grafite);cursor:pointer;min-width:0}
+  .aph-cand:hover{border-color:var(--cerceta);background:var(--hoverbg)}
+  .aph-cand .aph-res{flex:1 1 auto}
+  .aph-cand.atual{border-color:#A7F3D0;background:rgba(16,185,129,.08);cursor:default}
+  .aph-cand-pai,.aph-cand-st{font-size:11px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+  .aph-p-outra{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .aph-tab-cad{font-size:11px;color:var(--muted);margin-top:2px}
   /* 💬 comentar: seletor de @menções dentro do painel (linha própria) */
   .ap-com-menc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-basis:100%;margin-top:2px}
   .ap-com-menc .ap-com-add{font-family:var(--corpo);font-size:12px;padding:5px 8px;border:1px solid var(--linha);

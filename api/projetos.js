@@ -72,6 +72,58 @@ async function listarEpicos(projeto, res, nocache) {
   return json(res, 200, cacheSetTTL(ck, { projeto, epicos, historias, geradoEm: new Date().toISOString() }, 2));
 }
 
+// GET /api/projetos?pais=KEY&nivel=N[&nocache=1] -> { projeto, nivel, itens:[{k,r,t,ic,st,pai}], truncado }
+// 🧩 Candidatos a PAI (2026-10-27, a pedido do usuário: "facilite a atribuição de um ticket a um épico ou história"):
+// os tickets ABERTOS do projeto no nível N da hierarquia do Jira — 1 = épicos (pai de tarefa/história), 0 = histórias e
+// tarefas (pai de sub-tarefa), 2 = iniciativas (pai de épico, Jira Premium). O Jira só aceita pai UM nível acima, então
+// o seletor do ⏱ Apontar pede o nível certo e não oferece o que ele recusaria. Cada item traz o pai DELE (`pai`), para o
+// cartão já mostrar "Épico › História › este" logo depois da troca, sem reler a lista inteira.
+async function listarPais(projeto, nivel, res, nocache) {
+  if (!RE_PROJ.test(projeto)) return json(res, 400, { erro: 'Projeto inválido.' });
+  if (![0, 1, 2].includes(nivel)) return json(res, 400, { erro: 'Nível inválido (0, 1 ou 2).' });
+  const ck = `epicos:pais:${projeto}:${nivel}`;            // prefixo `epicos:` — o vínculo (api/transicao) limpa junto
+  if (!nocache) { const cached = cacheGet(ck); if (cached) return json(res, 200, cached); }
+  const base = jiraBase();
+  const headers = { Authorization: jiraAuthHeader(), Accept: 'application/json' };
+  const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projeto)}`, { headers });
+  if (!rp.ok) {
+    const t = await rp.text();
+    return json(res, rp.status === 404 ? 404 : 500, { erro: `Jira ${rp.status}: ${t.slice(0, 200)}` });
+  }
+  const tipos = ((await rp.json()).issueTypes || [])
+    .filter((t) => !t.subtask && (typeof t.hierarchyLevel === 'number' ? t.hierarchyLevel : 0) === nivel);
+  const itens = [];
+  let truncado = false;
+  if (tipos.length) {
+    const r = await jiraSearchAll({
+      jql: `project = ${projeto} AND issuetype in (${tipos.map((t) => t.id).join(',')}) AND statusCategory != Done ORDER BY updated DESC`,
+      fields: ['summary', 'issuetype', 'status', 'parent'],
+      pageSize: 100,
+      maxPages: 3,                                         // 300 mais recentes; fora disso a pessoa digita a chave
+    });
+    truncado = r.truncado;
+    for (const it of r.issues) {
+      const f = it.fields || {};
+      const par = f.parent;
+      const pf = (par && par.fields) || {};
+      itens.push({
+        k: it.key,
+        r: f.summary || '',
+        t: (f.issuetype && f.issuetype.name) || '',
+        ic: (f.issuetype && f.issuetype.iconUrl) || '',
+        st: (f.status && f.status.name) || '',
+        pai: par && par.key ? {
+          k: par.key, r: pf.summary || '', t: (pf.issuetype && pf.issuetype.name) || '',
+          ic: (pf.issuetype && pf.issuetype.iconUrl) || '',
+          n: pf.issuetype && typeof pf.issuetype.hierarchyLevel === 'number' ? pf.issuetype.hierarchyLevel : nivel + 1,
+          st: (pf.status && pf.status.name) || '',
+        } : null,
+      });
+    }
+  }
+  return json(res, 200, cacheSetTTL(ck, { projeto, nivel, itens, truncado, semTipo: !tipos.length }, 2));
+}
+
 // GET /api/projetos?consultorias=KEY -> opções do campo CASCATA "AMS | Consultoria >
 // Cliente" do projeto (via createmeta, conta de serviço): a consultoria é o valor-pai
 // e os clientes são os filhos. Usado pela árvore de decisão (AMS por parceria).
@@ -205,6 +257,8 @@ export default async function handler(req, res) {
 
     const epicosDe = String((req.query && req.query.epicos) || '').trim().toUpperCase();
     if (epicosDe) return await listarEpicos(epicosDe, res, String((req.query && req.query.nocache) || '') === '1');
+    const paisDe = String((req.query && req.query.pais) || '').trim().toUpperCase();
+    if (paisDe) return await listarPais(paisDe, Number((req.query && req.query.nivel) ?? 1), res, String((req.query && req.query.nocache) || '') === '1');
 
     const consDe = String((req.query && req.query.consultorias) || '').trim().toUpperCase();
     if (consDe) return await listarConsultorias(consDe, res);

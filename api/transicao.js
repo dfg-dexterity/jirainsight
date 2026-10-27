@@ -112,6 +112,7 @@ export default async function handler(req, res) {
       const paiKey = String(b.paiKey || '').trim().toUpperCase();
       if (!issues.length) return json(res, 400, { erro: 'Nenhum ticket válido para vincular.' });
       if (!RE_ISSUE.test(paiKey)) return json(res, 400, { erro: 'Épico inválido.' });
+      if (issues.includes(paiKey)) return json(res, 400, { erro: `${paiKey} não pode ser pai de si mesmo.` });
       const oks = []; const falhas = [];
       const vincula = async (k) => {
         try {
@@ -122,7 +123,14 @@ export default async function handler(req, res) {
           if (r.ok) oks.push(k);
           else if (r.status === 401 || r.status === 403) falhas.push({ k, erro: 'sem permissão' });
           else if (r.status === 404) falhas.push({ k, erro: 'não encontrado' });
-          else falhas.push({ k, erro: `Jira ${r.status}: ${(await r.text()).slice(0, 160)}` });
+          else {
+            const txt = (await r.text()).slice(0, 300);
+            // 🧩 (2026-10-27) a recusa mais comum é de HIERARQUIA (o Jira só aceita pai um nível acima; sub-tarefa só com
+            // pai no mesmo projeto) — dita em português, para a pessoa saber o que escolher em vez de ler o JSON do Jira.
+            if (r.status === 400 && /hierarch|parent|pai/i.test(txt)) {
+              falhas.push({ k, erro: `o Jira não aceita ${paiKey} como pai de ${k}: tarefa/história fica sob um épico; sub-tarefa, sob uma história ou tarefa do MESMO projeto`, hierarquia: true });
+            } else falhas.push({ k, erro: `Jira ${r.status}: ${txt.slice(0, 160)}` });
+          }
         } catch (e) { falhas.push({ k, erro: String(e && e.message ? e.message : e).slice(0, 160) }); }
       };
       for (let i = 0; i < issues.length; i += 6) await Promise.all(issues.slice(i, i + 6).map(vincula));   // 6 por vez
