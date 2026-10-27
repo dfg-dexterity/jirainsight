@@ -163,8 +163,8 @@ function tkbLinhaTicket(x, comProj){
     <button class="pal-row" data-tkb-ir="${escA(x.k)}" title="${escA(x.resumo||x.k)}">
       <span class="tkb-k">${esc(x.k)}</span><span class="tkb-res">${x.resumo?esc(x.resumo):'<span class="muted">(sem resumo)</span>'}</span>
       <span class="pal-g">${esc(dir)}</span></button>
-    <button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket"
-      aria-label="Apontar horas em ${escA(x.k)}">⏱</button>
+    ${(_tkb&&_tkb.pick)?'':`<button class="pal-fav" data-tkb-ap="${escA(x.k)}" data-tip="Apontar horas neste ticket"
+      aria-label="Apontar horas em ${escA(x.k)}">⏱</button>`}
     <a class="pal-fav" href="${url}" target="_blank" rel="noopener" data-tip="Abrir no Jira"
       aria-label="Abrir ${escA(x.k)} no Jira">↗</a>
   </div>`;
@@ -234,7 +234,9 @@ function tkbPinta(){
       +(extra.length?tkbTitulo('🕘 Fora dos abertos — do período carregado no painel')+extra.map(x=>tkbLinhaTicket(x,true)).join(''):'');
     rod.innerHTML=(_tkbCache[_tkb.proj]&&_tkbCache[_tkb.proj].truncado)
       ? '⚠ O projeto tem mais abertos do que cabe numa busca (300): estes são os <b>mais recentes</b> — refine ou digite a chave.'
-      : 'Digitar filtra <b>em memória</b> (nada vai à rede). ↑ ↓ escolhem · Enter abre a ficha · ⏱ aponta horas · ↗ abre no Jira.';
+      : (_tkb.pick
+          ? 'Digitar filtra <b>em memória</b>. ↑ ↓ escolhem · <b>Enter ou clique escolhe o ticket</b> para a ação · ↗ abre no Jira.'   // modo escolher: nada de ⏱ nem "abre a ficha"
+          : 'Digitar filtra <b>em memória</b> (nada vai à rede). ↑ ↓ escolhem · Enter abre a ficha · ⏱ aponta horas · ↗ abre no Jira.');
   }
   tkbRealce();
 }
@@ -252,10 +254,13 @@ function tkbRealce(){
 // ---- Abertura, navegação e teclado ----
 // `aoEscolher(k, info)` (2026-10-21, 📆 Hoje): modo ESCOLHER — clicar num ticket devolve a escolha a quem chamou
 // (a chave e o que a busca sabe dele) em vez de abrir a ficha; o modal fecha. Sem callback, é a busca de sempre.
-function abreBuscaTickets(proj, aoEscolher){
-  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'', pick:(typeof aoEscolher==='function')?aoEscolher:null };
-  abreModal(`<h2 class="tkb-h">🎫 ${_tkb.pick?'Escolher ticket':'Buscar ticket'} <span class="muted small">projeto → ticket, só os abertos</span></h2>
-    <div class="muted small">${_tkb.pick?'Clique no ticket (ou ↵) para escolhê-lo.':'Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.'}</div>
+// `titulo` (2026-10-27, menu 👤 Meu trabalho): no modo escolher, o título diz a AÇÃO que vem depois ("🔗 Transferir:
+// escolha o ticket de origem") — sem ele, o clique no menu parecia ter aberto a busca errada.
+function abreBuscaTickets(proj, aoEscolher, titulo){
+  _tkb={ proj:String(proj||''), q:'', sel:0, carregando:false, erro:'', pick:(typeof aoEscolher==='function')?aoEscolher:null,
+    titulo:(typeof titulo==='string'&&titulo)?titulo:'' };
+  abreModal(`<h2 class="tkb-h">${_tkb.titulo?esc(_tkb.titulo):`🎫 ${_tkb.pick?'Escolher ticket':'Buscar ticket'}`} <span class="muted small">projeto → ticket, só os abertos</span></h2>
+    <div class="muted small">${_tkb.pick?'Clique no ticket (ou ↵) para escolhê-lo. Ticket já concluído ou de outro projeto: digite a <b>chave</b> (ex.: RDF-123).':'Atalho: a tecla <b>/</b> (ou <b>Ctrl+J</b>) em qualquer tela.'}</div>
     <input class="pal-q" id="tkb-q" type="text" autocomplete="off" spellcheck="false"
       placeholder="projeto, ou a chave do ticket (ex.: RDF-123)…" aria-label="Buscar projeto ou ticket">
     <div id="tkb-cab"></div>

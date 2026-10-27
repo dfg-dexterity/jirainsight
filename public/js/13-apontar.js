@@ -44,6 +44,7 @@ async function carregaVenc(ate, forca){
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
   j.lidoEm=hojeSP();      // dia (SP) em que o navegador leu — a lista de ontem não serve para o "vencido" de hoje
+  j.lidoTs=Date.now();    // e a hora: o seletor 🎫 Ver meus tickets… relê quando a contagem tem mais de 5 min
   ap.porData[key]=j;
   return j;
 }
@@ -454,7 +455,10 @@ function renderApontar(){
     <div class="campo"><label>Projeto</label><select id="ap-proj">
       <option value="">Todos</option>${
       Object.keys(projs).filter(k=>!ap.cat||catDe(k)===ap.cat).sort()
-        .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(projNome(k))}${esc(projCod(k))}</option>`).join('')}</select></div>
+        .map(k=>`<option value="${escA(k)}" ${ap.proj===k?'selected':''}>${esc(projNome(k))}${esc(projCod(k))}</option>`).join('')}${
+      /* filtro de projeto que a lista não tem (2026-10-27: 👤 › 🎫 Ver meus tickets… num projeto sem chamados aqui) precisa
+         aparecer no select — senão "Todos" fica à vista enquanto o filtro esconde tudo, e não há como tirá-lo */
+      (ap.proj&&!projs[ap.proj])?`<option value="${escA(ap.proj)}" selected>${esc(projNome(ap.proj))} (sem chamados nesta lista)</option>`:''}</select></div>
     ${id?`<label class="check" style="padding-bottom:9px"><input type="checkbox" id="ap-meus" ${ap.soMeus?'checked':''}> Só os meus</label>`:''}
     <label class="check" style="padding-bottom:9px" data-tip="Traz também os chamados abertos que ainda não têm data de vencimento, para você programá-los"><input type="checkbox" id="ap-semvenc" ${ap.semVenc?'checked':''}> Incluir sem vencimento</label>
     <div class="campo"><label>Buscar</label>
@@ -658,11 +662,22 @@ function renderApontar(){
   </div>`));
 }
 
-// Modal de identificação (uma vez por navegador).
-function abreIdentidade(){
+// Modal de identificação (uma vez por navegador). `motivo` (2026-10-27, opcional): quando uma ação "a frio" do menu
+// 👤 Meu trabalho pede a identidade, o modal diz PARA QUÊ — senão parece erro. `opts.leitura` troca a frase (ação que
+// só LÊ: a identidade serve para saber quem você é, não grava nada no seu nome); `opts.depois` é chamado quando a
+// identidade é validada, para a ação continuar sozinha. Chamar sem `depois` esquece o anterior.
+let _idDepois=null;
+function abreIdentidade(motivo, opts){
   const id=idApontar()||{};
+  const o=(opts&&typeof opts==='object')?opts:{};
+  _idDepois=(typeof o.depois==='function')?o.depois:null;
+  const pq=(typeof motivo==='string'&&motivo)
+    ?`<div class="aviso" style="margin:6px 0 10px">${o.leitura
+        ?`Para <b>${esc(motivo)}</b> o painel precisa saber quem você é no Jira — é só leitura, nada é gravado no seu nome.`
+        :`Para <b>${esc(motivo)}</b> o painel usa o <strong>seu</strong> token do Jira — a ação sai no seu nome.`} Identifique-se uma vez${_idDepois?' e a ação continua sozinha':' e volte ao menu'}.</div>`
+    :'';
   abreModal(`
-    <h2>Identificação para apontar</h2>
+    <h2>Identificação para apontar</h2>${pq}
     <div class="muted small">O apontamento é criado <strong>no seu usuário do Jira</strong> (vale para Clockwork,
       ranking e timesheet). Para isso você precisa de um token de API — é grátis e leva 2 minutos:</div>
     <ol class="ap-passos">
@@ -698,7 +713,8 @@ async function validaIdentidade(){
       estado.apontar.convites=null;   // recarrega os convites do (novo) usuário
       buscaConvites();                 // atualiza o selo de convites pendentes na aba
       fb.classList.add('ok'); fb.textContent=`✓ Olá, ${j.nome||email}! Credenciais salvas.`;
-      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); else if(estado.vista==='chamadas') renderChamadas(); },700);
+      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); else if(estado.vista==='meustickets') renderMeusTickets(); else if(estado.vista==='chamadas') renderChamadas();
+        const d=_idDepois; _idDepois=null; if(d){ try{ d(); }catch(e){} } },700);   // a ação do menu que pediu a identidade continua
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Não foi possível validar.'; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); }
 }

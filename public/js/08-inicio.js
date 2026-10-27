@@ -1003,9 +1003,10 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 // ligado, filtros de projeto/categoria/busca zerados, data = hoje (um `ate` antigo guardado na sessão/URL
 // escondia vencidos) e a lista RELIDA — o cache da tela podia ser de antes de uma ação, e a pessoa clicou
 // "18 vencidos" para ver exatamente esses 18.
+// `o.proj` (2026-10-27, menu 👤 Meu trabalho › 🎫 Meus tickets por projeto): abre já filtrado num projeto.
 function hxAbreApontar(fil, o){
   const ap=estado.apontar; o=o||{};
-  ap.fil=fil; ap.soMeus=true; ap.proj=''; ap.cat=''; ap.busca='';
+  ap.fil=fil; ap.soMeus=true; ap.proj=String(o.proj||''); ap.cat=''; ap.busca='';
   ap.ate=o.ate||hojeSP(); ap.semVenc=!!o.semVenc; ap.porData={};
   vaiPara('apontar');
 }

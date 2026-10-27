@@ -190,7 +190,9 @@ function qkSiriModal(){
 }
 
 let _cv=null;
-function abreConvidarApontar(k){
+// `info` (2026-10-27, opcional): o que o seletor 🎫 sabe do ticket escolhido (resumo, status) — vindo "a frio" do menu
+// 👤 Meu trabalho nenhuma lista do painel tem o ticket, e o resumo é a confirmação de que a pessoa pegou o certo.
+function abreConvidarApontar(k, info){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const meuEmail=String(id.email||'').toLowerCase();
   const us=Object.entries(estado.usuarios||{})
@@ -200,7 +202,7 @@ function abreConvidarApontar(k){
     .sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
   _cv={k, us};
   const apT=((estado.apontar.porData[chaveVenc()]||{}).tickets||[]).find(x=>x.k===k);
-  const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||apT||{};
+  const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||apT||((info&&info.k===k)?info:null)||{};
   abreModal(`<h2>📨 Convidar para apontar · ${esc(k)}</h2>
     ${t.resumo?`<div class="muted small">${esc(t.resumo)}</div>`:''}
     <div class="muted small" style="margin-top:6px">Cada pessoa recebe o convite no painel (⏱ Apontar / 📥 Inbox) e

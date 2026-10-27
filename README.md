@@ -3,7 +3,7 @@
 Painel interno da Dexterity IT que nasceu para agilizar o **apontamento de horas** do time
 (Jira + Clockwork) e virou o workspace de gestão da empresa. Desde **2026-09-13** a navegação é
 **por perfil**: o **Dexterity Hub** é o conteúdo genérico, para todos (Início, ⏱ Apontar, 📥 Inbox,
-🎯 Prioridades, 👤 Meu trabalho, ➕ Novo); as áreas **Dexterity Entrega** (gestores de entrega/PMs),
+🎯 Prioridades, 👤 Meu trabalho, ➕ Criar ticket — e 📆 Hoje); as áreas **Dexterity Entrega** (gestores de entrega/PMs),
 **Dexterity Negócio** (comercial, financeiro, controladoria) e **Dexterity Insights** (diretoria e
 governança) aparecem pela **lente do perfil** de cada pessoa (`cfg.papeis`, editado na Central de
 configurações) — lente, nunca permissão: toda tela continua abrindo por link e pelo Ctrl+K. O
