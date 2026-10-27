@@ -10,6 +10,8 @@
 //   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude (opcional no relatório semanal)
 //   TEAMS_GESTORES_WEBHOOK_URL        canal dos gestores (cartão do relatório semanal; sem ela, não envia)
 //   TEAMS_DM_WEBHOOK_URL              fluxo de mensagem direta (pendências para cada gerente de projeto)
+//   AGENDA_ALERTA_HORA   (opcional)   ⏰ hora do alerta "reunião sua sem ticket" ao organizador (padrão 18:00)
+//   AGENDA_ALERTA_TEAMS  (opcional)   0 = o alerta fica só no 📥 Inbox do app, sem a mensagem direta no Teams
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
 // pelos horários configurados no painel (cfg.teamsHora, cfg.teamsResumo e cfg.relSemanal).
@@ -23,6 +25,7 @@ import { chamaClaude } from './_lib/ia.js';
 import { magicoCore } from './criar.js';
 import { avisaTeamsDM } from './apontar.js';
 import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana } from './_lib/semanal.js';
+import { alertaFimDoDia } from './_lib/agenda.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -1058,7 +1061,47 @@ export default async function handler(req, res) {
           } else out.semanal = { enviado: false, motivo: `já enviado nesta semana (${segSem})` };
         } catch (e) { out.semanal = { enviado: false, erro: String(e && e.message ? e.message : e) }; }
       }
+      // ⏰ Reunião sem ticket — alerta ao ORGANIZADOR no fim do dia (2026-10-27): uma vez por dia útil, a partir de
+      // AGENDA_ALERTA_HORA. A janela vai do fim da varredura anterior (teams_estado.agendaAlertaAte, até 3 dias
+      // atrás) até agora — a reunião das 18h30 de ontem entra na varredura de hoje. Só contagens na resposta do cron
+      // (os títulos das reuniões ficam no Inbox de cada organizador).
+      const horaAl = /^\d{2}:\d{2}$/.test(String(process.env.AGENDA_ALERTA_HORA || '')) ? process.env.AGENDA_ALERTA_HORA : '18:00';
+      const gastoAl = Date.now() - t0;
+      if (semSupabase) out.agendaAlerta = { enviado: false, motivo: 'Supabase não configurado (a trava e o Inbox do alerta moram nele)' };
+      else if (pesado || gastoAl > 30000) out.agendaAlerta = { enviado: false, motivo: `adiado para o próximo tique (este já rodou ${Math.round(gastoAl / 1000)} s)` };
+      else {
+        const ga = gateHorario(horaAl, agora, hoje, ult('ultimoAlertaAgenda'));
+        if (!ga.pronto) out.agendaAlerta = { enviado: false, motivo: ga.motivo, hora: horaAl };
+        else {
+          try {
+            const ate = `${hoje}T${agora}`;
+            const antes = String(ult('agendaAlertaAte') || '');
+            const limite = `${addDias(hoje, -5)}T00:00`;   // teto (emenda de feriado): a janela começa no limite, não em hoje 00:00
+            const desde = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(antes) && antes < ate ? (antes > limite ? antes : limite) : `${hoje}T00:00`;
+            const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: avisaTeamsDM, dry: false,
+              painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
+            // Leitura do Graph que falhou de passagem (429/5xx) ou gravação que falhou: NÃO carimba — o próximo tique refaz a
+            // mesma janela (o Inbox não duplica e a mensagem do Teams só vai para quem ganhou alerta novo).
+            const completo = !r.motivo && !r.erroGravar && !r.erroLeitura;
+            if (completo) await gravaTeamsEstado({ ultimoAlertaAgenda: hoje, agendaAlertaAte: ate }, estado);
+            const { detalhe, ...conta } = r;
+            out.agendaAlerta = { enviado: completo, desde, ate, ...conta };
+          } catch (e) { out.agendaAlerta = { enviado: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
+        }
+      }
       return json(res, 200, out);
+    }
+
+    // ---- Chamada manual: ?tipo=agenda-alerta[&dry=1][&desde=AAAA-MM-DDTHH:MM&ate=…] — ⏰ a varredura de fim do dia
+    // na hora, sem carimbar o agendador. Tem os títulos das reuniões de cada organizador: só com o CRON_SECRET.
+    if (String(q.tipo || '') === 'agenda-alerta') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — o alerta tem dados por pessoa e só roda com o segredo do cron (defina a env na Vercel).' });
+      const reDH = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+      const ate = reDH.test(String(q.ate || '')) ? q.ate : `${hoje}T${agora}`;
+      const desde = reDH.test(String(q.desde || '')) ? q.desde : `${hoje}T00:00`;
+      const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: avisaTeamsDM, dry,
+        painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
+      return json(res, 200, { dry, desde, ate, ...r });
     }
 
     // ---- Chamada manual: ?tipo=prioridades (com ?dry=1) ----

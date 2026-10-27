@@ -18,7 +18,7 @@
 import { cacheGet, cacheSetTTL, cacheClear, jiraSearchAll, jiraUsuariosAtivos, textoComentario } from './util.js';
 import { fichaProjeto, carregaCatalogoProjetos } from './projetos.js';
 import { cronogramaDoProjeto, crDias, crAddDias } from './cronograma.js';
-import { graphToken } from '../reunioes.js';
+import { graphToken } from './agenda.js';
 
 export const T_PROJ = 'jirainsight_portal_projetos';
 export const T_ITENS = 'jirainsight_portal_itens';

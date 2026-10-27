@@ -393,27 +393,43 @@ async function chmConfirma(btn){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(m.dia||'')||m.dia>hojeSP()) return chmErro('Escolha um dia válido (hoje ou antes).');
   if(!(await planGate(m.dia))) return;   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   const ev=chmEventoDe(c);
-  let key='', criado=false;
+  let key='', criado=false, tokRes=(c.parcial&&c.parcial.tok)||'';   // 🔒 ficha da reserva da reunião (confirma a trava com ela)
   m.executando=true; ocupado(btn,true);
   try{
     if(m.modo==='criar'){
       if(c.parcial&&c.parcial.key){ key=c.parcial.key; criado=true; }
       else{
+        // 🔒 Ligação de uma reunião da Agenda (2026-10-27): reserva a reunião ANTES de criar — se alguém já criou o ticket
+        // dela, aponta nele (nada de segundo ticket); se alguém está criando agora, pede para esperar.
+        let tv=null;
+        if(ev&&ev.uid&&m.vincular){
+          tv=await agTravaPost(Object.assign({ agtrava:'reservar' }, agTravaMeta(ev)));
+          if(tv&&tv.ja){ agGuardaTrava(ev, Object.assign({ estado:'ok' }, tv.ja)); key=tv.ja.k;
+            toast(`🔒 ${(tv.ja.por&&tv.ja.por.nome)||'Alguém'} já criou o ticket desta reunião (${tv.ja.k}) — as suas horas vão para ele.`,'ok'); }
+          else if(tv&&tv.criando) throw new Error(tv.criando.minha?'Você mesmo está criando o ticket desta reunião em outra aba — termine lá e aponte nele.'
+            :`${(tv.criando.por&&tv.criando.por.nome)||'Outra pessoa'} está criando o ticket desta reunião agora — espere um instante e escolha ⏱ apontar nele.`);
+          else if(!agReservaOk(tv)) throw new Error((tv&&tv.erro)||'Não consegui reservar a reunião — tente de novo.');
+          else tokRes=tv.tok||'';
+        }
+        if(!key){
         if(!m.proj) throw new Error('Escolha o projeto.');
         await garanteProjetos();
         const tipo=agTipoReuniao(m.proj); if(!tipo||!tipo.id) throw new Error(`O projeto ${m.proj} não tem um tipo de ticket utilizável.`);
         const titulo=String(m.titulo||'').trim(); if(!titulo) throw new Error('Dê um título ao ticket.');
         const base={ projeto:m.proj, tipoId:String(tipo.id), resumo:titulo.slice(0,250), descricao:chmDescricao(c, ev), venc:m.dia,
-          labels:ev?['call-tracking','agenda-outlook']:['call-tracking'] };
+          labels:(ev?['call-tracking','agenda-outlook']:['call-tracking']).concat(tv&&tv.rotulo?[tv.rotulo]:[]) };
+        // sem resposta (exceção): a reserva fica — o ticket pode ter nascido; em 3 min a label decide quem assume
         let j=await chmPost('/api/criar',{ itens:[Object.assign({},base, id.accountId?{ respId:id.accountId }:{})] }, id);
         let cr=j&&j.criados&&j.criados[0];
         if((!cr||!cr.key)&&id.accountId&&/assignee|atribu|respons/i.test(chmErrTxt(j))){   // projeto não deixa atribuir: cria sem responsável
           j=await chmPost('/api/criar',{ itens:[base] }, id); cr=j&&j.criados&&j.criados[0]; }
-        if(!cr||!cr.key) throw new Error(chmErrTxt(j)||'Não consegui criar o ticket.');
+        if(!cr||!cr.key){ if(tv&&tv.reservado) agTravaPost({ agtrava:'liberar', uid:ev.uid, tok:tv.tok }).catch(()=>{});
+          throw new Error(chmErrTxt(j)||'Não consegui criar o ticket.'); }
         key=cr.key; criado=true;
-        chmMuda(c.id, x=>{ x.parcial={ key }; });
+        chmMuda(c.id, x=>{ x.parcial={ key, tok:tokRes }; });
         try{ localStorage.setItem(CHM_PROJ, m.proj); }catch(e){}
         logAcao({ acao:'chamada-criar', t:key, para:m.proj, motivo:`${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)}`, ok:true }, false);
+        }
       }
     } else {
       key=String(m.chave||'').trim().toUpperCase();
@@ -428,7 +444,7 @@ async function chmConfirma(btn){
     logAcao({ acao:'chamada-apontar', t:key, para:`${fmtH(seg)} em ${m.dia}`, motivo:`${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)}${ev?` · ${ev.titulo}`:''}`.slice(0,200), ok:true }, false);
     // UMA gravação da config: o agMarcaTicket já grava (salvaCfg) — leva junto o 🗒 Histórico acima.
     let gravou=false;
-    if(ev&&m.vincular&&!agTicketDe(ev.id)){ try{ agMarcaTicket(ev.id, key); gravou=true; }catch(e){} }
+    if(ev&&m.vincular&&!agTicketDe(ev.id)){ try{ agMarcaTicket(ev.id, key, { tok:tokRes }); gravou=true; }catch(e){} }
     if(!gravou){ try{ salvaCfg(); }catch(e){} }
     invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
     toast(`✓ ${fmtH(seg)} apontadas em ${key}${criado?' (ticket novo)':''}${concl.feito?` · status ${concl.para}`:''}.`,'ok');

@@ -11,9 +11,15 @@
 // POST /api/reunioes { transf:'ler'|'conferir'|'destino'|…|'excluir' } -> 🔗 Transferir ticket com o histórico
 //                                            inteiro, em etapas (api/_lib/transferir.js) — token da pessoa
 import {
-  cacheGet, cacheSetTTL, cacheClear, jiraBase, jiraSearchAll, json,
+  cacheGet, cacheSetTTL, cacheClear, jiraBase, jiraSearchAll, json, configCompartilhada,
 } from './_lib/util.js';
 import { transferir } from './_lib/transferir.js';
+import {
+  graphToken, uidOk, travasLer, travaReservar, travaConfirmar, travaLiberar, travaDisponivel,
+  alertasLer, alertasDispensar, achaTicketsReuniao, tituloBusca,
+} from './_lib/agenda.js';
+// Reexportada para o 🌐 portal (api/_lib/portal.js), que a importava daqui antes de ela ir para api/_lib/agenda.js.
+export { graphToken };
 
 const RE_PROJ = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
@@ -74,33 +80,15 @@ function agendaDiaSP(offsetDias) {
   const d = new Date(Date.now() + offsetDias * 86400000);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
 }
-// Exportada (2026-09-28) para o 🌐 portal do projeto (api/_lib/portal.js) ler o calendário
-// do projeto com as MESMAS credenciais de aplicativo — sem duplicar a autenticação.
-export async function graphToken() {
-  const c = cacheGet('graph:token');
-  if (c) return c;
-  const r = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: process.env.MS_CLIENT_ID,
-      client_secret: process.env.MS_CLIENT_SECRET,
-      scope: 'https://graph.microsoft.com/.default',
-    }),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.access_token) {
-    throw new Error(`Autenticação no Microsoft Graph falhou (${r.status}): ${String(j.error_description || j.error || '').slice(0, 200)}`);
-  }
-  return cacheSetTTL('graph:token', j.access_token, 45);
-}
+// graphToken mora em api/_lib/agenda.js desde 2026-10-27 (o agendador do alerta de fim do dia também lê a agenda).
 // Confere que o par e-mail+token pertence mesmo à pessoa (via /myself do Jira).
 // O token nunca entra em cache — só um hash dele compõe a chave de validação.
+// Devolve também QUEM é (accountId + nome do /myself): a 🔒 trava do ticket de reunião grava quem reservou/criou.
 async function agendaDonoValido(email, token) {
   const { createHash } = await import('node:crypto');
   const ck = `agenda:dono:${email}:${createHash('sha256').update(token).digest('hex').slice(0, 24)}`;
-  if (cacheGet(ck)) return { ok: true };
+  const c = cacheGet(ck);
+  if (c) return { ok: true, acc: c.acc || '', nome: c.nome || '' };
   const r = await fetch(`${jiraBase()}/rest/api/3/myself`, {
     headers: { Authorization: authUser(email, token), Accept: 'application/json' },
   });
@@ -110,8 +98,9 @@ async function agendaDonoValido(email, token) {
   if (!emailJira || emailJira !== email) {
     return { ok: false, status: 403, erro: 'O e-mail pedido não corresponde ao dono do token — a agenda é pessoal.' };
   }
-  cacheSetTTL(ck, true, 10);
-  return { ok: true };
+  const quem = { acc: String(me.accountId || ''), nome: String(me.displayName || email) };
+  cacheSetTTL(ck, quem, 10);
+  return { ok: true, ...quem };
 }
 async function agenda(req, res, b) {
   const email = String((b && b.email) || '').trim().toLowerCase();
@@ -134,7 +123,7 @@ async function agenda(req, res, b) {
   const de = agendaDiaSP(-(((dowSP + 6) % 7) + 7)); const ate = agendaDiaSP(14);
   const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/calendarView`
     + `?startDateTime=${encodeURIComponent(`${de}T00:00:00-03:00`)}&endDateTime=${encodeURIComponent(`${ate}T23:59:59-03:00`)}`
-    + '&$orderby=start/dateTime&$top=100&$select=id,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity,seriesMasterId,type';
+    + '&$orderby=start/dateTime&$top=100&$select=id,iCalUId,subject,organizer,start,end,attendees,location,isCancelled,isAllDay,onlineMeeting,webLink,sensitivity,seriesMasterId,type';
   // Segue @odata.nextLink para agendas com mais de 100 eventos no período (teto de 10 páginas).
   const valores = [];
   let prox = url;
@@ -158,6 +147,8 @@ async function agenda(req, res, b) {
   const visiveis = brutos.filter((e) => orgDe(e) === email || !ocultar.includes(orgDe(e)));
   const eventos = visiveis.map((e) => ({
     id: e.id,
+    // 🔒 a chave COMUM a todas as agendas (o `id` muda de convidado para convidado): é ela que trava o ticket da reunião
+    uid: String(e.iCalUId || ''),
     titulo: e.subject || '(sem título)',
     inicio: String((e.start && e.start.dateTime) || '').slice(0, 16),
     fim: String((e.end && e.end.dateTime) || '').slice(0, 16),
@@ -196,7 +187,6 @@ async function agenda(req, res, b) {
 // também "criado no dia" (um ticket criado hoje para a reunião de amanhã casava com a de hoje).
 // Ticket sem vencimento não casa. Devolve quem criou, para o modal sugerir o vínculo.
 const RE_DIA_AG = /^\d{4}-\d{2}-\d{2}$/;
-const diaSPde = (iso) => { const t = Date.parse(String(iso || '')); return Number.isFinite(t) ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(t)) : ''; };
 async function conferirTickets(req, res, b) {
   const porDia = Array.isArray(b.itens);
   const brutos = porDia
@@ -205,7 +195,7 @@ async function conferirTickets(req, res, b) {
   const pares = [];
   const vistos = new Set();
   brutos.forEach(({ titulo, dia }) => {
-    const q = titulo.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const q = tituloBusca(titulo);
     const chave = porDia ? `${dia}|${titulo}` : titulo;
     const dedup = `${dia}|${q.toLowerCase()}`;
     if (q.length >= 4 && !vistos.has(dedup)) { vistos.add(dedup); pares.push({ chave, q, dia }); }
@@ -213,38 +203,54 @@ async function conferirTickets(req, res, b) {
   if (!pares.length) return json(res, 200, { achados: {} });
   const ck = `agenda:conferir:${porDia ? 'd:' : ''}${pares.map((p) => `${p.dia}|${p.q}`).join('|')}`;
   if (!(b && b.nocache)) { const c = cacheGet(ck); if (c) return json(res, 200, c); }
-  const jql = '(' + pares.map((p) => porDia
-    ? `(summary ~ "\\"${p.q}\\"" AND duedate = "${p.dia}")`
-    : `summary ~ "\\"${p.q}\\""`).join(' OR ') + (porDia ? '' : ') AND created >= -90d') + (porDia ? ')' : '') + ' ORDER BY created DESC';
-  const { issues } = await jiraSearchAll({ jql, fields: ['summary', 'issuetype', 'status', 'created', 'duedate', 'creator'], pageSize: 50, maxPages: 1 });
-  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-  const semPrefixo = (s) => norm(s).replace(/^reuniao:\s*/, '');
-  const achados = {};
-  pares.forEach(({ chave, q, dia }) => {
-    const nq = semPrefixo(q);
-    // Candidatos: VENCIMENTO exatamente no dia da reunião (quando há dia) — a data de criação não
-    // conta; o resumo exatamente igual (sem o prefixo) vence o "contém"; entre iguais, o mais
-    // antigo (o primeiro que alguém criou).
-    const cands = issues.map((it) => {
-      const f = it.fields || {}; const ns = semPrefixo(f.summary);
-      const criadoEm = diaSPde(f.created); const venc = String(f.duedate || '').slice(0, 10);
-      const mesmoDia = !dia || venc === dia;
-      const exato = ns === nq; const contem = exato || ns.includes(nq);
-      return { it, f, criadoEm, venc, mesmoDia, exato, contem };
-    }).filter((c) => c.mesmoDia && c.contem)
-      .sort((a, b2) => (Number(b2.exato) - Number(a.exato)) || (Number(b2.venc === dia) - Number(a.venc === dia)) || String(a.f.created || '').localeCompare(String(b2.f.created || '')));
-    const hit = cands[0];
-    if (hit) {
-      const cr = hit.f.creator || {};
-      achados[chave] = {
-        k: hit.it.key, resumo: hit.f.summary || '',
-        status: (hit.f.status && hit.f.status.name) || '',
-        dia: dia || '', criadoEm: hit.criadoEm, venc: hit.venc, exato: hit.exato,
-        criadoPor: { id: cr.accountId || '', nome: cr.displayName || '' },
-      };
-    }
-  });
+  const achados = await achaTicketsReuniao(pares, porDia);   // o MESMO critério do alerta de fim do dia (api/_lib/agenda.js)
   return json(res, 200, cacheSetTTL(ck, { achados }, 5));
+}
+
+// ------------------------- 🔒 Trava do ticket de reunião (2026-10-27) -------------------------
+// POST { agtrava:'ler'|'reservar'|'confirmar'|'liberar', email, token, … } — a lógica mora em api/_lib/agenda.js.
+//   ler       { uids:[…] }                                  → { travas:{uid:{estado,k,por,em,vencida}} }
+//   reservar  { uid, titulo, dia, org:{email,nome} }         → {ok,reservado,rotulo} | {ok:false, ja|criando}
+//   confirmar { uid, k, titulo, dia, org }                   → {ok} | {ok:false, ja}   (ticket criado/vinculado)
+//   liberar   { uid[, desvincular] }                         → {ok}  (criação falhou / ✂ desvincular)
+// Sempre com a identidade verificada no Jira (/myself): a trava grava QUEM reservou — o navegador não escolhe o nome.
+async function agTrava(req, res, b) {
+  const email = String((b && b.email) || '').trim().toLowerCase();
+  const token = String((b && b.token) || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !token) return json(res, 401, { erro: 'Identifique-se (e-mail + token de API do Jira).' });
+  const dono = await agendaDonoValido(email, token);
+  if (!dono.ok) return json(res, dono.status, { erro: dono.erro });
+  const quem = { acc: dono.acc, nome: dono.nome };
+  const acao = String(b.agtrava || '');
+  if (acao === 'ler') {
+    const uids = (Array.isArray(b.uids) ? b.uids : []).filter(uidOk).slice(0, 200);
+    return json(res, 200, { ok: true, travas: await travasLer(uids), semTrava: !travaDisponivel(), eu: quem.acc });
+  }
+  const uid = String(b.uid || '');
+  if (!uidOk(uid)) return json(res, 400, { erro: 'Reunião sem identificador do Outlook (iCalUId).' });
+  const m = { uid, titulo: b.titulo, dia: b.dia, org: b.org || {} };
+  if (acao === 'reservar') return json(res, 200, await travaReservar(m, quem));
+  if (acao === 'confirmar') {
+    const k = String(b.k || '').trim().toUpperCase();
+    if (!RE_ISSUE.test(k)) return json(res, 400, { erro: 'Chave de ticket inválida.' });
+    return json(res, 200, await travaConfirmar(m, k, quem, { migracao: !!b.migracao, tok: String(b.tok || '') }));
+  }
+  if (acao === 'liberar') return json(res, 200, await travaLiberar(uid, quem, !!b.desvincular, String(b.tok || '')));
+  return json(res, 400, { erro: 'Ação de trava desconhecida.' });
+}
+// POST { agalertas:'ler'|'dispensar', email, token[, uid] } — ⏰ os alertas de fim do dia DESTA pessoa (organizador).
+async function agAlertas(req, res, b) {
+  const email = String((b && b.email) || '').trim().toLowerCase();
+  const token = String((b && b.token) || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !token) return json(res, 401, { erro: 'Identifique-se (e-mail + token de API do Jira).' });
+  const dono = await agendaDonoValido(email, token);
+  if (!dono.ok) return json(res, dono.status, { erro: dono.erro });
+  if (b.agalertas === 'dispensar') {
+    const uid = String(b.uid || '');
+    if (!uidOk(uid)) return json(res, 400, { erro: 'Alerta inválido.' });
+    return json(res, 200, await alertasDispensar(email, uid));
+  }
+  return json(res, 200, { ok: true, ...(await alertasLer(email, await configCompartilhada())) });
 }
 
 // --------------------------------- GET: listar ---------------------------------
@@ -659,6 +665,8 @@ export default async function handler(req, res) {
       if (b.agenda) return await agenda(req, res, b);
       if (b.presenca) return await presenca(req, res, b);
       if (b.conferir) return await conferirTickets(req, res, b);
+      if (b.agtrava) return await agTrava(req, res, b);
+      if (b.agalertas) return await agAlertas(req, res, b);
       if (b.vincular) return await vincular(req, res, b);
       if (b.transf) return await transferir(req, res, b);
       // mover() relê o corpo; repassa o já lido para não consumir o stream duas vezes.

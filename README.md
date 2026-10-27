@@ -31,7 +31,8 @@ serve `public/` na raiz e cada arquivo em `api/*.js` vira um endpoint.
 - `POST /api/apontar` — apontamento (Clockwork) + convites de reunião.
 - `POST /api/transicao` — transição de status, reagendar, atribuir, comentar.
 - `POST /api/criar` — criação de issues (planejamento em lote).
-- `POST /api/reunioes` — mover/reclassificar issues entre projetos/tipos.
+- `POST /api/reunioes` — mover/reclassificar issues entre projetos/tipos; agenda do Outlook; 🔒 trava do ticket de
+  reunião (`{agtrava:'ler'|'reservar'|'confirmar'|'liberar'}`) e ⏰ alertas do organizador (`{agalertas:'ler'|'dispensar'}`).
 
 Os tokens de serviço ficam só nas variáveis de ambiente do servidor — nunca no navegador
 (a chave do Supabase também é usada apenas no servidor). Front e funções no mesmo domínio: sem CORS.
@@ -39,6 +40,7 @@ Os tokens de serviço ficam só nas variáveis de ambiente do servidor — nunca
 ```
 api/
   _lib/util.js     datas (America/Sao_Paulo), cache, fetch do Jira/Clockwork, heurística faturável
+  _lib/agenda.js   📅 token do Graph, 🔒 trava do ticket de reunião (Supabase, pela chave comum iCalUId) e ⏰ alerta de fim do dia ao organizador
   tempo.js atividade.js vencimentos.js projetos.js usuarios.js   (leitura)
   config.js resumo.js teams.js                                   (config/IA/cron/bot do Teams)
   apontar.js transicao.js criar.js reunioes.js                   (escrita c/ token da pessoa)

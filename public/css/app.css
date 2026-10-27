@@ -1890,6 +1890,10 @@
   .ag-ct-acao{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;padding-right:0!important}
   .ag-ct-ok{color:#107E3E;font-weight:600} .ag-ct-pend{color:#C77700;font-weight:600}
   :root[data-theme="dark"] .ag-ct-ok{color:#4C9F70} :root[data-theme="dark"] .ag-ct-pend{color:#F0C674}
+  /* 🔒 Trava do ticket de reunião (2026-10-27): reunião que outra pessoa está criando agora + avisos do 📝 */
+  .ag-ct-criando{color:var(--cerceta);font-weight:600}
+  .badge.ag-b-criando{background:rgba(42,157,143,.14);color:var(--cerceta);font-weight:600}
+  .aviso.ag-ja a{font-weight:700}
   @media (max-width:720px){
     .ag-ct-tab{display:block} .ag-ct-head{display:none}
     .ag-ct-row{display:block;padding:7px 0;border-bottom:1px solid var(--linha)}

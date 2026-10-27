@@ -9,20 +9,117 @@
 // ===========================================================================
 const AG_TK_KEY='jirainsight_agenda_tickets';
 function agTickets(){ try{ return JSON.parse(localStorage.getItem(AG_TK_KEY))||{}; }catch(e){ return {}; } }
-// Vínculo evento→ticket na config COMPARTILHADA (todo o time vê quem criou) +
-// espelho no localStorage (compatibilidade com o formato antigo).
+// ===========================================================================
+// 🔒 TRAVA DO TICKET DE REUNIÃO (2026-10-27, a pedido do usuário: "uma pessoa que organizou demora para criar, todo
+// mundo fica sem apontar, e se outra pessoa cria não existe trava; os eventos que envolvem pessoas da Dexterity podem
+// ser criados por qualquer pessoa, mas se uma cria, outra não pode criar o mesmo evento"). O `id` do evento muda de
+// agenda para agenda — por isso o vínculo antigo (cfg.agendaTickets[evId]) não aparecia para quem não criou. A chave
+// comum é o `uid` (iCalUId do Outlook) e a trava mora no servidor (api/_lib/agenda.js, uma linha por reunião no
+// Supabase: o INSERT é a trava). estado.agenda.travas = { uid: {estado:'criando'|'ok', k, por:{acc,nome}, em, vencida} }.
+// Regras: (1) qualquer participante cria — quem RESERVAR primeiro cria; os outros veem "Fulano está criando" e, depois,
+// o ticket — e o 📝 vira "aponte no ticket que já existe"; (2) a reserva vale 3 min (navegador que morreu não trava a
+// reunião para sempre) e o ticket leva a label da reunião (`rotulo`), que o servidor confere antes de deixar outra
+// pessoa assumir; (3) a leitura das travas sai junto com a agenda (uma chamada) e de novo antes de abrir o 📝.
+// ===========================================================================
+function agEvento(evId){ return ((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===evId)||null; }
+function agTravaDe(ev){ const u=ev&&ev.uid; return u?((estado.agenda.travas||{})[u]||null):null; }
+function agTravaMeta(ev){ return { uid:ev.uid, titulo:ev.titulo||'', dia:(ev.inicio||'').slice(0,10),
+  org:{ email:((ev.organizador||{}).email)||'', nome:((ev.organizador||{}).nome)||'' } }; }
+function agTravaPost(corpo){
+  const id=idApontar(); if(!id) return Promise.reject(new Error('Identifique-se (e-mail + token do Jira).'));
+  return fetch('/api/reunioes',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({ email:id.email, token:id.token }, corpo)) }).then(r=>r.json());
+}
+function agGuardaTrava(ev, tv){ if(!ev||!ev.uid) return; const ag=estado.agenda; ag.travas=ag.travas||{};
+  if(tv) ag.travas[ev.uid]=tv; else delete ag.travas[ev.uid];
+  if(tv&&tv.estado==='ok') agTiraAlerta(ev.uid);   // ⏰ a reunião ganhou ticket: o alerta do fim do dia sai do 📥 Inbox
+}
+// ⏰ Tira do 📥 Inbox (em memória) o alerta de fim do dia desta reunião — ganhou ticket ou foi ignorada.
+function agTiraAlerta(uid){ const ib=estado.inbox; if(!uid||!ib||!Array.isArray(ib.agAlertas)) return;
+  const f=ib.agAlertas.filter(a=>a.uid!==uid); if(f.length!==ib.agAlertas.length){ ib.agAlertas=f; try{ pintaBadgeInbox(); }catch(e){} } }
+// A reserva só vale com um SIM do servidor (revisão de 2026-10-27): resposta de erro ({erro} sem `ok`, 500, 401…)
+// não pode contar como reservada — senão a trava "falha aberta" e duas pessoas criam no meio de uma queda.
+function agReservaOk(tv){ return !!(tv&&(tv.reservado===true||tv.semTrava===true)); }
+const AG_TRAVA_TTL_MS=3*60*1000;
+// Alguém (que não sou eu) reservou a reunião e ainda não confirmou o ticket. A reserva vence em 3 min — conferido
+// também aqui (a Início fica aberta o dia todo e a lista das travas não é relida a cada minuto).
+function agCriandoOutro(ev){ const tv=agTravaDe(ev); const eu=(idApontar()||{}).accountId||'';
+  if(!(tv&&tv.estado==='criando'&&!tv.vencida&&tv.por&&tv.por.acc&&tv.por.acc!==eu)) return false;
+  const t=Date.parse(tv.em||''); return !(isFinite(t)&&Date.now()-t>AG_TRAVA_TTL_MS+30000); }
+// Quem é o "dono" do ticket da reunião para o 👥 convidar: quem CRIOU (trava); sem trava, quem organizou.
+function agSouDonoTicket(ev){ const tv=agTravaDe(ev); const eu=(idApontar()||{}).accountId||'-';
+  return (tv&&tv.estado==='ok'&&tv.por&&tv.por.acc)?tv.por.acc===eu:!!(ev&&ev.meu); }
+function agRedesenhaTela(){ if(agVistaAberta()) renderAgenda(); else if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(estado.vista==='acoes') agendaRenderAcoes(); }
+// Lê as travas de todas as reuniões da agenda (uma chamada). Vínculo ANTIGO (cfg.agendaTickets, pela chave da MINHA
+// agenda) sem trava vira trava — é assim que o ticket que alguém vinculou antes desta versão aparece para os colegas.
+let _agTravaRelerT=null;
+function agCarregaTravas(){
+  const ag=estado.agenda; const evs=((ag.dados||{}).eventos||[]).filter(ev=>ev.uid&&!ev.privado);
+  if(!evs.length||ag.travasCarr||!idApontar()) return;
+  ag.travasCarr=true;
+  // em lotes de 150 (o servidor lê até 200 por pedido; a agenda pode ter bem mais reuniões no período)
+  const uids=[...new Set(evs.map(ev=>ev.uid))]; const lotes=[]; for(let i=0;i<uids.length;i+=150) lotes.push(uids.slice(i,i+150));
+  Promise.all(lotes.map(l=>agTravaPost({ agtrava:'ler', uids:l }))).then(js=>{
+    ag.travasCarr=false;
+    const ruim=js.find(j=>!(j&&j.ok));
+    if(ruim){ ag.travasErro=(ruim&&ruim.erro)||'falha ao ler as travas'; return; }
+    ag.travasErro=''; ag.travas=Object.assign({},...js.map(j=>j.travas||{})); ag.semTrava=js.some(j=>j.semTrava); ag.travasLidas=true;
+    evs.forEach(ev=>{ const tv=ag.travas[ev.uid]; if(tv&&tv.estado==='ok') agTiraAlerta(ev.uid); });
+    // Vínculo ANTIGO (da config, pela chave da MINHA agenda) vira trava — sem teto: é o que faz os colegas o enxergarem.
+    // Se a reunião já tem OUTRO ticket registrado, avisa (uma vez por sessão) em vez de esconder o conflito.
+    if(!ag.semTrava) evs.filter(ev=>((cfg.agendaTickets||{})[ev.id]||{}).t).forEach(ev=>{
+      const k=cfg.agendaTickets[ev.id].t; const tv=ag.travas[ev.uid];
+      if(tv){ if(tv.estado==='ok'&&tv.k&&tv.k!==k){ ag.conflitosAvisados=ag.conflitosAvisados||{}; if(!ag.conflitosAvisados[ev.uid]){ ag.conflitosAvisados[ev.uid]=1;
+          toast(`⚠ "${String(ev.titulo).slice(0,40)}": o seu vínculo antigo é ${k}, mas o ticket registrado da reunião é ${tv.k}${tv.por&&tv.por.nome?` (de ${tv.por.nome})`:''} — confira qual vale.`,'warn'); } }
+        return; }
+      agTravaPost(Object.assign({ agtrava:'confirmar', k, migracao:1 }, agTravaMeta(ev))).then(c=>{ if(c&&c.ok&&c.trava){ agGuardaTrava(ev, c.trava); agRedesenhaTela(); } }).catch(()=>{});
+    });
+    // reserva viva de outra pessoa na tela: relê quando ela vencer (ou o ticket nascer), sem esperar alguém clicar
+    clearTimeout(_agTravaRelerT);
+    if(evs.some(ev=>agCriandoOutro(ev))) _agTravaRelerT=setTimeout(()=>{ if(idApontar()) agCarregaTravas(); }, 65000);
+    agRedesenhaTela();
+  }).catch(e=>{ ag.travasCarr=false; ag.travasErro=humanizaErro(e); });
+}
+// Vínculo evento→ticket: a TRAVA (vale para todas as agendas) manda; depois a config compartilhada (vínculo antigo,
+// pela chave da minha agenda) e o espelho no localStorage (formato mais antigo).
 function agTicketDe(evId){
+  const tv=agTravaDe(agEvento(evId));
+  if(tv&&tv.estado==='ok'&&tv.k) return { t:tv.k, por:(tv.por&&tv.por.nome)||'', quando:tv.em||'', trava:true };
+  if(tv&&tv.estado==='nao') return null;   // ✂ desvinculada por alguém: o vínculo antigo (da minha agenda) não vale mais
   const c=(cfg.agendaTickets||{})[evId]; if(c&&c.t) return c;
   const l=agTickets()[evId]; return l?{t:l,por:'',quando:''}:null;
 }
-function agMarcaTicket(evId,key){
+// Grava o vínculo. `opts.semTrava` = quem chama já confirmou a trava (o 📝 confirma e espera a resposta); os outros
+// caminhos (✓ usar este ticket, 📞 Ligações, 🔁 automático) confirmam aqui — se a reunião já tinha OUTRO ticket, avisa.
+function agMarcaTicket(evId,key,opts){
+  const ev=agEvento(evId);
+  // Com a 🔒 trava LIGADA (reunião com uid e banco configurado — sabido, não presumido), o vínculo mora SÓ nela — gravar
+  // também na config pela chave da MINHA agenda deixaria um vínculo que ninguém mais enxerga. A config só entra como
+  // reserva se a confirmação FALHAR (revisão de 2026-10-27: antes ela era apagada antes de o servidor responder).
+  const soTrava=!!(ev&&ev.uid&&estado.agenda.semTrava===false);
+  if(ev&&ev.uid&&!(opts&&opts.semTrava)){
+    const antes=agTravaDe(ev);
+    agGuardaTrava(ev,{ estado:'ok', k:key, por:{ acc:(idApontar()||{}).accountId||'', nome:(idApontar()||{}).nome||'' }, em:new Date().toISOString() });
+    agTravaPost(Object.assign({ agtrava:'confirmar', k:key, tok:(opts&&opts.tok)||'' }, agTravaMeta(ev))).then(c=>{
+      if(c&&c.ok&&c.trava) agGuardaTrava(ev, c.trava);
+      else if(c&&c.ja){ agGuardaTrava(ev, Object.assign({ estado:'ok' }, c.ja));
+        toast(`⚠ "${String(ev.titulo).slice(0,40)}" já tinha o ticket ${c.ja.k}${c.ja.por&&c.ja.por.nome?` (de ${c.ja.por.nome})`:''} — o ${key} ficou só como vínculo seu.`,'warn'); agRedesenhaTela(); }
+      else if(c&&c.criando){ agGuardaTrava(ev, Object.assign({ estado:'criando' }, c.criando));
+        toast(`⚠ ${(c.criando.por&&c.criando.por.nome)||'Outra pessoa'} está criando o ticket de "${String(ev.titulo).slice(0,40)}" agora — o ${key} ficou só como vínculo seu; confira depois qual ficou.`,'warn'); agRedesenhaTela(); }
+      else agMarcaFallback(ev, key, antes, c&&c.erro);
+    }).catch(e=>agMarcaFallback(ev, key, antes, humanizaErro(e)));
+  }
   const id=idApontar()||{};
+  if(soTrava){
+    // nada na config: o vínculo é da trava (o vínculo antigo desta reunião, se existir, sai quando a trava confirmar)
+  } else {
   cfg.agendaTickets=cfg.agendaTickets||{};
   cfg.agendaTickets[evId]={ t:key, por:id.nome||id.email||'', quando:new Date().toISOString() };
   // Higiene: vínculos com mais de ~120 entradas descartam os mais antigos.
   const ks=Object.keys(cfg.agendaTickets);
   if(ks.length>120){ ks.sort((x,y)=>String(cfg.agendaTickets[x].quando||'').localeCompare(String(cfg.agendaTickets[y].quando||'')))
     .slice(0,ks.length-120).forEach(k=>delete cfg.agendaTickets[k]); }
+  }
   // O vínculo RESOLVE a pendência: some o aviso "reunião sem ticket" do Inbox de todos.
   Object.entries(cfg.inboxAvisos||{}).forEach(([acc,lst])=>{
     const f=(lst||[]).filter(a=>a.evId!==evId);
@@ -32,6 +129,16 @@ function agMarcaTicket(evId,key){
   salvaCfg();
   const m=agTickets(); m[evId]=key; try{ localStorage.setItem(AG_TK_KEY, JSON.stringify(m)); }catch(e){}
 }
+// A confirmação da trava falhou (servidor/rede): o vínculo não pode sumir — volta para a config (pela chave da minha
+// agenda, como antes da trava) e a tela avisa; a migração leva para a trava na próxima abertura.
+function agMarcaFallback(ev, key, antes, erro){
+  const id=idApontar()||{};   // a marca local (otimista) fica: o vínculo continua visível aqui
+  cfg.agendaTickets=cfg.agendaTickets||{};
+  cfg.agendaTickets[ev.id]={ t:key, por:id.nome||id.email||'', quando:new Date().toISOString() };
+  salvaCfg();
+  toast(`⚠ ${key} vinculado só aqui: não consegui registrar a trava da reunião agora${erro?` (${String(erro).slice(0,80)})`:''} — os colegas o verão quando você abrir a Agenda de novo.`,'warn');
+  agRedesenhaTela();
+}
 // ✂ Desvincular (pedido de 2026-10-02): desfaz SÓ o vínculo do painel — o ticket continua no Jira e a
 // reunião volta às pendências — e lembra a chave recusada (cfg.agendaNao[evId]) para a conferência no
 // Jira não sugerir o MESMO ticket de novo para esta ocorrência ("não é este"). Leitores (agAchadoDe)
@@ -39,6 +146,12 @@ function agMarcaTicket(evId,key){
 function agDesmarcaTicket(evId){
   const atual=agTicketDe(evId); if(!atual) return null;
   const id=idApontar()||{};
+  // 🔒 a trava sai também (a reunião volta a "sem ticket" para TODOS os participantes)
+  // (sempre que a reunião tem uid — mesmo sem a trava em memória: a leitura pode ter falhado ou ainda estar a caminho)
+  const evT=agEvento(evId); if(evT&&evT.uid){ const tvT=agTravaDe(evT);
+    agGuardaTrava(evT, tvT&&tvT.estado==='ok'?Object.assign({},tvT,{ estado:'nao' }):tvT);
+    agTravaPost({ agtrava:'liberar', uid:evT.uid, desvincular:1 }).then(j=>{ if(!(j&&j.ok)&&!(j&&j.nada)) toast(`⚠ O ✂ não chegou ao servidor${j&&j.erro?` (${j.erro})`:''} — os colegas ainda veem o ticket; tente de novo.`,'warn'); })
+      .catch(e=>toast(`⚠ O ✂ não chegou ao servidor (${humanizaErro(e)}) — os colegas ainda veem o ticket; tente de novo.`,'warn')); }
   if(cfg.agendaTickets&&cfg.agendaTickets[evId]) delete cfg.agendaTickets[evId];
   cfg.agendaNao=cfg.agendaNao||{};
   cfg.agendaNao[evId]={ k:atual.t, por:id.nome||id.email||'', quando:new Date().toISOString() };
@@ -157,6 +270,7 @@ function agIgnora(ev){
   cfg.agendaIgnorar=cfg.agendaIgnorar||{};
   cfg.agendaIgnorar[k]={ titulo:String(ev.titulo||'').slice(0,80), serie:!!agSerieDe(ev),
     por:id.nome||id.email||'', quando:new Date().toISOString() };
+  if(ev.uid) agTiraAlerta(ev.uid);
   // Higiene: mesma regra dos vínculos — acima de 120 entradas, as mais antigas saem.
   const ks=Object.keys(cfg.agendaIgnorar);
   if(ks.length>120) ks.sort((x,y)=>String(cfg.agendaIgnorar[x].quando||'').localeCompare(String(cfg.agendaIgnorar[y].quando||'')))
@@ -171,15 +285,16 @@ function agOrgExterno(ev){
 }
 // Classificação ÚNICA de cada reunião do 🎫 Controle de tickets — é ela que
 // decide em que bloco a linha aparece e quem a lê (Início, Fechamento do mês):
-//   'ok'     já tem ticket vinculado
-//   'minha'  sem ticket e depende de VOCÊ (você organizou ou o organizador é externo)
-//   'colega' sem ticket e depende de um COLEGA da Dexterity que convidou você
-//   'ign'    marcada como "não precisa de ticket"
+//   'ok'      já tem ticket (trava ou vínculo)
+//   'minha'   sem ticket — QUALQUER participante da Dexterity cria (2026-10-27; antes só quem organizou, e o
+//             convidado ficava "aguardando" sem poder apontar)
+//   'criando' sem ticket, mas outra pessoa reservou a reunião agora e está criando (some em 3 min se não confirmar)
+//   'ign'     marcada como "não precisa de ticket"
 function agClasse(ev){
   if(agTicketDe(ev.id)) return 'ok';
   if(agIgnorado(ev)) return 'ign';
-  if(ev.meu||agOrgExterno(ev)) return 'minha';
-  return 'colega';
+  if(agCriandoOutro(ev)) return 'criando';
+  return 'minha';
 }
 // Aviso de "reunião sem ticket" já gravado no Inbox de alguém para este evento.
 function agAvisoDe(evId){
@@ -210,15 +325,28 @@ async function agAutoCria(){
     const regra=agRegraDe(ev); const proj=regra.projeto;
     const tipo=agTipoReuniao(proj);
     if(!tipo){ falhas.push(`${ev.titulo}: projeto ${proj} sem tipo de reunião`); continue; }
+    // 🔒 a regra é de quem a ligou, mas QUALQUER participante pode ter criado antes: reserva primeiro
+    let tv=null;
+    if(ev.uid){
+      try{ tv=await agTravaPost(Object.assign({ agtrava:'reservar' }, agTravaMeta(ev))); }catch(e){ falhas.push(`${ev.titulo}: ${e.message||e}`); continue; }
+      if(tv&&tv.ja){ agGuardaTrava(ev, Object.assign({ estado:'ok' }, tv.ja)); continue; }
+      if(tv&&tv.criando){ agGuardaTrava(ev, Object.assign({ estado:'criando' }, tv.criando)); continue; }
+      if(!agReservaOk(tv)){ falhas.push(`${ev.titulo}: ${(tv&&tv.erro)||'não consegui reservar a reunião'}`); continue; }
+    }
+    let respondeu=false;   // o Jira respondeu "não criei" (falha certa)? só então a reserva é solta
     try{
       const r=await fetch('/api/criar',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ email:id.email, token:id.token, itens:[{ projeto:proj, tipoId:tipo.id,
           resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:agDescEvento(ev),
-          venc:(ev.inicio||'').slice(0,10), labels:['agenda-outlook','recorrente-auto'] }] })});
-      const j=await r.json(); const c=j&&j.criados&&j.criados[0];
-      if(c&&c.key){ agMarcaTicket(ev.id,c.key); criados.push(c.key); }
-      else falhas.push(`${ev.titulo}: ${(j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'falhou'}`);
-    }catch(e){ falhas.push(`${ev.titulo}: ${e.message||e}`); }
+          venc:(ev.inicio||'').slice(0,10), labels:['agenda-outlook','recorrente-auto'].concat(tv&&tv.rotulo?[tv.rotulo]:[]) }] })});
+      const j=await r.json(); respondeu=true; const c=j&&j.criados&&j.criados[0];
+      if(c&&c.key){ agMarcaTicket(ev.id,c.key,{ tok:tv&&tv.tok }); criados.push(c.key); }
+      else { if(tv&&tv.reservado) agTravaPost({ agtrava:'liberar', uid:ev.uid, tok:tv.tok }).catch(()=>{});
+        falhas.push(`${ev.titulo}: ${(j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'falhou'}`); }
+    }catch(e){
+      // sem resposta (rede, 504): o ticket PODE ter nascido — a reserva fica; em 3 min a label decide quem assume
+      if(respondeu&&tv&&tv.reservado) agTravaPost({ agtrava:'liberar', uid:ev.uid, tok:tv.tok }).catch(()=>{});
+      falhas.push(`${ev.titulo}: ${e.message||e}`); }
   }
   ag.autoRodando=false;
   if(criados.length) toast(`🔁 ${criados.length} ticket(s) de reunião recorrente criados: ${criados.join(', ')} — agora é só apontar.`,'ok');
@@ -372,7 +500,38 @@ function agAbreTicket(evId, fixo){
   if(!_projetosCache) garanteProjetos().then(()=>agAtualizaModal()).catch(()=>{});
   agCarregaUsuarios();
   if(!fixo) agConfereEvento(ev);   // 🔎 já existe o ticket desta reunião (mesmo título, mesmo dia)?
+  if(!fixo&&ev.uid) agConfereTravaModal(ev);   // 🔒 alguém criou (ou está criando) enquanto a tela estava aberta?
   agAtualizaModal();
+}
+// 🔒 Relê a trava desta reunião ao abrir o 📝: se outra pessoa criou o ticket nesse meio-tempo, o modal já abre no
+// ticket dela ("aponte aqui"); se está criando agora, o modal avisa (o Confirmar recusaria pela reserva de qualquer jeito).
+function agConfereTravaModal(ev){
+  const m=_agM; if(!m||m.evId!==ev.id) return;
+  agTravaPost({ agtrava:'ler', uids:[ev.uid] }).then(j=>{
+    if(!(j&&j.ok)||_agM!==m) return;
+    const tv=(j.travas||{})[ev.uid]||null; agGuardaTrava(ev, tv);
+    if(tv&&tv.estado==='ok'&&tv.k&&!m.fixo) agJaCriado(m, tv);
+    agAtualizaModal(); if(agVistaAberta()) renderAgenda();
+  }).catch(()=>{});
+}
+// ⏰ Do alerta do 📥 Inbox: acha a reunião pela chave comum (uid) na agenda — carregando-a se ainda não veio — e abre
+// o 📝 no lugar. Fora do período da agenda (alerta antigo), leva ao 🎫 Controle com um aviso.
+function agAbrePorUid(uid){
+  if(!idApontar()){ abreIdentidade(); return; }
+  const ag=estado.agenda;
+  const acha=()=>((ag.dados||{}).eventos||[]).find(ev=>ev.uid===uid);
+  const ev=acha();
+  if(ev){ agAbreTicket(ev.id); return; }
+  if(ag.dados&&!ag.carregando){ toast('Essa reunião já saiu do período da agenda (desde a segunda da semana passada) — crie o ticket direto no Jira ou pelo 📝 Criar ticket.','warn'); vaiPara('agcontrole'); return; }
+  toast('📅 Carregando a sua agenda…','ok');
+  ag.abrirUid=uid;
+  if(!ag.carregando) carregaAgenda(false);
+}
+// O ticket da reunião já existe (outra pessoa criou): o 📝 vira "aponte as suas horas nele" — você marcado, os demais
+// desmarcados (quem criou já convidou os participantes; convidar de novo duplicaria o convite).
+function agJaCriado(m, tv){
+  const eu=(idApontar()||{}).accountId||'';
+  m.fixo=tv.k; m.jaPor=(tv.por&&tv.por.acc&&tv.por.acc!==eu)?(tv.por.nome||'outra pessoa'):''; m.prechecked=false;
 }
 // O 📝 ainda é o modal aberto? (revisão de 2026-10-08) A conferência no Jira, o ⏱ real do Teams, os projetos e
 // os usuários respondem DEPOIS — se a pessoa fechou o 📝 (Esc, ×, fundo) e abriu outro modal (Ctrl+K, a ficha 🔍,
@@ -411,7 +570,7 @@ function agAtualizaModal(){
   if(estado.agenda.usuErro) pessoasHtml='<div class="aviso">⚠ Não consegui carregar os usuários do Jira — sem eles o painel não sabe quem do convite é da Dexterity. <button type="button" class="btn" data-agm-usu-retry="1">↻ tentar de novo</button></div>';
   const conv=agPessoasConvite(ev);
   if(conv){
-    const chkDe=(acc)=>(primeira||!noDom.has(acc))?true:marcados.has(acc);
+    const chkDe=(acc)=>(primeira||!noDom.has(acc))?!m.jaPor:marcados.has(acc);   // 🔒 ticket de outra pessoa: ela já convidou
     // 🙋 Você (JI-153, 2026-10-23): a linha era uma caixa desabilitada que dizia "o convite aponta as suas horas
     // automaticamente" — e não apontava (você não entrava em `pessoas`). Agora é uma caixa REAL, marcada: o
     // servidor aponta o organizador na hora, com o próprio token (api/apontar.js, criarConvites). Reunião que
@@ -419,15 +578,15 @@ function agAtualizaModal(){
     const euAcc=String(id.accountId||''); const futura=(ev.inicio||'').slice(0,10)>hojeSP();
     // No 👥 convidar de uma reunião que JÁ tem ticket (m.fixo) você nasce DESMARCADO: as suas horas saíram quando o
     // ticket foi criado — marcado de novo seria um segundo worklog seu no mesmo ticket.
-    const euChk=(primeira||!noDom.has(euAcc))?!m.fixo:marcados.has(euAcc);
+    const euChk=(primeira||!noDom.has(euAcc))?(!m.fixo||!!m.jaPor):marcados.has(euAcc);   // ticket de OUTRA pessoa: você aponta
     const euLinha=(nome)=>!euAcc
       ?`<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(nome)} <span class="muted small">(você — identifique-se no ⏱ Apontar para apontar as suas horas daqui)</span></label>`
       :futura?`<label class="check" style="opacity:.65"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" disabled> ${esc(nome)} <span class="muted small">(você — a reunião ainda não aconteceu; as suas horas você aponta depois, pelo ⏱ Apontar ou 📆 Hoje)</span></label>`
-      :`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" ${euChk?'checked':''}> ${esc(nome)} <span class="muted small">${m.fixo?'(você — marque só se ainda não lançou as suas horas neste ticket)':'(você — as suas horas saem agora, no seu usuário, junto com os convites)'}</span></label>`;
+      :`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" ${euChk?'checked':''}> ${esc(nome)} <span class="muted small">${m.jaPor?'(você — as suas horas saem agora, no seu usuário, no ticket que já existe)':m.fixo?'(você — marque só se ainda não lançou as suas horas neste ticket)':'(você — as suas horas saem agora, no seu usuário, junto com os convites)'}</span></label>`;
     const linhas=conv.internos.map(p=>p.eu?euLinha(p.nome)
       :`<label class="check"><input type="checkbox" data-agm-p="${escA(p.acc)}" data-agm-nome="${escA(p.nome)}" ${chkDe(p.acc)?'checked':''}> ${esc(p.nome)}</label>`).join('')
       // você não está no convite (criou o ticket por um colega, ou o e-mail do Outlook não é o do Jira): a linha existe, desmarcada
-      +(euAcc&&!conv.internos.some(p=>p.eu)&&!futura?`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(id.nome||id.email||'você')}" data-agm-eu="1" ${(!primeira&&noDom.has(euAcc)&&marcados.has(euAcc))?'checked':''}> ${esc(id.nome||id.email||'você')} <span class="muted small">(você — não está no convite; marque para apontar as suas horas também)</span></label>`:'');
+      +(euAcc&&!conv.internos.some(p=>p.eu)&&!futura?`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(id.nome||id.email||'você')}" data-agm-eu="1" ${((primeira||!noDom.has(euAcc))?!!m.jaPor:marcados.has(euAcc))?'checked':''}> ${esc(id.nome||id.email||'você')} <span class="muted small">(você — não está no convite; marque para apontar as suas horas também)</span></label>`:'');
     const extras=(m.extras||[]).map(x=>`<div class="agm-extra-row"><label class="check"><input type="checkbox" data-agm-p="${escA(x.acc)}" data-agm-nome="${escA(x.nome)}" data-agm-extra="1" ${chkDe(x.acc)?'checked':''}> ${esc(x.nome)} <span class="badge" data-tip="Não está no convite do Outlook — adicionado à mão neste modal; recebe o convite de apontamento como os demais">➕ fora do convite</span></label><button type="button" class="agm-extra-rm" data-agm-extra-rm="${escA(x.acc)}" data-tip="Tirar da lista" aria-label="Tirar ${escA(x.nome)} da lista">✕</button></div>`).join('');
     pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno.</span>')+extras
       +(conv.externos?`<div class="muted small" style="margin-top:6px">👤 ${conv.externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
@@ -445,7 +604,8 @@ function agAtualizaModal(){
     :((m.conferindo||estado.agenda.conferindo)?'<div class="muted small" style="margin:8px 0 2px">🔎 Conferindo no Jira se já existe um ticket desta reunião (mesmo título, mesmo dia)…</div>':'');
   const corpo=`<h2>📝 Ticket da reunião</h2>
     <div class="muted small">${esc(ev.titulo)} · ${esc((ev.inicio||'').slice(0,10))} ${ev.diaTodo?'(dia todo)':esc((ev.inicio||'').slice(11,16))}</div>
-    ${m.fixo?`<div class="ap-id" style="margin-top:8px">✓ Ticket já criado: <strong>${esc(m.fixo)}</strong> — selecione quem convidar para apontar.</div>`:`${sugestao}
+    ${m.fixo?(m.jaPor?`<div class="aviso ag-ja" style="margin-top:8px">🔒 <b>${esc(m.jaPor)}</b> já criou o ticket desta reunião: <a href="${jiraBase()}/browse/${encodeURIComponent(m.fixo)}" target="_blank" rel="noopener"><strong>${esc(m.fixo)}</strong> ↗</a> — nada será criado de novo. Os participantes já foram convidados por quem criou; aponte as suas horas aqui (e marque mais alguém só se ficou de fora).</div>`
+      :`<div class="ap-id" style="margin-top:8px">✓ Ticket já criado: <strong>${esc(m.fixo)}</strong> — selecione quem convidar para apontar.</div>`):`${sugestao}${agCriandoOutro(ev)?`<div class="aviso ag-criando" style="margin:8px 0 2px">⏳ <b>${esc(((agTravaDe(ev)||{}).por||{}).nome||'Outra pessoa')}</b> está criando o ticket desta reunião agora — espere um instante: quando ficar pronto, ele aparece aqui e você só aponta.</div>`:''}
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 4px">
       <label class="check"><input type="radio" name="agm-modo" value="criar" ${modo==='criar'?'checked':''}> 🆕 Criar ticket novo</label>
       <label class="check"><input type="radio" name="agm-modo" value="vincular" ${modo==='vincular'?'checked':''}> 🔗 Vincular a ticket existente${ach?' <span class="badge com-horas" data-tip="Ticket desta reunião encontrado no Jira (mesmo título, mesmo dia)">sugerido</span>':''}</label>
@@ -466,7 +626,7 @@ function agAtualizaModal(){
     <div class="muted small" style="font-weight:600;margin:10px 0 4px">👥 Quem aponta <span class="muted" style="font-weight:400">· você aponta na hora; cada convidado confirma com 1 clique (Inbox/Apontar) — o worklog de <b id="agm-dur-ef">${esc(hFmt)}</b> sai no usuário de cada um</span></div>
     <div id="agm-pessoas" style="max-height:180px;overflow:auto">${pessoasHtml}</div>
     ${extraHtml}
-    <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?'👥 Enviar convites':'Confirmar'}</button></div>
+    <div style="margin-top:12px"><button class="btn primario" data-agm-conf="1">${m.fixo?(m.jaPor?'⏱ Apontar no ticket existente':'👥 Enviar convites'):'Confirmar'}</button></div>
     <div class="ap-fb" id="agm-fb" hidden></div>`;
   const mb=document.getElementById('modal-body'); if(mb){ mb.replaceChildren(el(`<div class="ag-modal">${corpo}</div>`)); }
   const foca=(idCampo, p)=>{ const i=document.getElementById(idCampo); if(!i||i.disabled) return; try{ i.focus(); if(p!=null) i.setSelectionRange(p,p); }catch(e){} };
@@ -505,23 +665,66 @@ async function agConfirma(){
     let key=m.fixo;
     if(!key){
       const modo=((document.querySelector('input[name=agm-modo]:checked')||{}).value)||'criar';
+      // 🔒 Reserva a reunião ANTES de criar/vincular: duas pessoas no mesmo segundo → só uma passa.
+      let tv=null;
+      if(ev.uid){
+        if(fb){ fb.className='ap-fb'; fb.textContent='🔒 Reservando a reunião…'; }
+        tv=await agTravaPost(Object.assign({ agtrava:'reservar' }, agTravaMeta(ev)));
+        if(_agM!==m||!agAgModalAberto()){ if(tv&&tv.reservado) agTravaPost({ agtrava:'liberar', uid:ev.uid }).catch(()=>{}); return; }
+        if(tv&&tv.ja){   // alguém criou primeiro: nada é criado — o 📝 vira "aponte no ticket que já existe"
+          agGuardaTrava(ev, Object.assign({ estado:'ok' }, tv.ja)); agJaCriado(m, Object.assign({ estado:'ok' }, tv.ja)); agAtualizaModal();
+          const fb2=document.getElementById('agm-fb'); if(fb2){ fb2.hidden=false; fb2.className='ap-fb'; fb2.textContent=`✋ ${(tv.ja.por&&tv.ja.por.nome)||'Outra pessoa'} criou o ticket ${tv.ja.k} agora há pouco — nada foi criado de novo. Confira quem aponta e confirme.`; }
+          if(agVistaAberta()) renderAgenda();
+          return; }
+        if(tv&&tv.criando){
+          if(tv.criando.minha) throw new Error('Você mesmo está criando o ticket desta reunião em outra aba ou aparelho — termine lá (ou espere 3 minutos) e abra de novo.');
+          agGuardaTrava(ev, Object.assign({ estado:'criando' }, tv.criando)); if(agVistaAberta()) renderAgenda();
+          throw new Error(`${(tv.criando.por&&tv.criando.por.nome)||'Outra pessoa'} está criando o ticket desta reunião agora — espere um instante e abra de novo: quando ficar pronto, você só aponta.`); }
+        if(!agReservaOk(tv)) throw new Error((tv&&tv.erro)||'Não consegui reservar a reunião — tente de novo.');
+      }
+      let certo=false;   // a falha é CERTA (o servidor respondeu "não criei"/"não comentei")? só então a reserva é solta
+      try{
       if(modo==='vincular'){
         key=String((document.getElementById('agm-chave')||{}).value||'').trim().toUpperCase();
         if(!/^[A-Z][A-Z0-9]*-\d+$/.test(key)) throw new Error('Informe a chave do ticket (ex.: IMI-41).');
         const rc=await fetch('/api/transicao',{ method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({ comentar:true, issue:key, texto:`Reunião vinculada: ${ev.titulo}\n${agDescEvento(ev)}`, email:id.email, token:id.token }) });
-        const jc=await rc.json(); if(!jc||!jc.ok) throw new Error((jc&&jc.erro)||'Falha ao comentar no ticket.');
+        const jc=await rc.json(); if(!jc||!jc.ok){ certo=true; throw new Error((jc&&jc.erro)||'Falha ao comentar no ticket.'); }
       } else {
         const proj=((document.getElementById('agm-proj')||{}).value)||'RDF';
-        const tipo=agTipoReuniao(proj); if(!tipo) throw new Error(`Projeto ${proj} sem tipo de issue utilizável.`);
+        const tipo=agTipoReuniao(proj); if(!tipo){ certo=true; throw new Error(`Projeto ${proj} sem tipo de issue utilizável.`); }
         const r=await fetch('/api/criar',{ method:'POST', headers:{'Content-Type':'application/json'},
           body:JSON.stringify({ email:id.email, token:id.token,
-            itens:[{ projeto:proj, tipoId:tipo.id, resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:agDescEvento(ev), venc:dia, labels:['agenda-outlook'] }] }) });
+            itens:[{ projeto:proj, tipoId:tipo.id, resumo:`Reunião: ${ev.titulo}`.slice(0,250), descricao:agDescEvento(ev), venc:dia, labels:['agenda-outlook'].concat(tv&&tv.rotulo?[tv.rotulo]:[]) }] }) });
         const j=await r.json(); const criado=j&&j.criados&&j.criados[0];
-        if(!criado||!criado.key) throw new Error((j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'Falha ao criar o ticket.');
+        if(!criado||!criado.key){ certo=true; throw new Error((j&&j.erros&&j.erros[0]&&j.erros[0].erro)||(j&&j.erro)||'Falha ao criar o ticket.'); }
         key=criado.key;
       }
-      agMarcaTicket(ev.id, key);
+      }catch(e){
+        if(tv&&tv.reservado){
+          if(certo) agTravaPost({ agtrava:'liberar', uid:ev.uid, tok:tv.tok }).catch(()=>{});   // nada criado: a reunião volta a ficar livre
+          // sem resposta (rede, 504): o ticket PODE ter nascido — a reserva fica e, em 3 min, a label decide
+          else throw new Error(`${humanizaErro(e)} — não deu para saber se o ticket foi criado. A reunião fica reservada por 3 minutos; confira no Jira antes de tentar de novo (se ele nasceu, aparece aqui sozinho).`);
+        }
+        throw e; }
+      // 🔒 confirma: a reunião passa a ter dono — todo participante vê o ticket (e quem tentar criar cai nele)
+      if(ev.uid&&tv&&!tv.semTrava){
+        const c=await agTravaPost(Object.assign({ agtrava:'confirmar', k:key, tok:tv.tok }, agTravaMeta(ev))).catch(()=>null);
+        if(c&&c.ok&&c.trava) agGuardaTrava(ev, c.trava);
+        else if(c&&(c.ja||c.criando)){
+          // Enquanto você criava, a reunião ficou com OUTRO ticket (a sua reserva venceu e alguém assumiu): o seu ficou
+          // solto no Jira. Nada de convites nele — o 📝 vira "aponte no ticket da reunião".
+          const outro=c.ja||c.criando;
+          agGuardaTrava(ev, Object.assign({ estado:c.ja?'ok':'criando' }, outro));
+          if(c.ja){ agJaCriado(m, Object.assign({ estado:'ok' }, c.ja)); agAtualizaModal(); }
+          const fb3=document.getElementById('agm-fb'); const msg=`⚠ Enquanto você criava, a reunião ficou com ${c.ja?`o ticket ${c.ja.k}`:'outra reserva'}${outro.por&&outro.por.nome?` (de ${outro.por.nome})`:''}. O seu ${key} ficou solto no Jira — exclua ou 🔗 transfira. ${c.ja?'Aponte aqui no ticket da reunião.':''}`;
+          if(fb3){ fb3.hidden=false; fb3.className='ap-fb err'; fb3.textContent=msg; }
+          toast(msg,'warn'); if(agVistaAberta()) renderAgenda();
+          return; }
+        else { agGuardaTrava(ev,{ estado:'ok', k:key, por:{ acc:id.accountId||'', nome:id.nome||'' }, em:new Date().toISOString() });
+          toast(`⚠ ${key} criado, mas não consegui registrar a trava da reunião agora${tv.rotulo?' — ela se acerta sozinha pela label do ticket':''}.`,'warn'); }
+      }
+      agMarcaTicket(ev.id, key, { semTrava:true });
     }
     let convidados=0, meu=null, avisos=[], gravar=false;   // gravar = houve logAcao(…,false) → UMA salvaCfg() no fim
     if(pessoas.length){
@@ -551,7 +754,9 @@ async function agConfirma(){
     avisos.forEach(a=>toast(a,'warn'));
     _agM=null; fechaModal();
     // o 📝 pode ter sido aberto pelo 📆 Hoje (24b) ou pela Início: redesenha a tela que está aberta — nunca troca pela Agenda
-    if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes(); else renderAgenda();
+    if(ev.uid) agTiraAlerta(ev.uid);   // ⏰ o alerta do fim do dia desta reunião sai do 📥 Inbox
+    if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes();
+    else if(estado.vista==='inbox'){ if(typeof renderInbox==='function') renderInbox(); }   // 📝 Criar agora do Inbox: a tela segue sendo o Inbox
   }catch(err){ if(fb){ fb.classList.add('err'); fb.textContent=humanizaErro(err); } }
 }
 function carregaAgenda(forca){
@@ -563,6 +768,9 @@ function carregaAgenda(forca){
     .then(r=>r.json()).then(j=>{ ag.carregando=false; ag.dados=j;
       if(j&&j.erro&&!(j.eventos&&j.eventos.length)) ag.erro=j.erro;
       ag.autoRodou=false;   // dados novos: reavalia as regras de recorrência
+      try{ agCarregaTravas(); }catch(e){}   // 🔒 quem já criou (ou está criando) o ticket de cada reunião
+      if(ag.abrirUid){ const u=ag.abrirUid; ag.abrirUid=''; const evU=((j&&j.eventos)||[]).find(x=>x.uid===u);   // ⏰ "📝 Criar agora" do Inbox
+        if(evU) setTimeout(()=>agAbreTicket(evU.id),0); else toast('Essa reunião não está no período da agenda.','warn'); }
       if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else agendaRenderAcoes();   // 📆 Hoje (24b) também desenha a agenda
       try{ agAutoCria(); }catch(e){} })
     .catch(e=>{ ag.carregando=false; ag.erro=humanizaErro(e); if(agVistaAberta()) renderAgenda(); else if(estado.vista==='chamadas') chmAgendaChegou(); else if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else agendaRenderAcoes(); });
@@ -576,20 +784,14 @@ async function agRdfTipoReuniao(){
   if(!t) throw new Error('Projeto RDF sem tipo de issue "Reunião" — não dá para criar o ticket.');
   ag.rdfTipo=t.id; return t.id;
 }
-// Eventos que PRECISAM de ticket e dependem de você: os seus e os de organizador
-// externo (qualquer participante interno cria). As ignoradas ficam de fora — é
-// isso que faz o 🚫 valer também no card do Início e no 📆 Fechamento do mês.
-// Null enquanto a agenda não carregou.
+// Eventos que PRECISAM de ticket e qualquer participante pode criar (desde 2026-10-27 inclusive os de um colega —
+// antes eram só os seus e os de organizador externo). Fora: ignoradas e as que outra pessoa está criando agora. É
+// isso que faz o 🚫 valer também no card do Início e no 📆 Fechamento do mês. Null enquanto a agenda não carregou.
 function agPendentes(){
   const d=estado.agenda&&estado.agenda.dados; if(!d||!Array.isArray(d.eventos)) return null;
   return d.eventos.filter(ev=>!ev.privado&&agClasse(ev)==='minha');
 }
-// Reuniões em que um COLEGA da Dexterity convidou você e não criou o ticket —
-// você não consegue apontar enquanto ele não criar. Null antes de carregar.
-function agAguardando(){
-  const d=estado.agenda&&estado.agenda.dados; if(!d||!Array.isArray(d.eventos)) return null;
-  return d.eventos.filter(ev=>!ev.privado&&agClasse(ev)==='colega');
-}
+// (agAguardando saiu em 2026-10-27: com a 🔒 trava, a reunião de um colega também é sua para criar — está em agPendentes.)
 // 📨 Cobra o ORGANIZADOR pelo Inbox: grava um aviso "reunião sem ticket" na config
 // compartilhada (cfg.inboxAvisos[conta do organizador]) — some sozinho quando o
 // ticket é criado/vinculado (limpeza no agMarcaTicket).
@@ -624,19 +826,6 @@ async function agAvisaInbox(evId){
   toast(`📨 Aviso enviado para o Inbox de ${r.nome}.`,'ok');
   renderAgenda();
 }
-// 📨 Cobra de uma vez TODO MUNDO que deixou reunião sua sem ticket.
-async function agCobraTodos(){
-  const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  await agGaranteUsuarios();
-  const alvos=(agAguardando()||[]).filter(ev=>!agAvisoDe(ev.id));
-  if(!alvos.length){ toast('Todo mundo já foi avisado — nada novo para cobrar.','ok'); return; }
-  const nomes=new Set(); let falhas=0;
-  alvos.forEach(ev=>{ const r=agGravaAviso(ev, id); if(r.ok) nomes.add(r.nome); else if(!r.jaTinha) falhas++; });
-  if(nomes.size) salvaCfg();
-  if(nomes.size) toast(`📨 ${alvos.length-falhas} aviso(s) no Inbox de ${[...nomes].map(n=>String(n).split(' ')[0]).join(', ')}.`,'ok');
-  if(falhas) toast(`⚠ ${falhas} organizador(es) sem conta no Jira — esses ficam sem aviso.`,'warn');
-  renderAgenda();
-}
 function agRotuloDia(d){
   const hoje=projHoje();
   if(d===hoje) return 'Hoje';
@@ -669,25 +858,23 @@ function renderAgenda(){
   }
   const evs=d.eventos||[]; const hoje=projHoje();
   const orgExt=agOrgExterno;
-  // 🎫 Controle de tickets: todo evento não particular precisa de ticket. O painel
-  // SEPARA por responsabilidade, em vez de despejar tudo numa lista só:
-  //   ⚠ com você (e, dentro dela, o que já passou fica recolhido)
-  //   ⏳ aguardando quem organizou — você foi convidado e não consegue apontar
+  // 🎫 Controle de tickets: todo evento não particular precisa de ticket. Desde 2026-10-27 QUALQUER participante da
+  // Dexterity cria (antes o convidado ficava "aguardando quem organizou", sem poder apontar):
+  //   ⚠ sem ticket — qualquer um cria (as que já passaram ficam recolhidas)
+  //   ⏳ sendo criadas — outra pessoa reservou a reunião agora (🔒 trava; some em 3 min se não confirmar)
   //   ✓ com ticket · 🚫 ignoradas (recolhidos: são a maior parte do ruído)
   const naoPriv=evs.filter(ev=>!ev.privado);
-  const grupos={ ok:[], minha:[], colega:[], ign:[] };
+  const grupos={ ok:[], minha:[], criando:[], ign:[] };
   naoPriv.forEach(ev=>grupos[agClasse(ev)].push(ev));
   const pend=grupos.minha;
   const pendPass=pend.filter(ev=>(ev.inicio||'').slice(0,10)<hoje);
   const pendProx=pend.filter(ev=>(ev.inicio||'').slice(0,10)>=hoje);
-  const aguard=grupos.colega;
-  const aguardSeg=aguard.reduce((s,ev)=>s+agDuracaoSeg(ev),0);
-  const aguardSemAviso=aguard.filter(ev=>!agAvisoDe(ev.id)).length;
+  const criando=grupos.criando;
   const aberto=(k)=>!!(ag.secoes||{})[k];
   // 🔎 Confere no Jira se as pendentes JÁ têm ticket criado fora do app — pelo resumo E PELO DIA
   // (conta de serviço): se achar, a linha oferece "usar este ticket" e o modal abre em "vincular".
   ag.achados=ag.achados||{};
-  const pendSem=pend.concat(aguard);
+  const pendSem=pend;
   if(ctrl && pendSem.length && !ag.conferiu && !ag.conferindo){   // só a aba do controle mostra o "🟡 achei no Jira"
     ag.conferindo=true;
     // O servidor confere até 8 por pedido: com a semana passada na agenda (2026-10-26) vão LOTES de 8, as mais
@@ -726,37 +913,36 @@ function renderAgenda(){
   // Cabeçalho e linhas dividem UM grid (display:contents nos filhos) — senão cada
   // linha resolve as colunas sozinha e o cabeçalho não alinha com o conteúdo.
   const ctTab=(a,b,linhas)=>`<div class="ag-ct-tab"><div class="ag-ct-head"><span>Reunião</span><span>${a}</span><span>${b}</span><span></span></div>${linhas}</div>`;
-  // ⚠ Depende de VOCÊ — você organizou ou o organizador é de fora da Dexterity.
-  const linhaMinha=(ev)=>{
+  // Quem organizou (só informação — desde 2026-10-27 qualquer participante da Dexterity cria).
+  const ctOrg=(ev)=>ev.meu?'Você':orgExt(ev)?'Externo':esc(String((ev.organizador&&(ev.organizador.nome||ev.organizador.email))||'—').split(' ')[0]);
+  // ⚠ Sem ticket — qualquer participante cria. Quem reservar primeiro trava a reunião para os outros (🔒).
+  const linhaPend=(ev)=>{
     const ach=ctAchado(ev);
-    const quem=ev.meu?'Você (organizou)':'Organizador externo — qualquer interno cria';
+    const colega=!ev.meu&&!orgExt(ev);
+    const av=colega?agAvisoDe(ev.id):null;
     const situ=ach?ctSituAchado(ach)
-      :`<span class="ag-ct-pend">⚠ pendente</span>${ag.conferindo?' <span class="muted small">· 🔎 conferindo no Jira…</span>':''}`;
+      :`<span class="ag-ct-pend">⚠ sem ticket</span>${ag.conferindo?' <span class="muted small">· 🔎 conferindo no Jira…</span>':''}`
+        +(av?` <span class="badge" data-tip="${escA(`Aviso no Inbox de quem organizou${av.quando?` em ${alxDataBR(String(av.quando).slice(0,10))}`:''}`)}">📨 avisado</span>`:'');
     const acao=ach?ctUsar(ev,ach)+ctIgnorar(ev)
-      :`<button class="btn primario" data-ag-criar="${escA(ev.id)}">📝 Criar/vincular</button>${ctAuto(ev)}${ctIgnorar(ev)}`;
-    return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`, esc(quem), situ, acao);
+      :`<button class="btn primario" data-ag-criar="${escA(ev.id)}" data-tip="Qualquer participante da Dexterity cria: quem criar primeiro trava a reunião — os outros veem o ticket e só apontam">📝 Criar/vincular</button>`
+        +(colega&&!av?`<button class="btn" data-ag-avisar="${escA(ev.id)}" data-tip="Deixa um aviso 'reunião sem ticket' no 📥 Inbox de quem organizou (no fim do dia ele recebe o alerta de qualquer jeito)">📨 avisar quem organizou</button>`:'')
+        +`${ctAuto(ev)}${ctIgnorar(ev)}`;
+    return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`, ctOrg(ev), situ, acao);
   };
-  // ⏳ Depende de um COLEGA — ele convidou, não criou o ticket e você fica sem apontar.
-  const linhaColega=(ev)=>{
-    const ach=ctAchado(ev);
-    const org=(ev.organizador&&(ev.organizador.nome||ev.organizador.email))||'quem organizou';
-    const av=agAvisoDe(ev.id);
-    const dAv=av?agDiasAtras(String(av.quando||'').slice(0,10)):0;
-    const situ=ach?ctSituAchado(ach)
-      :`<span class="ag-ct-pend">⏳ sem ticket</span> <span class="badge" data-tip="Horas suas que ficam sem apontamento enquanto o ticket não existe">⏱ ${esc(fmtH(agDuracaoSeg(ev)))}</span>`
-        +(av?` <span class="badge" data-tip="${escA(`Aviso no Inbox de ${org}${av.quando?` em ${alxDataBR(String(av.quando).slice(0,10))}`:''}`)}">📨 avisado${dAv>0?` há ${dAv}d`:''}</span>`:'');
-    const acao=ach?ctUsar(ev,ach)+ctIgnorar(ev)
-      :`${av?'':`<button class="btn primario" data-ag-avisar="${escA(ev.id)}" data-tip="${escA(`Envia um aviso para o 📥 Inbox de ${org}: esta reunião está sem ticket`)}">📨 cobrar</button>`}`
-        +`<button class="btn" data-ag-criar="${escA(ev.id)}" data-tip="${escA(`Não dá para esperar: crie (ou vincule) você mesmo o ticket e aponte — ${org} continua vendo o vínculo`)}">📝 criar assim mesmo</button>${ctIgnorar(ev)}`;
-    return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`,
-      `${esc(String(org).split(' ')[0])} <span class="muted">convidou você</span>`, situ, acao);
+  // ⏳ Outra pessoa reservou a reunião e está criando o ticket agora (🔒) — ninguém mais cria em paralelo.
+  const linhaCriando=(ev)=>{
+    const tv=agTravaDe(ev)||{}; const nome=String(((tv.por||{}).nome)||'Alguém').split(' ')[0];
+    return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`, ctOrg(ev),
+      `<span class="ag-ct-criando">⏳ ${esc(nome)} está criando</span>${tv.em?` <span class="muted small">desde ${esc(String(tv.em).slice(11,16))} UTC</span>`:''}`,
+      `<button class="btn" data-ag-travas="1" data-tip="Confere de novo quem criou o ticket desta reunião">↻ conferir</button>`);
   };
   // ✓ Resolvidas — ficam recolhidas: é o grosso da lista e não pede nada de ninguém.
   const linhaOk=(ev)=>{
     const tk=agTicketDe(ev.id);
     const quem=ev.meu?'Você (organizou)':orgExt(ev)?'Organizador externo':`${esc(String((ev.organizador&&(ev.organizador.nome||ev.organizador.email))||'').split(' ')[0])} (organizou)`;
     const situ=`<span class="ag-ct-ok">✓ criado</span> <a href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">${esc(tk.t)} ↗</a>${tk.por?` <span class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</span>`:''}`;
-    const acao=(ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:'')+ctAuto(ev)+ctDesv(ev);
+    const souDono=agSouDonoTicket(ev);
+    const acao=(souDono?`<button class="btn" data-ag-convidar="${escA(ev.id)}">👥 convidar</button>`:`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="O ticket é de outra pessoa (que já convidou o time) — aponte as SUAS horas nele">⏱ apontar</button>`)+ctAuto(ev)+ctDesv(ev);
     return ctRow(`<strong>${esc(ev.titulo)}</strong> ${ctQuando(ev)}`, quem, situ, acao);
   };
   // 🚫 Ignoradas — agrupadas pela CHAVE (a série aparece uma vez, não uma por dia).
@@ -772,20 +958,19 @@ function renderAgenda(){
   const nAuto=Object.keys(cfg.agendaAuto||{}).length;
   const secao=(k,titulo,corpo)=>`<details class="ag-sec"${aberto(k)?' open':''}><summary data-ag-sec="${escA(k)}">${titulo}</summary><div class="ag-sec-corpo">${corpo}</div></details>`;
   const blocoMinhas=pend.length?`<div class="ag-ct-bloco">
-      <h3 class="ag-ct-h">⚠ Dependem de você <span class="muted small">· ${pend.length} reunião(ões) — as que você organizou e as de organizador externo (qualquer participante da Dexterity cria). O time só aponta depois de criar e convidar.</span></h3>
-      ${pendProx.length?ctTab('Quem cria','Situação',pendProx.map(linhaMinha).join(''))
+      <h3 class="ag-ct-h">⚠ Sem ticket — qualquer participante da Dexterity cria <span class="muted small">· ${pend.length} reunião(ões). 🔒 Quem criar primeiro trava a reunião: os outros veem o ticket e só apontam — ninguém cria em dobro. Se ninguém criar até o fim do dia, quem organizou recebe um alerta no 📥 Inbox.</span></h3>
+      ${ag.semTrava?'<div class="aviso" style="margin:4px 0 8px">⚠ A trava das reuniões está desligada neste ambiente (sem banco configurado) — confira o 🟡 achei no Jira antes de criar.</div>':''}
+      ${pendProx.length?ctTab('Organizou','Situação',pendProx.map(linhaPend).join(''))
         :'<div class="muted small" style="padding:6px 0">✅ Nada pendente de hoje em diante.</div>'}
-      ${pendPass.length?secao('passadas',`🕗 Já aconteceram <span class="muted small">· ${pendPass.length} reunião(ões) atrasada(s) — o apontamento delas ainda depende de você</span>`,
-        `<div class="ag-sec-acao"><button class="btn" data-ag-ign-passadas="1" data-tip="Tira da cobrança todas as reuniões já passadas que dependem de você — nada muda no Outlook nem no Jira">🚫 ignorar as ${pendPass.length} passadas</button></div>`
-        +ctTab('Quem cria','Situação',pendPass.map(linhaMinha).join('')))
+      ${pendPass.length?secao('passadas',`🕗 Já aconteceram <span class="muted small">· ${pendPass.length} reunião(ões) atrasada(s) sem ticket — o time ainda não conseguiu apontar</span>`,
+        `<div class="ag-sec-acao"><button class="btn" data-ag-ign-passadas="1" data-tip="Tira da cobrança todas as reuniões já passadas sem ticket — nada muda no Outlook nem no Jira">🚫 ignorar as ${pendPass.length} passadas</button></div>`
+        +ctTab('Organizou','Situação',pendPass.map(linhaPend).join('')))
         :''}
     </div>`
-    :'<div class="muted small" style="margin:4px 0 8px">✅ Nenhuma pendência sua — o que falta está com quem organizou.</div>';
-  const blocoAguard=aguard.length?`<div class="ag-ct-bloco">
-      <h3 class="ag-ct-h">⏳ Aguardando quem organizou <span class="muted small">· ${aguard.length} reunião(ões) de colegas da Dexterity sem ticket — <b>${esc(fmtH(aguardSeg))}</b> suas sem onde apontar</span></h3>
-      <div class="ag-sec-acao">${aguardSemAviso?`<button class="btn primario" data-ag-cobrar-todos="1" data-tip="Deixa um aviso 'reunião sem ticket' no 📥 Inbox de cada organizador que ainda não foi cobrado">📨 cobrar os ${aguardSemAviso} pendentes</button>`
-        :'<span class="muted small">📨 todo mundo já foi avisado — se não puder esperar, crie o ticket você mesmo na linha.</span>'}</div>
-      ${ctTab('Quem deve criar','Situação',aguard.map(linhaColega).join(''))}
+    :'<div class="muted small" style="margin:4px 0 8px">✅ Nenhuma reunião sem ticket.</div>';
+  const blocoCriando=criando.length?`<div class="ag-ct-bloco">
+      <h3 class="ag-ct-h">⏳ Sendo criadas agora <span class="muted small">· ${criando.length} reunião(ões) que outra pessoa reservou — em instantes o ticket aparece e você só aponta</span></h3>
+      ${ctTab('Organizou','Situação',criando.map(linhaCriando).join(''))}
     </div>`:'';
   const caixaPend=naoPriv.length?`<div class="card full" style="margin-bottom:12px">
     <h2>${h2}</h2>
@@ -794,13 +979,13 @@ function renderAgenda(){
     ${ag.autoRodando?'<div class="aviso" style="margin:6px 0 8px">🔁 Criando os tickets das reuniões recorrentes de hoje…</div>'
       :(nAuto?`<div class="muted small" style="margin:4px 0 8px">🔁 <b>${nAuto}</b> reunião(ões) recorrente(s) automatizada(s): o ticket de cada ocorrência é criado sozinho ao abrir a Agenda — resta apontar as horas.</div>`:'')}
     <div class="ag-ct-kpis">
-      <span class="ag-ct-kpi ${pend.length?'w':'t'}">⚠ <b>${pend.length}</b> com você</span>
-      <span class="ag-ct-kpi ${aguard.length?'w':'t'}">⏳ <b>${aguard.length}</b> com colegas${aguard.length?` · ${esc(fmtH(aguardSeg))} suas`:''}</span>
+      <span class="ag-ct-kpi ${pend.length?'w':'t'}">⚠ <b>${pend.length}</b> sem ticket</span>
+      ${criando.length?`<span class="ag-ct-kpi">⏳ <b>${criando.length}</b> sendo criada(s)</span>`:''}
       <span class="ag-ct-kpi t">✓ <b>${grupos.ok.length}</b> com ticket</span>
       ${grupos.ign.length?`<span class="ag-ct-kpi">🚫 <b>${Object.keys(ignChaves).length}</b> ignorada(s)</span>`:''}
     </div>
     ${blocoMinhas}
-    ${blocoAguard}
+    ${blocoCriando}
     ${grupos.ok.length?secao('ok',`✓ Com ticket <span class="muted small">· ${grupos.ok.length} reunião(ões) resolvida(s) — nada a fazer</span>`,
       ctTab('Quem criou','Ticket',grupos.ok.map(linhaOk).join(''))):''}
     ${linhasIgn?secao('ign',`🚫 Ignoradas <span class="muted small">· ${Object.keys(ignChaves).length} reunião(ões) que não viram ticket</span>`,
@@ -816,14 +1001,15 @@ function renderAgenda(){
       const tk=agTicketDe(ev.id);
       const priv=!!ev.privado;
       const ign=!priv&&!tk&&agIgnorado(ev);
+      const criandoOutro=!priv&&!tk&&!ign&&agCriandoOutro(ev);
       const selo=priv?'<span class="badge" data-tip="Evento particular — não precisa de ticket">🔒 particular</span>'
         :(tk?'':ign?'<span class="badge" data-tip="Marcada como &quot;não precisa de ticket&quot; no 🎫 Controle de tickets — sai das pendências">🚫 ignorada</span>'
-          :(ev.meu?'<span class="badge ms-b-atra" data-tip="Você organizou — crie o ticket para o time apontar">⚠ sem ticket</span>'
-          :orgExt(ev)?'<span class="badge ms-b-atra" data-tip="Organizador de fora da Dexterity — QUALQUER participante da empresa pode criar o ticket">⚠ sem ticket — organizador externo: quem participa cria</span>'
-          :`<span class="badge ms-b-sem" data-tip="Quem organizou cria o ticket e envia os convites de apontamento">sem ticket — cabe a ${escA((ev.organizador.nome||ev.organizador.email||'').split(' ')[0])}</span>`));
+          :criandoOutro?`<span class="badge ag-b-criando" data-tip="Outra pessoa reservou esta reunião e está criando o ticket agora — em instantes ele aparece aqui">⏳ ${esc(String(((agTravaDe(ev)||{}).por||{}).nome||'alguém').split(' ')[0])} está criando</span>`
+          :'<span class="badge ms-b-atra" data-tip="Qualquer participante da Dexterity cria: quem criar primeiro trava a reunião — os outros veem o ticket e só apontam">⚠ sem ticket — qualquer participante cria</span>');
       const acao=tk
-        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">✓ ${esc(tk.t)} ↗</a>${tk.por?`<div class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</div>`:''}${ev.meu?`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="Convidar (mais) participantes para apontar as horas desta reunião">👥 convidar</button>`:''}${ctDesv(ev)}`
-        :`<button class="btn ${priv||ign||!(ev.meu||orgExt(ev))?'':'primario'}" data-ag-criar="${escA(ev.id)}" data-tip="Escolha o projeto (ou vincule a um ticket existente) e convide os participantes para apontar">📝 Criar/vincular ticket</button>`;
+        ?`<a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(tk.t)}" target="_blank" rel="noopener">✓ ${esc(tk.t)} ↗</a>${tk.por?`<div class="muted small" data-tip="Quem criou o ticket">por ${esc(String(tk.por).split(' ')[0])}</div>`:''}${agSouDonoTicket(ev)?`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="Convidar (mais) participantes para apontar as horas desta reunião">👥 convidar</button>`:`<button class="btn" data-ag-convidar="${escA(ev.id)}" data-tip="O ticket é de outra pessoa (que já convidou o time) — aponte as SUAS horas nele">⏱ apontar</button>`}${ctDesv(ev)}`
+        :criandoOutro?`<button class="btn" data-ag-travas="1" data-tip="Confere de novo quem criou o ticket desta reunião">↻ conferir</button>`
+        :`<button class="btn ${priv||ign?'':'primario'}" data-ag-criar="${escA(ev.id)}" data-tip="Escolha o projeto (ou vincule a um ticket existente) e convide os participantes para apontar — quem criar primeiro trava a reunião">📝 Criar/vincular ticket</button>`;
       return `<div class="ag-ev${dia<hoje?' ag-passado':''}">
         <div class="ag-hora">${esc(hora)}</div>
         <div class="ag-info"><strong>${esc(ev.titulo)}</strong> ${badge} ${selo}<br>
@@ -837,7 +1023,7 @@ function renderAgenda(){
   const ontem=voltaDias(hoje,1);
   const diasPass=dias.filter(d=>d<ontem), diasProx=dias.filter(d=>!(d<ontem));
   const nPass=diasPass.reduce((s2,d)=>s2+porDia[d].length,0);
-  const nPassSem=diasPass.reduce((s2,d)=>s2+porDia[d].filter(ev=>!ev.privado&&!agTicketDe(ev.id)&&!agIgnorado(ev)).length,0);
+  const nPassSem=diasPass.reduce((s2,d)=>s2+porDia[d].filter(ev=>!ev.privado&&agClasse(ev)==='minha').length,0);
   const blocos=(diasPass.length?`<details class="ag-sec ag-passados"${aberto('diasPassados')?' open':''}><summary data-ag-sec="diasPassados">🕗 Dias anteriores <span class="muted small">· ${esc(alxDataBR(diasPass[0]))} → ${esc(alxDataBR(diasPass[diasPass.length-1]))} · ${nPass} evento(s)${nPassSem?` · <b>${nPassSem} sem ticket</b>`:''} — clique para ver</span></summary><div class="ag-sec-corpo">${diasPass.map(blocoDia).join('')}</div></details>`:'')
     +diasProx.map(blocoDia).join('');
   try{ renderAbas(); }catch(e){}   // o contador da aba 🎫 (pendências suas) nasce com os dados da agenda, não só no render() geral
@@ -847,11 +1033,11 @@ function renderAgenda(){
   }
   // Faixa-resumo: os números do controle e o caminho para a aba — o controle inteiro saiu desta tela.
   const faixa=naoPriv.length?`<div class="ag-ct-faixa">🎫 <b>Controle de tickets</b>
-      <span class="ag-ct-kpi ${pend.length?'w':'t'}">⚠ <b>${pend.length}</b> com você</span>
-      <span class="ag-ct-kpi ${aguard.length?'w':'t'}">⏳ <b>${aguard.length}</b> com colegas</span>
+      <span class="ag-ct-kpi ${pend.length?'w':'t'}">⚠ <b>${pend.length}</b> sem ticket</span>
+      ${criando.length?`<span class="ag-ct-kpi">⏳ <b>${criando.length}</b> sendo criada(s)</span>`:''}
       <span class="ag-ct-kpi t">✓ <b>${grupos.ok.length}</b> com ticket</span>
       ${grupos.ign.length?`<span class="ag-ct-kpi">🚫 <b>${Object.keys(ignChaves).length}</b> ignorada(s)</span>`:''}
-      <button class="btn ${(pend.length||aguard.length)?'primario':''}" data-ag-goto-ctrl="1" data-tip="Abre a aba 🎫 Controle de tickets: quem cria o ticket de cada reunião, o que falta, cobrar colegas, ignorar e desvincular">Abrir o controle →</button></div>`:'';
+      <button class="btn ${pend.length?'primario':''}" data-ag-goto-ctrl="1" data-tip="Abre a aba 🎫 Controle de tickets: as reuniões sem ticket (qualquer participante cria), as que estão sendo criadas, ignorar e desvincular">Abrir o controle →</button></div>`:'';
   cont.replaceChildren(el(`<div class="tela-agenda">
     <div class="card full"><h2>📅 Agenda <span>${esc(d.de||'')} → ${esc(d.ate||'')} · seus eventos do Outlook — 1 clique vira ticket de reunião</span></h2>
       <div class="ts-fonte" style="gap:12px;flex-wrap:wrap">
@@ -886,8 +1072,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     pintaBadgeInbox(); renderAgenda(); return; }
   const av=e.target.closest&&e.target.closest('[data-ag-avisar]');
   if(av){ if(!idApontar()){ abreIdentidade(); return; } agAvisaInbox(av.getAttribute('data-ag-avisar')); return; }
-  const cb=e.target.closest&&e.target.closest('[data-ag-cobrar-todos]');
-  if(cb){ agCobraTodos(); return; }
+  const tr=e.target.closest&&e.target.closest('[data-ag-travas]');
+  if(tr){ estado.agenda.travasCarr=false; agCarregaTravas(); toast('🔒 Conferindo quem criou os tickets das reuniões…','ok'); return; }
   const ig=e.target.closest&&e.target.closest('[data-ag-ignorar]');
   if(ig){ const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===ig.getAttribute('data-ag-ignorar')); if(!ev) return;
     if(agSerieDe(ev)&&!confirm(`Ignorar "${ev.titulo}"? Esta reunião é recorrente — TODAS as ocorrências saem das pendências (aqui, no card do Início e no Fechamento do mês). Nada muda no Outlook nem no Jira, e dá para voltar a cobrar quando quiser.`)) return;
@@ -914,12 +1100,21 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
     pintaBadgeInbox(); renderAgenda(); return; }
   const cv=e.target.closest&&e.target.closest('[data-ag-convidar]');
   if(cv){ if(!idApontar()){ abreIdentidade(); return; }
-    const tk=agTicketDe(cv.getAttribute('data-ag-convidar'));
-    agAbreTicket(cv.getAttribute('data-ag-convidar'), (tk&&tk.t)||''); return; }
+    const evId=cv.getAttribute('data-ag-convidar');
+    const tk=agTicketDe(evId);
+    agAbreTicket(evId, (tk&&tk.t)||'');
+    // ticket de OUTRA pessoa (trava): o modal abre em "aponte as suas horas", com só você marcado
+    const evC=agEvento(evId); const tvC=agTravaDe(evC);
+    if(_agM&&tvC&&tvC.estado==='ok'&&!agSouDonoTicket(evC)){ agJaCriado(_agM, tvC); agAtualizaModal(); }   // inclusive para quem organizou
+    return; }
   const bt=e.target.closest&&e.target.closest('[data-ag-criar]');
   if(!bt) return;
   if(!idApontar()){ abreIdentidade(); return; }
   agAbreTicket(bt.getAttribute('data-ag-criar'));
+});
+// 🔒 Voltou para a aba com a Agenda aberta: relê as travas (alguém pode ter criado o ticket de uma reunião enquanto isso).
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&estado.agenda.dados&&!estado.agenda.travasCarr&&idApontar()) agCarregaTravas();   // Agenda, Início, Hoje…
 });
 // Modal do ticket da reunião (vive em #modal): confirmar, trocar modo/projeto.
 document.addEventListener('click',(e)=>{
