@@ -585,14 +585,18 @@ function abreModalDuplicados(){
       <button class="btn" id="gx-fechar">Fechar</button></div>`);
 }
 // ---- Ajustar épicos: tickets abertos SEM épico (soltos) → vincula ao épico do projeto ----
+// 🧩 (2026-10-27) Também serve o ⏱ Apontar: `opts.lista` (função → tickets) troca a fonte (padrão: a lista da Gestão) e
+// `opts.depois(oks, paiKey, epico)` avisa quem abriu, para atualizar a PRÓPRIA cópia dos tickets e redesenhar. O nível
+// (`t.n`, do /api/vencimentos) manda quando existe: só tarefa/história (0) tem épico como pai.
 let _gxEp=null;
-function gxSoltos(){
-  const todos=((estado.gestao.dados||{}).tickets)||[];
-  return todos.filter(t=>!t.pai && !t.sub && !/épico|epic/i.test(t.t||''));
+function gxSoltos(fonte){
+  const todos=(typeof fonte==='function'?fonte():((estado.gestao.dados||{}).tickets))||[];
+  return todos.filter(t=>!t.pai && !t.sub && (typeof t.n==='number'?t.n===0:!/épico|epic/i.test(t.t||'')));
 }
-function abreModalEpicos(){
+function abreModalEpicos(opts){
+  const o=(opts&&typeof opts==='object'&&!(opts instanceof Event))?opts:{};
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  const soltos=gxSoltos();
+  const soltos=gxSoltos(o.lista);
   if(!soltos.length){
     abreModal(`<h2>🧩 Ajustar épicos</h2>
       <div class="pl-res-ok">✓ Nenhum ticket solto: todos os tickets abertos carregados já têm épico/pai (subtarefas e épicos ficam de fora da conta).</div>
@@ -600,7 +604,7 @@ function abreModalEpicos(){
     return;
   }
   const projs=[...new Set(soltos.map(t=>t.p))].sort();
-  _gxEp={ epicos:{}, sel:{}, aplicando:false };
+  _gxEp={ epicos:{}, sel:{}, aplicando:false, lista:o.lista||null, depois:(typeof o.depois==='function')?o.depois:null };
   abreModal(`<h2>🧩 Ajustar épicos</h2><div class="estado">Carregando os épicos de ${projs.length} projeto(s)…</div>`);
   Promise.all(projs.map(p=>fetch(`/api/projetos?epicos=${encodeURIComponent(p)}`).then(r=>r.json()).catch(()=>null)))
     .then(rs=>{ if(!_gxEp) return;
@@ -610,7 +614,7 @@ function abreModalEpicos(){
 }
 function renderGxEpModal(){
   const ctx=_gxEp; if(!ctx) return;
-  const soltos=gxSoltos();
+  const soltos=gxSoltos(ctx.lista);
   const grupos={}; soltos.forEach(t=>{ (grupos[t.p]=grupos[t.p]||[]).push(t); });
   const projs=Object.keys(grupos).sort();
   const comEp=projs.filter(p=>(ctx.epicos[p]||[]).length);
@@ -621,7 +625,7 @@ function renderGxEpModal(){
       <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
     return;
   }
-  const nomeProj=(p)=>{ const pr=((estado.gestao.dados||{}).projetos||{})[p]; return pr?`${p} — ${pr.nome}`:p; };
+  const nomeProj=(p)=>{ const pr=((estado.gestao.dados||{}).projetos||{})[p]; return pr?`${p} — ${pr.nome}`:projNomeCod(p); };
   const bloco=(p)=>{
     const a=grupos[p]; const eps=ctx.epicos[p];
     if(!ctx.sel[p]||!eps.some(e=>e.k===ctx.sel[p])) ctx.sel[p]=eps[0].k;
@@ -663,6 +667,7 @@ async function gxAplicaEpico(p){
     }
     const okSet=new Set(j.oks||[]);
     (((estado.gestao.dados||{}).tickets)||[]).forEach(t=>{ if(okSet.has(t.k)) t.pai=paiKey; });
+    if(ctx.depois) try{ ctx.depois([...okSet], paiKey, (ctx.epicos[p]||[]).find(e=>e.k===paiKey)||null); }catch(e){}
     (j.oks||[]).forEach(k=>logAcao({acao:'epico', t:k, para:paiKey, ok:true}, false));
     salvaCfg();
     toast(`✓ ${j.ajustados} ticket(s) vinculados ao épico ${paiKey}.`+((j.falhas||[]).length?` ⚠ ${j.falhas.length} falharam.`:''), (j.falhas||[]).length?'warn':'ok');

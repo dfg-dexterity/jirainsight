@@ -40,9 +40,11 @@ async function carregaVenc(ate, forca){
   const ap=estado.apontar;
   const key=ate+'|'+(ap.semVenc?1:0);
   if(!forca && ap.porData[key]) return ap.porData[key];
-  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${forca?'&nocache=1':''}`);
+  const nc=forca||ap.paiSujo;   // 🧩 depois de trocar um pai, a próxima leitura não pode vir do cache antigo do servidor
+  const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${nc?'&nocache=1':''}`);
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
+  if(nc) ap.paiSujo=false;
   j.lidoEm=hojeSP();      // dia (SP) em que o navegador leu — a lista de ontem não serve para o "vencido" de hoje
   j.lidoTs=Date.now();    // e a hora: o seletor 🎫 Ver meus tickets… relê quando a contagem tem mais de 5 min
   ap.porData[key]=j;
@@ -395,6 +397,7 @@ function renderApontar(){
   if(ap.soMeus && id && id.accountId) lista=lista.filter(t=>t.respId===id.accountId);
   if(ap.busca){ const q=ap.busca.toLowerCase();
     lista=lista.filter(t=>(t.k+' '+t.resumo+' '+t.p+' '+(t.resp||'')).toLowerCase().includes(q)); }
+  ap.listaVisivel=lista.map(t=>t.k);   // 🧩 o "vincular vários" do seletor só pega o que está à vista
 
   // ---- Faixa de identidade ----
   const faixaId = id
@@ -494,7 +497,8 @@ function renderApontar(){
   const respBtn=(t)=> t.resp
     ? `<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
     : `<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`;
-  const linhaTicket=(t,extras)=>{
+  // `pula` (🧩 2026-10-27): níveis do topo do caminho que o cartão não repete — no agrupado por épico, a raiz é o cabeçalho.
+  const linhaTicket=(t,extras,pula)=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
@@ -508,7 +512,8 @@ function renderApontar(){
         ${ehReuniao?`<button class="btn" data-ap-grupo="${escA(t.k)}" data-tip="Apontar esta reunião para o time inteiro ou para algumas pessoas">👥 em grupo</button>`:''}
         <div class="ap-fb" hidden></div>
       </div>` : '';
-    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}" data-k="${escA(t.k)}">
+    return `<div class="ap-row ${t.seg?'tem-horas':'zero-horas'}${t.pai?' aph-com-pai':''}" data-k="${escA(t.k)}">
+      ${aphCadeiaHTML(t, pula)}
       <div class="ap-l1">
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
@@ -520,6 +525,7 @@ function renderApontar(){
         ${id?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`
             :`<span class="badge">${esc(t.status)}</span>`}
         ${t.prio?`<span class="badge prio-badge" data-tip="Prioridade: ${escA(t.prio)}">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
+        ${id?aphBotaoHTML(t):''}
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
@@ -567,7 +573,7 @@ function renderApontar(){
     const arr=lista.slice().sort((a,b)=>((a.venc||'9999-99-99').localeCompare(b.venc||'9999-99-99'))||a.p.localeCompare(b.p));
     const tr=arr.map(t=>`<tr>
       <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
-      <td class="ap-tab-res">${esc(t.resumo||'')}</td>
+      <td class="ap-tab-res">${esc(t.resumo||'')}${t.pai?`<div class="aph-tab-cad" title="Caminho até este ticket">🧩 ${esc(aphCadeia(t).map(n=>n.k+(n.r?' '+n.r:'')).join(' › '))}</div>`:''}</td>
       <td data-tip="${escA(t.p)}">${esc(projNome(t.p))}</td>
       <td>${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()"> `:''}${esc(t.t)}</td>
       <td>${esc(t.status)}</td>
@@ -604,7 +610,8 @@ function renderApontar(){
   const viewToggle=`<div class="ap-vis"><span class="muted small">Visualização:</span>
     <button class="chip" aria-pressed="${ap.vis==='lista'}" data-ap-vis="lista">▤ Lista</button>
     <button class="chip" aria-pressed="${ap.vis==='tabela'}" data-ap-vis="tabela">▦ Tabela</button>
-    <button class="chip" aria-pressed="${ap.vis==='quadro'}" data-ap-vis="quadro">🗂 Quadro</button></div>`;
+    <button class="chip" aria-pressed="${ap.vis==='quadro'}" data-ap-vis="quadro">🗂 Quadro</button>
+    ${(ap.vis||'lista')==='lista'?`<button class="chip aph-agrupa" aria-pressed="${aphAgrupaLigado()}" data-aph-agrupa data-tip="Dentro de cada projeto, um bloco por épico (ou pai): os filhos aparecem recuados debaixo do pai, e os soltos ficam em “Sem épico/pai”">🧩 Agrupar por épico/pai</button>`:''}</div>`;
 
   const vazio = `<div class="estado">Nenhum chamado ${ap.fil==='vencidos'?'vencido':ap.fil==='semhoras'?'sem horas':''} para os filtros atuais.
      ${ap.soMeus&&id?'<br><span class="small">Dica: desmarque “Só os meus” para ver os chamados de todo o time.</span>':''}</div>`;
@@ -626,7 +633,7 @@ function renderApontar(){
         <span class="ap-proj-nome">${esc(pk)}</span>
         <span class="spacer"></span>
         <span class="ap-proj-cont">${grupo.length} chamado(s)</span></button>`;
-      return cab + (recolhido?'':grupo.map(t=>linhaTicket(t)).join(''));   // sem o índice do map: ele caía em `extras` e virava um número solto ao lado das horas
+      return cab + (recolhido?'':(aphAgrupaLigado()?aphGrupoHTML(grupo, linhaTicket, pk):grupo.map(t=>linhaTicket(t)).join('')));   // sem o índice do map: ele caía em `extras` e virava um número solto ao lado das horas
     }).join('');
     const barraGrupos = chavesProj.length>1
       ? `<div class="ap-grp-bar"><span class="muted small">${chavesProj.length} projetos</span><span class="spacer"></span>
@@ -724,7 +731,9 @@ async function fazApontamento(btn){
   let row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-key');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  let tempoEl=row.querySelector('.ap-tempo'), comEl=row.querySelector('.ap-coment'), fb=row.querySelector('.ap-fb');
+  // o retorno vai para o .ap-fb da LINHA DE APONTAR — os painéis abertos no cartão (🧩, status…) têm o deles
+  const fbDe=(r)=>r.querySelector('.ap-log .ap-fb')||r.querySelector('.ap-fb');
+  let tempoEl=row.querySelector('.ap-tempo'), comEl=row.querySelector('.ap-coment'), fb=fbDe(row);
   const dataEl=row.querySelector('.ap-data');
   const seg=parseTempo(tempoEl.value);
   fb.hidden=false; fb.className='ap-fb';
@@ -739,7 +748,7 @@ async function fazApontamento(btn){
     await apGaranteMeusLogs(inicio);
     // A janela chegando redesenha a lista (apCarregaRecentes → renderApontar): a linha capturada pode ter saído da tela.
     const rowNova=document.querySelector(`#conteudo .ap-row[data-k="${CSS.escape(k)}"]`);
-    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=row.querySelector('.ap-fb');
+    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=fbDe(row);
       btn=row.querySelector(`[data-ap-key="${CSS.escape(k)}"]`)||btn; fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; ocupado(btn,true); }
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({issue:k,segundos:seg,inicio,comentario,email:id.email,token:id.token})}).then(r=>r.json());
@@ -787,7 +796,7 @@ async function toggleTransicoes(btn){
   const row=btn.closest('.ap-row'); if(!row) return;
   const k=btn.getAttribute('data-ap-st');
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
-  const aberto=row.querySelector('.ap-trans');
+  const aberto=row.querySelector('.ap-trans:not(.aph-painel)');   // o 🧩 seletor de pai (13b) é outro painel: não conta
   if(aberto){ aberto.remove(); return; }                 // segundo clique fecha
   const area=document.createElement('div'); area.className='ap-trans';
   area.innerHTML='<span class="muted small">Carregando transições…</span>';
