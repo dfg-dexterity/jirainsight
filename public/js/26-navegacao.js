@@ -126,7 +126,7 @@ const ABAS_N={
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
   gp:      { n:()=>(typeof gpPendN==='function')?gpPendN():null, tip:'ticket(s) vencido(s) ou parado(s) nos projetos em foco' },
-  agcontrole: { n:()=>{ const p=(typeof agPendentes==='function')?agPendentes():null; return p?p.length:null; }, tip:'reunião(ões) sem ticket que dependem de você' },
+  agcontrole: { n:()=>{ const p=(typeof agPendentes==='function')?agPendentes():null; return p?p.length:null; }, tip:'reunião(ões) sem ticket — qualquer participante cria' },
   chamadas: { n:()=>(typeof chmPendentes==='function')?chmPendentes().length:null, tip:'ligação(ões) do Mac esperando ticket ou apontamento' },
 };
 function abaN(v){ const c=ABAS_N[v]; if(!c) return ''; let n=null; try{ n=c.n(); }catch(e){ n=null; }

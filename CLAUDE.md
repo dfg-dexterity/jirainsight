@@ -243,6 +243,43 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   aconteceram. A conferência geral no Jira vai em **lotes de 8** (o servidor corta em 8 por pedido), das mais recentes,
   até `AG_CONF_MAX`=48 — antes só as 8 primeiras eram conferidas. `agAutoCria` continua só para HOJE. Testes:
   `agsem/janela-test.mjs` (handler real com fetch simulado e relógio fixo) e `agenda-semana-test.mjs` (Playwright, 15).
+  **🔒 Trava do ticket de reunião + ⏰ alerta de fim do dia (2026-10-27, a pedido do usuário: "o organizador demora para
+  criar, todo mundo fica sem apontar, e se outra pessoa cria não existe trava; os eventos que envolvem pessoas da Dexterity
+  podem ser criados por qualquer pessoa, mas se uma cria, outra não pode criar o mesmo; um alerta no fim do dia, só para o
+  organizador, se ninguém criou"):** o vínculo antigo (`cfg.agendaTickets[evId]`) era pela chave `id` do Outlook, que é
+  DIFERENTE em cada agenda — quem não criou não via o ticket. A chave comum é o **`uid` = `iCalUId`** (o `agenda()` do
+  `api/reunioes.js` agora o devolve). A **trava mora no servidor** — `api/_lib/agenda.js` (graphToken mudou-se para cá;
+  `reunioes.js` o reexporta para o 🌐 portal): UMA linha por reunião em `jirainsight_config` (`agtk_<sha256(uid)>`, nunca na
+  `default`); **o INSERT é a trava** (409 = alguém chegou antes). Estados `criando` (vale 3 min, `TRAVA_TTL_MS`) / `ok` (com
+  o ticket) / `nao` (lápide do ✂ desvincular: livre, mas o vínculo antigo da config não ressuscita). Sub-rota `POST
+  /api/reunioes {agtrava:'ler'|'reservar'|'confirmar'|'liberar'}` (identidade pelo `/myself` — o nome de quem reservou vem
+  do Jira, nunca do navegador). **Regras da revisão (mesmo dia, 22 achados):** a reserva devolve uma **ficha (`tok`)** e
+  confirmar/soltar sem a ficha não mexe numa reserva viva — nem a da mesma pessoa noutra aba (`criando.minha`); confirmar é
+  condicional (INSERT quando não há linha, PATCH filtrado pelo `updated_at` lido) e devolve `ja`/`criando`; `migracao`
+  (vínculo antigo → trava) só com a reunião SEM linha; tomar uma reserva vencida confere antes a **label
+  `agenda-uid-<hash>`** que todo ticket da Agenda leva e, se a busca no Jira FALHA, recusa (não assume); o cliente só segue
+  com `reservado`/`semTrava` explícitos (`agReservaOk` — erro do servidor não conta como reservado), solta a reserva só em
+  falha CERTA (o Jira respondeu "não criei"; sem resposta a reserva fica e a label decide em 3 min), e a confirmação que
+  volta `ja`/`criando` vira "o seu ticket ficou solto — aponte no da reunião" sem convites; `agMarcaTicket` só deixa de
+  gravar na config com a trava SABIDAMENTE ligada (`semTrava===false`) e, se a confirmação falha, grava a config como
+  reserva (`agMarcaFallback`); o ✂ sempre chega ao servidor; a reserva "criando" também vence na tela (`agCriandoOutro`
+  confere o `em`) e a lista é relida 65 s depois quando há reserva viva; o dono do ticket (👥 convidar × ⏱ apontar) é quem
+  CRIOU (`agSouDonoTicket`), não quem organizou. **Tela (03):** `agClasse` = ok · minha (QUALQUER participante cria — o
+  bloco "aguardando quem organizou" e o "cobrar todos" saíram; o 📨 avisar ficou como secundário) · criando · ign;
+  `agCarregaTravas` lê junto com a agenda (lotes de 150) e migra vínculos antigos; `agConfereTravaModal` relê ao abrir o 📝;
+  `agJaCriado` vira o 📝 em "Fulano já criou — aponte aqui" (só você marcado). As **📞 Ligações** reservam antes de criar
+  (14c). **⏰ Alerta:** `alertaFimDoDia` (fase do tique de 30 min do `api/teams.js`, a partir de `AGENDA_ALERTA_HORA`,
+  padrão 18:00; `?tipo=agenda-alerta` manual só com CRON_SECRET) lê pela `$batch` do Graph a agenda de cada pessoa ativa
+  do Jira, fica com as reuniões que ELA organizou (`isOrganizer`), com mais alguém da Dexterity, que **terminaram** na
+  janela `(desde, ate]` (em andamento fica para a próxima), sem trava `ok`, sem vínculo antigo, não ignoradas e sem ticket
+  achado pela label ou título+dia (a lápide pula as duas conferências) — e grava o aviso em `agal_<sha256(email)>` (`vistos`:
+  o dispensado não volta) + DM do Teams só para quem ganhou alerta novo (`AGENDA_ALERTA_TEAMS=0` desliga). Leitura do Graph
+  que falha de passagem (429/5xx) → `erroLeitura` e o dia NÃO é carimbado; a janela tem teto de 5 dias (emenda de feriado).
+  O 📥 Inbox lê os alertas por `POST /api/reunioes {agalertas:'ler'|'dispensar'}` (o servidor tira os que ganharam ticket,
+  foram ignorados ou vinculados) — `inboxAlertasAgenda()`, card "⏰ Reuniões suas sem ticket" com 📝 Criar agora
+  (`agAbrePorUid`). Testes: `agenda-trava-test.mjs` (Playwright, 70 casos, duas pessoas com ids diferentes; fixture
+  `POST /api/_trava {limpar|travas|alertas|semTrava|falha|confirmaJa}` no `servidor-mini.mjs`) e `agsem/agtrava-test.mjs`
+  (handlers reais com Supabase/Jira/Graph falsos, 48 casos).
 - **📞 Ligações — Call tracking (2026-10-09, a pedido do usuário: "qualquer ligação no meu computador — WhatsApp,
   Teams, Google Meet —, assim que acabar, um pop-up para criar um ticket daquela reunião ou apontar minhas horas num
   ticket já criado; igual ao Call Timing do Timing, integrado ao Jira Insights"):** o usuário usa **Mac** (o Timing é

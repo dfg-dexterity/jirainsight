@@ -226,6 +226,10 @@ function inboxAvisosAgenda(){
   const id=idApontar();
   return (id&&id.accountId&&(cfg.inboxAvisos||{})[id.accountId])||[];
 }
+// ⏰ Alertas de fim do dia (2026-10-27): reuniões que EU organizei e ninguém criou o ticket até o fim do dia. Vêm do
+// servidor (/api/reunioes {agalertas}, linha própria por organizador — nunca na config compartilhada) e somem sozinhos
+// quando alguém cria o ticket (o servidor filtra pela 🔒 trava) ou quando eu dispenso.
+function inboxAlertasAgenda(){ return (estado.inbox&&estado.inbox.agAlertas)||[]; }
 // Menções sem resposta (as ignoradas não contam) — alimenta o Inbox e o contador da aba 💬 Menções (fase 4).
 function mencoesPend(){
   const ign=mnIgnoradasSet();
@@ -233,7 +237,7 @@ function mencoesPend(){
 }
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
-  return conv+mencoesPend()+inboxAprovacoes().length+inboxAvisosAgenda().length+((estado.inbox.planos)||[]).length;
+  return conv+mencoesPend()+inboxAprovacoes().length+inboxAvisosAgenda().length+inboxAlertasAgenda().length+((estado.inbox.planos)||[]).length;
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
@@ -262,7 +266,11 @@ function carregaInbox(forca){
   const pP=souAprovador()
     ? mpApi({acao:'pendencias'}).then(j=>{ ib.planos=(j&&j.ok&&j.pendencias)||[]; }).catch(()=>{ ib.planos=ib.planos||[]; })
     : Promise.resolve(ib.planos=[]);
-  Promise.all([pC,pM,pP]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
+  // ⏰ alertas de fim do dia (só os meus, como organizador); falha → lista vazia (o resto do Inbox segue)
+  const pA=(typeof agTravaPost==='function')
+    ? agTravaPost({agalertas:'ler'}).then(j=>{ ib.agAlertas=(j&&j.ok&&Array.isArray(j.avisos))?j.avisos:[]; }).catch(()=>{ ib.agAlertas=ib.agAlertas||[]; })
+    : Promise.resolve();
+  Promise.all([pC,pM,pP,pA]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
     if(estado.vista==='inbox') renderInbox(); else agendaRenderAcoes(); });   // o card 💬 Aguardando sua resposta da Início lê as menções
 }
 function renderInbox(){
@@ -285,13 +293,14 @@ function renderInbox(){
   const avs=avsTodos.filter(a=>!(a&&a.gp));     // 📅 reuniões sem ticket (Agenda)
   const avsGp=avsTodos.filter(a=>a&&a.gp);      // 🧭 pendências de projeto — o gerente cobrou pela tela 🧭 (20b)
   const plns=(souAprovador()&&ib.planos)||[];
-  const total=cvs.length+mens.length+aprs.length+avs.length+avsGp.length+plns.length;
+  const als=inboxAlertasAgenda();               // ⏰ reuniões que você organizou e ninguém criou o ticket até o fim do dia
+  const total=cvs.length+mens.length+aprs.length+avs.length+avsGp.length+als.length+plns.length;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
     <div class="kpi a"><div class="v">${cvs.length}</div><div class="l">🤝 Convites de apontamento</div></div>
     <div class="kpi a"><div class="v">${mens.length}</div><div class="l">💬 Menções sem resposta</div></div>
-    ${avs.length?`<div class="kpi w"><div class="v">${avs.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
+    ${(avs.length+als.length)?`<div class="kpi w"><div class="v">${avs.length+als.length}</div><div class="l">📅 Reuniões sem ticket</div></div>`:''}
     ${avsGp.length?`<div class="kpi w"><div class="v">${avsGp.length}</div><div class="l">🧭 Pendências de projeto</div></div>`:''}
     ${souAprovador()?`<div class="kpi ${plns.length?'w':'a'}"><div class="v">${plns.length}</div><div class="l">📋 Planos semanais p/ aprovar</div></div>`:''}
     ${souAprovador()?`<div class="kpi a"><div class="v">${aprs.length}</div><div class="l">🔒 Alocações p/ aprovar</div></div>`:''}
@@ -324,6 +333,21 @@ function renderInbox(){
         <span class="spacer"></span>
         <button class="btn primario" data-goto="agcontrole">🎫 Abrir o Controle de tickets para criar →</button>
         <button class="btn" data-ib-avdel="${escA(a.evId)}" data-tip="Dispensa este aviso do SEU Inbox (não muda a Agenda nem o Jira)">✕</button>
+      </div>`).join('')}</div>
+  </div>`:'';
+
+  // ⏰ Fim do dia sem ticket — você organizou, ninguém criou; o time não conseguiu apontar. "📝 Criar agora" abre o 📝
+  // da reunião (a 🔒 trava vale: se alguém criar no meio-tempo, o modal mostra o ticket dele).
+  const secAl=als.length?`<div class="card full">
+    <h2>⏰ Reuniões suas sem ticket <span>você organizou e ninguém criou o ticket até o fim do dia — o time não consegue apontar</span></h2>
+    <div class="cv-lista">${als.map(a=>`
+      <div class="cv-row">
+        <strong>${esc(a.titulo||'(sem título)')}</strong>
+        ${a.inicio?`<span class="badge">${esc(alxDataBR(String(a.inicio).slice(0,10)))} ${esc(String(a.inicio).slice(11,16))}</span>`:''}
+        <span class="badge" data-tip="Alerta automático do fim do dia — só quem organizou recebe">⏰ alerta do fim do dia</span>
+        <span class="spacer"></span>
+        <button class="btn primario" data-ib-alcriar="${escA(a.uid)}" data-tip="Abre o 📝 Ticket da reunião (se alguém criou nesse meio-tempo, ele mostra o ticket e você só aponta)">📝 Criar agora</button>
+        <button class="btn" data-ib-aldel="${escA(a.uid)}" data-tip="Dispensa este alerta do SEU Inbox (não muda a Agenda nem o Jira)">✕</button>
       </div>`).join('')}</div>
   </div>`:'';
 
@@ -409,13 +433,22 @@ function renderInbox(){
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
-    ${secGp}${secAg}
+    ${secGp}${secAl}${secAg}
     ${secPl}
     ${secConv}
     ${secMen}
     ${secApr}
   </div>`));
 }
+// ⏰ Alerta de fim do dia: 📝 Criar agora (abre o 📝 da reunião pela chave comum — a agenda carrega se preciso) e ✕.
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  const ac=e.target.closest&&e.target.closest('[data-ib-alcriar]');
+  if(ac){ agAbrePorUid(ac.getAttribute('data-ib-alcriar')); return; }
+  const ad=e.target.closest&&e.target.closest('[data-ib-aldel]'); if(!ad) return;
+  const uid=ad.getAttribute('data-ib-aldel'); const ib=estado.inbox;
+  ib.agAlertas=(ib.agAlertas||[]).filter(a=>a.uid!==uid); pintaBadgeInbox(); if(estado.vista==='inbox') renderInbox();
+  agTravaPost({agalertas:'dispensar', uid}).catch(()=>toast('Não consegui dispensar o alerta no servidor — ele pode voltar na próxima leitura.','warn'));
+});
 // Dispensar aviso de reunião sem ticket (só some do MEU Inbox) + abrir aprovações de plano.
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pl=e.target.closest&&e.target.closest('[data-ib-plano]');

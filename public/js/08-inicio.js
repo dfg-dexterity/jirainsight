@@ -559,19 +559,18 @@ function renderAcoes(){
         `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt+gateTxt)}</div>`,'minhasemana', itensP.length?'Abrir Meu Planejamento →':'Planejar agora →');
     // 📅 reuniões sem ticket
     if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
+    // 🚫 ignoradas e as que outra pessoa está criando agora já ficaram de fora de agPendentes; desde 2026-10-27 as
+    // reuniões de colegas estão nela também — qualquer participante cria (🔒 quem criar primeiro trava a reunião).
     const agp=agPendentes();
-    // 🚫 ignoradas já ficaram de fora de agPendentes; agAguardando são as de colegas
-    // da Dexterity que convidaram você e não criaram o ticket — você fica sem apontar.
-    const agAg=(typeof agAguardando==='function')?agAguardando():null;
     const agIndisp=estado.agenda.erro||(estado.agenda.dados&&estado.agenda.dados.configurado===false);
-    const agLinhaCol=(agAg&&agAg.length)?`<div class="ax-det">⏳ ${agAg.length} de colega(s) sem ticket — ${fmtH(agAg.reduce((s,ev)=>s+agDuracaoSeg(ev),0))} suas sem onde apontar</div>`:'';
+    const agLinhaCol='';
     const cAg=agIndisp
       ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">—</div><div class="ax-det">Agenda do Outlook indisponível</div>','agenda','Abrir Agenda →')
       :agp==null
         ?pcard('load','📅','Reuniões sem ticket','<div class="ax-num muted">…</div><div class="ax-det">Consultando o Outlook…</div>','agenda','Abrir Agenda →')
-        :pcard((agp.length===0&&!(agAg&&agAg.length))?'ok':'aten','📅','Reuniões sem ticket',
-          `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'suas ou de organizador externo — crie para o time apontar':'nada depende de você ✅'}</div>${agLinhaCol}`,
-          'agcontrole', (agp.length||(agAg&&agAg.length))?'Resolver no 🎫 Controle →':'Abrir o 🎫 Controle →');   // a aba 🎫 Controle de tickets da Agenda
+        :pcard(agp.length===0?'ok':'aten','📅','Reuniões sem ticket',
+          `<div class="ax-num">${agp.length}</div><div class="ax-det">${agp.length?'qualquer participante cria — quem criar primeiro trava a reunião e o time aponta':'todas as suas reuniões têm ticket ✅'}</div>${agLinhaCol}`,
+          'agcontrole', agp.length?'Resolver no 🎫 Controle →':'Abrir o 🎫 Controle →');   // a aba 🎫 Controle de tickets da Agenda
     // 📥 inbox
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
     const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
