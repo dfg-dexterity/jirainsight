@@ -119,7 +119,7 @@
           <button data-v="chamadas" data-exata class="nav-sub" title="Ligações (Teams, WhatsApp, Google Meet…) que o detector do Mac percebeu — aponte num ticket ou crie o da reunião">📞 Apontar minhas ligações (Mac)</button>
           <div class="navg-sec">Minha semana</div>
           <button data-v="minhasemana" data-exata title="Meu Planejamento: planeje a semana por atividade (projeto + horas), envie ao gestor"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📋 Planejar minha semana</button>
-          <button data-v="planrel" data-aud="minha" data-exata class="nav-sub" title="Planejado × realizado da SUA semana (a visão do time fica em Dexterity Entrega)">📈 Comparar planejado × realizado</button>
+          <button data-v="planrel" data-aud="minha" data-exata class="nav-sub" title="Planejado × realizado da SUA semana (a visão do time fica em Dexterity Insights)">📈 Comparar planejado × realizado</button>
           <button data-v="meutempo" data-exata title="Como estou gastando meu tempo? — o seu histórico de apontamentos em gráficos e a análise por IA"><svg class="nav-ic"><use href="#ic-analise"/></svg>⏳ Ver como gasto meu tempo</button>
         </div>
       </div>
@@ -132,7 +132,6 @@
           <button data-v="reclassificar"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🗂 Reuniões</button>
           <button data-v="projetos"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📁 Projetos</button>
           <button data-v="timesheet"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>⏱ Horas do time</button>
-          <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Planejamento do time</button>
           <button data-v="portal"><svg class="nav-ic"><use href="#ic-ams"/></svg>🌐 Portal do cliente</button>
         </div>
       </div>
@@ -152,6 +151,8 @@
           <div class="navg-cab">Dexterity Insights · diretoria e governança</div>
           <button data-v="visao"><svg class="nav-ic"><use href="#ic-visao"/></svg>📊 Visão Geral</button>
           <button data-v="relatorios"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios</button>
+          <!-- 2026-11-02 (a pedido do usuário): o 📊 Planejamento do time saiu de Dexterity Entrega e mora só aqui. -->
+          <button data-v="planrel"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Planejamento do time</button>
           <button data-v="uso"><svg class="nav-ic"><use href="#ic-analise"/></svg>📊 Uso do painel</button>
         </div>
       </div>
@@ -249,7 +250,7 @@
     (cada pessoa se identifica uma vez com seu token de API; fica salvo só no navegador dela). As horas
     aparecem no Clockwork; as transições respeitam o workflow e as permissões de cada um. Reuniões podem ser
     apontadas <em>para várias pessoas de uma vez</em>: quem organizou dispara o convite e cada um confirma com 1 clique.
-    <br><strong>Observações:</strong> "faturável" é inferido pelo tipo da issue; concluídas são
+    <br><strong>Observações:</strong> "faturável" segue a <b>categoria do projeto</b> no Jira (DEA, DEF, PEA, PEF, DAMS e PAMS sim; IMI, IPA e ITPR não; ARQ não se aplica) e, dentro do projeto faturável, tipos "não faturável" ficam fora; concluídas são
     agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
     <div id="versaoApp" style="margin-top:10px"></div>
   </footer>

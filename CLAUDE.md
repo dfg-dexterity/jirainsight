@@ -59,6 +59,29 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   do celular o `.nav-sub` recua 56px e os ícones de linha saem. Item novo no
   menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
   Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px).
+- **💰 Faturável pela categoria · 📊 Planejamento do time em Insights · 📑 Contratos com 📋 lista (2026-11-02, a pedido
+  do usuário: "o número de horas faturáveis deve ser feito pela categoria do projeto JIRA"; "passe os relatórios de
+  planejamento para o Insights"; "contratos cadastrados eu não consigo ver os dados deles, posso querer editar, deletar"):**
+  (1) **`wFat(w, cat?)`** (01) é a leitura ÚNICA de "faturável" dos KPIs: `w.f` (o tipo, do servidor) **E** a categoria do
+  projeto faturável — `CAT_FATURAVEL` = DEA/DEF/PEA/PEF/DAMS/PAMS sim · IMI/IPA/ITPR não · ARQ `na`; sem categoria no Jira, o
+  prefixo "XXX |" do nome (o IMECI); desconhecido = `na`. O "tipo não faturável dentro de projeto faturável segue fora" foi a
+  recomendação (o usuário não respondeu a pergunta). `fatProj(k)` tem memo por base de projetos; tela com base PRÓPRIA passa
+  a categoria/sigla (`wFat(w,cat)` na 🏦 Controladoria e no ⏳ Meu tempo, `wFat(w,m.sigla)` nas 📈 Métricas) para não
+  depender do catálogo carregado. Ficam **pelo tipo, de propósito**: a apuração do pacote AMS (16, `api/config`), o
+  mínimo/teto do AMS na Início (08) e a 💹 Rentabilidade (17b — gate de paridade com `api/_lib/rentab.js`). Tabela editável e
+  a regra no servidor = R160. (2) O 📊 planrel do time saiu do menu Entrega e mora só em **Dexterity Insights** (index,
+  NAVCAT área `insights`, tour, Ajuda); a "minha" segue no 👤. (3) **📑 Contratos**: as duas abas abrem por
+  `ctListaHTML` (16, prefixo `ct`) — uma linha por contrato, montada linha a linha em try/catch, com **👁 ver**
+  (`ctVerDadosHTML`, modal com todos os campos + JSON; portalToken oculto), ✏️/⧉/🗑 que são os MESMOS `data-ad-*`/`data-pc-*`
+  dos cartões (o 👁 fecha o modal e clica no botão da tabela — os handlers de sempre fazem o trabalho); cada cartão em
+  try/catch vira `ctCardFalhaHTML` (cartão simples COM O MOTIVO) em vez de sumir; registro que não é objeto (null, texto) fica
+  fora com aviso + 🧹 limpar (`ctItemValido`) — um `null` em `cfg.parcerias` derrubava a 🤝 inteira; os blocos 🧾 Próximas
+  notas e 💰 caixa da 🤝 também em try/catch (`bloco`). Na 🏢 o formulário só abre por **＋ Novo contrato** (`#ad-novo`,
+  `estado.admin.novo`), editar ou duplicar — ou sem contrato nenhum. **Não deu para reproduzir o "4 cadastrados, nenhum
+  cartão" de produção**: o painel publicado e o Supabase dele não são acessíveis daqui; a tela agora mostra o motivo se
+  acontecer de novo. (4) **🛟 `render()`** (26) = `try{ renderVista() }catch{ telaComErro(e) }` — tela que quebra mostra o
+  cartão `.tela-erro` (↻ tentar de novo · 🏠 Início) e o erro é relançado com `setTimeout` para seguir no pageerror dos testes.
+  Teste: `contratos-fat-test.mjs` (Playwright, 52 casos, 8790).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais

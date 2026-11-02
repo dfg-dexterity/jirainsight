@@ -51,7 +51,7 @@ function cardFaturavelPessoa(){
   (estado.tempo.worklogs||[]).forEach(w=>{
     if(!passa(w.p,w.t,projs,f)) return;
     if(f.pessoa && w.a!==f.pessoa) return;
-    if(w.f) fat[w.a]=(fat[w.a]||0)+w.s; else nao[w.a]=(nao[w.a]||0)+w.s;
+    if(wFat(w)) fat[w.a]=(fat[w.a]||0)+w.s; else nao[w.a]=(nao[w.a]||0)+w.s;   // 💰 pela categoria do projeto (wFat, 01)
   });
   const ids=new Set([...Object.keys(fat),...Object.keys(nao)]);
   if(!ids.size) return '<div class="estado">Sem horas para os filtros atuais.</div>';
