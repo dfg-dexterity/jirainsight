@@ -234,25 +234,10 @@
 
   <div id="conteudo"><div class="estado">Carregando dados…</div></div>
 
+  <!-- 2026-11-02 (a pedido do usuário): o rodapé mostra só a versão em produção — o número do merge (PR) e a descrição
+       dele. As observações (fontes, regras do Timesheet/Apontar, faturável…) saíram: moram na ❓ Ajuda e nos 🧭 guias. -->
   <footer>
-    <strong>Fontes:</strong> tempo (horas, faturável) vem do Clockwork; atividade
-    (tickets, alterações, transições, comentários) vem do histórico de alterações do Jira — a atribuição
-    é por <em>autor da alteração</em>, não por responsável.
-    <br><strong>Timesheet / Ranking:</strong> as <em>horas faltantes</em> ("horários não preenchidos") comparam as horas
-    apontadas no Clockwork com a meta por dia útil (padrão <em>8h, seg–sex</em>, ajustável em
-    <em>Metas</em>, inclusive por pessoa); fins de semana, feriados nacionais, ausências e o dia de hoje não contam.
-    Clique no nome de qualquer pessoa para ver o detalhe.
-    <br><strong>Planejar:</strong> cria tickets em lote (com validação antes) direto no projeto ou dentro
-    de um épico/história — o relator é quem cria. <strong>Teams:</strong> com o webhook configurado, o
-    ranking diário de apontamento é enviado ao canal automaticamente nos dias úteis.
-    <br><strong>Apontar:</strong> mostra os chamados abertos com vencimento até a data escolhida e permite
-    registrar horas e <em>mover o status</em> direto no Jira — tudo criado <em>no usuário de quem opera</em>
-    (cada pessoa se identifica uma vez com seu token de API; fica salvo só no navegador dela). As horas
-    aparecem no Clockwork; as transições respeitam o workflow e as permissões de cada um. Reuniões podem ser
-    apontadas <em>para várias pessoas de uma vez</em>: quem organizou dispara o convite e cada um confirma com 1 clique.
-    <br><strong>Observações:</strong> "faturável" segue a <b>categoria do projeto</b> no Jira (DEA, DEF, PEA, PEF, DAMS e PAMS sim; IMI, IPA e ITPR não; ARQ não se aplica) e, dentro do projeto faturável, tipos "não faturável" ficam fora; concluídas são
-    agregadas (sem atribuição individual ao filtrar por pessoa). Dados em cache por alguns minutos.
-    <div id="versaoApp" style="margin-top:10px"></div>
+    <div id="versaoApp"></div>
   </footer>
 </div>
 

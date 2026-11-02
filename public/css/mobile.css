@@ -1398,6 +1398,9 @@
   .rp-wf-v{white-space:nowrap}
   /* planner: a coluna Pessoa (presa) quebra o nome e a regra em linhas; os meses rolam ao lado */
   .rp-grade .rp-regra{white-space:normal;margin:3px 0 0;display:inline-block;line-height:1.3}
+  /* 🔁 terceirizado interno: o campo do valor-hora de repasse (coluna Custo/h) — 16px não dá zoom no iPhone */
+  .rp-grade input[data-rp-rep]{width:72px;font-size:16px}
+  .rp-wf-cons{text-align:left}
   /* rodapés das grades: o rótulo da linha ocupa 2–5 colunas (colspan) e some ao rolar — cada número
      ganha uma legenda miúda, para "224h" não ficar solto sem dizer o que é */
   :is(.rp-grade,.rp-per-tab) tfoot td.num:not(:empty)::before,

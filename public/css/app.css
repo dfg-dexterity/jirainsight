@@ -2282,6 +2282,14 @@
   .rp-grade tr.rp-f-vend .rp-vend-du{font-size:10.5px}
   .rp-grade tr.rp-real-row td{font-size:12px;color:var(--muted);padding-top:1px;padding-bottom:5px;border-bottom:1px solid var(--linha2);font-variant-numeric:tabular-nums}
   .rp-grade tr.rp-real-row td.rp-neg{color:var(--err)}
+  /* 🔁 terceirizado interno: o valor-hora de REPASSE mora na coluna Custo/h, abaixo do custo real da pessoa */
+  .rp-grade .rp-rep{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:3px}
+  .rp-grade input.rp-rep-i{width:72px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;padding:3px 6px;border:1px dashed var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-grade input.rp-rep-i.rp-man{border:1px solid var(--cerceta);font-weight:700}
+  .rp-grade input.rp-rep-i:focus{border-color:var(--cerceta);outline:2px solid var(--cerceta);outline-offset:-1px}
+  .rp-grade input.rp-rep-i::placeholder{color:var(--muted);opacity:.85}
+  .rp-rep-l{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .rp-wf-cons{margin:2px 0 6px;text-align:right}
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
   .rp-colw .rp-colb{height:100%}
   .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}

@@ -36,9 +36,20 @@
 //   • p.odoo — a ORDEM DE VENDA no Odoo nasce com UM ITEM POR PERÍODO de faturamento (itens[] guarda o id da
 //     linha por mês) e a SINCRONIZAÇÃO (/api/resumo?acao=odoo-venda-status) traz o estado da ordem, o que foi
 //     faturado por linha e as faturas — o período vira "faturado"/"pago" sozinho e o histórico registra.
+//
+// 🔁 TERCEIRIZADO INTERNO (pedido de 2026-11-02): o terceiro papel da alocação. A pessoa é de outra área da Dexterity
+// e fica "cedida" ao projeto que foi vendido; o projeto paga um VALOR-HORA DE REPASSE por alocação (al.rep, R$/h —
+// vazio = o custo/h da pessoa, e aí os números são IDÊNTICOS aos da execução). Duas visões do custo:
+//   • do PROJETO (custo, margem, mgp): horas × repasse para o terceirizado, horas × custo/h para os demais;
+//   • CONSOLIDADA (custoCons, margemCons, mgpCons): sempre horas × custo/h real de todo mundo — o que a empresa gasta.
+// A diferença (repasse − custo real) é o resultado da área que cede (resultadoCedente). rpRepH é a leitura ÚNICA do
+// valor que o projeto paga por hora e rpEsf a soma ÚNICA de horas (execução + gestão + terceirizado). O realizado
+// de quem tem alocação terceirizada com repasse também é custeado pelo repasse (rpCustoRealH). Tem porte no
+// servidor (api/_lib/rentab.js: rpCustoH/rpRepH/rpCalcResumo/rpPrevAte/rpStatusK) e o gate de paridade confere.
 // Helpers de outros módulos só em tempo de render.
 // ===========================================================================
-const RP_PAPEIS=[['exec','Execução'],['gestao','Gestão']];
+const RP_PAPEIS=[['exec','Execução'],['gestao','Gestão'],['terc','Terceirizado interno']];
+const RP_PAPEL_CURTO={ exec:'execução', gestao:'gestão', terc:'terceirizado' };
 const RP_CORES=['#009994','#4a3aa7','#eb6834','#008300','#B27DB4','#FFA436','#2a78d6','#C2660A','#5B8C5A','#8A5B00'];
 const RP_MAX_MESES=36;
 const RP_TIPOS={ horas:['⏱','Horas abertas','receita = horas vendidas × valor da hora (início, fim, horas por dia)'],
@@ -111,13 +122,27 @@ function rpPessoas(){
 }
 function rpNome(a){ const pp=ppDe(a); if(pp) return `${pp.nome||'Vaga'} 🔮`; const u=pessoasUnidas(); return (u[a]&&u[a].nome)||a; }
 function rpCustoH(a){ return alocCustoH(a); }
+// ---- papéis da alocação (execução · gestão · terceirizado interno) ----
+// Valor desconhecido (dado antigo ou à mão) cai em execução — antes o rótulo quebrava a tela inteira.
+function rpPapelVal(v){ return RP_PAPEIS.some(x=>x[0]===v)?v:'exec'; }
+function rpPapel(al){ return rpPapelVal(al&&al.papel); }
+function rpPapelRot(v){ const x=RP_PAPEIS.find(y=>y[0]===v); return x?x[1]:RP_PAPEIS[0][1]; }
+function rpPapelCurto(v){ return RP_PAPEL_CURTO[rpPapelVal(v)]; }
+// O que o PROJETO paga por hora desta alocação: o valor-hora de repasse digitado (só terceirizado interno, > 0) ou
+// o custo/h da pessoa. Sem repasse, terceirizado = execução em tudo.
+function rpRepH(al){ return rpPapel(al)==='terc'&&Number(al&&al.rep)>0?Number(al.rep):rpCustoH(al&&al.a); }
+// Horas de uma linha (mês ou total): a ÚNICA soma de esforço — execução + gestão + terceirizado interno.
+const rpEsf=(M)=>M.exec+M.gestao+M.terc;
+// Taxa com que o REALIZADO de uma pessoa é custeado: o repasse da alocação terceirizada dela no cenário ativo
+// (se houver e for > 0) ou o custo/h dela. Quem tem duas linhas (ex.: execução + terceirizado) usa o repasse.
+function rpCustoRealH(p, c0, a){ const al=((c0&&c0.aloc)||[]).find(x=>x&&x.a===a&&rpPapel(x)==='terc'&&Number(x.rep)>0); return al?Number(al.rep):rpCustoH(a); }
 const rpH=(h)=>fmtHd(h);
 const rpPct=(n,d)=>(d>0?Math.round(n/d*100):null);
 // ---- marcos de faturamento (escopo fechado): % do valor do projeto por data, ligados a um épico se quiser ----
 function rpMarcos(p){ if(!Array.isArray(p.marcos)) p.marcos=[]; return p.marcos; }
 function rpMarcosCalc(p, valor){
   const hoje=hojeSP(); let acum=0;
-  const lista=rpMarcos(p).slice().sort((a,b)=>(a.data||'9999').localeCompare(b.data||'9999')||String(a.nome||'').localeCompare(String(b.nome||''),'pt')).map(m=>{
+  const lista=(Array.isArray(p.marcos)?p.marcos:[]).slice().sort((a,b)=>(a.data||'9999').localeCompare(b.data||'9999')||String(a.nome||'').localeCompare(String(b.nome||''),'pt')).map(m=>{
     const pct=Math.max(0,Number(m.pct)||0); const v=valor*pct/100; acum+=v;
     return { ...m, pct, valor:v, acum, fat:m.status==='faturado', atrasado:m.status!=='faturado'&&!!m.data&&m.data<hoje }; });
   const pctTot=Math.round(lista.reduce((s,m)=>s+m.pct,0)*100)/100; const faturado=lista.filter(m=>m.fat).reduce((s,m)=>s+m.valor,0);
@@ -133,25 +158,28 @@ function rpCalc(p, c){
   const receita=tipo==='fechado'?valorProj:tipo==='interno'?0:vend*vh;
   const marcos=tipo==='fechado'?rpMarcosCalc(p,valorProj):null;
   const receitaPorMes={}; meses.forEach(m=>{ receitaPorMes[m]=tipo==='horas'?vendPorMes[m]*vh:tipo==='fechado'?(marcos.porMes[m]||0):0; });
-  const porMes={}; meses.forEach(m=>{ porMes[m]={exec:0,gestao:0,custo:0,porPessoa:{}}; });
-  const porPessoa=[]; let exec=0,gestao=0,custo=0,custoExec=0,custoGestao=0,semCusto=0;
-  (c.aloc||[]).forEach((al,i)=>{ const ch=rpCustoH(al.a); let tot=0,cus=0;
-    meses.forEach(m=>{ const h=Math.max(0,Number((al.h||{})[m])||0); tot+=h; cus+=h*ch; const M=porMes[m];
-      if(al.papel==='gestao') M.gestao+=h; else M.exec+=h; M.custo+=h*ch; M.porPessoa[i]=(M.porPessoa[i]||0)+h; });
-    if(al.papel==='gestao'){ gestao+=tot; custoGestao+=cus; } else { exec+=tot; custoExec+=cus; }
-    custo+=cus; if(tot>0&&!(ch>0)) semCusto++;
-    porPessoa.push({ i, a:al.a, papel:al.papel||'exec', nome:rpNome(al.a), ch, h:tot, custo:cus }); });
-  const esforco=exec+gestao; const margem=receita-custo; const mgp=receita>0?rpPct(margem,receita):null;
+  const porMes={}; meses.forEach(m=>{ porMes[m]={exec:0,gestao:0,terc:0,custo:0,custoTerc:0,porPessoa:{}}; });
+  // custo/h = o que a pessoa custa à empresa · rep = o que o PROJETO paga por hora (= custo/h, salvo repasse do terceirizado interno)
+  const porPessoa=[]; let exec=0,gestao=0,terc=0,custo=0,custoExec=0,custoGestao=0,custoTerc=0,custoCons=0,tercCons=0,semCusto=0;
+  (c.aloc||[]).forEach((al,i)=>{ const ch=rpCustoH(al.a); const papel=rpPapel(al); const rep=rpRepH(al); let tot=0,cus=0,cusC=0;
+    meses.forEach(m=>{ const h=Math.max(0,Number((al.h||{})[m])||0); tot+=h; cus+=h*rep; cusC+=h*ch; const M=porMes[m];
+      if(papel==='gestao') M.gestao+=h; else if(papel==='terc'){ M.terc+=h; M.custoTerc+=h*rep; } else M.exec+=h; M.custo+=h*rep; M.porPessoa[i]=(M.porPessoa[i]||0)+h; });
+    if(papel==='gestao'){ gestao+=tot; custoGestao+=cus; } else if(papel==='terc'){ terc+=tot; custoTerc+=cus; tercCons+=cusC; } else { exec+=tot; custoExec+=cus; }
+    custo+=cus; custoCons+=cusC; if(tot>0&&!(ch>0)) semCusto++;
+    porPessoa.push({ i, a:al.a, papel, nome:rpNome(al.a), ch, rep, h:tot, custo:cus }); });
+  const esforco=rpEsf({exec,gestao,terc}); const margem=receita-custo; const mgp=receita>0?rpPct(margem,receita):null;
+  // visão consolidada (empresa): custo/h real de todo mundo; o repasse sai da conta (é só uma transferência entre áreas)
+  const resultadoCedente=custoTerc-tercCons; const margemCons=receita-custoCons; const mgpCons=receita>0?rpPct(margemCons,receita):null;
   const efic=vend>0?esforco/vend:null;           // 0,62 = 62% das horas vendidas
   const econ=vend-esforco;                        // horas economizadas (negativo = estourou)
   const recH=esforco>0?receita/esforco:null; const custoMedio=esforco>0?custo/esforco:null;
   const meta=Math.max(0,Number(p.margemMeta)||0);
-  const maisBarato=porPessoa.filter(x=>x.ch>0).sort((a,b)=>a.ch-b.ch)[0]||null;
+  const maisBarato=porPessoa.filter(x=>x.rep>0).sort((a,b)=>a.rep-b.rep)[0]||null;   // pelo que o projeto paga por hora (repasse, no terceirizado interno)
   const folgaR=receita*(1-meta/100)-custo;        // R$ que ainda cabem sem furar a meta
-  const folgaH=maisBarato?Math.max(0,folgaR)/maisBarato.ch:null;
+  const folgaH=maisBarato?Math.max(0,folgaR)/maisBarato.rep:null;
   const vhEfetivo=tipo==='fechado'?(vend>0?valorProj/vend:null):vh;   // escopo fechado: quanto vale cada hora vendida
   const saldoOrc=orc-custo; const consumoPrev=orc>0?custo/orc:null;    // interno: o que a alocação consome do orçamento
-  return { meses, vend, vendMes, vendPorMes, vendAuto, vendAutoPorMes:vp.auto, vendMan:vp.man, nVendMan:vp.nMan, diasUteis:vp.diasUteis, diasUteisTotal:vp.diasUteisTotal, vh, receita, porMes, porPessoa, exec, gestao, esforco, custo, custoExec, custoGestao, margem, mgp, efic, econ, recH, custoMedio, meta, folgaR, folgaH, maisBarato, semCusto,
+  return { meses, vend, vendMes, vendPorMes, vendAuto, vendAutoPorMes:vp.auto, vendMan:vp.man, nVendMan:vp.nMan, diasUteis:vp.diasUteis, diasUteisTotal:vp.diasUteisTotal, vh, receita, porMes, porPessoa, exec, gestao, terc, esforco, custo, custoExec, custoGestao, custoTerc, custoCons, resultadoCedente, margemCons, mgpCons, margem, mgp, efic, econ, recH, custoMedio, meta, folgaR, folgaH, maisBarato, semCusto,
     tipo, valorProj, orc, marcos, receitaPorMes, vhEfetivo, saldoOrc, consumoPrev };
 }
 // ---- realizado (Clockwork) do projeto vinculado ----
@@ -167,17 +195,22 @@ function rpGaranteReal(p){
 function rpReal(p, calc){
   const k=rpRealChave(p); const t=k&&estado.rentab.tempo[k]; if(!t) return null;
   const porMes={}; calc.meses.forEach(m=>{ porMes[m]={h:0,hFat:0,custo:0,porPessoa:{}}; });
-  let h=0,hFat=0,custo=0; const pessoas={}; const tickets=new Set();
-  (t.worklogs||[]).forEach(w=>{ if(w.p!==p.projeto) return; const m=(w.d||'').slice(0,7); if(!porMes[m]) return; const hh=(Number(w.s)||0)/3600; const cu=hh*rpCustoH(w.a);
-    porMes[m].h+=hh; porMes[m].custo+=cu; porMes[m].porPessoa[w.a]=(porMes[m].porPessoa[w.a]||0)+hh; h+=hh; custo+=cu; if(w.f){ porMes[m].hFat+=hh; hFat+=hh; }
-    const P=pessoas[w.a]=pessoas[w.a]||{a:w.a,nome:(t.pessoas&&t.pessoas[w.a]&&t.pessoas[w.a].nome)||rpNome(w.a),h:0,custo:0}; P.h+=hh; P.custo+=cu; if(w.k) tickets.add(w.k); });
+  // custo do realizado = o que o PROJETO paga: quem tem alocação terceirizada com repasse no cenário ativo é custeado pelo
+  // repasse (rpCustoRealH); os demais, pelo custo/h. custoCons = sempre o custo/h real (o que a empresa gasta).
+  const c0=rpCenario(p); const taxas={}; const taxa=(a)=>(a in taxas)?taxas[a]:(taxas[a]=rpCustoRealH(p,c0,a));
+  const tercSet=new Set((c0.aloc||[]).filter(x=>x&&rpPapel(x)==='terc').map(x=>x.a));
+  let h=0,hFat=0,custo=0,custoCons=0,tercH=0,tercCusto=0,tercCons=0; const pessoas={}; const tickets=new Set();
+  (t.worklogs||[]).forEach(w=>{ if(w.p!==p.projeto) return; const m=(w.d||'').slice(0,7); if(!porMes[m]) return; const hh=(Number(w.s)||0)/3600; const tx=taxa(w.a); const cu=hh*tx; const cc=hh*rpCustoH(w.a);
+    porMes[m].h+=hh; porMes[m].custo+=cu; porMes[m].porPessoa[w.a]=(porMes[m].porPessoa[w.a]||0)+hh; h+=hh; custo+=cu; custoCons+=cc; if(w.f){ porMes[m].hFat+=hh; hFat+=hh; }
+    const ehTerc=tercSet.has(w.a); if(ehTerc){ tercH+=hh; tercCusto+=cu; tercCons+=cc; }
+    const P=pessoas[w.a]=pessoas[w.a]||{a:w.a,nome:(t.pessoas&&t.pessoas[w.a]&&t.pessoas[w.a].nome)||rpNome(w.a),h:0,custo:0,ch:tx,terc:ehTerc}; P.h+=hh; P.custo+=cu; if(w.k) tickets.add(w.k); });
   // fração do prazo já decorrida em DIAS ÚTEIS (início → data lida ÷ dias úteis do projeto)
   const hoje=hojeSP(); const ate=k.split('|')[2]; const duTot=calc.diasUteisTotal||rpDiasUteis(p.inicio,rpFim(p)); const duAte=rpDiasUteis(p.inicio,ate);
   const fracao=duTot>0?Math.min(1,duAte/duTot):1;
   const vendAteHoje=rpVendAte(p,ate); const mesAtual=ate.slice(0,7);
   // fração do mês corrente já decorrida (dias úteis) — o previsto "até aqui" e o "restante" respeitam o dia de hoje
   const fMes=(m)=>{ if(m<mesAtual) return 1; if(m>mesAtual) return 0; const a=m===calc.meses[0]?p.inicio:m+'-01'; const du=calc.diasUteis[m]||0; return du?Math.min(1,rpDiasUteis(a,ate)/du):1; };
-  const prevAteHoje=calc.meses.reduce((s,m)=>s+(calc.porMes[m].exec+calc.porMes[m].gestao)*fMes(m),0);
+  const prevAteHoje=calc.meses.reduce((s,m)=>s+rpEsf(calc.porMes[m])*fMes(m),0);
   const custoPrevAteHoje=calc.meses.reduce((s,m)=>s+calc.porMes[m].custo*fMes(m),0);
   const custoRestante=calc.meses.reduce((s,m)=>s+calc.porMes[m].custo*(1-fMes(m)),0);   // o que o cenário ainda prevê gastar
   // receita "até aqui" por tipo: horas = vendidas pro rata × valor (previsto) e horas FATURÁVEIS apontadas × valor (realizada);
@@ -188,7 +221,7 @@ function rpReal(p, calc){
   // interno: consumo do orçamento e quando ele acaba no ritmo atual (por dia útil)
   const consumoReal=calc.orc>0?custo/calc.orc:null; const ritmoDia=duAte>0?custo/duAte:0;
   let orcAcabaEm=''; if(calc.tipo==='interno'&&calc.orc>0&&ritmoDia>0&&custo<calc.orc){ let d=ate, falta=(calc.orc-custo)/ritmoDia, g=0; while(falta>0&&g++<1500){ d=proxDia(d); if(ehUtil(d)&&!ehFeriado(d)) falta--; } orcAcabaEm=d; }
-  return { porMes, h, hFat, custo, pessoas:Object.values(pessoas).sort((a,b)=>b.h-a.h), tickets:tickets.size, fracao, vendAteHoje, prevAteHoje, custoPrevAteHoje, custoRestante, receitaAteHoje, receitaReal, fMesAtual:fMes(mesAtual),
+  return { porMes, h, hFat, custo, custoCons, tercH, tercCusto, resultadoCedente:tercCusto-tercCons, pessoas:Object.values(pessoas).sort((a,b)=>b.h-a.h), tickets:tickets.size, fracao, vendAteHoje, prevAteHoje, custoPrevAteHoje, custoRestante, receitaAteHoje, receitaReal, fMesAtual:fMes(mesAtual),
     margemAteHoje:receitaBase-custo, receitaBase, eficReal:vendAteHoje>0?h/vendAteHoje:null, econReal:vendAteHoje-h,
     projCusto:fracao>=0.1?custo/fracao:null, custoFinalPlano:custo+custoRestante, consumoReal, ritmoDia, orcAcabaEm, ate };
 }
@@ -281,6 +314,15 @@ const rpSem=(cls,rot)=>`<span class="ct-sem ${cls}">${esc(rot)}</span>`;
 function rpSemMargem(mgp, meta){ if(mgp==null) return rpSem('na','sem receita'); return mgp>=meta?rpSem('ok',`≥ meta (${meta}%)`):(mgp>=meta/2?rpSem('aten','abaixo da meta'):rpSem('crit','no vermelho')); }
 const rpKpi=(v,l,cls,s)=>`<div class="vg-k ${cls||''}"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
 
+// ---- 🔁 valor-hora de REPASSE do terceirizado interno: o campo mora na coluna Custo/h, logo abaixo do custo real da pessoa ----
+// Vazio = o projeto paga o custo/h dela (o placeholder mostra o valor) e os números são os da execução; digitar vale só para esta alocação.
+function rpRepNum(x){ const s=String(x==null?'':x).trim().replace(',','.'); if(!s) return null; const n=Number(s); return (isFinite(n)&&n>=0)?Math.round(n*100)/100:null; }
+function rpRepHTML(al, i, P, gestor){
+  const rep=Number(al.rep)>0?Number(al.rep):0;
+  if(!gestor) return `<div class="rp-rep"><span class="rp-rep-l">${rep?`repasse ${fmtBRL(rep)}/h`:'repasse = custo/h'}</span></div>`;
+  return `<div class="rp-rep"><input type="number" class="rp-rep-i${rep?' rp-man':''}" data-rp-rep="${i}" min="0" step="0.01" value="${rep?escA(String(rep)):''}" placeholder="${escA(String(Math.round((P.ch||0)*100)/100))}" aria-label="${escA('Valor-hora de repasse de '+P.nome)}" data-tip="${escA('Valor-hora de repasse: quanto ESTE projeto paga por hora à área que cede '+P.nome+'. Vazio = o custo/h da pessoa ('+fmtBRL(P.ch)+') — aí os números são os mesmos da execução. O custo real dela continua valendo no resultado consolidado.')}"><span class="rp-rep-l">R$/h repasse</span></div>`;
+}
+
 // ---- tela ----
 function renderRentab(){
   const cont=document.getElementById('conteudo'); const r=estado.rentab; const gestor=souAprovador();
@@ -288,7 +330,7 @@ function renderRentab(){
   const planos=rpPlanos();
   if(r.sel&&!rpPlano(r.sel)) r.sel='';
   const intro=`<div class="card full"><h2>💹 Rentabilidade de projetos <span>cadastre o projeto, planeje quem faz o quê mês a mês e simule cenários</span></h2>
-    <div class="muted small">A base é o <b>projeto do Jira</b> e o <b>tipo</b> define o modelo de receita: <b>⏱ horas abertas</b> (início, fim, horas por dia e valor da hora → receita prevista mês a mês, receita realizada e a cotação no Odoo), <b>📦 escopo fechado</b> (valor do projeto e <b>marcos de faturamento</b>) e <b>🏠 interno</b> (um <b>orçamento de custo</b> consumido pela alocação da equipe). Em cada <b>cenário</b> você aloca as pessoas (por período, em horas por dia útil, por mês ou no total; execução e gestão) e vê na hora o <b>esforço previsto</b>, o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> ou o <b>saldo do orçamento</b>. As <b>horas realizadas</b> do projeto (Clockwork) entram na comparação com o planejado e na rentabilidade real. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
+    <div class="muted small">A base é o <b>projeto do Jira</b> e o <b>tipo</b> define o modelo de receita: <b>⏱ horas abertas</b> (início, fim, horas por dia e valor da hora → receita prevista mês a mês, receita realizada e a cotação no Odoo), <b>📦 escopo fechado</b> (valor do projeto e <b>marcos de faturamento</b>) e <b>🏠 interno</b> (um <b>orçamento de custo</b> consumido pela alocação da equipe). Em cada <b>cenário</b> você aloca as pessoas (por período, em horas por dia útil, por mês ou no total; execução, gestão ou terceirizado interno) e vê na hora o <b>esforço previsto</b>, o <b>custo</b> (sempre horas × custo/h de cada pessoa), a <b>margem</b> ou o <b>saldo do orçamento</b>. As <b>horas realizadas</b> do projeto (Clockwork) entram na comparação com o planejado e na rentabilidade real. ${gestor?'':'<b>Somente gestores editam</b>; você está vendo em modo leitura.'}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${gestor?'<button class="btn primario" data-rp-novo="1">＋ Novo plano</button>':''}
       ${r.sel?'<button class="btn" data-rp-voltar="1">‹ Todos os planos</button>':''}</div></div>`;
   if(r.novo&&gestor){ cont.replaceChildren(el(`<div class="rp-tela">${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); rpFormAjustaTipo(); return; }
@@ -343,7 +385,7 @@ function renderRentab(){
   const chips=`<div class="ap-chips rp-cen">${(p.cenarios||[]).map(x=>`<button class="chip ${x.id===c0.id?'on':''}" data-rp-cen="${escA(x.id)}">${esc(x.nome||'Cenário')}</button>`).join('')}
     ${gestor?`<button class="btn rt-step" data-rp-cen-novo="1" data-tip="Cria um cenário vazio">＋ cenário</button><button class="btn rt-step" data-rp-cen-dup="1" data-tip="Copia o cenário atual para simular uma variação">📋 duplicar</button><button class="btn rt-step" data-rp-cen-ren="1">✏️ renomear</button>${(p.cenarios||[]).length>1?'<button class="btn rt-step" data-rp-cen-del="1">🗑</button>':''}`:''}</div>`;
   const kEsf=rpKpi(rpH(c.esforco),'Esforço previsto',c.efic==null?'':(c.efic<=0.8?'good':(c.efic<=1?'warn':'bad')),c.efic==null?(tipo==='interno'?`${c.custoMedio==null?'—':fmtBRL(c.custoMedio)+'/h'} de custo médio`:'sem carga vendida'):`${Math.round(c.efic*100)}% das horas vendidas · ${c.econ>=0?'economiza':'estoura'} ${rpH(Math.abs(c.econ))}`);
-  const kCusto=rpKpi(fmtBRL(c.custo),'Custo previsto',c.semCusto?'bad':'',c.semCusto?`⚠ ${c.semCusto} pessoa(s) sem custo/h`:`execução ${fmtBRL(c.custoExec)} · gestão ${fmtBRL(c.custoGestao)}`);
+  const kCusto=rpKpi(fmtBRL(c.custo),'Custo previsto',c.semCusto?'bad':'',c.semCusto?`⚠ ${c.semCusto} pessoa(s) sem custo/h`:`execução ${fmtBRL(c.custoExec)} · gestão ${fmtBRL(c.custoGestao)}${c.terc>0?` · repasse ${fmtBRL(c.custoTerc)}`:''}`);
   const kMargem=rpKpi(fmtBRL(c.margem),'Margem prevista',c.mgp==null?'':(c.mgp>=c.meta?'good':(c.mgp>=c.meta/2?'warn':'bad')),c.mgp==null?'—':`${c.mgp}% · meta ${c.meta}%`);
   let hero;
   if(tipo==='fechado'){ const M=c.marcos; const prox=M.proximo;
@@ -364,7 +406,7 @@ function renderRentab(){
     ${rpKpi(fmtBRL(c.receita),'Receita prevista','',`${rpH(c.vend)} × ${fmtBRL(c.vh)}`)}
     ${kEsf}${kCusto}${kMargem}
     ${rpKpi(c.recH==null?'—':fmtBRL(c.recH),'Receita por hora trabalhada','',c.custoMedio==null?'—':`custo médio ${fmtBRL(c.custoMedio)}/h`)}
-    ${rpKpi(c.folgaH==null?'—':rpH(c.folgaH),'Folga até a meta',c.folgaR>=0?'good':'bad',c.maisBarato?(c.folgaR>=0?`cabem mais horas de ${esc(c.maisBarato.nome.split(' ')[0])} (${fmtBRL(c.maisBarato.ch)}/h)`:`faltam ${fmtBRL(-c.folgaR)} para a meta`):'aloque alguém com custo/h')}</div>`;
+    ${rpKpi(c.folgaH==null?'—':rpH(c.folgaH),'Folga até a meta',c.folgaR>=0?'good':'bad',c.maisBarato?(c.folgaR>=0?`cabem mais horas de ${esc(c.maisBarato.nome.split(' ')[0])} (${fmtBRL(c.maisBarato.rep)}/h)`:`faltam ${fmtBRL(-c.folgaR)} para a meta`):'aloque alguém com custo/h')}</div>`;
   // simulador rápido (por tipo: horas mexe no valor-hora; fechado no valor do projeto; interno no orçamento)
   const sim=gestor?`<div class="rp-sim">
     <div class="campo"><label>Esforço total previsto (h)</label><input type="number" id="rp-sim-esf" min="0" step="1" value="${Math.round(c.esforco)}" data-tip="Redistribui proporcionalmente as horas de EXECUÇÃO para fechar neste total"></div>
@@ -377,14 +419,14 @@ function renderRentab(){
   const cols=c.meses.map(m=>`<th class="num">${esc(labelMesAbbr(m))}</th>`).join('');
   const linhas=(c0.aloc||[]).map((al,i)=>{ const P=c.porPessoa[i]; const cor=RP_CORES[i%RP_CORES.length];
     return `<tr><td><i class="rp-sw" style="background:${cor}"></i><b>${esc(P.nome)}</b>${P.ch>0?'':' <span class="ct-sem crit" data-tip="Sem custo/h cadastrado: o custo desta pessoa está em R$ 0. Cadastre na 🏦 Controladoria (⚙️) ou na vaga planejada.">sem custo/h</span>'}${al.regra?` <span class="rp-regra${gestor?' lnk':''}" ${gestor?`data-rp-regra="${i}" role="button" tabindex="0"`:''} data-tip="${escA('Regra de alocação: '+rpRegraRot(al)+' — horas por mês pelos dias úteis (feriados descontados)'+(gestor?' · clique para ajustar':''))}">${esc(rpRegraRot(al))}</span>`:(gestor?` <span class="rp-regra lnk" data-rp-regra="${i}" role="button" tabindex="0" data-tip="Horas digitadas na grade · clique para definir uma regra (% do dia, h/dia útil, período)">manual</span>`:'')}</td>
-      <td>${gestor?`<select data-rp-papel="${i}">${RP_PAPEIS.map(([v,l])=>`<option value="${v}" ${P.papel===v?'selected':''}>${l}</option>`).join('')}</select>`:esc(RP_PAPEIS.find(x=>x[0]===P.papel)[1])}</td>
-      <td class="num">${fmtBRL(P.ch)}</td>
+      <td>${gestor?`<select data-rp-papel="${i}">${RP_PAPEIS.map(([v,l])=>`<option value="${v}" ${P.papel===v?'selected':''}>${l}</option>`).join('')}</select>`:esc(rpPapelRot(P.papel))}</td>
+      <td class="num">${fmtBRL(P.ch)}${P.papel==='terc'?rpRepHTML(al,i,P,gestor):''}</td>
       <td class="num">${gestor?`<input type="number" class="rp-tot" data-rp-tot="${i}" min="0" step="1" value="${Math.round(P.h*10)/10}" data-tip="Total da pessoa: distribui igualmente pelos meses">`:rpH(P.h)}</td>
       <td class="num">${fmtBRL(P.custo)}</td>
       ${c.meses.map(m=>`<td class="num"><input type="number" class="rp-cel" data-rp-cel="${i}|${m}" min="0" step="1" value="${(al.h||{})[m]!=null&&(al.h||{})[m]!==''?Math.round(Number((al.h||{})[m])*10)/10:''}" ${gestor?'':'disabled'}></td>`).join('')}
       <td>${gestor?`<button class="btn rt-step" data-rp-rm="${i}" data-tip="Tirar esta pessoa do cenário">✕</button>`:''}</td></tr>
       ${real&&!ppDe(al.a)?(()=>{ const rh=c.meses.map(m=>real.porMes[m].porPessoa[al.a]||0); const tot=rh.reduce((s,x)=>s+x,0); const ehG=al.papel==='gestao';
-        return `<tr class="rp-real-row" data-tip="${escA(`${P.nome}: horas apontadas no projeto (Clockwork) — comparadas com o planejado${ehG?' (a pessoa também pode ter horas de execução nesta linha)':''}`)}"><td class="muted small">↳ realizado</td><td></td><td></td><td class="num">${tot?rpH(tot):'—'}</td><td class="num">${tot?fmtBRL(tot*P.ch):''}</td>
+        return `<tr class="rp-real-row" data-tip="${escA(`${P.nome}: horas apontadas no projeto (Clockwork) — comparadas com o planejado${ehG?' (a pessoa também pode ter horas de execução nesta linha)':''}`)}"><td class="muted small">↳ realizado</td><td></td><td></td><td class="num">${tot?rpH(tot):'—'}</td><td class="num">${tot?fmtBRL(tot*rpCustoRealH(p,c0,al.a)):''}</td>
           ${c.meses.map((m,j)=>{ const v=rh[j]; const pl=Math.max(0,Number((al.h||{})[m])||0); return `<td class="num ${v>pl&&pl>0?'rp-neg':''}">${v?rpH(v):(m<=hojeSP().slice(0,7)?'0h':'')}</td>`; }).join('')}<td></td></tr>`; })():''}`; }).join('');
   const foot=(rot,fn,cls)=>`<tr class="${cls||''}"><td colspan="3"><b>${rot}</b></td><td class="num"><b>${fn('tot')}</b></td><td class="num">${fn('custo')}</td>${c.meses.map(m=>`<td class="num">${fn(m)}</td>`).join('')}<td></td></tr>`;
   // 🧾 Horas vendidas: a linha do rodapé é EDITÁVEL (gestores). O campo vazio mostra o cálculo como placeholder
@@ -405,12 +447,12 @@ function renderRentab(){
   const grade=`<div class="scroll-x"><table class="mp-tab-mini rp-grade"><thead><tr><th>Pessoa</th><th>Papel</th><th class="num">Custo/h</th><th class="num">Total</th><th class="num">Custo</th>${cols}<th></th></tr></thead>
     <tbody>${linhas||`<tr><td colspan="${6+c.meses.length}" class="mp-dim">Ninguém alocado neste cenário ainda${gestor?' — adicione uma pessoa abaixo':''}.</td></tr>`}</tbody>
     <tfoot>
-      ${foot('Esforço previsto',(k)=>k==='tot'?rpH(c.esforco):(k==='custo'?fmtBRL(c.custo):rpH(c.porMes[k].exec+c.porMes[k].gestao)),'rp-f-prev')}
+      ${foot('Esforço previsto',(k)=>k==='tot'?rpH(c.esforco):(k==='custo'?fmtBRL(c.custo):rpH(rpEsf(c.porMes[k]))),'rp-f-prev')}
       ${linhaVend}
-      ${foot('Saldo (vendidas − previsto)',(k)=>{ const v=k==='tot'?c.econ:(k==='custo'?null:c.vendPorMes[k]-c.porMes[k].exec-c.porMes[k].gestao); return v==null?'':`<span class="${v<0?'rp-neg':'rp-pos'}">${v<0?'−':'+'}${rpH(Math.abs(v))}</span>`; },'rp-f-saldo')}
+      ${foot('Saldo (vendidas − previsto)',(k)=>{ const v=k==='tot'?c.econ:(k==='custo'?null:c.vendPorMes[k]-rpEsf(c.porMes[k])); return v==null?'':`<span class="${v<0?'rp-neg':'rp-pos'}">${v<0?'−':'+'}${rpH(Math.abs(v))}</span>`; },'rp-f-saldo')}
       ${real?foot('Realizado (Clockwork)',(k)=>k==='tot'?rpH(real.h):(k==='custo'?fmtBRL(real.custo):(real.porMes[k].h?rpH(real.porMes[k].h):'—')),'rp-f-real'):''}
       ${real?foot('Realizado − previsto até aqui',(k)=>{ if(k==='custo') return `<span class="${real.custo>real.custoPrevAteHoje?'rp-neg':'rp-pos'}">${fmtBRL(real.custo-real.custoPrevAteHoje)}</span>`; const mesAtual=real.ate.slice(0,7); if(k!=='tot'&&k>mesAtual) return '';
-        const v=k==='tot'?real.h-real.prevAteHoje:real.porMes[k].h-(c.porMes[k].exec+c.porMes[k].gestao)*(k===mesAtual?real.fMesAtual:1); return `<span class="${v>0?'rp-neg':'rp-pos'}" data-tip="${k===mesAtual?'mês corrente: previsto proporcional aos dias úteis já decorridos':''}">${v>0?'+':'−'}${rpH(Math.abs(v))}</span>`; },'rp-f-dif'):''}
+        const v=k==='tot'?real.h-real.prevAteHoje:real.porMes[k].h-rpEsf(c.porMes[k])*(k===mesAtual?real.fMesAtual:1); return `<span class="${v>0?'rp-neg':'rp-pos'}" data-tip="${k===mesAtual?'mês corrente: previsto proporcional aos dias úteis já decorridos':''}">${v>0?'+':'−'}${rpH(Math.abs(v))}</span>`; },'rp-f-dif'):''}
     </tfoot></table></div>
     ${gestor?`<div class="pl-grid" style="margin-top:8px"><div class="campo"><label>Adicionar pessoa</label><select id="rp-add-pessoa"><option value="">— escolha —</option>${pessoas.map(x=>`<option value="${escA(x.a)}">${esc(x.nome)}${alocIds.has(x.a)?' (já no cenário)':''} · ${fmtBRL(rpCustoH(x.a))}/h</option>`).join('')}</select></div>
       <div class="campo"><label>Papel</label><select id="rp-add-papel">${RP_PAPEIS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>
@@ -420,18 +462,21 @@ function renderRentab(){
       <div class="campo"><label>&nbsp;</label><span class="muted small">Ex.: Diego 50% de 15/03 a 15/04 e Ana 100% o plano inteiro — a regra fica guardada na pessoa (clique nela para ajustar) e as horas de cada mês saem dos dias úteis, feriados descontados. Vagas 🔮 vêm de Pessoas planejadas, com o custo previsto.</span></div></div>`:''}`;
   // gráficos
   const serie=[{nome:'Horas vendidas',cor:cores.grafite,vals:c.meses.map(m=>({x:m,v:Math.round(c.vendPorMes[m]*10)/10})),tipo:'line',dash:1},
-    {nome:'Esforço previsto',cor:cores.cerceta,vals:c.meses.map(m=>({x:m,v:Math.round((c.porMes[m].exec+c.porMes[m].gestao)*10)/10})),tipo:'area'}];
+    {nome:'Esforço previsto',cor:cores.cerceta,vals:c.meses.map(m=>({x:m,v:Math.round(rpEsf(c.porMes[m])*10)/10})),tipo:'area'}];
   if(real) serie.push({nome:'Realizado',cor:cores.amarelo,vals:c.meses.map(m=>({x:m,v:Math.round(real.porMes[m].h*10)/10})),tipo:'line'});
-  const maxMes=Math.max(1,...c.meses.map(m=>Math.max(c.vendPorMes[m],c.porMes[m].exec+c.porMes[m].gestao,real?real.porMes[m].h:0)));
-  const stack=`<div class="rp-stack">${c.meses.map(m=>{ const M=c.porMes[m]; const tot=M.exec+M.gestao;
+  const maxMes=Math.max(1,...c.meses.map(m=>Math.max(c.vendPorMes[m],rpEsf(c.porMes[m]),real?real.porMes[m].h:0)));
+  const stack=`<div class="rp-stack">${c.meses.map(m=>{ const M=c.porMes[m]; const tot=rpEsf(M);
     const segs=(c0.aloc||[]).map((al,i)=>{ const h=M.porPessoa[i]||0; if(!h) return ''; return `<i style="height:${(h/maxMes*100).toFixed(1)}%;background:${RP_CORES[i%RP_CORES.length]}" data-tip="${escA(`${c.porPessoa[i].nome} · ${labelMesAbbr(m)} · ${rpH(h)} · ${fmtBRL(h*c.porPessoa[i].ch)}`)}"></i>`; }).join('');
     const realB=real&&real.porMes[m].h?`<b class="rp-realb" style="height:${(real.porMes[m].h/maxMes*100).toFixed(1)}%" data-tip="${escA(`realizado em ${labelMesAbbr(m)}: ${rpH(real.porMes[m].h)}`)}"></b>`:'';
     return `<div class="rp-col"><div class="rp-colw"><div class="rp-colb"><em class="rp-mark" style="bottom:${(c.vendPorMes[m]/maxMes*100).toFixed(1)}%" data-tip="${escA(`vendidas em ${labelMesAbbr(m)}: ${rpH(c.vendPorMes[m])}`)}"></em>${segs}</div>${realB}</div><div class="rp-rot"><b>${esc(labelMesAbbr(m))}</b>${rpH(tot)}</div></div>`; }).join('')}</div>
-    <div class="pp-legend" style="margin-top:6px">${c.porPessoa.map(P=>`<span><i style="background:${RP_CORES[P.i%RP_CORES.length]}"></i>${esc(P.nome)} (${P.papel==='gestao'?'gestão':'execução'})</span>`).join('')}<span><i style="background:transparent;border-top:2px dashed var(--grafite)"></i>vendidas no mês</span>${real?'<span><i style="background:var(--amarelo)"></i>realizado</span>':''}</div>`;
+    <div class="pp-legend" style="margin-top:6px">${c.porPessoa.map(P=>`<span><i style="background:${RP_CORES[P.i%RP_CORES.length]}"></i>${esc(P.nome)} (${rpPapelCurto(P.papel)})</span>`).join('')}<span><i style="background:transparent;border-top:2px dashed var(--grafite)"></i>vendidas no mês</span>${real?'<span><i style="background:var(--amarelo)"></i>realizado</span>':''}</div>`;
   const wfMax=Math.max(1,tipo==='interno'?Math.max(c.orc,c.custo):c.receita); const wf=(rot,v,cor,extra)=>`<div class="rp-wf"><div class="rp-wf-l">${rot}</div><div class="rp-wf-t"><i style="width:${(Math.abs(v)/wfMax*100).toFixed(1)}%;background:${cor}"></i></div><div class="rp-wf-v ${v<0?'rp-neg':''}">${fmtBRL(v)}${extra?` <span class="muted small">${extra}</span>`:''}</div></div>`;
+  // 🔁 terceirizado interno: o repasse é custo do PROJETO; embaixo, o que sobra para a área que cede a pessoa e a margem da empresa toda
+  const wfTerc=c.terc>0?wf('− Repasse interno (terceirizado)',-c.custoTerc,RP_CORES[2],`${rpH(c.terc)}`):'';
+  const wfCons=Math.abs(c.resultadoCedente)>0.005?`<div class="rp-wf-cons muted small" data-tip="${escA('Repasse pago pelo projeto − o custo/h real das pessoas cedidas. A margem consolidada desconta o custo real (não o repasse): é o que sobra para a Dexterity como um todo.')}">resultado da área que cede <b class="${c.resultadoCedente<0?'rp-neg':'rp-pos'}">${c.resultadoCedente<0?'−':'+'}${fmtBRL(Math.abs(c.resultadoCedente))}</b>${c.mgpCons==null?'':` · margem consolidada <b>${c.mgpCons}%</b>`}</div>`:'';
   const cascata=tipo==='interno'
-    ?`${wf('Orçamento de custo',c.orc,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wf('= Saldo do orçamento',c.saldoOrc,c.saldoOrc>=0?cores.musgo:'var(--err)',c.consumoPrev==null?'':`${Math.round(c.consumoPrev*100)}% consumido`)}`
-    :`${wf(tipo==='fechado'?'Valor do projeto':'Receita',c.receita,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wf('= Margem',c.margem,c.margem>=0?cores.musgo:'var(--err)',c.mgp==null?'':`${c.mgp}%`)}`;
+    ?`${wf('Orçamento de custo',c.orc,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wfTerc}${wf('= Saldo do orçamento',c.saldoOrc,c.saldoOrc>=0?cores.musgo:'var(--err)',c.consumoPrev==null?'':`${Math.round(c.consumoPrev*100)}% consumido`)}${wfCons}`
+    :`${wf(tipo==='fechado'?'Valor do projeto':'Receita',c.receita,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wfTerc}${wf('= Margem',c.margem,c.margem>=0?cores.musgo:'var(--err)',c.mgp==null?'':`${c.mgp}%`)}${wfCons}`;
   // ---- bloco do tipo: receita mensal + Odoo (horas) · marcos de faturamento (fechado) · consumo do orçamento (interno) ----
   let tipoHtml='';
   if(tipo==='horas'){
@@ -496,7 +541,7 @@ function renderRentab(){
     if(real) serieO.push({nome:'Custo realizado (acum.)',cor:cores.amarelo,vals:c.meses.filter(m=>m<=real.ate.slice(0,7)).map(m=>{ ra+=real.porMes[m].custo; return {x:m,v:Math.round(ra)}; }),tipo:'line'});
     let acc=0, accR=0; const mesAtual=hojeSP().slice(0,7);
     const rows=c.meses.map(m=>{ acc+=c.porMes[m].custo; const rr=real&&m<=mesAtual?real.porMes[m].custo:null; if(rr!=null) accR+=rr;
-      return `<tr class="${m===mesAtual?'rm-destaque':''}"><td><b>${esc(labelMesAbbr(m))}</b></td><td class="num">${rpH(c.porMes[m].exec+c.porMes[m].gestao)}</td><td class="num">${fmtBRL(c.porMes[m].custo)}</td><td class="num">${fmtBRL(acc)}</td><td class="num">${c.orc?`<span class="${acc>c.orc?'rp-neg':''}">${Math.round(acc/c.orc*100)}%</span>`:'—'}</td><td class="num">${rr==null?'—':fmtBRL(rr)}</td><td class="num">${rr==null?'':`${fmtBRL(accR)} <span class="muted small">${c.orc?Math.round(accR/c.orc*100)+'%':''}</span>`}</td></tr>`; }).join('');
+      return `<tr class="${m===mesAtual?'rm-destaque':''}"><td><b>${esc(labelMesAbbr(m))}</b></td><td class="num">${rpH(rpEsf(c.porMes[m]))}</td><td class="num">${fmtBRL(c.porMes[m].custo)}</td><td class="num">${fmtBRL(acc)}</td><td class="num">${c.orc?`<span class="${acc>c.orc?'rp-neg':''}">${Math.round(acc/c.orc*100)}%</span>`:'—'}</td><td class="num">${rr==null?'—':fmtBRL(rr)}</td><td class="num">${rr==null?'':`${fmtBRL(accR)} <span class="muted small">${c.orc?Math.round(accR/c.orc*100)+'%':''}</span>`}</td></tr>`; }).join('');
     tipoHtml=`<section class="rm-bloco"><h3 class="mp-h3">🧯 Consumo do orçamento <span class="mp-dim">a alocação da equipe consome o custo global orçado</span></h3>
       <div class="rm-2col"><div>${tsChart(serieO,{fmt:v=>fmtBRL(v),xlabel:x=>labelMesAbbr(x),h:190})}</div>
         <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Mês</th><th class="num">Horas</th><th class="num">Custo previsto</th><th class="num">Acumulado</th><th class="num">% do orçamento</th><th class="num">Realizado</th><th class="num">Acum. realizado</th></tr></thead><tbody>${rows}</tbody></table></div></div>
@@ -518,7 +563,7 @@ function renderRentab(){
         ${rpKpi(fmtBRL(real.custoFinalPlano),'Custo final (real + restante do cenário)',c.orc?(real.custoFinalPlano<=c.orc?'good':'bad'):'',c.orc?(real.custoFinalPlano<=c.orc?`sobra ${fmtBRL(c.orc-real.custoFinalPlano)}`:`estoura ${fmtBRL(real.custoFinalPlano-c.orc)}`):'sem orçamento')}
         ${rpKpi(custoFinal==null?'—':fmtBRL(custoFinal),'Custo final (no ritmo atual)',custoFinal==null||!c.orc?'':(custoFinal<=c.orc?'good':'bad'),custoFinal==null?'ainda cedo para projetar':(real.orcAcabaEm?`orçamento acaba em ${dataBR(real.orcAcabaEm)}`:(c.orc&&custoFinal<=c.orc?'cabe no orçamento':'sem orçamento')))}</div>`
         :`<div class="mp-h3" style="margin-top:10px">💰 Rentabilidade real</div><div class="vg-hero rm-hero4">
-        ${rpKpi(fmtBRL(real.custo),'Custo realizado',real.custo<=real.custoPrevAteHoje?'good':'warn',`previsto até aqui ${fmtBRL(real.custoPrevAteHoje)} · ${real.custo<=real.custoPrevAteHoje?'abaixo':'acima'} do plano`)}
+        ${rpKpi(fmtBRL(real.custo),'Custo realizado',real.custo<=real.custoPrevAteHoje?'good':'warn',`previsto até aqui ${fmtBRL(real.custoPrevAteHoje)} · ${real.custo<=real.custoPrevAteHoje?'abaixo':'acima'} do plano${real.tercH>0?` · inclui repasse ${fmtBRL(real.tercCusto)} (custo real da empresa ${fmtBRL(real.custoCons)})`:''}`)}
         ${tipo==='fechado'?rpKpi(fmtBRL(real.receitaReal),'Faturado até aqui',c.marcos.vencidos.length?'bad':'',`${c.marcos.lista.filter(m=>m.fat).length} de ${c.marcos.lista.length} marco(s) · reconhecido pro rata ${fmtBRL(real.receitaAteHoje)}`)
           :rpKpi(fmtBRL(real.receitaReal),'Receita realizada',real.receitaReal>=real.receitaAteHoje?'good':'warn',`${rpH(real.hFat)} faturáveis × ${fmtBRL(c.vh)} · prevista até aqui ${fmtBRL(real.receitaAteHoje)}`)}
         ${rpKpi(mgAte==null?'—':`${mgAte}%`,'Margem real até aqui',semClasse(mgAte),mgAte==null?'sem receita':`${fmtBRL(real.margemAteHoje)} sobre ${fmtBRL(real.receitaBase)} ${tipo==='fechado'?'reconhecidos pro rata':'de receita realizada'}`)}
@@ -530,7 +575,7 @@ function renderRentab(){
         ${rpKpi(`${Math.round(real.fracao*100)}%`,'Prazo decorrido','',`${rpDiasUteis(p.inicio,real.ate)} de ${c.diasUteisTotal} dia(s) útil(eis)`)}</div>
       ${rentab}
         ${real.pessoas.length?`<div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Quem trabalhou</th><th class="num">Horas realizadas</th><th class="num">Planejado (cenário)</th><th class="num">Diferença</th><th class="num">Custo/h</th><th class="num">Custo realizado</th><th class="num">% das horas</th></tr></thead><tbody>${real.pessoas.map(x=>{ const pl=c.porPessoa.filter(P=>P.a===x.a).reduce((s,P)=>s+P.h,0); const dif=x.h-pl;
-          return `<tr><td>${esc(x.nome)}${pl?'':' <span class="muted small">(fora do cenário)</span>'}</td><td class="num">${rpH(x.h)}</td><td class="num">${pl?rpH(pl):'—'}</td><td class="num"><span class="${dif>0?'rp-neg':'rp-pos'}">${dif>0?'+':'−'}${rpH(Math.abs(dif))}</span></td><td class="num">${fmtBRL(rpCustoH(x.a))}</td><td class="num">${fmtBRL(x.custo)}</td><td class="num">${rpPct(x.h,real.h)}%</td></tr>`; }).join('')}</tbody></table></div>`:''}`; }
+          return `<tr><td>${esc(x.nome)}${pl?'':' <span class="muted small">(fora do cenário)</span>'}</td><td class="num">${rpH(x.h)}</td><td class="num">${pl?rpH(pl):'—'}</td><td class="num"><span class="${dif>0?'rp-neg':'rp-pos'}">${dif>0?'+':'−'}${rpH(Math.abs(dif))}</span></td><td class="num">${fmtBRL(x.ch)}${x.terc&&x.ch!==rpCustoH(x.a)?` <span class="ct-sem na" data-tip="${escA(`Valor-hora de repasse do terceirizado interno — o custo/h real de ${x.nome} é ${fmtBRL(rpCustoH(x.a))}`)}">repasse</span>`:''}</td><td class="num">${fmtBRL(x.custo)}</td><td class="num">${rpPct(x.h,real.h)}%</td></tr>`; }).join('')}</tbody></table></div>`:''}`; }
   } else realHtml=`<div class="aviso">⚠ Este plano não tem <b>projeto do Jira</b> — escolha o projeto em ✏️ Dados do projeto: é ele que traz as horas realizadas para comparar com o planejado e medir a rentabilidade real.</div>`;
   // comparação de cenários
   let comp='';
@@ -571,14 +616,14 @@ function renderRentab(){
       <h3 class="mp-h3">🧪 Cenários</h3>${chips}
       ${avisos.map(a=>`<div class="aviso">${a}</div>`).join('')}
       ${hero}${sim}
-      <section class="rm-bloco"><h3 class="mp-h3">🗓 Planner visual — quem faz o quê, mês a mês <span class="mp-dim">horas por pessoa e por mês; execução e gestão</span></h3>
+      <section class="rm-bloco"><h3 class="mp-h3">🗓 Planner visual — quem faz o quê, mês a mês <span class="mp-dim">horas por pessoa e por mês; execução, gestão e terceirizado interno</span></h3>
         ${grade}
-        ${ctExpl('cada célula é <b>quantas horas</b> a pessoa vai dedicar naquele mês; o <b>Total</b> redistribui igualmente pelos meses. <b>Execução</b> é o trabalho entregue; <b>Gestão</b> é o acompanhamento (o seu tempo de gestão também custa). As <b>horas vendidas</b> de cada mês nascem da carga por dia útil × os dias úteis do mês (feriados descontados), mas <b>aceitam o número que você digitar</b> naquele mês — o calculado fica logo abaixo ("calc. 168h") e o ↺ ao lado da receita devolve o plano inteiro ao automático. O que você digita vale para tudo: receita do mês, eficiência, saldo, períodos de faturamento e o realizado × previsto. O rodapé compara o esforço previsto com as vendidas: <b>saldo positivo</b> é o que você economiza — e pode virar horas de um consultor mais barato. A linha <b>↳ realizado</b> sob cada pessoa são as horas que ela de fato apontou no projeto (vermelho quando passou do planejado).')}</section>
+        ${ctExpl('cada célula é <b>quantas horas</b> a pessoa vai dedicar naquele mês; o <b>Total</b> redistribui igualmente pelos meses. <b>Execução</b> é o trabalho entregue; <b>Gestão</b> é o acompanhamento (o seu tempo de gestão também custa); <b>Terceirizado interno</b> é uma pessoa de outra área da Dexterity cedida a este projeto — o projeto paga o <b>valor-hora de repasse</b> que você digita na coluna Custo/h (vazio = o custo/h da pessoa, e aí é igual à execução) e o resultado da área que cede aparece na cascata. As <b>horas vendidas</b> de cada mês nascem da carga por dia útil × os dias úteis do mês (feriados descontados), mas <b>aceitam o número que você digitar</b> naquele mês — o calculado fica logo abaixo ("calc. 168h") e o ↺ ao lado da receita devolve o plano inteiro ao automático. O que você digita vale para tudo: receita do mês, eficiência, saldo, períodos de faturamento e o realizado × previsto. O rodapé compara o esforço previsto com as vendidas: <b>saldo positivo</b> é o que você economiza — e pode virar horas de um consultor mais barato. A linha <b>↳ realizado</b> sob cada pessoa são as horas que ela de fato apontou no projeto (vermelho quando passou do planejado).')}</section>
       <section class="rm-bloco"><h3 class="mp-h3">📊 Visão mensal e composição do custo</h3>
         <div class="rm-2col"><div><div class="mp-h3">Vendidas × previsto${real?' × realizado':''}</div>${tsChart(serie,{fmt:v=>rpH(v),xlabel:x=>labelMesAbbr(x),h:190})}</div>
           <div><div class="mp-h3">Alocação por mês (por pessoa)</div>${stack}</div></div>
         <div class="mp-h3" style="margin-top:12px">${tipo==='interno'?'Do orçamento ao saldo':'Da receita à margem'}</div>${cascata}
-        ${ctExpl(tipo==='interno'?'o <b>orçamento</b> é o custo global aceito para o projeto interno; o custo é sempre <b>horas × custo/h de cada pessoa</b>. O <b>saldo</b> é o que sobra do orçamento depois da alocação prevista — negativo quer dizer que o plano já estoura o orçamento antes de começar.':tipo==='fechado'?'no escopo fechado a <b>receita é o valor do projeto</b>, faturado pelos marcos; o custo é sempre <b>horas × custo/h de cada pessoa</b>. <b>Eficiência</b> = esforço previsto ÷ horas vendidas (quando informadas); o <b>valor-hora efetivo</b> (valor ÷ horas vendidas) mostra quanto vale cada hora que você vendeu.':'<b>Receita</b> = horas vendidas × <b>valor da hora vendida</b>. O custo é sempre <b>horas × custo/h de cada pessoa</b> (o que o funcionário custa por hora — serve só para medir custo, nunca entra na receita). <b>Eficiência</b> = esforço previsto ÷ horas vendidas: 60% quer dizer fazer o projeto com 60% das horas que o cliente paga; o que sobra é margem ou horas para alocar alguém mais barato. <b>Folga até a meta</b> = quantas horas da pessoa mais barata do cenário ainda cabem sem a margem cair abaixo da meta.')}</section>
+        ${ctExpl(tipo==='interno'?'o <b>orçamento</b> é o custo global aceito para o projeto interno; o custo é sempre <b>horas × custo/h de cada pessoa</b>. O <b>saldo</b> é o que sobra do orçamento depois da alocação prevista — negativo quer dizer que o plano já estoura o orçamento antes de começar.':tipo==='fechado'?'no escopo fechado a <b>receita é o valor do projeto</b>, faturado pelos marcos; o custo é sempre <b>horas × custo/h de cada pessoa</b>. <b>Eficiência</b> = esforço previsto ÷ horas vendidas (quando informadas); o <b>valor-hora efetivo</b> (valor ÷ horas vendidas) mostra quanto vale cada hora que você vendeu.':'<b>Receita</b> = horas vendidas × <b>valor da hora vendida</b>. O custo é <b>horas × custo/h de cada pessoa</b> (o que o funcionário custa por hora — serve só para medir custo, nunca entra na receita); só o <b>terceirizado interno</b> custa ao projeto o valor-hora de repasse combinado, e a <b>margem consolidada</b> volta ao custo/h real. <b>Eficiência</b> = esforço previsto ÷ horas vendidas: 60% quer dizer fazer o projeto com 60% das horas que o cliente paga; o que sobra é margem ou horas para alocar alguém mais barato. <b>Folga até a meta</b> = quantas horas da pessoa mais barata do cenário ainda cabem sem a margem cair abaixo da meta.')}</section>
       ${tipoHtml}
       <section class="rm-bloco"><h3 class="mp-h3">⏱ Realizado (Clockwork) × previsto</h3>${realHtml}
         ${real?ctExpl('as horas realizadas são os apontamentos do Clockwork no projeto do Jira. <b>Eficiência real</b> = realizadas ÷ vendidas proporcionais aos dias úteis já decorridos — abaixo de 100% você está entregando mais rápido do que o cliente paga (a métrica de "sempre realizo mais rápido"). <b>Rentabilidade real</b>: o custo realizado (horas de cada pessoa × custo/h) contra o previsto até aqui; a <b>margem real até aqui</b> usa a receita pro rata; a <b>projetada</b> soma ao custo real o que o cenário ainda prevê (ou extrapola o ritmo atual).'):''}</section>
@@ -647,9 +692,9 @@ function rpLeForm(p){
 }
 // Redistribui as horas de EXECUÇÃO do cenário para fechar em `alvo` horas (proporcional; sem alocação, nada a fazer).
 function rpEscalaExec(p, c, alvo){
-  const calc=rpCalc(p,c); if(calc.exec<=0) return false; const f=Math.max(0,alvo)/calc.exec; let ult=null;
-  (c.aloc||[]).forEach(al=>{ if(al.papel==='gestao') return; Object.keys(al.h||{}).forEach(m=>{ al.h[m]=Math.round((Number(al.h[m])||0)*f*10)/10; if(al.h[m]>0) ult=[al,m]; }); });
-  if(ult){ const novo=rpCalc(p,c).exec; const resto=Math.round((Math.max(0,alvo)-novo)*10)/10; if(resto) ult[0].h[ult[1]]=Math.max(0,Math.round((ult[0].h[ult[1]]+resto)*10)/10); }   // resíduo do arredondamento na última célula
+  const calc=rpCalc(p,c); const base=calc.exec+calc.terc; if(base<=0) return false; const f=Math.max(0,alvo)/base; let ult=null;   // o terceirizado interno escala junto com a execução
+  (c.aloc||[]).forEach(al=>{ if(rpPapel(al)==='gestao') return; Object.keys(al.h||{}).forEach(m=>{ al.h[m]=Math.round((Number(al.h[m])||0)*f*10)/10; if(al.h[m]>0) ult=[al,m]; }); });
+  if(ult){ const nc=rpCalc(p,c); const novo=nc.exec+nc.terc; const resto=Math.round((Math.max(0,alvo)-novo)*10)/10; if(resto) ult[0].h[ult[1]]=Math.max(0,Math.round((ult[0].h[ult[1]]+resto)*10)/10); }   // resíduo do arredondamento na última célula
   return true;
 }
 function rpDistribui(al, meses, total){ const n=meses.length||1; const cada=Math.round(Math.max(0,total)/n*10)/10; al.h={}; meses.forEach(m=>{ al.h[m]=cada; }); }
@@ -693,7 +738,13 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     if(n===antes){ renderRentab(); return; }
     rpSalva(p,'vend',`${labelMesAbbr(m)}: horas vendidas ${n==null?`de volta ao cálculo (${rpH(rpVendPorMes(p).auto[m]||0)})`:'→ '+rpH(n)}`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-tot')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-tot')]; if(!al) return; delete al.regra; rpDistribui(al,meses,Number(t.value)||0); rpSalva(p,'aloc',`${rpNome(al.a)} · total ${rpH(Number(t.value)||0)} distribuído pelos meses`); renderRentab(); return; }
-  if(t.hasAttribute('data-rp-papel')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-papel')]; if(!al) return; al.papel=t.value==='gestao'?'gestao':'exec'; rpSalva(p,'aloc',`${rpNome(al.a)} · papel → ${al.papel==='gestao'?'gestão':'execução'}`); renderRentab(); return; }
+  if(t.hasAttribute('data-rp-papel')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-papel')]; if(!al) return; al.papel=rpPapelVal(t.value); rpSalva(p,'aloc',`${rpNome(al.a)} · papel → ${rpPapelRot(al.papel).toLowerCase()}`); renderRentab(); return; }
+  // 🔁 valor-hora de repasse do terceirizado interno (vazio / 0 = o projeto paga o custo/h da pessoa)
+  if(t.hasAttribute('data-rp-rep')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-rep')]; if(!al||rpPapel(al)!=='terc') return; const bruto=String(t.value||'').trim();
+    if(bruto&&rpRepNum(bruto)==null){ toast('Digite o valor-hora de repasse em R$ (zero ou mais) — ou deixe em branco para o projeto pagar o custo/h da pessoa.','warn'); renderRentab(); return; }
+    const antes=Number(al.rep)>0?Number(al.rep):0; const n=bruto?rpRepNum(bruto):0; if(n===antes){ renderRentab(); return; }
+    if(n>0) al.rep=n; else delete al.rep;
+    rpSalva(p,'aloc',`${rpNome(al.a)} · repasse → ${n>0?fmtBRL(n)+'/h':'custo/h da pessoa (padrão)'}`); renderRentab(); return; }
   if(t.id==='rp-sim-esf'){ const alvo=Math.max(0,(Number(t.value)||0)-rpCalc(p,c0).gestao);   // total inclui a gestão; só a execução é reescalada
     if(rpEscalaExec(p,c0,alvo)){ rpSalva(p,'sim',`esforço total → ${rpH(Number(t.value)||0)}`); renderRentab(); } else toast('Aloque alguém em execução antes de simular o esforço.','warn'); return; }
   if(t.id==='rp-sim-efic'){ const vend=rpVendidas(p); const alvo=vend*(Math.max(1,Number(t.value)||0)/100)-rpCalc(p,c0).gestao; if(rpEscalaExec(p,c0,Math.max(0,alvo))){ rpSalva(p,'sim',`eficiência → ${Math.round(Number(t.value)||0)}% das vendidas`); renderRentab(); } else toast('Aloque alguém em execução antes de simular a eficiência.','warn'); return; }
@@ -772,10 +823,10 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rp-cen-del')){ if((p.cenarios||[]).length<2) return; if(!confirm(`Excluir o cenário "${c0.nome}"?`)) return; p.cenarios=p.cenarios.filter(x=>x.id!==c0.id); p.cenario=p.cenarios[0].id; rpSalva(p,'cenario',`cenário "${c0.nome||''}" excluído`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-rm')){ const i=+t.getAttribute('data-rp-rm'); const al=(c0.aloc||[])[i]; c0.aloc=(c0.aloc||[]).filter((x,j)=>j!==i); rpSalva(p,'aloc',`✕ ${al?rpNome(al.a):'pessoa'} tirada do cenário "${c0.nome||''}"`); renderRentab(); return; }
   if(t.id==='rp-add'){ const a=(document.getElementById('rp-add-pessoa')||{}).value||''; if(!a){ toast('Escolha uma pessoa.','warn'); return; }
-    const papel=(document.getElementById('rp-add-papel')||{}).value==='gestao'?'gestao':'exec'; const h=Number((document.getElementById('rp-add-h')||{}).value)||0; if(!(h>0)){ toast('Informe a dedicação (ex.: 50 = metade do dia).','warn'); return; }
+    const papel=rpPapelVal((document.getElementById('rp-add-papel')||{}).value); const h=Number((document.getElementById('rp-add-h')||{}).value)||0; if(!(h>0)){ toast('Informe a dedicação (ex.: 50 = metade do dia).','warn'); return; }
     const modo=(document.getElementById('rp-add-modo')||{}).value||'pct'; let de=(document.getElementById('rp-add-de')||{}).value||'', ate=(document.getElementById('rp-add-ate')||{}).value||''; if(de&&ate&&ate<de){ const x=de; de=ate; ate=x; }
     const al={ a, papel, h:{}, regra:{ modo:['pct','dia','mes','total'].includes(modo)?modo:'pct', v:h, de, ate } }; rpAplicaRegra(p,al); c0.aloc=c0.aloc||[]; c0.aloc.push(al);
-    rpSalva(p,'aloc',`＋ ${rpNome(a)} · ${rpRegraRot(al)} (${papel==='gestao'?'gestão':'execução'}) no cenário "${c0.nome||''}"`); renderRentab(); return; }
+    rpSalva(p,'aloc',`＋ ${rpNome(a)} · ${rpRegraRot(al)} (${rpPapelCurto(papel)}) no cenário "${c0.nome||''}"`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-real-retry')){ delete r.tempoErro[t.getAttribute('data-rp-real-retry')]; renderRentab(); return; }
   // marcos de faturamento (escopo fechado)
   if(t.id==='rp-marco-add'){ const nome=((document.getElementById('rp-marco-nome')||{}).value||'').trim(); const data=(document.getElementById('rp-marco-data')||{}).value||''; const pct=Number((document.getElementById('rp-marco-pct')||{}).value); const epico=(document.getElementById('rp-marco-epico')||{}).value||'';
@@ -799,7 +850,7 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rp-rg-fechar')){ fechaModal(); return; }
   if(t.hasAttribute('data-rp-rg-limpar')){ const al=(rpCenario(p).aloc||[])[+t.getAttribute('data-rp-rg-limpar')]; if(al){ delete al.regra; rpSalva(p,'aloc',`${rpNome(al.a)} · regra removida (horas mantidas na grade)`); } fechaModal(); renderRentab(); return; }
   if(t.hasAttribute('data-rp-rg-aplicar')){ const al=(rpCenario(p).aloc||[])[+t.getAttribute('data-rp-rg-aplicar')]; if(!al) return; const v=Number((document.getElementById('rp-rg-v')||{}).value)||0; const modo=(document.getElementById('rp-rg-modo')||{}).value||'pct'; let de=(document.getElementById('rp-rg-de')||{}).value||'', ate=(document.getElementById('rp-rg-ate')||{}).value||''; if(de&&ate&&ate<de){ const x=de; de=ate; ate=x; }
-    if(!(v>0)){ toast('Informe a dedicação.','warn'); return; } al.regra={ modo:['pct','dia','mes','total'].includes(modo)?modo:'pct', v, de, ate }; rpAplicaRegra(p,al); rpSalva(p,'aloc',`${rpNome(al.a)} · ${rpRegraRot(al)} (${al.papel==='gestao'?'gestão':'execução'})`); fechaModal(); renderRentab(); return; }
+    if(!(v>0)){ toast('Informe a dedicação.','warn'); return; } al.regra={ modo:['pct','dia','mes','total'].includes(modo)?modo:'pct', v, de, ate }; rpAplicaRegra(p,al); rpSalva(p,'aloc',`${rpNome(al.a)} · ${rpRegraRot(al)} (${rpPapelCurto(al.papel)})`); fechaModal(); renderRentab(); return; }
 });
 // Cria no Odoo (Vendas) uma cotação em rascunho com UM ITEM POR PERÍODO DE FATURAMENTO do plano de horas abertas
 // (períodos do 🤝 contrato ou mês civil). Usa a identidade do Jira da pessoa só para o servidor confirmar quem

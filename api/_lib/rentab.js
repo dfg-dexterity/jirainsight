@@ -1,5 +1,9 @@
 // 💹 Rentabilidade no SERVIDOR — porte fiel das horas VENDIDAS do painel
-// (public/js/17b-rentabilidade.js: rpMeses/rpFim/rpDiasUteis/rpVendPorMes/rpVendAte).
+// (public/js/17b-rentabilidade.js: rpMeses/rpFim/rpDiasUteis/rpVendPorMes/rpVendAte) e, desde 2026-11-02, do
+// CUSTO PREVISTO por papel (execução · gestão · terceirizado interno): rpCustoH/rpRepH/rpEsf/rpCalcResumo,
+// rpPrevAte (o "previsto até aqui" do rpReal) e rpStatusK. O terceirizado interno é o terceiro papel da alocação:
+// o projeto paga o valor-hora de repasse (al.rep) e a empresa continua gastando o custo/h — vazio = custo/h, e aí
+// os números são idênticos aos da execução.
 //
 // Por que existe: o 📊 relatório semanal (api/_lib/semanal.js) precisa do "orçado" de cada
 // projeto — as horas vendidas da Rentabilidade rateadas pelos dias úteis da semana — e o
@@ -112,4 +116,86 @@ export function rpVendEntre(p, de, ate, cfg, hoje) {
     s += v.diasUteis[m] ? v.porMes[m] * du / v.diasUteis[m] : 0;
   });
   return s;
+}
+
+// ===========================================================================
+// 🔁 Papéis, custo/h e CUSTO PREVISTO (porte do rpCalc/rpReal do painel — só o que é número, sem rótulos/UI)
+// ===========================================================================
+export const RP_PAPEIS = ['exec', 'gestao', 'terc'];
+// Valor desconhecido (dado antigo ou à mão) cai em execução — igual ao painel.
+export function rpPapel(al) { const v = al && al.papel; return RP_PAPEIS.includes(v) ? v : 'exec'; }
+// Custo/h da pessoa: vaga planejada ("plan_…" em cfg.pessoasPlanejadas) usa o custo previsto do cadastro; pessoa real
+// usa cfg.custosPessoa. 0 = sem custo cadastrado. Mesmo caminho do alocCustoH do painel (id "plan_…" que não existe
+// mais na lista cai em custosPessoa, como lá).
+export function rpCustoH(a, cfg) {
+  const c = cfg || {};
+  const pp = String(a || '').startsWith('plan_') ? (Array.isArray(c.pessoasPlanejadas) ? c.pessoasPlanejadas : []).find((x) => x && x.id === a) : null;
+  if (pp) return Math.max(0, Number(pp.custoH) || 0);
+  return Math.max(0, Number((c.custosPessoa || {})[a]) || 0);
+}
+// O que o PROJETO paga por hora desta alocação: o repasse (só terceirizado interno, > 0) ou o custo/h da pessoa.
+export function rpRepH(al, cfg) { return rpPapel(al) === 'terc' && Number(al && al.rep) > 0 ? Number(al.rep) : rpCustoH(al && al.a, cfg); }
+// A ÚNICA soma de esforço: execução + gestão + terceirizado interno.
+export const rpEsf = (M) => M.exec + M.gestao + M.terc;
+export function rpStatusK(p, hoje) {
+  const h = hoje || spHoje();
+  if (h < (p.inicio || '')) return 'planejado';
+  if (h > rpFim(p, h)) return 'encerrado';
+  return 'andamento';
+}
+// Receita por mês do escopo fechado: % de cada marco sobre o valor do projeto, no mês da data do marco (mesma ordem de soma do painel).
+function rpMarcosPorMes(p, valor) {
+  const lista = (Array.isArray(p.marcos) ? p.marcos : []).filter((m) => m && typeof m === 'object')
+    .sort((a, b) => (a.data || '9999').localeCompare(b.data || '9999') || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+  const porMes = {};
+  lista.forEach((m) => { const pct = Math.max(0, Number(m.pct) || 0); const v = valor * pct / 100; const k = (m.data || '').slice(0, 7); if (k) porMes[k] = (porMes[k] || 0) + v; });
+  return porMes;
+}
+const rpPct = (n, d) => (d > 0 ? Math.round(n / d * 100) : null);
+// Cálculo de UM cenário (cen = { aloc:[{a, papel, rep, h:{AAAA-MM:horas}}] }) — o rpCalc do painel sem rótulos/gráficos.
+// Duas visões do custo: do PROJETO (custo = horas × repasse no terceirizado, × custo/h nos demais) e CONSOLIDADA
+// (custoCons = horas × custo/h real de todo mundo); a diferença é o resultado da área que cede (resultadoCedente).
+export function rpCalcResumo(p, cen, cfg, hoje) {
+  const meses = rpMeses(p, hoje); const vp = rpVendPorMes(p, cfg, hoje); const vendPorMes = vp.porMes;
+  const vend = meses.reduce((s, m) => s + vendPorMes[m], 0); const vh = Math.max(0, Number(p.valorHora) || 0);
+  const tipo = rpTipo(p); const valorProj = Math.max(0, Number(p.valorProjeto) || 0);
+  const receita = tipo === 'fechado' ? valorProj : tipo === 'interno' ? 0 : vend * vh;
+  const marcosPorMes = tipo === 'fechado' ? rpMarcosPorMes(p, valorProj) : null;
+  const receitaPorMes = {};
+  meses.forEach((m) => { receitaPorMes[m] = tipo === 'horas' ? vendPorMes[m] * vh : tipo === 'fechado' ? (marcosPorMes[m] || 0) : 0; });
+  const porMes = {}; meses.forEach((m) => { porMes[m] = { exec: 0, gestao: 0, terc: 0, custo: 0, custoTerc: 0 }; });
+  const porPessoa = [];
+  let exec = 0; let gestao = 0; let terc = 0; let custo = 0; let custoExec = 0; let custoGestao = 0; let custoTerc = 0; let custoCons = 0; let tercCons = 0;
+  ((cen && cen.aloc) || []).forEach((al, i) => {
+    const ch = rpCustoH(al.a, cfg); const papel = rpPapel(al); const rep = rpRepH(al, cfg); let tot = 0; let cus = 0; let cusC = 0;
+    meses.forEach((m) => {
+      const h = Math.max(0, Number((al.h || {})[m]) || 0); tot += h; cus += h * rep; cusC += h * ch; const M = porMes[m];
+      if (papel === 'gestao') M.gestao += h; else if (papel === 'terc') { M.terc += h; M.custoTerc += h * rep; } else M.exec += h;
+      M.custo += h * rep;
+    });
+    if (papel === 'gestao') { gestao += tot; custoGestao += cus; } else if (papel === 'terc') { terc += tot; custoTerc += cus; tercCons += cusC; } else { exec += tot; custoExec += cus; }
+    custo += cus; custoCons += cusC;
+    porPessoa.push({ i, a: al.a, papel, ch, rep, h: tot, custo: cus });
+  });
+  const esforco = rpEsf({ exec, gestao, terc });
+  const margem = receita - custo; const margemCons = receita - custoCons;
+  return { meses, vend, vh, tipo, receita, receitaPorMes, diasUteis: vp.diasUteis, porMes, porPessoa,
+    exec, gestao, terc, esforco, custo, custoExec, custoGestao, custoTerc, custoCons,
+    resultadoCedente: custoTerc - tercCons, margem, mgp: receita > 0 ? rpPct(margem, receita) : null, margemCons, mgpCons: receita > 0 ? rpPct(margemCons, receita) : null };
+}
+// O "previsto até aqui" do rpReal: horas e custo do cenário até a data lida — o mês corrente entra pro rata dos dias úteis
+// já decorridos (fMes), os anteriores inteiros e os seguintes zerados. `calc` é o resultado do rpCalcResumo.
+export function rpPrevAte(p, calc, ate, cfg) {
+  const mesAtual = ate.slice(0, 7);
+  const fMes = (m) => {
+    if (m < mesAtual) return 1; if (m > mesAtual) return 0;
+    const a = m === calc.meses[0] ? p.inicio : `${m}-01`; const du = calc.diasUteis[m] || 0;
+    return du ? Math.min(1, rpDiasUteis(a, ate, cfg) / du) : 1;
+  };
+  return {
+    prevAteHoje: calc.meses.reduce((s, m) => s + rpEsf(calc.porMes[m]) * fMes(m), 0),
+    custoPrevAteHoje: calc.meses.reduce((s, m) => s + calc.porMes[m].custo * fMes(m), 0),
+    custoRestante: calc.meses.reduce((s, m) => s + calc.porMes[m].custo * (1 - fMes(m)), 0),
+    fMesAtual: fMes(mesAtual),
+  };
 }

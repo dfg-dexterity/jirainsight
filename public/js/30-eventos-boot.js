@@ -446,8 +446,8 @@ function mostraVersao(j){
   if(!j || (!j.pr && !j.sha)){ el.textContent=''; return; }
   const base=j.url||'https://github.com/dfg-dexterity/jirainsight';
   const url=j.pr?`${base}/pull/${j.pr}`:`${base}/commit/${j.sha}`;
-  el.innerHTML=`<strong>Versão:</strong> <a href="${escA(url)}" target="_blank" rel="noopener">${j.pr?`PR #${esc(j.pr)}`:esc(j.sha)}</a>`+
-    `${j.titulo?` — ${esc(j.titulo)}`:''}${j.pr&&j.sha?` <span class="muted">(${esc(j.sha)})</span>`:''}`;
+  // 2026-11-02 (a pedido do usuário): só o número do merge e a descrição dele (sem rótulo e sem o hash).
+  el.innerHTML=`<a href="${escA(url)}" target="_blank" rel="noopener">${j.pr?`PR #${esc(j.pr)}`:esc(j.sha)}</a>${j.titulo?` — ${esc(j.titulo)}`:''}`;
 }
 fetch('/api/config?versao=1').then(x=>x.json()).then(mostraVersao).catch(()=>{});
 
