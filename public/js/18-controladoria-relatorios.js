@@ -95,7 +95,7 @@ function ctDados(){
     const s=Number(w.s)||0; const h=s/3600; const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPad;
     if(!(w.p in contratoDe)) contratoDe[w.p]=ctContratoDe(w.p); const c=contratoDe[w.p]; const vh=c?(Number(c.valorHora)||0):0;
     const C=porCat[cat]=porCat[cat]||{cat,seg:0,segFat:0,custo:0,rec:0,projetos:new Set()};
-    C.seg+=s; if(w.f) C.segFat+=s; C.custo+=h*ch; C.rec+=(w.f&&vh)?h*vh:0; C.projetos.add(w.p); });
+    const fa=wFat(w,cat); C.seg+=s; if(fa) C.segFat+=s; C.custo+=h*ch; C.rec+=(fa&&vh)?h*vh:0; C.projetos.add(w.p); });
   const wl=(t.worklogs||[]).filter(w=>(((projMeta[w.p]||{}).categoria)||'Sem categoria')===ct.cat);
   const por={}; const porPessoa={}; const porTipo={}; const porMes={}; const semCusto=new Set();
   let segTot=0,segFat=0,custoTot=0,custoGest=0,recTot=0,temContrato=false;
@@ -105,9 +105,9 @@ function ctDados(){
     const custo=h*ch;
     if(!(chBase>0)) semCusto.add(w.a);   // sem custo PRÓPRIO (mesmo que o padrão cubra)
     const c=ctContratoDe(w.p); const vh=c?(Number(c.valorHora)||0):0;
-    const rec=(w.f&&vh)?h*vh:0; if(vh) temContrato=true;   // receita = horas FATURÁVEIS × valor-hora do contrato
+    const fa=wFat(w,ct.cat); const rec=(fa&&vh)?h*vh:0; if(vh) temContrato=true;   // receita = horas FATURÁVEIS × valor-hora do contrato
     const P=por[w.p]=por[w.p]||{p:w.p,seg:0,segFat:0,custo:0,custoGest:0,rec:0,temC:!!vh,pessoas:new Set(),tipos:{}};
-    P.seg+=s; if(w.f) P.segFat+=s; P.custo+=custo; P.rec+=rec; P.pessoas.add(w.a);
+    P.seg+=s; if(fa) P.segFat+=s; P.custo+=custo; P.rec+=rec; P.pessoas.add(w.a);
     P.tipos[w.t||'—']=(P.tipos[w.t||'—']||0)+s;
     const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,gestor:gest.has(w.a)};
     U.seg+=s; U.custo+=custo;
@@ -115,7 +115,7 @@ function ctDados(){
     const mes=(w.d||'').slice(0,7);
     const M=porMes[mes]=porMes[mes]||{custo:0,rec:0,seg:0};
     M.custo+=custo; M.rec+=rec; M.seg+=s;
-    segTot+=s; if(w.f) segFat+=s; custoTot+=custo; recTot+=rec;
+    segTot+=s; if(fa) segFat+=s; custoTot+=custo; recTot+=rec;
     if(gest.has(w.a)){ custoGest+=custo; P.custoGest+=custo; }
   });
   return { cats, wl, por, porPessoa, porTipo, porMes, semCusto, segTot, segFat,
@@ -128,11 +128,11 @@ function ctResultado(d, key){
   const contrato=ctContratoDe(key); const vh=contrato?(Number(contrato.valorHora)||0):0;
   const nivel={}; ['senior','pleno','junior',''].forEach(k=>{ nivel[k]={k,seg:0,custo:0,pessoas:new Set()}; });
   const porPessoa={}; const porMes={}; let seg=0,segFat=0,custo=0,rec=0,custoGest=0;
-  wl.forEach(w=>{ const s=Number(w.s)||0; const h=s/3600; const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPadrao; const cu=h*ch; const rc=(w.f&&vh)?h*vh:0;
+  wl.forEach(w=>{ const s=Number(w.s)||0; const h=s/3600; const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPadrao; const cu=h*ch; const fa=wFat(w,((d.projMeta||{})[w.p]||{}).categoria); const rc=(fa&&vh)?h*vh:0;
     const n=(typeof rmNivel==='function')?rmNivel(w.a):''; const N=nivel[nivel[n]?n:'']; N.seg+=s; N.custo+=cu; N.pessoas.add(w.a);
     const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,nivel:n,gestor:d.gest.has(w.a)}; U.seg+=s; U.custo+=cu;
     const m=(w.d||'').slice(0,7); const M=porMes[m]=porMes[m]||{seg:0,custo:0,rec:0}; M.seg+=s; M.custo+=cu; M.rec+=rc;
-    seg+=s; if(w.f) segFat+=s; custo+=cu; rec+=rc; if(d.gest.has(w.a)) custoGest+=cu; });
+    seg+=s; if(fa) segFat+=s; custo+=cu; rec+=rc; if(d.gest.has(w.a)) custoGest+=cu; });
   const cons=((ct.proj&&ct.proj.projetos)||[]).find(x=>x.key===key)||null;
   const ficha=((estado.projetos&&estado.projetos.fichas)||{})[key]||null;
   const vendidas=contrato?ctHorasDoProjeto(contrato,key):0;   // AMS = horas do ciclo · horas abertas = o alocado a este projeto

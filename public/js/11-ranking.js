@@ -19,10 +19,10 @@ function calcEngajamento(){
   const semTot={}, semFat={};
   (estado.tempo.worklogs||[]).forEach(w=>{
     if(!passa(w.p,w.t,projs,f)) return; if(f.pessoa && w.a!==f.pessoa) return;
-    const r=at(w.a); r.seg+=w.s; if(w.f) r.segFat+=w.s; if(w.k) r.tkHoras.add(w.k);
+    const r=at(w.a); r.seg+=w.s; if(wFat(w)) r.segFat+=w.s; if(w.k) r.tkHoras.add(w.k);
     const dia=(w.d||'').slice(0,10);
     if(dia){ const s=rkSemanaDe(dia); r.porSemana[s]=(r.porSemana[s]||0)+w.s;
-      semTot[s]=(semTot[s]||0)+w.s; if(w.f) semFat[s]=(semFat[s]||0)+w.s; }
+      semTot[s]=(semTot[s]||0)+w.s; if(wFat(w)) semFat[s]=(semFat[s]||0)+w.s; }
   });
   (estado.atividade.eventos||[]).forEach(e=>{
     if(!passa(e.p,e.t,projs,f)) return; if(f.pessoa && e.a!==f.pessoa) return;

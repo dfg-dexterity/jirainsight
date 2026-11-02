@@ -1583,6 +1583,14 @@
   .ad-aloc-l{flex-wrap:wrap;gap:4px 10px}
   .ad-aloc-h input{font-size:16px;width:96px;min-height:40px}
   .ad-aloc-tab{font-size:13px}
+  /* 📋 lista dos contratos (2026-11-02): a linha vira um bloco — nome e ações à vista, o resto embaixo */
+  .ct-l-tab thead{display:none}
+  .ct-l-tab,.ct-l-tab tbody{display:block}
+  .ct-l-tab tr{display:flex;flex-wrap:wrap;gap:4px 8px;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .ct-l-tab td{border:0;padding:0;min-width:0}
+  .ct-l-tab td.ct-l-acoes{flex:1 1 100%;text-align:left;white-space:normal}
+  .ct-l-acoes .btn{margin:4px 6px 0 0;min-height:36px}
+  .ct-ver-tab th{width:auto}
 }
 /* ---- fim: negocio ---- */
 

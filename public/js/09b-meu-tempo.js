@@ -56,7 +56,7 @@ function mtpDados(){
   const classes={}; let nCom=0,nSem=0,chars=0,genericos=0; const textos={}; const amostras=[]; const palavras={};
   wl.forEach(w=>{
     const s=Number(w.s)||0; const h=s/3600; const dia=(w.d||'').slice(0,10); const hh=(w.d||'').length>=13?+w.d.slice(11,13):NaN;
-    seg+=s; if(w.f) segFat+=s; if(!w.e) segSemEpico+=s;
+    seg+=s; if(wFat(w,(projMeta[w.p]||{}).categoria)) segFat+=s;   // 💰 pela categoria do projeto (a base da tela tem a categoria) if(!w.e) segSemEpico+=s;
     const tp=w.t||'—'; porTipo[tp]=(porTipo[tp]||0)+s;
     porProj[w.p]=(porProj[w.p]||0)+s; projetos.add(w.p);
     const cat=(projMeta[w.p]&&projMeta[w.p].categoria)||'Sem categoria'; porCat[cat]=(porCat[cat]||0)+s;

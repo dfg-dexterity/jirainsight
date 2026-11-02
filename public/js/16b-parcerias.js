@@ -376,7 +376,9 @@ function pcRegraRot(r){ const v=Number(r&&r.v)||0; const m=pcModo(r); const q=m=
 
 // ---- tela ----
 function renderParcerias(){
-  const cont=document.getElementById('conteudo'); const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar(); const lista=pcLista();
+  const cont=document.getElementById('conteudo'); const st=estado.parcerias=estado.parcerias||{}; const gestor=pcPodeEditar();
+  // 📋 (2026-11-02) registro que não é contrato (null, texto…) fica fora — antes um só derrubava a tela inteira.
+  const listaTodos=pcLista(); const lista=listaTodos.filter(ctItemValido); const nInval=listaTodos.length-lista.length;
   if(gestor&&cfgShared&&ctGaranteCodigos(lista,'PC','pcSeq')) salvaCfg();   // contratos antigos ganham o ID (uma gravação só)
   const edit=st.editId?pcDe(st.editId):null; if(st.editId&&!edit) st.editId=null;
   const hoje=hojeSP();
@@ -391,16 +393,23 @@ function renderParcerias(){
   const chaveForm=gestor&&(st.novo||edit)?(edit?edit.id:'novo'):'';
   const form=chaveForm?pcFormHTML(st.rasc, !edit, chaveForm):'';
   const ordem={avencer:0,vigente:1,futuro:2,encerrado:3};
-  const cards=lista.slice().sort((a,b)=>(ordem[pcStatus(a).k]-ordem[pcStatus(b).k])||String(a.consultoria||'').localeCompare(String(b.consultoria||''),'pt'))
-    .map(c=>pcCardHTML(c, gestor, (st.aba&&st.aba.id===c.id)?st.aba.qual:'', hoje)).join('');
-  const aVencer=lista.filter(c=>pcStatus(c).k==='avencer');
+  // Cada cartão é montado à parte: um contrato com dado inesperado vira um cartão simples COM O MOTIVO (ctCardFalhaHTML,
+  // 16), em vez de sumir com a lista inteira — e a 📋 tabela do topo mostra todos, com 👁 ver / ✏️ editar / 🗑 remover.
+  const stK=(c)=>{ try{ return ordem[pcStatus(c).k]; }catch(e){ return 9; } };
+  const ordenada=lista.slice().sort((a,b)=>(stK(a)-stK(b))||String(a.consultoria||'').localeCompare(String(b.consultoria||''),'pt'));
+  const cards=ordenada.map(c=>{ try{ return pcCardHTML(c, gestor, (st.aba&&st.aba.id===c.id)?st.aba.qual:'', hoje); }catch(e){ return ctCardFalhaHTML(c, e, 'pc', gestor); } }).join('');
+  const tabela=ctListaHTML(ordenada, 'pc', gestor, (c)=>{ const M=PC_MODAL[pcModal(c)]; const s=pcStatus(c); const vh=Number(c.valorHora)||0; const frs=pcFrentes(c); const eq=Array.isArray(c.equipe)?c.equipe:[];   // leitor: não cria c.equipe no render
+    return { cod:pcCod(c), nome:c.consultoria||'(sem nome)', tipo:`${M[0]} ${esc(M[1])}`, sit:`<span class="badge pc-st-${s.k}">${esc(s.rot)}</span> <span class="muted small">${c.inicio?dataBR(c.inicio):'—'} → ${c.fim?dataBR(c.fim):'sem fim'}</span>`,
+      vh:vh?fmtBRL(vh):'—', horas:eq.length?`${eq.length} recurso(s)`:'<span class="muted small">sem equipe</span>', proj:frs.length?`${frs.length} · <span class="muted small">${esc(frs.slice(0,3).map(f=>pcFrCurto(f)).join(', '))}${frs.length>3?'…':''}</span>`:'<span class="muted small">nenhum</span>' }; }, '📋 Contratos de parceria');
+  const bloco=(nome, fn)=>{ try{ return fn(); }catch(e){ try{ console.error('[parcerias] '+nome, e); }catch(_){} return `<div class="aviso">⚠ Não consegui montar <b>${esc(nome)}</b> (<code>${esc(String(e&&e.message||e))}</code>). O resto da tela segue normal.</div>`; } };
+  const aVencer=lista.filter(c=>{ try{ return pcStatus(c).k==='avencer'; }catch(e){ return false; } });
   const aviso=aVencer.length?`<div class="aviso">⏰ <b>${aVencer.length} contrato(s) dentro do período de aviso</b>: ${aVencer.map(c=>{ const s=pcStatus(c); return `<b>${esc(c.consultoria||'')}</b> vence em ${dataBR(c.fim)} (aviso prévio ${s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(s.avisoAte)}${s.avisoPassou?'</span>':''})`; }).join(' · ')}.</div>`:'';
-  const notas=(typeof pcProximasNotasHTML==='function')?pcProximasNotasHTML(lista, hoje):'';
-  const caixa=(typeof pcCaixaHTML==='function')?pcCaixaHTML(lista, hoje):'';   // 💰 16f
+  const notas=(typeof pcProximasNotasHTML==='function')?bloco('🧾 Próximas notas', ()=>pcProximasNotasHTML(lista, hoje)):'';
+  const caixa=(typeof pcCaixaHTML==='function')?bloco('💰 Fluxo de caixa', ()=>pcCaixaHTML(lista, hoje)):'';   // 💰 16f
   // O formulário já aberto é REAPROVEITADO (mesmo nó, com o que está digitado e o cursor onde estava) quando o
   // redesenho é do mesmo contrato — só o resto da tela é reconstruído.
   const formVelho=cont.querySelector('.pc-form'); const ativo=document.activeElement;
-  const arvore=el(`<div class="pc-tela">${intro}${aviso}${notas}${caixa}${form}
+  const arvore=el(`<div class="pc-tela">${intro}${ctInvalidosHTML(nInval,'pc',gestor)}${lista.length?tabela:''}${aviso}${notas}${caixa}${form}
     <div class="card full"><h2>Contratos cadastrados <span>${lista.length}</span></h2>
       ${lista.length?`<div class="ad-grid pc-grid">${cards}</div>`:`<div class="estado">Nenhum contrato de parceria ainda.${gestor?' Clique em <b>＋ Novo contrato</b> para cadastrar o primeiro.':''}</div>`}</div></div>`);
   const reusa=!!(formVelho&&chaveForm&&formVelho.getAttribute('data-pc-form')===chaveForm);

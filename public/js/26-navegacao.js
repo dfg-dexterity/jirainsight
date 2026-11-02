@@ -4,7 +4,24 @@
 // 🧭 Navegação por perfil (2026-09-13): Alocação (macro) e Planejamento macro foram aposentadas de vez
 // (o código segue em _arquivado-planejamento-alocacao.js); os slugs antigos viram alias (VISTA_ALIAS) para
 // o 📋 Meu Planejamento. A capacidade macro volta como aba quando for reformulada (🗺️ Roadmap).
+// 🛟 Rede de segurança (2026-11-02): uma tela que quebra ao desenhar (dado inesperado da config, do Jira…) deixava o
+// conteúdo ANTERIOR à vista, sem aviso — foi assim que "Contratos cadastrados 4" apareceu sem nenhum cartão. Agora a
+// falha vira um cartão com o motivo, ↻ tentar de novo e 🏠 Início; o erro continua indo ao console (e o 🐞 Reportar o
+// leva), e é relançado fora da pilha para não sumir dos testes (pageerror).
 function render(){
+  try{ return renderVista(); }
+  catch(e){ try{ console.error('[render]', estado.vista, e); }catch(_){} telaComErro(e); setTimeout(()=>{ throw e; },0); }
+}
+function telaComErro(e){
+  const cont=document.getElementById('conteudo'); if(!cont) return;
+  const nome=(typeof NAVCAT!=='undefined'&&(NAVCAT.find(x=>x[0]===estado.vista)||[])[1])||estado.vista;
+  try{ cont.replaceChildren(el(`<div class="card full tela-erro"><h2>⚠ Esta tela não conseguiu ser desenhada <span>${esc(String(nome))}</span></h2>
+    <div class="muted small">Algum dado inesperado travou o desenho. Nada foi alterado nos seus dados. Tente de novo; se continuar, mande pelo 🐞 Reportar (o erro abaixo vai junto).</div>
+    <pre class="tela-erro-msg">${esc(String((e&&e.message)||e))}</pre>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn primario" data-tela-erro-retry="1">↻ Tentar de novo</button><button class="btn" data-goto="acoes">🏠 Início</button></div></div>`)); }catch(_){}
+}
+document.addEventListener('click', (ev)=>{ const b=ev.target.closest&&ev.target.closest('[data-tela-erro-retry]'); if(b) render(); });
+function renderVista(){
   _tscReset();   // limpa o registro de gráficos interativos a cada re-render
   try{ usoTela(estado.vista); }catch(e){}   // 📊 conta a abertura da tela (31-uso.js) — nunca atrapalha o desenho
   aplicaChrome();   // mostra só os controles do topo que fazem sentido nesta tela
@@ -155,7 +172,7 @@ function marcaVista(v){
   seg.querySelectorAll('[data-v],.navg-b').forEach(b=>b.setAttribute('aria-pressed','false'));
   // A entrada EXATA da vista quando o menu a lista por nome (👤 Meu trabalho lista abas como ações explícitas);
   // senão, a tela principal do grupo de abas. TODAS as entradas da vista acendem (📝 Criar ticket está no 👤 e no
-  // botão ➕); entre entradas com audiência (📈 planrel: "minha" no 👤, o time em Entrega) só a da audiência atual.
+  // botão ➕); entre entradas com audiência (📈 planrel: "minha" no 👤, o time em Insights) só a da audiência atual.
   let its=[...seg.querySelectorAll(`[data-v="${v}"]`)];
   if(!its.length) its=[...seg.querySelectorAll(`[data-v="${abaAlvoMenu(v)}"]`)];
   const aud=(typeof estado!=='undefined'&&estado.planrel&&estado.planrel.aud)||'';
@@ -259,7 +276,7 @@ const NAVCAT=[
   ['cronograma','📁 Projetos › 📅 Marcos e Cronograma','entrega','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup analise'],
   ['timesheet','⏱ Horas do time › ⏱ Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise timesheet'],
   ['ranking','⏱ Horas do time › 🏆 Ranking','entrega','engajamento cumprimento apontamento analise ranking'],
-  ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','entrega','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
+  ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','insights','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],
   ['portal','🌐 Portal do cliente','entrega','portal cliente publicar riscos faq decisoes reunioes sharepoint teams visao externa pendencias time do projeto equipe links pre-visualizar convidar acessos area do cliente progresso epicos marcos'],
   // Dexterity Negócio — comercial, financeiro e controladoria
   ['admin','📑 Contratos › 🏢 Clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes cadastro contratos clientes'],

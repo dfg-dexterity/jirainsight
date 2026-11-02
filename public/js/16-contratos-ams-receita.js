@@ -474,6 +474,88 @@ function ctAlocTabelaHTML(c, cs){
   return `<div class="scroll-x"><table class="ad-aloc-tab"><thead><tr><th>Projeto</th><th class="num">Alocado</th><th class="num">Consumido</th><th class="num">Saldo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+// ================= 📋 LISTA DOS CONTRATOS + 👁 VER DADOS (2026-11-02) =================
+// Pedido do usuário: "contratos cadastrados eu não consigo ver os dados deles, eu posso querer editar, deletar eles" —
+// em produção a 🤝 Parceiros mostrava "Contratos cadastrados 4" e nenhum cartão, e na 🏢 Clientes a lista ficava
+// embaixo de um formulário enorme. As duas abas de 📑 Contratos abrem agora por uma TABELA simples — uma linha por
+// contrato, montada linha a linha à prova de dado inesperado — com 👁 ver todos os dados, ✏️ editar, ⧉ duplicar e
+// 🗑 remover (os botões são os MESMOS data-ad-*/data-pc-* dos cartões, então os handlers de sempre fazem o trabalho).
+// Os cartões ricos seguem abaixo; o que não puder ser montado vira um cartão simples COM O MOTIVO (ctCardFalhaHTML),
+// em vez de sumir. Registro que não é objeto (null, texto) não quebra a tela: fica fora e a tela avisa (🧹 limpar).
+function ctItemValido(c){ return !!c&&typeof c==='object'&&!Array.isArray(c); }
+const CT_ROTULOS={ cod:'ID', cliente:'Cliente', consultoria:'Consultoria parceira', tipo:'Tipo de contrato', modalidade:'Modalidade',
+  inicio:'Início', fim:'Fim', valorHora:'Valor-hora (R$)', horasContratadas:'Horas contratadas', horasCiclo:'Horas por ciclo', apuracao:'Apuração (ciclo)',
+  minMes:'Mínimo mensal (h)', tetoMes:'Teto mensal (h)', bancoHoras:'Banco de horas', respDex:'Responsável Dexterity', respCliente:'Responsável / Cliente',
+  projetos:'Projetos do Jira', alocacao:'Horas alocadas por projeto', avisoDias:'Aviso prévio (dias)', fatFecha:'Fechamento do ciclo (dia)', fatDia:'Dia da nota',
+  prazoReceb:'Recebimento (dias após a nota)', retPct:'Retenção na fonte (%)', conta:'Conta de recebimento', contato:'Contato', obs:'Observações',
+  pasta:'Pasta do contrato', criadoEm:'Criado em', copiaDe:'Cópia de', atualizadoEm:'Atualizado em', atualizadoPor:'Atualizado por', id:'Id interno' };
+// Valor de um campo para a tela: texto simples; listas e objetos viram um resumo (o JSON completo vai no <details>).
+function ctCampoTxt(k, v){
+  if(v==null||v==='') return '—';
+  if(k==='portalToken') return '(link do cliente gerado — veja no cartão)';
+  if(typeof v==='boolean') return v?'sim':'não';
+  if(typeof v==='number') return k==='valorHora'?fmtBRL(v):String(v);
+  if(typeof v==='string') return /^\d{4}-\d{2}-\d{2}$/.test(v)?fmtBR(v):v;
+  if(Array.isArray(v)){ if(!v.length) return '—'; if(v.every(x=>typeof x!=='object')) return v.join(', '); return `${v.length} item(ns)`; }
+  if(typeof v==='object'){ const ks=Object.keys(v); if(!ks.length) return '—';
+    if(ks.every(x=>typeof v[x]!=='object')) return ks.slice(0,12).map(x=>`${x}: ${v[x]}`).join(' · ')+(ks.length>12?' …':''); return `${ks.length} item(ns)`; }
+  return String(v); }
+function ctVerDadosHTML(c, pref, pode){
+  const nome=pref==='pc'?(c.consultoria||'(sem nome)'):(c.cliente||'(sem nome)');
+  const cod=pref==='pc'?pcCod(c):ctCodCli(c);
+  const ordem=Object.keys(CT_ROTULOS).filter(k=>k in c).concat(Object.keys(c).filter(k=>!(k in CT_ROTULOS)&&k!=='hist').sort());
+  const linhas=ordem.map(k=>`<tr><th>${esc(CT_ROTULOS[k]||k)}</th><td>${esc(ctCampoTxt(k,c[k]))}</td></tr>`).join('');
+  const hist=Array.isArray(c.hist)?c.hist.length:0;
+  let json=''; try{ json=JSON.stringify(Object.assign({}, c, c.portalToken?{portalToken:'(oculto)'}:{}), null, 2); }catch(e){ json='(não deu para mostrar: '+(e.message||e)+')'; }
+  if(json.length>40000) json=json.slice(0,40000)+'\n… (cortado)';
+  const id=c.id?escA(c.id):'';
+  return `<h3>👁 ${esc(cod)} · ${esc(nome)}</h3>
+    <div class="muted small">Todos os dados guardados deste contrato${hist?` · 🕓 ${hist} registro(s) no histórico`:''}.</div>
+    <div class="scroll-x"><table class="mp-tab-mini ct-ver-tab"><tbody>${linhas}</tbody></table></div>
+    <details class="rm-det"><summary>🧾 Todos os campos (JSON)</summary><pre class="ct-ver-json">${esc(json)}</pre></details>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      ${pode&&id?`<button class="btn primario" data-ctv-acao="${pref}|edit|${id}">✏️ Editar</button><button class="btn" data-ctv-acao="${pref}|dup|${id}">⧉ Duplicar</button><button class="btn" data-ctv-acao="${pref}|del|${id}">🗑 Remover</button>`:''}
+      ${pode&&!id?'<span class="muted small">Este registro não tem id — não dá para editar; use 🧹 limpar na tela para tirá-lo da lista.</span>':''}
+      <button class="btn" data-ctv-fecha="1">Fechar</button></div>`;
+}
+// Tabela-resumo: `cols(c)` devolve {cod,nome,tipo,sit,vh,horas,proj} já em texto/HTML seguro.
+function ctListaHTML(itens, pref, pode, cols, titulo){
+  const linhas=itens.map(c=>{ const id=c.id?escA(c.id):''; const acoes=`<button class="btn rt-step" data-ctv="${pref}|${id}" data-tip="Ver todos os dados deste contrato">👁 ver</button>${pode&&id?`<button class="btn rt-step" data-${pref}-edit="${id}">✏️ editar</button><button class="btn rt-step" data-${pref}-dup="${id}" data-tip="Abre um contrato novo já preenchido com os dados deste">⧉</button><button class="btn rt-step" data-${pref}-del="${id}">🗑 remover</button>`:''}`;
+    try{ const x=cols(c);
+      return `<tr data-ct-linha="${id}"><td><span class="badge ct-cod">${esc(x.cod)}</span></td><td><b>${esc(x.nome)}</b></td><td>${x.tipo}</td><td>${x.sit}</td><td class="num">${x.vh}</td><td>${x.horas}</td><td>${x.proj}</td><td class="ct-l-acoes">${acoes}</td></tr>`; }
+    catch(e){ try{ console.error('[contratos] linha', c&&c.id, e); }catch(_){}
+      return `<tr data-ct-linha="${id}" class="ct-l-falha"><td><span class="badge ct-cod">${esc(String(c.cod||'—'))}</span></td><td><b>${esc(String(c.cliente||c.consultoria||'(sem nome)'))}</b></td><td colspan="5"><span class="rp-neg small">⚠ dado inesperado: ${esc(String(e&&e.message||e))}</span></td><td class="ct-l-acoes">${acoes}</td></tr>`; } }).join('');
+  return `<div class="card full ct-lista"><h2>${titulo} <span>${itens.length} contrato(s) · 👁 ver todos os dados${pode?' · ✏️ editar · 🗑 remover':''}</span></h2>
+    ${itens.length?`<div class="scroll-x"><table class="mp-tab-mini ct-l-tab"><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Situação</th><th class="num">Valor-hora</th><th>Horas</th><th>Projetos</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}</div>`;
+}
+// Cartão simples quando o cartão completo não pôde ser montado: os dados básicos, o motivo e as ações.
+function ctCardFalhaHTML(c, e, pref, pode){
+  try{ console.error('[contratos] cartão', c&&c.id, e); }catch(_){}
+  const id=c&&c.id?escA(c.id):''; const nome=(c&&(c.cliente||c.consultoria))||'(sem nome)';
+  return `<div class="ad-card ct-falha"><div class="ad-top"><span class="badge ct-cod">${esc(String((c&&c.cod)||'—'))}</span> <strong>${esc(String(nome))}</strong><span class="spacer"></span>
+      <button class="btn" data-ctv="${pref}|${id}">👁 ver dados</button>${pode&&id?`<button class="btn" data-${pref}-edit="${id}">editar</button><button class="btn" data-${pref}-del="${id}">remover</button>`:''}</div>
+    <div class="aviso">⚠ Não consegui montar o cartão completo deste contrato (<code>${esc(String(e&&e.message||e))}</code>). Os dados continuam guardados: veja em <b>👁 ver dados</b>, corrija em <b>editar</b> — ou mande pelo 🐞 Reportar.</div></div>`;
+}
+// Aviso + 🧹 limpar quando a lista guardada tem registro que não é contrato (null, texto…).
+function ctInvalidosHTML(n, pref, pode){ if(!n) return '';
+  return `<div class="aviso">⚠ <b>${n} registro(s) inválido(s)</b> na lista de contratos (vazio ou corrompido) — ficaram fora da tela.${pode?` <button class="btn" data-ct-limpa="${pref}">🧹 Limpar</button>`:''}</div>`; }
+function ctCodNome(c, pref){ return pref==='pc'?`${pcCod(c)} · ${c.consultoria||''}`:`${ctCodCli(c)} · ${c.cliente||''}`; }
+document.addEventListener('click', (e)=>{
+  const b=e.target.closest&&e.target.closest('[data-ctv],[data-ctv-acao],[data-ctv-fecha],[data-ct-limpa]'); if(!b) return;
+  if(b.hasAttribute('data-ctv-fecha')){ fechaModal(); return; }
+  if(b.hasAttribute('data-ct-limpa')){ const pref=b.getAttribute('data-ct-limpa'); const chave=pref==='pc'?'parcerias':'contratos';
+    const antes=Array.isArray(cfg[chave])?cfg[chave]:[]; const ok=antes.filter(ctItemValido); if(ok.length===antes.length) return;
+    if(!confirm(`Tirar ${antes.length-ok.length} registro(s) inválido(s) da lista de contratos? Os contratos de verdade não mudam.`)) return;
+    cfg[chave]=ok; salvaCfg(); render(); return; }
+  if(b.hasAttribute('data-ctv')){ const [pref,id]=b.getAttribute('data-ctv').split('|'); const lista=pref==='pc'?(cfg.parcerias||[]):(cfg.contratos||[]);
+    const c=lista.find(x=>ctItemValido(x)&&x.id===id); if(!c){ toast('Não achei este contrato — a lista pode ter mudado; atualize a tela.','err'); return; }
+    const pode=pref==='pc'?pcPodeEditar():true; abreModal(ctVerDadosHTML(c, pref, pode)); return; }
+  // Ações do 👁: fecham o modal e clicam no MESMO botão da tabela (os handlers de sempre fazem o trabalho).
+  const [pref,acao,id]=b.getAttribute('data-ctv-acao').split('|'); fechaModal();
+  const alvo=[...document.querySelectorAll(`#conteudo [data-${pref}-${acao}]`)].find(x=>x.getAttribute(`data-${pref}-${acao}`)===id);
+  if(alvo) alvo.click(); else toast('A tela mudou — abra o contrato de novo.','err');
+});
+
 function ctProjAtualiza(){
   const w=document.getElementById('ad-projs-wrap'); const f=estado.admin.form; if(!w||!f) return;
   w.innerHTML=ctProjListaHTML(f);
@@ -484,10 +566,14 @@ function ctProjAtualiza(){
 function renderAdmin(){
   const cont=document.getElementById('conteudo');
   if(!_projetosCache){ garanteProjetos().then(()=>{ if(estado.vista==='admin') renderAdmin(); }).catch(()=>{}); }
-  const ad=estado.admin; const contratos=cfg.contratos||[];
+  const ad=estado.admin; const contratosTodos=Array.isArray(cfg.contratos)?cfg.contratos:[];
+  const contratos=contratosTodos.filter(ctItemValido); const nInval=contratosTodos.length-contratos.length;   // 📋 registro que não é contrato não quebra a tela
   // Contratos antigos ganham o código na primeira vez que alguém identificado abre a tela (uma gravação só).
   if(cfgShared&&idApontar()&&ctGaranteCodigos(contratos,'CT','ctSeq')) salvaCfg();
+  if(ad.editId&&!contratos.some(c=>c.id===ad.editId)) ad.editId=null;
   const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : (ad.dup||null);
+  // 📋 o formulário só abre quando pedido (＋ Novo contrato, editar, duplicar) — ou quando ainda não há contrato nenhum.
+  const formAberto=!!(ad.novo||ad.editId||ad.dup||!contratos.length);
   const dup = !ad.editId&&ad.dup ? ad.dup : null;
   const f=ctFormEstado(edit);   // tipo, projetos marcados e horas alocadas do formulário (sobrevivem ao redesenho)
   const projBox=`<div class="ad-proj-barra">
@@ -527,12 +613,12 @@ function renderAdmin(){
     <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn primario" id="ad-salvar">${edit&&!dup?'Salvar alterações':'Adicionar contrato'}</button>
-      ${edit?`<button class="btn" id="ad-cancelar">${dup?'Cancelar cópia':'Cancelar edição'}</button>`:''}
+      ${edit||(ad.novo&&contratos.length)?`<button class="btn" id="ad-cancelar">${dup?'Cancelar cópia':(edit?'Cancelar edição':'Cancelar')}</button>`:''}
     </div>
     <div class="ap-fb" id="ad-fb" hidden></div>
   </div>`;
 
-  const cards=contratos.map(c=>{
+  const cards=contratos.map(c=>{ try{
     const ams=c.tipo==='ams', horas=c.tipo==='horas';
     const csH=horas?ctConsumoHoras(c):null;   // horas abertas: consumo desde o início do contrato
     const cons=horas?{seg:csH.seg, valor:(csH.seg/3600)*(Number(c.valorHora)||0)}:consumoContrato(c); const h=cons.seg/3600;
@@ -613,15 +699,24 @@ function renderAdmin(){
       <div class="ad-cons">${horas?`Consumo ${esc(ctFonteTxt(csH))}`:'Consumo no período'}: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}${horas?' <span class="muted">· projeto a projeto na aba <strong>💰 Bolsa de horas &amp; projetos</strong></span>':''}</div>
       ${portalLine}
     </div>`;
-  }).join('');
+  }catch(e){ return ctCardFalhaHTML(c, e, 'ad', true); } }).join('');
+  // 📋 a tabela-resumo: uma linha por contrato, com 👁 ver / ✏️ editar / ⧉ / 🗑 (os mesmos botões dos cartões).
+  const lista=ctListaHTML(contratos, 'ad', true, (c)=>{ const ams=c.tipo==='ams';
+    const contr=ams?amsHorasCiclo(c):(Number(c.horasContratadas)||0); const vh=Number(c.valorHora)||0; const ps=Array.isArray(c.projetos)?c.projetos:[];
+    const hoje=hojeSP(); const sit=c.fim&&c.fim<hoje?`<span class="muted">encerrado em ${esc(fmtBR(c.fim))}</span>`:(c.inicio&&c.inicio>hoje?`começa em ${esc(fmtBR(c.inicio))}`:(c.inicio?`vigente desde ${esc(fmtBR(c.inicio))}`:'<span class="muted">sem início</span>'));
+    return { cod:ctCodCli(c), nome:c.cliente||'(sem nome)', tipo:esc(rotuloTipo(c.tipo)), sit, vh:vh?fmtBRL(vh):'—',
+      horas:contr?`${esc(fmtHd(contr))}${ams?'/ciclo':''}`:'—', proj:ps.length?`${ps.length} · <span class="muted small">${esc(ps.slice(0,3).join(', '))}${ps.length>3?'…':''}</span>`:'<span class="rp-neg small">nenhum</span>' }; }, '📋 Contratos de clientes');
 
   cont.replaceChildren(el(`<div class="vw-admin">
     <div class="card full"><h2>🏢 Contratos — clientes &amp; valores <span>a base do AMS, da bolsa de horas, da Rentabilidade e da Controladoria</span></h2>
       <div class="muted small">${cfgShared?'✓ Compartilhado com o time (salvo no servidor).':'⚠ Salvo só neste navegador — configure o Supabase para compartilhar.'}
         Cadastre clientes, tipo de contrato, <strong>horas contratadas</strong> e <strong>valor-hora</strong>, e mapeie os <strong>projetos do Jira</strong>. Isso destrava os módulos de <strong>AMS</strong> e <strong>Receita</strong>. O consumo abaixo usa o período selecionado no topo.</div>
+      ${formAberto?'':'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn primario" id="ad-novo">＋ Novo contrato</button></div>'}
     </div>
     ${cfgShared && !idApontar() ? `<div class="aviso">⚠ Para <strong>salvar</strong> as configurações no servidor é preciso identificar-se: informe seu e-mail e token do Jira na aba <strong data-goto="apontar" style="cursor:pointer;text-decoration:underline">⏱ Apontar</strong>. Sem isso, as alterações ficam só neste navegador.</div>` : ''}
-    ${form}
+    ${ctInvalidosHTML(nInval,'ad',true)}
+    ${contratos.length?lista:''}
+    ${formAberto?form:''}
     <div class="card full"><h2>Contratos cadastrados <span>${contratos.length}</span></h2>
       ${contratos.length?`<div class="ad-grid">${cards}</div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}
     </div>
@@ -698,8 +793,11 @@ function salvaContrato(){
   else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP();
     if(ad.dup&&ad.dup._dupDe) dados.copiaDe=ad.dup._dupDe.cod||ad.dup._dupDe.id;
     cfg.contratos.push(dados); try{ toast(`Contrato ${dados.cod} adicionado.`,'ok'); }catch(e){} }
-  ad.dup=null; ad.form=null; salvaCfg(); renderAdmin();
+  ad.dup=null; ad.form=null; ad.novo=false; salvaCfg(); renderAdmin();
 }
+// O formulário abre abaixo da 📋 tabela: leva a pessoa até ele (e ao 1º campo).
+function ctVaiProForm(){ setTimeout(()=>{ const i=document.getElementById('ad-cliente'); if(!i) return; const card=i.closest('.card');
+  try{ (card||i).scrollIntoView({behavior:'smooth',block:'start'}); i.focus({preventScroll:true}); }catch(e){} },40); }
 // ===============================================================================
 
 // ====================== RECEITA / AMS — CONSUMO POR CLIENTE ======================
@@ -709,7 +807,7 @@ function analisaContrato(c){
   const set=new Set(c.projetos||[]); let seg=0, segFat=0;
   ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{
     if(!set.has(w.p)) return;
-    const s=Number(w.s)||0; seg+=s; if(w.f) segFat+=s;
+    const s=Number(w.s)||0; seg+=s; if(wFat(w)) segFat+=s;
   });
   const vh=Number(c.valorHora)||0;
   return { seg, segFat, valor:(seg/3600)*vh, valorFat:(segFat/3600)*vh };
@@ -1068,13 +1166,14 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   if(t.hasAttribute('data-ad-alocar-ir')){ estado.admin.editId=t.getAttribute('data-ad-alocar-ir'); estado.admin.dup=null; vaiPara('admin');
     setTimeout(()=>{ const w=document.getElementById('ad-projs-wrap'); if(w) w.scrollIntoView({block:'center'}); },60); return; }
   if(t.id==='ad-salvar'){ salvaContrato(); }
-  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; estado.admin.form=null; renderAdmin(); }
-  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); estado.admin.dup=null; renderAdmin(); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(t.id==='ad-novo'){ const ad=estado.admin; ad.novo=true; ad.editId=null; ad.dup=null; ad.form=null; renderAdmin(); ctVaiProForm(); }
+  else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; estado.admin.form=null; estado.admin.novo=false; renderAdmin(); }
+  else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); estado.admin.dup=null; estado.admin.novo=false; renderAdmin(); ctVaiProForm(); }
   else if(t.hasAttribute('data-ad-alocar')){   // 📌 alocar horas: abre o contrato já na lista de projetos
     estado.admin.editId=t.getAttribute('data-ad-alocar'); estado.admin.dup=null; renderAdmin();
     const w=document.getElementById('ad-projs-wrap'); if(w){ w.scrollIntoView({block:'center'}); const i=w.querySelector('input[data-ad-aloc]:not([disabled])'); if(i) i.focus({preventScroll:true}); } }
   else if(t.hasAttribute('data-ad-dup')){ const c=(cfg.contratos||[]).find(x=>x.id===t.getAttribute('data-ad-dup')); if(!c) return;
-    estado.admin.editId=null; estado.admin.dup=ctCopia(c); renderAdmin(); window.scrollTo({top:0,behavior:'smooth'});
+    estado.admin.editId=null; estado.admin.dup=ctCopia(c); estado.admin.novo=false; renderAdmin(); ctVaiProForm();
     try{ const i=document.getElementById('ad-cliente'); if(i){ i.focus({preventScroll:true}); i.select(); } }catch(x){} }
   else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del'); const c=(cfg.contratos||[]).find(x=>x.id===id);
     if(!confirm(`Remover o contrato ${c?ctCodCli(c)+' · '+(c.cliente||''):''}? Ele sai da apuração do AMS, da Receita e da Controladoria.`)) return;

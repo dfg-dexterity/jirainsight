@@ -172,7 +172,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   let v=b.dataset.v;
   if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
   else {
-    // a entrada SEM audiência do 📊 planrel é a do time (Dexterity Entrega): a audiência "minha" que o 👤 › 📈 deixou
+    // a entrada SEM audiência do 📊 planrel é a do time (Dexterity Insights desde 2026-11-02): a audiência "minha" que o 👤 › 📈 deixou
     // não pode vazar para ela (abriria a Minha visão com as abas do 📋 Meu Planejamento) — volta ao padrão do grupo.
     if(v==='planrel'&&estado.planrel&&estado.planrel.aud==='minha') estado.planrel.aud='gestor';
     // 🧠 a entrada do GRUPO volta à última aba usada; favoritos ⭐ e os itens explícitos do 👤 Meu trabalho

@@ -197,24 +197,24 @@ function rmDados(){
     if(!(chBase>0)) semCusto.add(w.a);
     const custo=h*ch;
     const c=ctContratoDe(w.p); const vh=c?(Number(c.valorHora)||0):0; if(vh) temContrato=true;
-    const rec=(w.f&&vh)?h*vh:0;
+    const fa=wFat(w,m.sigla); const rec=(fa&&vh)?h*vh:0;   // 💰 faturável pela categoria (a sigla da tela)
     const nivel=rmNivel(w.a); const depto=rmDepto(w.a)||'';
     const M=porMes[mm]=porMes[mm]||{seg:0,segFat:0,custo:0,rec:0,nivel:{senior:0,pleno:0,junior:0,'':0},tickets:new Set(),pessoas:new Set()};
-    M.seg+=s; if(w.f) M.segFat+=s; M.custo+=custo; M.rec+=rec; M.nivel[nivel]+=s; if(w.k) M.tickets.add(w.k); M.pessoas.add(w.a);
+    M.seg+=s; if(fa) M.segFat+=s; M.custo+=custo; M.rec+=rec; M.nivel[nivel]+=s; if(w.k) M.tickets.add(w.k); M.pessoas.add(w.a);
     const sk=w.d?semChave(w.d.slice(0,10)):''; if(sk){ const S=porSem[sk]=porSem[sk]||{seg:0,custo:0}; S.seg+=s; S.custo+=custo; }
     const P=por[w.p]=por[w.p]||{p:w.p,seg:0,segFat:0,custo:0,rec:0,admSeg:0,admCusto:0,pessoas:new Set(),tickets:new Set(),ultimo:''};
-    P.seg+=s; if(w.f) P.segFat+=s; P.custo+=custo; P.rec+=rec; P.pessoas.add(w.a); if(w.k) P.tickets.add(w.k);
+    P.seg+=s; if(fa) P.segFat+=s; P.custo+=custo; P.rec+=rec; P.pessoas.add(w.a); if(w.k) P.tickets.add(w.k);
     if((w.d||'').slice(0,10)>P.ultimo) P.ultimo=(w.d||'').slice(0,10);
     const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,nivel,depto,tickets:new Set(),padrao:!(chBase>0)};
     U.seg+=s; U.custo+=custo; if(w.k) U.tickets.add(w.k);
     const ek=w.e||''; const E=porEpico[ek]=porEpico[ek]||{e:ek,seg:0,custo:0,pessoas:new Set(),projs:new Set(),tickets:new Set()};
     E.seg+=s; E.custo+=custo; E.pessoas.add(w.a); E.projs.add(w.p); if(w.k) E.tickets.add(w.k);
-    const tp=w.t||'—'; const T=porTipo[tp]=porTipo[tp]||{t:tp,seg:0,custo:0,fat:!!w.f,adm:rmEhAdm(w)}; T.seg+=s; T.custo+=custo;
+    const tp=w.t||'—'; const T=porTipo[tp]=porTipo[tp]||{t:tp,seg:0,custo:0,fat:fa,adm:rmEhAdm(w)}; T.seg+=s; T.custo+=custo;
     const D=porDepto[depto]=porDepto[depto]||{d:depto,seg:0,custo:0,pessoas:new Set()}; D.seg+=s; D.custo+=custo; D.pessoas.add(w.a);
     if(rmEhAdm(w)){ adm.seg+=s; adm.custo+=custo; adm.tipos[tp]=(adm.tipos[tp]||0)+s; P.admSeg+=s; P.admCusto+=custo; }
     if(w.k){ const K=porTicket[w.k]=porTicket[w.k]||{k:w.k,p:w.p,t:tp,seg:0,custo:0,pessoas:new Set()}; K.seg+=s; K.custo+=custo; K.pessoas.add(w.a); tickets.add(w.k);
       const inf=infos[w.k]||{}; if(inf.cr) causa[inf.cr]=(causa[inf.cr]||0)+s; if(inf.pr) produto[inf.pr]=(produto[inf.pr]||0)+s; }
-    pessoas.add(w.a); segTot+=s; if(w.f) segFat+=s; custoTot+=custo; recTot+=rec;
+    pessoas.add(w.a); segTot+=s; if(fa) segFat+=s; custoTot+=custo; recTot+=rec;
   });
   const cap=rmCapacidadeMes(meses,m.de,m.ate);
   const consPor={}; (((m.cons||{}).projetos)||[]).forEach(p=>{ consPor[p.key]=p; });
@@ -403,7 +403,7 @@ function rmBlAms(d){
   const totFat=d.segFat/3600, nMes=d.meses.length;
   const foot=['<b>Total</b>',`<b>${rmH(d.segTot)}</b>`,`<b>${fmtHd(totFat)}</b>`,`<b>${fmtHd((d.segTot-d.segFat)/3600)}</b>`,`<b>${d.tickets.size}</b>`,`<b>${d.tickets.size?fmtHd(d.segTot/3600/d.tickets.size):'—'}</b>`,franquia?`<b>${fmtHd(franquia*nMes)}</b>`:'',`<b>${franquia?rmPctTxt(totFat,franquia*nMes):'—'}</b>`,''];
   const ciclo=cs.map(c=>{ const cyc=amsCicloVigente(c,hojeSP()); const set=new Set(c.projetos||[]);
-    let seg=0,segF=0; d.wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10); if(dia<cyc.start||dia>cyc.end) return; seg+=Number(w.s)||0; if(w.f) segF+=Number(w.s)||0; });
+    let seg=0,segF=0; d.wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10); if(dia<cyc.start||dia>cyc.end) return; seg+=Number(w.s)||0; if(wFat(w,d.sigla)) segF+=Number(w.s)||0; });
     const hc=amsHorasCiclo(c); const cobre=cyc.start>=estado.metricas.de;
     return `<div class="rm-ciclo"><b>${esc(c.cliente||'AMS')}</b> · ciclo ${esc(amsLabelCiclo(cyc))} (${esc(c.apuracao||'trimestral')}): <b>${fmtHd(segF/3600)}</b> faturáveis de <b>${fmtHd(hc)}</b> contratadas (${rmPctTxt(segF/3600,hc)})${c.bancoHoras?' · banco de horas ativo':''}${cobre?'':' · <span class="muted small">o período escolhido não cobre o ciclo inteiro</span>'} <button class="btn rt-step" data-goto="ams" data-tip="Abrir a tela AMS (ciclos, banco, faturado)">AMS →</button></div>`; }).join('');
   return rmBloco('ams', `${cs.length?ciclo:'<div class="aviso">⚠ Nenhum contrato <b>AMS</b> em Contratos (Admin) aponta para os projetos deste tipo — a tabela mostra as horas sem franquia. Cadastre o contrato (apuração, horas do ciclo) para ver o consumo.</div>'}

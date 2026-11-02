@@ -11,7 +11,7 @@ function dadosPessoa(a){
     if(w.a!==a || !passa(w.p,w.t,projs,ft)) return;
     const dia=(w.d||'').slice(0,10);
     porDia[dia]=(porDia[dia]||0)+w.s; porProj[w.p]=(porProj[w.p]||0)+w.s;
-    tot+=w.s; if(w.f) fat+=w.s;
+    tot+=w.s; if(wFat(w)) fat+=w.s;
   });
   let lacuna=0;
   dias.forEach(d=>{ if(!ehUtil(d)||d===hoje||ehAusencia(a,d)||ehFeriado(d)) return;
@@ -55,7 +55,7 @@ function agregaPred(predW, predE){
   (estado.tempo.worklogs||[]).forEach(w=>{
     if(!passa(w.p,w.t,projs,f)) return; if(f.pessoa&&w.a!==f.pessoa) return;
     if(predW && !predW(w)) return;
-    tot+=w.s; if(w.f) fat+=w.s;
+    tot+=w.s; if(wFat(w)) fat+=w.s;
     porPessoa[w.a]=(porPessoa[w.a]||0)+w.s; porProjeto[w.p]=(porProjeto[w.p]||0)+w.s;
     porTipo[w.t]=(porTipo[w.t]||0)+w.s; const dd=(w.d||'').slice(0,10); if(dd) porDia[dd]=(porDia[dd]||0)+w.s;
     if(w.k) tickets.add(w.k);
@@ -1115,7 +1115,7 @@ function renderVisao(){
 
   const hero=`<div class="vg-hero">
     <div class="vg-k ${clsMeta}"><div class="v">${pctMeta}%</div><div class="l">Apontamento do time</div><div class="s">${fmtH(totTot)} de ${fmtH(totEsp)}</div></div>
-    <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s">${d.kpi.fatPct}% de horas faturáveis</div></div>
+    <div class="vg-k"><div class="v">${fmtH(d.kpi.segTot)}</div><div class="l">Horas apontadas</div><div class="s" data-tip="${escA(FAT_REGRA_TXT)}">${d.kpi.fatPct}% de horas faturáveis</div></div>
     <div class="vg-k ${cSev.critico>0?'bad':'good'}"><div class="v">${alertasProntos?cSev.critico:alTok}</div><div class="l">Alertas críticos</div><div class="s">${alertasProntos?(cSev.alto+' altos · '+cSev.medio+' médios'):(a.erro?'indisponível':'analisando')}</div></div>
     <div class="vg-k ${clsDia}"><div class="v">${emDia}/${totalPessoas}</div><div class="l">Pessoas em dia</div><div class="s">≥ 90% da meta</div></div>
     <div class="vg-k ${(venc>0)?'bad':'good'}"><div class="v">${alertasProntos?venc:alTok}</div><div class="l">Tickets vencidos</div><div class="s">${alertasProntos?(vh+' vencem hoje'):(a.erro?'indisponível':'analisando')}</div></div>
@@ -1276,7 +1276,7 @@ function renderResumo(){
   cont.replaceChildren(el(`<div class="res-tela">
     <div class="kpis">
       <div class="kpi t"><div class="v">${fmtH(k.segTot)}</div><div class="l">Horas apontadas</div></div>
-      <div class="kpi t"><div class="v">${k.fatPct}%</div><div class="l">Horas faturáveis</div></div>
+      <div class="kpi t" data-tip="${escA(FAT_REGRA_TXT)}"><div class="v">${k.fatPct}%</div><div class="l">Horas faturáveis</div></div>
       <div class="kpi a"><div class="v">${k.tocadas}</div><div class="l">Tickets tocados</div></div>
       <div class="kpi a"><div class="v">${k.transTot}</div><div class="l">Transições</div></div>
       <div class="kpi a"><div class="v">${k.concl==null?'—':k.concl}</div><div class="l">Concluídas</div></div>
@@ -1288,7 +1288,7 @@ function renderResumo(){
         <span>cada cor é um projeto</span></h2>${cardPessoaProjeto()}</div>
       <div class="card full"><h2>Faturável por pessoa
         <span>% faturável de cada um</span></h2>${cardFaturavelPessoa()}</div>
-      <div class="card"><h2>Horas · faturável vs não</h2>${split}</div>
+      <div class="card"><h2>Horas · faturável vs não <span data-tip="${escA(FAT_REGRA_TXT)}">pela categoria do projeto</span></h2>${split}</div>
       <div class="card"><h2>Uso do Jira <span>no período</span></h2>${(()=>{
         const soma=(c)=>d.pessoas.reduce((s,p)=>s+(p[c]||0),0);
         return barlist({ 'Chamados criados':soma('criado'), 'Atualizações (alterações)':soma('alter'),

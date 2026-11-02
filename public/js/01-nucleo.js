@@ -571,6 +571,46 @@ function projetosUnidos(){
   Object.assign(m, (estado.atividade&&estado.atividade.projetos)||{}, (estado.tempo&&estado.tempo.projetos)||{});
   return m;
 }
+// 💰 Horas FATURÁVEIS pela CATEGORIA do projeto no Jira (2026-11-02, a pedido do usuário: "o número de horas
+// faturáveis deve ser feito pela categoria do projeto JIRA", com a tabela abaixo). Antes era só o TIPO do ticket
+// (w.f, do servidor: tipo/descrição sem "não faturável"), e as horas dos projetos internos (IMI/IPA/ITPR) contavam
+// como faturáveis. Regra agora: a categoria decide o projeto e, DENTRO de um projeto faturável, o tipo "não
+// faturável" (ex.: "Tarefas ADM - Não Faturavel") continua fora — é a mesma regra da apuração do AMS. ARQ e projeto
+// sem categoria reconhecível = 'na' (não entram como faturáveis). Leitura ÚNICA para todo KPI de "% faturável":
+// wFat(w). Ficam pelo tipo, de propósito: a apuração do pacote AMS (16/api/config) e a 💹 Rentabilidade (17b, com
+// gate de paridade no servidor) — as duas só olham projetos de cliente, que são faturáveis pela categoria.
+const CAT_FATURAVEL={ DEA:'sim', DEF:'sim', PEA:'sim', PEF:'sim', DAMS:'sim', PAMS:'sim', ARQ:'na', IMI:'nao', IPA:'nao', ITPR:'nao' };
+let _fatMemo=null;
+// Sigla da categoria (ou, sem categoria no Jira — ex.: o IMECI —, do prefixo "IMI | …" do nome). Aceita a própria sigla.
+function fatSiglaDe(cat, nome){
+  const c=String(cat||'').trim(); if(CAT_FATURAVEL[c]) return c;
+  let s=(c&&c!=='Sem categoria'&&typeof relSiglaDe==='function')?relSiglaDe(c):'';
+  if(!s){ const m=String(nome||'').match(/^\s*([A-Z]{2,5})\s*\|/); if(m&&CAT_FATURAVEL[m[1]]) s=m[1]; }
+  return s;
+}
+function fatSiglaProj(k){
+  const t=estado.tempo&&estado.tempo.projetos, a=estado.atividade&&estado.atividade.projetos;
+  const cat=typeof _projetosCache!=='undefined'?_projetosCache:null;
+  const ps=[t&&t[k], a&&a[k], (cat||[]).find(x=>x&&x.key===k)].filter(Boolean);
+  for(const p of ps){ const s=fatSiglaDe(p.categoria, p.nome); if(s) return s; }
+  return '';
+}
+// 'sim' | 'nao' | 'na' — memo por projeto, refeito quando as bases de projetos mudam.
+function fatProj(k){
+  const t=estado.tempo&&estado.tempo.projetos, a=estado.atividade&&estado.atividade.projetos;
+  const c=typeof _projetosCache!=='undefined'?_projetosCache:null;
+  if(!_fatMemo||_fatMemo.t!==t||_fatMemo.a!==a||_fatMemo.c!==c) _fatMemo={ t, a, c, m:{} };
+  const m=_fatMemo.m; if(!(k in m)) m[k]=CAT_FATURAVEL[fatSiglaProj(k)]||'na';
+  return m[k];
+}
+// O worklog conta como faturável? `cat` (opcional) = a categoria (ou a sigla) que a tela já conhece — telas com base
+// própria (🏦 Controladoria, 📈 Métricas) passam a delas, para não depender do catálogo estar carregado.
+function wFat(w, cat){
+  if(!(w&&w.f)) return false;
+  const s=cat!=null?fatSiglaDe(cat):'';
+  return (s?(CAT_FATURAVEL[s]||'na'):fatProj(w.p))==='sim';
+}
+const FAT_REGRA_TXT='Faturável = projeto de categoria DEA, DEF, PEA, PEF, DAMS ou PAMS no Jira (IMI, IPA e ITPR não; ARQ não se aplica) — e, dentro dele, ticket que não seja de um tipo "não faturável".';
 function pessoasUnidas(){
   return Object.assign({}, estado.usuarios||{}, (estado.atividade&&estado.atividade.pessoas)||{}, (estado.tempo&&estado.tempo.pessoas)||{});
 }
@@ -647,7 +687,7 @@ function agrega(){
     if(!passa(w.p,w.t,projs,f)) return;
     if(f.pessoa && w.a!==f.pessoa) return;
     seg[w.a]=(seg[w.a]||0)+w.s; segTot+=w.s;
-    if(w.f){ segFat[w.a]=(segFat[w.a]||0)+w.s; segFatTot+=w.s; }
+    if(wFat(w)){ segFat[w.a]=(segFat[w.a]||0)+w.s; segFatTot+=w.s; }
     const cat=(projs[w.p]&&projs[w.p].categoria)||'Sem categoria';
     porCategoria[cat]=(porCategoria[cat]||0)+w.s;
     porProjeto[w.p]=(porProjeto[w.p]||0)+w.s;

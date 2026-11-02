@@ -65,7 +65,7 @@ function exportaTimesheet(modo){
     const map={};
     wls.forEach(w=>{ const d=(w.d||'').slice(0,10); const ch=`${d}|${w.a}|${w.k||''}`;
       const r=map[ch]=map[ch]||{d,a:w.a,k:w.k||'',p:w.p||'',t:w.t||'',f:0,s:0};
-      r.s+=Number(w.s)||0; if(w.f) r.f=1; });
+      r.s+=Number(w.s)||0; if(wFat(w)) r.f=1; });   // 💰 faturável pela categoria do projeto (wFat, 01)
     const rows=Object.values(map).sort((x,y)=>x.d.localeCompare(y.d)||nm(x.a).localeCompare(nm(y.a),'pt')||x.k.localeCompare(y.k));
     baixaCSV(`timesheet_detalhado_${per}.csv`, [
       ['Dia','Pessoa','Projeto','Ticket','Resumo','Tipo','Faturável','Horas'],
@@ -76,7 +76,7 @@ function exportaTimesheet(modo){
     projpessoa:(w)=>`${w.p||'—'}|${w.a}` }[modo] || ((w)=>w.a);
   const g={}; let tot=0;
   wls.forEach(w=>{ const k=chave(w); const r=g[k]=g[k]||{s:0,fat:0,p:w.p||'',pess:new Set(),tick:new Set()};
-    const s=Number(w.s)||0; r.s+=s; if(w.f) r.fat+=s; r.pess.add(w.a); if(w.k) r.tick.add(w.k); tot+=s; });
+    const s=Number(w.s)||0; r.s+=s; if(wFat(w)) r.fat+=s; r.pess.add(w.a); if(w.k) r.tick.add(w.k); tot+=s; });
   const ord=Object.entries(g).sort((x,y)=>y[1].s-x[1].s);
   const pc=(s)=> tot?Math.round(s/tot*100)+'%':'';
   let head, rows, nomeArq;
