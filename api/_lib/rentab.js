@@ -20,6 +20,11 @@
 // 🗓 Desde 2026-11-02 também o CICLO DE FATURAMENTO do plano: porte do 16b (pcFechamento/pcNota/pcPeriodo/pcPeriodos — puros),
 // do 16g (cfg.clientes) e do 17b (rpCiclosDe/rpPeriodosFat). Precedência: cliente cadastrado › 🤝 contrato de parceria
 // (fatFecha/ajustes) › mês civil. Ordem de uso do cliente e do contrato = a mesma do painel; o gate confere os períodos.
+//
+// 💰 Desde 2026-11-02 (T3) também o FATURAMENTO PELO VENDIDO: rpFatBase ('vendido' padrão | 'apontado'), rpFatManDe (horas do ciclo digitadas em
+// p.fatMan), rpFracaoCiclo (a parte do ciclo já decorrida em dias úteis) e rpFatAte (o faturado até uma data: ciclo fechado inteiro, corrente
+// pro rata, depois do fim do contrato zero; 'apontado' = horas faturáveis × valor-hora), mais rpVendEntre (já existia aqui; o painel ganhou o
+// porte) e o rpPeriodosFat com horasAuto/man/horas/valorAuto/encerrado. O gate confere tudo contra o painel.
 import { feriadosBR } from './util.js';
 
 export const RP_MAX_MESES = 36;
@@ -254,6 +259,7 @@ export function rpCiclosDe(p, cfg) {
 // úteis de cada período (o mesmo critério do rpVendAte) e o valor = horas × valor-hora. `calc` = resultado do rpCalcResumo (opcional).
 export function rpPeriodosFat(p, calc, cfg, hoje) {
   const ci = rpCiclosDe(p, cfg); const fim = rpFim(p, hoje); const vp = calc || rpCalcResumo(p, null, cfg, hoje); const vh = vp.vh; const meses = vp.meses;
+  const ct = rpContratoDe(p, cfg);   // o ciclo que COMEÇA depois do fim do contrato ligado (qualquer que seja a fonte do ciclo) não é faturado
   const base = ci.obj ? pcPeriodos(ci.obj, p.inicio, fim) : meses.map((m, i) => {
     const ini = i === 0 ? p.inicio : `${m}-01`; const f = rpUltimoDia(m) < fim ? rpUltimoDia(m) : fim;
     return { ym: m, ini, fim: f, iniPlano: ini, fimPlano: f, nota: f, ajustado: false, recortado: false };
@@ -265,6 +271,31 @@ export function rpPeriodosFat(p, calc, cfg, hoje) {
       const x = P.iniPlano > a ? P.iniPlano : a; const y = P.fimPlano < b ? P.fimPlano : b; if (y < x) return;
       const d = rpDiasUteis(x, y, cfg); du += d; if (vp.diasUteis[m]) h += vp.vendPorMes[m] * d / vp.diasUteis[m];
     });
-    h = Math.round(h * 100) / 100; return { ...P, du, horas: h, valor: h * vh, fonte: ci.fonte };
+    // horasAuto = a conta (vendidas rateadas no ciclo); horas = o que vale (a digitada em p.fatMan, se houver) — o que vai ao Odoo, às notas e à receita
+    const horasAuto = Math.round(h * 100) / 100; const fm = rpFatManDe(p, P.ym); const man = fm != null; const horas = man ? fm : horasAuto;
+    return { ...P, du, horasAuto, valorAuto: horasAuto * vh, man, horas, valor: horas * vh, fonte: ci.fonte, encerrado: !!(ct && ct.fim && P.iniPlano > ct.fim) };
   });
+}
+// ---- 💰 faturamento pelo vendido (porte do 17b) ----
+// 'vendido' (padrão): o escopo aberto fatura o valor cheio do ciclo; 'apontado': só as horas faturáveis apontadas × valor-hora (a regra antiga).
+export function rpFatBase(p) { return p && p.fatBase === 'apontado' ? 'apontado' : 'vendido'; }
+// Horas do CICLO digitadas (p.fatMan['AAAA-MM']; 0 vale) — só LÊ; nunca cria o objeto.
+export function rpFatManDe(p, ym) {
+  const m = p && p.fatMan; const v = (m && typeof m === 'object') ? m[ym] : null;
+  return (typeof v === 'number' && isFinite(v) && v >= 0) ? v : null;
+}
+// Fração do ciclo já decorrida em dias úteis até `ate`: 1 = fechado, 0 = não começou, entre os dois = o ciclo corrente (pro rata).
+export function rpFracaoCiclo(P, ate, cfg) { return P.fimPlano <= ate ? 1 : P.iniPlano > ate ? 0 : (P.du ? rpDiasUteis(P.iniPlano, ate, cfg) / P.du : 1); }
+// O faturado até `ate`: `per` = rpPeriodosFat; gastasFat[i] = horas faturáveis apontadas no ciclo i; hFatTotal = todas as faturáveis do realizado
+// (também as que caem fora de qualquer ciclo — o 'apontado' reproduz hFat × valor-hora). 'vendido': ciclo fechado conta as horas inteiras, o corrente
+// pro rata (rpFracaoCiclo), o que começa depois do fim do contrato (encerrado) zero — × valor-hora.
+export function rpFatAte(p, calc, per, ate, gastasFat, hFatTotal, cfg) {
+  const vh = calc.vh; const base = rpFatBase(p); let horasAte = 0; let soma = 0;
+  const por = per.map((P, i) => {
+    const fr = rpFracaoCiclo(P, ate, cfg); const hAte = P.encerrado ? 0 : P.horas * fr;
+    const valorAte = base === 'vendido' ? hAte * vh : (Number(gastasFat[i]) || 0) * vh;
+    horasAte += hAte; soma += valorAte; return { ym: P.ym, fr, horasAte: hAte, valorAte };
+  });
+  const fatAte = base === 'vendido' ? soma : (hFatTotal != null ? Number(hFatTotal) : gastasFat.reduce((t, x) => t + (Number(x) || 0), 0)) * vh;
+  return { fatAte, horasAte, por };
 }

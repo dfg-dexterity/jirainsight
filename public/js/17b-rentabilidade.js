@@ -52,6 +52,21 @@
 // (módulo 16g, p.clienteId). Os PERÍODOS DE FATURAMENTO (rpPeriodosFat → Odoo, 🧾 Próximas notas) vêm de rpCiclosDe, na ordem:
 // cliente cadastrado › 🤝 contrato de parceria (fatFecha/ajustes) › mês civil. O cliente usa o MESMO modelo de ciclo do contrato
 // (fatFecha/fatDia/ajustes), por isso pcPeriodos serve aos dois sem mudar — e o servidor tem o porte (rpCiclosDe/rpPeriodosFat).
+//
+// 💰 FATURAMENTO PELO VENDIDO + ⚖️ VENDIDO × GASTO (pedido de 2026-11-02): no escopo aberto o cliente paga o valor CHEIO — a receita
+// faturada de cada CICLO DO CLIENTE é (horas vendidas rateadas naquele ciclo × valor-hora), mesmo que a equipe gaste menos; a diferença
+// é GANHO (horas gastas abaixo das faturadas, verde, sinal +) e gastar acima é PERDA (vermelho, sinal −). Regra (rpFatCalc/rpFatAte):
+// ciclo FECHADO conta inteiro, o ciclo corrente conta pro rata dos dias úteis decorridos (rpFracaoCiclo), o ciclo que começa depois do fim
+// do contrato conta zero — a menos que a pessoa DIGITE as horas do ciclo (p.fatMan['AAAA-MM'], vazio = volta ao automático; irmão do
+// p.vendMan). p.fatBase = 'vendido' (padrão) ou 'apontado' (a regra antiga: horas faturáveis apontadas × valor-hora). rpPeriodosFat
+// continua PURA (sem realizado): cada ciclo traz horasAuto (a conta), man, horas (digitada ou automática — o que vai ao Odoo) e
+// encerrado; o realizado entra por rpFatCalc (rpReal.porDia → gastas, Δ, faturado até aqui, valor-hora efetivo, % do ciclo × % consumido,
+// projeção no fim do ciclo). rpVendEntre (vendidas num intervalo) é o porte do servidor e alimenta as semanas (rpSemanas). Tudo tem porte em
+// api/_lib/rentab.js e o gate de paridade confere. Leitores NÃO criam p.fatMan (só o setter), pela mesma razão do vendMan.
+//
+// 📖 INDICADORES EXPLICADOS (pedido de 2026-11-02): todo indicador da tela tem a explicação em linguagem simples em RP_EXPLICA — o texto
+// ÚNICO que alimenta o tooltip (data-tip: o que é + como ler) e o glossário "📖 Como ler estes indicadores" (nome · o que significa ·
+// como é calculado · o que é bom / quando acender o alerta). Indicador novo na tela = entrada em RP_EXPLICA + RP_GLOSSARIO.
 // Helpers de outros módulos só em tempo de render.
 // ===========================================================================
 const RP_PAPEIS=[['exec','Execução'],['gestao','Gestão'],['terc','Terceirizado interno']];
@@ -70,7 +85,7 @@ function rpId(pre){ return pre+Date.now().toString(36)+Math.random().toString(36
 function rpNovoCenario(nome){ return { id:rpId('cn'), nome:nome||'Base', aloc:[] }; }
 function rpNovoPlano(){ const c=rpNovoCenario('Base'); const h=hojeSP();
   return { id:rpId('rp'), nome:'', cliente:'', projeto:'', tipo:'horas', inicio:h.slice(0,7)+'-01', fim:'', meses:3, modoCarga:'dia', cargaDia:0, cargaTotal:0, valorHora:0, margemMeta:30, obs:'',
-    valorProjeto:0, marcos:[], orcamento:0, odoo:null, contrato:'', hist:[],
+    valorProjeto:0, marcos:[], orcamento:0, odoo:null, contrato:'', fatBase:'vendido', hist:[],
     cenarios:[c], cenario:c.id, criadoEm:h, atualizadoEm:h, criadoPor:'', atualizadoPor:'' }; }
 // Dias úteis (seg–sex sem feriado) entre duas datas, inclusive — sem o teto de 400 dias do listaDias.
 function rpDiasUteis(de, ate){ if(!de||!ate||ate<de) return 0; let n=0, d=de, g=0; while(d<=ate&&g++<1500){ if(ehUtil(d)&&!ehFeriado(d)) n++; d=proxDia(d); } return n; }
@@ -117,6 +132,25 @@ function rpVendAte(p, ate){ const v=rpVendPorMes(p); const ms=rpMeses(p); let s=
   ms.forEach(m=>{ if(m>ate.slice(0,7)) return; if(m<ate.slice(0,7)){ s+=v.porMes[m]; return; }
     const a=m===ms[0]?p.inicio:m+'-01'; const du=rpDiasUteis(a,ate); s+=v.diasUteis[m]?v.porMes[m]*du/v.diasUteis[m]:0; });
   return s; }
+// Horas vendidas num INTERVALO [de, ate] (porte do api/_lib/rentab.js — o "orçado da semana" do relatório de sexta): cada mês entra pro rata
+// pelos dias úteis do intervalo dentro do mês ÷ dias úteis do mês no prazo. É o que dá as vendidas de cada SEMANA (rpSemanas).
+function rpVendEntre(p, de, ate){ if(!de||!ate||ate<de) return 0;
+  const v=rpVendPorMes(p); const ms=rpMeses(p); const fim=rpFim(p); let s=0;
+  ms.forEach(m=>{ const a=m===ms[0]?p.inicio:m+'-01'; const b=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; const x=a>de?a:de; const y=b<ate?b:ate;
+    if(!x||y<x) return; const du=rpDiasUteis(x,y); s+=v.diasUteis[m]?v.porMes[m]*du/v.diasUteis[m]:0; });
+  return s; }
+// ---- 💰 horas FATURADAS do ciclo digitadas (pedido de 2026-11-02) — irmão do vendMan, mas a chave é o CICLO do cliente (nomeado pelo mês do fechamento) ----
+// p.fatBase: 'vendido' (padrão — o escopo aberto fatura o valor cheio do ciclo) ou 'apontado' (a regra antiga: horas faturáveis apontadas).
+// p.fatMan['AAAA-MM'] = horas que valem NAQUELE ciclo (0 vale; vazio volta ao automático). Leitores não criam o objeto; só o setter.
+const RP_FAT_BASES={ vendido:'valor vendido do ciclo', apontado:'horas faturáveis apontadas' };
+function rpFatBase(p){ return p&&p.fatBase==='apontado'?'apontado':'vendido'; }
+function rpFatManDe(p, ym){ const m=p&&p.fatMan; const v=(m&&typeof m==='object')?m[ym]:null; return (typeof v==='number'&&isFinite(v)&&v>=0)?v:null; }
+function rpFatNum(x){ const s=String(x==null?'':x).trim().replace(',','.'); if(!s) return null; const n=Number(s); return (isFinite(n)&&n>=0)?Math.round(n*100)/100:null; }
+function rpFatManSet(p, ym, val){ const n=rpFatNum(val);
+  if(n==null){ if(p.fatMan&&typeof p.fatMan==='object') delete p.fatMan[ym]; return null; }   // apagar nunca cria o objeto
+  if(!p.fatMan||typeof p.fatMan!=='object') p.fatMan={}; p.fatMan[ym]=n; return n; }
+// Ciclos digitados que o plano não tem mais (o ciclo do cliente mudou ou o prazo encolheu). Não são apagados sozinhos, mas ficam avisados.
+function rpFatManOrfaos(p){ const yms=new Set(rpPeriodosFat(p).map(P=>P.ym)); return Object.keys((p&&p.fatMan)||{}).filter(ym=>!yms.has(ym)).sort(); }
 function rpCenario(p){ let c=(p.cenarios||[]).find(x=>x.id===p.cenario); if(!c){ if(!(p.cenarios||[]).length) p.cenarios=[rpNovoCenario('Base')]; c=p.cenarios[0]; p.cenario=c.id; } return c; }
 function rpStatus(p){ const h=hojeSP(); if(h<(p.inicio||'')) return ['planejado','Planejado']; if(h>rpFim(p)) return ['encerrado','Encerrado']; return ['andamento','Em andamento']; }
 // Pessoas disponíveis para alocar: time (sem ocultos) + vagas planejadas (custo previsto).
@@ -206,8 +240,10 @@ function rpReal(p, calc){
   const c0=rpCenario(p); const taxas={}; const taxa=(a)=>(a in taxas)?taxas[a]:(taxas[a]=rpCustoRealH(p,c0,a));
   const tercSet=new Set((c0.aloc||[]).filter(x=>x&&rpPapel(x)==='terc').map(x=>x.a));
   let h=0,hFat=0,custo=0,custoCons=0,tercH=0,tercCusto=0,tercCons=0; const pessoas={}; const tickets=new Set();
+  const porDia={};   // 'AAAA-MM-DD' → {h,hFat,custo}: a base dos ciclos do cliente (rpFatCalc) e das semanas (rpSemanas) — entra o MESMO que entra em porMes
   (t.worklogs||[]).forEach(w=>{ if(w.p!==p.projeto) return; const m=(w.d||'').slice(0,7); if(!porMes[m]) return; const hh=(Number(w.s)||0)/3600; const tx=taxa(w.a); const cu=hh*tx; const cc=hh*rpCustoH(w.a);
     porMes[m].h+=hh; porMes[m].custo+=cu; porMes[m].porPessoa[w.a]=(porMes[m].porPessoa[w.a]||0)+hh; h+=hh; custo+=cu; custoCons+=cc; if(w.f){ porMes[m].hFat+=hh; hFat+=hh; }
+    const dd=(w.d||'').slice(0,10); const D=porDia[dd]=porDia[dd]||{h:0,hFat:0,custo:0}; D.h+=hh; D.custo+=cu; if(w.f) D.hFat+=hh;
     const ehTerc=tercSet.has(w.a); if(ehTerc){ tercH+=hh; tercCusto+=cu; tercCons+=cc; }
     const P=pessoas[w.a]=pessoas[w.a]||{a:w.a,nome:(t.pessoas&&t.pessoas[w.a]&&t.pessoas[w.a].nome)||rpNome(w.a),h:0,custo:0,ch:tx,terc:ehTerc}; P.h+=hh; P.custo+=cu; if(w.k) tickets.add(w.k); });
   // fração do prazo já decorrida em DIAS ÚTEIS (início → data lida ÷ dias úteis do projeto)
@@ -222,12 +258,15 @@ function rpReal(p, calc){
   // receita "até aqui" por tipo: horas = vendidas pro rata × valor (previsto) e horas FATURÁVEIS apontadas × valor (realizada);
   // fechado = valor do projeto pro rata do prazo (reconhecida) e marcos faturados (faturada); interno = não há receita.
   const receitaAteHoje=calc.tipo==='fechado'?calc.valorProj*fracao:calc.tipo==='interno'?0:vendAteHoje*calc.vh;
-  const receitaReal=calc.tipo==='horas'?hFat*calc.vh:calc.tipo==='fechado'?calc.marcos.faturado:0;
+  // horas abertas: o faturado até aqui sai dos CICLOS do cliente (rpFatCalc): pelo valor vendido (padrão) ou pelas horas faturáveis apontadas (fatBase 'apontado' = hFat × valor-hora, o número de sempre)
+  const fat=calc.tipo==='horas'?rpFatCalc(p,calc,porDia,ate):null;
+  const receitaReal=calc.tipo==='horas'?fat.fatAte:calc.tipo==='fechado'?calc.marcos.faturado:0;
   const receitaBase=calc.tipo==='horas'?receitaReal:receitaAteHoje;   // a margem real usa o que foi de fato faturável (horas) ou reconhecido (fechado)
   // interno: consumo do orçamento e quando ele acaba no ritmo atual (por dia útil)
   const consumoReal=calc.orc>0?custo/calc.orc:null; const ritmoDia=duAte>0?custo/duAte:0;
   let orcAcabaEm=''; if(calc.tipo==='interno'&&calc.orc>0&&ritmoDia>0&&custo<calc.orc){ let d=ate, falta=(calc.orc-custo)/ritmoDia, g=0; while(falta>0&&g++<1500){ d=proxDia(d); if(ehUtil(d)&&!ehFeriado(d)) falta--; } orcAcabaEm=d; }
-  return { porMes, h, hFat, custo, custoCons, tercH, tercCusto, resultadoCedente:tercCusto-tercCons, pessoas:Object.values(pessoas).sort((a,b)=>b.h-a.h), tickets:tickets.size, fracao, vendAteHoje, prevAteHoje, custoPrevAteHoje, custoRestante, receitaAteHoje, receitaReal, fMesAtual:fMes(mesAtual),
+  const fracMes={}; calc.meses.forEach(m=>{ fracMes[m]=fMes(m); });   // fração decorrida de cada mês (1 = fechado, 0 = futuro) — o previsto por pessoa até aqui
+  return { porMes, porDia, fat, fracMes, h, hFat, custo, custoCons, tercH, tercCusto, resultadoCedente:tercCusto-tercCons, pessoas:Object.values(pessoas).sort((a,b)=>b.h-a.h), tickets:tickets.size, fracao, vendAteHoje, prevAteHoje, custoPrevAteHoje, custoRestante, receitaAteHoje, receitaReal, fMesAtual:fMes(mesAtual),
     margemAteHoje:receitaBase-custo, receitaBase, eficReal:vendAteHoje>0?h/vendAteHoje:null, econReal:vendAteHoje-h,
     projCusto:fracao>=0.1?custo/fracao:null, custoFinalPlano:custo+custoRestante, consumoReal, ritmoDia, orcAcabaEm, ate };
 }
@@ -248,15 +287,15 @@ function rpReRender(){ if(estado.vista==='rentab') renderRentab(); }
 // ---- 🕓 histórico do plano: quem gravou/alterou o quê (pedido de 2026-09-13). Edições seguidas da mesma
 // pessoa e do mesmo tipo em 10 min viram um registro só (com o contador), para a grade não gerar ruído. ----
 const RP_HIST_MAX=60;
-const RP_HIST_ROT={ criou:'criou', editou:'dados', cenario:'cenário', aloc:'alocação', sim:'simulador', marco:'marcos', odoo:'Odoo', contrato:'contrato', vend:'horas vendidas' };
+const RP_HIST_ROT={ criou:'criou', editou:'dados', cenario:'cenário', aloc:'alocação', sim:'simulador', marco:'marcos', odoo:'Odoo', contrato:'contrato', vend:'horas vendidas', fat:'horas faturadas' };
 function rpHist(p){ if(!Array.isArray(p.hist)) p.hist=[]; return p.hist; }
 function rpLog(p, o, d){ const h=rpHist(p); const q=pcQuem(); const em=new Date().toISOString().slice(0,16); const u=h[h.length-1]; const txt=String(d||'').slice(0,240);
   if(u&&u.o===o&&u.por===q.nome&&o!=='criou'&&(Date.parse(em+':00Z')-Date.parse((u.em||'')+':00Z'))<10*60*1000){ u.em=em; u.d=txt; u.n=(u.n||1)+1; }
   else { h.push({ em, por:q.nome, o, d:txt }); if(h.length>RP_HIST_MAX) p.hist=[h[0]].concat(h.slice(-(RP_HIST_MAX-1))); }
   p.atualizadoEm=hojeSP(); p.atualizadoPor=q.nome; }
-const RP_CAMPOS={ nome:'nome', cliente:'cliente', projeto:'projeto', tipo:'tipo', inicio:'início', fim:'fim', meses:'duração (meses)', modoCarga:'modo da carga', cargaDia:'h por dia útil', cargaTotal:'h no total', cargaMes:'h por mês', valorHora:'valor-hora', margemMeta:'margem-meta', valorProjeto:'valor do projeto', orcamento:'orçamento', obs:'obs.', contrato:'contrato', clienteId:'ciclo do cliente' };
+const RP_CAMPOS={ nome:'nome', cliente:'cliente', projeto:'projeto', tipo:'tipo', inicio:'início', fim:'fim', meses:'duração (meses)', modoCarga:'modo da carga', cargaDia:'h por dia útil', cargaTotal:'h no total', cargaMes:'h por mês', valorHora:'valor-hora', margemMeta:'margem-meta', valorProjeto:'valor do projeto', orcamento:'orçamento', obs:'obs.', contrato:'contrato', clienteId:'ciclo do cliente', fatBase:'faturamento' };
 function rpDiff(a, b){ const out=[]; Object.keys(RP_CAMPOS).forEach(k=>{ let x=a[k]==null?'':String(a[k]), y=b[k]==null?'':String(b[k]); if(x===y) return;
-  if(k==='contrato'){ x=(pcDe(x)||{}).consultoria||x; y=(pcDe(y)||{}).consultoria||y; } if(k==='clienteId'){ x=(clDe(x)||{}).nome||x; y=(clDe(y)||{}).nome||y; } if(k==='tipo'){ x=(RP_TIPOS[x]||[])[1]||x; y=(RP_TIPOS[y]||[])[1]||y; }
+  if(k==='contrato'){ x=(pcDe(x)||{}).consultoria||x; y=(pcDe(y)||{}).consultoria||y; } if(k==='clienteId'){ x=(clDe(x)||{}).nome||x; y=(clDe(y)||{}).nome||y; } if(k==='fatBase'){ x=RP_FAT_BASES[rpFatBase(a)]; y=RP_FAT_BASES[rpFatBase(b)]; if(x===y) return; } if(k==='tipo'){ x=(RP_TIPOS[x]||[])[1]||x; y=(RP_TIPOS[y]||[])[1]||y; }
   out.push(`${RP_CAMPOS[k]}: ${x||'—'} → ${y||'—'}`); }); return out; }
 function rpSalva(p, o, d){ if(p&&o) rpLog(p,o,d); if(p) p.atualizadoEm=hojeSP(); salvaCfg(); }
 function rpHistRow(h){ return `<tr><td class="muted small">${esc(pcQuando(h.em))}</td><td>${esc(h.por||'')}</td><td><span class="badge rp-h rp-h-${esc(h.o)}">${esc(RP_HIST_ROT[h.o]||h.o)}</span></td><td class="small">${esc(h.d||'')}${h.n>1?` <span class="muted small">(${h.n}× em sequência)</span>`:''}</td></tr>`; }
@@ -309,8 +348,53 @@ function rpOdooCicloMudou(p, per){ const o=p&&p.odoo; if(!o||!o.id) return false
 // ---- 🧾 períodos de faturamento previstos (horas abertas): os do ciclo do plano (rpCiclosDe) ou o mês civil ----
 function rpPeriodosFat(p, calc){ const ci=rpCiclosDe(p); const fim=rpFim(p); const vp=calc||rpCalc(p,rpCenario(p)); const vh=vp.vh; const meses=vp.meses;
   const base=ci.obj?pcPeriodos(ci.obj,p.inicio,fim):meses.map((m,i)=>{ const ini=i===0?p.inicio:m+'-01'; const f=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; return { ym:m, ini, fim:f, iniPlano:ini, fimPlano:f, nota:f, ajustado:false, recortado:false }; });
+  const ct=rpContrato(p);   // o contrato de parceria ligado (qualquer que seja a fonte do ciclo): o ciclo que COMEÇA depois do fim dele não é faturado
   return base.map(P=>{ let h=0, du=0; meses.forEach((m,i)=>{ const a=i===0?p.inicio:m+'-01'; const b=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; const x=P.iniPlano>a?P.iniPlano:a, y=P.fimPlano<b?P.fimPlano:b; if(y<x) return; const d=rpDiasUteis(x,y); du+=d; if(vp.diasUteis[m]) h+=vp.vendPorMes[m]*d/vp.diasUteis[m]; });
-    h=Math.round(h*100)/100; return { ...P, du, horas:h, valor:h*vh, fonte:ci.fonte }; }); }
+    // horasAuto = a conta (vendidas rateadas no ciclo); horas = o que vale (a digitada em p.fatMan, se houver) — é ela que vai ao Odoo, às notas e à receita
+    const horasAuto=Math.round(h*100)/100; const fm=rpFatManDe(p,P.ym); const man=fm!=null; const horas=man?fm:horasAuto;
+    return { ...P, du, horasAuto, valorAuto:horasAuto*vh, man, horas, valor:horas*vh, fonte:ci.fonte, encerrado:!!(ct&&ct.fim&&P.iniPlano>ct.fim) }; }); }
+// Fração do ciclo já decorrida em DIAS ÚTEIS até `ate`: 1 = ciclo fechado, 0 = ainda não começou, entre os dois = o ciclo corrente (pro rata).
+function rpFracaoCiclo(P, ate){ return P.fimPlano<=ate?1:P.iniPlano>ate?0:(P.du?rpDiasUteis(P.iniPlano,ate)/P.du:1); }
+// O faturado até `ate` (porte do api/_lib/rentab.js): `per` = rpPeriodosFat, gastasFat[i] = horas faturáveis apontadas no ciclo i, hFatTotal = todas as
+// faturáveis do realizado (inclusive as que caem fora de qualquer ciclo — o 'apontado' reproduz hFat × valor-hora). 'vendido': ciclo fechado conta as
+// horas inteiras, o corrente pro rata (rpFracaoCiclo), o encerrado (depois do fim do contrato) zero — × valor-hora.
+function rpFatAte(p, calc, per, ate, gastasFat, hFatTotal){ const vh=calc.vh; const base=rpFatBase(p); let horasAte=0, soma=0;
+  const por=per.map((P,i)=>{ const fr=rpFracaoCiclo(P,ate); const hAte=P.encerrado?0:P.horas*fr; const valorAte=base==='vendido'?hAte*vh:(Number(gastasFat[i])||0)*vh; horasAte+=hAte; soma+=valorAte; return { ym:P.ym, fr, horasAte:hAte, valorAte }; });
+  const fatAte=base==='vendido'?soma:(hFatTotal!=null?Number(hFatTotal):gastasFat.reduce((s,x)=>s+(Number(x)||0),0))*vh;
+  return { fatAte, horasAte, por }; }
+// O realizado olhado CICLO A CICLO (porDia = rpReal.porDia): gastas, Δ (horas faturadas até aqui − gastas: positivo = ganho), faturado até aqui, valor-hora
+// efetivo, % do ciclo decorrido × % consumido e a projeção no fim do ciclo. Só horas abertas. Pura (não lê o estado): rpReal chama de dentro.
+function rpFatCalc(p, calc, porDia, ate){
+  const per=rpPeriodosFat(p,calc); const dias=Object.keys(porDia||{}); let hFatTot=0; dias.forEach(d=>{ hFatTot+=porDia[d].hFat; });
+  const med=per.map(P=>{ let gastas=0, gastasFat=0, custo=0; dias.forEach(d=>{ if(d>=P.iniPlano&&d<=P.fimPlano){ const x=porDia[d]; gastas+=x.h; gastasFat+=x.hFat; custo+=x.custo; } }); return { gastas, gastasFat, custo }; });
+  const A=rpFatAte(p,calc,per,ate,med.map(x=>x.gastasFat),hFatTot); const vh=calc.vh;
+  const por=per.map((P,i)=>{ const m=med[i], a=A.por[i]; const delta=a.horasAte-m.gastas; const proj=a.fr>=0.1?m.gastas/a.fr:null; const horasCiclo=P.encerrado?0:P.horas;
+    return { ...P, ...m, fr:a.fr, horasAte:a.horasAte, valorAte:a.valorAte, delta, deltaR:delta*vh, vhEf:m.gastas>0?a.valorAte/m.gastas:null,
+      pctCiclo:a.fr*100, pctConsumo:horasCiclo>0?m.gastas/horasCiclo*100:null, proj, projDelta:proj==null?null:horasCiclo-proj }; });
+  return { fatAte:A.fatAte, horasAte:A.horasAte, hFat:hFatTot, por }; }
+// Semanas (seg → dom) de max(a 1ª segunda do plano, `n` semanas antes de `ate`) até `ate`: vendidas (rpVendEntre) × gastas. A última pode ser parcial (fim = ate).
+// Horas apontadas antes da segunda do início do plano (no mesmo mês) contam no total do realizado mas não caem em nenhuma semana nem ciclo.
+const rpSomaDias=(s,n)=>{ const [y,m,d]=s.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); };
+function rpSemanas(p, real, n){ n=n||8; const ate=real.ate; const ini=p.inicio; if(!ini||ate<ini) return [];
+  let seg=rpSomaDias(semChave(ate),-7*(n-1)); const prim=semChave(ini); if(seg<prim) seg=prim;
+  const out=[]; const dias=Object.keys(real.porDia||{}); let g=0;
+  while(seg<=ate&&g++<200){ const dom=rpSomaDias(seg,6); const fim=dom<ate?dom:ate; const de=seg<ini?ini:seg;
+    let gast=0, gastFat=0; dias.forEach(d=>{ if(d>=seg&&d<=fim){ gast+=real.porDia[d].h; gastFat+=real.porDia[d].hFat; } });
+    const vend=rpVendEntre(p,de,fim); out.push({ seg, dom, fim, parcial:dom>ate, vend, gast, gastFat, delta:vend-gast }); seg=rpSomaDias(seg,7); }
+  return out; }
+// ⚖️ Vendido × gasto: o plano até hoje, o ciclo corrente, as semanas e cada pessoa (previsto do cenário até hoje × apontado). R$ = Δ × valor-hora
+// (no escopo fechado, o valor-hora efetivo; por pessoa, o custo/h dela ou o repasse). Devolve null enquanto o realizado não chegou.
+function rpVgCalc(p, calc, real){ if(!real) return null; const c0=rpCenario(p);
+  const vh=calc.tipo==='fechado'?(calc.vhEfetivo||0):calc.vh; const delta=real.vendAteHoje-real.h;
+  const periodo={ vend:real.vendAteHoje, gasto:real.h, delta, deltaR:delta*vh, vh, vhEf:(real.h>0&&real.receitaReal>0)?real.receitaReal/real.h:null };
+  let ciclo=null; const por=(real.fat&&real.fat.por)||[];
+  if(por.length){ let i=por.findIndex(P=>P.iniPlano<=real.ate&&real.ate<=P.fimPlano); if(i<0&&real.ate>por[por.length-1].fimPlano) i=por.length-1; if(i>=0) ciclo=por[i]; }
+  const semanas=rpSemanas(p,real,8); const completas=semanas.filter(w=>!w.parcial); const semUlt=(completas.length?completas:semanas).slice(-1)[0]||null;
+  const prev={}; (c0.aloc||[]).forEach(al=>{ calc.meses.forEach(m=>{ prev[al.a]=(prev[al.a]||0)+Math.max(0,Number((al.h||{})[m])||0)*(real.fracMes[m]||0); }); });
+  const ids=new Set(real.pessoas.map(x=>x.a)); (c0.aloc||[]).forEach(al=>{ if(!ppDe(al.a)&&prev[al.a]>0) ids.add(al.a); });
+  const pessoas=[...ids].map(a=>{ const R=real.pessoas.find(x=>x.a===a); const plan=prev[a]||0; const rh=R?R.h:0; const taxa=rpCustoRealH(p,c0,a); const d=plan-rh;
+    return { a, nome:R?R.nome:rpNome(a), plan, real:rh, delta:d, taxa, deltaR:d*taxa }; }).sort((x,y)=>Math.abs(y.deltaR)-Math.abs(x.deltaR));
+  return { vh, periodo, ciclo, semanas, semUlt, pessoas }; }
 const RP_ODOO_ST={ draft:'cotação em rascunho', sent:'cotação enviada', sale:'ordem de venda confirmada', done:'ordem concluída', cancel:'cancelada' };
 // Item da ordem de venda de cada período: pelo mês (itens gravados na criação) ou, em cotações antigas, pela ordem das linhas lidas do Odoo.
 function rpOdooItens(p, periodos){ const o=p.odoo; if(!o||!o.id) return periodos.map(()=>null); const its=Array.isArray(o.itens)&&o.itens.length?o.itens:null; const lista=(o.sync&&o.sync.lista)||[];
@@ -338,7 +422,130 @@ function rpSincronizaOdoo(p, forca, btn){ const r=estado.rentab; r.syncB=r.syncB
 function rpGaranteSyncOdoo(p){ if(!p||!p.odoo||!p.odoo.id) return; const r=estado.rentab; r.syncB=r.syncB||{}; r.syncErro=r.syncErro||{}; const s=p.odoo.sync; const velho=!s||!s.em||(Date.now()-Date.parse(s.em))>10*60*1000; if(velho&&!r.syncB[p.id]&&!r.syncErro[p.id]) rpSincronizaOdoo(p,false); }
 const rpSem=(cls,rot)=>`<span class="ct-sem ${cls}">${esc(rot)}</span>`;
 function rpSemMargem(mgp, meta){ if(mgp==null) return rpSem('na','sem receita'); return mgp>=meta?rpSem('ok',`≥ meta (${meta}%)`):(mgp>=meta/2?rpSem('aten','abaixo da meta'):rpSem('crit','no vermelho')); }
-const rpKpi=(v,l,cls,s)=>`<div class="vg-k ${cls||''}"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+// ---- 📖 INDICADORES EXPLICADOS: o texto ÚNICO do tooltip (data-tip = o que é · data-tip2 = como ler) e do glossário "Como ler estes indicadores" ----
+// Cada entrada: nome · oque (o que significa) · calc (como é calculado, em palavras) · ler (o que é bom / quando acender o alerta) · t (tipos de plano onde aparece:
+// h = horas abertas, f = escopo fechado, i = interno; ausente = todos). Linguagem para quem não vive de indicador: sem sigla, sem fórmula de código.
+// Indicador novo na tela = entrada aqui + chave em RP_GLOSSARIO + data-rp-ind (rpTipAttr/rpKpi/rpTh) no elemento.
+const RP_EXPLICA={
+  // ---- o plano em números ----
+  receita:{ t:'h', nome:'Receita prevista', oque:'Quanto o cliente deve pagar por este plano inteiro.', calc:'Horas vendidas no prazo × valor da hora vendida.', ler:'É o teto do que entra no caixa. Quanto menos o custo consumir dessa receita, maior a margem.' },
+  valorProjeto:{ t:'f', nome:'Valor do projeto', oque:'Quanto o cliente paga pelo escopo fechado inteiro, gaste a equipe as horas que gastar.', calc:'Valor combinado, digitado nos dados do plano e faturado pelos marcos.', ler:'Se a equipe gastar menos horas do que as vendidas, a diferença vira margem; se gastar mais, o prejuízo é nosso.' },
+  vendidas:{ t:'hf', nome:'Horas vendidas', oque:'As horas de trabalho que o cliente comprou no prazo do plano.', calc:'Carga por dia útil × dias úteis do mês (feriados descontados), ou o total informado; cada mês aceita um número digitado.', ler:'É a régua de tudo: o esforço e as horas gastas são comparados com ela.' },
+  valorHora:{ t:'h', nome:'Valor da hora vendida', oque:'Quanto o cliente paga por cada hora de consultoria.', calc:'Valor combinado em contrato, digitado nos dados do plano.', ler:'Multiplicado pelas horas vendidas dá a receita; comparado com o custo por hora, mostra a folga de cada hora trabalhada.' },
+  esforco:{ nome:'Esforço previsto', oque:'Quantas horas a equipe planejou gastar no projeto (execução, gestão e terceirizados).', calc:'Soma das horas de todas as pessoas na grade do cenário ativo.', ler:'Compare com as horas vendidas: abaixo delas sobram horas (bom); acima delas o projeto vai estourar (ruim).' },
+  eficiencia:{ t:'hf', nome:'Eficiência', oque:'Que parte das horas vendidas a equipe planeja usar de verdade.', calc:'Esforço previsto ÷ horas vendidas.', ler:'60% = entregar com 60% das horas que o cliente paga. Até 80% é verde, até 100% amarelo e acima de 100% vermelho (estourou o vendido).' },
+  custo:{ t:'hf', nome:'Custo previsto', oque:'Quanto a equipe planejada custa ao projeto.', calc:'Horas de cada pessoa × custo por hora dela (no terceirizado interno, × o valor-hora de repasse).', ler:'Quanto menor, melhor. Se aparecer aviso de pessoa sem custo por hora, o custo está subestimado.' },
+  margem:{ t:'hf', nome:'Margem prevista', oque:'O que sobra da receita depois de pagar o custo da equipe.', calc:'Receita prevista − custo previsto; a porcentagem é sobre a receita.', ler:'Verde quando bate a margem-meta, amarelo se passa de metade dela e vermelho abaixo disso.' },
+  margemMeta:{ t:'hf', nome:'Margem-meta', oque:'A margem mínima que a empresa espera deste projeto.', calc:'Percentual digitado nos dados do plano.', ler:'É a régua das cores da margem: acima dela está bom; bem abaixo, o projeto não se paga.' },
+  recH:{ t:'h', nome:'Receita por hora trabalhada', oque:'Quanto o projeto fatura, em média, por cada hora que a equipe trabalha.', calc:'Receita prevista ÷ esforço previsto.', ler:'Quanto maior, melhor. Se ficar abaixo do custo médio por hora (escrito embaixo), cada hora trabalhada dá prejuízo.' },
+  folga:{ t:'h', nome:'Folga até a meta', oque:'Quantas horas da pessoa mais barata do cenário ainda cabem no projeto sem a margem cair abaixo da meta.', calc:'(Receita × (1 − margem-meta) − custo previsto) ÷ custo por hora da pessoa mais barata.', ler:'Verde = ainda dá para alocar mais gente; vermelho = o cenário já está abaixo da meta (o texto diz quanto falta).' },
+  vhProjeto:{ t:'f', nome:'Valor-hora efetivo do escopo fechado', oque:'Quanto vale, em média, cada hora vendida de um projeto de valor fechado.', calc:'Valor do projeto ÷ horas vendidas.', ler:'Compare com a hora de tabela e com o custo médio por hora: se for menor que o custo, o projeto já nasce no prejuízo.' },
+  faturadoAFaturar:{ t:'f', nome:'Faturado × a faturar', oque:'Quanto do valor do projeto já foi faturado e quanto ainda falta.', calc:'Soma dos marcos marcados como faturados; o resto é o valor do projeto menos o faturado.', ler:'Vermelho = há marco vencido sem faturar (dinheiro parado); amarelo = os marcos não somam 100% do valor.' },
+  proximoMarco:{ t:'f', nome:'Próximo marco', oque:'A data do próximo marco de faturamento que ainda não foi faturado.', calc:'A menor data de marco previsto de hoje em diante.', ler:'Amarelo = faltam 14 dias ou menos: prepare a nota.' },
+  orcamento:{ t:'i', nome:'Orçamento de custo', oque:'O custo total que a empresa aceita investir neste projeto interno.', calc:'Valor digitado nos dados do plano.', ler:'É o limite: a alocação e o realizado vão consumindo esse valor.' },
+  custoAloc:{ t:'i', nome:'Custo previsto (alocação)', oque:'Quanto a equipe planejada vai consumir do orçamento.', calc:'Horas de cada pessoa × custo por hora dela.', ler:'Até 90% do orçamento é verde, até 100% amarelo; acima disso a alocação já estoura o orçamento.' },
+  saldoPrev:{ t:'i', nome:'Saldo previsto do orçamento', oque:'O que sobra do orçamento depois da alocação planejada.', calc:'Orçamento − custo previsto.', ler:'Positivo = sobra; negativo (vermelho) = o plano estoura o orçamento antes mesmo de começar.' },
+  // ---- planner (pessoa × mês) e cascata ----
+  papel:{ nome:'Papel', oque:'Como a hora da pessoa conta no projeto: execução (trabalho entregue), gestão (acompanhamento) ou terceirizado interno (pessoa de outra área cedida ao projeto).', calc:'Escolhido linha a linha na grade.', ler:'Só o terceirizado interno custa ao projeto o valor-hora de repasse; os demais custam o custo por hora real da pessoa.' },
+  custoH:{ nome:'Custo por hora', oque:'Quanto a pessoa custa à empresa por hora de trabalho.', calc:'Cadastrado na Controladoria (ou na vaga planejada).', ler:'Serve só para medir custo, nunca entra na receita. "Sem custo/h" em vermelho = o custo do projeto está subestimado.' },
+  repasseH:{ nome:'Valor-hora de repasse', oque:'O que ESTE projeto paga, por hora, à área que cede um terceirizado interno.', calc:'Valor digitado na linha da pessoa; vazio = o custo por hora dela (e aí os números são iguais aos da execução).', ler:'Acima do custo real a área que cede ganha; abaixo, o projeto ganha e a área cedente perde. A margem consolidada mostra o efeito para a empresa toda.' },
+  totalPessoa:{ nome:'Total da pessoa', oque:'As horas que a pessoa dedica ao projeto, somando todos os meses.', calc:'Soma das células dos meses; editar o total redistribui igualmente pelos meses.', ler:'Compare com o que ela realmente apontou (linha "realizado" logo abaixo).' },
+  saldoGrade:{ nome:'Saldo (vendidas − previsto)', oque:'Em cada mês, quantas horas vendidas ainda sobram depois da alocação.', calc:'Horas vendidas do mês − esforço previsto do mês.', ler:'Positivo (verde) = sobra de horas, que pode virar margem ou um consultor mais barato; negativo (vermelho) = alocou mais do que vendeu.' },
+  realGrade:{ nome:'Realizado (Clockwork)', oque:'As horas que as pessoas realmente apontaram no projeto.', calc:'Soma dos apontamentos do projeto do Jira, mês a mês.', ler:'Compare com o previsto: acima, a equipe está gastando mais do que o planejado.' },
+  difAteAqui:{ nome:'Realizado − previsto até aqui', oque:'Quanto a equipe gastou a mais (ou a menos) do que o planejado até hoje.', calc:'Horas apontadas − horas previstas proporcionais aos dias úteis já decorridos.', ler:'Atenção ao sinal: aqui é de GASTO. "+" em vermelho = gastou acima do plano; "−" em verde = gastou abaixo.' },
+  custoExec:{ nome:'Custo de execução', oque:'Quanto custa o trabalho de execução planejado.', calc:'Horas de execução × custo por hora de cada pessoa.', ler:'Costuma ser a maior fatia do custo; reduzi-la (menos horas ou gente mais barata) aumenta a margem.' },
+  custoGestao:{ nome:'Custo de gestão', oque:'Quanto custa o tempo de acompanhamento do projeto.', calc:'Horas de gestão × custo por hora de quem gere.', ler:'Gestão também custa: se pesar demais perto da receita, vale rever.' },
+  repasseCasc:{ nome:'Repasse interno (terceirizado)', oque:'O que o projeto paga à área que cede os terceirizados internos.', calc:'Horas dos terceirizados × valor-hora de repasse.', ler:'É custo do projeto, mas o dinheiro fica dentro da empresa: veja o resultado da área que cede e a margem consolidada.' },
+  resultadoCedente:{ nome:'Resultado da área que cede', oque:'O ganho (ou a perda) da área que empresta a pessoa ao projeto.', calc:'Repasse pago pelo projeto − custo real da pessoa, nas horas cedidas.', ler:'Positivo = a área cedente ganha com o repasse; negativo = repassou abaixo do custo.' },
+  margemCons:{ nome:'Margem consolidada', oque:'A margem da empresa toda, contando o custo real das pessoas cedidas em vez do repasse.', calc:'Receita − (horas × custo real por hora de todo mundo).', ler:'É o que de fato sobra para a empresa; o repasse só muda a conta entre áreas, não o total.' },
+  // ---- faturamento: nosso ciclo (mês civil) e ciclo do cliente ----
+  nossoCiclo:{ t:'h', nome:'Nosso ciclo (mês civil)', oque:'O mês-calendário usado no planejamento interno: planner, horas vendidas por mês e a tabela mensal.', calc:'Do dia 1 ao último dia de cada mês.', ler:'É só a visão interna. O que vale para a nota é o ciclo do cliente (tabela de períodos de faturamento).' },
+  fatBaseTxt:{ t:'h', nome:'Base do faturamento', oque:'Como o plano calcula o que já foi faturado: pelo valor vendido do ciclo ou pelas horas apontadas.', calc:'Valor vendido: horas vendidas do ciclo × valor da hora, mesmo que a equipe gaste menos. Horas apontadas: só as horas faturáveis apontadas × valor da hora.', ler:'No escopo aberto o padrão é o valor vendido: gastar menos horas do que as faturadas é ganho; gastar mais é perda.' },
+  recPrev:{ t:'h', nome:'Receita prevista do mês', oque:'O que o plano espera faturar naquele mês civil.', calc:'Horas vendidas do mês × valor da hora.', ler:'É a referência para comparar com o que de fato foi faturado.' },
+  hFatReal:{ t:'h', nome:'Horas faturáveis realizadas', oque:'Horas apontadas no mês em tipos de trabalho que o cliente paga.', calc:'Soma dos apontamentos faturáveis do mês (os não faturáveis aparecem como "n/f").', ler:'Só vira receita quando o plano fatura pelas horas apontadas; no faturamento pelo vendido é apenas informação.' },
+  recMesReal:{ t:'h', nome:'Receita realizada do mês', oque:'O que já foi faturado no mês civil.', calc:'Pelo valor vendido: receita prevista do mês × fração do mês já decorrida. Pelas horas apontadas: horas faturáveis × valor da hora.', ler:'Mês fechado = valor cheio; mês corrente = proporcional aos dias úteis; mês futuro = zero.' },
+  difReceita:{ t:'h', nome:'Diferença de receita', oque:'Quanto a receita realizada está acima ou abaixo da prevista.', calc:'Receita realizada − receita prevista.', ler:'Verde (+) = faturou mais que o previsto; vermelho (−) = faturou menos.' },
+  acumulado:{ t:'h', nome:'Acumulado (previsto / realizado)', oque:'A soma, mês a mês, da receita prevista e da realizada.', calc:'Soma acumulada das colunas anteriores.', ler:'Duas linhas andando juntas = plano em dia; a realizada ficando para trás = o caixa está atrasando.' },
+  ciclo:{ t:'h', nome:'Ciclo de faturamento', oque:'O período que o cliente usa para fechar a conta (por exemplo, de 26 a 25), nomeado pelo mês em que termina.', calc:'Vem do cliente cadastrado, do contrato de parceria ou do mês civil — nessa ordem.', ler:'É o ciclo que vale para a nota e para o Odoo; o nosso ciclo (mês civil) é só para o planejamento interno.' },
+  fechamento:{ t:'h', nome:'Fechamento', oque:'O último dia do ciclo do cliente.', calc:'Dia de fechamento do cliente ou do contrato (ou o ajuste daquele mês).', ler:'Depois dele, as horas já pertencem ao ciclo seguinte.' },
+  nota:{ t:'h', nome:'Nota', oque:'A data prevista para emitir a nota fiscal do ciclo.', calc:'Dia de faturamento combinado (ou o próprio fechamento).', ler:'Um ⚠ vermelho quer dizer que a data já passou e o item ainda não foi faturado no Odoo.' },
+  diasUteis:{ t:'h', nome:'Dias úteis', oque:'Quantos dias de trabalho tem o ciclo (sem fim de semana nem feriado).', calc:'Contagem de segunda a sexta, descontados os feriados.', ler:'Mais dias úteis = mais horas vendidas no ciclo.' },
+  horasFat:{ t:'h', nome:'Horas faturadas', oque:'As horas que serão cobradas do cliente naquele ciclo.', calc:'Horas vendidas rateadas no ciclo pelos dias úteis — ou o número que você digitar no campo ✎.', ler:'Digitar vale para tudo (valor, Odoo e ganho). Apagar o campo volta ao cálculo, que continua visível como "calc.".' },
+  valorPer:{ t:'h', nome:'Valor do ciclo', oque:'Quanto será cobrado no ciclo inteiro.', calc:'Horas faturadas × valor da hora.', ler:'É o valor do item do ciclo na ordem de venda do Odoo.' },
+  gastas:{ t:'h', nome:'Horas gastas no ciclo', oque:'As horas que a equipe realmente apontou dentro das datas do ciclo.', calc:'Soma dos apontamentos do projeto entre o início e o fim do ciclo.', ler:'Compare com as horas faturadas até aqui: gastar menos é ganho.' },
+  deltaCiclo:{ t:'h', nome:'Δ do ciclo (ganho)', oque:'A diferença entre as horas faturadas até aqui e as horas gastas no ciclo.', calc:'Horas faturadas × parte do ciclo já decorrida − horas gastas.', ler:'Positivo e verde = entregamos com menos horas do que cobramos (bom); negativo e vermelho = gastamos mais do que cobramos.' },
+  fatAte:{ t:'h', nome:'Faturado até aqui', oque:'O valor do ciclo que já pode ser considerado faturado hoje.', calc:'Ciclo fechado = valor cheio; ciclo corrente = valor × parte dos dias úteis já decorrida; ciclo que começa depois do fim do contrato = zero.', ler:'A soma dos ciclos é a receita realizada do plano.' },
+  vhEfCiclo:{ t:'h', nome:'R$/h efetivo', oque:'Quanto o cliente pagou, na prática, por cada hora que a equipe gastou no ciclo.', calc:'Faturado até aqui ÷ horas gastas.', ler:'Acima do valor da hora vendida = entregamos mais rápido que o vendido (bom); abaixo = gastamos mais horas do que o cobrado.' },
+  pctCiclo:{ t:'h', nome:'% do ciclo × % consumido', oque:'Quanto do ciclo já passou e quanto das horas faturadas já foi gasto.', calc:'Dias úteis decorridos ÷ dias úteis do ciclo, ao lado de horas gastas ÷ horas faturadas do ciclo.', ler:'Consumo menor que o tempo decorrido = ritmo bom; consumo maior = vai estourar antes do ciclo fechar.' },
+  projCiclo:{ t:'h', nome:'Projeção no fim do ciclo', oque:'Quantas horas serão gastas até o fim do ciclo se o ritmo atual continuar — e se vai sobrar ou faltar.', calc:'Horas gastas ÷ parte do ciclo já decorrida (só depois de 10% do ciclo).', ler:'Verde ("sobra") = fecha com ganho; vermelho ("falta") = no ritmo atual o ciclo fecha em prejuízo.' },
+  odooCol:{ t:'h', nome:'Odoo', oque:'A situação do item deste ciclo na ordem de venda do Odoo.', calc:'Lida do Odoo (a cada 10 minutos ao abrir o plano, ou pelo botão ↻).', ler:'Faturado e pago = tudo certo; "fora da ordem" ou "item não encontrado" pedem uma conferência.' },
+  // ---- ⚖️ vendido × gasto ----
+  vgPeriodo:{ t:'hf', nome:'Vendido × gasto — período', oque:'Quantas horas o plano vendeu até hoje contra quantas a equipe gastou.', calc:'Horas vendidas até hoje − horas apontadas no projeto; em reais, multiplicado pelo valor da hora.', ler:'Positivo e verde = entregamos com menos horas do que vendemos (bom); negativo e vermelho = gastamos mais do que o cliente paga.' },
+  vgCiclo:{ t:'h', nome:'Vendido × gasto — ciclo atual', oque:'A mesma comparação, só dentro do ciclo de faturamento do cliente que está em andamento.', calc:'Horas faturadas do ciclo até hoje (proporcional aos dias úteis) − horas gastas no ciclo.', ler:'Mostra cedo se o ciclo vai fechar com ganho ou perda; abaixo vêm o % do ciclo, o % consumido e a projeção.' },
+  vgSemana:{ t:'hf', nome:'Vendido × gasto — última semana', oque:'A comparação da última semana fechada (de segunda a domingo).', calc:'Horas vendidas na semana (pelos dias úteis) − horas apontadas na semana.', ler:'Uma semana ruim isolada não preocupa; várias seguidas em vermelho pedem ação (a tabela ao lado mostra a tendência).' },
+  vgPessoa:{ t:'hf', nome:'Δ por pessoa', oque:'Quanto cada pessoa gastou a mais ou a menos do que o planejado para ela até hoje.', calc:'Horas planejadas para a pessoa até hoje (proporcionais aos dias úteis) − horas que ela apontou; em reais, × o custo por hora dela (o repasse, no terceirizado interno).', ler:'Verde = gastou menos que o planejado; vermelho = gastou mais. Quem não estava no cenário aparece só em vermelho.' },
+  vhEfetivo:{ t:'hf', nome:'Valor-hora efetivo', oque:'Quanto o projeto está faturando por cada hora que a equipe de fato gastou.', calc:'Receita realizada ÷ horas gastas.', ler:'Acima do valor da hora vendida = estamos sendo mais rápidos que o vendido (bom). Abaixo = gastando mais horas do que o cobrado.' },
+  custoHoraGasta:{ t:'hf', nome:'Custo por hora gasta', oque:'Quanto custa, em média, cada hora que a equipe apontou.', calc:'Custo realizado ÷ horas gastas.', ler:'Compare com o valor-hora efetivo: a diferença entre os dois é a margem de cada hora. Custo acima do valor-hora = hora no prejuízo.' },
+  margemRealPrev:{ t:'hf', nome:'Margem real × prevista', oque:'A margem que o projeto está dando de verdade, ao lado da que o plano prometia.', calc:'(Receita realizada − custo realizado) ÷ receita realizada; a prevista é a margem do cenário.', ler:'Real igual ou acima da prevista = no rumo; bem abaixo = custo ou horas fugiram do plano. As cores seguem a margem-meta.' },
+  repasseInterno:{ t:'hf', nome:'Repasse interno', oque:'Quanto do custo do projeto é pago à área que cede terceirizados internos.', calc:'Horas dos terceirizados × valor-hora de repasse; a porcentagem é sobre o custo total do projeto.', ler:'Não é perda da empresa, é transferência entre áreas: olhe o resultado da área que cede e a margem consolidada.' },
+  vgChip:{ t:'hf', nome:'⚖️ no cartão do plano', oque:'A diferença entre as horas vendidas até hoje e as gastas, direto no cartão do plano.', calc:'Horas vendidas até hoje − horas apontadas no projeto.', ler:'Verde (+) = ganhando horas; vermelho (−) = gastando acima do vendido.' },
+  // ---- realizado (Clockwork) ----
+  horasReal:{ nome:'Horas realizadas', oque:'O total de horas que as pessoas apontaram no projeto até a data indicada.', calc:'Soma dos apontamentos do projeto do Jira (Clockwork).', ler:'Compare com as horas vendidas até aqui (escritas embaixo): acima delas, a equipe está gastando mais que o vendido.' },
+  eficReal:{ t:'hf', nome:'Eficiência real', oque:'Que parte das horas vendidas (proporcionais ao prazo decorrido) a equipe já usou.', calc:'Horas realizadas ÷ horas vendidas até hoje.', ler:'Abaixo de 100% = entregando mais rápido do que o cliente paga (bom). Até 80% é verde, até 100% amarelo, acima disso vermelho.' },
+  prevAteAqui:{ nome:'Previsto até aqui (cenário)', oque:'Quantas horas o cenário previa gastar até hoje.', calc:'Horas da grade, com o mês corrente proporcional aos dias úteis já decorridos.', ler:'Verde = gastou até o previsto; amarelo = passou do previsto.' },
+  prazoDecorrido:{ nome:'Prazo decorrido', oque:'Quanto do tempo do projeto já passou.', calc:'Dias úteis desde o início ÷ dias úteis do prazo.', ler:'Use como régua: se o consumo (de horas ou de orçamento) está bem à frente do prazo, o ritmo está acelerado demais.' },
+  custoReal:{ nome:'Custo realizado', oque:'Quanto as horas apontadas custaram até hoje.', calc:'Horas apontadas × custo por hora de cada pessoa (o repasse, no terceirizado interno).', ler:'Verde = abaixo do custo previsto até aqui; amarelo = acima dele.' },
+  recReal:{ t:'h', nome:'Receita realizada', oque:'Quanto do plano já foi faturado até hoje.', calc:'Pelo valor vendido: soma dos ciclos do cliente (fechado = cheio, corrente = proporcional, depois do fim do contrato = zero, ou as horas que você digitou). Pelas horas apontadas: horas faturáveis × valor da hora.', ler:'Verde = no nível do previsto até aqui; amarelo = abaixo dele.' },
+  fatReal:{ t:'f', nome:'Faturado até aqui', oque:'Quanto do valor do projeto já foi faturado pelos marcos.', calc:'Soma dos marcos marcados como faturados.', ler:'Vermelho = há marco vencido sem faturar.' },
+  margemReal:{ t:'hf', nome:'Margem real até aqui', oque:'A margem que o projeto deu até hoje.', calc:'(Receita realizada − custo realizado) ÷ receita realizada.', ler:'Verde = bateu a meta; amarelo = passa de metade dela; vermelho = abaixo. Compare com a prevista.' },
+  margemProj:{ t:'hf', nome:'Margem projetada', oque:'A margem com que o projeto deve terminar se o resto for como o cenário prevê.', calc:'(Receita do plano − (custo real + custo ainda previsto)) ÷ receita do plano; ao lado, o mesmo no ritmo atual.', ler:'Se ficar bem abaixo da prevista, ainda dá tempo de realocar ou renegociar.' },
+  custoDia:{ t:'i', nome:'Custo por dia útil', oque:'Quanto o projeto interno está custando por dia de trabalho.', calc:'Custo realizado ÷ dias úteis decorridos.', ler:'Multiplique pelos dias que faltam para ver se o orçamento chega ao fim do prazo.' },
+  orcConsumido:{ t:'i', nome:'Orçamento consumido', oque:'Que parte do orçamento já foi gasta.', calc:'Custo realizado ÷ orçamento.', ler:'Compare com o prazo decorrido: consumir mais do que o prazo que passou quer dizer que o orçamento acaba antes do fim.' },
+  custoFinalCen:{ nome:'Custo final (real + restante do cenário)', oque:'Quanto o projeto deve custar no fim, se o resto seguir o cenário.', calc:'Custo realizado + custo que o cenário ainda prevê.', ler:'Verde = cabe no orçamento; vermelho = estoura (o texto diz quanto).' },
+  custoFinalRitmo:{ t:'i', nome:'Custo final (no ritmo atual)', oque:'Quanto o projeto deve custar se o ritmo de gasto até hoje continuar.', calc:'Custo realizado ÷ parte do prazo já decorrida (só depois de 10% do prazo).', ler:'Vermelho = no ritmo atual o orçamento acaba antes do fim (o texto diz a data).' },
+  horasPessoa:{ nome:'Horas realizadas (pessoa)', oque:'As horas que cada pessoa apontou no projeto.', calc:'Soma dos apontamentos da pessoa no projeto do Jira.', ler:'Pessoas "fora do cenário" trabalharam sem estar planejadas.' },
+  planPessoa:{ nome:'Planejado (cenário)', oque:'O total de horas planejado para a pessoa no cenário, no prazo inteiro do projeto.', calc:'Soma das células da pessoa na grade.', ler:'Não é "até hoje": para a comparação até hoje veja o Δ por pessoa.' },
+  difPessoa:{ nome:'Diferença (pessoa)', oque:'Horas apontadas menos horas planejadas, no projeto todo.', calc:'Horas realizadas − horas planejadas.', ler:'Atenção ao sinal: aqui é de GASTO. "+" em vermelho = já passou do total planejado; "−" em verde = ainda dentro.' },
+  pctHoras:{ nome:'% das horas', oque:'A fatia do total apontado que é desta pessoa.', calc:'Horas da pessoa ÷ horas realizadas do projeto.', ler:'Mostra quem carrega o projeto; uma pessoa só com a maior parte pode ser risco.' }
+};
+// Como o glossário agrupa as chaves (a ordem é a de leitura). Toda chave de RP_EXPLICA tem de estar aqui (o teste confere).
+const RP_GLOSSARIO=[
+  ['📌 O plano em números',['receita','valorProjeto','vendidas','valorHora','esforco','eficiencia','custo','margem','margemMeta','recH','folga','vhProjeto','faturadoAFaturar','proximoMarco','orcamento','custoAloc','saldoPrev']],
+  ['🗓 Planner (pessoa × mês) e cascata',['papel','custoH','repasseH','totalPessoa','saldoGrade','realGrade','difAteAqui','custoExec','custoGestao','repasseCasc','resultadoCedente','margemCons']],
+  ['💵 Faturamento: nosso ciclo e ciclo do cliente',['nossoCiclo','fatBaseTxt','recPrev','hFatReal','recMesReal','difReceita','acumulado','ciclo','fechamento','nota','diasUteis','horasFat','valorPer','gastas','deltaCiclo','fatAte','vhEfCiclo','pctCiclo','projCiclo','odooCol']],
+  ['⚖️ Vendido × gasto',['vgPeriodo','vgCiclo','vgSemana','vgPessoa','vhEfetivo','custoHoraGasta','margemRealPrev','repasseInterno','vgChip']],
+  ['⏱ Realizado (Clockwork)',['horasReal','eficReal','prevAteAqui','prazoDecorrido','custoReal','recReal','fatReal','margemReal','margemProj','custoDia','orcConsumido','custoFinalCen','custoFinalRitmo','horasPessoa','planPessoa','difPessoa','pctHoras']]
+];
+// Atributos do tooltip de um indicador: data-tip = o que é · data-tip2 = como ler. Chave desconhecida não gera nada.
+function rpTipAttr(k){ const e=k&&RP_EXPLICA[k]; if(!e) return ''; return ` data-rp-ind="${escA(k)}" data-tip="${escA(e.oque)}" data-tip2="${escA('Como ler: '+e.ler)}"`; }
+const rpTh=(k,txt,cls)=>`<th${cls?` class="${cls}"`:''}${rpTipAttr(k)}>${txt}</th>`;
+// "📖 Como ler estes indicadores": só as entradas do tipo do plano, com nome · o que significa · como é calculado · o que é bom / alerta.
+function rpGlossarioHTML(tipo, aberto){
+  const t=tipo==='fechado'?'f':tipo==='interno'?'i':'h';
+  const grupos=RP_GLOSSARIO.map(([tit,keys])=>{ const itens=keys.filter(k=>RP_EXPLICA[k]&&(RP_EXPLICA[k].t||'hfi').includes(t)); if(!itens.length) return '';
+    return `<div class="rp-gl-g"><h4>${esc(tit)}</h4><div class="rp-gl-lista">${itens.map(k=>{ const e=RP_EXPLICA[k];
+      return `<div class="rp-gl-i" data-rp-gl="${escA(k)}"><b>${esc(e.nome)}</b><p><span>O que significa</span> ${esc(e.oque)}</p><p><span>Como é calculado</span> ${esc(e.calc)}</p><p><span>O que é bom · quando acender o alerta</span> ${esc(e.ler)}</p></div>`; }).join('')}</div></div>`; }).join('');
+  return `<details class="rp-glossario rm-det"${aberto?' open':''}><summary>📖 Como ler estes indicadores <span class="muted small">— o que cada número significa, como é calculado e quando acende o alerta</span></summary>
+    <div class="muted small" style="margin:6px 0 4px">Passe o mouse (ou toque) em qualquer número da tela com ⓘ ou com o título pontilhado para ver a explicação curta. Aqui está a lista completa. <b>Verde</b> é bom, <b>amarelo</b> pede atenção e <b>vermelho</b> é alerta.</div>${grupos}</details>`;
+}
+// Δ com sinal e cor: positivo = ganho (verde, +), negativo = perda (vermelho, −), perto de zero = neutro. tipo 'h' (horas) ou 'r' (R$).
+function rpDeltaHTML(v, tipo){ const n=Number(v)||0; const abs=Math.abs(n); const zero=tipo==='r'?abs<0.005:abs<0.05; const txt=tipo==='r'?fmtBRL(abs):rpH(abs);
+  if(zero) return `<span class="rp-zero">${txt}</span>`; return `<span class="${n>0?'rp-pos':'rp-neg'}">${n>0?'+':'−'}${txt}</span>`; }
+// Mini-barras dos Δ semanais (positivo sobe, verde; negativo desce, vermelho) — o sparkline() do app só desenha valores positivos.
+function rpBarrasDelta(vals, w, h){ w=w||260; h=h||46; if(!vals.length) return ''; const max=Math.max(1,...vals.map(v=>Math.abs(v))); const mid=h/2;
+  const bw=Math.max(5,Math.min(26,(w/vals.length)*0.6)); const gap=(w-bw*vals.length)/(vals.length+1);
+  const barras=vals.map((v,i)=>{ const x=gap+i*(bw+gap); const alt=Math.max(1,Math.abs(v)/max*(mid-3)); const y=v>=0?mid-alt:mid;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${alt.toFixed(1)}" rx="2" fill="${v>=0?'var(--musgo)':'var(--err)'}"></rect>`; }).join('');
+  return `<svg class="rp-bars" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Δ semanal: ${vals.map(v=>(v>0?'+':v<0?'−':'')+rpH(Math.abs(v))).join(', ')}"><line x1="0" x2="${w}" y1="${mid}" y2="${mid}" stroke="var(--linha)" stroke-width="1"></line>${barras}</svg>`; }
+// Rótulo do KPI → chave de RP_EXPLICA (o rótulo é único por indicador; "Horas realizadas até DD/MM" muda com a data, por isso o prefixo).
+const RP_KPI_CHAVE={ 'Receita prevista':'receita','Valor do projeto':'valorProjeto','Esforço previsto':'esforco','Custo previsto':'custo','Margem prevista':'margem','Receita por hora trabalhada':'recH',
+  'Folga até a meta':'folga','Faturado × a faturar':'faturadoAFaturar','Próximo marco':'proximoMarco','Orçamento de custo':'orcamento','Custo previsto (alocação)':'custoAloc','Saldo previsto':'saldoPrev',
+  'Custo realizado':'custoReal','Projeção no ritmo atual':'custoFinalRitmo','Custo final (no ritmo atual)':'custoFinalRitmo','Custo final (real + restante do cenário)':'custoFinalCen','Orçamento consumido':'orcConsumido',
+  'Custo por dia útil':'custoDia','Eficiência real':'eficReal','Previsto até aqui (cenário)':'prevAteAqui','Prazo decorrido':'prazoDecorrido','Receita realizada':'recReal','Faturado até aqui':'fatReal',
+  'Margem real até aqui':'margemReal','Margem projetada (real + restante do cenário)':'margemProj','Valor-hora efetivo':'vhEfetivo','Custo por hora gasta':'custoHoraGasta','Margem real × prevista':'margemRealPrev',
+  'Projeção no fim do ciclo':'projCiclo','Repasse interno':'repasseInterno' };
+const rpKpiChave=(l)=>RP_KPI_CHAVE[l]||(/^Horas realizadas/.test(l)?'horasReal':/^Período · vendido/.test(l)?'vgPeriodo':/^(Ciclo atual|Último ciclo)/.test(l)?'vgCiclo':/^Última semana/.test(l)?'vgSemana':'');
+const rpKpi=(v,l,cls,s,k)=>`<div class="vg-k ${cls||''}"${rpTipAttr(k||rpKpiChave(l))}><div class="v">${v}</div><div class="l">${esc(l)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
 
 // ---- 🔁 valor-hora de REPASSE do terceirizado interno: o campo mora na coluna Custo/h, logo abaixo do custo real da pessoa ----
 // Vazio = o projeto paga o custo/h dela (o placeholder mostra o valor) e os números são os da execução; digitar vale só para esta alocação.
@@ -362,17 +569,17 @@ function renderRentab(){
   if(r.novo&&gestor){ cont.replaceChildren(el(`<div class="rp-tela">${intro}${rpFormHTML(r.rasc||rpNovoPlano(),true)}</div>`)); rpFormAjustaTipo(); return; }
   if(!r.sel){
     const cards=planos.map(p=>{ const c=rpCalc(p,rpCenario(p)); const [stc,str]=rpStatus(p); const T=RP_TIPOS[c.tipo];
-      const kpi1=c.tipo==='interno'?['Orçamento',fmtBRL(c.orc)]:c.tipo==='fechado'?['Valor do projeto',fmtBRL(c.valorProj)]:['Receita prevista',fmtBRL(c.receita)];
-      const kpi4=c.tipo==='interno'?['Saldo do orçamento',`<span class="${c.saldoOrc<0?'rp-neg':'rp-pos'}">${fmtBRL(c.saldoOrc)}</span> <span class="muted small">${c.consumoPrev==null?'':Math.round(c.consumoPrev*100)+'% consumido'}</span>`]:['Margem',`${c.mgp==null?'—':c.mgp+'%'} ${rpSemMargem(c.mgp,c.meta)}`];
+      const kpi1=c.tipo==='interno'?['Orçamento',fmtBRL(c.orc),'orcamento']:c.tipo==='fechado'?['Valor do projeto',fmtBRL(c.valorProj),'valorProjeto']:['Receita prevista',fmtBRL(c.receita),'receita'];
+      const kpi4=c.tipo==='interno'?['Saldo do orçamento',`<span class="${c.saldoOrc<0?'rp-neg':'rp-pos'}">${fmtBRL(c.saldoOrc)}</span> <span class="muted small">${c.consumoPrev==null?'':Math.round(c.consumoPrev*100)+'% consumido'}</span>`,'saldoPrev']:['Margem',`${c.mgp==null?'—':c.mgp+'%'} ${rpSemMargem(c.mgp,c.meta)}`,'margem'];
       const linha=c.tipo==='fechado'?`${c.marcos.lista.length} marco(s) · faturado ${fmtBRL(c.marcos.faturado)}`:c.tipo==='interno'?`${rpH(c.esforco)} alocadas`:`${rpCargaRot(p)} · ${rpH(c.vend)} vendidas · hora vendida ${fmtBRL(c.vh)}`;
       return `<div class="ad-card rp-card rp-t-${c.tipo}" data-rp-abrir="${escA(p.id)}" role="button" tabindex="0">
-        <div class="ad-top"><strong>${esc(p.nome||'(sem nome)')}</strong> <span class="badge rp-st-${stc}">${str}</span> <span class="badge rp-tipo" data-tip="${escA(T[2])}">${T[0]} ${T[1]}</span><span class="spacer"></span><span class="muted small">${esc(p.cliente||'')}</span></div>
+        <div class="ad-top"><strong>${esc(p.nome||'(sem nome)')}</strong> <span class="badge rp-st-${stc}">${str}</span> <span class="badge rp-tipo" data-tip="${escA(T[2])}">${T[0]} ${T[1]}</span>${rpVgChip(p,c)}<span class="spacer"></span><span class="muted small">${esc(p.cliente||'')}</span></div>
         <div class="muted small">${p.projeto?`${esc(projNome(p.projeto))} (${esc(p.projeto)}) · `:''}${dataBR(p.inicio)} → ${dataBR(rpFim(p))} · ${c.meses.length} mês(es) · ${linha}</div>
         <div class="ams-dgrid rp-mini">
-          <div class="ams-dl"><div class="dt">${kpi1[0]}</div><div class="dd">${kpi1[1]}</div></div>
-          <div class="ams-dl"><div class="dt">Esforço previsto</div><div class="dd">${rpH(c.esforco)} <span class="muted small">${c.efic==null?'':Math.round(c.efic*100)+'%'}</span></div></div>
-          <div class="ams-dl"><div class="dt">Custo</div><div class="dd">${fmtBRL(c.custo)}</div></div>
-          <div class="ams-dl"><div class="dt">${kpi4[0]}</div><div class="dd">${kpi4[1]}</div></div></div>
+          <div class="ams-dl"><div class="dt"${rpTipAttr(kpi1[2])}>${kpi1[0]}</div><div class="dd">${kpi1[1]}</div></div>
+          <div class="ams-dl"><div class="dt"${rpTipAttr('esforco')}>Esforço previsto</div><div class="dd">${rpH(c.esforco)} <span class="muted small">${c.efic==null?'':Math.round(c.efic*100)+'%'}</span></div></div>
+          <div class="ams-dl"><div class="dt"${rpTipAttr(c.tipo==='interno'?'custoAloc':'custo')}>Custo</div><div class="dd">${fmtBRL(c.custo)}</div></div>
+          <div class="ams-dl"><div class="dt"${rpTipAttr(kpi4[2])}>${kpi4[0]}</div><div class="dd">${kpi4[1]}</div></div></div>
         <div class="muted small" style="margin-top:6px">${(p.cenarios||[]).length} cenário(s) · ${(rpCenario(p).aloc||[]).length} pessoa(s) alocada(s)${rpContrato(p)?` · 🤝 ${esc(rpContrato(p).consultoria||'')}`:''}${rpClienteDe(p)?` · 🗓 ${esc(rpClienteDe(p).nome||'')} (${esc(clFechaRot(rpClienteDe(p)))})`:''}${p.odoo&&p.odoo.id?` · 🧾 ${esc(p.odoo.name||'Odoo')}`:''}${p.atualizadoEm?` · atualizado ${dataBR(p.atualizadoEm)}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}`:''}</div></div>`; }).join('');
     cont.replaceChildren(el(`<div class="rp-tela">${intro}<div class="card full"><h2>Planos <span>${planos.length} plano(s)</span></h2>
       ${planos.length?`<div class="ad-grid">${cards}</div>`:`<div class="estado">Nenhum plano ainda. ${gestor?'Clique em <b>＋ Novo plano</b>, escolha o projeto do Jira e informe duração, horas vendidas por dia e o valor da hora vendida para começar a simular.':'Peça a um gestor para cadastrar o primeiro plano.'}</div>`}</div></div>`));
@@ -384,24 +591,25 @@ function renderRentab(){
   if(tipo==='fechado') rpGaranteFicha(p);
   const [stc,str]=rpStatus(p); const ciclo=rpCiclosDe(p);
   const dados=tipo==='fechado'?`
-      <div class="ams-dl"><div class="dt">Valor do projeto</div><div class="dd">${fmtBRL(c.valorProj)}</div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('valorProjeto')}>Valor do projeto</div><div class="dd">${fmtBRL(c.valorProj)}</div></div>
       <div class="ams-dl"><div class="dt">Marcos de faturamento</div><div class="dd">${c.marcos.lista.length} <span class="muted small">· ${c.marcos.pctTot}% do valor</span></div></div>
-      <div class="ams-dl"><div class="dt">Horas vendidas</div><div class="dd">${c.vend?`${rpH(c.vend)} <span class="muted small">· ${rpCargaRot(p)}</span>`:'<span class="muted">não informadas</span>'}</div></div>
-      <div class="ams-dl"><div class="dt">Valor-hora efetivo</div><div class="dd">${c.vhEfetivo==null?'—':fmtBRL(c.vhEfetivo)} <span class="muted small">valor ÷ horas vendidas</span></div></div>
-      <div class="ams-dl"><div class="dt">Margem-meta</div><div class="dd">${c.meta}%</div></div>`
+      <div class="ams-dl"><div class="dt"${rpTipAttr('vendidas')}>Horas vendidas</div><div class="dd">${c.vend?`${rpH(c.vend)} <span class="muted small">· ${rpCargaRot(p)}</span>`:'<span class="muted">não informadas</span>'}</div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('vhProjeto')}>Valor-hora efetivo</div><div class="dd">${c.vhEfetivo==null?'—':fmtBRL(c.vhEfetivo)} <span class="muted small">valor ÷ horas vendidas</span></div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('margemMeta')}>Margem-meta</div><div class="dd">${c.meta}%</div></div>`
     :tipo==='interno'?`
-      <div class="ams-dl"><div class="dt">Orçamento de custo</div><div class="dd">${fmtBRL(c.orc)}</div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('orcamento')}>Orçamento de custo</div><div class="dd">${fmtBRL(c.orc)}</div></div>
       <div class="ams-dl"><div class="dt">Prazo</div><div class="dd">${c.diasUteisTotal} dia(s) útil(eis)</div></div>
       <div class="ams-dl"><div class="dt">Horas alocadas</div><div class="dd">${rpH(c.esforco)}</div></div>
       <div class="ams-dl"><div class="dt">Custo médio previsto</div><div class="dd">${c.custoMedio==null?'—':fmtBRL(c.custoMedio)+'/h'}</div></div>`
     :`
       <div class="ams-dl"><div class="dt">Carga vendida</div><div class="dd">${rpCargaRot(p)} <span class="muted small">· ${c.diasUteisTotal} dia(s) útil(eis)</span></div></div>
-      <div class="ams-dl"><div class="dt">Horas vendidas</div><div class="dd">${rpH(c.vend)} <span class="muted small">no prazo</span></div></div>
-      <div class="ams-dl"><div class="dt">Valor da hora vendida</div><div class="dd">${fmtBRL(c.vh)}</div></div>
-      <div class="ams-dl"><div class="dt">Receita prevista</div><div class="dd">${fmtBRL(c.receita)}</div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('vendidas')}>Horas vendidas</div><div class="dd">${rpH(c.vend)} <span class="muted small">no prazo</span></div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('valorHora')}>Valor da hora vendida</div><div class="dd">${fmtBRL(c.vh)}</div></div>
+      <div class="ams-dl"><div class="dt"${rpTipAttr('receita')}>Receita prevista</div><div class="dd">${fmtBRL(c.receita)}</div></div>
+      <div class="ams-dl rp-fatbase-dl"><div class="dt"${rpTipAttr('fatBaseTxt')}>💰 Faturamento</div><div class="dd">${rpFatBase(p)==='vendido'?'valor vendido do ciclo':'horas apontadas'}<div class="muted small">${rpFatBase(p)==='vendido'?'o escopo aberto fatura o valor cheio':'só as horas faturáveis apontadas'}</div></div></div>
       <div class="ams-dl"><div class="dt">🤝 Contrato de parceria</div><div class="dd">${ct?`<span class="lnk" data-goto="parcerias">${esc(ct.consultoria||'')}</span> <span class="muted small">fecha dia ${ct.fatFecha||31}${ct.fatDia?' · nota dia '+ct.fatDia:''}${ctSt&&ctSt.k!=='vigente'?' · '+esc(ctSt.rot):''}</span>`:'<span class="muted">sem contrato</span>'}</div></div>
       <div class="ams-dl rp-ciclo-dl"><div class="dt">🗓 ${ciclo.fonte==='cliente'?'Ciclo do cliente':ciclo.fonte==='contrato'?'Ciclo do contrato':'Ciclo de faturamento'}</div><div class="dd">${ciclo.fonte==='cliente'?`<span class="lnk" data-goto="admin">${esc(ciclo.obj.nome||'')}</span> <span class="muted small">${esc(clFechaRot(ciclo.obj))}${Math.round(Number(ciclo.obj.fatDia)||0)>0?' · nota dia '+Math.round(Number(ciclo.obj.fatDia)):''}</span>`:ciclo.fonte==='contrato'?`<span class="muted small">o do 🤝 contrato · fecha dia ${ciclo.obj.fatFecha||31}</span>`:'<span class="muted small">mês civil</span>'} <div class="muted small">nosso ciclo: mês civil</div></div></div>
-      <div class="ams-dl"><div class="dt">Margem-meta</div><div class="dd">${c.meta}%</div></div>`;
+      <div class="ams-dl"><div class="dt"${rpTipAttr('margemMeta')}>Margem-meta</div><div class="dd">${c.meta}%</div></div>`;
   const cab=`<div class="card full"><h2>💹 ${esc(p.nome||'(sem nome)')} <span class="badge rp-st-${stc}">${str}</span> <span class="badge rp-tipo" data-tip="${escA(T[2])}">${T[0]} ${T[1]}</span> <span>${esc(p.cliente||'')}${p.projeto?` · ${esc(projNome(p.projeto))} (${esc(p.projeto)})`:''} · ${dataBR(p.inicio)} → ${dataBR(rpFim(p))} · ${c.meses.length} mês(es)</span></h2>
     <div class="rp-dados">${dados}
       ${p.obs?`<div class="ams-dl" style="grid-column:span 2"><div class="dt">Obs.</div><div class="dd small">${esc(p.obs)}</div></div>`:''}
@@ -436,10 +644,10 @@ function renderRentab(){
     ${rpKpi(c.folgaH==null?'—':rpH(c.folgaH),'Folga até a meta',c.folgaR>=0?'good':'bad',c.maisBarato?(c.folgaR>=0?`cabem mais horas de ${esc(c.maisBarato.nome.split(' ')[0])} (${fmtBRL(c.maisBarato.rep)}/h)`:`faltam ${fmtBRL(-c.folgaR)} para a meta`):'aloque alguém com custo/h')}</div>`;
   // simulador rápido (por tipo: horas mexe no valor-hora; fechado no valor do projeto; interno no orçamento)
   const sim=gestor?`<div class="rp-sim">
-    <div class="campo"><label>Esforço total previsto (h)</label><input type="number" id="rp-sim-esf" min="0" step="1" value="${Math.round(c.esforco)}" data-tip="Redistribui proporcionalmente as horas de EXECUÇÃO para fechar neste total"></div>
-    ${tipo!=='interno'?`<div class="campo"><label>Eficiência (% das vendidas)</label><input type="number" id="rp-sim-efic" min="1" max="300" step="1" value="${c.efic==null?'':Math.round(c.efic*100)}" data-tip="Ex.: 60 = fazer o projeto com 60% das horas vendidas" ${c.vend?'':'disabled'}></div>`:''}
-    ${tipo==='horas'?`<div class="campo"><label>Valor da hora vendida (R$)</label><input type="number" id="rp-sim-vh" min="0" step="0.01" value="${c.vh}"></div>`:tipo==='fechado'?`<div class="campo"><label>Valor do projeto (R$)</label><input type="number" id="rp-sim-valor" min="0" step="0.01" value="${c.valorProj}"></div>`:`<div class="campo"><label>Orçamento de custo (R$)</label><input type="number" id="rp-sim-orc" min="0" step="0.01" value="${c.orc}"></div>`}
-    ${tipo!=='interno'?`<div class="campo"><label>Margem-meta (%)</label><input type="number" id="rp-sim-meta" min="0" max="100" step="1" value="${c.meta}"></div>`:''}
+    <div class="campo"><label${rpTipAttr('esforco')}>Esforço total previsto (h)</label><input type="number" id="rp-sim-esf" min="0" step="1" value="${Math.round(c.esforco)}" data-tip="Redistribui proporcionalmente as horas de EXECUÇÃO para fechar neste total"></div>
+    ${tipo!=='interno'?`<div class="campo"><label${rpTipAttr('eficiencia')}>Eficiência (% das vendidas)</label><input type="number" id="rp-sim-efic" min="1" max="300" step="1" value="${c.efic==null?'':Math.round(c.efic*100)}" data-tip="Ex.: 60 = fazer o projeto com 60% das horas vendidas" ${c.vend?'':'disabled'}></div>`:''}
+    ${tipo==='horas'?`<div class="campo"><label${rpTipAttr('valorHora')}>Valor da hora vendida (R$)</label><input type="number" id="rp-sim-vh" min="0" step="0.01" value="${c.vh}"></div>`:tipo==='fechado'?`<div class="campo"><label${rpTipAttr('valorProjeto')}>Valor do projeto (R$)</label><input type="number" id="rp-sim-valor" min="0" step="0.01" value="${c.valorProj}"></div>`:`<div class="campo"><label${rpTipAttr('orcamento')}>Orçamento de custo (R$)</label><input type="number" id="rp-sim-orc" min="0" step="0.01" value="${c.orc}"></div>`}
+    ${tipo!=='interno'?`<div class="campo"><label${rpTipAttr('margemMeta')}>Margem-meta (%)</label><input type="number" id="rp-sim-meta" min="0" max="100" step="1" value="${c.meta}"></div>`:''}
     <div class="campo"><label>&nbsp;</label><span class="muted small">Mude um valor e a grade, os KPIs e os gráficos se recalculam. Nada é perdido: cada cenário fica salvo.</span></div></div>`:'';
   // grade pessoa × mês
   const pessoas=rpPessoas(); const alocIds=new Set((c0.aloc||[]).map(x=>x.a));
@@ -455,7 +663,7 @@ function renderRentab(){
       ${real&&!ppDe(al.a)?(()=>{ const rh=c.meses.map(m=>real.porMes[m].porPessoa[al.a]||0); const tot=rh.reduce((s,x)=>s+x,0); const ehG=al.papel==='gestao';
         return `<tr class="rp-real-row" data-tip="${escA(`${P.nome}: horas apontadas no projeto (Clockwork) — comparadas com o planejado${ehG?' (a pessoa também pode ter horas de execução nesta linha)':''}`)}"><td class="muted small">↳ realizado</td><td></td><td></td><td class="num">${tot?rpH(tot):'—'}</td><td class="num">${tot?fmtBRL(tot*rpCustoRealH(p,c0,al.a)):''}</td>
           ${c.meses.map((m,j)=>{ const v=rh[j]; const pl=Math.max(0,Number((al.h||{})[m])||0); return `<td class="num ${v>pl&&pl>0?'rp-neg':''}">${v?rpH(v):(m<=hojeSP().slice(0,7)?'0h':'')}</td>`; }).join('')}<td></td></tr>`; })():''}`; }).join('');
-  const foot=(rot,fn,cls)=>`<tr class="${cls||''}"><td colspan="3"><b>${rot}</b></td><td class="num"><b>${fn('tot')}</b></td><td class="num">${fn('custo')}</td>${c.meses.map(m=>`<td class="num">${fn(m)}</td>`).join('')}<td></td></tr>`;
+  const foot=(rot,fn,cls,k)=>`<tr class="${cls||''}"><td colspan="3"${rpTipAttr(k)}><b>${rot}</b></td><td class="num"><b>${fn('tot')}</b></td><td class="num">${fn('custo')}</td>${c.meses.map(m=>`<td class="num">${fn(m)}</td>`).join('')}<td></td></tr>`;
   // 🧾 Horas vendidas: a linha do rodapé é EDITÁVEL (gestores). O campo vazio mostra o cálculo como placeholder
   // (= automático) e, quando alguém digita, o calculado fica logo abaixo ("calc. 168h") para a diferença ficar à
   // vista. Apagar o campo volta ao automático; o ↺ ao lado da receita devolve o plano inteiro.
@@ -467,19 +675,19 @@ function renderRentab(){
            data-tip="${escA(man?`Horas digitadas — apague para voltar ao cálculo (${rpCargaRot(p)} × ${c.diasUteis[m]} dia(s) útil(eis) = ${rpH(auto)})`:`Calculado: ${rpCargaRot(p)} × ${c.diasUteis[m]} dia(s) útil(eis). Digite para substituir só este mês`)}">
          ${man?`<span class="rp-vend-calc">calc. ${rpH(auto)}</span>`:`<span class="rp-vend-du muted small">${c.diasUteis[m]}d</span>`}`
       : `${rpH(c.vendPorMes[m])} ${man?`<span class="pc-man-selo" data-tip="${escA(`Ajustado à mão — o cálculo dava ${rpH(auto)}`)}">✎</span>`:`<span class="muted small" data-tip="dias úteis no mês">${c.diasUteis[m]}d</span>`}`; };
-  const linhaVend=`<tr class="rp-f-vend"><td colspan="3"><b>Horas vendidas</b>${c.nVendMan?` <span class="muted small">✎ ${c.nVendMan} mês(es) digitado(s)</span>`:''}</td>
+  const linhaVend=`<tr class="rp-f-vend"><td colspan="3"${rpTipAttr('vendidas')}><b>Horas vendidas</b>${c.nVendMan?` <span class="muted small">✎ ${c.nVendMan} mês(es) digitado(s)</span>`:''}</td>
     <td class="num"><b>${rpH(c.vend)}</b>${Math.abs(c.vend-c.vendAuto)>0.05?`<span class="rp-vend-calc">calc. ${rpH(c.vendAuto)}</span>`:''}</td>
     <td class="num"><span class="muted small">receita ${fmtBRL(c.receita)}</span>${gestor&&c.nVendMan?` <button class="btn rt-step" data-rp-vend-limpar="1" data-tip="Volta as horas vendidas de todos os meses ao cálculo da carga vendida">↺</button>`:''}</td>
     ${c.meses.map(m=>`<td class="num rp-vend-c">${celVend(m)}</td>`).join('')}<td></td></tr>`;
-  const grade=`<div class="scroll-x"><table class="mp-tab-mini rp-grade"><thead><tr><th>Pessoa</th><th>Papel</th><th class="num">Custo/h</th><th class="num">Total</th><th class="num">Custo</th>${cols}<th></th></tr></thead>
+  const grade=`<div class="scroll-x"><table class="mp-tab-mini rp-grade"><thead><tr><th>Pessoa</th>${rpTh('papel','Papel')}${rpTh('custoH','Custo/h','num')}${rpTh('totalPessoa','Total','num')}<th class="num">Custo</th>${cols}<th></th></tr></thead>
     <tbody>${linhas||`<tr><td colspan="${6+c.meses.length}" class="mp-dim">Ninguém alocado neste cenário ainda${gestor?' — adicione uma pessoa abaixo':''}.</td></tr>`}</tbody>
     <tfoot>
-      ${foot('Esforço previsto',(k)=>k==='tot'?rpH(c.esforco):(k==='custo'?fmtBRL(c.custo):rpH(rpEsf(c.porMes[k]))),'rp-f-prev')}
+      ${foot('Esforço previsto',(k)=>k==='tot'?rpH(c.esforco):(k==='custo'?fmtBRL(c.custo):rpH(rpEsf(c.porMes[k]))),'rp-f-prev','esforco')}
       ${linhaVend}
-      ${foot('Saldo (vendidas − previsto)',(k)=>{ const v=k==='tot'?c.econ:(k==='custo'?null:c.vendPorMes[k]-rpEsf(c.porMes[k])); return v==null?'':`<span class="${v<0?'rp-neg':'rp-pos'}">${v<0?'−':'+'}${rpH(Math.abs(v))}</span>`; },'rp-f-saldo')}
-      ${real?foot('Realizado (Clockwork)',(k)=>k==='tot'?rpH(real.h):(k==='custo'?fmtBRL(real.custo):(real.porMes[k].h?rpH(real.porMes[k].h):'—')),'rp-f-real'):''}
+      ${foot('Saldo (vendidas − previsto)',(k)=>{ const v=k==='tot'?c.econ:(k==='custo'?null:c.vendPorMes[k]-rpEsf(c.porMes[k])); return v==null?'':`<span class="${v<0?'rp-neg':'rp-pos'}">${v<0?'−':'+'}${rpH(Math.abs(v))}</span>`; },'rp-f-saldo','saldoGrade')}
+      ${real?foot('Realizado (Clockwork)',(k)=>k==='tot'?rpH(real.h):(k==='custo'?fmtBRL(real.custo):(real.porMes[k].h?rpH(real.porMes[k].h):'—')),'rp-f-real','realGrade'):''}
       ${real?foot('Realizado − previsto até aqui',(k)=>{ if(k==='custo') return `<span class="${real.custo>real.custoPrevAteHoje?'rp-neg':'rp-pos'}">${fmtBRL(real.custo-real.custoPrevAteHoje)}</span>`; const mesAtual=real.ate.slice(0,7); if(k!=='tot'&&k>mesAtual) return '';
-        const v=k==='tot'?real.h-real.prevAteHoje:real.porMes[k].h-rpEsf(c.porMes[k])*(k===mesAtual?real.fMesAtual:1); return `<span class="${v>0?'rp-neg':'rp-pos'}" data-tip="${k===mesAtual?'mês corrente: previsto proporcional aos dias úteis já decorridos':''}">${v>0?'+':'−'}${rpH(Math.abs(v))}</span>`; },'rp-f-dif'):''}
+        const v=k==='tot'?real.h-real.prevAteHoje:real.porMes[k].h-rpEsf(c.porMes[k])*(k===mesAtual?real.fMesAtual:1); return `<span class="${v>0?'rp-neg':'rp-pos'}" data-tip="${k===mesAtual?'mês corrente: previsto proporcional aos dias úteis já decorridos':''}">${v>0?'+':'−'}${rpH(Math.abs(v))}</span>`; },'rp-f-dif','difAteAqui'):''}
     </tfoot></table></div>
     ${gestor?`<div class="pl-grid" style="margin-top:8px"><div class="campo"><label>Adicionar pessoa</label><select id="rp-add-pessoa"><option value="">— escolha —</option>${pessoas.map(x=>`<option value="${escA(x.a)}">${esc(x.nome)}${alocIds.has(x.a)?' (já no cenário)':''} · ${fmtBRL(rpCustoH(x.a))}/h</option>`).join('')}</select></div>
       <div class="campo"><label>Papel</label><select id="rp-add-papel">${RP_PAPEIS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>
@@ -497,32 +705,47 @@ function renderRentab(){
     const realB=real&&real.porMes[m].h?`<b class="rp-realb" style="height:${(real.porMes[m].h/maxMes*100).toFixed(1)}%" data-tip="${escA(`realizado em ${labelMesAbbr(m)}: ${rpH(real.porMes[m].h)}`)}"></b>`:'';
     return `<div class="rp-col"><div class="rp-colw"><div class="rp-colb"><em class="rp-mark" style="bottom:${(c.vendPorMes[m]/maxMes*100).toFixed(1)}%" data-tip="${escA(`vendidas em ${labelMesAbbr(m)}: ${rpH(c.vendPorMes[m])}`)}"></em>${segs}</div>${realB}</div><div class="rp-rot"><b>${esc(labelMesAbbr(m))}</b>${rpH(tot)}</div></div>`; }).join('')}</div>
     <div class="pp-legend" style="margin-top:6px">${c.porPessoa.map(P=>`<span><i style="background:${RP_CORES[P.i%RP_CORES.length]}"></i>${esc(P.nome)} (${rpPapelCurto(P.papel)})</span>`).join('')}<span><i style="background:transparent;border-top:2px dashed var(--grafite)"></i>vendidas no mês</span>${real?'<span><i style="background:var(--amarelo)"></i>realizado</span>':''}</div>`;
-  const wfMax=Math.max(1,tipo==='interno'?Math.max(c.orc,c.custo):c.receita); const wf=(rot,v,cor,extra)=>`<div class="rp-wf"><div class="rp-wf-l">${rot}</div><div class="rp-wf-t"><i style="width:${(Math.abs(v)/wfMax*100).toFixed(1)}%;background:${cor}"></i></div><div class="rp-wf-v ${v<0?'rp-neg':''}">${fmtBRL(v)}${extra?` <span class="muted small">${extra}</span>`:''}</div></div>`;
+  const wfMax=Math.max(1,tipo==='interno'?Math.max(c.orc,c.custo):c.receita); const wf=(rot,v,cor,extra,k)=>`<div class="rp-wf"><div class="rp-wf-l"${rpTipAttr(k)}>${rot}</div><div class="rp-wf-t"><i style="width:${(Math.abs(v)/wfMax*100).toFixed(1)}%;background:${cor}"></i></div><div class="rp-wf-v ${v<0?'rp-neg':''}">${fmtBRL(v)}${extra?` <span class="muted small">${extra}</span>`:''}</div></div>`;
   // 🔁 terceirizado interno: o repasse é custo do PROJETO; embaixo, o que sobra para a área que cede a pessoa e a margem da empresa toda
-  const wfTerc=c.terc>0?wf('− Repasse interno (terceirizado)',-c.custoTerc,RP_CORES[2],`${rpH(c.terc)}`):'';
-  const wfCons=Math.abs(c.resultadoCedente)>0.005?`<div class="rp-wf-cons muted small" data-tip="${escA('Repasse pago pelo projeto − o custo/h real das pessoas cedidas. A margem consolidada desconta o custo real (não o repasse): é o que sobra para a Dexterity como um todo.')}">resultado da área que cede <b class="${c.resultadoCedente<0?'rp-neg':'rp-pos'}">${c.resultadoCedente<0?'−':'+'}${fmtBRL(Math.abs(c.resultadoCedente))}</b>${c.mgpCons==null?'':` · margem consolidada <b>${c.mgpCons}%</b>`}</div>`:'';
+  const wfTerc=c.terc>0?wf('− Repasse interno (terceirizado)',-c.custoTerc,RP_CORES[2],`${rpH(c.terc)}`,'repasseCasc'):'';
+  const wfCons=Math.abs(c.resultadoCedente)>0.005?`<div class="rp-wf-cons muted small" data-rp-ind="resultadoCedente" data-tip="${escA('Repasse pago pelo projeto − o custo/h real das pessoas cedidas. A margem consolidada desconta o custo real (não o repasse): é o que sobra para a Dexterity como um todo.')}">resultado da área que cede <b class="${c.resultadoCedente<0?'rp-neg':'rp-pos'}">${c.resultadoCedente<0?'−':'+'}${fmtBRL(Math.abs(c.resultadoCedente))}</b>${c.mgpCons==null?'':` · margem consolidada <b>${c.mgpCons}%</b>`}</div>`:'';
   const cascata=tipo==='interno'
-    ?`${wf('Orçamento de custo',c.orc,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wfTerc}${wf('= Saldo do orçamento',c.saldoOrc,c.saldoOrc>=0?cores.musgo:'var(--err)',c.consumoPrev==null?'':`${Math.round(c.consumoPrev*100)}% consumido`)}${wfCons}`
-    :`${wf(tipo==='fechado'?'Valor do projeto':'Receita',c.receita,cores.grafite)}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`)}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`)}${wfTerc}${wf('= Margem',c.margem,c.margem>=0?cores.musgo:'var(--err)',c.mgp==null?'':`${c.mgp}%`)}${wfCons}`;
+    ?`${wf('Orçamento de custo',c.orc,cores.grafite,'','orcamento')}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`,'custoExec')}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`,'custoGestao')}${wfTerc}${wf('= Saldo do orçamento',c.saldoOrc,c.saldoOrc>=0?cores.musgo:'var(--err)',c.consumoPrev==null?'':`${Math.round(c.consumoPrev*100)}% consumido`,'saldoPrev')}${wfCons}`
+    :`${wf(tipo==='fechado'?'Valor do projeto':'Receita',c.receita,cores.grafite,'',tipo==='fechado'?'valorProjeto':'receita')}${wf('− Custo de execução',-c.custoExec,cores.cerceta,`${rpH(c.exec)}`,'custoExec')}${wf('− Custo de gestão',-c.custoGestao,cores.roxo,`${rpH(c.gestao)}`,'custoGestao')}${wfTerc}${wf('= Margem',c.margem,c.margem>=0?cores.musgo:'var(--err)',c.mgp==null?'':`${c.mgp}%`,'margem')}${wfCons}`;
   // ---- bloco do tipo: receita mensal + Odoo (horas) · marcos de faturamento (fechado) · consumo do orçamento (interno) ----
   let tipoHtml='';
   if(tipo==='horas'){
-    const mesAtual=hojeSP().slice(0,7); let accP=0, accR=0;
-    const rows=c.meses.map(m=>{ const rp=c.receitaPorMes[m]; const rr=real?real.porMes[m].hFat*c.vh:null; accP+=rp; if(rr!=null) accR+=rr; const dif=rr==null?null:rr-rp;
+    const mesAtual=hojeSP().slice(0,7); let accP=0, accR=0; const baseFat=rpFatBase(p); const mesReal=real?real.ate.slice(0,7):'';
+    // receita realizada do mês CIVIL (nosso ciclo): pelo vendido = receita do mês × fração decorrida (mês fechado = cheio, corrente = pro rata dos dias úteis, futuro = 0); pelas horas apontadas = faturáveis × valor-hora (a regra de sempre)
+    const recMes=(m)=>!real?null:baseFat==='vendido'?c.receitaPorMes[m]*(m<mesReal?1:m>mesReal?0:real.fMesAtual):real.porMes[m].hFat*c.vh;
+    const fracM=(m)=>m<mesReal?1:m>mesReal?0:real.fMesAtual;   // no vendido o mês corrente é comparado com o previsto PRO RATA (senão o mês em curso sempre pareceria atrasado)
+    const rows=c.meses.map(m=>{ const rp=c.receitaPorMes[m]; const rr=recMes(m); accP+=rp; if(rr!=null) accR+=rr; const dif=rr==null?null:rr-(baseFat==='vendido'?rp*fracM(m):rp);
       return `<tr class="${m===mesAtual?'rm-destaque':''}"><td><b>${esc(labelMesAbbr(m))}</b></td><td class="num">${rpH(c.vendPorMes[m])} <span class="muted small">${c.diasUteis[m]}d</span></td><td class="num">${fmtBRL(rp)}</td><td class="num">${real?rpH(real.porMes[m].hFat):'—'}${real&&real.porMes[m].h>real.porMes[m].hFat?` <span class="muted small" data-tip="horas não faturáveis no mês">+${rpH(real.porMes[m].h-real.porMes[m].hFat)} n/f</span>`:''}</td><td class="num">${rr==null?'—':fmtBRL(rr)}</td><td class="num">${dif==null||(m>mesAtual)?'':`<span class="${dif<0?'rp-neg':'rp-pos'}">${dif<0?'−':'+'}${fmtBRL(Math.abs(dif))}</span>`}</td><td class="num muted small">${fmtBRL(accP)}${rr!=null&&m<=mesAtual?` / ${fmtBRL(accR)}`:''}</td></tr>`; }).join('');
-    // períodos de faturamento (contrato ou mês civil) × itens da ordem de venda no Odoo
-    const per=rpPeriodosFat(p,c); const its=rpOdooItens(p,per); const stItens=per.map((P,i)=>rpOdooStatusItem(p,its[i]));
+    // períodos de faturamento (cliente › contrato › mês civil) × itens da ordem de venda no Odoo — com o realizado CICLO A CICLO (gastas, Δ, faturado, projeção) quando as horas já chegaram
+    const fat=real&&real.fat; const per=fat?fat.por:rpPeriodosFat(p,c); const its=rpOdooItens(p,per); const stItens=per.map((P,i)=>rpOdooStatusItem(p,its[i]));
     const totPer=per.reduce((s,P)=>s+P.valor,0); const fatV=per.reduce((s,P,i)=>s+((stItens[i].k==='faturado'||stItens[i].k==='pago')?P.valor:0),0); const pagoV=per.reduce((s,P,i)=>s+(stItens[i].k==='pago'?P.valor:0),0);
-    const hojeS=hojeSP(); const temOdoo=!!(p.odoo&&p.odoo.id);
+    const hojeS=hojeSP(); const temOdoo=!!(p.odoo&&p.odoo.id); const temR=!!fat; const nMan=per.filter(P=>P.man).length;
+    // ✎ Horas faturadas do ciclo (gestores digitam; vazio mostra o cálculo no placeholder e = automático; digitado mostra "calc." logo abaixo)
+    const nuF=(v)=>String(Math.round((Number(v)||0)*100)/100);
+    const celFat=(P)=>gestor
+      ? `<input type="number" min="0" step="0.5" class="rp-fat-i${P.man?' rp-man':''}" data-rp-fat="${escA(P.ym)}" value="${P.man?escA(nuF(P.horas)):''}" placeholder="${escA(rpH(P.horasAuto))}" aria-label="Horas faturadas do ciclo ${escA(labelMesAbbr(P.ym))}"
+           data-tip="${escA(P.man?`Horas digitadas — apague para voltar ao cálculo (${rpH(P.horasAuto)} = horas vendidas rateadas neste ciclo)`:`Calculado: ${rpH(P.horasAuto)} (horas vendidas rateadas neste ciclo pelos dias úteis). Digite para substituir só este ciclo`)}">${P.man?`<span class="rp-vend-calc">calc. ${rpH(P.horasAuto)}</span>`:''}`
+      : `${rpH(P.horas)}${P.man?` <span class="pc-man-selo" data-tip="${escA(`Ajustado à mão — o cálculo dava ${rpH(P.horasAuto)}`)}">✎</span>`:''}`;
+    const extraTd=(P)=>{ if(!temR) return ''; const ini=P.fr>0||P.gastas>0; const sub=(h)=>`<span class="rp-vend-calc">${h}</span>`;
+      const proj=(P.proj!=null&&P.fr<1)?`${rpH(P.proj)}${sub(`<span class="${P.projDelta>=0?'rp-pos':'rp-neg'}">${P.projDelta>=0?'sobra':'falta'} ${rpH(Math.abs(P.projDelta))}</span>`)}`:(P.fr>=1?'<span class="muted small">fechado</span>':'—');
+      return `<td class="num">${P.gastas>0?rpH(P.gastas):(P.fr>0?'0h':'—')}</td><td class="num">${ini?`${rpDeltaHTML(P.delta,'h')}${sub(rpDeltaHTML(P.deltaR,'r'))}`:'—'}</td><td class="num">${P.fr>0||P.valorAte>0?fmtBRL(P.valorAte):'—'}</td><td class="num">${P.vhEf==null?'—':fmtBRL(P.vhEf)}</td><td class="num">${P.fr>0?`${Math.round(P.pctCiclo)}% × ${P.pctConsumo==null?'—':Math.round(P.pctConsumo)+'%'}`:'—'}</td><td class="num">${proj}</td>`; };
     const rowsP=per.map((P,i)=>{ const st=stItens[i]; const cls=st.k==='pago'||st.k==='faturado'?'ok':st.k==='parcial'?'aten':st.k==='fora'?'crit':'na'; const atrasada=temOdoo&&P.nota<hojeS&&st.k==='na';
-      return `<tr class="rp-per rp-per-${st.k} ${P.iniPlano<=hojeS&&hojeS<=P.fimPlano?'rm-destaque':''}" data-rp-per="${escA(P.ym)}"><td><b>${esc(labelMesAbbr(P.ym))}</b>${P.ajustado?' <span class="muted small" data-tip="datas ajustadas no contrato para este mês">✎</span>':''}</td><td>${dataBR(P.iniPlano)} → ${dataBR(P.fimPlano)}${P.recortado?' <span class="muted small" data-tip="período do contrato recortado pelo prazo do plano">◧</span>':''}</td><td>${dataBR(P.fim)}</td><td>${dataBR(P.nota)}${atrasada?' <span class="rp-neg" data-tip="a data da nota já passou e o item ainda não foi faturado no Odoo">⚠</span>':''}</td><td class="num">${P.du}</td><td class="num">${rpH(P.horas)}</td><td class="num"><b>${fmtBRL(P.valor)}</b></td><td><span class="ct-sem ${cls}">${esc(st.rot)}</span></td></tr>`; }).join('');
+      return `<tr class="rp-per rp-per-${st.k} ${P.iniPlano<=hojeS&&hojeS<=P.fimPlano?'rm-destaque':''}" data-rp-per="${escA(P.ym)}"><td><b>${esc(labelMesAbbr(P.ym))}</b>${P.ajustado?' <span class="muted small" data-tip="datas ajustadas no contrato para este mês">✎</span>':''}${P.encerrado?' <span class="ct-sem crit" data-tip="Este ciclo começa depois do fim do contrato: não entra no faturado até aqui">após o contrato</span>':''}</td><td>${dataBR(P.iniPlano)} → ${dataBR(P.fimPlano)}${P.recortado?' <span class="muted small" data-tip="período do ciclo recortado pelo prazo do plano">◧</span>':''}</td><td>${dataBR(P.fim)}</td><td>${dataBR(P.nota)}${atrasada?' <span class="rp-neg" data-tip="a data da nota já passou e o item ainda não foi faturado no Odoo">⚠</span>':''}</td><td class="num">${P.du}</td><td class="num rp-fat-c">${celFat(P)}</td><td class="num"><b>${fmtBRL(P.valor)}</b></td>${extraTd(P)}<td><span class="ct-sem ${cls}">${esc(st.rot)}</span></td></tr>`; }).join('');
     const cicloDim=ciclo.fonte==='cliente'?`${esc(rpCicloTxt(p))} · cada ciclo leva o nome do mês em que termina · nosso ciclo é o mês civil`
       :ciclo.fonte==='contrato'?`contrato ${esc(ct.consultoria||'')} · fecha dia ${ct.fatFecha||31}${ct.fatDia?' · nota dia '+ct.fatDia:''}${ct.conta?' · conta '+esc(ct.conta):''} · nosso ciclo é o mês civil`
       :'mês civil (o nosso ciclo) — cadastre o ciclo do cliente em 📑 Contratos › 🏢 Clientes ou ligue um 🤝 contrato de parceria para usar o fechamento do cliente';
     const avisoOdooCiclo=rpOdooCicloMudou(p,per)?`<div class="aviso rp-odoo-ciclo">⚠ Os <b>períodos de faturamento mudaram</b> desde que a ordem <b>${esc(p.odoo.name||('#'+p.odoo.id))}</b> foi criada (hoje: ${esc(rpCicloTxt(p))}). A ordem não se recria sozinha — ${gestor?'use <b>esquecer vínculo</b> e crie outra com os períodos de hoje, ou ajuste os itens no Odoo':'peça a um gestor para esquecer o vínculo e criar outra, ou ajustar os itens no Odoo'}.</div>`:'';
+    const sumGas=temR?per.reduce((x,P)=>x+P.gastas,0):0; const sumDel=temR?per.reduce((x,P)=>x+P.delta,0):0; const sumHor=per.reduce((x,P)=>x+P.horas,0); const sumAuto=per.reduce((x,P)=>x+P.horasAuto,0);
+    const extraTh=temR?`${rpTh('gastas','Gastas','num')}${rpTh('deltaCiclo','Δ (ganho)','num')}${rpTh('fatAte','Faturado até aqui','num')}${rpTh('vhEfCiclo','R$/h efetivo','num')}${rpTh('pctCiclo','% ciclo × consumo','num')}${rpTh('projCiclo','Projeção no fim','num')}`:'';
+    const extraTf=temR?`<td class="num"><b>${rpH(sumGas)}</b></td><td class="num">${rpDeltaHTML(sumDel,'h')}<span class="rp-vend-calc">${rpDeltaHTML(sumDel*c.vh,'r')}</span></td><td class="num"><b>${fmtBRL(fat.fatAte)}</b></td><td class="num">${sumGas>0?fmtBRL(fat.fatAte/sumGas):'—'}</td><td></td><td></td>`:'';
     const perHtml=`<div class="mp-h3" style="margin-top:12px">🧾 Períodos de faturamento previstos <span class="mp-dim">${cicloDim}</span></div>
-      <div class="scroll-x"><table class="mp-tab-mini rp-per-tab"><thead><tr><th>${ciclo.fonte==='mes'?'Mês':'Ciclo'}</th><th>Período</th><th>Fechamento</th><th>Nota</th><th class="num">Dias úteis</th><th class="num">Horas</th><th class="num">Valor</th><th>Odoo</th></tr></thead><tbody>${rowsP}</tbody>
-        <tfoot><tr><td colspan="5"><b>Total</b> <span class="muted small">${per.length} período(s)</span></td><td class="num"><b>${rpH(per.reduce((s,P)=>s+P.horas,0))}</b></td><td class="num"><b>${fmtBRL(totPer)}</b></td><td>${temOdoo?`<span class="muted small">faturado ${fmtBRL(fatV)} · pago ${fmtBRL(pagoV)} · a faturar ${fmtBRL(Math.max(0,totPer-fatV))}</span>`:''}</td></tr></tfoot></table></div>${avisoOdooCiclo}`;
+      <div class="scroll-x"><table class="mp-tab-mini rp-per-tab"><thead><tr>${rpTh('ciclo',ciclo.fonte==='mes'?'Mês':'Ciclo')}<th>Período</th>${rpTh('fechamento','Fechamento')}${rpTh('nota','Nota')}${rpTh('diasUteis','Dias úteis','num')}${rpTh('horasFat','Horas faturadas'+(gestor?' ✎':''),'num')}${rpTh('valorPer','Valor','num')}${extraTh}${rpTh('odooCol','Odoo')}</tr></thead><tbody>${rowsP}</tbody>
+        <tfoot><tr><td colspan="5"><b>Total</b> <span class="muted small">${per.length} período(s)</span></td><td class="num"><b>${rpH(sumHor)}</b>${nMan?`<span class="rp-vend-calc">calc. ${rpH(sumAuto)}</span>`:''}${gestor&&nMan?` <button class="btn rt-step" data-rp-fat-limpar="1" data-tip="Volta as horas faturadas de todos os ciclos ao cálculo (horas vendidas rateadas)">↺</button>`:''}</td><td class="num"><b>${fmtBRL(totPer)}</b></td>${extraTf}<td>${temOdoo?`<span class="muted small">faturado ${fmtBRL(fatV)} · pago ${fmtBRL(pagoV)} · a faturar ${fmtBRL(Math.max(0,totPer-fatV))}</span>`:''}</td></tr></tfoot></table></div>${avisoOdooCiclo}`;
     const sy=p.odoo&&p.odoo.sync; const syncErro=estado.rentab.syncErro&&estado.rentab.syncErro[p.id]; const syncB=estado.rentab.syncB&&estado.rentab.syncB[p.id];
     const od=temOdoo?`<div class="aviso ok rp-odoo">🧾 Ordem de venda no Odoo: <a href="${escA(p.odoo.url||'#')}" target="_blank" rel="noopener"><b>${esc(p.odoo.name||('#'+p.odoo.id))}</b> ↗</a> criada em ${dataBR((p.odoo.em||'').slice(0,10))}${p.odoo.por?` por ${esc(p.odoo.por)}`:''} · ${fmtBRL(p.odoo.total||0)} em ${p.odoo.linhas||0} item(ns)${sy?` · <b>${esc(RP_ODOO_ST[sy.state]||sy.state||'')}</b> · ${(sy.faturas||[]).length} fatura(s) · lido ${esc(pcQuando(sy.em))}`:''}${syncErro?` · <span class="rp-neg">⚠ ${esc(syncErro)}</span>`:''}
         <button class="btn rt-step" data-rp-odoo-sync="1" ${syncB?'disabled':''}>${syncB?'⏳ Lendo o Odoo…':'↻ Sincronizar com o Odoo'}</button>${gestor?' <button class="btn rt-step" data-rp-odoo-limpar="1" data-tip="Esquece o vínculo para poder criar outra ordem">esquecer vínculo</button>':''}
@@ -532,12 +755,12 @@ function renderRentab(){
         <div class="muted small">Desde 2026-09-20 o contrato é o dono da ordem: um item por período de faturamento + um por hora extra, com o rateio por objeto de resultado e a sincronização (↻) em 📑 Contratos › 🤝 Parceiros › 🧾 Faturamentos.</div></div>`
       :gestor?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn primario" data-rp-odoo="1" ${c.receita>0?'':'disabled'} data-tip="Cria no Odoo (Vendas) uma COTAÇÃO em rascunho com um item por período de faturamento: horas previstas × valor da hora. Nada é confirmado automaticamente.">🧾 Criar ordem de venda no Odoo — um item por período</button><span class="muted small">${per.length} item(ns) · total ${fmtBRL(totPer)} · cliente <b>${esc(p.cliente||(ct?ct.consultoria:'')||'(informe o cliente)')}</b>${ct?' · <b>dica:</b> crie a ordem pelo 🤝 contrato (🧾 Faturamentos) para ter horas extras e objetos de resultado':''}</span></div><div id="rp-odoo-fb" class="ap-fb" hidden></div>`
       :'';
-    tipoHtml=`<section class="rm-bloco"><h3 class="mp-h3">💵 Precisão de receita — prevista × realizada por mês <span class="mp-dim">nosso ciclo: o mês civil · horas por dia útil × dias úteis × valor da hora</span></h3>
-      <div class="scroll-x"><table class="mp-tab-mini rp-rec"><thead><tr><th>Mês</th><th class="num">Horas vendidas</th><th class="num">Receita prevista</th><th class="num">Horas faturáveis realizadas</th><th class="num">Receita realizada</th><th class="num">Diferença</th><th class="num">Acumulado (prev. / real.)</th></tr></thead>
-        <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${rpH(c.vend)}</b></td><td class="num"><b>${fmtBRL(c.receita)}</b></td><td class="num">${real?rpH(real.hFat):'—'}</td><td class="num">${real?fmtBRL(real.receitaReal):'—'}</td><td class="num">${real?`<span class="${real.receitaReal<real.receitaAteHoje?'rp-neg':'rp-pos'}" data-tip="realizada − prevista até hoje (pro rata)">${real.receitaReal<real.receitaAteHoje?'−':'+'}${fmtBRL(Math.abs(real.receitaReal-real.receitaAteHoje))}</span>`:''}</td><td></td></tr></tfoot></table></div>
+    tipoHtml=`<section class="rm-bloco"><h3 class="mp-h3">🗓 Nosso ciclo (mês civil) — 💵 Precisão de receita: prevista × faturada por mês <span class="mp-dim">nosso ciclo: o mês civil · horas por dia útil × dias úteis × valor da hora${rpFatBase(p)==='vendido'?' · faturado = valor vendido do ciclo':' · faturado = horas faturáveis apontadas'}</span></h3>
+      <div class="scroll-x"><table class="mp-tab-mini rp-rec"><thead><tr><th>Mês</th>${rpTh('vendidas','Horas vendidas','num')}${rpTh('recPrev','Receita prevista','num')}${rpTh('hFatReal','Horas faturáveis realizadas','num')}${rpTh('recMesReal','Receita realizada','num')}${rpTh('difReceita','Diferença','num')}${rpTh('acumulado','Acumulado (prev. / real.)','num')}</tr></thead>
+        <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${rpH(c.vend)}</b></td><td class="num"><b>${fmtBRL(c.receita)}</b></td><td class="num">${real?rpH(real.hFat):'—'}</td><td class="num">${real?fmtBRL(real.receitaReal):'—'}${real&&Math.abs(accR-real.receitaReal)>0.5?`<span class="rp-vend-calc" data-tip="${escA('Os ciclos do cliente cortam as horas de outro jeito que o mês civil (e podem ter horas digitadas): o total acima é o dos ciclos; a soma dos meses civis é '+fmtBRL(accR)+'.')}">meses civis: ${fmtBRL(accR)}</span>`:''}</td><td class="num">${real?`<span class="${real.receitaReal<real.receitaAteHoje?'rp-neg':'rp-pos'}" data-tip="realizada − prevista até hoje (pro rata)">${real.receitaReal<real.receitaAteHoje?'−':'+'}${fmtBRL(Math.abs(real.receitaReal-real.receitaAteHoje))}</span>`:''}</td><td></td></tr></tfoot></table></div>
       ${perHtml}
       ${od}
-      ${ctExpl('a <b>receita prevista</b> de cada mês é a carga por dia útil × os dias úteis do mês × o valor da hora; a <b>realizada</b> são as horas <b>faturáveis</b> apontadas no projeto (Clockwork) × o valor da hora — horas não faturáveis (reunião interna, ADM…) aparecem como n/f e não geram receita. Os <b>períodos de faturamento</b> seguem o ciclo do <b>cliente</b> cadastrado em 📑 Contratos › 🏢 Clientes (ex.: NTT fecha dia 25, e o ciclo leva o nome do mês em que termina), o fechamento do 🤝 contrato de parceria ("até o dia 25": de 26 a 25, nota no dia combinado) ou o mês civil — nessa ordem. O <b>nosso ciclo</b> (a tabela mensal acima, o planner e as horas vendidas) é sempre o mês civil. A <b>ordem de venda no Odoo</b> nasce com <b>um item por período</b> (horas previstas × valor da hora) e a sincronização traz de volta o que foi faturado e pago.')}</section>`;
+      ${ctExpl('a <b>receita prevista</b> de cada mês é a carga por dia útil × os dias úteis do mês × o valor da hora; a <b>realizada</b> segue a base do faturamento do plano: no <b>valor vendido</b> (padrão do escopo aberto) o cliente paga o valor cheio — mês fechado conta inteiro, o mês corrente conta proporcional aos dias úteis e o futuro conta zero, <b>gaste a equipe mais ou menos horas</b> (a diferença é ganho ou perda, veja ⚖️ Vendido × gasto); nas <b>horas apontadas</b> são as horas <b>faturáveis</b> apontadas no projeto (Clockwork) × o valor da hora — horas não faturáveis (reunião interna, ADM…) aparecem como n/f e não geram receita. Os <b>períodos de faturamento</b> seguem o ciclo do <b>cliente</b> cadastrado em 📑 Contratos › 🏢 Clientes (ex.: NTT fecha dia 25, e o ciclo leva o nome do mês em que termina), o fechamento do 🤝 contrato de parceria ("até o dia 25": de 26 a 25, nota no dia combinado) ou o mês civil — nessa ordem. O <b>nosso ciclo</b> (a tabela mensal acima, o planner e as horas vendidas) é sempre o mês civil. A <b>ordem de venda no Odoo</b> nasce com <b>um item por período</b> (horas previstas × valor da hora) e a sincronização traz de volta o que foi faturado e pago.')}</section>`;
   } else if(tipo==='fechado'){
     const M=c.marcos; const ficha=p.projeto&&estado.projetos&&estado.projetos.fichas&&estado.projetos.fichas[p.projeto]; const epicos=(ficha&&ficha.epicos)||[];
     const rows=M.lista.map(m=>{ const ep=epicos.find(e=>e.k===m.epico);
@@ -584,7 +807,7 @@ function renderRentab(){
     if(!chaveReal) realHtml='<div class="muted small">O projeto ainda não começou — o realizado aparece a partir da data de início.</div>';
     else if(estado.rentab.tempoErro[chaveReal]) realHtml=`<div class="aviso">⚠ ${esc(estado.rentab.tempoErro[chaveReal])} <button class="btn" data-rp-real-retry="${escA(chaveReal)}">Tentar de novo</button></div>`;
     else if(!real) realHtml='<div class="muted small">⏳ Lendo as horas apontadas no projeto…</div>';
-    else { const ef=real.eficReal; const custoFinal=real.projCusto; const mgAte=real.receitaBase>0?rpPct(real.margemAteHoje,real.receitaBase):null;
+    else { const ef=real.eficReal; const custoFinal=real.projCusto; const vgPes=(()=>{ try{ return (rpVgCalc(p,c,real)||{pessoas:[]}).pessoas; }catch(e){ return []; } })(); const mgAte=real.receitaBase>0?rpPct(real.margemAteHoje,real.receitaBase):null;
       const mgPlano=rpPct(c.receita-real.custoFinalPlano,c.receita); const mgRitmo=custoFinal==null?null:rpPct(c.receita-custoFinal,c.receita);
       const semClasse=(m)=>m==null?'':(m>=c.meta?'good':(m>=c.meta/2?'warn':'bad'));
       const rentab=tipo==='interno'
@@ -596,8 +819,10 @@ function renderRentab(){
         :`<div class="mp-h3" style="margin-top:10px">💰 Rentabilidade real</div><div class="vg-hero rm-hero4">
         ${rpKpi(fmtBRL(real.custo),'Custo realizado',real.custo<=real.custoPrevAteHoje?'good':'warn',`previsto até aqui ${fmtBRL(real.custoPrevAteHoje)} · ${real.custo<=real.custoPrevAteHoje?'abaixo':'acima'} do plano${real.tercH>0?` · inclui repasse ${fmtBRL(real.tercCusto)} (custo real da empresa ${fmtBRL(real.custoCons)})`:''}`)}
         ${tipo==='fechado'?rpKpi(fmtBRL(real.receitaReal),'Faturado até aqui',c.marcos.vencidos.length?'bad':'',`${c.marcos.lista.filter(m=>m.fat).length} de ${c.marcos.lista.length} marco(s) · reconhecido pro rata ${fmtBRL(real.receitaAteHoje)}`)
-          :rpKpi(fmtBRL(real.receitaReal),'Receita realizada',real.receitaReal>=real.receitaAteHoje?'good':'warn',`${rpH(real.hFat)} faturáveis × ${fmtBRL(c.vh)} · prevista até aqui ${fmtBRL(real.receitaAteHoje)}`)}
-        ${rpKpi(mgAte==null?'—':`${mgAte}%`,'Margem real até aqui',semClasse(mgAte),mgAte==null?'sem receita':`${fmtBRL(real.margemAteHoje)} sobre ${fmtBRL(real.receitaBase)} ${tipo==='fechado'?'reconhecidos pro rata':'de receita realizada'}`)}
+          :(rpFatBase(p)==='vendido'
+          ?rpKpi(fmtBRL(real.receitaReal),'Receita realizada',real.receitaReal>=real.receitaAteHoje*0.995?'good':'warn',`valor vendido dos ciclos: ${rpH(real.fat.horasAte)} × ${fmtBRL(c.vh)} · prevista até aqui ${fmtBRL(real.receitaAteHoje)}${real.h>real.hFat?` · ${rpH(real.h-real.hFat)} n/f não mudam o faturado`:''}`)
+          :rpKpi(fmtBRL(real.receitaReal),'Receita realizada',real.receitaReal>=real.receitaAteHoje?'good':'warn',`${rpH(real.hFat)} faturáveis × ${fmtBRL(c.vh)} · prevista até aqui ${fmtBRL(real.receitaAteHoje)}`))}
+        ${rpKpi(mgAte==null?'—':`${mgAte}%`,'Margem real até aqui',semClasse(mgAte),mgAte==null?'sem receita':`${fmtBRL(real.margemAteHoje)} sobre ${fmtBRL(real.receitaBase)} ${tipo==='fechado'?'reconhecidos pro rata':'de receita realizada'} · prevista ${c.mgp==null?'—':c.mgp+'%'}`)}
         ${rpKpi(mgPlano==null?'—':`${mgPlano}%`,'Margem projetada (real + restante do cenário)',semClasse(mgPlano),`custo final ${fmtBRL(real.custoFinalPlano)} · restante previsto ${fmtBRL(real.custoRestante)}${mgRitmo==null?'':` · no ritmo atual ${mgRitmo}%`}`)}</div>`;
       realHtml=`<div class="vg-hero rm-hero4">
         ${rpKpi(rpH(real.h),'Horas realizadas até '+dataBR(real.ate),'',`${real.tickets} ticket(s)${tipo==='interno'?'':' · vendidas até aqui '+rpH(real.vendAteHoje)}`)}
@@ -605,8 +830,8 @@ function renderRentab(){
         ${rpKpi(rpH(real.prevAteHoje),'Previsto até aqui (cenário)',real.h<=real.prevAteHoje?'good':'warn',real.h<=real.prevAteHoje?`${rpH(real.prevAteHoje-real.h)} abaixo do plano`:`${rpH(real.h-real.prevAteHoje)} acima do plano`)}
         ${rpKpi(`${Math.round(real.fracao*100)}%`,'Prazo decorrido','',`${rpDiasUteis(p.inicio,real.ate)} de ${c.diasUteisTotal} dia(s) útil(eis)`)}</div>
       ${rentab}
-        ${real.pessoas.length?`<div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Quem trabalhou</th><th class="num">Horas realizadas</th><th class="num">Planejado (cenário)</th><th class="num">Diferença</th><th class="num">Custo/h</th><th class="num">Custo realizado</th><th class="num">% das horas</th></tr></thead><tbody>${real.pessoas.map(x=>{ const pl=c.porPessoa.filter(P=>P.a===x.a).reduce((s,P)=>s+P.h,0); const dif=x.h-pl;
-          return `<tr><td>${esc(x.nome)}${pl?'':' <span class="muted small">(fora do cenário)</span>'}</td><td class="num">${rpH(x.h)}</td><td class="num">${pl?rpH(pl):'—'}</td><td class="num"><span class="${dif>0?'rp-neg':'rp-pos'}">${dif>0?'+':'−'}${rpH(Math.abs(dif))}</span></td><td class="num">${fmtBRL(x.ch)}${x.terc&&x.ch!==rpCustoH(x.a)?` <span class="ct-sem na" data-tip="${escA(`Valor-hora de repasse do terceirizado interno — o custo/h real de ${x.nome} é ${fmtBRL(rpCustoH(x.a))}`)}">repasse</span>`:''}</td><td class="num">${fmtBRL(x.custo)}</td><td class="num">${rpPct(x.h,real.h)}%</td></tr>`; }).join('')}</tbody></table></div>`:''}`; }
+        ${real.pessoas.length?`<div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Quem trabalhou</th>${rpTh('horasPessoa','Horas realizadas','num')}${rpTh('planPessoa','Planejado (cenário)','num')}${rpTh('difPessoa','Diferença','num')}${rpTh('custoH','Custo/h','num')}<th class="num">Custo realizado</th>${rpTh('pctHoras','% das horas','num')}${rpTh('vgPessoa','Δ até aqui','num')}</tr></thead><tbody>${real.pessoas.map(x=>{ const pl=c.porPessoa.filter(P=>P.a===x.a).reduce((s,P)=>s+P.h,0); const dif=x.h-pl;
+          return `<tr><td>${esc(x.nome)}${pl?'':' <span class="muted small">(fora do cenário)</span>'}</td><td class="num">${rpH(x.h)}</td><td class="num">${pl?rpH(pl):'—'}</td><td class="num"><span class="${dif>0?'rp-neg':'rp-pos'}">${dif>0?'+':'−'}${rpH(Math.abs(dif))}</span></td><td class="num">${fmtBRL(x.ch)}${x.terc&&x.ch!==rpCustoH(x.a)?` <span class="ct-sem na" data-tip="${escA(`Valor-hora de repasse do terceirizado interno — o custo/h real de ${x.nome} é ${fmtBRL(rpCustoH(x.a))}`)}">repasse</span>`:''}</td><td class="num">${fmtBRL(x.custo)}</td><td class="num">${rpPct(x.h,real.h)}%</td><td class="num">${(()=>{ const pv=vgPes.find(v=>v.a===x.a); return pv?`${rpDeltaHTML(pv.deltaR,'r')}<span class="rp-vend-calc">${rpDeltaHTML(pv.delta,'h')}</span>`:'—'; })()}</td></tr>`; }).join('')}</tbody></table></div>`:''}`; }
   } else realHtml=`<div class="aviso">⚠ Este plano não tem <b>projeto do Jira</b> — escolha o projeto em ✏️ Dados do projeto: é ele que traz as horas realizadas para comparar com o planejado e medir a rentabilidade real.</div>`;
   // comparação de cenários
   let comp='';
@@ -642,6 +867,8 @@ function renderRentab(){
   const dv=tipo==='horas'?rpDivergeCiclo(p):null;
   if(dv) avisos.push(`⚠ O <b>ciclo do cliente ${esc(dv.cl.nome||'')}</b> (${esc(clFechaRot(dv.cl))}, ${esc(clNotaRot(dv.cl))}${clNAjustes(dv.cl)?`, ${clNAjustes(dv.cl)} ciclo(s) ajustado(s)`:''}) <b>não é o do contrato ${esc(pcCod(dv.ct))} ${esc(dv.ct.consultoria||'')}</b> (${esc(clFechaRot(dv.ct))}, ${esc(clNotaRot(dv.ct))}${clNAjustes(dv.ct)?`, ${clNAjustes(dv.ct)} ciclo(s) ajustado(s)`:''}): ${dv.n} período(s) deste plano ficam com datas diferentes. Aqui vale o do cliente; a ordem de venda do contrato no Odoo e as notas dele continuam pelo ciclo do contrato.${gestor?` <button class="btn rt-step" data-rp-cl-para-ct="${escA(dv.cl.id)}|${escA(dv.ct.id)}" data-tip="Grava o fechamento, o dia da nota e os ciclos ajustados do cliente no contrato — os dois passam a dar os mesmos períodos">📋 Copiar o ciclo do cliente para o contrato</button>`:''}`);
   if(tipo==='horas'&&p.clienteId&&!rpClienteDe(p)) avisos.push('⚠ O cliente ligado a este plano (ciclo de faturamento) <b>não existe mais</b> no cadastro — os períodos voltaram ao do contrato ou ao mês civil. Escolha outro em ✏️ Dados do projeto ou cadastre-o de novo em 📑 Contratos › 🏢 Clientes.');
+  const fatOrf=tipo==='horas'?rpFatManOrfaos(p):[];
+  if(fatOrf.length) avisos.push(`✎ Há <b>horas faturadas digitadas</b> para ${fatOrf.map(ym=>`<b>${esc(labelMesAbbr(ym))}</b>`).join(' · ')}, em ciclos que o plano não tem mais (${esc(rpCicloTxt(p))}). Elas voltam a valer se o ciclo existir de novo.${gestor?' <button class="btn rt-step" data-rp-fat-orf="1">🗑 descartar</button>':''}`);
   const hist=rpHist(p).slice().reverse();
   const histHtml=`<section class="rm-bloco"><h3 class="mp-h3">🕓 Histórico do plano <span class="mp-dim">criado ${p.criadoEm?dataBR(p.criadoEm):'—'}${p.criadoPor?' por '+esc(p.criadoPor):''} · última alteração ${p.atualizadoEm?dataBR(p.atualizadoEm):'—'}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}</span></h3>
     ${hist.length?`<div class="scroll-x"><table class="mp-tab-mini rp-hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.slice(0,12).map(rpHistRow).join('')}</tbody></table></div>${hist.length>12?`<button class="btn rt-step" data-rp-hist-tudo="1">ver todos os ${hist.length} registros</button>`:''}`:'<div class="muted small">Ainda sem registros — daqui em diante toda gravação e alteração do plano fica aqui: quem, quando e o quê (dados, cenários, alocação, marcos, simulador e Odoo).</div>'}
@@ -650,7 +877,8 @@ function renderRentab(){
     <div class="card full">
       <h3 class="mp-h3">🧪 Cenários</h3>${chips}
       ${avisos.map(a=>`<div class="aviso">${a}</div>`).join('')}
-      ${hero}${sim}
+      ${rpGlossarioHTML(tipo,!!r.glosAberto)}
+      ${hero}${sim}${rpVgHTML(p,c,real,chaveReal)}
       <section class="rm-bloco"><h3 class="mp-h3">🗓 Planner visual — quem faz o quê, mês a mês <span class="mp-dim">horas por pessoa e por mês; execução, gestão e terceirizado interno</span></h3>
         ${grade}
         ${ctExpl('cada célula é <b>quantas horas</b> a pessoa vai dedicar naquele mês; o <b>Total</b> redistribui igualmente pelos meses. <b>Execução</b> é o trabalho entregue; <b>Gestão</b> é o acompanhamento (o seu tempo de gestão também custa); <b>Terceirizado interno</b> é uma pessoa de outra área da Dexterity cedida a este projeto — o projeto paga o <b>valor-hora de repasse</b> que você digita na coluna Custo/h (vazio = o custo/h da pessoa, e aí é igual à execução) e o resultado da área que cede aparece na cascata. As <b>horas vendidas</b> de cada mês nascem da carga por dia útil × os dias úteis do mês (feriados descontados), mas <b>aceitam o número que você digitar</b> naquele mês — o calculado fica logo abaixo ("calc. 168h") e o ↺ ao lado da receita devolve o plano inteiro ao automático. O que você digita vale para tudo: receita do mês, eficiência, saldo, períodos de faturamento e o realizado × previsto. O rodapé compara o esforço previsto com as vendidas: <b>saldo positivo</b> é o que você economiza — e pode virar horas de um consultor mais barato. A linha <b>↳ realizado</b> sob cada pessoa são as horas que ela de fato apontou no projeto (vermelho quando passou do planejado).')}</section>
@@ -668,6 +896,45 @@ function renderRentab(){
   rpFormAjustaTipo();   // o formulário abre já só com os campos do tipo escolhido (antes só ao trocar o Tipo)
   if(r.focoCel){ const e=cont.querySelector(`[data-rp-cel="${r.focoCel}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoCel=''; }
   if(r.focoVend){ const e=cont.querySelector(`[data-rp-vend="${r.focoVend}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoVend=''; }
+  if(r.focoFat){ const e=cont.querySelector(`[data-rp-fat="${r.focoFat}"]`); if(e){ e.focus(); try{ e.select(); }catch(x){} } r.focoFat=''; }
+}
+// ⚖️ chip do cartão da lista: vendidas até hoje − gastas, SÓ quando as horas do plano já estão em memória (a lista nunca dispara leitura).
+function rpVgChip(p, c){ if(c.tipo==='interno'||!(c.vend>0)) return ''; const k=rpRealChave(p); if(!k||!estado.rentab.tempo[k]) return '';
+  let real=null; try{ real=rpReal(p,c); }catch(e){ real=null; } if(!real) return ''; const d=real.vendAteHoje-real.h; const zero=Math.abs(d)<0.05;
+  return `<span class="badge rp-vgchip ${zero?'':d>0?'rp-pos':'rp-neg'}"${rpTipAttr('vgChip')}>⚖️ ${zero?'0h':(d>0?'+':'−')+rpH(Math.abs(d))}</span>`; }
+// ⚖️ Vendido × gasto: o período inteiro, o ciclo do cliente em andamento, a última semana, a tendência semanal e cada pessoa — em horas e em R$.
+// Horas abertas e escopo fechado com horas vendidas; interno não tem vendido. Verde (+) = ganho (gastou menos do que o vendido); vermelho (−) = perda.
+function rpVgHTML(p, c, real, chaveReal){
+  if(c.tipo==='interno'||!p.projeto||!(c.vend>0)) return '';
+  const tit=`<h3 class="mp-h3">⚖️ Vendido × gasto <span class="mp-dim">horas que o cliente paga × horas que a equipe gastou · verde (+) = ganho, vermelho (−) = perda</span></h3>`;
+  if(!real){ if(!chaveReal||estado.rentab.tempoErro[chaveReal]) return ''; return `<section class="rm-bloco rp-vg">${tit}<div class="muted small">⏳ Lendo as horas apontadas no projeto…</div></section>`; }
+  const vg=rpVgCalc(p,c,real); if(!vg) return '';
+  const cls=(d)=>d>0.05?'good':d<-0.05?'bad':''; const dm=(d)=>dataBR(d).slice(0,5); const P=vg.periodo; const C=vg.ciclo; const W=vg.semUlt; const vh=vg.vh;
+  const k1=rpKpi(rpDeltaHTML(P.delta,'h'),'Período · vendido × gasto',cls(P.delta),`${rpDeltaHTML(P.deltaR,'r')} · vendidas até hoje ${rpH(P.vend)} × gastas ${rpH(P.gasto)}`);
+  let k2; if(C){ const andamento=C.fr<1;
+    k2=rpKpi(rpDeltaHTML(C.delta,'h'),`${andamento?'Ciclo atual':'Último ciclo'} · ${labelMesAbbr(C.ym)}`,cls(C.delta),`${rpDeltaHTML(C.deltaR,'r')} · faturadas até hoje ${rpH(C.horasAte)} × gastas ${rpH(C.gastas)}<br>${andamento?`${Math.round(C.pctCiclo)}% do ciclo decorrido × ${C.pctConsumo==null?'—':Math.round(C.pctConsumo)+'%'} consumido`:'ciclo fechado'}`); }
+  else k2=rpKpi('—','Ciclo atual','',c.tipo==='fechado'?'o escopo fechado não tem ciclos de faturamento':'o plano ainda não tem ciclo em andamento');
+  const k3=W?rpKpi(rpDeltaHTML(W.delta,'h'),`Última semana · ${dm(W.seg)}–${dm(W.fim)}`,cls(W.delta),`${rpDeltaHTML(W.delta*vh,'r')} · vendidas ${rpH(W.vend)} × gastas ${rpH(W.gast)}${W.parcial?' (semana em curso)':''}`):rpKpi('—','Última semana','','nenhuma semana com horas ainda');
+  const mgAte=real.receitaBase>0?rpPct(real.margemAteHoje,real.receitaBase):null; const semM=(m)=>m==null?'':(m>=c.meta?'good':(m>=c.meta/2?'warn':'bad'));
+  const k4=rpKpi(P.vhEf==null?'—':fmtBRL(P.vhEf)+'/h','Valor-hora efetivo',P.vhEf==null?'':(P.vhEf>=P.vh?'good':'warn'),P.vhEf==null?'ainda sem horas ou sem receita realizada':`vendida a ${fmtBRL(P.vh)}/h · ${fmtBRL(real.receitaReal)} ÷ ${rpH(real.h)} gastas`);
+  const k5=rpKpi(real.h>0?fmtBRL(real.custo/real.h)+'/h':'—','Custo por hora gasta',real.h>0&&P.vhEf!=null?(real.custo/real.h<=P.vhEf?'good':'bad'):'',real.h>0?`${fmtBRL(real.custo)} ÷ ${rpH(real.h)}${c.custoMedio==null?'':` · previsto ${fmtBRL(c.custoMedio)}/h`}`:'ainda sem horas');
+  const k6=rpKpi(mgAte==null?'—':`${mgAte}%`,'Margem real × prevista',semM(mgAte),mgAte==null?'sem receita realizada':`prevista ${c.mgp==null?'—':c.mgp+'%'} · meta ${c.meta}% · ${fmtBRL(real.margemAteHoje)}`);
+  let k7=''; if(C){ const pr=C.proj!=null&&C.fr<1;
+    k7=rpKpi(pr?rpDeltaHTML(C.projDelta,'h'):'—','Projeção no fim do ciclo',pr?cls(C.projDelta):'',pr?`no ritmo atual: ${rpH(C.proj)} gastas de ${rpH(C.encerrado?0:C.horas)} faturadas → ${C.projDelta>=0?'sobra':'falta'} ${rpH(Math.abs(C.projDelta))}`:(C.fr>=1?'o ciclo já fechou: vale o Δ ao lado':'cedo para projetar (menos de 10% do ciclo)')); }
+  const k8=c.terc>0?rpKpi(fmtBRL(c.custoTerc),'Repasse interno','',`${c.custo>0?Math.round(c.custoTerc/c.custo*100):0}% do custo · ${rpH(c.terc)} cedidas · resultado da área que cede ${rpDeltaHTML(c.resultadoCedente,'r')}${c.mgpCons==null?'':` · margem consolidada ${c.mgpCons}%`}`):'';
+  const rowsS=vg.semanas.slice().reverse().map(w=>`<tr><td>${dm(w.seg)} – ${dm(w.fim)}${w.parcial?' <span class="muted small">em curso</span>':''}</td><td class="num">${rpH(w.vend)}</td><td class="num">${rpH(w.gast)}</td><td class="num">${rpDeltaHTML(w.delta,'h')}</td><td class="num">${rpDeltaHTML(w.delta*vh,'r')}</td></tr>`).join('');
+  const sV=vg.semanas.reduce((x,w)=>x+w.vend,0), sG=vg.semanas.reduce((x,w)=>x+w.gast,0);
+  const rowsP=vg.pessoas.map(x=>`<tr><td>${esc(x.nome)}</td><td class="num">${rpH(x.plan)}</td><td class="num">${rpH(x.real)}</td><td class="num">${rpDeltaHTML(x.delta,'h')}</td><td class="num">${rpDeltaHTML(x.deltaR,'r')}</td></tr>`).join('');
+  return `<section class="rm-bloco rp-vg">${tit}
+    <div class="vg-hero rm-hero3">${k1}${k2}${k3}</div>
+    <div class="vg-hero rp-vg-h2">${k4}${k5}${k6}${k7}${k8}</div>
+    <div class="rm-2col rp-vg-duo"><div><div class="mp-h3">Semana a semana <span class="mp-dim">últimas ${vg.semanas.length} · vendidas × gastas</span></div>
+        <div class="scroll-x"><table class="mp-tab-mini rp-vg-sem"><thead><tr>${rpTh('vgSemana','Semana')}<th class="num">Vendidas</th><th class="num">Gastas</th><th class="num">Δ h</th><th class="num">Δ R$</th></tr></thead><tbody>${rowsS||'<tr><td colspan="5" class="mp-dim">Sem semanas ainda.</td></tr>'}</tbody>
+          <tfoot><tr><td><b>Total</b></td><td class="num"><b>${rpH(sV)}</b></td><td class="num"><b>${rpH(sG)}</b></td><td class="num">${rpDeltaHTML(sV-sG,'h')}</td><td class="num">${rpDeltaHTML((sV-sG)*vh,'r')}</td></tr></tfoot></table></div>
+        <div class="rp-vg-bars" aria-hidden="false">${rpBarrasDelta(vg.semanas.map(w=>w.delta),260,46)}</div></div>
+      <div><div class="mp-h3">Δ por pessoa <span class="mp-dim">previsto no cenário até hoje × apontado</span></div>
+        <div class="scroll-x"><table class="mp-tab-mini rp-vg-pes"><thead><tr><th>Pessoa</th>${rpTh('planPessoa','Previsto até hoje','num')}<th class="num">Gastas</th>${rpTh('vgPessoa','Δ h','num')}<th class="num">Δ R$</th></tr></thead><tbody>${rowsP||'<tr><td colspan="5" class="mp-dim">Ninguém alocado nem apontando ainda.</td></tr>'}</tbody></table></div></div></div>
+    ${ctExpl('o <b>Δ</b> é sempre <b>vendido (ou faturado) − gasto</b>: <b>verde com +</b> quer dizer que a equipe entregou com menos horas do que o cliente paga — esse é o ganho do escopo aberto —; <b>vermelho com −</b> é perda. Em reais, o Δ vale o <b>valor da hora</b> (por pessoa, o custo por hora dela). O <b>ciclo atual</b> compara as horas faturadas até hoje com as gastas dentro das datas do ciclo do cliente; a <b>projeção</b> mostra como ele fecha se o ritmo continuar. Passe o mouse nos títulos para a explicação curta de cada número.')}</section>`;
 }
 function rpCargaRot(p){ const modo=p.modoCarga||'dia';
   return modo==='total'?`${rpH(Number(p.cargaTotal)||0)} no total`:modo==='mes'?`${rpH(Number(p.cargaMes)||0)}/mês`:`${rpH(Number(p.cargaDia)||0)} por dia útil`; }
@@ -688,6 +955,7 @@ function rpFormHTML(p, novo){
       <div class="campo"><label>Duração (meses)</label><input type="number" id="rp-f-meses" min="1" max="${RP_MAX_MESES}" step="1" value="${escA(String(p.meses||3))}" style="width:90px" data-tip="Sem data de fim, o plano vai até o último dia do último mês"></div>
       <div class="campo" data-rp-f-so="horas fechado"><label><span data-rp-f-rot="carga">${tipo==='fechado'?'Horas vendidas (opcional)':'Carga de trabalho vendida'}</span></label><div style="display:flex;gap:6px"><input type="number" id="rp-f-carga" min="0" step="0.5" value="${escA(String(carga))}" placeholder="ex.: 8" style="width:90px"><select id="rp-f-modo"><option value="dia" ${modo==='dia'?'selected':''}>horas por dia útil</option><option value="total" ${modo==='total'?'selected':''}>horas no total</option>${modo==='mes'?'<option value="mes" selected>horas por mês (antigo)</option>':''}</select></div></div>
       <div class="campo" data-rp-f-so="horas"><label>Valor da hora vendida (R$)</label><input type="number" id="rp-f-vh" min="0" step="0.01" value="${escA(String(p.valorHora||''))}" placeholder="ex.: 220" style="width:120px"></div>
+      <div class="campo" data-rp-f-so="horas"><label${rpTipAttr('fatBaseTxt')}>💰 Como o faturamento é calculado</label><select id="rp-f-fatbase"><option value="vendido" ${rpFatBase(p)==='vendido'?'selected':''}>Valor vendido do ciclo (o escopo aberto fatura o cheio)</option><option value="apontado" ${rpFatBase(p)==='apontado'?'selected':''}>Horas faturáveis apontadas</option></select><div class="muted small">Vendido: cada ciclo do cliente fatura as horas vendidas dele × valor-hora — gastar menos é ganho. Apontado: só as horas faturáveis apontadas × valor-hora (a regra antiga).</div></div>
       <div class="campo" data-rp-f-so="fechado"><label>Valor do projeto (R$)</label><input type="number" id="rp-f-valor" min="0" step="0.01" value="${escA(String(p.valorProjeto||''))}" placeholder="ex.: 120000" style="width:140px"></div>
       <div class="campo" data-rp-f-so="interno"><label>Orçamento de custo (R$)</label><input type="number" id="rp-f-orc" min="0" step="0.01" value="${escA(String(p.orcamento||''))}" placeholder="ex.: 50000" style="width:140px" data-tip="Custo global que você aceita investir; a alocação da equipe consome este valor"></div>
       <div class="campo" data-rp-f-so="horas fechado"><label>Margem-meta (%)</label><input type="number" id="rp-f-meta" min="0" max="100" step="1" value="${escA(String(p.margemMeta!=null?p.margemMeta:30))}" style="width:80px"></div>
@@ -736,7 +1004,8 @@ function rpLeForm(p){
     if(cid==='__novo'){ if(!p.cliente) return 'Informe o nome do cliente (campo Cliente) para cadastrá-lo com o ciclo de faturamento.';
       const ja=clPorNome(p.cliente); const c=ja||clCria(p.cliente,{ fatFecha:ct?ct.fatFecha:31, fatDia:ct?ct.fatDia:0, ajustes:ct?ct.ajustes:{} }); p.clienteId=c.id;
       if(!ja) toast(`Cliente ${c.nome} cadastrado com o ${ct?'ciclo do contrato '+(ct.consultoria||''):'mês civil'} — ajuste o calendário em 📑 Contratos › 🏢 Clientes.`,'ok'); }
-    else if(cid&&clDe(cid)) p.clienteId=cid; else delete p.clienteId; }
+    else if(cid&&clDe(cid)) p.clienteId=cid; else delete p.clienteId;
+    p.fatBase=v('rp-f-fatbase')==='apontado'?'apontado':'vendido'; }
   return '';
 }
 // Redistribui as horas de EXECUÇÃO do cenário para fechar em `alvo` horas (proporcional; sem alocação, nada a fazer).
@@ -791,6 +1060,14 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     if(!r.focoVend) r.focoVend=m;   // sem navegação por tecla: o foco volta ao mesmo mês
     if(n===antes){ renderRentab(); return; }
     rpSalva(p,'vend',`${labelMesAbbr(m)}: horas vendidas ${n==null?`de volta ao cálculo (${rpH(rpVendPorMes(p).auto[m]||0)})`:'→ '+rpH(n)}`); renderRentab(); return; }
+  // 💰 horas FATURADAS do ciclo digitadas à mão (vazio = volta ao cálculo: as vendidas rateadas no ciclo)
+  if(t.hasAttribute('data-rp-fat')){ const m=t.getAttribute('data-rp-fat'); const bruto=String(t.value||'').trim();
+    if(bruto&&rpFatNum(bruto)==null){ toast('Digite um número igual ou maior que zero — ou deixe em branco para voltar ao cálculo.','warn'); renderRentab(); return; }
+    const antes=rpFatManDe(p,m); const n=rpFatManSet(p,m,bruto);
+    if(!r.focoFat) r.focoFat=m;   // sem navegação por tecla: o foco volta ao mesmo ciclo
+    if(n===antes){ renderRentab(); return; }
+    const auto=(rpPeriodosFat(p).find(P=>P.ym===m)||{}).horasAuto||0;
+    rpSalva(p,'fat',`ciclo ${labelMesAbbr(m)}: horas faturadas ${n==null?`de volta ao cálculo (${rpH(auto)})`:'→ '+rpH(n)}`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-tot')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-tot')]; if(!al) return; delete al.regra; rpDistribui(al,meses,Number(t.value)||0); rpSalva(p,'aloc',`${rpNome(al.a)} · total ${rpH(Number(t.value)||0)} distribuído pelos meses`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-papel')){ const al=(c0.aloc||[])[+t.getAttribute('data-rp-papel')]; if(!al) return; al.papel=rpPapelVal(t.value); rpSalva(p,'aloc',`${rpNome(al.a)} · papel → ${rpPapelRot(al.papel).toLowerCase()}`); renderRentab(); return; }
   // 🔁 valor-hora de repasse do terceirizado interno (vazio / 0 = o projeto paga o custo/h da pessoa)
@@ -814,16 +1091,16 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 // linha ✎ Horas vendidas — cada uma navega dentro do próprio grupo (na linha de vendidas ↑/↓ não têm par).
 document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   if(estado.vista!=='rentab') return; const t=e.target; if(!t||!t.hasAttribute) return;
-  const ehVend=t.hasAttribute('data-rp-vend'); if(!ehVend&&!t.hasAttribute('data-rp-cel')) return;
+  const ehVend=t.hasAttribute('data-rp-vend'), ehFat=t.hasAttribute('data-rp-fat'); if(!ehVend&&!ehFat&&!t.hasAttribute('data-rp-cel')) return;
   if(!['Enter','Tab','ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key)) return;
-  const attr=ehVend?'data-rp-vend':'data-rp-cel';
+  const attr=ehFat?'data-rp-fat':ehVend?'data-rp-vend':'data-rp-cel';
   const cels=[...document.querySelectorAll(`[${attr}]`)]; const idx=cels.indexOf(t); if(idx<0) return;
-  const porLinha=ehVend?0:(document.querySelectorAll('.rp-grade thead th').length-6);
+  const porLinha=(ehVend||ehFat)?0:(document.querySelectorAll('.rp-grade thead th').length-6);
   const frente=e.key==='Enter'||e.key==='ArrowRight'||(e.key==='Tab'&&!e.shiftKey);
   const alvo=frente?idx+1:(e.key==='ArrowLeft'||e.key==='Tab')?idx-1:e.key==='ArrowDown'?idx+porLinha:idx-porLinha;
   if(!cels[alvo]||alvo===idx) return;
   e.preventDefault(); const foco=cels[alvo].getAttribute(attr);
-  if(ehVend) estado.rentab.focoVend=foco; else estado.rentab.focoCel=foco;
+  if(ehFat) estado.rentab.focoFat=foco; else if(ehVend) estado.rentab.focoVend=foco; else estado.rentab.focoCel=foco;
   t.blur();   // dispara o change (que salva e redesenha, devolvendo o foco à célula-alvo)
   const e2=document.querySelector(`[${attr}="${foco}"]`); if(e2){ e2.focus(); try{ e2.select(); }catch(x){} }
 });
@@ -848,6 +1125,13 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     if(!cob.length){ toast('O contrato não tem horas neste projeto dentro do prazo do plano.','warn'); return; }
     cob.forEach(m=>{ rpVendManSet(p,m,String(Math.round(hm[m]*10)/10)); }); p.vendFonte={ c:c.id, f:fid, em:hojeSP() };
     rpSalva(p,'vend',`horas vendidas trazidas do contrato ${pcCod(c)} › ${pcFrNome(f)}: ${cob.map(m=>labelMesAbbr(m)+' '+rpH(hm[m])).join(' · ')}`); toast('Horas vendidas atualizadas a partir do contrato.','ok'); renderRentab(); return; }
+  if(t.hasAttribute('data-rp-fat-limpar')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const n=Object.keys(p.fatMan||{}).length; if(!n) return;
+    if(!confirm(`Voltar as horas faturadas de ${n} ciclo(s) ao cálculo automático (as vendidas rateadas em cada ciclo)?`)) return;
+    p.fatMan={}; rpSalva(p,'fat',`horas faturadas de ${n} ciclo(s) de volta ao cálculo`); renderRentab(); return; }
+  if(t.hasAttribute('data-rp-fat-orf')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const orf=rpFatManOrfaos(p); if(!orf.length) return;
+    if(!confirm(`Descartar as horas faturadas digitadas de ${orf.map(labelMesAbbr).join(', ')}? Esses ciclos não existem mais neste plano.`)) return;
+    orf.forEach(ym=>{ delete p.fatMan[ym]; });
+    rpSalva(p,'fat',`horas faturadas descartadas: ${orf.map(labelMesAbbr).join(', ')}`); renderRentab(); return; }
   if(t.hasAttribute('data-rp-vend-orf')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const orf=rpVendManOrfaos(p); if(!orf.length) return;
     if(!confirm(`Descartar as horas vendidas digitadas de ${orf.map(labelMesAbbr).join(', ')}? Esses meses estão fora do prazo atual do plano.`)) return;
     orf.forEach(ym=>{ delete rpVendMan(p)[ym]; });
@@ -940,3 +1224,5 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const p=rpPlano(estado.rentab.sel); const sel=document.getElementById('rp-odoo-parc'); if(!p||!sel||!souAprovador()) return;
   rpCriaCotacaoOdoo(p, document.querySelector('[data-rp-odoo]'), Number(sel.value)||null);
 });
+// 📖 o glossário lembra se estava aberto (cada ação redesenha a tela): o evento `toggle` não borbulha, por isso a captura.
+document.getElementById('conteudo').addEventListener('toggle',(e)=>{ const d=e.target; if(d&&d.classList&&d.classList.contains('rp-glossario')) estado.rentab.glosAberto=d.open; },true);

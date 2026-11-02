@@ -16,6 +16,11 @@
 // cfg.clientes e cfg.parcerias IGUAIS — por isso o vm carrega também 16b-parcerias.js (pcPeriodo/pcPeriodos) e 16g-clientes-ciclo.js
 // (clDe). Fixtures: plano com cliente (fecha dia 25 com ajuste), só com contrato, sem nada, cliente + contrato (precedência),
 // cliente que não existe mais, ajustes inválidos, fechamento 31, plano começando no meio do ciclo e a soma das horas = as vendidas.
+// Desde 2026-11-02 (T3) também confere o FATURAMENTO PELO VENDIDO: rpVendEntre (as horas vendidas num intervalo — painel × servidor direto, em
+// vez de só por consistência), rpFatBase, rpFatManDe (horas do ciclo digitadas: válidas, zero, negativas, texto, órfãs), rpFracaoCiclo e rpFatAte
+// (painel: rpFatCalc, com um porDia FIXO; servidor: rpFatAte com as horas por ciclo calculadas aqui, de forma independente), mais as invariantes
+// (Σ horasAuto = horas vendidas; ciclo fechado conta inteiro; 'apontado' = hFat × valor-hora; depois do fim do contrato zero; leitores não criam
+// p.fatMan). Fixtures: cliente, cliente + horas digitadas (com ciclo órfão e valores inválidos), apontado, contrato que acaba antes do plano, mês civil.
 // Sem rede: nada aqui chama API.
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -36,6 +41,8 @@ const PARCERIAS = [
   { id: 'pc-x', consultoria: 'Consultoria X', modalidade: 'horas', fatFecha: 25, fatDia: 30, ajustes: { '2026-08': { fecha: '2026-08-24', nota: '2026-08-28' } } },
   { id: 'pc-igual', consultoria: 'Igual ao NTT', modalidade: 'horas', fatFecha: 25, fatDia: 0, ajustes: { '2026-03': { fecha: '2026-03-27' }, '2026-10': { fecha: '2026-10-22', nota: '2026-10-30' } } },
   { id: 'pc-sem', consultoria: 'Sem fechamento', modalidade: 'horas' },
+  { id: 'pc-fim', consultoria: 'Contrato que acaba antes do plano', modalidade: 'horas', fatFecha: 25, fatDia: 0, fim: '2026-10-10', ajustes: {} },
+  { id: 'pc-fim2', consultoria: 'Contrato com fim inválido', modalidade: 'horas', fatFecha: 25, fim: 'amanhã' },
 ];
 const CUSTOS = { 'a-ana': 95, 'a-bruno': 60, 'a-diego': 150, 'a-zero': 0, 'a-txt': '80', 'a-ruim': 'abc', 'plan_fantasma': 70 };
 const PLANEJADAS = [{ id: 'plan_x1', nome: 'Vaga SAP', custoH: 110 }, { id: 'plan_x2', nome: 'Vaga sem custo', custoH: 'abc' }];
@@ -92,7 +99,7 @@ for (const arq of ['public/js/01-nucleo.js', 'public/js/16b-parcerias.js', 'publ
 }
 // A config do painel (feriados) é a mesma passada ao servidor.
 vm.runInContext(`cfg.feriadosExtra=${JSON.stringify(CFG.feriadosExtra)}; cfg.feriadosRemovidos=${JSON.stringify(CFG.feriadosRemovidos)}; cfg.custosPessoa=${JSON.stringify(CFG.custosPessoa)}; cfg.pessoasPlanejadas=${JSON.stringify(CFG.pessoasPlanejadas)}; cfg.clientes=${JSON.stringify(CFG.clientes)}; cfg.parcerias=${JSON.stringify(CFG.parcerias)};`, ctx);
-const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario, rpCiclosDe, rpClienteDe, rpPeriodosFat, rpDivergeCiclo, pcPeriodos, pcPeriodo })', ctx);
+const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario, rpCiclosDe, rpClienteDe, rpPeriodosFat, rpDivergeCiclo, pcPeriodos, pcPeriodo, rpVendEntre, rpFatBase, rpFatManDe, rpFatNum, rpFatManSet, rpFatManOrfaos, rpFracaoCiclo, rpFatAte, rpFatCalc, rpSemanas, RP_EXPLICA, RP_GLOSSARIO })', ctx);
 const hoje = srv.spHoje();
 if (web.hojeSP() !== hoje) { console.error(`✗ hoje difere entre painel (${web.hojeSP()}) e servidor (${hoje}) — rode de novo`); process.exit(1); }
 
@@ -122,6 +129,10 @@ for (const p of PLANOS) {
   // rpVendEntre não tem par no painel: confere por consistência com o que tem — do início até uma
   // data é o rpVendAte, e as fatias de um mês somam o mês inteiro.
   const v = srv.rpVendPorMes(Q, CFG, hoje); const ms = srv.rpMeses(Q, hoje); const fim = srv.rpFim(Q, hoje);
+  // rpVendEntre: painel × servidor DIRETO, em intervalos antes do início, dentro, cruzando meses e depois do fim
+  for (const [de, ate] of [['2025-01-01', '2025-02-01'], ['2026-01-01', '2026-01-31'], ['2026-01-01', '2026-06-30'], ['2026-05-30', '2026-06-02'], ['2026-09-01', '2026-09-30'], ['2026-09-10', '2026-10-20'], ['2026-09-14', '2026-09-14'], ['2026-09-20', '2026-09-13'],
+    ['2026-10-12', '2026-11-12'], ['2026-11-01', '2026-12-31'], ['2026-12-15', '2027-02-01'], ['', '2026-10-01'], ['2026-10-01', '']]) {
+    cmp(p, `rpVendEntre(${de},${ate}) painel × servidor`, web.rpVendEntre(P, de, ate), srv.rpVendEntre(Q, de, ate, CFG, hoje)); n += 1; }
   for (const d of DATAS) { if (d < (Q.inicio || hoje) || d > fim) continue; cmp(p, `rpVendEntre(início,${d}) = rpVendAte`, srv.rpVendAte(Q, d, CFG, hoje), srv.rpVendEntre(Q, Q.inicio || hoje, d, CFG, hoje)); n += 1; }
   for (const m of ms) {
     const a = m === ms[0] ? (Q.inicio || `${m}-01`) : `${m}-01`; const b = srv.rpUltimoDia(m) < fim ? srv.rpUltimoDia(m) : fim;
@@ -234,8 +245,8 @@ for (const p of PLANOS_CICLO) {
   if (p.id in DIVERGE_ESPERADO) { const dv = !!web.rpDivergeCiclo(P); if (dv !== DIVERGE_ESPERADO[p.id]) erros.push(`${p.id} (${p.nome}) · rpDivergeCiclo: ${dv}, esperava ${DIVERGE_ESPERADO[p.id]}`); n += 1; }
   // invariantes: os períodos são contíguos e a soma das horas rateadas é a das horas vendidas (±0,05 de arredondamento por período)
   for (let i = 1; i < perS.length; i += 1) if (perS[i].iniPlano !== srv.proxDia(perS[i - 1].fimPlano)) erros.push(`${p.id} (${p.nome}): períodos não contíguos em ${perS[i - 1].ym} → ${perS[i].ym}`);
-  if (perS.length) { const soma = perS.reduce((t, x) => t + x.horas, 0); const vend = srv.rpVendidas(Q, CFG, hoje);
-    if (Math.abs(soma - vend) > 0.05) erros.push(`${p.id} (${p.nome}): Σ horas dos períodos ${soma} ≠ horas vendidas ${vend}`); n += 1; }
+  if (perS.length) { const soma = perS.reduce((t, x) => t + x.horasAuto, 0); const vend = srv.rpVendidas(Q, CFG, hoje);
+    if (Math.abs(soma - vend) > 0.05) erros.push(`${p.id} (${p.nome}): Σ horasAuto dos períodos ${soma} ≠ horas vendidas ${vend}`); n += 1; }
   else if (p.id !== 'k14') erros.push(`${p.id} (${p.nome}): nenhum período de faturamento`);
   if (JSON.stringify(P) !== JSON.stringify(p) || JSON.stringify(Q) !== JSON.stringify(p)) erros.push(`${p.id}: o cálculo dos ciclos alterou o plano — leitores não criam objeto`);
 }
@@ -257,9 +268,113 @@ for (const p of PLANOS_CICLO) {
   if (quebrou) erros.push(`o servidor quebrou com cfg sem clientes/parcerias ou com lixo: ${quebrou}`); n += 1;
 }
 
+// ---- 💰 faturamento pelo vendido: rpFatBase · rpFatManDe · rpFracaoCiclo · rpFatAte (painel: rpFatCalc) ----
+const PLANOS_FAT = [
+  mkPlano('f1', 'cliente NTT, vendido (padrão), sem horas digitadas', { clienteId: 'cl-ntt' }),
+  mkPlano('f2', 'cliente NTT com horas digitadas (válida, zero, texto, negativa e um ciclo órfão)', { clienteId: 'cl-ntt', fatBase: 'vendido', fatMan: { '2026-10': 120, '2026-09': 0, '2026-11': 'x', '2026-12': -3, '2027-01': 5 } }),
+  mkPlano('f3', 'cliente NTT, base apontado (a regra antiga)', { clienteId: 'cl-ntt', fatBase: 'apontado', fatMan: { '2026-10': 120 } }),
+  mkPlano('f4', 'contrato que acaba antes do plano (ciclos depois dele valem zero)', { contrato: 'pc-fim' }),
+  mkPlano('f5', 'mês civil, vendido', {}),
+  mkPlano('f6', 'vendMan e horas digitadas juntos', { clienteId: 'cl-ntt', vendMan: { '2026-10': 90 }, fatMan: { '2026-09': 77.5 } }),
+  mkPlano('f7', 'cliente + contrato que acaba antes (o contrato ligado manda no encerrado)', { clienteId: 'cl-ntt', contrato: 'pc-fim' }),
+  mkPlano('f8', 'fatBase inválido (cai em vendido) e contrato com fim inválido', { clienteId: 'cl-ntt', fatBase: 'qualquer', contrato: 'pc-fim2' }),
+  mkPlano('f9', 'plano começa no meio do ciclo e acaba no meio de outro', { clienteId: 'cl-ntt', inicio: '2026-09-10', fim: '2026-10-12', fatMan: { '2026-10': 40 } }),
+];
+// realizado FIXO por dia (segunda e quarta, de 29/06 a 27/11; mais um domingo antes do plano e um dia depois do fim, que caem fora de qualquer ciclo)
+const PORDIA = {}; { let d = '2026-06-29'; let i = 0; while (d <= '2026-11-27') { const w = srv.diaSemana(d); if (w === 1 || w === 3) { i += 1; PORDIA[d] = { h: 4 + (i % 5), hFat: i % 4 === 0 ? 0 : 3 + (i % 3), custo: (4 + (i % 5)) * 80 }; } d = srv.proxDia(d); }
+  PORDIA['2026-08-30'] = { h: 3, hFat: 3, custo: 240 }; PORDIA['2026-12-02'] = { h: 2, hFat: 2, custo: 160 }; }
+const ATES = ['2026-08-15', '2026-09-01', '2026-09-10', '2026-09-25', '2026-09-30', '2026-10-12', '2026-11-02', '2026-11-30', '2027-02-01'];
+for (const p of PLANOS_FAT) {
+  const P = JSON.parse(JSON.stringify(p)); const Q = JSON.parse(JSON.stringify(p));
+  const cw = web.rpCalc(P, P.cenarios[0]); const cs = srv.rpCalcResumo(Q, Q.cenarios[0], CFG, hoje);
+  const perW = web.rpPeriodosFat(P, cw); const perS = srv.rpPeriodosFat(Q, cs, CFG, hoje);
+  cmp(p, 'rpPeriodosFat (horasAuto, man, horas, valor, encerrado…)', perW, perS); n += 1;
+  cmp(p, 'rpFatBase', web.rpFatBase(P), srv.rpFatBase(Q)); n += 1;
+  for (const ym of ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2099-01', '']) { cmp(p, `rpFatManDe(${ym})`, web.rpFatManDe(P, ym), srv.rpFatManDe(Q, ym)); n += 1; }
+  const soma = perS.reduce((t, x) => t + x.horasAuto, 0); const vend = srv.rpVendidas(Q, CFG, hoje);
+  if (Math.abs(soma - vend) > 0.05) erros.push(`${p.id} (${p.nome}): Σ horasAuto ${soma} ≠ horas vendidas ${vend}`); n += 1;
+  perS.forEach((x) => { const esperado = srv.rpFatManDe(Q, x.ym); const h = esperado != null ? esperado : x.horasAuto;
+    if (!perto(x.horas, h)) erros.push(`${p.id} ${x.ym}: horas ${x.horas}, esperava ${h} (digitada vale, senão a conta)`);
+    if (!perto(x.valor, x.horas * cs.vh)) erros.push(`${p.id} ${x.ym}: valor ${x.valor} ≠ horas × valor-hora`);
+    if (x.man !== (esperado != null)) erros.push(`${p.id} ${x.ym}: man=${x.man}`); n += 1; });
+  for (const ate of ATES) {
+    for (const x of perW) { cmp(p, `rpFracaoCiclo(${x.ym}, ${ate})`, web.rpFracaoCiclo(x, ate), srv.rpFracaoCiclo(x, ate, CFG)); n += 1; }
+    // horas faturáveis por ciclo, calculadas AQUI (independente das duas implementações) a partir do mesmo porDia
+    const gastasFat = perS.map((x) => Object.keys(PORDIA).filter((d) => d >= x.iniPlano && d <= x.fimPlano).reduce((t, d) => t + PORDIA[d].hFat, 0));
+    const hFatTot = Object.keys(PORDIA).reduce((t, d) => t + PORDIA[d].hFat, 0);
+    const fw = web.rpFatCalc(P, cw, PORDIA, ate); const fs = srv.rpFatAte(Q, cs, perS, ate, gastasFat, hFatTot, CFG);
+    const proj = (f) => ({ fatAte: f.fatAte, horasAte: f.horasAte, por: f.por.map((x) => ({ ym: x.ym, fr: x.fr, horasAte: x.horasAte, valorAte: x.valorAte })) });
+    cmp(p, `rpFatCalc × rpFatAte (até ${ate})`, proj(fw), proj(fs)); n += 1;
+    cmp(p, `rpFatCalc gastasFat por ciclo (até ${ate})`, fw.por.map((x) => x.gastasFat), gastasFat); n += 1;
+    const base = srv.rpFatBase(Q);
+    if (base === 'apontado' && !perto(fs.fatAte, hFatTot * cs.vh)) erros.push(`${p.id} (até ${ate}): apontado deveria ser hFat × valor-hora = ${hFatTot * cs.vh}, deu ${fs.fatAte}`);
+    if (base === 'vendido') {
+      const esp = perS.reduce((t, x) => t + (x.encerrado ? 0 : x.valor * srv.rpFracaoCiclo(x, ate, CFG)), 0);
+      if (!perto(fs.fatAte, esp)) erros.push(`${p.id} (até ${ate}): vendido deveria somar os ciclos (${esp}), deu ${fs.fatAte}`);
+      // ciclo fechado conta INTEIRO; o que ainda não começou, zero; o encerrado (depois do fim do contrato), zero
+      fs.por.forEach((x, i) => { if (perS[i].encerrado && x.valorAte !== 0) erros.push(`${p.id} ${x.ym}: ciclo encerrado deveria valer 0`);
+        if (!perS[i].encerrado && x.fr === 1 && !perto(x.valorAte, perS[i].valor)) erros.push(`${p.id} ${x.ym}: ciclo fechado deveria valer o valor inteiro`);
+        if (x.fr === 0 && x.valorAte !== 0) erros.push(`${p.id} ${x.ym}: ciclo que não começou deveria valer 0`); });
+    }
+    // plano inteiro decorrido e sem encerrado: o faturado é o valor total dos ciclos
+    if (base === 'vendido' && ate > srv.rpFim(Q, hoje) && !perS.some((x) => x.encerrado) && !perto(fs.fatAte, perS.reduce((t, x) => t + x.valor, 0))) erros.push(`${p.id} (até ${ate}): plano encerrado deveria faturar Σ valor`);
+    n += 1;
+  }
+  if (JSON.stringify(P) !== JSON.stringify(p) || JSON.stringify(Q) !== JSON.stringify(p)) erros.push(`${p.id}: o cálculo do faturamento alterou o plano (criou fatMan?) — leitores não criam objeto`);
+}
+// o contrato que acaba antes (pc-fim, 10/10): o ciclo que começa depois dele (26/10 em diante) é "encerrado"; o que contém o fim (26/09 → 25/10) não
+{
+  const per = srv.rpPeriodosFat(JSON.parse(JSON.stringify(PLANOS_FAT[3])), null, CFG, hoje);
+  const enc = per.filter((x) => x.encerrado).map((x) => x.ym).join(); const nao = per.filter((x) => !x.encerrado).map((x) => x.ym).join();
+  if (nao !== '2026-09,2026-10' || enc !== '2026-11,2026-12') erros.push(`pc-fim: encerrados=${enc} (esperava 2026-11,2026-12), vigentes=${nao} (esperava 2026-09,2026-10)`); n += 1;
+}
+// setter × leitores: digitar cria, apagar nunca cria, texto/negativo é ignorado, vírgula decimal vale, órfãos aparecem
+{
+  const q = JSON.parse(JSON.stringify(mkPlano('s1', 'setter', { clienteId: 'cl-ntt' }))); const antes = JSON.stringify(q);
+  for (const [txt, esp] of [['', null], ['  ', null], ['abc', null], ['-1', null], ['12,5', 12.5], ['0', 0], ['143.756', 143.76], [null, null]]) { cmp({ id: 's1', nome: 'rpFatNum' }, `rpFatNum(${JSON.stringify(txt)})`, web.rpFatNum(txt), esp); n += 1; }
+  web.rpFatManSet(q, '2026-10', ''); web.rpFatManSet(q, '2026-10', 'x');
+  if (JSON.stringify(q) !== antes) erros.push('rpFatManSet com vazio/inválido num plano sem fatMan criou o objeto — só digitar um número pode criar'); n += 1;
+  web.rpFatManSet(q, '2026-10', '120'); web.rpFatManSet(q, '2027-03', '8');
+  cmp({ id: 's1', nome: 'setter' }, 'rpFatManDe depois de digitar', [web.rpFatManDe(q, '2026-10'), web.rpFatManDe(q, '2027-03')], [120, 8]); n += 1;
+  cmp({ id: 's1', nome: 'órfãos' }, 'rpFatManOrfaos', web.rpFatManOrfaos(q), ['2027-03']); n += 1;
+  web.rpFatManSet(q, '2026-10', ''); cmp({ id: 's1', nome: 'setter' }, 'apagar volta ao automático', web.rpFatManDe(q, '2026-10'), null); n += 1;
+}
+// o realizado de verdade (rpReal): porDia soma o MESMO que porMes, as semanas somam as horas e o 'vendido' fecha o plano em Σ valor dos ciclos
+{
+  const q = JSON.parse(JSON.stringify(mkPlano('r1', 'rpReal com worklogs', { clienteId: 'cl-ntt', projeto: 'PX', fatMan: { '2026-10': 120 } })));
+  const wl = Object.keys(PORDIA).filter((d) => d >= '2026-09-01' && d <= '2026-11-27').map((d, i) => ({ p: 'PX', a: i % 2 ? 'a-ana' : 'a-bruno', d: `${d}T09:00:00-03:00`, s: PORDIA[d].h * 3600, f: PORDIA[d].hFat > 0 ? 1 : 0, k: 'PX-1' }));
+  const total = wl.reduce((t, w) => t + w.s / 3600, 0); const totalFat = wl.reduce((t, w) => t + (w.f ? w.s / 3600 : 0), 0);
+  for (const ate of ['2026-10-14', '2026-11-30']) {
+    const wlA = wl.filter((w) => w.d.slice(0, 10) <= ate);   // o /api/tempo só devolve até a data lida
+    vm.runInContext(`rpRealChave=function(p){ return 'PX|'+(p.inicio||'')+'|${ate}'; }; estado.rentab.tempo['PX|2026-09-01|${ate}']={ worklogs: ${JSON.stringify(wlA)}, pessoas: {} };`, ctx);
+    const cw = web.rpCalc(q, q.cenarios[0]); const r = web.rpReal(q, cw); const esperaH = wlA.reduce((t, w) => t + w.s / 3600, 0);
+    if (!perto(r.h, esperaH)) erros.push(`rpReal(${ate}): h ${r.h} ≠ ${esperaH}`);
+    if (!perto(Object.values(r.porDia).reduce((t, x) => t + x.h, 0), r.h)) erros.push(`rpReal(${ate}): Σ porDia.h ≠ h`);
+    if (!perto(Object.values(r.porDia).reduce((t, x) => t + x.hFat, 0), r.hFat)) erros.push(`rpReal(${ate}): Σ porDia.hFat ≠ hFat`);
+    if (!perto(Object.values(r.porDia).reduce((t, x) => t + x.custo, 0), r.custo)) erros.push(`rpReal(${ate}): Σ porDia.custo ≠ custo`);
+    const sem = web.rpSemanas(q, r, 99); const somaSem = sem.reduce((t, w) => t + w.gast, 0);
+    if (!perto(somaSem, r.h)) erros.push(`rpReal(${ate}): as semanas somam ${somaSem}, o realizado é ${r.h}`);
+    if (!perto(sem.reduce((t, w) => t + w.vend, 0), r.vendAteHoje)) erros.push(`rpReal(${ate}): Σ vendidas das semanas ${sem.reduce((t, w) => t + w.vend, 0)} ≠ vendidas até a data ${r.vendAteHoje}`);
+    if (!perto(r.receitaReal, r.fat.fatAte)) erros.push(`rpReal(${ate}): receitaReal ≠ fat.fatAte`);
+    const fim = web.rpFatCalc(q, cw, r.porDia, r.ate);
+    if (!perto(fim.fatAte, r.receitaReal)) erros.push(`rpReal(${ate}): rpFatCalc ≠ receitaReal`);
+    n += 7;
+  }
+  void total; void totalFat;
+  q.fatBase = 'apontado'; const cw2 = web.rpCalc(q, q.cenarios[0]); const r2 = web.rpReal(q, cw2);
+  if (!perto(r2.receitaReal, r2.hFat * cw2.vh)) erros.push(`apontado: receitaReal ${r2.receitaReal} ≠ hFat × valor-hora ${r2.hFat * cw2.vh} (o número de sempre)`); n += 1;
+}
+// as explicações: toda chave do glossário existe, toda entrada de RP_EXPLICA está num grupo e tem os quatro textos
+{
+  const E = web.RP_EXPLICA; const noGl = new Set(web.RP_GLOSSARIO.flatMap((g) => g[1]));
+  for (const k of noGl) if (!E[k]) erros.push(`RP_GLOSSARIO cita "${k}", que não existe em RP_EXPLICA`);
+  for (const k of Object.keys(E)) { if (!noGl.has(k)) erros.push(`RP_EXPLICA "${k}" não está em nenhum grupo do glossário`);
+    for (const f of ['nome', 'oque', 'calc', 'ler']) if (!String(E[k][f] || '').trim()) erros.push(`RP_EXPLICA "${k}" sem ${f}`); n += 1; }
+}
+
 if (erros.length) {
   console.error('✗ Rentabilidade: servidor e painel divergem — api/_lib/rentab.js precisa acompanhar o 17b:');
   erros.forEach((e) => console.error('  ✗ ' + e));
   process.exit(1);
 }
-console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel + ${PLANOS_CICLO.length} de ciclo de faturamento, ${n} comparações — servidor = painel).`);
+console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel + ${PLANOS_CICLO.length} de ciclo de faturamento + ${PLANOS_FAT.length} de faturamento pelo vendido, ${n} comparações — servidor = painel).`);

@@ -1399,7 +1399,18 @@
   /* planner: a coluna Pessoa (presa) quebra o nome e a regra em linhas; os meses rolam ao lado */
   .rp-grade .rp-regra{white-space:normal;margin:3px 0 0;display:inline-block;line-height:1.3}
   /* 🔁 terceirizado interno: o campo do valor-hora de repasse (coluna Custo/h) — 16px não dá zoom no iPhone */
-  .rp-grade input[data-rp-rep]{width:72px;font-size:16px}
+  .rp-grade input[data-rp-rep],.rp-per-tab input[data-rp-fat]{width:72px;font-size:16px}
+  /* ⚖️ vendido × gasto: 2 colunas de KPIs, tabelas rolam no cartão; 📖 glossário em coluna única */
+  .rp-vg .vg-hero.rp-vg-h2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rp-vg .vg-hero.rm-hero3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rp-vg .vg-hero.rm-hero3>.vg-k:first-child{grid-column:1/-1}
+  .rp-vg .vg-k{min-width:0}
+  .rp-vg .vg-k .s{overflow-wrap:anywhere}
+  .rp-bars{max-width:100%}
+  .rp-glossario{padding:6px 10px 10px}
+  .rp-glossario>summary{padding:8px 0;line-height:1.35}
+  .rp-glossario>summary .muted{display:block}
+  .rp-gl-lista{grid-template-columns:minmax(0,1fr)}
   .rp-wf-cons{text-align:left}
   /* rodapés das grades: o rótulo da linha ocupa 2–5 colunas (colspan) e some ao rolar — cada número
      ganha uma legenda miúda, para "224h" não ficar solto sem dizer o que é */
