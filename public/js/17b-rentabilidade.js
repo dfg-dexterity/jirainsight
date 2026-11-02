@@ -489,6 +489,16 @@ const RP_EXPLICA={
   margemRealPrev:{ t:'hf', nome:'Margem real × prevista', oque:'A margem que o projeto está dando de verdade, ao lado da que o plano prometia.', calc:'(Receita realizada − custo realizado) ÷ receita realizada; a prevista é a margem do cenário.', ler:'Real igual ou acima da prevista = no rumo; bem abaixo = custo ou horas fugiram do plano. As cores seguem a margem-meta.' },
   repasseInterno:{ t:'hf', nome:'Repasse interno', oque:'Quanto do custo do projeto é pago à área que cede terceirizados internos.', calc:'Horas dos terceirizados × valor-hora de repasse; a porcentagem é sobre o custo total do projeto.', ler:'Não é perda da empresa, é transferência entre áreas: olhe o resultado da área que cede e a margem consolidada.' },
   vgChip:{ t:'hf', nome:'⚖️ no cartão do plano', oque:'A diferença entre as horas vendidas até hoje e as gastas, direto no cartão do plano.', calc:'Horas vendidas até hoje − horas apontadas no projeto.', ler:'Verde (+) = ganhando horas; vermelho (−) = gastando acima do vendido.' },
+  // ---- 📈 histórico (fotos do servidor) ----
+  histFotos:{ nome:'Fotos do servidor', oque:'Todo dia útil, às 6h, o servidor tira uma "foto" dos números do plano (horas vendidas e gastas, custo, margem) e guarda. O histórico é a sequência dessas fotos: como o plano estava a cada dia e a cada semana.', calc:'O servidor refaz as contas do plano com as horas apontadas até aquele dia e grava o resultado; a foto da semana é a soma das 7 fotos dos dias, de segunda a domingo.', ler:'Mostra a tendência sem depender de alguém ter aberto a tela. A foto congela o plano como ele estava no dia: mexer no plano hoje não muda o passado.' },
+  histSemana:{ nome:'Semana (histórico)', oque:'A semana da foto, de segunda a domingo. Quando a semana tem menos de 7 fotos (o plano começou no meio dela, por exemplo), o número de dias aparece ao lado.', calc:'Uma foto por semana, gravada pelo servidor quando a semana termina.', ler:'A semana em curso ainda não tem foto: ela aparece na linha do domingo.' },
+  histVendidas:{ t:'hf', nome:'Vendidas na semana (histórico)', oque:'As horas que o cliente comprou para aquela semana.', calc:'Soma, dia a dia, das horas vendidas dos dias úteis da semana (feriados descontados).', ler:'É a régua da semana: compare com as horas gastas ao lado.' },
+  histGastas:{ nome:'Gastas na semana (histórico)', oque:'As horas que a equipe apontou no projeto naquela semana.', calc:'Soma das horas apontadas em cada dia da semana (sábado e domingo entram, se houve apontamento).', ler:'Horas lançadas com atraso não voltam para a semana que já foi fotografada: entram no total acumulado das fotos seguintes.' },
+  histDeltaH:{ t:'hf', nome:'Δ h da semana (histórico)', oque:'Quantas horas a equipe gastou a menos (ou a mais) do que o vendido na semana.', calc:'Horas vendidas na semana − horas gastas na semana.', ler:'Verde com + = gastou menos do que o cliente paga (ganho); vermelho com − = gastou mais (perda). Várias semanas seguidas em vermelho pedem ação.' },
+  histDeltaR:{ t:'hf', nome:'Δ R$ da semana (histórico)', oque:'O mesmo Δ da semana, em reais.', calc:'Δ em horas × o valor da hora do plano em cada dia (no escopo fechado, o valor do projeto dividido pelas horas vendidas).', ler:'Mesma leitura do Δ em horas: verde = ganho, vermelho = perda.' },
+  histCusto:{ nome:'Custo da semana (histórico)', oque:'Quanto custaram ao projeto as horas apontadas naquela semana.', calc:'Soma do custo de cada dia: horas de cada pessoa × o custo por hora dela (o valor de repasse, no terceirizado interno).', ler:'Compare com o Δ em reais: custo alto com Δ vermelho é a semana que mais machuca a margem.' },
+  histMargem:{ nome:'Margem até a semana (histórico)', oque:'A margem, em reais, que o plano tinha acumulada no fim daquela semana.', calc:'Receita realizada (horas abertas: o faturado até o dia; escopo fechado e interno: a receita reconhecida) menos o custo realizado, ambos desde o início do plano.', ler:'Não é a margem da semana, é o acumulado até ela: veja se sobe ou desce de uma semana para a outra. Vermelho = margem negativa.' },
+  histFaixa:{ nome:'Faixa dos últimos 30 dias', oque:'Uma coluna por dia: a barra clara são as horas vendidas no dia e a escura, as horas gastas. Sábado, domingo e dia sem foto ficam sombreados.', calc:'Vem das fotos diárias do servidor (horas vendidas do dia e horas apontadas no dia).', ler:'Barra escura mais alta que a clara = gastamos mais do que o vendido naquele dia. Passe o mouse (ou toque) numa coluna para ver os números e o Δ acumulado até o dia.' },
   // ---- realizado (Clockwork) ----
   horasReal:{ nome:'Horas realizadas', oque:'O total de horas que as pessoas apontaram no projeto até a data indicada.', calc:'Soma dos apontamentos do projeto do Jira (Clockwork).', ler:'Compare com as horas vendidas até aqui (escritas embaixo): acima delas, a equipe está gastando mais que o vendido.' },
   eficReal:{ t:'hf', nome:'Eficiência real', oque:'Que parte das horas vendidas (proporcionais ao prazo decorrido) a equipe já usou.', calc:'Horas realizadas ÷ horas vendidas até hoje.', ler:'Abaixo de 100% = entregando mais rápido do que o cliente paga (bom). Até 80% é verde, até 100% amarelo, acima disso vermelho.' },
@@ -514,6 +524,7 @@ const RP_GLOSSARIO=[
   ['🗓 Planner (pessoa × mês) e cascata',['papel','custoH','repasseH','totalPessoa','saldoGrade','realGrade','difAteAqui','custoExec','custoGestao','repasseCasc','resultadoCedente','margemCons']],
   ['💵 Faturamento: nosso ciclo e ciclo do cliente',['nossoCiclo','fatBaseTxt','recPrev','hFatReal','recMesReal','difReceita','acumulado','ciclo','fechamento','nota','diasUteis','horasFat','valorPer','gastas','deltaCiclo','fatAte','vhEfCiclo','pctCiclo','projCiclo','odooCol']],
   ['⚖️ Vendido × gasto',['vgPeriodo','vgCiclo','vgSemana','vgPessoa','vhEfetivo','custoHoraGasta','margemRealPrev','repasseInterno','vgChip']],
+  ['📈 Histórico (fotos do servidor)',['histFotos','histSemana','histVendidas','histGastas','histDeltaH','histDeltaR','histCusto','histMargem','histFaixa']],
   ['⏱ Realizado (Clockwork)',['horasReal','eficReal','prevAteAqui','prazoDecorrido','custoReal','recReal','fatReal','margemReal','margemProj','custoDia','orcConsumido','custoFinalCen','custoFinalRitmo','horasPessoa','planPessoa','difPessoa','pctHoras']]
 ];
 // Atributos do tooltip de um indicador: data-tip = o que é · data-tip2 = como ler. Chave desconhecida não gera nada.
@@ -890,6 +901,7 @@ function renderRentab(){
       ${tipoHtml}
       <section class="rm-bloco"><h3 class="mp-h3">⏱ Realizado (Clockwork) × previsto</h3>${realHtml}
         ${real?ctExpl('as horas realizadas são os apontamentos do Clockwork no projeto do Jira. <b>Eficiência real</b> = realizadas ÷ vendidas proporcionais aos dias úteis já decorridos — abaixo de 100% você está entregando mais rápido do que o cliente paga (a métrica de "sempre realizo mais rápido"). <b>Rentabilidade real</b>: o custo realizado (horas de cada pessoa × custo/h) contra o previsto até aqui; a <b>margem real até aqui</b> usa a receita pro rata; a <b>projetada</b> soma ao custo real o que o cenário ainda prevê (ou extrapola o ritmo atual).'):''}</section>
+      ${rpHfHTML(p,c)}
       ${comp}
       ${histHtml}
     </div></div>`));
@@ -935,6 +947,96 @@ function rpVgHTML(p, c, real, chaveReal){
       <div><div class="mp-h3">Δ por pessoa <span class="mp-dim">previsto no cenário até hoje × apontado</span></div>
         <div class="scroll-x"><table class="mp-tab-mini rp-vg-pes"><thead><tr><th>Pessoa</th>${rpTh('planPessoa','Previsto até hoje','num')}<th class="num">Gastas</th>${rpTh('vgPessoa','Δ h','num')}<th class="num">Δ R$</th></tr></thead><tbody>${rowsP||'<tr><td colspan="5" class="mp-dim">Ninguém alocado nem apontando ainda.</td></tr>'}</tbody></table></div></div></div>
     ${ctExpl('o <b>Δ</b> é sempre <b>vendido (ou faturado) − gasto</b>: <b>verde com +</b> quer dizer que a equipe entregou com menos horas do que o cliente paga — esse é o ganho do escopo aberto —; <b>vermelho com −</b> é perda. Em reais, o Δ vale o <b>valor da hora</b> (por pessoa, o custo por hora dela). O <b>ciclo atual</b> compara as horas faturadas até hoje com as gastas dentro das datas do ciclo do cliente; a <b>projeção</b> mostra como ele fecha se o ritmo continuar. Passe o mouse nos títulos para a explicação curta de cada número.')}</section>`;
+}
+// ---- 📈 Histórico (fotos do servidor) ----
+// Todo dia útil o servidor fotografa o plano (api/_lib/rentabFoto.js: `rpdia_` por dia corrido e `rpsem_` por semana; formato v1 no cabeçalho dele) e
+// GET /api/config?rentabhist=1 devolve a fatia de UM plano, em ordem cronológica. A tela lê SOB DEMANDA, ao abrir o plano: as 12 últimas semanas e os
+// últimos 30 dias (duas chamadas em paralelo, uma por granularidade — a rota serve uma só). Estado SÓ da sessão em estado.rentab.hist/histB/histErro:
+// nunca na cfg (custo e R$ não podem descer com a config compartilhada). Regras anti-laço: UMA leitura em voo por plano (histB); depois de um erro o
+// desenho não tenta de novo sozinho (só o botão "tentar de novo"); dado com menos de RP_HF_TTL não é relido; e a tela só é redesenhada quando o
+// resultado MUDOU (assinatura `sig`) ou quando havia um aviso na tela (carregando/erro). `ate` = hoje, ou fim do plano + 30 dias se ele já acabou:
+// o servidor só fotografa o plano até 30 dias depois do fim e devolve as N linhas mais recentes ATÉ essa data (passando hoje, a fatia viria vazia).
+const RP_HF_SEM_N=12, RP_HF_DIA_N=30, RP_HF_TTL=30*60*1000;
+const RP_HF_RE_DATA=/^\d{4}-\d{2}-\d{2}$/;
+const RP_HF_DOW=['dom','seg','ter','qua','qui','sex','sáb'];
+const rpHfN=(x)=>{ const n=Number(x); return isFinite(n)?n:0; };
+function rpHfSt(){ const r=estado.rentab; if(!r.hist) r.hist={}; if(!r.histB) r.histB={}; if(!r.histErro) r.histErro={}; if(!r.histForca) r.histForca={}; return r; }
+const rpHfIdOk=(p)=>!!(p&&/^rp[a-z0-9]+$/.test(String(p.id||''))&&String(p.id).length<=40);
+function rpHfAte(p){ const h=hojeSP(); const lim=rpSomaDias(rpFim(p),30); return lim<h?lim:h; }
+function rpHfHeaders(){ const id=idApontar()||{}; return { 'x-jira-email':id.email||'', 'x-jira-token':id.token||'' }; }
+// dado de fora: só entram linhas objeto com a data no formato certo
+const rpHfLimpa=(itens,chave)=>(Array.isArray(itens)?itens:[]).filter(x=>x&&typeof x==='object'&&RP_HF_RE_DATA.test(String(x[chave]||''))).sort((a,b)=>a[chave]<b[chave]?-1:a[chave]>b[chave]?1:0);
+function rpHfRedesenha(id){ if(estado.vista==='rentab'&&estado.rentab.sel===id&&!estado.rentab.novo) renderRentab(); }
+function rpGaranteHist(p, forca){
+  const r=rpHfSt(); if(!p||!p.projeto||!rpHfIdOk(p)||!idApontar()) return;
+  const id=p.id; if(r.histB[id]) return;
+  if(forca){ delete r.histErro[id]; r.histForca[id]=true; }
+  else if(r.histErro[id]||(r.hist[id]&&Date.now()-r.hist[id].em<RP_HF_TTL)) return;
+  r.histB[id]=true;
+  const ate=rpHfAte(p); const hd=rpHfHeaders();
+  const le=(gran,n)=>fetch('/api/config?'+new URLSearchParams({ rentabhist:'1', plano:id, gran, ate, n:String(n) }),{ headers:hd, cache:'no-store' })
+    .then(x=>x.json().catch(()=>null).then(j=>{ if(!j||j.ok===false||!Array.isArray(j.itens)){ const e=new Error((j&&j.erro)||`O servidor respondeu ${x.status} e não devolveu o histórico.`); e.servidor=true; throw e; } return j.itens; }));
+  Promise.all([le('semana',RP_HF_SEM_N),le('dia',RP_HF_DIA_N)]).then(([sem,dia])=>{
+    const semanas=rpHfLimpa(sem,'semana'), dias=rpHfLimpa(dia,'dia'); const sig=JSON.stringify([semanas,dias]);
+    const antes=r.hist[id]; const avisava=!!r.histErro[id]||!!r.histForca[id];
+    r.histB[id]=false; delete r.histErro[id]; delete r.histForca[id];
+    r.hist[id]={ em:Date.now(), ate, semanas, dias, sig };
+    if(!antes||antes.sig!==sig||avisava) rpHfRedesenha(id);
+  }).catch(e=>{
+    r.histB[id]=false; delete r.histForca[id]; r.histErro[id]=(e&&e.servidor)?e.message:humanizaErro(e);
+    rpHfRedesenha(id);
+  });
+}
+const rpHfMargem=(v)=>{ const n=rpHfN(v); return n<0?`<span class="rp-neg">−${fmtBRL(-n)}</span>`:fmtBRL(n); };
+const rpHfSinalH=(n)=>Math.abs(n)<0.05?'0h':(n>0?'+':'−')+rpH(Math.abs(n));
+// A faixa dos últimos 30 dias: uma coluna por dia corrido entre a 1ª e a última foto (no máximo 30); dia sem foto fica vazio e sombreado.
+function rpHfFaixa(dias, semVend){
+  if(!dias.length) return '';
+  const dm=(d)=>dataBR(d).slice(0,5); const ult=dias[dias.length-1].dia; const piso=rpSomaDias(ult,-(RP_HF_DIA_N-1)); const ini=dias[0].dia>piso?dias[0].dia:piso;
+  const por={}; dias.forEach(x=>{ por[x.dia]=x; });
+  const lista=[]; for(let d=ini,g=0; d<=ult&&g<RP_HF_DIA_N; d=rpSomaDias(d,1),g++) lista.push(d);
+  const max=Math.max(1,...lista.map(d=>{ const x=por[d]; return x?Math.max(rpHfN(x.vendDia),rpHfN(x.realDia)):0; }));
+  const alt=(v)=>v>0?Math.max(4,Math.round(v/max*100)):0;
+  let sV=0, sG=0, nFoto=0;
+  const cols=lista.map(d=>{ const x=por[d]; const dow=new Date(d+'T12:00:00Z').getUTCDay(); const fds=dow===0||dow===6; const rot=`${dm(d)} (${RP_HF_DOW[dow]})`;
+    if(!x) return `<div class="rp-hf-d rp-hf-sem${fds?' rp-hf-fds':''}" data-dia="${d}" data-tip="${escA(rot)}" data-tip2="sem foto neste dia"></div>`;
+    const v=rpHfN(x.vendDia), g=rpHfN(x.realDia); sV+=v; sG+=g; nFoto++;
+    const tip2=semVend?`gastas ${rpH(g)}`:`vendidas ${rpH(v)} · gastas ${rpH(g)} · Δ acumulado até o dia ${rpHfSinalH(rpHfN(x.deltaH))}`;
+    return `<div class="rp-hf-d${fds?' rp-hf-fds':''}" data-dia="${d}" data-vend="${v}" data-real="${g}" data-tip="${escA(rot)}" data-tip2="${escA(tip2)}">${semVend?'':`<i class="rp-hf-v" style="height:${alt(v)}%"></i>`}<i class="rp-hf-r" style="height:${alt(g)}%"></i></div>`; }).join('');
+  const arial=`${semVend?'Horas gastas':'Horas vendidas e gastas'} por dia, de ${dm(ini)} a ${dm(ult)}: ${semVend?'':`vendidas ${rpH(sV)}, `}gastas ${rpH(sG)}`;
+  return `<div class="rp-hf-faixa-bloco"><div class="mp-h3"${rpTipAttr('histFaixa')}>Dia a dia <span class="mp-dim">${lista.length} dia(s) · de ${dm(ini)} a ${dm(ult)}</span></div>
+    <div class="rp-hf-faixa" role="img" aria-label="${escA(arial)}" style="--n:${lista.length}">${cols}</div>
+    <div class="rp-hf-eixo"><span>${dm(ini)}</span><span>${dm(ult)}</span></div>
+    <div class="rp-hf-leg">${semVend?'':'<span><i class="rp-hf-v"></i> vendidas no dia</span>'}<span><i class="rp-hf-r"></i> gastas no dia</span><span class="muted small">${nFoto} foto(s) · ${semVend?`gastas ${rpH(sG)}`:`vendidas ${rpH(sV)} × gastas ${rpH(sG)} → ${rpDeltaHTML(sV-sG,'h')}`}</span></div></div>`;
+}
+// A seção inteira do plano aberto. `c` = rpCalc do cenário (só para saber se o plano tem horas vendidas: interno não tem Δ).
+function rpHfHTML(p, c){
+  const r=rpHfSt(); const id=p.id; const semVend=!(c.vend>0);
+  const sec=(corpo,extra)=>`<section class="rm-bloco rp-hist-fotos"><h3 class="mp-h3 rp-hf-tit"${rpTipAttr('histFotos')}>📈 Histórico (fotos do servidor) <span class="mp-dim">${extra||'o servidor fotografa o plano todo dia útil'}</span></h3>${corpo}</section>`;
+  if(!p.projeto) return sec('<div class="muted small rp-hf-nota">Plano sem projeto do Jira não é fotografado — escolha o projeto em ✏️ Dados do projeto para o servidor começar o histórico.</div>');
+  if(!rpHfIdOk(p)) return sec('<div class="muted small rp-hf-nota">Este plano tem um código fora do padrão e o servidor não o fotografa.</div>');
+  if(!idApontar()) return sec(`<div class="aviso rp-hf-id">🔑 O histórico fica guardado no servidor e só abre para quem se identificou no Jira (e-mail + token, a mesma identificação do ⏱ Apontar) — é só leitura, nada é gravado no seu nome. <button class="btn rt-step" data-rp-hf-id="1">Identificar-se</button></div>`);
+  rpGaranteHist(p);
+  const H=r.hist[id]; const B=!!r.histB[id]; const E=r.histErro[id]; const forca=!!r.histForca[id];
+  const btn=`<button class="btn rt-step" data-rp-hf-reler="1"${B?' disabled':''} data-tip="Lê de novo as fotos do servidor">↻ atualizar</button>`;
+  const falha=(msg)=>`<div class="aviso rp-hf-erro">⚠ Não consegui ler o histórico: ${esc(msg)} <button class="btn rt-step" data-rp-hf-retry="1">tentar de novo</button></div>`;
+  if(!H) return sec(E?falha(E):'<div class="muted small rp-hf-carrega">⏳ Lendo as fotos do servidor…</div>');
+  if(!H.semanas.length&&!H.dias.length) return sec(`${E?falha(E):''}<div class="estado rp-hf-vazio">📸 Ainda sem fotos deste plano: o servidor fotografa todo dia útil às 6h — a primeira foto sai no próximo dia útil.</div><div class="rp-hf-acoes">${btn}</div>`);
+  const dm=(d)=>dataBR(d).slice(0,5);
+  const ultDia=H.dias.length?H.dias[H.dias.length-1].dia:(H.semanas.length?(H.semanas[H.semanas.length-1].ate||H.semanas[H.semanas.length-1].semana):'');
+  const soma=(k)=>H.semanas.reduce((s,w)=>s+rpHfN(w[k]),0);
+  const rowsS=H.semanas.slice().reverse().map(w=>{ const fim=(w.fim&&typeof w.fim==='object')?w.fim:{}; const dom=RP_HF_RE_DATA.test(String(w.ate||''))?w.ate:rpSomaDias(w.semana,6); const nd=rpHfN(w.dias);
+    return `<tr data-sem="${escA(w.semana)}"><td>${dm(w.semana)} – ${dm(dom)}${nd>0&&nd<7?` <span class="muted small">${nd} dia(s)</span>`:''}</td>${semVend?'':`<td class="num">${rpH(rpHfN(w.vendSem))}</td>`}<td class="num">${rpH(rpHfN(w.realSem))}</td>${semVend?'':`<td class="num">${rpDeltaHTML(rpHfN(w.deltaH),'h')}</td><td class="num">${rpDeltaHTML(rpHfN(w.deltaR),'r')}</td>`}<td class="num">${fmtBRL(rpHfN(w.custoSem))}</td><td class="num">${rpHfMargem(fim.margemAte)}</td></tr>`; }).join('');
+  const tabS=H.semanas.length?`<div class="scroll-x"><table class="mp-tab-mini rp-hf-tab"><thead><tr>${rpTh('histSemana','Semana')}${semVend?'':rpTh('histVendidas','Vendidas','num')}${rpTh('histGastas','Gastas','num')}${semVend?'':rpTh('histDeltaH','Δ h','num')+rpTh('histDeltaR','Δ R$','num')}${rpTh('histCusto','Custo','num')}${rpTh('histMargem','Margem até a semana','num')}</tr></thead>
+      <tbody>${rowsS}</tbody><tfoot><tr><td><b>Total</b> <span class="muted small">${H.semanas.length} semana(s)</span></td>${semVend?'':`<td class="num"><b>${rpH(soma('vendSem'))}</b></td>`}<td class="num"><b>${rpH(soma('realSem'))}</b></td>${semVend?'':`<td class="num">${rpDeltaHTML(soma('deltaH'),'h')}</td><td class="num">${rpDeltaHTML(soma('deltaR'),'r')}</td>`}<td class="num"><b>${fmtBRL(soma('custoSem'))}</b></td><td class="num">—</td></tr></tfoot></table></div>
+      ${semVend?'':`<div class="rp-vg-bars rp-hf-bars">${rpBarrasDelta(H.semanas.map(w=>rpHfN(w.deltaH)),260,46)}</div><div class="muted small rp-hf-cap">Δ h por semana, da mais antiga (esquerda) à mais recente</div>`}`
+    :`<div class="muted small rp-hf-nota">Nenhuma semana fotografada ainda — a foto da semana sai quando ela termina (no domingo).</div>`;
+  return sec(`${E?falha(E):''}
+    <div class="rp-hf-acoes">${btn}${forca?' <span class="muted small">⏳ atualizando…</span>':''}</div>
+    <div class="mp-h3">Semana a semana <span class="mp-dim">últimas ${H.semanas.length} · ${semVend?'horas gastas':'vendidas × gastas'}</span></div>${tabS}
+    ${rpHfFaixa(H.dias,semVend)}
+    ${ctExpl('cada linha vem de uma <b>foto</b> que o servidor tira todo dia útil às 6h e guarda — é o <b>passado do plano</b>, não um recálculo de hoje (mexer no plano agora não muda as semanas já fotografadas). O <b>Δ</b> é sempre <b>vendido − gasto</b>: <b>verde com +</b> = a equipe gastou menos horas do que o cliente paga (ganho); <b>vermelho com −</b> = gastou mais (perda). A <b>margem</b> é o acumulado até o fim da semana, não a margem da semana. Na faixa dos dias, a barra clara é o vendido e a escura o gasto. Passe o mouse nos títulos e nas colunas para a explicação de cada número.')}`,
+    `última foto de ${ultDia?dm(ultDia):'—'} · ${H.semanas.length} semana(s) · ${H.dias.length} dia(s)`);
 }
 function rpCargaRot(p){ const modo=p.modoCarga||'dia';
   return modo==='total'?`${rpH(Number(p.cargaTotal)||0)} no total`:modo==='mes'?`${rpH(Number(p.cargaMes)||0)}/mês`:`${rpH(Number(p.cargaDia)||0)} por dia útil`; }
@@ -1110,6 +1212,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const rg=e.target.closest&&e.target.closest('[data-rp-regra]'); if(rg){ if(!gestor) return; const p=rpPlano(r.sel); if(p) rpAbreRegra(p,+rg.getAttribute('data-rp-regra')); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-rp-hist-tudo')){ const p=rpPlano(r.sel); if(p) rpAbreHistorico(p); return; }
+  // 📈 histórico (fotos do servidor): ↻ atualizar / tentar de novo relê as duas fatias; Identificar-se abre a identificação e a leitura segue sozinha
+  if(t.hasAttribute('data-rp-hf-reler')||t.hasAttribute('data-rp-hf-retry')){ const p=rpPlano(r.sel); if(!p) return; rpGaranteHist(p,true); if(rpHfSt().histB[p.id]) renderRentab(); return; }
+  if(t.hasAttribute('data-rp-hf-id')){ abreIdentidade('ver o histórico (fotos do servidor) deste plano',{ leitura:true, depois:()=>rpReRender() }); return; }
   // ✎ horas vendidas: ↺ devolve o plano inteiro ao cálculo · 🗑 descarta os meses fora do prazo atual
   if(t.hasAttribute('data-rp-vend-limpar')){ const p=rpPlano(r.sel); if(!p||!gestor) return; const n=Object.keys(p.vendMan||{}).length; if(!n) return;
     if(!confirm(`Voltar as horas vendidas de ${n} mês(es) ao cálculo automático (${rpCargaRot(p)})?`)) return;

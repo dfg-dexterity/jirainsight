@@ -1407,6 +1407,12 @@
   .rp-vg .vg-k{min-width:0}
   .rp-vg .vg-k .s{overflow-wrap:anywhere}
   .rp-bars{max-width:100%}
+  /* 📈 histórico (fotos do servidor): a faixa dos 30 dias cabe na largura (colunas estreitas, mais baixa); a tabela das semanas rola dentro do cartão */
+  .rp-hf-faixa{gap:2px;grid-template-rows:76px;height:76px}
+  .rp-hf-d{height:76px}
+  .rp-hf-acoes{flex-wrap:wrap}
+  .rp-hist-fotos .rp-hf-tit{overflow-wrap:anywhere}
+  .rp-hf-leg{gap:4px 10px}
   .rp-glossario{padding:6px 10px 10px}
   .rp-glossario>summary{padding:8px 0;line-height:1.35}
   .rp-glossario>summary .muted{display:block}

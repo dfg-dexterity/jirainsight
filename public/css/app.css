@@ -2332,6 +2332,23 @@
   .cl-imp-rec{margin:6px 0 0 18px;padding:0}
   .cl-imp-rec li{margin:3px 0}
   .rp-ciclo-dl .dd .small{display:block}
+  /* 📈 histórico (fotos do servidor) da 💹 Rentabilidade (T5, 2026-11-02): a tabela das semanas e a faixa dos últimos 30 dias (barra clara = vendido, escura = gasto) */
+  .rp-hist-fotos .rp-hf-tit[data-rp-ind]{cursor:help}
+  .rp-hf-acoes{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
+  .rp-hf-tab td,.rp-hf-tab th{white-space:nowrap}
+  .rp-hist-fotos .estado.rp-hf-vazio{padding:16px 12px;font-size:13.5px}
+  .rp-hf-erro,.rp-hf-id{margin:6px 0}
+  .rp-hf-faixa-bloco{margin-top:14px}
+  .rp-hf-faixa{display:grid;grid-template-columns:repeat(var(--n,30),minmax(0,1fr));grid-template-rows:92px;gap:3px;height:92px;margin-top:6px}
+  .rp-hf-d{display:flex;align-items:flex-end;justify-content:center;gap:1px;height:92px;min-width:0;border-radius:3px;cursor:help}
+  .rp-hf-d.rp-hf-fds{background:var(--hoverbg)}
+  .rp-hf-d.rp-hf-sem{background:repeating-linear-gradient(45deg,var(--hoverbg),var(--hoverbg) 4px,transparent 4px,transparent 8px)}
+  .rp-hf-d i{display:block;flex:1 1 0;min-width:2px;max-width:10px;border-radius:2px 2px 0 0}
+  .rp-hf-v{background:var(--muted);opacity:.45}
+  .rp-hf-r{background:var(--cerceta)}
+  .rp-hf-eixo{display:flex;justify-content:space-between;margin-top:3px;font-size:10.5px;color:var(--muted)}
+  .rp-hf-leg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:6px;font-size:12px}
+  .rp-hf-leg i{display:inline-block;width:10px;height:10px;margin-right:4px;border-radius:3px;vertical-align:-1px}
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
   .rp-colw .rp-colb{height:100%}
   .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}
