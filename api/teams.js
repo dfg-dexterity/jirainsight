@@ -2,11 +2,12 @@
 //   · RANKING DIÁRIO de apontamento (último dia útil)          — como sempre
 //   · RESUMO DE ATIVIDADES gerado por IA (diário ou semanal)   — ?tipo=resumo
 //   · 📊 RELATÓRIO SEMANAL DE SEXTA (foto + cartão dos gestores + mensagem a cada gerente) — ?tipo=semanal
+//   · 📸 FOTOS DA RENTABILIDADE (uma linha por dia e por semana, no Supabase; sem envio ao Teams) — ?tipo=rentab
 //
 // Configuração:
 //   TEAMS_WEBHOOK_URL  (obrigatória)  URL do webhook do canal
 //   CRON_SECRET        (opcional)     se definida, exige Authorization: Bearer <segredo>
-//                                     (OBRIGATÓRIA para o ?tipo=semanal — a foto tem dados por pessoa)
+//                                     (OBRIGATÓRIA para o ?tipo=semanal, ?tipo=rentab e ?tipo=agenda-alerta — dados por pessoa / custo e R$)
 //   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude (opcional no relatório semanal)
 //   TEAMS_GESTORES_WEBHOOK_URL        canal dos gestores (cartão do relatório semanal; sem ela, não envia)
 //   TEAMS_DM_WEBHOOK_URL              fluxo de mensagem direta (pendências para cada gerente de projeto)
@@ -15,6 +16,10 @@
 // Parâmetros: ?dry=1 visualiza o cartão sem enviar · ?forcar=1 envia mesmo em fim
 // de semana/feriado · ?tipo=resumo aciona o resumo IA · ?cron=1 (agendador): decide
 // pelos horários configurados no painel (cfg.teamsHora, cfg.teamsResumo e cfg.relSemanal).
+// 📸 ?tipo=rentab&de=AAAA-MM-DD&ate=AAAA-MM-DD (só até ontem; padrão: ontem) fotografa esses dias na hora (máx. 10 por chamada):
+// sem dry=1 GRAVA e exige &confirmar=1; com dry=1 só calcula. Não carimba o agendador (teams_estado.ultimaFotoRentab é do cron).
+// No cron (?cron=1) a fase `rentab` roda no 1º tique ≥ 06:00 de cada dia útil e fotografa os dias que faltam até ONTEM (fim de semana, feriado
+// e cron parado são recuperados), no máximo 10 por tique; o formato das linhas está no cabeçalho de api/_lib/rentabFoto.js.
 //
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
@@ -24,7 +29,8 @@ import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 import { magicoCore } from './criar.js';
 import { avisaTeamsDM } from './apontar.js';
-import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana } from './_lib/semanal.js';
+import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana, dataValida } from './_lib/semanal.js';
+import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
@@ -423,6 +429,7 @@ async function montaPrioridades(cfg, hoje) {
 // ===========================================================================
 const APP_URL = 'https://jirainsight.vercel.app';
 const REL_SEMANAL_PADRAO = { ativo: false, dia: 5, hora: '16:00', parado: 5 };
+const RENTAB_FOTO_HORA = '06:00';   // 📸 fotos da Rentabilidade: o dia anterior já fechou (apontamentos lançados na véspera)
 const hDe = (s) => fmtH(Math.max(0, Math.round(Number(s) || 0)));
 const pctDe = (v) => (v == null ? '—' : `${v}%`);
 const nDe = (v) => String(v == null ? '—' : v);
@@ -938,6 +945,26 @@ export default async function handler(req, res) {
       return json(res, 200, out);
     }
 
+    // ---- 📸 Fotos da Rentabilidade, chamada manual: ?tipo=rentab[&de=AAAA-MM-DD][&ate=AAAA-MM-DD][&dry=1][&confirmar=1] ----
+    // Fotografa os dias de `de` a `ate` (só até ONTEM; padrão: ontem; no máximo 10 por chamada — a resposta traz `restam`/`proximo`).
+    // Tem custo e R$ por pessoa: EXIGE o CRON_SECRET (503 sem a env, mesmo com dry=1; com a env o gate acima já deu 401). Sem dry=1 GRAVA as linhas
+    // `rpdia_`/`rpsem_` (refazer um dia é seguro: upsert), então exige &confirmar=1. NÃO carimba o agendador (teams_estado.ultimaFotoRentab é do cron).
+    if (String(q.tipo || '') === 'rentab') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — as fotos da Rentabilidade têm custo e R$ por pessoa e só rodam com o segredo do cron (defina a env na Vercel).' });
+      const ontemR = addDias(spDate(new Date()), -1);
+      const ateQ = String(q.ate || '').trim(); const deQ = String(q.de || '').trim();
+      if ((ateQ && !dataValida(ateQ)) || (deQ && !dataValida(deQ))) return json(res, 400, { erro: 'de/ate inválidos — use AAAA-MM-DD (datas que existam).' });
+      const ateR = ateQ || ontemR; const deR = deQ || ateR;
+      if (ateR > ontemR) return json(res, 400, { erro: `ate ${ateR} é hoje ou futuro — a foto do dia só vale depois que ele fecha (último dia possível: ${ontemR}).` });
+      if (deR > ateR) return json(res, 400, { erro: `de ${deR} vem depois de ate ${ateR}.` });
+      if (!dry && q.confirmar !== '1') {
+        return json(res, 400, { erro: 'Sem dry=1 esta chamada GRAVA as fotos da Rentabilidade (rpdia_/rpsem_) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      }
+      const outR = await rentabFotos({ cfg: await configCompartilhada(), de: deR, ate: ateR, max: RPFOTO_DIAS_MAX, dry });
+      if (outR.restam) outR.aviso = `o limite é ${RPFOTO_DIAS_MAX} dias por chamada: ficaram ${outR.restam} dia(s) — repita com de=${outR.proximo}.`;
+      return json(res, outR.erro ? 502 : 200, outR);
+    }
+
     if (!webhook && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
 
     const cfg = await configCompartilhada();
@@ -1087,6 +1114,31 @@ export default async function handler(req, res) {
             const { detalhe, ...conta } = r;
             out.agendaAlerta = { enviado: completo, desde, ate, ...conta };
           } catch (e) { out.agendaAlerta = { enviado: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
+        }
+      }
+      // 📸 Fotos da Rentabilidade (2026-11-02): no 1º tique ≥ RENTAB_FOTO_HORA de cada dia útil, fotografa os dias que faltam até ONTEM (a partir do dia
+      // seguinte a teams_estado.ultimaFotoRentab; sem cursor, os últimos 7) — sábado, domingo, feriado e cron parado entram no lote da segunda/pós-feriado,
+      // no máximo 10 por tique (o resto vem nos tiques seguintes: com o cursor atrás de ontem o gate libera de novo). Uma leitura do Clockwork por tique.
+      // O cursor só avança quando o lote inteiro foi lido e gravado (sem `erro`): falha passageira do Clockwork/Supabase refaz os mesmos dias depois.
+      const gastoRp = Date.now() - t0;
+      if (!segredo) out.rentab = { feito: false, motivo: 'CRON_SECRET não configurado (a foto tem custo e R$)' };
+      else if (semSupabase) out.rentab = { feito: false, motivo: 'Supabase não configurado (as fotos precisam dele)' };
+      else if (pesado || gastoRp > 30000) out.rentab = { feito: false, motivo: `adiado para o próximo tique (este já rodou ${pesado ? 'o resumo IA' : `${Math.round(gastoRp / 1000)} s`})` };
+      else {
+        const ontem = addDias(hoje, -1);
+        const ultRp = ult('ultimaFotoRentab');
+        const temCursor = /^\d{4}-\d{2}-\d{2}$/.test(ultRp);
+        const emDia = temCursor && ultRp >= ontem;
+        const gfr = gateHorario(RENTAB_FOTO_HORA, agora, hoje, emDia ? hoje : '');
+        if (!gfr.pronto) out.rentab = { feito: false, motivo: emDia ? `em dia (última foto: ${ultRp})` : gfr.motivo, hora: RENTAB_FOTO_HORA };
+        else {
+          try {
+            const de = temCursor ? addDias(ultRp, 1) : addDias(hoje, -7);
+            const r = await rentabFotos({ cfg, de, ate: ontem, max: RPFOTO_DIAS_MAX });
+            if (!r.erro && r.ate) await gravaTeamsEstado({ ultimaFotoRentab: r.ate }, estado);
+            const { amostra, ...conta } = r;
+            out.rentab = { feito: !r.erro, ...conta, ...(r.restam ? { proximo: `mais ${r.restam} dia(s) no próximo tique` } : {}) };
+          } catch (e) { out.rentab = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
         }
       }
       return json(res, 200, out);

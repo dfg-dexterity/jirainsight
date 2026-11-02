@@ -36,12 +36,19 @@
 //                                           Jira (headers x-jira-*), papel por cfg.papeis/
 //                                           cfg.gestores no servidor. Sem identidade → 401.
 //
+// GET  /api/config?rentabhist=1&plano=<rp…>&gran=dia|semana[&ate=AAAA-MM-DD][&n=30] -> 📸 histórico de UM plano da 💹 Rentabilidade
+//                                           (as fotos diárias `rpdia_*` / semanais `rpsem_*` gravadas pelo cron do api/teams.js,
+//                                           formato em api/_lib/rentabFoto.js): { ok, plano, gran, itens:[{ dia|semana, …campos do plano }] }
+//                                           em ordem cronológica, só a fatia do plano pedido. Identidade conferida no Jira (headers
+//                                           x-jira-*); sem identidade → 401; plano fora de /^rp[a-z0-9]+$/ → 400. Nunca cacheado.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
 } from './_lib/util.js';
-import { leFotos, papeisDe, recorteParaPapel, segundaDe } from './_lib/semanal.js';
+import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida } from './_lib/semanal.js';
+import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
 import {
   portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
   adminItensLista, adminItemEscreve, adminDecisao, adminSugestoes, portalCacheLimpa,
@@ -1331,6 +1338,29 @@ async function semanalLe(req, res, base, headers) {
   });
 }
 
+// ===========================================================================
+// 📸 HISTÓRICO DA RENTABILIDADE — leitura da fatia de UM plano (2026-11-02)
+// As fotos vivem em linhas `rpdia_<dia>` / `rpsem_<segunda>` desta mesma tabela (o GET normal só devolve `default`, então custo e R$ nunca descem
+// com a config). A tela mostra custo/margem a todo mundo identificado, então a regra aqui é a mesma: identidade conferida no Jira (planAuth), sem
+// recorte por papel. O servidor devolve SÓ o plano pedido (payload pequeno). Nunca cacheado.
+// ===========================================================================
+async function rentabHistLe(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  const plano = String(q.plano || '').trim();
+  if (!RE_ID_PLANO.test(plano) || plano.length > 40) return json(res, 400, { ok: false, erro: 'plano inválido — use o id do plano (rp…).' });
+  const granQ = String(q.gran || 'dia');
+  if (granQ !== 'dia' && granQ !== 'semana') return json(res, 400, { ok: false, erro: 'gran inválido — use dia ou semana.' });
+  const ate = String(q.ate || '').trim();
+  if (ate && !dataValida(ate)) return json(res, 400, { ok: false, erro: 'ate inválido — use AAAA-MM-DD (uma data que exista).' });
+  const sem = granQ === 'semana';
+  const n = Math.max(1, Math.min(sem ? RPSEM_MAX : RPDIA_MAX, Math.floor(Number(q.n)) || (sem ? 12 : 30)));
+  const itens = await leFotosRentab({ gran: granQ, ate, n, plano }, { base, headers });
+  res.setHeader('Cache-Control', 'no-store');
+  return json(res, 200, { ok: true, plano, gran: granQ, ate, n, itens });
+}
+
 export default async function handler(req, res) {
   if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
     res.setHeader('Cache-Control', 'no-store');
@@ -1380,6 +1410,9 @@ export default async function handler(req, res) {
     if (req.query && req.query.uso) {
       return req.method === 'POST' ? await usoGrava(req, res, base, headers) : await usoLe(req, res, base, headers);
     }
+
+    // 📸 Histórico da Rentabilidade: a fatia de um plano nas fotos diárias/semanais (GET, com identidade).
+    if (req.query && req.query.rentabhist) return await rentabHistLe(req, res, base, headers);
 
     // 📊 Relatório semanal: as fotos, recortadas pelo papel de quem pede (GET, com identidade).
     if (req.query && req.query.semanal) return await semanalLe(req, res, base, headers);

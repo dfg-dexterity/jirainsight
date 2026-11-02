@@ -21,6 +21,10 @@
 // (painel: rpFatCalc, com um porDia FIXO; servidor: rpFatAte com as horas por ciclo calculadas aqui, de forma independente), mais as invariantes
 // (Σ horasAuto = horas vendidas; ciclo fechado conta inteiro; 'apontado' = hFat × valor-hora; depois do fim do contrato zero; leitores não criam
 // p.fatMan). Fixtures: cliente, cliente + horas digitadas (com ciclo órfão e valores inválidos), apontado, contrato que acaba antes do plano, mês civil.
+// Desde 2026-11-02 (T4) também confere o REALIZADO ATÉ UM DIA que as fotos diárias/semanais gravam (api/_lib/rentabFoto.js): rpRealAte (servidor) × rpReal
+// (painel) — horas, faturáveis, custo do projeto e consolidado, terceirizado/repasse, previsto até o dia, receita até o dia, faturado por ciclo, margem, por dia
+// e por pessoa — com os MESMOS worklogs nos dois lados, para planos de horas (cliente, contrato, apontado), fechado (marcos faturados), interno e terceirizado
+// com e sem repasse; mais rpJanelaReal × rpRealChave (a janela lida no Clockwork), rpCenarioDe × rpCenario, rpCustoRealH e rpMarcosFaturado × rpMarcosCalc.
 // Sem rede: nada aqui chama API.
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -91,6 +95,8 @@ const sandbox = {
   document: { addEventListener: nada, getElementById: el, createElement: el, querySelector: () => null, querySelectorAll: () => [], body: el(), head: el() },
   localStorage: { getItem: () => null, setItem: nada, removeItem: nada },
   window: {}, navigator: {}, location: { search: '', href: '' }, fetch: () => Promise.reject(new Error('sem rede')),
+  // voltaDias mora no 13-apontar.js (não carregado aqui); o rpRealChave do painel só precisa dele para o teto de 365 dias — mesma definição
+  voltaDias: (s, n) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d - n)).toISOString().slice(0, 10); },
 };
 const ctx = vm.createContext(sandbox);
 for (const arq of ['public/js/01-nucleo.js', 'public/js/16b-parcerias.js', 'public/js/16g-clientes-ciclo.js', 'public/js/17b-rentabilidade.js']) {
@@ -99,7 +105,7 @@ for (const arq of ['public/js/01-nucleo.js', 'public/js/16b-parcerias.js', 'publ
 }
 // A config do painel (feriados) é a mesma passada ao servidor.
 vm.runInContext(`cfg.feriadosExtra=${JSON.stringify(CFG.feriadosExtra)}; cfg.feriadosRemovidos=${JSON.stringify(CFG.feriadosRemovidos)}; cfg.custosPessoa=${JSON.stringify(CFG.custosPessoa)}; cfg.pessoasPlanejadas=${JSON.stringify(CFG.pessoasPlanejadas)}; cfg.clientes=${JSON.stringify(CFG.clientes)}; cfg.parcerias=${JSON.stringify(CFG.parcerias)};`, ctx);
-const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario, rpCiclosDe, rpClienteDe, rpPeriodosFat, rpDivergeCiclo, pcPeriodos, pcPeriodo, rpVendEntre, rpFatBase, rpFatManDe, rpFatNum, rpFatManSet, rpFatManOrfaos, rpFracaoCiclo, rpFatAte, rpFatCalc, rpSemanas, RP_EXPLICA, RP_GLOSSARIO })', ctx);
+const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario, rpCiclosDe, rpClienteDe, rpPeriodosFat, rpDivergeCiclo, pcPeriodos, pcPeriodo, rpVendEntre, rpFatBase, rpFatManDe, rpFatNum, rpFatManSet, rpFatManOrfaos, rpFracaoCiclo, rpFatAte, rpFatCalc, rpSemanas, rpMarcosCalc, rpRealChave, RP_EXPLICA, RP_GLOSSARIO })', ctx);
 const hoje = srv.spHoje();
 if (web.hojeSP() !== hoje) { console.error(`✗ hoje difere entre painel (${web.hojeSP()}) e servidor (${hoje}) — rode de novo`); process.exit(1); }
 
@@ -364,6 +370,71 @@ for (const p of PLANOS_FAT) {
   q.fatBase = 'apontado'; const cw2 = web.rpCalc(q, q.cenarios[0]); const r2 = web.rpReal(q, cw2);
   if (!perto(r2.receitaReal, r2.hFat * cw2.vh)) erros.push(`apontado: receitaReal ${r2.receitaReal} ≠ hFat × valor-hora ${r2.hFat * cw2.vh} (o número de sempre)`); n += 1;
 }
+// ---- 📸 realizado até um dia: rpRealAte (servidor) × rpReal (painel) — a base das fotos diárias/semanais ----
+{
+  const proj = (p) => ({ ...p, projeto: 'PX' });
+  const marcosFat = [{ id: 'm1', nome: 'B', data: '2026-10-15', pct: 40, status: 'faturado' }, { id: 'm2', nome: 'A', data: '2026-10-15', pct: 10, status: 'faturado' },
+    { id: 'm3', nome: 'Go', data: '2026-11-20', pct: 50 }, { id: 'm4', nome: 'Z', data: '2026-09-01', pct: 'x', status: 'faturado' }, { id: 'm5', nome: 'Neg', data: '2026-09-02', pct: -10, status: 'faturado' }];
+  const PL_REAL = [
+    ...PLANOS_CUSTO.map(proj),
+    ...PLANOS_CICLO.filter((p) => ['k1', 'k2', 'k4', 'k9', 'k13'].includes(p.id)).map(proj),
+    ...PLANOS_FAT.map(proj),
+    mkPlano('rf', 'fechado com marcos faturados', { tipo: 'fechado', valorProjeto: 90000, marcos: marcosFat, projeto: 'PX' }, [{ a: 'a-bruno', papel: 'terc', rep: 100, h: { '2026-09': 30, '2026-10': 30 } }]),
+    mkPlano('ri', 'interno com orçamento', { tipo: 'interno', orcamento: 80000, cargaDia: 0, projeto: 'PX' }, [{ a: 'a-bruno', papel: 'terc', rep: 75, h: { '2026-09': 30, '2026-10': 30 } }]),
+    (() => { const q = mkPlano('rc', 'cenário ATIVO é o segundo (com terceirizado)', { projeto: 'PX' }); q.cenarios[1].aloc = [{ a: 'a-ana', papel: 'exec', h: { '2026-09': 50, '2026-10': 50 } }, { a: 'a-bruno', papel: 'terc', rep: 90, h: { '2026-09': 25, '2026-10': 25 } }]; q.cenario = 'rcc2'; return q; })(),
+    (() => { const q = mkPlano('rd', 'cenário ativo que não existe mais cai no primeiro', { projeto: 'PX' }, [{ a: 'a-bruno', papel: 'terc', rep: 70, h: { '2026-09': 10 } }]); q.cenario = 'nao-existe'; return q; })(),
+    mkPlano('rv', 'vendMan, fatMan e terceirizado com repasse, a pessoa também em execução', { clienteId: 'cl-ntt', vendMan: { '2026-10': 90 }, fatMan: { '2026-09': 77.5 }, projeto: 'PX' }, [{ a: 'a-ana', papel: 'terc', rep: 130, h: { '2026-10': 20 } }]),
+  ];
+  // worklogs fixos: quatro pessoas (uma sem custo cadastrado), faturáveis ou não, um projeto de ruído, dias fora do plano e fora dos meses
+  const PESS = ['a-ana', 'a-bruno', 'a-diego', 'a-zero', 'plan_fantasma'];
+  const WL = []; { let d = '2026-08-17'; let i = 0; while (d <= '2026-12-20') { const w = srv.diaSemana(d); if (w >= 1 && w <= 5 || i % 7 === 0) { i += 1;
+    WL.push({ p: 'PX', a: PESS[i % PESS.length], d: `${d}T09:00:00.000-0300`, s: (1 + (i % 4)) * 1800 + (i % 3) * 600, f: i % 3 === 0 ? 0 : 1, k: 'PX-' + (i % 9) });
+    if (i % 4 === 0) WL.push({ p: 'PX', a: 'a-bruno', d: `${d}T14:00:00.000-0300`, s: 3600, f: 1, k: 'PX-1' });
+    WL.push({ p: 'OUTRO', a: 'a-ana', d: `${d}T10:00:00.000-0300`, s: 7200, f: 1, k: 'OUTRO-1' }); } d = srv.proxDia(d); } }
+  const SRV_DIAS = ['2026-08-31', '2026-09-01', '2026-09-15', '2026-09-30', '2026-10-14', '2026-10-26', '2026-11-02', '2026-11-30', '2026-12-31', '2027-03-01'];
+  const subReal = (r) => ({ h: r.h, hFat: r.hFat, custo: r.custo, custoCons: r.custoCons, tercH: r.tercH, tercCusto: r.tercCusto, resultadoCedente: r.resultadoCedente,
+    vendAteHoje: r.vendAteHoje, prevAteHoje: r.prevAteHoje, custoPrevAteHoje: r.custoPrevAteHoje, custoRestante: r.custoRestante, fMesAtual: r.fMesAtual,
+    receitaAteHoje: r.receitaAteHoje, receitaReal: r.receitaReal, receitaBase: r.receitaBase, margemAteHoje: r.margemAteHoje, econReal: r.econReal, eficReal: r.eficReal,
+    fat: r.fat ? { fatAte: r.fat.fatAte, horasAte: r.fat.horasAte, hFat: r.fat.hFat } : null, porDia: r.porDia });
+  let comp = 0; let algumNaoZero = 0;
+  for (const p of PL_REAL) {
+    const P = JSON.parse(JSON.stringify(p)); const Q = JSON.parse(JSON.stringify(p));
+    const cenW = web.rpCenario(P); const cenS = srv.rpCenarioDe(Q);
+    cmp(p, 'rpCenarioDe × rpCenario (alocação do cenário ativo)', cenW.aloc || [], cenS.aloc || []); n += 1;
+    const cw = web.rpCalc(P, cenW); const cs = srv.rpCalcResumo(Q, cenS, CFG, hoje);
+    // marcos faturados (escopo fechado) — o valor que o painel soma em rpMarcosCalc(...).faturado
+    if (p.tipo === 'fechado') { cmp(p, 'rpMarcosFaturado × rpMarcosCalc.faturado', web.rpMarcosCalc(P, cw.valorProj).faturado, srv.rpMarcosFaturado(Q, cs.valorProj)); n += 1; }
+    for (const a of [...PESS, 'a-sem-custo', 'plan_x1']) { cmp(p, `rpCustoRealH(${a})`, web.rpCustoRealH(P, cenW, a), srv.rpCustoRealH(cenS, a, CFG)); n += 1; }
+    for (const dia of SRV_DIAS) {
+      const jan = srv.rpJanelaReal(Q, dia, hoje); if (!jan) continue;
+      const lista = WL.filter((w) => { const d = w.d.slice(0, 10); return d >= jan.de && d <= jan.ate; });   // o que o /api/tempo devolve para a janela
+      vm.runInContext(`var __K='PX|${jan.de}|${jan.ate}'; rpRealChave=function(p){ return __K; }; estado.rentab.tempo[__K]={ worklogs: ${JSON.stringify(lista)}, pessoas: {} };`, ctx);
+      const rw = web.rpReal(P, cw); const rs = srv.rpRealAte(Q, cs, cenS, WL, jan, CFG, hoje, dia);
+      cmp(p, `rpRealAte × rpReal até ${jan.ate}`, subReal(rw), subReal(rs)); n += 1;
+      const pessW = {}; rw.pessoas.forEach((x) => { pessW[x.a] = { h: x.h, custo: x.custo }; });
+      cmp(p, `rpRealAte × rpReal por pessoa até ${jan.ate}`, pessW, rs.pessoas); n += 1;
+      // o que cada um apontou NO dia: conta independente (horas do dia × a taxa do realizado) — a foto diária
+      const doDia = {}; lista.filter((w) => w.p === 'PX' && w.d.slice(0, 10) === dia && rw.porDia[dia]).forEach((w) => { const q = doDia[w.a] = doDia[w.a] || { h: 0, custo: 0 }; q.h += w.s / 3600; q.custo += w.s / 3600 * web.rpCustoRealH(P, cenW, w.a); });
+      cmp(p, `rpRealAte.pessoasDia no dia ${dia}`, Object.keys(doDia).sort(), Object.keys(rs.pessoasDia).sort());
+      Object.keys(doDia).forEach((a) => cmp(p, `rpRealAte.pessoasDia ${a} ${dia}`, doDia[a], rs.pessoasDia[a]));
+      comp += 3; if (rs.h > 0) algumNaoZero += 1;
+    }
+    if (JSON.stringify(P.marcos) !== JSON.stringify(p.marcos) || JSON.stringify(Q) !== JSON.stringify(p)) erros.push(`${p.id}: o realizado alterou o plano — leitores não criam objeto`);
+  }
+  if (algumNaoZero < 40) erros.push(`rpRealAte: poucas comparações com horas de verdade (${algumNaoZero}) — o fixture ficou vazio?`);
+  n += comp;
+  // a janela lida no Clockwork: rpJanelaReal (hoje, fim no passado, início no futuro, mais de 365 dias, sem projeto) × rpRealChave do painel (hoje = hoje)
+  const chave = (p, jan) => (jan ? `${p.projeto}|${jan.de}|${jan.ate}` : '');
+  for (const p of [{ projeto: 'PX', inicio: '2026-09-01', fim: '2026-12-31', meses: 4 }, { projeto: 'PX', inicio: '2024-01-01', fim: '2028-12-31' }, { projeto: 'PX', inicio: '2026-01-10', fim: '2026-03-20', meses: 3 },
+    { projeto: 'PX', inicio: '2031-01-01', fim: '2031-03-01' }, { projeto: 'PX', inicio: '2020-05-01', meses: 2 }, { inicio: '2026-09-01', fim: '2026-12-31' }, { projeto: 'PX', inicio: hoje, fim: hoje }, { projeto: 'PX', inicio: srv.addDias(hoje, -400), fim: srv.addDias(hoje, 100) }]) {
+    cmp({ id: 'janela', nome: JSON.stringify(p) }, 'rpJanelaReal × rpRealChave', web.rpRealChave(p), chave(p, srv.rpJanelaReal(p, hoje, hoje))); n += 1;
+  }
+  // o servidor não cria nada ao ler um plano sem cenário (o painel cria um "Base")
+  const sem = JSON.parse(JSON.stringify({ id: 'sc', inicio: '2026-09-01' })); srv.rpCenarioDe(sem);
+  if (JSON.stringify(sem) !== JSON.stringify({ id: 'sc', inicio: '2026-09-01' })) erros.push('rpCenarioDe criou cenário no plano — leitores não criam objeto'); n += 1;
+  let quebrou2 = ''; try { srv.rpMarcosFaturado({ marcos: [null, 'x', { pct: 10, status: 'faturado' }] }, 1000); srv.rpRealAte({ projeto: 'PX', inicio: '2026-09-01' }, srv.rpCalcResumo({ projeto: 'PX', inicio: '2026-09-01', meses: 2 }, { aloc: [] }, {}, hoje), { aloc: [] }, [null, { p: 'PX' }, { p: 'PX', d: '2026-09-03T09:00', s: 'x' }], { de: '2026-09-01', ate: '2026-09-30' }, {}, hoje, '2026-09-03'); } catch (e) { quebrou2 = e.message; }
+  if (quebrou2) erros.push(`o servidor quebrou com marcos/worklogs de lixo: ${quebrou2}`); n += 1;
+}
 // as explicações: toda chave do glossário existe, toda entrada de RP_EXPLICA está num grupo e tem os quatro textos
 {
   const E = web.RP_EXPLICA; const noGl = new Set(web.RP_GLOSSARIO.flatMap((g) => g[1]));
@@ -377,4 +448,4 @@ if (erros.length) {
   erros.forEach((e) => console.error('  ✗ ' + e));
   process.exit(1);
 }
-console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel + ${PLANOS_CICLO.length} de ciclo de faturamento + ${PLANOS_FAT.length} de faturamento pelo vendido, ${n} comparações — servidor = painel).`);
+console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel + ${PLANOS_CICLO.length} de ciclo de faturamento + ${PLANOS_FAT.length} de faturamento pelo vendido + o realizado até um dia das fotos, ${n} comparações — servidor = painel).`);

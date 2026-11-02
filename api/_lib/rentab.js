@@ -188,7 +188,7 @@ export function rpCalcResumo(p, cen, cfg, hoje) {
   });
   const esforco = rpEsf({ exec, gestao, terc });
   const margem = receita - custo; const margemCons = receita - custoCons;
-  return { meses, vend, vh, tipo, receita, receitaPorMes, vendPorMes, diasUteis: vp.diasUteis, porMes, porPessoa,
+  return { meses, vend, vh, tipo, valorProj, receita, receitaPorMes, vendPorMes, diasUteis: vp.diasUteis, diasUteisTotal: vp.diasUteisTotal, porMes, porPessoa,
     exec, gestao, terc, esforco, custo, custoExec, custoGestao, custoTerc, custoCons,
     resultadoCedente: custoTerc - tercCons, margem, mgp: receita > 0 ? rpPct(margem, receita) : null, margemCons, mgpCons: receita > 0 ? rpPct(margemCons, receita) : null };
 }
@@ -298,4 +298,78 @@ export function rpFatAte(p, calc, per, ate, gastasFat, hFatTotal, cfg) {
   });
   const fatAte = base === 'vendido' ? soma : (hFatTotal != null ? Number(hFatTotal) : gastasFat.reduce((t, x) => t + (Number(x) || 0), 0)) * vh;
   return { fatAte, horasAte, por };
+}
+
+// ===========================================================================
+// 📸 Realizado até um dia (porte do rpReal do painel — só números; base das fotos diárias/semanais)
+// ===========================================================================
+// O cenário ATIVO do plano (p.cenario, senão o primeiro) — como o rpCenario do painel, mas SEM criar nada no plano (o painel cria um
+// cenário "Base" quando não há nenhum; aqui o plano é só lido). Sem cenário = alocação vazia.
+export function rpCenarioDe(p) {
+  const l = (p && Array.isArray(p.cenarios)) ? p.cenarios.filter((x) => x && typeof x === 'object') : [];
+  return l.find((x) => x.id === p.cenario) || l[0] || { aloc: [] };
+}
+// Com que taxa o REALIZADO de uma pessoa é custeado: o repasse da alocação terceirizada dela no cenário (se houver e for > 0) ou o custo/h.
+export function rpCustoRealH(cen, a, cfg) {
+  const al = ((cen && cen.aloc) || []).find((x) => x && x.a === a && rpPapel(x) === 'terc' && Number(x.rep) > 0);
+  return al ? Number(al.rep) : rpCustoH(a, cfg);
+}
+// O que o painel lê do Clockwork para o plano no dia `dia`: de p.inicio (no máximo 365 dias para trás) até o menor entre o fim do plano e o
+// dia (o rpRealChave do painel). null = plano sem projeto, ou o dia vem antes do início.
+export function rpJanelaReal(p, dia, hoje) {
+  if (!p || !p.projeto) return null;
+  const fim = rpFim(p, hoje); const ate = fim < dia ? fim : dia; let de = p.inicio;
+  if (ate < de) return null;
+  if (de < addDias(ate, -365)) de = addDias(ate, -365);
+  return { de, ate };
+}
+// Valor dos marcos já FATURADOS (escopo fechado): valor do projeto × % de cada marco com status 'faturado' (mesma ordem de soma do painel).
+export function rpMarcosFaturado(p, valor) {
+  const lista = (Array.isArray(p && p.marcos) ? p.marcos : []).filter((m) => m && typeof m === 'object')
+    .sort((a, b) => (a.data || '9999').localeCompare(b.data || '9999') || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+  let s = 0;
+  lista.forEach((m) => { if (m.status === 'faturado') s += valor * Math.max(0, Number(m.pct) || 0) / 100; });
+  return s;
+}
+// O rpReal do painel sobre uma lista de worklogs do Clockwork ({a,s,d,p,f,k}, como o worklogsEnriquecidos entrega) e a janela `jan` (rpJanelaReal):
+// horas, horas faturáveis, custo (do projeto e o consolidado), terceirizado, o previsto até a data, a receita até a data e o faturado.
+// `calc` = rpCalcResumo(p, cen, …). `dia` (opcional) pede também o que foi apontado NAQUELE dia (pessoasDia) — a foto diária.
+export function rpRealAte(p, calc, cen, worklogs, jan, cfg, hoje, dia) {
+  const ate = jan.ate;
+  const taxas = {}; const taxa = (a) => ((a in taxas) ? taxas[a] : (taxas[a] = rpCustoRealH(cen, a, cfg)));
+  const tercSet = new Set(((cen && cen.aloc) || []).filter((x) => x && rpPapel(x) === 'terc').map((x) => x.a));
+  const meses = new Set(calc.meses);
+  let h = 0; let hFat = 0; let custo = 0; let custoCons = 0; let tercH = 0; let tercCusto = 0; let tercCons = 0;
+  const pessoas = {}; const pessoasDia = {}; const porDia = {};
+  (worklogs || []).forEach((w) => {
+    if (!w || w.p !== p.projeto) return;
+    const dd = String(w.d || '').slice(0, 10);
+    if (dd < jan.de || dd > ate) return;               // o /api/tempo só devolve a janela lida
+    if (!meses.has(dd.slice(0, 7))) return;
+    const hh = (Number(w.s) || 0) / 3600; const tx = taxa(w.a); const cu = hh * tx; const cc = hh * rpCustoH(w.a, cfg);
+    h += hh; custo += cu; custoCons += cc; if (w.f) hFat += hh;
+    const D = porDia[dd] = porDia[dd] || { h: 0, hFat: 0, custo: 0 }; D.h += hh; D.custo += cu; if (w.f) D.hFat += hh;
+    if (tercSet.has(w.a)) { tercH += hh; tercCusto += cu; tercCons += cc; }
+    const P = pessoas[w.a] = pessoas[w.a] || { h: 0, custo: 0 }; P.h += hh; P.custo += cu;
+    if (dia && dd === dia) { const Q = pessoasDia[w.a] = pessoasDia[w.a] || { h: 0, custo: 0 }; Q.h += hh; Q.custo += cu; }
+  });
+  const duTot = calc.diasUteisTotal || rpDiasUteis(p.inicio, rpFim(p, hoje), cfg); const duAte = rpDiasUteis(p.inicio, ate, cfg);
+  const fracao = duTot > 0 ? Math.min(1, duAte / duTot) : 1;
+  const vendAteHoje = rpVendAte(p, ate, cfg, hoje);
+  const pv = rpPrevAte(p, calc, ate, cfg);
+  const receitaAteHoje = calc.tipo === 'fechado' ? calc.valorProj * fracao : calc.tipo === 'interno' ? 0 : vendAteHoje * calc.vh;
+  // horas abertas: o faturado até aqui sai dos CICLOS (rpFatAte) — o rpFatCalc do painel: horas faturáveis por ciclo e no total, na ordem de leitura
+  let fat = null;
+  if (calc.tipo === 'horas') {
+    const per = rpPeriodosFat(p, calc, cfg, hoje); const dias = Object.keys(porDia); let hFatTot = 0;
+    dias.forEach((d) => { hFatTot += porDia[d].hFat; });
+    const gastasFat = per.map((P) => { let g = 0; dias.forEach((d) => { if (d >= P.iniPlano && d <= P.fimPlano) g += porDia[d].hFat; }); return g; });
+    const A = rpFatAte(p, calc, per, ate, gastasFat, hFatTot, cfg);
+    fat = { fatAte: A.fatAte, horasAte: A.horasAte, hFat: hFatTot };
+  }
+  const receitaReal = calc.tipo === 'horas' ? fat.fatAte : calc.tipo === 'fechado' ? rpMarcosFaturado(p, calc.valorProj) : 0;
+  const receitaBase = calc.tipo === 'horas' ? receitaReal : receitaAteHoje;   // a margem real usa o faturável (horas) ou o reconhecido (fechado)
+  return { de: jan.de, ate, porDia, h, hFat, custo, custoCons, tercH, tercCusto, resultadoCedente: tercCusto - tercCons, pessoas, pessoasDia,
+    vendAteHoje, prevAteHoje: pv.prevAteHoje, custoPrevAteHoje: pv.custoPrevAteHoje, custoRestante: pv.custoRestante, fMesAtual: pv.fMesAtual,
+    receitaAteHoje, receitaReal, receitaBase, margemAteHoje: receitaBase - custo, econReal: vendAteHoje - h, eficReal: vendAteHoje > 0 ? h / vendAteHoje : null, fat };
 }
