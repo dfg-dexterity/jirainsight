@@ -82,6 +82,34 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   acontecer de novo. (4) **🛟 `render()`** (26) = `try{ renderVista() }catch{ telaComErro(e) }` — tela que quebra mostra o
   cartão `.tela-erro` (↻ tentar de novo · 🏠 Início) e o erro é relançado com `setTimeout` para seguir no pageerror dos testes.
   Teste: `contratos-fat-test.mjs` (Playwright, 52 casos, 8790).
+- **💹 Rentabilidade: terceirizado interno · ciclo por cliente · faturamento pelo vendido · ⚖️ vendido × gasto · 📖
+  indicadores explicados · 📸 fotos diárias/semanais (2026-11-02, a pedido do usuário; planejado por um modelo e
+  executado por outro mais barato em 5 tarefas, plano em `rentab-plano/plano-fable.md` no scratchpad):** decisões do
+  usuário — todos os planos de horas passam a faturar pelo **vendido**; **nosso ciclo = mês civil**; terceirizado com
+  **valor-hora de repasse**. (1) Papel `terc` (`RP_PAPEIS`), `al.rep` R$/h (`rpRepH`: vazio = custo/h → números IGUAIS
+  aos da execução); `rpEsf` é a soma ÚNICA do esforço (exec+gestao+terc); `rpCalc` dá a visão do PROJETO (custo com
+  repasse) e a CONSOLIDADA (`custoCons`, `margemCons`, `resultadoCedente` = repasse − custo real); `rpCustoRealH` custeia
+  o realizado do terceirizado pelo repasse. (2) **`cfg.clientes`** (módulo `16g-clientes-ciclo.js`, prefixo `cl`, bloco em
+  📑 Contratos › 🏢 Clientes) com o MESMO modelo de ciclo do contrato de parceria (`fatFecha`, `fatDia`, `ajustes[ym]`,
+  `inicio`) — reusa `pcPeriodo/pcPeriodos/pcCiclosLista/pcCicloAjusta`; leitores `clLista`/`clDe` não criam a lista.
+  Precedência dos ciclos no plano (`rpCiclosDe`): **cliente (`p.clienteId`) › 🤝 contrato › mês civil**; o `pcPeriodos`
+  dos contratos NÃO mudou (as chaves dos itens do Odoo dependem dele). (3) `rpFatBase(p)` = `'apontado'` só quando
+  gravado, senão `'vendido'`: cada ciclo fatura as horas vendidas rateadas nele × vh (fechado cheio, corrente pro rata
+  por dias úteis, depois do fim do contrato 0), salvo `p.fatMan[ym]` digitado (setter cria, leitor não) — `rpPeriodosFat`
+  (pura, alimenta o Odoo) dá `horasAuto/man/horas/valor/encerrado`; `rpFatCalc`/`rpFatAte`/`rpFracaoCiclo`; `rpReal.porDia`.
+  (4) Bloco **⚖️ Vendido × gasto** (`rpVgCalc`, `rpSemanas` com `rpVendEntre` portado ao painel): período, ciclo, semana,
+  por pessoa, em h e R$ (verde = ganho). (5) **`RP_EXPLICA` é a fonte ÚNICA das explicações** — alimenta o `data-tip`/
+  `data-tip2` de cada indicador e o `<details class="rp-glossario">` "📖 Como ler estes indicadores"; indicador novo =
+  entrada nova ali (o teste reprova KPI na tela sem `data-rp-ind`). (6) **Fotos** em `jirainsight_config` (nunca na cfg):
+  `rpdia_<AAAA-MM-DD>` e `rpsem_<segunda>` (`api/_lib/rentabFoto.js`, formato v1 no cabeçalho), fase do cron do
+  `api/teams.js` no 1º tique ≥ 06:00 de dia útil (até 10 dias por tique, recupera fim de semana/feriado/cron parado,
+  cursor `teams_estado.ultimaFotoRentab` só com sucesso; manual `?tipo=rentab` com CRON_SECRET), leitura
+  `GET /api/config?rentabhist=1&plano&gran` (identidade; só a fatia do plano) e a seção 📈 Histórico do plano
+  (`rpGaranteHist`, estado só na sessão, uma leitura em voo). **Gate de paridade** (`check-rentab-paridade.mjs`) agora
+  carrega 16b e 16g no vm e compara custo/papel, ciclos, faturamento pelo vendido e o realizado até um dia (`rpRealAte`)
+  — a foto do servidor tem os mesmos números da tela. O rodapé do app mostra só a versão (PR + descrição). Testes:
+  `rentab-terc-test` (59), `clientes-ciclo-test` (113), `rentab-fat-test` (123, relógio fixo em 10/09/2026),
+  `rentab-hist-test` (102), `agsem/rentab-foto-test` (79).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais

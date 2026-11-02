@@ -1398,6 +1398,26 @@
   .rp-wf-v{white-space:nowrap}
   /* planner: a coluna Pessoa (presa) quebra o nome e a regra em linhas; os meses rolam ao lado */
   .rp-grade .rp-regra{white-space:normal;margin:3px 0 0;display:inline-block;line-height:1.3}
+  /* 🔁 terceirizado interno: o campo do valor-hora de repasse (coluna Custo/h) — 16px não dá zoom no iPhone */
+  .rp-grade input[data-rp-rep],.rp-per-tab input[data-rp-fat]{width:72px;font-size:16px}
+  /* ⚖️ vendido × gasto: 2 colunas de KPIs, tabelas rolam no cartão; 📖 glossário em coluna única */
+  .rp-vg .vg-hero.rp-vg-h2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rp-vg .vg-hero.rm-hero3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rp-vg .vg-hero.rm-hero3>.vg-k:first-child{grid-column:1/-1}
+  .rp-vg .vg-k{min-width:0}
+  .rp-vg .vg-k .s{overflow-wrap:anywhere}
+  .rp-bars{max-width:100%}
+  /* 📈 histórico (fotos do servidor): a faixa dos 30 dias cabe na largura (colunas estreitas, mais baixa); a tabela das semanas rola dentro do cartão */
+  .rp-hf-faixa{gap:2px;grid-template-rows:76px;height:76px}
+  .rp-hf-d{height:76px}
+  .rp-hf-acoes{flex-wrap:wrap}
+  .rp-hist-fotos .rp-hf-tit{overflow-wrap:anywhere}
+  .rp-hf-leg{gap:4px 10px}
+  .rp-glossario{padding:6px 10px 10px}
+  .rp-glossario>summary{padding:8px 0;line-height:1.35}
+  .rp-glossario>summary .muted{display:block}
+  .rp-gl-lista{grid-template-columns:minmax(0,1fr)}
+  .rp-wf-cons{text-align:left}
   /* rodapés das grades: o rótulo da linha ocupa 2–5 colunas (colspan) e some ao rolar — cada número
      ganha uma legenda miúda, para "224h" não ficar solto sem dizer o que é */
   :is(.rp-grade,.rp-per-tab) tfoot td.num:not(:empty)::before,
@@ -1660,6 +1680,22 @@
   .vw-admin #ad-ams>label.check input{vertical-align:-3px;margin:0 6px 0 0}
   .vw-admin .rg-pessoas{grid-template-columns:minmax(0,1fr)}
   .vw-admin .rg-pessoas .check{font-size:14px;text-transform:none;letter-spacing:0;color:inherit;padding:5px 0}
+  /* 🗓 ciclos de faturamento por cliente (16g): cartões em coluna única, formulário em 2 colunas, calendário rola no cartão */
+  .vw-admin .cl-bloco .cl-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .vw-admin .cl-card{padding:10px 12px}
+  .vw-admin .cl-top{gap:6px}
+  .vw-admin .cl-top>strong{flex:1 1 100%;overflow-wrap:anywhere}
+  .vw-admin .cl-top>.spacer{display:none}
+  .vw-admin .cl-top>.btn{padding:6px 10px}
+  .vw-admin .cl-top .badge{font-size:12px}
+  .vw-admin .cl-form{padding:10px}
+  .vw-admin .cl-form .pl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .vw-admin .cl-form .pl-grid>.campo{min-width:0}
+  .vw-admin .cl-form .pl-grid>.campo:first-child,.vw-admin .cl-form .pl-grid>.campo:last-child{grid-column:1/-1}
+  .vw-admin .cl-form .pl-grid :is(input,select){width:100%!important;min-width:0!important;max-width:none;box-sizing:border-box}
+  .vw-admin .cl-cal{padding:8px}
+  .vw-admin .cl-cal-tab input[type=date]{min-width:0;width:118px}
+  .vw-admin .cl-cal-tab :is(th,td):first-child{position:sticky;left:0;z-index:1;background-color:var(--cartao);box-shadow:inset -1px 0 0 var(--linha)}
 
   /* -- ⚙️ Central de configurações -- */
   .vw-config .cfgc-grid{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}

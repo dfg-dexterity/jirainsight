@@ -2282,6 +2282,73 @@
   .rp-grade tr.rp-f-vend .rp-vend-du{font-size:10.5px}
   .rp-grade tr.rp-real-row td{font-size:12px;color:var(--muted);padding-top:1px;padding-bottom:5px;border-bottom:1px solid var(--linha2);font-variant-numeric:tabular-nums}
   .rp-grade tr.rp-real-row td.rp-neg{color:var(--err)}
+  /* 🔁 terceirizado interno: o valor-hora de REPASSE mora na coluna Custo/h, abaixo do custo real da pessoa */
+  .rp-grade .rp-rep{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:3px}
+  .rp-grade input.rp-rep-i{width:72px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;padding:3px 6px;border:1px dashed var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-grade input.rp-rep-i.rp-man{border:1px solid var(--cerceta);font-weight:700}
+  .rp-grade input.rp-rep-i:focus{border-color:var(--cerceta);outline:2px solid var(--cerceta);outline-offset:-1px}
+  .rp-grade input.rp-rep-i::placeholder{color:var(--muted);opacity:.85}
+  .rp-rep-l{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .rp-wf-cons{margin:2px 0 6px;text-align:right}
+  /* ⚖️ vendido × gasto, ✎ horas faturadas do ciclo e 📖 glossário dos indicadores (T3, 2026-11-02) */
+  .rp-zero{color:var(--muted);font-weight:600}
+  .vg-k[data-rp-ind] .l::after{content:' ⓘ';color:var(--cerceta);text-transform:none;cursor:help}
+  .vg-k[data-rp-ind],.rp-wf-l[data-rp-ind],.rp-tela label[data-rp-ind],.rp-tela td[data-rp-ind],.rp-tela .dt[data-rp-ind]{cursor:help}
+  .rp-tela th[data-rp-ind]{cursor:help;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+  .rp-vg .vg-hero.rp-vg-h2{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .rp-vg .vg-hero{margin-bottom:12px}
+  .rp-vg .vg-k .s{line-height:1.4}
+  .rp-vg-sem td,.rp-vg-sem th,.rp-vg-pes td,.rp-vg-pes th{white-space:nowrap}
+  .rp-vg-duo{margin-top:6px}
+  .rp-bars{display:block;width:100%;max-width:340px;height:46px;margin-top:6px}
+  .badge.rp-vgchip{font-size:11px;padding:2px 8px;background:var(--hoverbg);font-variant-numeric:tabular-nums;cursor:help}
+  .rp-per-tab td.rp-fat-c{white-space:nowrap}
+  .rp-per-tab input.rp-fat-i{width:76px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;padding:3px 6px;border:1px dashed var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .rp-per-tab input.rp-fat-i.rp-man{border:1px solid var(--cerceta);font-weight:700}
+  .rp-per-tab input.rp-fat-i:focus{border-color:var(--cerceta);outline:2px solid var(--cerceta);outline-offset:-1px}
+  .rp-per-tab input.rp-fat-i::placeholder{color:inherit;opacity:.9;font-weight:700}
+  .rp-per-tab td .rp-vend-calc{text-align:right}
+  .rp-fatbase-dl .dd .small{display:block}
+  .rp-glossario{margin:10px 0 12px;padding:6px 14px 10px;border:1px solid var(--linha);border-radius:10px;background:var(--cartao2)}
+  .rp-glossario>summary{cursor:pointer;font-weight:700;font-size:13.5px;color:var(--grafite)}
+  .rp-glossario>summary .muted{font-weight:400}
+  .rp-gl-g h4{margin:14px 0 6px;font-size:13px;color:var(--mpink)}
+  .rp-gl-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:8px 16px}
+  .rp-gl-i{padding:8px 10px;border:1px solid var(--linha2);border-radius:8px;background:var(--cartao);min-width:0}
+  .rp-gl-i b{font-size:13px}
+  .rp-gl-i p{margin:5px 0 0;font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+  .rp-gl-i p span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  /* 🗓 ciclos de faturamento por cliente (16g, na 📑 Contratos › 🏢 Clientes) e o ciclo no cabeçalho do plano */
+  .cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+  .cl-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left:5px solid var(--cerceta,#009994);min-width:0}
+  .cl-card.cl-aberto{grid-column:1/-1}
+  .cl-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:14px}
+  .cl-card .cl-top .btn{padding:4px 10px;font-size:12px}
+  .cl-form{margin-top:12px;padding:12px 14px;border:1px dashed var(--linha);border-radius:10px}
+  .cl-cal{margin-top:10px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px}
+  .cl-cal-tab td,.cl-cal-tab th{white-space:nowrap}
+  .cl-cal-tab input[type=date]{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .cl-imp-res .aviso{margin-top:8px}
+  .cl-imp-rec{margin:6px 0 0 18px;padding:0}
+  .cl-imp-rec li{margin:3px 0}
+  .rp-ciclo-dl .dd .small{display:block}
+  /* 📈 histórico (fotos do servidor) da 💹 Rentabilidade (T5, 2026-11-02): a tabela das semanas e a faixa dos últimos 30 dias (barra clara = vendido, escura = gasto) */
+  .rp-hist-fotos .rp-hf-tit[data-rp-ind]{cursor:help}
+  .rp-hf-acoes{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
+  .rp-hf-tab td,.rp-hf-tab th{white-space:nowrap}
+  .rp-hist-fotos .estado.rp-hf-vazio{padding:16px 12px;font-size:13.5px}
+  .rp-hf-erro,.rp-hf-id{margin:6px 0}
+  .rp-hf-faixa-bloco{margin-top:14px}
+  .rp-hf-faixa{display:grid;grid-template-columns:repeat(var(--n,30),minmax(0,1fr));grid-template-rows:92px;gap:3px;height:92px;margin-top:6px}
+  .rp-hf-d{display:flex;align-items:flex-end;justify-content:center;gap:1px;height:92px;min-width:0;border-radius:3px;cursor:help}
+  .rp-hf-d.rp-hf-fds{background:var(--hoverbg)}
+  .rp-hf-d.rp-hf-sem{background:repeating-linear-gradient(45deg,var(--hoverbg),var(--hoverbg) 4px,transparent 4px,transparent 8px)}
+  .rp-hf-d i{display:block;flex:1 1 0;min-width:2px;max-width:10px;border-radius:2px 2px 0 0}
+  .rp-hf-v{background:var(--muted);opacity:.45}
+  .rp-hf-r{background:var(--cerceta)}
+  .rp-hf-eixo{display:flex;justify-content:space-between;margin-top:3px;font-size:10.5px;color:var(--muted)}
+  .rp-hf-leg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:6px;font-size:12px}
+  .rp-hf-leg i{display:inline-block;width:10px;height:10px;margin-right:4px;border-radius:3px;vertical-align:-1px}
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
   .rp-colw .rp-colb{height:100%}
   .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}
@@ -3097,6 +3164,9 @@
   [data-theme="dexterity"] .qk-grid input,
   [data-theme="dexterity"] .qk-grid select,
   [data-theme="dexterity"] .ad-card,
+  [data-theme="dexterity"] .cl-card,
+  [data-theme="dexterity"] .rp-glossario,
+  [data-theme="dexterity"] .rp-gl-i,
   [data-theme="dexterity"] .rc2-card,
   [data-theme="dexterity"] .rc2-tag,
   [data-theme="dexterity"] .ams-card,

@@ -488,11 +488,12 @@ const CT_ROTULOS={ cod:'ID', cliente:'Cliente', consultoria:'Consultoria parceir
   minMes:'Mínimo mensal (h)', tetoMes:'Teto mensal (h)', bancoHoras:'Banco de horas', respDex:'Responsável Dexterity', respCliente:'Responsável / Cliente',
   projetos:'Projetos do Jira', alocacao:'Horas alocadas por projeto', avisoDias:'Aviso prévio (dias)', fatFecha:'Fechamento do ciclo (dia)', fatDia:'Dia da nota',
   prazoReceb:'Recebimento (dias após a nota)', retPct:'Retenção na fonte (%)', conta:'Conta de recebimento', contato:'Contato', obs:'Observações',
-  pasta:'Pasta do contrato', criadoEm:'Criado em', copiaDe:'Cópia de', atualizadoEm:'Atualizado em', atualizadoPor:'Atualizado por', id:'Id interno' };
+  pasta:'Pasta do contrato', clienteId:'Ciclo de faturamento do cliente', criadoEm:'Criado em', copiaDe:'Cópia de', atualizadoEm:'Atualizado em', atualizadoPor:'Atualizado por', id:'Id interno' };
 // Valor de um campo para a tela: texto simples; listas e objetos viram um resumo (o JSON completo vai no <details>).
 function ctCampoTxt(k, v){
   if(v==null||v==='') return '—';
   if(k==='portalToken') return '(link do cliente gerado — veja no cartão)';
+  if(k==='clienteId'&&typeof v==='string'){ const cl=clDe(v); return cl?`${cl.nome||v} (${clFechaRot(cl)})`:`${v} (cliente removido)`; }
   if(typeof v==='boolean') return v?'sim':'não';
   if(typeof v==='number') return k==='valorHora'?fmtBRL(v):String(v);
   if(typeof v==='string') return /^\d{4}-\d{2}-\d{2}$/.test(v)?fmtBR(v):v;
@@ -575,6 +576,7 @@ function renderAdmin(){
   // 📋 o formulário só abre quando pedido (＋ Novo contrato, editar, duplicar) — ou quando ainda não há contrato nenhum.
   const formAberto=!!(ad.novo||ad.editId||ad.dup||!contratos.length);
   const dup = !ad.editId&&ad.dup ? ad.dup : null;
+  const pode=clPodeEditar();   // 🗓 quem cadastra os ciclos de faturamento por cliente (16g)
   const f=ctFormEstado(edit);   // tipo, projetos marcados e horas alocadas do formulário (sobrevivem ao redesenho)
   const projBox=`<div class="ad-proj-barra">
       <input type="search" id="ad-proj-busca" value="${escA(f.busca)}" placeholder="🔎 filtrar projetos (nome ou chave)" aria-label="Filtrar projetos">
@@ -588,6 +590,7 @@ function renderAdmin(){
     ${dup?'<div class="aviso">⧉ Cópia pronta para ajustar: confira o nome, as datas e os projetos e clique em <b>Adicionar contrato</b>. O link do cliente não é copiado (cada contrato tem o seu) e o novo contrato ganha um ID próprio.</div>':''}
     <div class="pl-grid">
       <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
+      <div class="campo"><label>🗓 Ciclo de faturamento do cliente <span class="muted">(opcional)</span></label><select id="ad-cliente-id" data-tip="Liga este contrato ao ciclo de faturamento cadastrado em 🗓 Ciclos de faturamento por cliente (abaixo). É só um vínculo informativo: nada muda no AMS nem na Receita."><option value="">— nenhum —</option>${clLista().map(x=>`<option value="${escA(x.id)}" ${edit&&edit.clienteId===x.id?'selected':''}>${esc(x.nome||x.id)} · ${esc(clFechaRot(x))}</option>`).join('')}</select></div>
       <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
         ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${f.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
       <div class="campo" id="ad-horas-wrap"><label id="ad-horas-rot">Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
@@ -716,6 +719,7 @@ function renderAdmin(){
     ${cfgShared && !idApontar() ? `<div class="aviso">⚠ Para <strong>salvar</strong> as configurações no servidor é preciso identificar-se: informe seu e-mail e token do Jira na aba <strong data-goto="apontar" style="cursor:pointer;text-decoration:underline">⏱ Apontar</strong>. Sem isso, as alterações ficam só neste navegador.</div>` : ''}
     ${ctInvalidosHTML(nInval,'ad',true)}
     ${contratos.length?lista:''}
+    ${clBlocoHTML(pode)}
     ${formAberto?form:''}
     <div class="card full"><h2>Contratos cadastrados <span>${contratos.length}</span></h2>
       ${contratos.length?`<div class="ad-grid">${cards}</div>`:'<div class="estado">Nenhum contrato cadastrado ainda.</div>'}
@@ -766,6 +770,7 @@ function salvaContrato(){
     inicio:v('ad-inicio'), respDex:v('ad-respdex'), respCliente:v('ad-respcli'),
     obs:v('ad-obs'), projetos,
   };
+  const cid=v('ad-cliente-id'); if(cid&&clDe(cid)) dados.clienteId=cid;   // 🗓 vínculo opcional com o ciclo do cliente (só informativo)
   if(tipo==='ams'){
     dados.apuracao=v('ad-apur')||'trimestral';
     dados.horasCiclo=Math.max(0,Number(v('ad-hciclo'))||0);
@@ -787,7 +792,7 @@ function salvaContrato(){
   }
   cfg.contratos=cfg.contratos||[];
   const ad=estado.admin;
-  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c){ Object.assign(c, dados);
+  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c){ Object.assign(c, dados); if(!dados.clienteId) delete c.clienteId;
       if(tipo!=='horas'){ delete c.alocacao; delete c.fim; } }   // mudou de tipo: a alocação de horas abertas não fica pendurada
     ad.editId=null; }
   else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP();
