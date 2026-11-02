@@ -46,6 +46,12 @@
 // valor que o projeto paga por hora e rpEsf a soma ÚNICA de horas (execução + gestão + terceirizado). O realizado
 // de quem tem alocação terceirizada com repasse também é custeado pelo repasse (rpCustoRealH). Tem porte no
 // servidor (api/_lib/rentab.js: rpCustoH/rpRepH/rpCalcResumo/rpPrevAte/rpStatusK) e o gate de paridade confere.
+//
+// 🗓 CICLO DO CLIENTE × NOSSO CICLO (pedido de 2026-11-02): o NOSSO ciclo é o mês civil (planner, horas vendidas por mês, tabela
+// mensal); o ciclo de FATURAMENTO do cliente (ex.: NTT fecha dia 25 e nomeia o ciclo pelo mês do fechamento) é o de cfg.clientes
+// (módulo 16g, p.clienteId). Os PERÍODOS DE FATURAMENTO (rpPeriodosFat → Odoo, 🧾 Próximas notas) vêm de rpCiclosDe, na ordem:
+// cliente cadastrado › 🤝 contrato de parceria (fatFecha/ajustes) › mês civil. O cliente usa o MESMO modelo de ciclo do contrato
+// (fatFecha/fatDia/ajustes), por isso pcPeriodos serve aos dois sem mudar — e o servidor tem o porte (rpCiclosDe/rpPeriodosFat).
 // Helpers de outros módulos só em tempo de render.
 // ===========================================================================
 const RP_PAPEIS=[['exec','Execução'],['gestao','Gestão'],['terc','Terceirizado interno']];
@@ -248,9 +254,9 @@ function rpLog(p, o, d){ const h=rpHist(p); const q=pcQuem(); const em=new Date(
   if(u&&u.o===o&&u.por===q.nome&&o!=='criou'&&(Date.parse(em+':00Z')-Date.parse((u.em||'')+':00Z'))<10*60*1000){ u.em=em; u.d=txt; u.n=(u.n||1)+1; }
   else { h.push({ em, por:q.nome, o, d:txt }); if(h.length>RP_HIST_MAX) p.hist=[h[0]].concat(h.slice(-(RP_HIST_MAX-1))); }
   p.atualizadoEm=hojeSP(); p.atualizadoPor=q.nome; }
-const RP_CAMPOS={ nome:'nome', cliente:'cliente', projeto:'projeto', tipo:'tipo', inicio:'início', fim:'fim', meses:'duração (meses)', modoCarga:'modo da carga', cargaDia:'h por dia útil', cargaTotal:'h no total', cargaMes:'h por mês', valorHora:'valor-hora', margemMeta:'margem-meta', valorProjeto:'valor do projeto', orcamento:'orçamento', obs:'obs.', contrato:'contrato' };
+const RP_CAMPOS={ nome:'nome', cliente:'cliente', projeto:'projeto', tipo:'tipo', inicio:'início', fim:'fim', meses:'duração (meses)', modoCarga:'modo da carga', cargaDia:'h por dia útil', cargaTotal:'h no total', cargaMes:'h por mês', valorHora:'valor-hora', margemMeta:'margem-meta', valorProjeto:'valor do projeto', orcamento:'orçamento', obs:'obs.', contrato:'contrato', clienteId:'ciclo do cliente' };
 function rpDiff(a, b){ const out=[]; Object.keys(RP_CAMPOS).forEach(k=>{ let x=a[k]==null?'':String(a[k]), y=b[k]==null?'':String(b[k]); if(x===y) return;
-  if(k==='contrato'){ x=(pcDe(x)||{}).consultoria||x; y=(pcDe(y)||{}).consultoria||y; } if(k==='tipo'){ x=(RP_TIPOS[x]||[])[1]||x; y=(RP_TIPOS[y]||[])[1]||y; }
+  if(k==='contrato'){ x=(pcDe(x)||{}).consultoria||x; y=(pcDe(y)||{}).consultoria||y; } if(k==='clienteId'){ x=(clDe(x)||{}).nome||x; y=(clDe(y)||{}).nome||y; } if(k==='tipo'){ x=(RP_TIPOS[x]||[])[1]||x; y=(RP_TIPOS[y]||[])[1]||y; }
   out.push(`${RP_CAMPOS[k]}: ${x||'—'} → ${y||'—'}`); }); return out; }
 function rpSalva(p, o, d){ if(p&&o) rpLog(p,o,d); if(p) p.atualizadoEm=hojeSP(); salvaCfg(); }
 function rpHistRow(h){ return `<tr><td class="muted small">${esc(pcQuando(h.em))}</td><td>${esc(h.por||'')}</td><td><span class="badge rp-h rp-h-${esc(h.o)}">${esc(RP_HIST_ROT[h.o]||h.o)}</span></td><td class="small">${esc(h.d||'')}${h.n>1?` <span class="muted small">(${h.n}× em sequência)</span>`:''}</td></tr>`; }
@@ -280,11 +286,31 @@ function rpAbreRegra(p, i){ const al=(rpCenario(p).aloc||[])[i]; if(!al) return;
     </div>
     <div class="muted small">Meta diária de ${esc(rpNome(al.a))}: ${rpHDia(al.a)}h (Metas &amp; ausências) — 50% = ${rpHDia(al.a)/2}h por dia útil.</div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primario" data-rp-rg-aplicar="${i}">Aplicar</button>${al.regra?`<button class="btn" data-rp-rg-limpar="${i}">Tirar a regra (manter as horas)</button>`:''}<button class="btn" data-rp-rg-fechar="1">Cancelar</button></div>`); }
-// ---- 🧾 períodos de faturamento previstos (horas abertas): os do contrato ("até o dia N", ajustável por mês) ou o mês civil ----
-function rpPeriodosFat(p, calc){ const ct=rpContrato(p); const fim=rpFim(p); const vp=calc||rpCalc(p,rpCenario(p)); const vh=vp.vh; const meses=vp.meses;
-  const base=ct?pcPeriodos(ct,p.inicio,fim):meses.map((m,i)=>{ const ini=i===0?p.inicio:m+'-01'; const f=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; return { ym:m, ini, fim:f, iniPlano:ini, fimPlano:f, nota:f, ajustado:false, recortado:false }; });
+// ---- 🗓 ciclo de faturamento do plano: cliente cadastrado (cfg.clientes, 16g) › 🤝 contrato de parceria › mês civil ----
+// rpClienteDe é o leitor (não cria nada); rpCiclosDe diz DE ONDE vêm os períodos: { fonte:'cliente'|'contrato'|'mes', obj }.
+function rpClienteDe(p){ return p&&p.clienteId?clDe(p.clienteId):null; }
+function rpCiclosDe(p){ const cl=rpClienteDe(p); if(cl) return { fonte:'cliente', obj:cl }; const ct=rpContrato(p); if(ct) return { fonte:'contrato', obj:ct }; return { fonte:'mes', obj:null }; }
+// O ciclo do plano em palavras (cabeçalho, avisos): "ciclo do cliente NTT · fecha dia 25".
+function rpCicloTxt(p){ const ci=rpCiclosDe(p);
+  if(ci.fonte==='cliente') return `ciclo do cliente ${ci.obj.nome||''} · ${clFechaRot(ci.obj)}${Math.round(Number(ci.obj.fatDia)||0)>0?' · nota dia '+Math.round(Number(ci.obj.fatDia)):''}`;
+  if(ci.fonte==='contrato') return `ciclo do contrato ${pcCod(ci.obj)} ${ci.obj.consultoria||''} · fecha dia ${ci.obj.fatFecha||31}${ci.obj.fatDia?' · nota dia '+ci.obj.fatDia:''}`;
+  return 'mês civil (nosso ciclo)'; }
+// O ciclo do cliente e o do contrato ligado dão os mesmos períodos neste plano? (ym, datas e dia da nota) — null quando não há os dois ou batem.
+function rpDivergeCiclo(p){ const cl=rpClienteDe(p), ct=rpContrato(p); if(!cl||!ct) return null; const fim=rpFim(p);
+  const sig=(o)=>pcPeriodos(o,p.inicio,fim).map(P=>`${P.ym}|${P.iniPlano}|${P.fimPlano}|${P.nota}`); const a=sig(cl), b=sig(ct);
+  const n=Math.max(a.length,b.length); let dif=0; for(let i=0;i<n;i++) if(a[i]!==b[i]) dif++;
+  return dif?{ cl, ct, n:dif }:null; }
+// Assinatura dos períodos que a ordem de venda levou (ym e datas) — gravada em p.odoo.ciclo na criação para avisar quando mudarem.
+const rpSigPeriodos=(per)=>per.filter(P=>P.horas>0).map(P=>`${P.ym}:${P.iniPlano}:${P.fimPlano}`).join(',');
+function rpOdooCicloMudou(p, per){ const o=p&&p.odoo; if(!o||!o.id) return false;
+  if(o.ciclo&&typeof o.ciclo==='object'&&o.ciclo.sig) return o.ciclo.sig!==rpSigPeriodos(per);
+  const its=Array.isArray(o.itens)?o.itens:[]; if(!its.length||its.some(x=>!x||!x.ym)) return false;   // ordem antiga, sem a assinatura: confere só o conjunto de ciclos
+  const yI=new Set(its.map(x=>x.ym)); return its.some(x=>!per.some(P=>P.ym===x.ym))||per.some(P=>P.horas>0&&!yI.has(P.ym)); }
+// ---- 🧾 períodos de faturamento previstos (horas abertas): os do ciclo do plano (rpCiclosDe) ou o mês civil ----
+function rpPeriodosFat(p, calc){ const ci=rpCiclosDe(p); const fim=rpFim(p); const vp=calc||rpCalc(p,rpCenario(p)); const vh=vp.vh; const meses=vp.meses;
+  const base=ci.obj?pcPeriodos(ci.obj,p.inicio,fim):meses.map((m,i)=>{ const ini=i===0?p.inicio:m+'-01'; const f=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; return { ym:m, ini, fim:f, iniPlano:ini, fimPlano:f, nota:f, ajustado:false, recortado:false }; });
   return base.map(P=>{ let h=0, du=0; meses.forEach((m,i)=>{ const a=i===0?p.inicio:m+'-01'; const b=rpUltimoDia(m)<fim?rpUltimoDia(m):fim; const x=P.iniPlano>a?P.iniPlano:a, y=P.fimPlano<b?P.fimPlano:b; if(y<x) return; const d=rpDiasUteis(x,y); du+=d; if(vp.diasUteis[m]) h+=vp.vendPorMes[m]*d/vp.diasUteis[m]; });
-    h=Math.round(h*100)/100; return { ...P, du, horas:h, valor:h*vh }; }); }
+    h=Math.round(h*100)/100; return { ...P, du, horas:h, valor:h*vh, fonte:ci.fonte }; }); }
 const RP_ODOO_ST={ draft:'cotação em rascunho', sent:'cotação enviada', sale:'ordem de venda confirmada', done:'ordem concluída', cancel:'cancelada' };
 // Item da ordem de venda de cada período: pelo mês (itens gravados na criação) ou, em cotações antigas, pela ordem das linhas lidas do Odoo.
 function rpOdooItens(p, periodos){ const o=p.odoo; if(!o||!o.id) return periodos.map(()=>null); const its=Array.isArray(o.itens)&&o.itens.length?o.itens:null; const lista=(o.sync&&o.sync.lista)||[];
@@ -347,7 +373,7 @@ function renderRentab(){
           <div class="ams-dl"><div class="dt">Esforço previsto</div><div class="dd">${rpH(c.esforco)} <span class="muted small">${c.efic==null?'':Math.round(c.efic*100)+'%'}</span></div></div>
           <div class="ams-dl"><div class="dt">Custo</div><div class="dd">${fmtBRL(c.custo)}</div></div>
           <div class="ams-dl"><div class="dt">${kpi4[0]}</div><div class="dd">${kpi4[1]}</div></div></div>
-        <div class="muted small" style="margin-top:6px">${(p.cenarios||[]).length} cenário(s) · ${(rpCenario(p).aloc||[]).length} pessoa(s) alocada(s)${rpContrato(p)?` · 🤝 ${esc(rpContrato(p).consultoria||'')}`:''}${p.odoo&&p.odoo.id?` · 🧾 ${esc(p.odoo.name||'Odoo')}`:''}${p.atualizadoEm?` · atualizado ${dataBR(p.atualizadoEm)}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}`:''}</div></div>`; }).join('');
+        <div class="muted small" style="margin-top:6px">${(p.cenarios||[]).length} cenário(s) · ${(rpCenario(p).aloc||[]).length} pessoa(s) alocada(s)${rpContrato(p)?` · 🤝 ${esc(rpContrato(p).consultoria||'')}`:''}${rpClienteDe(p)?` · 🗓 ${esc(rpClienteDe(p).nome||'')} (${esc(clFechaRot(rpClienteDe(p)))})`:''}${p.odoo&&p.odoo.id?` · 🧾 ${esc(p.odoo.name||'Odoo')}`:''}${p.atualizadoEm?` · atualizado ${dataBR(p.atualizadoEm)}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}`:''}</div></div>`; }).join('');
     cont.replaceChildren(el(`<div class="rp-tela">${intro}<div class="card full"><h2>Planos <span>${planos.length} plano(s)</span></h2>
       ${planos.length?`<div class="ad-grid">${cards}</div>`:`<div class="estado">Nenhum plano ainda. ${gestor?'Clique em <b>＋ Novo plano</b>, escolha o projeto do Jira e informe duração, horas vendidas por dia e o valor da hora vendida para começar a simular.':'Peça a um gestor para cadastrar o primeiro plano.'}</div>`}</div></div>`));
     return;
@@ -356,7 +382,7 @@ function renderRentab(){
   rpGaranteReal(p); const real=rpReal(p,c); const chaveReal=rpRealChave(p);
   if(tipo==='horas') rpGaranteSyncOdoo(p);
   if(tipo==='fechado') rpGaranteFicha(p);
-  const [stc,str]=rpStatus(p);
+  const [stc,str]=rpStatus(p); const ciclo=rpCiclosDe(p);
   const dados=tipo==='fechado'?`
       <div class="ams-dl"><div class="dt">Valor do projeto</div><div class="dd">${fmtBRL(c.valorProj)}</div></div>
       <div class="ams-dl"><div class="dt">Marcos de faturamento</div><div class="dd">${c.marcos.lista.length} <span class="muted small">· ${c.marcos.pctTot}% do valor</span></div></div>
@@ -374,6 +400,7 @@ function renderRentab(){
       <div class="ams-dl"><div class="dt">Valor da hora vendida</div><div class="dd">${fmtBRL(c.vh)}</div></div>
       <div class="ams-dl"><div class="dt">Receita prevista</div><div class="dd">${fmtBRL(c.receita)}</div></div>
       <div class="ams-dl"><div class="dt">🤝 Contrato de parceria</div><div class="dd">${ct?`<span class="lnk" data-goto="parcerias">${esc(ct.consultoria||'')}</span> <span class="muted small">fecha dia ${ct.fatFecha||31}${ct.fatDia?' · nota dia '+ct.fatDia:''}${ctSt&&ctSt.k!=='vigente'?' · '+esc(ctSt.rot):''}</span>`:'<span class="muted">sem contrato</span>'}</div></div>
+      <div class="ams-dl rp-ciclo-dl"><div class="dt">🗓 ${ciclo.fonte==='cliente'?'Ciclo do cliente':ciclo.fonte==='contrato'?'Ciclo do contrato':'Ciclo de faturamento'}</div><div class="dd">${ciclo.fonte==='cliente'?`<span class="lnk" data-goto="admin">${esc(ciclo.obj.nome||'')}</span> <span class="muted small">${esc(clFechaRot(ciclo.obj))}${Math.round(Number(ciclo.obj.fatDia)||0)>0?' · nota dia '+Math.round(Number(ciclo.obj.fatDia)):''}</span>`:ciclo.fonte==='contrato'?`<span class="muted small">o do 🤝 contrato · fecha dia ${ciclo.obj.fatFecha||31}</span>`:'<span class="muted small">mês civil</span>'} <div class="muted small">nosso ciclo: mês civil</div></div></div>
       <div class="ams-dl"><div class="dt">Margem-meta</div><div class="dd">${c.meta}%</div></div>`;
   const cab=`<div class="card full"><h2>💹 ${esc(p.nome||'(sem nome)')} <span class="badge rp-st-${stc}">${str}</span> <span class="badge rp-tipo" data-tip="${escA(T[2])}">${T[0]} ${T[1]}</span> <span>${esc(p.cliente||'')}${p.projeto?` · ${esc(projNome(p.projeto))} (${esc(p.projeto)})`:''} · ${dataBR(p.inicio)} → ${dataBR(rpFim(p))} · ${c.meses.length} mês(es)</span></h2>
     <div class="rp-dados">${dados}
@@ -489,9 +516,13 @@ function renderRentab(){
     const hojeS=hojeSP(); const temOdoo=!!(p.odoo&&p.odoo.id);
     const rowsP=per.map((P,i)=>{ const st=stItens[i]; const cls=st.k==='pago'||st.k==='faturado'?'ok':st.k==='parcial'?'aten':st.k==='fora'?'crit':'na'; const atrasada=temOdoo&&P.nota<hojeS&&st.k==='na';
       return `<tr class="rp-per rp-per-${st.k} ${P.iniPlano<=hojeS&&hojeS<=P.fimPlano?'rm-destaque':''}" data-rp-per="${escA(P.ym)}"><td><b>${esc(labelMesAbbr(P.ym))}</b>${P.ajustado?' <span class="muted small" data-tip="datas ajustadas no contrato para este mês">✎</span>':''}</td><td>${dataBR(P.iniPlano)} → ${dataBR(P.fimPlano)}${P.recortado?' <span class="muted small" data-tip="período do contrato recortado pelo prazo do plano">◧</span>':''}</td><td>${dataBR(P.fim)}</td><td>${dataBR(P.nota)}${atrasada?' <span class="rp-neg" data-tip="a data da nota já passou e o item ainda não foi faturado no Odoo">⚠</span>':''}</td><td class="num">${P.du}</td><td class="num">${rpH(P.horas)}</td><td class="num"><b>${fmtBRL(P.valor)}</b></td><td><span class="ct-sem ${cls}">${esc(st.rot)}</span></td></tr>`; }).join('');
-    const perHtml=`<div class="mp-h3" style="margin-top:12px">🧾 Períodos de faturamento previstos <span class="mp-dim">${ct?`contrato ${esc(ct.consultoria||'')} · fecha dia ${ct.fatFecha||31}${ct.fatDia?' · nota dia '+ct.fatDia:''}${ct.conta?' · conta '+esc(ct.conta):''}`:'sem contrato: mês civil — ligue um 🤝 contrato de parceria para usar o fechamento da consultoria'}</span></div>
-      <div class="scroll-x"><table class="mp-tab-mini rp-per-tab"><thead><tr><th>Mês</th><th>Período</th><th>Fechamento</th><th>Nota</th><th class="num">Dias úteis</th><th class="num">Horas</th><th class="num">Valor</th><th>Odoo</th></tr></thead><tbody>${rowsP}</tbody>
-        <tfoot><tr><td colspan="5"><b>Total</b> <span class="muted small">${per.length} período(s)</span></td><td class="num"><b>${rpH(per.reduce((s,P)=>s+P.horas,0))}</b></td><td class="num"><b>${fmtBRL(totPer)}</b></td><td>${temOdoo?`<span class="muted small">faturado ${fmtBRL(fatV)} · pago ${fmtBRL(pagoV)} · a faturar ${fmtBRL(Math.max(0,totPer-fatV))}</span>`:''}</td></tr></tfoot></table></div>`;
+    const cicloDim=ciclo.fonte==='cliente'?`${esc(rpCicloTxt(p))} · cada ciclo leva o nome do mês em que termina · nosso ciclo é o mês civil`
+      :ciclo.fonte==='contrato'?`contrato ${esc(ct.consultoria||'')} · fecha dia ${ct.fatFecha||31}${ct.fatDia?' · nota dia '+ct.fatDia:''}${ct.conta?' · conta '+esc(ct.conta):''} · nosso ciclo é o mês civil`
+      :'mês civil (o nosso ciclo) — cadastre o ciclo do cliente em 📑 Contratos › 🏢 Clientes ou ligue um 🤝 contrato de parceria para usar o fechamento do cliente';
+    const avisoOdooCiclo=rpOdooCicloMudou(p,per)?`<div class="aviso rp-odoo-ciclo">⚠ Os <b>períodos de faturamento mudaram</b> desde que a ordem <b>${esc(p.odoo.name||('#'+p.odoo.id))}</b> foi criada (hoje: ${esc(rpCicloTxt(p))}). A ordem não se recria sozinha — ${gestor?'use <b>esquecer vínculo</b> e crie outra com os períodos de hoje, ou ajuste os itens no Odoo':'peça a um gestor para esquecer o vínculo e criar outra, ou ajustar os itens no Odoo'}.</div>`:'';
+    const perHtml=`<div class="mp-h3" style="margin-top:12px">🧾 Períodos de faturamento previstos <span class="mp-dim">${cicloDim}</span></div>
+      <div class="scroll-x"><table class="mp-tab-mini rp-per-tab"><thead><tr><th>${ciclo.fonte==='mes'?'Mês':'Ciclo'}</th><th>Período</th><th>Fechamento</th><th>Nota</th><th class="num">Dias úteis</th><th class="num">Horas</th><th class="num">Valor</th><th>Odoo</th></tr></thead><tbody>${rowsP}</tbody>
+        <tfoot><tr><td colspan="5"><b>Total</b> <span class="muted small">${per.length} período(s)</span></td><td class="num"><b>${rpH(per.reduce((s,P)=>s+P.horas,0))}</b></td><td class="num"><b>${fmtBRL(totPer)}</b></td><td>${temOdoo?`<span class="muted small">faturado ${fmtBRL(fatV)} · pago ${fmtBRL(pagoV)} · a faturar ${fmtBRL(Math.max(0,totPer-fatV))}</span>`:''}</td></tr></tfoot></table></div>${avisoOdooCiclo}`;
     const sy=p.odoo&&p.odoo.sync; const syncErro=estado.rentab.syncErro&&estado.rentab.syncErro[p.id]; const syncB=estado.rentab.syncB&&estado.rentab.syncB[p.id];
     const od=temOdoo?`<div class="aviso ok rp-odoo">🧾 Ordem de venda no Odoo: <a href="${escA(p.odoo.url||'#')}" target="_blank" rel="noopener"><b>${esc(p.odoo.name||('#'+p.odoo.id))}</b> ↗</a> criada em ${dataBR((p.odoo.em||'').slice(0,10))}${p.odoo.por?` por ${esc(p.odoo.por)}`:''} · ${fmtBRL(p.odoo.total||0)} em ${p.odoo.linhas||0} item(ns)${sy?` · <b>${esc(RP_ODOO_ST[sy.state]||sy.state||'')}</b> · ${(sy.faturas||[]).length} fatura(s) · lido ${esc(pcQuando(sy.em))}`:''}${syncErro?` · <span class="rp-neg">⚠ ${esc(syncErro)}</span>`:''}
         <button class="btn rt-step" data-rp-odoo-sync="1" ${syncB?'disabled':''}>${syncB?'⏳ Lendo o Odoo…':'↻ Sincronizar com o Odoo'}</button>${gestor?' <button class="btn rt-step" data-rp-odoo-limpar="1" data-tip="Esquece o vínculo para poder criar outra ordem">esquecer vínculo</button>':''}
@@ -501,12 +532,12 @@ function renderRentab(){
         <div class="muted small">Desde 2026-09-20 o contrato é o dono da ordem: um item por período de faturamento + um por hora extra, com o rateio por objeto de resultado e a sincronização (↻) em 📑 Contratos › 🤝 Parceiros › 🧾 Faturamentos.</div></div>`
       :gestor?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn primario" data-rp-odoo="1" ${c.receita>0?'':'disabled'} data-tip="Cria no Odoo (Vendas) uma COTAÇÃO em rascunho com um item por período de faturamento: horas previstas × valor da hora. Nada é confirmado automaticamente.">🧾 Criar ordem de venda no Odoo — um item por período</button><span class="muted small">${per.length} item(ns) · total ${fmtBRL(totPer)} · cliente <b>${esc(p.cliente||(ct?ct.consultoria:'')||'(informe o cliente)')}</b>${ct?' · <b>dica:</b> crie a ordem pelo 🤝 contrato (🧾 Faturamentos) para ter horas extras e objetos de resultado':''}</span></div><div id="rp-odoo-fb" class="ap-fb" hidden></div>`
       :'';
-    tipoHtml=`<section class="rm-bloco"><h3 class="mp-h3">💵 Precisão de receita — prevista × realizada por mês <span class="mp-dim">horas por dia útil × dias úteis × valor da hora</span></h3>
+    tipoHtml=`<section class="rm-bloco"><h3 class="mp-h3">💵 Precisão de receita — prevista × realizada por mês <span class="mp-dim">nosso ciclo: o mês civil · horas por dia útil × dias úteis × valor da hora</span></h3>
       <div class="scroll-x"><table class="mp-tab-mini rp-rec"><thead><tr><th>Mês</th><th class="num">Horas vendidas</th><th class="num">Receita prevista</th><th class="num">Horas faturáveis realizadas</th><th class="num">Receita realizada</th><th class="num">Diferença</th><th class="num">Acumulado (prev. / real.)</th></tr></thead>
         <tbody>${rows}</tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${rpH(c.vend)}</b></td><td class="num"><b>${fmtBRL(c.receita)}</b></td><td class="num">${real?rpH(real.hFat):'—'}</td><td class="num">${real?fmtBRL(real.receitaReal):'—'}</td><td class="num">${real?`<span class="${real.receitaReal<real.receitaAteHoje?'rp-neg':'rp-pos'}" data-tip="realizada − prevista até hoje (pro rata)">${real.receitaReal<real.receitaAteHoje?'−':'+'}${fmtBRL(Math.abs(real.receitaReal-real.receitaAteHoje))}</span>`:''}</td><td></td></tr></tfoot></table></div>
       ${perHtml}
       ${od}
-      ${ctExpl('a <b>receita prevista</b> de cada mês é a carga por dia útil × os dias úteis do mês × o valor da hora; a <b>realizada</b> são as horas <b>faturáveis</b> apontadas no projeto (Clockwork) × o valor da hora — horas não faturáveis (reunião interna, ADM…) aparecem como n/f e não geram receita. Os <b>períodos de faturamento</b> seguem o fechamento do 🤝 contrato de parceria ("até o dia 25": de 26 a 25, nota no dia combinado; datas ajustáveis mês a mês no contrato) ou o mês civil quando não há contrato. A <b>ordem de venda no Odoo</b> nasce com <b>um item por período</b> (horas previstas × valor da hora) e a sincronização traz de volta o que foi faturado e pago.')}</section>`;
+      ${ctExpl('a <b>receita prevista</b> de cada mês é a carga por dia útil × os dias úteis do mês × o valor da hora; a <b>realizada</b> são as horas <b>faturáveis</b> apontadas no projeto (Clockwork) × o valor da hora — horas não faturáveis (reunião interna, ADM…) aparecem como n/f e não geram receita. Os <b>períodos de faturamento</b> seguem o ciclo do <b>cliente</b> cadastrado em 📑 Contratos › 🏢 Clientes (ex.: NTT fecha dia 25, e o ciclo leva o nome do mês em que termina), o fechamento do 🤝 contrato de parceria ("até o dia 25": de 26 a 25, nota no dia combinado) ou o mês civil — nessa ordem. O <b>nosso ciclo</b> (a tabela mensal acima, o planner e as horas vendidas) é sempre o mês civil. A <b>ordem de venda no Odoo</b> nasce com <b>um item por período</b> (horas previstas × valor da hora) e a sincronização traz de volta o que foi faturado e pago.')}</section>`;
   } else if(tipo==='fechado'){
     const M=c.marcos; const ficha=p.projeto&&estado.projetos&&estado.projetos.fichas&&estado.projetos.fichas[p.projeto]; const epicos=(ficha&&ficha.epicos)||[];
     const rows=M.lista.map(m=>{ const ep=epicos.find(e=>e.k===m.epico);
@@ -607,6 +638,10 @@ function renderRentab(){
   if(ct&&ctSt&&ctSt.k==='avencer') avisos.push(`⏰ O contrato <b>${esc(ct.consultoria||'')}</b> vence em ${dataBR(ct.fim)} — aviso prévio ${ctSt.avisoPassou?'<b>deveria ter sido dado</b> até':'até'} ${dataBR(ctSt.avisoAte)}.`);
   if(ct&&ctSt&&ctSt.k==='encerrado') avisos.push(`⚠ O contrato <b>${esc(ct.consultoria||'')}</b> está <b>encerrado</b> desde ${dataBR(ct.fim)} — renove-o em 🤝 Contratos de parceria.`);
   if(ct&&((ct.inicio&&p.inicio<ct.inicio)||(ct.fim&&rpFim(p)>ct.fim))) avisos.push(`⚠ O prazo do plano (${dataBR(p.inicio)} → ${dataBR(rpFim(p))}) sai da validade do contrato (${dataBR(ct.inicio)} → ${ct.fim?dataBR(ct.fim):'sem fim'}).`);
+  // 🗓 o ciclo do cliente e o do contrato ligado não dão os mesmos períodos: a Rentabilidade usa o do cliente; o Odoo do contrato, o do contrato
+  const dv=tipo==='horas'?rpDivergeCiclo(p):null;
+  if(dv) avisos.push(`⚠ O <b>ciclo do cliente ${esc(dv.cl.nome||'')}</b> (${esc(clFechaRot(dv.cl))}, ${esc(clNotaRot(dv.cl))}${clNAjustes(dv.cl)?`, ${clNAjustes(dv.cl)} ciclo(s) ajustado(s)`:''}) <b>não é o do contrato ${esc(pcCod(dv.ct))} ${esc(dv.ct.consultoria||'')}</b> (${esc(clFechaRot(dv.ct))}, ${esc(clNotaRot(dv.ct))}${clNAjustes(dv.ct)?`, ${clNAjustes(dv.ct)} ciclo(s) ajustado(s)`:''}): ${dv.n} período(s) deste plano ficam com datas diferentes. Aqui vale o do cliente; a ordem de venda do contrato no Odoo e as notas dele continuam pelo ciclo do contrato.${gestor?` <button class="btn rt-step" data-rp-cl-para-ct="${escA(dv.cl.id)}|${escA(dv.ct.id)}" data-tip="Grava o fechamento, o dia da nota e os ciclos ajustados do cliente no contrato — os dois passam a dar os mesmos períodos">📋 Copiar o ciclo do cliente para o contrato</button>`:''}`);
+  if(tipo==='horas'&&p.clienteId&&!rpClienteDe(p)) avisos.push('⚠ O cliente ligado a este plano (ciclo de faturamento) <b>não existe mais</b> no cadastro — os períodos voltaram ao do contrato ou ao mês civil. Escolha outro em ✏️ Dados do projeto ou cadastre-o de novo em 📑 Contratos › 🏢 Clientes.');
   const hist=rpHist(p).slice().reverse();
   const histHtml=`<section class="rm-bloco"><h3 class="mp-h3">🕓 Histórico do plano <span class="mp-dim">criado ${p.criadoEm?dataBR(p.criadoEm):'—'}${p.criadoPor?' por '+esc(p.criadoPor):''} · última alteração ${p.atualizadoEm?dataBR(p.atualizadoEm):'—'}${p.atualizadoPor?' por '+esc(p.atualizadoPor):''}</span></h3>
     ${hist.length?`<div class="scroll-x"><table class="mp-tab-mini rp-hist"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>${hist.slice(0,12).map(rpHistRow).join('')}</tbody></table></div>${hist.length>12?`<button class="btn rt-step" data-rp-hist-tudo="1">ver todos os ${hist.length} registros</button>`:''}`:'<div class="muted small">Ainda sem registros — daqui em diante toda gravação e alteração do plano fica aqui: quem, quando e o quê (dados, cenários, alocação, marcos, simulador e Odoo).</div>'}
@@ -647,6 +682,7 @@ function rpFormHTML(p, novo){
       <div class="campo"><label>Nome do plano</label><input type="text" id="rp-f-nome" value="${escA(p.nome||'')}" placeholder="preenchido pelo projeto; ajuste se quiser" style="min-width:240px"></div>
       <div class="campo"><label>Cliente</label><input type="text" id="rp-f-cliente" value="${escA(p.cliente||'')}" placeholder="nome do cliente"></div>
       <div class="campo" data-rp-f-so="horas fechado"><label>🤝 Contrato de parceria</label><select id="rp-f-contrato"><option value="">— nenhum —</option>${pcLista().map(x=>`<option value="${escA(x.id)}" ${p.contrato===x.id?'selected':''}>${esc(pcCod(x))} · ${esc(x.consultoria||'')} · ${esc(PC_MODAL[pcModal(x)][1])} · fecha dia ${x.fatFecha||31}</option>`).join('')}</select><div class="muted small">cliente, valor-hora e períodos de faturamento vêm do contrato${pcLista().length?'':' — <span class="lnk" data-goto="parcerias">cadastre um</span>'}</div></div>
+      <div class="campo" data-rp-f-so="horas"><label>🗓 Ciclo de faturamento do cliente</label><select id="rp-f-cliente-id"><option value="">— nenhum (vale o do contrato, ou o mês civil) —</option>${clLista().map(x=>`<option value="${escA(x.id)}" ${p.clienteId===x.id?'selected':''}>${esc(x.nome||x.id)} · ${esc(clFechaRot(x))}</option>`).join('')}${p.clienteId&&!clDe(p.clienteId)?`<option value="${escA(p.clienteId)}" selected>(cliente removido)</option>`:''}<option value="__novo">＋ cadastrar este cliente com o nome acima</option></select><div class="muted small" id="rp-f-cl-dica">${rpClienteDica(p.clienteId)}</div></div>
       <div class="campo"><label>Início</label><input type="date" id="rp-f-inicio" value="${escA(p.inicio||'')}"></div>
       <div class="campo"><label>Fim</label><input type="date" id="rp-f-fim" value="${escA(p.fim||'')}" data-tip="Data de fim do projeto; a duração em meses é calculada a partir dela"></div>
       <div class="campo"><label>Duração (meses)</label><input type="number" id="rp-f-meses" min="1" max="${RP_MAX_MESES}" step="1" value="${escA(String(p.meses||3))}" style="width:90px" data-tip="Sem data de fim, o plano vai até o último dia do último mês"></div>
@@ -660,6 +696,13 @@ function rpFormHTML(p, novo){
     <div class="muted small" id="rp-f-dica" style="margin-top:6px">${rpDicaTipo(tipo)}</div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn primario" id="rp-f-salvar">${novo?'Criar plano':'Salvar dados'}</button><button class="btn" id="rp-f-cancelar">Cancelar</button></div>
     <div class="ap-fb" id="rp-f-fb" hidden></div></div>`;
+}
+// Dica do select de ciclo do cliente: o que o cliente escolhido faz (ou o que o "＋ cadastrar" vai criar).
+function rpClienteDica(id){
+  if(id==='__novo') return 'Cadastra um cliente com o nome do campo <b>Cliente</b>, partindo do ciclo do contrato escolhido (ou do mês civil) — depois ajuste o calendário em 📑 Contratos › 🏢 Clientes.';
+  const cl=clDe(id); if(!cl) return `Vale o ciclo do cliente cadastrado em 📑 Contratos › 🏢 Clientes${clLista().length?'':' — <span class="lnk" data-goto="admin">cadastre o primeiro</span>'}; sem ele, o do 🤝 contrato; sem os dois, o mês civil (nosso ciclo).`;
+  const P=pcPeriodo(cl,pcYmDaData(cl,hojeSP()));
+  return `🗓 <b>${esc(cl.nome||'')}</b>: ${esc(clFechaRot(cl))}, ${esc(clNotaRot(cl))}. Ciclo de hoje: <b>${esc(labelMesAbbr(P.ym))}</b> = ${dataBR(P.ini)} → ${dataBR(P.fim)}. Vale antes do ciclo do contrato; o nosso ciclo segue sendo o mês civil.`;
 }
 function rpDicaTipo(tipo){
   return tipo==='fechado'?'Escopo fechado: a receita é o <b>valor do projeto</b>, faturado pelos <b>marcos</b> (cadastrados depois de criar o plano). As horas vendidas são opcionais e servem para a eficiência e o valor-hora efetivo.'
@@ -677,7 +720,7 @@ function rpFormAjustaTipo(){
 function rpLeForm(p){
   const v=(id)=>{ const e=document.getElementById(id); return e?String(e.value).trim():''; };
   p.projeto=v('rp-f-projeto'); p.nome=v('rp-f-nome')||(p.projeto?projNome(p.projeto):''); p.cliente=v('rp-f-cliente'); p.inicio=v('rp-f-inicio')||p.inicio;
-  p.tipo=RP_TIPOS[v('rp-f-tipo')]?v('rp-f-tipo'):'horas'; const fim=v('rp-f-fim'); p.fim=/^\d{4}-\d{2}-\d{2}$/.test(fim)?fim:''; p.contrato=pcDe(v('rp-f-contrato'))?v('rp-f-contrato'):'';
+  p.tipo=RP_TIPOS[v('rp-f-tipo')]?v('rp-f-tipo'):'horas'; const fim=v('rp-f-fim'); p.fim=/^\d{4}-\d{2}-\d{2}$/.test(fim)?fim:''; p.contrato=pcDe(v('rp-f-contrato'))?v('rp-f-contrato'):''; const ct=pcDe(p.contrato);
   p.meses=Math.max(1,Math.min(RP_MAX_MESES,Math.round(Number(v('rp-f-meses'))||1))); if(rpFimValido(p)) p.meses=rpMeses(p).length;   // com fim informado, a duração vem dele
   const modo=v('rp-f-modo'); p.modoCarga=modo==='total'?'total':modo==='mes'?'mes':'dia';
   const carga=Math.max(0,Number(v('rp-f-carga'))||0); if(p.modoCarga==='total') p.cargaTotal=carga; else if(p.modoCarga==='mes') p.cargaMes=carga; else p.cargaDia=carga;
@@ -688,6 +731,12 @@ function rpLeForm(p){
   if(p.tipo==='horas'){ if(!carga) return 'Informe a carga de trabalho vendida (horas por dia útil ou total).'; if(!p.valorHora) return 'Informe o valor da hora vendida.'; }
   if(p.tipo==='fechado'&&!p.valorProjeto) return 'Informe o valor do projeto (escopo fechado).';
   if(p.tipo==='interno'&&!p.orcamento) return 'Informe o orçamento de custo do projeto interno.';
+  // 🗓 ciclo de faturamento do cliente (só horas abertas): um cliente do cadastro, nenhum, ou "＋ cadastrar" — que só nasce aqui, depois de todas as validações
+  if(p.tipo==='horas'){ const cid=v('rp-f-cliente-id');
+    if(cid==='__novo'){ if(!p.cliente) return 'Informe o nome do cliente (campo Cliente) para cadastrá-lo com o ciclo de faturamento.';
+      const ja=clPorNome(p.cliente); const c=ja||clCria(p.cliente,{ fatFecha:ct?ct.fatFecha:31, fatDia:ct?ct.fatDia:0, ajustes:ct?ct.ajustes:{} }); p.clienteId=c.id;
+      if(!ja) toast(`Cliente ${c.nome} cadastrado com o ${ct?'ciclo do contrato '+(ct.consultoria||''):'mês civil'} — ajuste o calendário em 📑 Contratos › 🏢 Clientes.`,'ok'); }
+    else if(cid&&clDe(cid)) p.clienteId=cid; else delete p.clienteId; }
   return '';
 }
 // Redistribui as horas de EXECUÇÃO do cenário para fechar em `alvo` horas (proporcional; sem alocação, nada a fazer).
@@ -709,6 +758,10 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     const cl=document.getElementById('rp-f-cliente'); if(cl&&(!cl.value||cl.getAttribute('data-auto')==='1')){ cl.value=c.consultoria||''; cl.setAttribute('data-auto','1'); }
     const vh=document.getElementById('rp-f-vh'); if(vh&&(!Number(vh.value)||vh.getAttribute('data-auto')==='1')&&Number(c.valorHora)>0){ vh.value=c.valorHora; vh.setAttribute('data-auto','1'); }
     if(dica) dica.innerHTML=`🤝 Contrato <b>${esc(c.consultoria||'')}</b> (${esc(PC_MODAL[pcModal(c)][1])}): valor-hora ${Number(c.valorHora)>0?fmtBRL(c.valorHora):'não informado'} · fecha dia ${c.fatFecha||31}${c.fatDia?' · nota dia '+c.fatDia:''} · validade ${dataBR(c.inicio)} → ${c.fim?dataBR(c.fim):'sem fim'}${c.conta?' · conta '+esc(c.conta):''}. A receita prevista será quebrada nos períodos de faturamento deste contrato.`; return; }
+  if(t.id==='rp-f-cliente-id'){   // 🗓 o cliente escolhido traz o nome (sem sobrescrever o que a pessoa digitou) e a dica do ciclo
+    const cl=clDe(t.value); const dica=document.getElementById('rp-f-cl-dica'); if(dica) dica.innerHTML=rpClienteDica(t.value);
+    const nm=document.getElementById('rp-f-cliente'); if(cl&&nm&&(!nm.value||nm.getAttribute('data-auto')==='1')){ nm.value=cl.nome||''; nm.setAttribute('data-auto','1'); }
+    return; }
   if(t.id==='rp-f-fim'||t.id==='rp-f-meses'||t.id==='rp-f-inicio'){   // fim ⇄ duração: um preenche o outro
     const ini=(document.getElementById('rp-f-inicio')||{}).value||''; const fim=document.getElementById('rp-f-fim'); const ms=document.getElementById('rp-f-meses'); if(!ini||!fim||!ms) return;
     if(t.id==='rp-f-meses'&&Number(ms.value)>0){ const n=Math.max(1,Math.min(RP_MAX_MESES,Math.round(Number(ms.value)))); fim.value=rpFim({inicio:ini,meses:n,fim:''}); }
@@ -718,6 +771,7 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
     const nm=document.getElementById('rp-f-nome'); if(nm&&t.value&&(!nm.value||nm.getAttribute('data-auto')==='1')){ nm.value=projNome(t.value); nm.setAttribute('data-auto','1'); }
     const st=document.getElementById('rp-f-tipo'); if(st&&t.value&&(r.novo||st.getAttribute('data-auto')==='1')){ st.value=rpTipoSugerido(t.value); st.setAttribute('data-auto','1'); rpFormAjustaTipo(); }
     const c=(cfg.contratos||[]).find(x=>x&&(x.projetos||[]).includes(t.value)); if(!c) return;
+    if(c.clienteId&&clDe(c.clienteId)){ const sc=document.getElementById('rp-f-cliente-id'); if(sc&&!sc.value){ sc.value=c.clienteId; const dc=document.getElementById('rp-f-cl-dica'); if(dc) dc.innerHTML=rpClienteDica(c.clienteId); } }   // 🗓 o contrato da 🏢 já aponta o ciclo do cliente
     const vh=document.getElementById('rp-f-vh'), cg=document.getElementById('rp-f-carga'), md=document.getElementById('rp-f-modo'), dica=document.getElementById('rp-f-dica');
     if(vh&&!Number(vh.value)&&Number(c.valorHora)>0) vh.value=c.valorHora;
     const hvP=ctHorasDoProjeto(c,t.value);   // horas abertas: o alocado a ESTE projeto, não o total do contrato
@@ -803,6 +857,14 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-rp-voltar')){ r.sel=''; r.edit=false; r.novo=false; renderRentab(); estadoParaURL(); return; }
   if(t.hasAttribute('data-rp-cen')){ const p=rpPlano(r.sel); if(!p) return; p.cenario=t.getAttribute('data-rp-cen'); if(gestor) rpSalva(p); renderRentab(); return; }
   if(!gestor) return;
+  // 🗓 migração: grava o fechamento, o dia da nota e os ciclos ajustados do CLIENTE no contrato ligado (o Odoo do contrato lê o contrato)
+  if(t.hasAttribute('data-rp-cl-para-ct')){ const [cid,tid]=t.getAttribute('data-rp-cl-para-ct').split('|'); const cl=clDe(cid), ct=pcDe(tid); const p=rpPlano(r.sel); if(!cl||!ct||!p) return;
+    const odoo=typeof pcOdoo==='function'&&pcOdoo(ct);
+    if(!confirm(`Copiar o ciclo do cliente ${cl.nome} (${clFechaRot(cl)}, ${clNotaRot(cl)}${clNAjustes(cl)?`, ${clNAjustes(cl)} ciclo(s) ajustado(s)`:''}) para o contrato ${pcCod(ct)} ${ct.consultoria||''}?\n\nO contrato passa a fechar igual ao cliente — o que ele tinha (fecha dia ${ct.fatFecha||31}, nota dia ${ct.fatDia||0}, ${clNAjustes(ct)} ciclo(s) ajustado(s)) é substituído.${odoo?'\n\nEste contrato tem ordem de venda no Odoo: os itens já criados não mudam sozinhos, mas os períodos que ainda não foram gerados seguem as novas datas.':''}`)) return;
+    const antes=`fecha dia ${ct.fatFecha||31}, nota dia ${ct.fatDia||0}, ${clNAjustes(ct)} ajuste(s)`;
+    ct.fatFecha=clFechaDia(cl); ct.fatDia=Math.max(0,Math.min(31,Math.round(Number(cl.fatDia)||0))); ct.ajustes=clCopiaAjustes(cl.ajustes);
+    pcLog(ct,'ciclo',`ciclo copiado do cliente ${cl.nome}: ${clFechaRot(cl)}, ${clNotaRot(cl)}, ${clNAjustes(cl)} ciclo(s) ajustado(s) (antes: ${antes})`);
+    rpSalva(p,'contrato',`ciclo do cliente ${cl.nome} copiado para o contrato ${pcCod(ct)} ${ct.consultoria||''}`); toast(`Ciclo de ${cl.nome} copiado para o contrato ${pcCod(ct)}.`,'ok'); renderRentab(); return; }
   if(t.hasAttribute('data-rp-novo')){ r.novo=true; r.rasc=rpNovoPlano(); renderRentab(); return; }
   if(t.id==='rp-f-cancelar'){ r.novo=false; r.edit=false; r.rasc=null; renderRentab(); return; }
   if(t.id==='rp-f-salvar'){ const fb=document.getElementById('rp-f-fb');
@@ -866,7 +928,8 @@ function rpCriaCotacaoOdoo(p, btn, parceiroId){
       contrato:ct?{ consultoria:ct.consultoria||'', conta:ct.conta||'', fatFecha:ct.fatFecha||31, fatDia:ct.fatDia||0, modalidade:PC_MODAL[pcModal(ct)][1] }:null, parceiroId:parceiroId||null, email:id.email, token:id.token })})
     .then(r=>r.json()).then(j=>{
       if(j&&j.ok){ const itens=Array.isArray(j.itens)?j.itens.map((x,i)=>({ id:x.id, ym:x.mes||(linhas[i]&&linhas[i].mes)||'', qtd:Number(x.qtd)||0 })).filter(x=>x.id):[];
-        p.odoo={ id:j.id, name:j.name||'', url:j.url||'', em:new Date().toISOString(), por:id.nome||id.email, total:j.total||c.receita, linhas:linhas.length, itens, sync:null }; delete (estado.rentab.syncErro||{})[p.id];
+        const ci=rpCiclosDe(p);   // 🗓 de onde vieram os períodos desta ordem — se mudarem, a tela avisa (a ordem não se recria sozinha)
+        p.odoo={ id:j.id, name:j.name||'', url:j.url||'', em:new Date().toISOString(), por:id.nome||id.email, total:j.total||c.receita, linhas:linhas.length, itens, ciclo:{ f:ci.fonte, id:(ci.obj&&ci.obj.id)||'', sig:rpSigPeriodos(per) }, sync:null }; delete (estado.rentab.syncErro||{})[p.id];
         rpSalva(p,'odoo',`ordem de venda ${j.name||('#'+j.id)} criada no Odoo — ${linhas.length} item(ns) por período, ${fmtBRL(j.total||c.receita)}${ct?' · contrato '+(ct.consultoria||''):''}`); toast(`Cotação ${j.name||''} criada no Odoo (rascunho, ${linhas.length} item(ns)).`,'ok'); renderRentab(); return; }
       if(j&&Array.isArray(j.escolher)&&j.escolher.length){ diz('warn',`Mais de um cliente no Odoo parece com <b>${esc(cliente)}</b> — escolha: <select id="rp-odoo-parc">${j.escolher.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select> <button class="btn primario" data-rp-odoo-parc="1">Criar com este cliente</button>`); if(btn){ btn.disabled=false; btn.textContent=rot; } return; }
       diz('err',`⚠ ${esc((j&&j.erro)||'Não foi possível criar a ordem de venda.')}${j&&j.dica?`<div class="muted small">${esc(j.dica)}</div>`:''}`); if(btn){ btn.disabled=false; btn.textContent=rot; }

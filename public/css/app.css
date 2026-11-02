@@ -2290,6 +2290,20 @@
   .rp-grade input.rp-rep-i::placeholder{color:var(--muted);opacity:.85}
   .rp-rep-l{font-size:10.5px;color:var(--muted);white-space:nowrap}
   .rp-wf-cons{margin:2px 0 6px;text-align:right}
+  /* 🗓 ciclos de faturamento por cliente (16g, na 📑 Contratos › 🏢 Clientes) e o ciclo no cabeçalho do plano */
+  .cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+  .cl-card{border:1px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--cartao);border-left:5px solid var(--cerceta,#009994);min-width:0}
+  .cl-card.cl-aberto{grid-column:1/-1}
+  .cl-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:14px}
+  .cl-card .cl-top .btn{padding:4px 10px;font-size:12px}
+  .cl-form{margin-top:12px;padding:12px 14px;border:1px dashed var(--linha);border-radius:10px}
+  .cl-cal{margin-top:10px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px}
+  .cl-cal-tab td,.cl-cal-tab th{white-space:nowrap}
+  .cl-cal-tab input[type=date]{font-size:12.5px;padding:4px 6px;border:1px solid var(--linha);border-radius:6px;background:var(--cartao);color:var(--grafite)}
+  .cl-imp-res .aviso{margin-top:8px}
+  .cl-imp-rec{margin:6px 0 0 18px;padding:0}
+  .cl-imp-rec li{margin:3px 0}
+  .rp-ciclo-dl .dd .small{display:block}
   .rp-colw{display:flex;align-items:flex-end;gap:3px;height:150px}
   .rp-colw .rp-colb{height:100%}
   .rp-realb{display:block;width:8px;background:var(--amarelo,#eb6834);border-radius:3px 3px 0 0;min-height:2px}
@@ -3105,6 +3119,7 @@
   [data-theme="dexterity"] .qk-grid input,
   [data-theme="dexterity"] .qk-grid select,
   [data-theme="dexterity"] .ad-card,
+  [data-theme="dexterity"] .cl-card,
   [data-theme="dexterity"] .rc2-card,
   [data-theme="dexterity"] .rc2-tag,
   [data-theme="dexterity"] .ams-card,

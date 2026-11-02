@@ -16,6 +16,10 @@
 // Diferenças de forma (não de resultado): as funções recebem a `cfg` compartilhada (feriados
 // extra/removidos) e o `hoje` opcional, em vez de lerem globais — o servidor não tem `cfg`
 // nem `hojeSP()` no escopo e os testes precisam de datas fixas.
+//
+// 🗓 Desde 2026-11-02 também o CICLO DE FATURAMENTO do plano: porte do 16b (pcFechamento/pcNota/pcPeriodo/pcPeriodos — puros),
+// do 16g (cfg.clientes) e do 17b (rpCiclosDe/rpPeriodosFat). Precedência: cliente cadastrado › 🤝 contrato de parceria
+// (fatFecha/ajustes) › mês civil. Ordem de uso do cliente e do contrato = a mesma do painel; o gate confere os períodos.
 import { feriadosBR } from './util.js';
 
 export const RP_MAX_MESES = 36;
@@ -179,7 +183,7 @@ export function rpCalcResumo(p, cen, cfg, hoje) {
   });
   const esforco = rpEsf({ exec, gestao, terc });
   const margem = receita - custo; const margemCons = receita - custoCons;
-  return { meses, vend, vh, tipo, receita, receitaPorMes, diasUteis: vp.diasUteis, porMes, porPessoa,
+  return { meses, vend, vh, tipo, receita, receitaPorMes, vendPorMes, diasUteis: vp.diasUteis, porMes, porPessoa,
     exec, gestao, terc, esforco, custo, custoExec, custoGestao, custoTerc, custoCons,
     resultadoCedente: custoTerc - tercCons, margem, mgp: receita > 0 ? rpPct(margem, receita) : null, margemCons, mgpCons: receita > 0 ? rpPct(margemCons, receita) : null };
 }
@@ -198,4 +202,69 @@ export function rpPrevAte(p, calc, ate, cfg) {
     custoRestante: calc.meses.reduce((s, m) => s + calc.porMes[m].custo * (1 - fMes(m)), 0),
     fMesAtual: fMes(mesAtual),
   };
+}
+
+// ===========================================================================
+// 🗓 Ciclo de faturamento: cliente cadastrado › contrato de parceria › mês civil
+// ===========================================================================
+// Porte fiel do 16b (datas do ciclo) — o ciclo é definido pelo FIM (`ajustes[ym].fecha` ou o dia `fatFecha` do mês) e começa no dia
+// seguinte ao fim do anterior; a nota sai no `fatDia` (ou no fechamento). O cliente tem o MESMO modelo do contrato (fatFecha/fatDia/ajustes).
+export const pcData = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+export function pcDiaNoMes(ym, dia) { const u = rpUltimoDia(ym); const d = Math.max(1, Math.min(31, Math.round(Number(dia) || 31))); const dd = Math.min(d, +u.slice(8, 10)); return `${ym}-${String(dd).padStart(2, '0')}`; }
+export function pcYmSoma(ym, n) { let y = +ym.slice(0, 4); let m = +ym.slice(5, 7) + n; while (m > 12) { m -= 12; y += 1; } while (m < 1) { m += 12; y -= 1; } return `${y}-${String(m).padStart(2, '0')}`; }
+export function pcAjuste(c, ym) { const a = c && c.ajustes && c.ajustes[ym]; return a && typeof a === 'object' ? a : null; }
+// Fechamento do período de faturamento do mês ym: ajuste do mês ou o dia padrão (31 = último dia).
+export function pcFechamento(c, ym) { const a = pcAjuste(c, ym); if (a && pcData(a.fecha)) return a.fecha; return pcDiaNoMes(ym, c.fatFecha || 31); }
+// Dia da nota do mês ym: ajuste do mês; senão o dia de faturamento no próprio mês (≥ fechamento) ou no seguinte.
+export function pcNota(c, ym) {
+  const a = pcAjuste(c, ym); if (a && pcData(a.nota)) return a.nota;
+  const fd = Math.round(Number(c.fatDia) || 0); const fecha = pcFechamento(c, ym); if (!fd) return fecha;
+  const d = pcDiaNoMes(ym, fd); return d >= fecha ? d : pcDiaNoMes(pcYmSoma(ym, 1), fd);
+}
+export function pcPeriodo(c, ym) {
+  const fim = pcFechamento(c, ym); let ini = proxDia(pcFechamento(c, pcYmSoma(ym, -1))); if (ini > fim) ini = fim;
+  return { ym, ini, fim, nota: pcNota(c, ym), ajustado: !!pcAjuste(c, ym) };
+}
+// Períodos de faturamento que cobrem [de, ate] — recortados nas pontas (iniPlano/fimPlano).
+export function pcPeriodos(c, de, ate) {
+  const out = []; if (!pcData(de) || !pcData(ate) || ate < de) return out;
+  let ym = de.slice(0, 7); if (pcFechamento(c, ym) < de) ym = pcYmSoma(ym, 1); let g = 0;
+  while (g++ < 60) {
+    const P = pcPeriodo(c, ym); if (P.ini > ate) break;
+    out.push({ ...P, iniPlano: P.ini < de ? de : P.ini, fimPlano: P.fim > ate ? ate : P.fim, recortado: P.ini < de || P.fim > ate }); ym = pcYmSoma(ym, 1);
+  }
+  return out;
+}
+// O cliente (cfg.clientes) e o contrato de parceria (cfg.parcerias) do plano — só LEEM (nada é criado na cfg).
+export function rpClienteDe(p, cfg) {
+  const id = p && p.clienteId; if (!id) return null;
+  return (Array.isArray(cfg && cfg.clientes) ? cfg.clientes : []).find((c) => c && typeof c === 'object' && c.id === id) || null;
+}
+export function rpContratoDe(p, cfg) {
+  const id = p && p.contrato; if (!id) return null;
+  return (Array.isArray(cfg && cfg.parcerias) ? cfg.parcerias : []).find((c) => c && c.id === id) || null;
+}
+// De onde vêm os períodos do plano: { fonte: 'cliente' | 'contrato' | 'mes', obj }.
+export function rpCiclosDe(p, cfg) {
+  const cl = rpClienteDe(p, cfg); if (cl) return { fonte: 'cliente', obj: cl };
+  const ct = rpContratoDe(p, cfg); if (ct) return { fonte: 'contrato', obj: ct };
+  return { fonte: 'mes', obj: null };
+}
+// 🧾 Períodos de faturamento previstos (horas abertas): os do ciclo do plano ou o mês civil, com as horas vendidas rateadas pelos dias
+// úteis de cada período (o mesmo critério do rpVendAte) e o valor = horas × valor-hora. `calc` = resultado do rpCalcResumo (opcional).
+export function rpPeriodosFat(p, calc, cfg, hoje) {
+  const ci = rpCiclosDe(p, cfg); const fim = rpFim(p, hoje); const vp = calc || rpCalcResumo(p, null, cfg, hoje); const vh = vp.vh; const meses = vp.meses;
+  const base = ci.obj ? pcPeriodos(ci.obj, p.inicio, fim) : meses.map((m, i) => {
+    const ini = i === 0 ? p.inicio : `${m}-01`; const f = rpUltimoDia(m) < fim ? rpUltimoDia(m) : fim;
+    return { ym: m, ini, fim: f, iniPlano: ini, fimPlano: f, nota: f, ajustado: false, recortado: false };
+  });
+  return base.map((P) => {
+    let h = 0; let du = 0;
+    meses.forEach((m, i) => {
+      const a = i === 0 ? p.inicio : `${m}-01`; const b = rpUltimoDia(m) < fim ? rpUltimoDia(m) : fim;
+      const x = P.iniPlano > a ? P.iniPlano : a; const y = P.fimPlano < b ? P.fimPlano : b; if (y < x) return;
+      const d = rpDiasUteis(x, y, cfg); du += d; if (vp.diasUteis[m]) h += vp.vendPorMes[m] * d / vp.diasUteis[m];
+    });
+    h = Math.round(h * 100) / 100; return { ...P, du, horas: h, valor: h * vh, fonte: ci.fonte };
+  });
 }

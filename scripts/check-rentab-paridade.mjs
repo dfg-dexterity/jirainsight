@@ -11,6 +11,11 @@
 // Desde 2026-11-02 também confere o CUSTO PREVISTO por papel (execução · gestão · terceirizado interno com valor-hora de
 // repasse): rpCustoH/rpRepH/rpCalcResumo (= rpCalc), rpPrevAte (= o "previsto até aqui" do rpReal) e rpStatusK (= rpStatus),
 // com cfg.custosPessoa e cfg.pessoasPlanejadas IGUAIS dos dois lados e planos com terceirizado COM e SEM repasse.
+// Desde 2026-11-02 (T2) também confere o CICLO DE FATURAMENTO do plano: rpCiclosDe (cliente cadastrado › contrato de parceria ›
+// mês civil) e rpPeriodosFat (ym, datas do ciclo, dia da nota, dias úteis, horas e valor de cada período) dos dois lados, com
+// cfg.clientes e cfg.parcerias IGUAIS — por isso o vm carrega também 16b-parcerias.js (pcPeriodo/pcPeriodos) e 16g-clientes-ciclo.js
+// (clDe). Fixtures: plano com cliente (fecha dia 25 com ajuste), só com contrato, sem nada, cliente + contrato (precedência),
+// cliente que não existe mais, ajustes inválidos, fechamento 31, plano começando no meio do ciclo e a soma das horas = as vendidas.
 // Sem rede: nada aqui chama API.
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -19,9 +24,22 @@ import * as srv from '../api/_lib/rentab.js';
 const erros = [];
 const CFG = { feriadosExtra: { '2026-10-15': 'Feriado extra (fixture)' }, feriadosRemovidos: ['2026-11-20'] };
 // custo/h das pessoas e vagas planejadas — a MESMA config nos dois lados (o painel lê cfg.*, o servidor recebe por parâmetro)
+// ciclo de faturamento: clientes (16g) e contratos de parceria (16b) — a MESMA config nos dois lados
+const CLIENTES = [
+  { id: 'cl-ntt', nome: 'NTT', fatFecha: 25, fatDia: 0, inicio: '2025-12-26', ajustes: { '2026-03': { fecha: '2026-03-27' }, '2026-10': { fecha: '2026-10-22', nota: '2026-10-30' } } },
+  { id: 'cl-31', nome: 'Fecha no último dia', fatFecha: 31, fatDia: 5, ajustes: {} },
+  { id: 'cl-ruim', nome: 'Dados estranhos', fatFecha: 'x', fatDia: 'abc', ajustes: { '2026-09': 'texto', '2026-10': { fecha: 'amanhã', nota: 7 }, '2026-11': null, '2026-12': { fecha: '2026-12-18' } } },
+  { id: 'cl-feb', nome: 'Fecha dia 30 (fevereiro)', fatFecha: 30, fatDia: 15, ajustes: {} },
+  null, 'lixo', { nome: 'sem id' },
+];
+const PARCERIAS = [
+  { id: 'pc-x', consultoria: 'Consultoria X', modalidade: 'horas', fatFecha: 25, fatDia: 30, ajustes: { '2026-08': { fecha: '2026-08-24', nota: '2026-08-28' } } },
+  { id: 'pc-igual', consultoria: 'Igual ao NTT', modalidade: 'horas', fatFecha: 25, fatDia: 0, ajustes: { '2026-03': { fecha: '2026-03-27' }, '2026-10': { fecha: '2026-10-22', nota: '2026-10-30' } } },
+  { id: 'pc-sem', consultoria: 'Sem fechamento', modalidade: 'horas' },
+];
 const CUSTOS = { 'a-ana': 95, 'a-bruno': 60, 'a-diego': 150, 'a-zero': 0, 'a-txt': '80', 'a-ruim': 'abc', 'plan_fantasma': 70 };
 const PLANEJADAS = [{ id: 'plan_x1', nome: 'Vaga SAP', custoH: 110 }, { id: 'plan_x2', nome: 'Vaga sem custo', custoH: 'abc' }];
-CFG.custosPessoa = CUSTOS; CFG.pessoasPlanejadas = PLANEJADAS;
+CFG.custosPessoa = CUSTOS; CFG.pessoasPlanejadas = PLANEJADAS; CFG.clientes = CLIENTES; CFG.parcerias = PARCERIAS;
 const ALOC_BASE = [{ a: 'a-ana', papel: 'exec', h: { '2026-09': 100, '2026-10': 90, '2026-11': 80 } }, { a: 'a-diego', papel: 'gestao', h: { '2026-09': 10, '2026-10': 10, '2026-11': 10 } }];
 const mkPlano = (id, nome, extra, aloc2) => ({ id, nome, tipo: 'horas', inicio: '2026-09-01', fim: '2026-11-30', modoCarga: 'dia', cargaDia: 8, valorHora: 200, ...extra,
   cenarios: [{ id: id + 'c1', nome: 'Base', aloc: JSON.parse(JSON.stringify(ALOC_BASE.concat(aloc2 || []))) }, { id: id + 'c2', nome: 'Outro', aloc: [] }], cenario: id + 'c1' });
@@ -68,13 +86,13 @@ const sandbox = {
   window: {}, navigator: {}, location: { search: '', href: '' }, fetch: () => Promise.reject(new Error('sem rede')),
 };
 const ctx = vm.createContext(sandbox);
-for (const arq of ['public/js/01-nucleo.js', 'public/js/17b-rentabilidade.js']) {
+for (const arq of ['public/js/01-nucleo.js', 'public/js/16b-parcerias.js', 'public/js/16g-clientes-ciclo.js', 'public/js/17b-rentabilidade.js']) {
   try { new vm.Script(readFileSync(arq, 'utf8'), { filename: arq }).runInContext(ctx); }
   catch (e) { console.error(`✗ não consegui carregar ${arq} no vm: ${e.message}`); process.exit(1); }
 }
 // A config do painel (feriados) é a mesma passada ao servidor.
-vm.runInContext(`cfg.feriadosExtra=${JSON.stringify(CFG.feriadosExtra)}; cfg.feriadosRemovidos=${JSON.stringify(CFG.feriadosRemovidos)}; cfg.custosPessoa=${JSON.stringify(CFG.custosPessoa)}; cfg.pessoasPlanejadas=${JSON.stringify(CFG.pessoasPlanejadas)};`, ctx);
-const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario })', ctx);
+vm.runInContext(`cfg.feriadosExtra=${JSON.stringify(CFG.feriadosExtra)}; cfg.feriadosRemovidos=${JSON.stringify(CFG.feriadosRemovidos)}; cfg.custosPessoa=${JSON.stringify(CFG.custosPessoa)}; cfg.pessoasPlanejadas=${JSON.stringify(CFG.pessoasPlanejadas)}; cfg.clientes=${JSON.stringify(CFG.clientes)}; cfg.parcerias=${JSON.stringify(CFG.parcerias)};`, ctx);
+const web = vm.runInContext('({ rpMeses, rpFim, rpVendPorMes, rpVendidas, rpVendAte, rpDiasUteis, RP_MAX_MESES, hojeSP, rpCalc, rpReal, rpStatus, rpCustoH, rpRepH, rpPapel, rpPapelRot, rpEsf, rpCustoRealH, rpCenario, rpCiclosDe, rpClienteDe, rpPeriodosFat, rpDivergeCiclo, pcPeriodos, pcPeriodo })', ctx);
 const hoje = srv.spHoje();
 if (web.hojeSP() !== hoje) { console.error(`✗ hoje difere entre painel (${web.hojeSP()}) e servidor (${hoje}) — rode de novo`); process.exit(1); }
 
@@ -182,9 +200,66 @@ for (const [pid, cid, a, esp] of [['c3', 'c3c1', 'a-bruno', 120], ['c2', 'c2c1',
   cmp({ id: pid, nome: 'rpCustoRealH' }, `rpCustoRealH(${a})`, w, esp); n += 1;
 }
 
+// ---- 🗓 ciclo de faturamento: rpCiclosDe + rpPeriodosFat (cliente cadastrado › contrato de parceria › mês civil) ----
+const PLANOS_CICLO = [
+  mkPlano('k1', 'cliente NTT (fecha dia 25, dois ciclos ajustados)', { clienteId: 'cl-ntt' }),
+  mkPlano('k2', 'só contrato (fecha 25, nota 30, agosto ajustado)', { contrato: 'pc-x' }),
+  mkPlano('k3', 'sem cliente nem contrato (mês civil)', {}),
+  mkPlano('k4', 'cliente + contrato: o cliente vale', { clienteId: 'cl-ntt', contrato: 'pc-x' }),
+  mkPlano('k5', 'cliente que não existe mais cai no contrato', { clienteId: 'cl-sumiu', contrato: 'pc-x' }),
+  mkPlano('k6', 'cliente que não existe mais e sem contrato = mês civil', { clienteId: 'cl-sumiu' }),
+  mkPlano('k7', 'cliente que fecha no último dia', { clienteId: 'cl-31' }),
+  mkPlano('k8', 'cliente com dados estranhos (fechamento e ajustes inválidos)', { clienteId: 'cl-ruim' }),
+  mkPlano('k9', 'plano começa no meio do ciclo e acaba antes do fim dele', { clienteId: 'cl-ntt', inicio: '2026-09-10', fim: '2026-10-12' }),
+  mkPlano('k10', 'fevereiro com cliente que fecha dia 30', { clienteId: 'cl-feb', inicio: '2026-01-05', fim: '2026-03-10' }),
+  mkPlano('k11', 'cliente igual ao contrato (sem divergência)', { clienteId: 'cl-ntt', contrato: 'pc-igual' }),
+  mkPlano('k12', 'contrato sem fechamento (usa o último dia)', { contrato: 'pc-sem' }),
+  mkPlano('k13', 'total rateado e vendMan com cliente', { clienteId: 'cl-ntt', modoCarga: 'total', cargaTotal: 700, vendMan: { '2026-10': 90 } }),
+  mkPlano('k14', 'início inválido com cliente (nenhum período)', { clienteId: 'cl-ntt', inicio: '' }),
+  mkPlano('k15', 'contrato que não existe', { contrato: 'pc-fantasma' }),
+  mkPlano('k16', 'plano de muitos ciclos (o limite de 60)', { clienteId: 'cl-ntt', inicio: '2022-01-01', fim: '2028-12-31' }),
+];
+const FONTE_ESPERADA = { k1: 'cliente', k2: 'contrato', k3: 'mes', k4: 'cliente', k5: 'contrato', k6: 'mes', k7: 'cliente', k8: 'cliente', k9: 'cliente', k10: 'cliente', k11: 'cliente', k12: 'contrato', k13: 'cliente', k14: 'cliente', k15: 'mes', k16: 'cliente' };
+const DIVERGE_ESPERADO = { k4: true, k11: false, k1: false, k2: false };
+for (const p of PLANOS_CICLO) {
+  const P = JSON.parse(JSON.stringify(p)); const Q = JSON.parse(JSON.stringify(p));
+  const cw = web.rpCalc(P, P.cenarios[0]); const cs = srv.rpCalcResumo(Q, Q.cenarios[0], CFG, hoje);
+  const ciW = web.rpCiclosDe(P); const ciS = srv.rpCiclosDe(Q, CFG);
+  cmp(p, 'rpCiclosDe (fonte e objeto)', { fonte: ciW.fonte, id: ciW.obj && ciW.obj.id }, { fonte: ciS.fonte, id: ciS.obj && ciS.obj.id }); n += 1;
+  if (ciW.fonte !== FONTE_ESPERADA[p.id]) erros.push(`${p.id} (${p.nome}) · rpCiclosDe: fonte ${ciW.fonte}, esperava ${FONTE_ESPERADA[p.id]} (precedência cliente › contrato › mês civil)`);
+  const perW = web.rpPeriodosFat(P, cw); const perS = srv.rpPeriodosFat(Q, cs, CFG, hoje); const perS0 = srv.rpPeriodosFat(Q, null, CFG, hoje);
+  cmp(p, 'rpPeriodosFat', perW, perS); n += 1;
+  cmp(p, 'rpPeriodosFat (servidor sem o calc pronto)', perS, perS0); n += 1;
+  if (perW.some((x) => x.fonte !== FONTE_ESPERADA[p.id])) erros.push(`${p.id}: período com fonte diferente de ${FONTE_ESPERADA[p.id]}`);
+  if (p.id in DIVERGE_ESPERADO) { const dv = !!web.rpDivergeCiclo(P); if (dv !== DIVERGE_ESPERADO[p.id]) erros.push(`${p.id} (${p.nome}) · rpDivergeCiclo: ${dv}, esperava ${DIVERGE_ESPERADO[p.id]}`); n += 1; }
+  // invariantes: os períodos são contíguos e a soma das horas rateadas é a das horas vendidas (±0,05 de arredondamento por período)
+  for (let i = 1; i < perS.length; i += 1) if (perS[i].iniPlano !== srv.proxDia(perS[i - 1].fimPlano)) erros.push(`${p.id} (${p.nome}): períodos não contíguos em ${perS[i - 1].ym} → ${perS[i].ym}`);
+  if (perS.length) { const soma = perS.reduce((t, x) => t + x.horas, 0); const vend = srv.rpVendidas(Q, CFG, hoje);
+    if (Math.abs(soma - vend) > 0.05) erros.push(`${p.id} (${p.nome}): Σ horas dos períodos ${soma} ≠ horas vendidas ${vend}`); n += 1; }
+  else if (p.id !== 'k14') erros.push(`${p.id} (${p.nome}): nenhum período de faturamento`);
+  if (JSON.stringify(P) !== JSON.stringify(p) || JSON.stringify(Q) !== JSON.stringify(p)) erros.push(`${p.id}: o cálculo dos ciclos alterou o plano — leitores não criam objeto`);
+}
+// o NTT: Jan/26 = 26/12/2025 → 25/01/2026 e Mar/26 = 26/02 → 27/03 (ajustado) — o exemplo do pedido, conferido nos dois lados
+{
+  const q = JSON.parse(JSON.stringify(PLANOS_CICLO[0])); q.inicio = '2025-12-01'; q.fim = '2026-04-30';
+  const w = vm.runInContext('(cl)=>pcPeriodos(cl, "2025-12-01", "2026-04-30")', ctx)(CLIENTES[0]); const sv = srv.pcPeriodos(CLIENTES[0], '2025-12-01', '2026-04-30');
+  cmp({ id: 'ntt', nome: 'NTT' }, 'pcPeriodos', w, sv); n += 1;
+  const jan = sv.find((x) => x.ym === '2026-01'); const mar = sv.find((x) => x.ym === '2026-03');
+  if (!jan || jan.ini !== '2025-12-26' || jan.fim !== '2026-01-25') erros.push(`NTT Jan/26 deveria ser 2025-12-26 → 2026-01-25 e deu ${JSON.stringify(jan)}`);
+  if (!mar || mar.ini !== '2026-02-26' || mar.fim !== '2026-03-27' || !mar.ajustado) erros.push(`NTT Mar/26 (ajustado) deveria ser 2026-02-26 → 2026-03-27 e deu ${JSON.stringify(mar)}`);
+}
+// leitores do cadastro não criam cfg.clientes (a mescla da config compartilhada trata o que a sessão cria como mudança dela)
+{
+  const r = vm.runInContext('delete cfg.clientes; rpClienteDe({clienteId:"x"}); rpCiclosDe({clienteId:"x"}); clDe("x"); clLista(); clPlanosDe("x"); clContratosDe("x"); clEmUso("x"); typeof cfg.clientes', ctx);
+  if (r !== 'undefined') erros.push(`os leitores de cfg.clientes criaram o objeto (typeof = ${r}) — só o setter pode criar`); n += 1;
+  vm.runInContext(`cfg.clientes=${JSON.stringify(CLIENTES)};`, ctx);
+  let quebrou = ''; try { srv.rpCiclosDe({ clienteId: 'x', contrato: 'y' }, {}); srv.rpCiclosDe({ clienteId: 'x' }, { clientes: 'texto', parcerias: 7 }); srv.rpPeriodosFat(PLANOS_CICLO[0], null, {}, hoje); } catch (e) { quebrou = e.message; }
+  if (quebrou) erros.push(`o servidor quebrou com cfg sem clientes/parcerias ou com lixo: ${quebrou}`); n += 1;
+}
+
 if (erros.length) {
   console.error('✗ Rentabilidade: servidor e painel divergem — api/_lib/rentab.js precisa acompanhar o 17b:');
   erros.forEach((e) => console.error('  ✗ ' + e));
   process.exit(1);
 }
-console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel, ${n} comparações — servidor = painel).`);
+console.log(`✓ Paridade da Rentabilidade OK (${PLANOS.length} planos de horas vendidas + ${PLANOS_CUSTO.length} de custo/papel + ${PLANOS_CICLO.length} de ciclo de faturamento, ${n} comparações — servidor = painel).`);

@@ -1663,6 +1663,22 @@
   .vw-admin #ad-ams>label.check input{vertical-align:-3px;margin:0 6px 0 0}
   .vw-admin .rg-pessoas{grid-template-columns:minmax(0,1fr)}
   .vw-admin .rg-pessoas .check{font-size:14px;text-transform:none;letter-spacing:0;color:inherit;padding:5px 0}
+  /* 🗓 ciclos de faturamento por cliente (16g): cartões em coluna única, formulário em 2 colunas, calendário rola no cartão */
+  .vw-admin .cl-bloco .cl-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+  .vw-admin .cl-card{padding:10px 12px}
+  .vw-admin .cl-top{gap:6px}
+  .vw-admin .cl-top>strong{flex:1 1 100%;overflow-wrap:anywhere}
+  .vw-admin .cl-top>.spacer{display:none}
+  .vw-admin .cl-top>.btn{padding:6px 10px}
+  .vw-admin .cl-top .badge{font-size:12px}
+  .vw-admin .cl-form{padding:10px}
+  .vw-admin .cl-form .pl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .vw-admin .cl-form .pl-grid>.campo{min-width:0}
+  .vw-admin .cl-form .pl-grid>.campo:first-child,.vw-admin .cl-form .pl-grid>.campo:last-child{grid-column:1/-1}
+  .vw-admin .cl-form .pl-grid :is(input,select){width:100%!important;min-width:0!important;max-width:none;box-sizing:border-box}
+  .vw-admin .cl-cal{padding:8px}
+  .vw-admin .cl-cal-tab input[type=date]{min-width:0;width:118px}
+  .vw-admin .cl-cal-tab :is(th,td):first-child{position:sticky;left:0;z-index:1;background-color:var(--cartao);box-shadow:inset -1px 0 0 var(--linha)}
 
   /* -- ⚙️ Central de configurações -- */
   .vw-config .cfgc-grid{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
