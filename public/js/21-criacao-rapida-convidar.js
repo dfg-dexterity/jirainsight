@@ -192,8 +192,11 @@ function qkSiriModal(){
 let _cv=null;
 // `info` (2026-10-27, opcional): o que o seletor 🎫 sabe do ticket escolhido (resumo, status) — vindo "a frio" do menu
 // 👤 Meu trabalho nenhuma lista do painel tem o ticket, e o resumo é a confirmação de que a pessoa pegou o certo.
-function abreConvidarApontar(k, info){
+// `pre` (2026-11-03, opcional): { seg, dia, coment } já preenchidos — o 📨 convidar de uma ligação já registrada (📞 14c)
+// traz o tempo, o dia e o comentário da ligação; a pessoa só marca quem estava nela.
+function abreConvidarApontar(k, info, pre){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  const p=pre||{}; const preSeg=Number(p.seg)>=60?fmtH(p.seg):''; const preDia=/^\d{4}-\d{2}-\d{2}$/.test(p.dia||'')?p.dia:hojeSP();
   const meuEmail=String(id.email||'').toLowerCase();
   const us=Object.entries(estado.usuarios||{})
     .filter(([a,o])=>o&&o.email&&!RE_EXCLUIR.test(o.nome||'')&&String(o.email).toLowerCase()!==meuEmail
@@ -214,12 +217,12 @@ function abreConvidarApontar(k, info){
         :'<div class="muted small">Nenhuma pessoa interna com e-mail na lista — clique em ↻ Atualizar no topo e tente de novo.</div>'}</div></div>
     <div class="alx-campo" style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="campo"><label>Tempo por pessoa <span class="req">*</span></label>
-        <input type="text" id="cv-tempo" placeholder="1h30" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
-      <div class="campo"><label>Dia <span class="req">*</span></label><input type="date" id="cv-dia" value="${escA(hojeSP())}"></div>
+        <input type="text" id="cv-tempo" placeholder="1h30" value="${escA(preSeg)}" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
+      <div class="campo"><label>Dia <span class="req">*</span></label><input type="date" id="cv-dia" value="${escA(preDia)}"></div>
       <div class="campo"><label>Apontar também para mim?</label>
         <label class="check" style="margin-top:6px"><input type="checkbox" id="cv-eu"> incluir meu apontamento agora</label></div></div>
     <div class="alx-campo"><label>Comentário do apontamento</label>
-      <textarea id="cv-coment" class="alx-coment" placeholder="Ex.: Atividade conjunta — levantamento do processo"></textarea></div>
+      <textarea id="cv-coment" class="alx-coment" placeholder="Ex.: Atividade conjunta — levantamento do processo">${esc(String(p.coment||''))}</textarea></div>
     <div class="alx-fb" id="cv-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="cv-enviar">📨 Enviar convites</button>

@@ -1987,6 +1987,21 @@
   .chm-modal #chm-titulo{width:100%;max-width:520px}
   .chm-vinc{margin-top:6px}
   .chm-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  /* 👥 convidar para apontar na ligação (2026-11-03) — mesmo desenho do ➕ da Agenda (.agm-extra) */
+  .chm-conv{margin-top:10px;padding:8px 10px;border:1px dashed var(--linha2);border-radius:10px;background:var(--cartao2)}
+  .chm-conv-h{font-size:13px}
+  .chm-conv-sel,.chm-conv-sug,.chm-conv-lista{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .chm-conv-sel:empty,.chm-conv-sug:empty,.chm-conv-lista:empty{display:none}
+  .chm-conv-sug>div{flex-basis:100%}
+  .chm-conv .chip{cursor:pointer;font-size:12.5px}
+  .chm-conv-p{display:inline-flex;align-items:center;gap:4px;cursor:default;border-color:var(--cerceta);font-weight:600}
+  .chm-conv-rm{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;padding:0 2px;line-height:1}
+  .chm-conv-rm:hover{color:var(--err)}
+  .chm-conv-busca{margin-top:6px}
+  .chm-conv-busca input{width:300px;max-width:100%}
+  .chm-conv-lista .chip.chm-conv-1{border-color:var(--cerceta);box-shadow:0 0 0 1px var(--cerceta) inset;font-weight:600}
+  .chm-conv-enter{opacity:.7;font-weight:400}
+  .chm-conv-falha{color:var(--err);font-weight:600}
   .ag-sec{margin-top:8px;border:1px solid var(--linha);border-radius:10px;background:var(--fundo)}
   .ag-sec>summary{cursor:pointer;padding:7px 12px;font-weight:700;font-size:13.5px;list-style:none;border-radius:10px}
   .ag-sec>summary::-webkit-details-marker{display:none}

@@ -11,7 +11,8 @@
 // (2) criar = /api/criar (lote de 1, atribuído a quem cria, tipo Reunião do projeto) e, se o apontamento falhar
 // depois, a ligação guarda `parcial.key` — tentar de novo NÃO cria outro ticket; (3) ligação que coincide com um
 // evento da Agenda (ontem a +14 dias) puxa o título, sugere o ticket do evento e liga o ticket ao evento
-// (agMarcaTicket); (4) todo redesenho depois de um await passa por chmModalAberto() (o modal é um só no app).
+// (agMarcaTicket); (4) todo redesenho depois de um await passa por chmModalAberto() (o modal é um só no app);
+// (5) 👥 convidar para apontar (2026-11-03): os convites saem só DEPOIS do seu apontamento — ver o bloco "convidar".
 const CHM_KEY='jirainsight_chamadas_v1';       // { itens:[ligação] } — ligações recebidas do Mac, neste navegador
 const CHM_FRAG='jirainsight_ct_frag';          // o fragmento #ct=… guardado pelo <script> do <head>
 const CHM_PROJ='jirainsight_chm_proj';         // último projeto usado para criar
@@ -20,7 +21,8 @@ const CHM_RE_CHAVE=/^[A-Z][A-Z0-9_]*-\d+$/;
 const CHM_ICONE={ teams:'🟣', whatsapp:'🟢', zoom:'🔵', facetime:'📹', telefone:'📱', slack:'💬', webex:'🟦', discord:'🎮',
   skype:'🔷', telegram:'✈️', chrome:'🌐', edge:'🌐', safari:'🌐', arc:'🌐', brave:'🌐', firefox:'🌐', opera:'🌐', vivaldi:'🌐' };
 estado.chamadas={ pedido:null, fila:[], reabrir:null };
-let _chm=null;   // modal aberto: { id, modo, proj, chave, chaveRes, busca, titulo, tempo, dia, coment, vincular, tocado:{}, conf, confEv, executando }
+let _chm=null;   // modal aberto: { id, modo, proj, chave, chaveRes, busca, titulo, tempo, dia, coment, vincular, tocado:{}, conf, confEv, executando,
+                 //   conv:{ pessoas:[{acc,nome,email}], busca } — 👥 quem vai receber o convite de apontamento (só no modal, nada na config) }
 
 // ---------- armazenamento (localStorage) ----------
 function chmLe(){ try{ const o=JSON.parse(localStorage.getItem(CHM_KEY)||'null'); if(o&&Array.isArray(o.itens)) return o.itens.filter(x=>x&&x.id); }catch(e){} return []; }
@@ -124,14 +126,20 @@ function renderChamadas(){
         <button class="btn" data-chm-abre="${escA(c.id)}" data-chm-modo="criar">📝 Criar ticket</button>
         <button class="btn" data-chm-ign="${escA(c.id)}" data-tip="Não era trabalho (ou já está apontada): sai da lista sem apontar" aria-label="Ignorar esta ligação">🚫</button>
       </div></div>`; };
-  const linhaHist=(c)=>{ const r=c.res||{};
+  const linhaHist=(c)=>{ const r=c.res||{}; const pend=(c.st==='feito'&&Array.isArray(r.convPend))?r.convPend:[];
+    // 👥 convites da ligação: quantos saíram e, se falharam, quem ficou (📨 reenvia só esses); sem falha, 📨 convida mais alguém
+    const convTxt=(r.conv?` · 👥 ${r.conv} convite${r.conv>1?'s':''}`:'')
+      +(pend.length?` · <span class="chm-conv-falha">⚠ convite${pend.length>1?'s':''} ${r.convIncerto?'sem confirmação':'não enviado'+(pend.length>1?'s':'')}: ${esc(pend.map(p=>p.nome||p.acc).join(', '))}</span>`:'');
+    const convBtn=c.st!=='feito'||!r.key?''
+      :pend.length?`<button class="btn" data-chm-conv-re="${escA(c.id)}" data-tip="${escA(`Reenvia só os convites que não saíram${r.convErro?` (${r.convErro})`:''} — ${fmtH(r.seg||0)} em ${fmtBR(r.dia||'')}, no ${r.key}`)}">📨 Reenviar convite${pend.length>1?`s (${pend.length})`:''}</button>`
+      :`<button class="btn" data-chm-conv-dep="${escA(c.id)}" data-tip="${escA(`Convidar alguém que estava na ligação a apontar em ${r.key} — o convite já vem com ${fmtH(r.seg||0)} em ${fmtBR(r.dia||'')}; cada pessoa confirma com 1 clique`)}">📨 Convidar</button>`;
     return `<div class="chm-row chm-hist">
       <div class="chm-ic" aria-hidden="true">${c.st==='feito'?'✓':'🚫'}</div>
       <div class="chm-info"><div><b>${esc(c.rot)}</b> · ${esc(chmQuando(c))} · ${esc(chmDur(c.seg))}</div>
         <div class="muted small">${c.st==='feito'
-          ?`${esc(fmtH(r.seg||0))} em <a href="${jiraBase()}/browse/${encodeURIComponent(r.key||'')}" target="_blank" rel="noopener">${esc(r.key||'')} ↗</a> · ${esc(fmtBR(r.dia||''))}${r.criado?' · ticket criado aqui':''}`
+          ?`${esc(fmtH(r.seg||0))} em <a href="${jiraBase()}/browse/${encodeURIComponent(r.key||'')}" target="_blank" rel="noopener">${esc(r.key||'')} ↗</a> · ${esc(fmtBR(r.dia||''))}${r.criado?' · ticket criado aqui':''}${convTxt}`
           :`ignorada${c.parcial&&c.parcial.key?` · o ticket ${esc(c.parcial.key)} já tinha sido criado (sem apontamento)`:''}`}</div></div>
-      <div class="chm-acoes-l">${c.st==='ign'?`<button class="btn" data-chm-volta="${escA(c.id)}">↺ Voltar para a lista</button>`:''}</div></div>`; };
+      <div class="chm-acoes-l">${c.st==='ign'?`<button class="btn" data-chm-volta="${escA(c.id)}">↺ Voltar para a lista</button>`:''}${convBtn}</div></div>`; };
   const nunca=!todas.length;
   const base=(/^https?:/.test(location.origin)?location.origin:'https://jirainsight.vercel.app');
   const cmd=`curl -fsSL ${base}/call-tracking/instalar.sh | bash`;
@@ -199,10 +207,11 @@ function chmAbre(idc, modo){
   if(id){ try{ apCarregaRecentes(); }catch(e){} }
   let proj=''; try{ proj=localStorage.getItem(CHM_PROJ)||''; }catch(e){}
   _chm={ id:idc, modo:modo||'', proj, chave:'', chaveRes:'', busca:'', titulo:'', tempo:chmTempoTxt(c.seg), dia:chmDiaSP(c.ini),
-    coment:'', vincular:true, tocado:{}, conf:null, confEv:'', executando:false };
+    coment:'', vincular:true, tocado:{}, conf:null, confEv:'', executando:false, conv:{ pessoas:[], busca:'' } };
   if(c.parcial&&c.parcial.key){ _chm.modo='criar'; }
   abreModal('<div class="chm-modal"><h2>📞 Ligação encerrada</h2><div class="estado">Carregando…</div></div>');
   if(!_projetosCache) garanteProjetos().then(()=>chmAtualizaModal()).catch(()=>{});
+  chmGaranteUsuarios();   // 👥 a busca do convite e "quem estava na reunião" precisam dos usuários ativos do Jira
   chmDesenhaModal();
 }
 // Valores que dependem da Agenda/catálogo: só preenchidos enquanto a pessoa não mexeu no campo.
@@ -240,7 +249,7 @@ function chmDesenhaModal(){
       <div id="chm-tks" class="chm-tks" aria-live="polite">${chmTksHTML(m, c, ev)}</div>
       <div id="chm-escolhido" class="chm-escolhido">${chmEscolhidoHTML(m)}</div>`;
   const vinc=`<div id="chm-vinc-l">${chmVincHTML(m, ev)}</div>`;
-  const btnTxt=m.modo==='criar'?(c.parcial&&c.parcial.key?`⏱ Apontar em ${c.parcial.key}`:'📝 Criar e apontar'):'⏱ Apontar';
+  const btnTxt=chmBtnTxt(m, c);
   const corpo=`<h2>📞 Ligação encerrada${fila.length>1&&pos>=0?` <span class="chm-fila">${pos+1} de ${fila.length}</span>`:''}</h2>
     <div class="chm-resumo"><span aria-hidden="true">${chmIcone(c)}</span> <b>${esc(c.rot)}</b> · ${esc(chmQuando(c))} · <b>${esc(chmDur(c.seg))}</b>${c.provavel?' <span class="badge">app provável</span>':''}</div>
     ${c.tit?`<div class="muted small chm-tit">“${esc(c.tit)}”</div>`:''}
@@ -258,6 +267,7 @@ function chmDesenhaModal(){
     </div>
     <div class="alx-campo"><label for="chm-coment">Comentário</label><input type="text" id="chm-coment" value="${escA(m.coment)}" maxlength="200" autocomplete="off"></div>
     ${vinc}
+    ${chmConvBlocoHTML(m, c, ev)}
     ${id
       ?`<div class="chm-acoes"><button class="btn primario" data-chm-conf="1">${esc(btnTxt)}</button>
           <button class="btn" data-chm-depois="1" data-tip="Fica na lista 📞 Ligações para depois">Depois</button>
@@ -291,7 +301,120 @@ function chmAtualizaModal(){
   const tks=document.getElementById('chm-tks'); if(tks) tks.innerHTML=chmTksHTML(m, c, ev);
   const es=document.getElementById('chm-escolhido'); if(es) es.innerHTML=chmEscolhidoHTML(m);
   const vl=document.getElementById('chm-vinc-l'); if(vl&&!!vl.querySelector('#chm-vinc')!==!!(ev&&!agTicketDe(ev.id))) vl.innerHTML=chmVincHTML(m, ev);
+  chmConvPinta(m, c, ev);   // 👥 a agenda/os usuários chegaram: sugestões "estavam na reunião" e resultados da busca
   if(ev&&!tk&&m.confEv!==ev.id) chmConfere(ev);   // a agenda chegou depois do 1º desenho: confere agora se o ticket já existe
+}
+function chmBtnTxt(m, c){
+  const base=m.modo==='criar'?(c.parcial&&c.parcial.key?`⏱ Apontar em ${c.parcial.key}`:'📝 Criar e apontar'):'⏱ Apontar';
+  const n=((m.conv&&m.conv.pessoas)||[]).length;
+  return n?`${base} + 👥 ${n} convite${n>1?'s':''}`:base;
+}
+
+// ---------- 👥 convidar para apontar (2026-11-03, a pedido do usuário: "na tela de registro de ligações, após uma
+// ligação, seja possível também convidar alguém para apontar no ticket") ----------
+// A mesma infraestrutura da Agenda e do 📨 convidar (/api/apontar {convidar}): cada pessoa recebe o convite no painel
+// (⏱ Apontar / 📥 Inbox, aviso individual no Teams) e confirma com 1 clique — o worklog sai no usuário DELA. O convite
+// leva o tempo, o dia e o comentário da ligação e só sai DEPOIS do seu apontamento (se o seu falhar, nada sai; o
+// "tentar de novo" envia tudo). Quem entra na lista mora só no modal (_chm.conv), nunca na config. Ninguém nasce
+// marcado: quem estava na reunião da agenda aparece como sugestão de 1 clique ("➕ todos") — o ticket da reunião pode
+// já ter os convites de quem o criou, e convite em dobro vira worklog em dobro. Falha dos convites NÃO desfaz o seu
+// apontamento: a ligação guarda quem ficou (res.convPend) e "Já tratadas" oferece 📨 reenviar.
+const CHM_CONV_MAX=8;   // resultados da busca por vez (como o ➕ da Agenda)
+let _chmUsuP=null;
+// Usuários ativos do Jira no mesmo lugar da Agenda (estado.agenda.usuarios) — usuariosP() já evita leitura em dobro.
+function chmGaranteUsuarios(forca){
+  const ag=estado.agenda; if((ag.usuarios&&!forca)||_chmUsuP) return;
+  _chmUsuP=usuariosP(!!forca).then(j=>{ _chmUsuP=null;
+    if(j&&j.pessoas){ ag.usuarios=j.pessoas; ag.usuErro=false; } else if(!ag.usuarios) ag.usuErro=true;
+    chmConvAtualiza(); });
+}
+function chmEu(){ const id=idApontar()||{}; return { acc:String(id.accountId||''), email:String(id.email||'').toLowerCase() }; }
+// Quem estava na reunião (casado com os usuários do Jira pelo e-mail, como no 📝 da Agenda), fora você e quem já entrou.
+function chmConvSugestoes(m, ev){
+  if(!ev) return [];
+  const conv=agPessoasConvite(ev); if(!conv) return [];
+  const eu=chmEu(); const ja=new Set(m.conv.pessoas.map(p=>p.acc));
+  return conv.internos.filter(p=>!p.eu&&p.acc&&p.acc!==eu.acc&&!ja.has(p.acc)).map(p=>({ acc:p.acc, nome:p.nome, email:p.email }));
+}
+// Busca entre os usuários ativos do Jira (≥ 2 letras, nome sem acento ou e-mail), fora você e quem já está na lista.
+function chmConvCandidatos(m, q){
+  const n=agNorm(q).trim(); if(n.length<2) return { itens:[], total:0 };
+  const usu=estado.agenda.usuarios||{}; const eu=chmEu(); const ja=new Set(m.conv.pessoas.map(p=>p.acc));
+  const todos=Object.entries(usu)
+    .filter(([acc,u])=>u&&acc!==eu.acc&&!ja.has(acc)&&!RE_EXCLUIR.test(u.nome||'')&&String(u.email||'').toLowerCase()!==eu.email
+      &&(agNorm(u.nome).includes(n)||String(u.email||'').toLowerCase().includes(n)))
+    .map(([acc,u])=>({ acc, nome:u.nome||acc, email:String(u.email||'').toLowerCase() }))
+    .sort((a,b)=>(agNorm(a.nome).startsWith(n)?0:1)-(agNorm(b.nome).startsWith(n)?0:1)||a.nome.localeCompare(b.nome,'pt'));
+  return { itens:todos.slice(0,CHM_CONV_MAX), total:todos.length };
+}
+function chmConvErroUsu(){ return '<span class="muted small">⚠ Não consegui carregar os usuários do Jira. <button type="button" class="btn" data-chm-conv-retry="1">↻ tentar de novo</button></span>'; }
+function chmConvDica(m){
+  const seg=parseTempo(String(m.tempo||'').trim()); const ok=seg>=60&&seg<=86400;
+  return `opcional · cada pessoa recebe o convite de <b>${esc(ok?fmtH(seg):'—')}</b> em ${esc(/^\d{4}-\d{2}-\d{2}$/.test(m.dia||'')?chmDiaRot(m.dia):'—')} (o tempo e o dia acima) e confirma com 1 clique no ⏱ Apontar / 📥 Inbox — o worklog sai no usuário dela`;
+}
+function chmConvSelHTML(m){
+  return m.conv.pessoas.map(p=>`<span class="chip chm-conv-p">👤 ${esc(p.nome)}<button type="button" class="chm-conv-rm" data-chm-conv-rm="${escA(p.acc)}" data-tip="Tirar dos convites" aria-label="Tirar ${escA(p.nome)} dos convites">✕</button></span>`).join('');
+}
+function chmConvSugHTML(m, ev){
+  if(!ev) return '';
+  const ag=estado.agenda;
+  if(!ag.usuarios) return ag.usuErro?chmConvErroUsu():'<span class="muted small">Carregando quem estava na reunião…</span>';
+  const s=chmConvSugestoes(m, ev); if(!s.length) return '';
+  return `<span class="muted small">Estavam na reunião:</span> ${s.map(p=>`<button type="button" class="chip" data-chm-conv-add="${escA(p.acc)}" data-tip="${escA(p.email||'')}">➕ ${esc(p.nome)}</button>`).join(' ')}${s.length>1?` <button type="button" class="chip" data-chm-conv-todos="1">➕ todos (${s.length})</button>`:''}${chmTicketDoEvento(ev)?'<div class="muted small">O ticket da reunião já existe — quem o criou pode já ter convidado o time: convide só quem ficou de fora.</div>':''}`;
+}
+function chmConvListaHTML(m){
+  const ag=estado.agenda; const q=String(m.conv.busca||'').trim();
+  if(agNorm(q).length<2) return q?'<span class="muted small">digite ao menos 2 letras</span>':'';
+  if(!ag.usuarios) return ag.usuErro?chmConvErroUsu():'<span class="muted small">Carregando as pessoas…</span>';
+  const { itens, total }=chmConvCandidatos(m, q);
+  if(!itens.length) return '<span class="muted small">ninguém com esse nome entre os usuários ativos do Jira — ou a pessoa já está na lista</span>';
+  // O 1º chip é o que o Enter adiciona (destacado, com ↵). E-mail de outro domínio aparece no chip, não só na dica.
+  const dom=agMeuDominio();
+  return itens.map((x,i)=>{ const d=String(x.email||'').split('@')[1]||'';
+    return `<button type="button" class="chip${i===0?' chm-conv-1':''}" data-chm-conv-add="${escA(x.acc)}" data-tip="${escA(x.email||'')}">➕ ${esc(x.nome)}${d&&dom&&d!==dom?` <span class="muted small">@${esc(d)}</span>`:''}${i===0?' <span class="chm-conv-enter" aria-hidden="true">↵</span>':''}</button>`; }).join('')
+    +(total>itens.length?`<span class="muted small">… e mais ${total-itens.length} — digite mais letras</span>`:'');
+}
+function chmConvBlocoHTML(m, c, ev){
+  return `<div class="chm-conv" id="chm-conv">
+    <div class="chm-conv-h"><b>👥 Convidar para apontar</b> <span class="muted small" id="chm-conv-dica">${chmConvDica(m)}</span></div>
+    <div id="chm-conv-sel" class="chm-conv-sel">${chmConvSelHTML(m)}</div>
+    <div id="chm-conv-sug" class="chm-conv-sug">${chmConvSugHTML(m, ev)}</div>
+    <div class="chm-conv-busca"><input type="text" id="chm-conv-busca" value="${escA(m.conv.busca)}" placeholder="quem mais estava na ligação? nome ou e-mail…" maxlength="60" autocomplete="off" enterkeyhint="done" aria-label="Procurar pessoa da Dexterity para convidar a apontar" aria-describedby="chm-conv-dica"></div>
+    <div id="chm-conv-lista" class="chm-conv-lista" aria-live="polite">${chmConvListaHTML(m)}</div>
+  </div>`;
+}
+// Redesenha só os pedaços do bloco (nunca o campo de busca): quem está digitando não perde o foco nem o cursor.
+function chmConvPinta(m, c, ev){
+  const put=(i,h)=>{ const e=document.getElementById(i); if(e&&e.innerHTML!==h) e.innerHTML=h; };
+  put('chm-conv-sel', chmConvSelHTML(m)); put('chm-conv-sug', chmConvSugHTML(m, ev)); put('chm-conv-lista', chmConvListaHTML(m)); put('chm-conv-dica', chmConvDica(m));
+  const b=document.querySelector('#modal-body [data-chm-conf]'); if(b&&!m.executando) b.textContent=chmBtnTxt(m, c);
+}
+function chmConvAtualiza(){
+  const m=_chm; if(!m||!chmModalAberto()) return;
+  const c=chmDe(m.id); if(!c) return;
+  chmConvPinta(m, c, chmEventoDe(c));
+}
+function chmConvAdiciona(accs){
+  const m=_chm; if(!m) return; const usu=estado.agenda.usuarios||{}; const eu=chmEu(); const novos=[];
+  (Array.isArray(accs)?accs:[accs]).forEach(acc=>{ const u=usu[acc];
+    if(!u||acc===eu.acc||m.conv.pessoas.some(p=>p.acc===acc)) return;
+    const p={ acc, nome:u.nome||acc, email:String(u.email||'').toLowerCase() }; m.conv.pessoas.push(p); novos.push(p.nome); });
+  if(!novos.length) return;
+  // a busca fica enquanto ainda houver resultado (dois do mesmo sobrenome entram em sequência)
+  if(!chmConvCandidatos(m, m.conv.busca||'').itens.length){ m.conv.busca=''; const i=document.getElementById('chm-conv-busca'); if(i) i.value=''; }
+  chmConvAtualiza();
+  toast(novos.length>1?`👥 ${novos.length} pessoas entraram nos convites`:`👥 ${novos[0]} entrou nos convites`,'ok');
+}
+function chmConvRemove(acc){ const m=_chm; if(!m) return; m.conv.pessoas=m.conv.pessoas.filter(p=>p.acc!==acc); chmConvAtualiza(); }
+// Envia os convites de UMA ligação: { ok, n } ou { ok:false, erro, incerto } (incerto = sem resposta do servidor —
+// eles podem ter saído). Sem e-mail no payload, como na Agenda: o servidor acha o do aviso no Teams pelo accountId.
+async function chmEnviaConvites(key, seg, dia, coment, pessoas, id){
+  try{
+    const j=await chmPost('/api/apontar',{ convidar:true, issue:key, segundos:seg, inicio:dia, comentario:String(coment||'').slice(0,200),
+      pessoas:pessoas.map(p=>({ accountId:p.acc, nome:p.nome||'' })), avisarTeams:true }, id);
+    if(!j||j.ok===false) return { ok:false, erro:(j&&j.erro)||'o servidor recusou os convites' };
+    return { ok:true, n:pessoas.length };
+  }catch(e){ return { ok:false, incerto:true, erro:humanizaErro(e) }; }
 }
 function chmLeCampos(){
   const m=_chm; if(!m) return;
@@ -436,19 +559,31 @@ async function chmConfirma(btn){
       if(!CHM_RE_CHAVE.test(key)) throw new Error('Escolha um ticket da lista ou digite a chave (ex.: ACME-123).');
     }
     const hora=m.dia===chmDiaSP(c.ini)?chmHoraSP(c.ini):'';
-    const j2=await chmPost('/api/apontar',{ issue:key, segundos:seg, inicio:m.dia, hora, comentario:String(m.coment||'').trim().slice(0,200) }, id);
+    const coment=String(m.coment||'').trim().slice(0,200);
+    const j2=await chmPost('/api/apontar',{ issue:key, segundos:seg, inicio:m.dia, hora, comentario:coment }, id);
     if(!j2||!j2.ok) throw new Error((j2&&j2.erro)||'Não consegui apontar.');
     const concl=await agConcluiReuniao(key, id);   // ✅ JI-153: "📆 Reunião Agendada" → Feito (03); noutro status não mexe; falha vira aviso
-    chmMuda(c.id, x=>{ x.st='feito'; x.res={ key, seg, dia:m.dia, criado, em:new Date().toISOString(), ev:ev?ev.titulo:'' }; delete x.parcial; });
+    // 👥 Convites (2026-11-03): só depois do SEU apontamento. Falharam → a ligação fica registrada mesmo assim e guarda quem
+    // ficou (res.convPend) para o 📨 reenviar de "Já tratadas" — o seu worklog não pode ser refeito por causa deles.
+    const convP=((m.conv&&m.conv.pessoas)||[]).filter(p=>p.acc&&p.acc!==id.accountId);
+    const conv=convP.length?await chmEnviaConvites(key, seg, m.dia, coment||`Ligação ${c.rot}`, convP, id):null;
+    chmMuda(c.id, x=>{ x.st='feito'; x.res={ key, seg, dia:m.dia, criado, em:new Date().toISOString(), ev:ev?ev.titulo:'', coment,
+      conv:conv&&conv.ok?conv.n:0 };
+      if(conv&&!conv.ok){ x.res.convPend=convP.map(p=>({ acc:p.acc, nome:p.nome })); x.res.convErro=String(conv.erro||'').slice(0,200); if(conv.incerto) x.res.convIncerto=true; }
+      delete x.parcial; });
     try{ registraExtraDia(m.dia, seg, key); }catch(e){}
     logAcao({ acao:'chamada-apontar', t:key, para:`${fmtH(seg)} em ${m.dia}`, motivo:`${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)}${ev?` · ${ev.titulo}`:''}`.slice(0,200), ok:true }, false);
+    if(conv&&conv.ok) logAcao({ acao:'chamada-convidar', t:key, para:convP.map(p=>p.nome).join(', ').slice(0,200), motivo:`${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)} · ${fmtH(seg)} em ${m.dia}`.slice(0,200), n:convP.length, ok:true }, false);
     // UMA gravação da config: o agMarcaTicket já grava (salvaCfg) — leva junto o 🗒 Histórico acima.
     let gravou=false;
     if(ev&&m.vincular&&!agTicketDe(ev.id)){ try{ agMarcaTicket(ev.id, key, { tok:tokRes }); gravou=true; }catch(e){} }
     if(!gravou){ try{ salvaCfg(); }catch(e){} }
     invalidaCacheDados(); estado.apontar.porData={}; estado.apontar.recentes=null;
-    toast(`✓ ${fmtH(seg)} apontadas em ${key}${criado?' (ticket novo)':''}${concl.feito?` · status ${concl.para}`:''}.`,'ok');
+    toast(`✓ ${fmtH(seg)} apontadas em ${key}${criado?' (ticket novo)':''}${conv&&conv.ok?` · 👥 ${conv.n} convite${conv.n>1?'s':''} de apontamento enviado${conv.n>1?'s':''}`:''}${concl.feito?` · status ${concl.para}`:''}.`,'ok');
     if(concl.motivo==='erro'||concl.motivo==='sem-transicao') toast(`⚠ Não consegui concluir ${key}${concl.erro?` (${concl.erro})`:''} — mude o status no Jira.`,'warn');
+    if(conv&&!conv.ok) toast(conv.incerto
+      ?`⚠ Sem resposta ao enviar os convites (${conv.erro}) — eles podem ter saído. Confira com as pessoas antes de usar o 📨 reenviar em “Já tratadas”.`
+      :`⚠ Os convites não saíram (${conv.erro}). As suas horas estão em ${key} — reenvie pelo 📨 em “Já tratadas”.`,'warn');
     m.executando=false;
     if(_chm===m&&chmModalAberto()) chmProxima();
     else { estado.chamadas.fila=(estado.chamadas.fila||[]).filter(x=>x!==m.id); if(estado.vista==='chamadas'&&!chmModalAberto()) renderChamadas(); try{ renderAbas(); }catch(e){} }
@@ -472,6 +607,34 @@ function chmProxima(){
   try{ renderAbas(); }catch(e){}
 }
 function chmIgnora(idc){ chmMuda(idc, x=>{ x.st='ign'; x.res={ em:new Date().toISOString() }; }); }   // o parcial fica: ↺ voltar + criar não duplica o ticket
+// 📨 Reenviar (Já tratadas): só os convites que não saíram, com o tempo/dia/comentário guardados na ligação.
+async function chmConvReenvia(idc, btn){
+  const c=chmDe(idc); const r=c&&c.res; if(!c||c.st!=='feito'||!r||!r.key||!Array.isArray(r.convPend)||!r.convPend.length) return;
+  const id=idApontar(); if(!id){ abreIdentidade(); return; }
+  if(btn&&btn.disabled) return;
+  ocupado(btn,true);
+  const pend=r.convPend.slice();
+  const conv=await chmEnviaConvites(r.key, r.seg, r.dia, r.coment||`Ligação ${c.rot}`, pend, id);
+  if(conv.ok){
+    chmMuda(idc, x=>{ x.res.conv=(x.res.conv||0)+conv.n; delete x.res.convPend; delete x.res.convErro; delete x.res.convIncerto; });
+    logAcao({ acao:'chamada-convidar', t:r.key, para:pend.map(p=>p.nome).join(', ').slice(0,200), motivo:`reenvio · ${c.rot} ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)} · ${fmtH(r.seg)} em ${r.dia}`.slice(0,200), n:pend.length, ok:true });
+    toast(`✓ 👥 ${conv.n} convite${conv.n>1?'s':''} de apontamento enviado${conv.n>1?'s':''} (${r.key}).`,'ok');
+  } else {
+    chmMuda(idc, x=>{ x.res.convErro=String(conv.erro||'').slice(0,200); if(conv.incerto) x.res.convIncerto=true; });
+    toast(`⚠ Os convites ainda não saíram (${conv.erro}).`,'warn');
+  }
+  if(estado.vista==='chamadas'&&!chmModalAberto()) renderChamadas(); else ocupado(btn,false);
+}
+// 📨 Convidar depois (Já tratadas): o 📨 convidar de sempre (21), já com o tempo, o dia e o comentário da ligação.
+function chmConvDepois(idc){
+  const c=chmDe(idc); const r=c&&c.res; if(!c||c.st!=='feito'||!r||!r.key) return;
+  if(!idApontar()){ abreIdentidade(); return; }
+  const pre={ seg:r.seg, dia:r.dia, coment:r.coment||`Ligação ${c.rot} — ${chmHoraSP(c.ini)}–${chmHoraSP(c.fim)}` };
+  const abre=()=>abreConvidarApontar(r.key, { k:r.key, resumo:r.ev?`Reunião: ${r.ev}`:'' }, pre);
+  // o elenco (estado.usuarios) vem com os dados do período — sem eles (entrou direto no 📞), busca agora, como o 👥 em grupo do 13
+  if(Object.keys(estado.usuarios||{}).length) return abre();
+  usuariosP().then(j=>{ estado.usuarios=Object.assign({}, (j&&j.pessoas)||{}, estado.usuarios||{}); abre(); });
+}
 function chmSimula(){
   const fim=Date.now()-2*60000, ini=fim-25*60000;
   const c=chmValida({ id:'sim-'+fim.toString(36), app:'teams', rot:'Microsoft Teams', bid:'com.microsoft.teams2', ini:new Date(ini).toISOString(), fim:new Date(fim).toISOString() });
@@ -491,7 +654,9 @@ window.addEventListener('hashchange', ()=>{
 // Outra aba recebeu uma ligação: atualiza o contador e a lista (sem mexer num modal aberto).
 window.addEventListener('storage', (e)=>{ if(e.key!==CHM_KEY) return; try{ renderAbas(); }catch(x){} if(estado.vista==='chamadas'&&!chmModalAberto()) renderChamadas(); });
 document.getElementById('conteudo').addEventListener('click', (e)=>{
-  const t=e.target.closest('[data-chm-abre],[data-chm-ign],[data-chm-volta],[data-chm-todas],[data-chm-simula],[data-chm-copia]'); if(!t) return;
+  const t=e.target.closest('[data-chm-abre],[data-chm-ign],[data-chm-volta],[data-chm-todas],[data-chm-simula],[data-chm-copia],[data-chm-conv-re],[data-chm-conv-dep]'); if(!t) return;
+  if(t.hasAttribute('data-chm-conv-re')){ chmConvReenvia(t.getAttribute('data-chm-conv-re'), t); return; }
+  if(t.hasAttribute('data-chm-conv-dep')){ chmConvDepois(t.getAttribute('data-chm-conv-dep')); return; }
   if(t.hasAttribute('data-chm-abre')){ estado.chamadas.fila=[t.getAttribute('data-chm-abre')]; chmAbre(t.getAttribute('data-chm-abre'), t.getAttribute('data-chm-modo')||''); }
   else if(t.hasAttribute('data-chm-ign')){ chmIgnora(t.getAttribute('data-chm-ign')); toast('Ligação ignorada — dá para voltar em “Já tratadas”.','info'); renderChamadas(); try{ renderAbas(); }catch(x){} }
   else if(t.hasAttribute('data-chm-volta')){ chmMuda(t.getAttribute('data-chm-volta'), x=>{ x.st='pend'; delete x.res; }); renderChamadas(); try{ renderAbas(); }catch(x){} }
@@ -502,15 +667,22 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
 });
 document.getElementById('modal-body').addEventListener('click', (e)=>{
   if(!_chm||!e.target.closest('.chm-modal')) return;
-  const t=e.target.closest('[data-chm-conf],[data-chm-depois],[data-chm-ign-m],[data-chm-tk],[data-chm-t]'); if(!t) return;
-  if(_chm.executando&&!t.hasAttribute('data-chm-t')) return;   // criando/apontando: nada troca a ligação no meio
+  const t=e.target.closest('[data-chm-conf],[data-chm-depois],[data-chm-ign-m],[data-chm-tk],[data-chm-t],[data-chm-conv-add],[data-chm-conv-rm],[data-chm-conv-todos],[data-chm-conv-retry]'); if(!t) return;
+  if(_chm.executando&&!t.hasAttribute('data-chm-t')) return;   // criando/apontando: nada troca a ligação no meio (nem a lista de convites)
+  if(t.hasAttribute('data-chm-conv-add')){ const daBusca=!!t.closest('#chm-conv-lista'); chmConvAdiciona(t.getAttribute('data-chm-conv-add'));
+    // veio da busca: o foco volta ao campo para seguir digitando (das sugestões não — no celular abriria o teclado)
+    if(daBusca){ const i=document.getElementById('chm-conv-busca'); if(i){ try{ i.focus(); i.setSelectionRange(i.value.length,i.value.length); }catch(x){} } }
+    return; }
+  if(t.hasAttribute('data-chm-conv-rm')){ chmConvRemove(t.getAttribute('data-chm-conv-rm')); return; }
+  if(t.hasAttribute('data-chm-conv-todos')){ const c=chmDe(_chm.id); chmConvAdiciona(chmConvSugestoes(_chm, c?chmEventoDe(c):null).map(p=>p.acc)); return; }
+  if(t.hasAttribute('data-chm-conv-retry')){ estado.agenda.usuErro=false; chmConvAtualiza(); chmGaranteUsuarios(true); return; }
   if(t.hasAttribute('data-chm-conf')) chmConfirma(t);
   else if(t.hasAttribute('data-chm-depois')) chmProxima();
   else if(t.hasAttribute('data-chm-ign-m')){ chmIgnora(_chm.id); toast('Ligação ignorada.','info'); chmProxima(); }
   else if(t.hasAttribute('data-chm-tk')){ chmLeCampos(); _chm.chave=t.getAttribute('data-chm-tk'); _chm.chaveRes=t.getAttribute('data-chm-res')||''; _chm.tocado.chave=true;
     document.querySelectorAll('#modal-body .chm-tk').forEach(b=>b.classList.toggle('sel', b.getAttribute('data-chm-tk')===_chm.chave));
     const es=document.getElementById('chm-escolhido'); if(es) es.innerHTML=chmEscolhidoHTML(_chm); }
-  else if(t.hasAttribute('data-chm-t')){ const i=document.getElementById('chm-tempo'); if(i){ i.value=t.getAttribute('data-chm-t'); _chm.tempo=i.value; } }
+  else if(t.hasAttribute('data-chm-t')){ const i=document.getElementById('chm-tempo'); if(i){ i.value=t.getAttribute('data-chm-t'); _chm.tempo=i.value; chmConvAtualiza(); } }
 });
 document.getElementById('modal-body').addEventListener('change', (e)=>{
   if(!_chm||!e.target.closest('.chm-modal')) return;
@@ -520,7 +692,8 @@ document.getElementById('modal-body').addEventListener('change', (e)=>{
     if(_chm.modo==='criar'){ const h=document.getElementById('chm-tipo'); if(h) h.innerHTML=chmTipoHint(_chm.proj); }
     else { chmCarregaAbertos(_chm.proj); chmAtualizaModal(); } }
   else if(t.id==='chm-dia'){ chmLeCampos(); const c=chmDe(_chm.id); const d=document.getElementById('chm-tempo-dica');
-    if(c&&d) d.textContent=_chm.dia===chmDiaSP(c.ini)?`o apontamento começa às ${chmHoraSP(c.ini)}, como a ligação`:'outro dia: o apontamento entra às 09:00'; }
+    if(c&&d) d.textContent=_chm.dia===chmDiaSP(c.ini)?`o apontamento começa às ${chmHoraSP(c.ini)}, como a ligação`:'outro dia: o apontamento entra às 09:00';
+    chmConvAtualiza(); }   // 👥 o convite leva o mesmo dia
   else if(t.id==='chm-vinc') _chm.vincular=t.checked;
 });
 document.getElementById('modal-body').addEventListener('input', (e)=>{
@@ -529,12 +702,22 @@ document.getElementById('modal-body').addEventListener('input', (e)=>{
   if(t.id==='chm-busca'){ _chm.busca=t.value; const c=chmDe(_chm.id); const tks=document.getElementById('chm-tks'); if(c&&tks) tks.innerHTML=chmTksHTML(_chm, c, chmEventoDe(c)); }
   else if(t.id==='chm-titulo'){ _chm.titulo=t.value; _chm.tocado.titulo=true; }
   else if(t.id==='chm-coment'){ _chm.coment=t.value; _chm.tocado.coment=true; }
-  else if(t.id==='chm-tempo'){ _chm.tempo=t.value; }
+  else if(t.id==='chm-tempo'){ _chm.tempo=t.value; const d=document.getElementById('chm-conv-dica'); if(d) d.innerHTML=chmConvDica(_chm); }
+  else if(t.id==='chm-conv-busca'){ _chm.conv.busca=t.value; const l=document.getElementById('chm-conv-lista'); if(l) l.innerHTML=chmConvListaHTML(_chm); }
 });
 // Enter no campo de ticket: com uma chave digitada ou um único resultado, escolhe; no resto do modal, confirma.
 document.getElementById('modal-body').addEventListener('keydown', (e)=>{
   if(!_chm||e.key!=='Enter'||!e.target.closest('.chm-modal')||!e.target.matches('input[type=text],input[type=date]')) return;
   e.preventDefault();
   if(e.target.id==='chm-busca'){ const b=document.querySelector('#chm-tks .chm-tk'); if(b) b.click(); return; }
+  // 👥 Enter na busca do convite adiciona o destacado (↵) — nunca confirma a ligação
+  if(e.target.id==='chm-conv-busca'){ if(_chm.executando) return; const c=chmConvCandidatos(_chm, _chm.conv.busca||'').itens; if(c.length) chmConvAdiciona(c[0].acc); return; }
   const conf=document.querySelector('#modal-body [data-chm-conf]'); if(conf&&!conf.disabled) conf.click();
+});
+// Esc com texto na busca do convite só limpa a busca: este listener (no document, registrado antes do Esc global do
+// 30-eventos-boot) roda primeiro — fechar o modal perderia a lista de convites. Campo vazio: o Esc fecha como sempre.
+document.addEventListener('keydown', (e)=>{
+  if(!_chm||e.key!=='Escape') return; const t=e.target; if(!t||!t.matches||!t.matches('#chm-conv-busca')||!t.value) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  t.value=''; _chm.conv.busca=''; const l=document.getElementById('chm-conv-lista'); if(l) l.innerHTML='';
 });
