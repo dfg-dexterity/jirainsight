@@ -379,6 +379,20 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   hashchange/duas gravações seguidas/conflito real/celular/tablet; relógio do navegador fixo às 20:00 SP com
   `ctx.clock.setFixedTime`) com `ABERTOS`, `APONTADOS` (worklog com as validações da produção) e
   `?abertos=`/`?detalhe=` no `servidor-mini.mjs`.
+  **👥 Convidar para apontar pela ligação (2026-11-03, a pedido do usuário: "na tela de registro de ligações, após uma
+  ligação, seja possível também convidar alguém para apontar no ticket"):** o modal ganhou o bloco `#chm-conv` (estado só
+  em `_chm.conv={pessoas,busca}`, nada na config): sugestões "estavam na reunião" (`agPessoasConvite` do 03 — você e
+  externos fora, **ninguém nasce marcado**, porque o ticket da reunião pode já ter os convites de quem o criou), ➕ todos e
+  a busca entre os usuários ativos do Jira (`chmConvCandidatos`, ≥ 2 letras; Enter adiciona o destacado ↵; Esc com texto
+  só limpa — listener no document antes do Esc global do 30); os usuários vêm de `usuariosP()` para
+  `estado.agenda.usuarios` (`chmGaranteUsuarios`). Redesenho só dos pedaços (`chmConvPinta`), nunca do campo de busca; o
+  botão diz "+ 👥 N convites" (`chmBtnTxt`). **Regras:** os convites (`chmEnviaConvites` → `/api/apontar {convidar}`, sem
+  e-mail no payload, com o tempo/dia/comentário da ligação) saem só DEPOIS do seu apontamento — o seu falhou, nada sai; os
+  convites falharam, a ligação fica `feito` mesmo assim com `res.convPend`/`convErro` (`convIncerto` quando não houve
+  resposta) e "Já tratadas" troca o 📨 Convidar por **📨 Reenviar** (só quem ficou); o `logAcao('chamada-convidar')` vai
+  na MESMA gravação da config da confirmação. **📨 Convidar depois** (linha de "Já tratadas") abre o `abreConvidarApontar`
+  (21), que ganhou o 3º parâmetro `pre={seg,dia,coment}`. O servidor não deduplica convites (R171). Teste:
+  `chamadas-conv-test.mjs` (Playwright, 48 casos; fixture `POST /api/_convites {falhaConvite:N}` no `servidor-mini.mjs`).
 - **⏱ Total do dia num dia que já passou (2026-10-20, a pedido do usuário: "quando aponto num dia que já passou, é
   informado que é o primeiro lançamento do dia, e já existiam lançamentos"):** `minhasHorasPorDia()` somava
   `estado.tempo.worklogs` — o PERÍODO do topo (padrão `7d`), que o ⏱ Apontar nem mostra (`VCHROME.apontar={}`) —, então
