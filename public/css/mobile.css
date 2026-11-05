@@ -2021,6 +2021,18 @@
   #sr-publica,[data-sr-prox],.sr-at-res~.alx-modal-acoes .btn{min-height:44px}
   .sr-at-int{min-height:44px}
 }
+@media (max-width:760px){
+  /* ✏️ situação do projeto: formulário em uma coluna; cada passo vira um bloco com ✕ de 44px */
+  .sr-prox-l{grid-template-columns:minmax(0,1fr) 44px;grid-template-areas:"t x" "q q" "w w";padding-bottom:8px;border-bottom:1px solid var(--linha)}
+  .sr-prox-l .sr-p-t{grid-area:t} .sr-prox-l .sr-p-q{grid-area:q} .sr-prox-l .sr-p-w{grid-area:w} .sr-prox-l [data-sr-prox-rm]{grid-area:x;min-height:44px;min-width:44px}
+  .sr-cab-form [data-sr-prox-add],.sr-cab-acoes .btn,[data-sr-cab-edit],[data-sr-tpls]{min-height:44px}
+  .sr-cab-acoes .btn{flex:1 1 100%}
+  .sr-cab-form input,.sr-cab-form select,.sr-cab-form textarea{font-size:16px}
+  .sr-prox-l input,.sr-prox-l select{min-height:44px}
+  /* ⚙️ modelos */
+  .srt-item{flex-direction:column} .srt-bt{width:100%} .srt-bt .gp-mini,.srt-bt .btn,.srt-add .btn,#srt-salva{min-height:44px}
+  .srt-ed input,.srt-ed select,.srt-ed textarea{font-size:16px}
+}
 /* ---- fim: statusrep ---- */
 
 /* ---- 📱 grupo: portal (🌐 Portal do cliente: seções, formulário, tabelas editáveis, prévia) ---- */

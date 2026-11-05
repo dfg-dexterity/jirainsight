@@ -3376,6 +3376,25 @@
   .sr-at-opc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;margin:8px 0}
   .sr-at-int{display:flex;gap:8px;align-items:center;margin:8px 0;cursor:pointer;font-size:13px}
   .sr-at-res{list-style:none;padding:0;margin:10px 0;font-size:13.5px} .sr-at-res li{margin:4px 0} .sr-at-res .ok{color:var(--musgo)} .sr-at-res .erro{color:var(--err)}
+  /* ✏️ Situação do projeto (formulário) e ⚙️ Modelos */
+  .sr-sit-acoes{margin-top:10px}
+  .sr-cab-form{display:grid;gap:10px;margin-top:6px}
+  .sr-cab-form textarea,.sr-cab-form input[type=text],.sr-cab-form select{width:100%;box-sizing:border-box}
+  .sr-cab-form textarea,.sr-cab-form input[type=text],.sr-cab-form input[type=date]{font-family:var(--corpo);font-size:13px;padding:7px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .sr-cab-form textarea{resize:vertical;line-height:1.5}
+  .sr-prox-ls{display:grid;gap:6px;margin-bottom:6px}
+  .sr-prox-l{display:grid;grid-template-columns:minmax(0,1fr) 150px minmax(0,200px) 34px;gap:6px;align-items:center}
+  .sr-prox-l input,.sr-prox-l select{min-width:0;width:100%;box-sizing:border-box}
+  .sr-cab-acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .sr-conflito{background:var(--trilho);border-left:4px solid var(--amarelo);border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12.5px}
+  .srt-lista{display:grid;gap:6px;margin:10px 0}
+  .srt-item{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;border:1px solid var(--linha);border-radius:8px;padding:8px 10px}
+  .srt-item.srt-ed{display:grid;gap:8px;background:var(--trilho)}
+  .srt-ed input[type=text],.srt-ed textarea,.srt-ed select{width:100%;box-sizing:border-box}
+  .srt-res{min-width:0;flex:1} .srt-rot{font-weight:700} .srt-tx{overflow-wrap:anywhere;margin-top:2px}
+  .srt-bt{display:flex;gap:4px;flex:0 0 auto}
+  .srt-ck{display:grid;gap:4px;font-size:12.5px} .srt-add{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 
   /* ---- 📆 Hoje (24b-hoje.js, 2026-10-21): o planejamento do dia como ponto central ---- */
   .hj-tela{min-width:0}

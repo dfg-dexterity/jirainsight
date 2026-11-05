@@ -10,7 +10,7 @@
 // Nesta etapa a tela é só LEITURA: o 📝 Atualizar (modelos de comentário) e a edição da situação entram depois e
 // se encaixam nos ganchos marcados com data-sr-slot (coluna de ação da linha e rodapé da situação).
 estado.sr=estado.sr||{ proj:'', dados:null, chave:'', carregando:'', erro:'', cache:{}, sujo:false, cab:null, cabB:false,
-  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, resp:'', soSem:false, catB:false };
+  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false };
 const SR_PROJ_KEY='jirainsight_sr_proj_v1';   // último projeto aberto, só neste navegador
 const SR_CACHE_MIN=3;
 const SR_SO_GESTORES=false;                   // espelho da constante do servidor (D2): true restringe a edição da situação
@@ -172,6 +172,76 @@ function srBlocoHTML(id,tit,sub,lista,c){
     :'<div class="sr-vazio">✓ nada aqui.</div>';
   return `<div class="card full sr-bloco" id="sr-${id}" data-sr-bloco="${id}"><h2>${tit} <span class="sr-n">${lista.length}</span><span>${sub}</span></h2>${corpo}</div>`;
 }
+// ---- ✏️ Situação do projeto: edição inline (T4) ----
+const SR_MAX_PROX=10;
+function srCabRascunhoDe(cab){
+  const c=(cab&&typeof cab==='object')?cab:{};
+  return { saude:SR_SEMAFORO[c.saude]?c.saude:'', resumo:String(c.resumo||''), riscos:String(c.riscos||''),
+    proximos:(Array.isArray(c.proximos)?c.proximos:[]).filter(p=>p&&typeof p==='object').map(p=>({ t:String(p.t||''), quando:String(p.quando||''), quem:String(p.quem||'') })) };
+}
+// Lê o formulário aberto para estado.sr.rasc (chamado a cada input/change — nunca redesenha).
+function srCabRascunho(){
+  const f=document.getElementById('sr-cab-form'); const s=estado.sr; if(!f) return s.rasc;
+  const v=(id)=>{ const e=document.getElementById(id); return e?e.value:''; };
+  s.rasc={ saude:v('sr-saude'), resumo:v('sr-resumo'), riscos:v('sr-riscos'),
+    proximos:[...f.querySelectorAll('[data-sr-prox-i]')].map(l=>({ t:l.querySelector('.sr-p-t').value, quando:l.querySelector('.sr-p-q').value, quem:l.querySelector('.sr-p-w').value })) };
+  return s.rasc;
+}
+function srCabFormHTML(c){
+  const s=estado.sr; const r=s.rasc||(s.rasc=srCabRascunhoDe(s.cab)); const a=c.auto;
+  const pes=srPessoasDo(c); const nomes=[...new Set([...pes.proj.map(x=>pes.todas[x]),...pes.outras.map(x=>pes.todas[x])])];
+  const linha=(p,i)=>{ const ops=nomes.includes(p.quem)||!p.quem?nomes:[p.quem,...nomes];
+    return `<div class="sr-prox-l" data-sr-prox-i="${i}">
+      <input type="text" class="sr-p-t" maxlength="200" value="${escA(p.t)}" placeholder="O que vai acontecer" aria-label="Próximo passo ${i+1}" autocomplete="off">
+      <input type="date" class="sr-p-q" value="${escA(p.quando)}" aria-label="Data do passo ${i+1}">
+      <select class="sr-p-w" aria-label="Quem faz o passo ${i+1}"><option value="">— quem —</option>${ops.map(n=>`<option value="${escA(n)}" ${p.quem===n?'selected':''}>${esc(n)}</option>`).join('')}</select>
+      <button type="button" class="gp-mini" data-sr-prox-rm="${i}" aria-label="Remover o passo ${i+1}" data-tip="Remover este passo">✕</button></div>`; };
+  const conf=s.cabConf?`<div class="sr-conflito" role="status"><b>⚠ ${esc(s.cabConf.por||'Outra pessoa')} salvou antes de você${s.cabConf.em?` (${esc(srQuando(s.cabConf.em))})`:''}.</b> A versão dela já está no topo da tela${s.cabConf.resumo?`; resumo dela: “${esc(s.cabConf.resumo.length>160?s.cabConf.resumo.slice(0,159)+'…':s.cabConf.resumo)}”`:''}. O que você digitou foi mantido — confira e salve de novo para valer o seu.</div>`:'';
+  return `${conf}<div id="sr-cab-form" class="sr-cab-form">
+    <div class="campo"><label for="sr-saude">Semáforo</label><select id="sr-saude"><option value="" ${r.saude===''?'selected':''}>automático (sugerido: ${SR_SEMAFORO[a.saude].ic} ${esc(SR_SEMAFORO[a.saude].rot)})</option>${Object.keys(SR_SEMAFORO).map(k=>`<option value="${k}" ${r.saude===k?'selected':''}>${SR_SEMAFORO[k].ic} ${esc(SR_SEMAFORO[k].rot)}</option>`).join('')}</select></div>
+    <div class="campo"><label for="sr-resumo">Resumo da situação <span class="muted small">— em 3 linhas, o que o time precisa saber</span></label><textarea id="sr-resumo" rows="4" maxlength="1500">${esc(r.resumo)}</textarea></div>
+    <div class="campo"><label>🎯 Próximos passos <span class="muted small">— até ${SR_MAX_PROX}</span></label>
+      <div class="sr-prox-ls">${r.proximos.map(linha).join('')}</div>
+      <button type="button" class="btn" data-sr-prox-add="1">➕ Adicionar passo</button> <span class="muted small" id="sr-prox-dica" role="status"></span></div>
+    <div class="campo"><label for="sr-riscos">⚠ Riscos</label><textarea id="sr-riscos" rows="3" maxlength="1000">${esc(r.riscos)}</textarea></div>
+    <div class="alx-fb ap-fb${s.cabFb?' erro':''}" id="sr-cab-fb" ${s.cabFb?'':'hidden'}>${esc(s.cabFb)}</div>
+    <div class="sr-cab-acoes"><button type="button" class="btn primario" id="sr-cab-salva" ${s.cabSalvando?'disabled':''}>💾 Salvar</button><button type="button" class="btn" id="sr-cab-cancela">Cancelar</button></div></div>`;
+}
+function srCabAbre(){
+  const s=estado.sr;
+  if(!idApontar()){ abreIdentidade('escrever a situação do projeto',{ depois:()=>{ if(estado.vista==='statusrep') srCabAbre(); } }); return; }
+  s.edit=true; s.rasc=srCabRascunhoDe(s.cab); s.cabFb=''; s.cabConf=null; renderSr();
+  const e=document.getElementById('sr-resumo'); if(e) e.focus();
+}
+function srCabFecha(){ const s=estado.sr; s.edit=false; s.rasc=null; s.cabFb=''; s.cabConf=null; renderSr(); }
+async function srCabSalva(){
+  const s=estado.sr; if(s.cabSalvando) return;
+  const id=idApontar();
+  if(!id){ abreIdentidade('escrever a situação do projeto',{ depois:()=>{ if(estado.vista==='statusrep') srCabSalva(); } }); return; }
+  const proj=srProjAtual(); if(!proj) return;
+  const r=srCabRascunho()||s.rasc; if(!r) return;
+  const dados={ saude:r.saude, resumo:r.resumo, riscos:r.riscos, proximos:r.proximos.filter(p=>String(p.t||'').trim()) };
+  if(dados.proximos.length>SR_MAX_PROX){ s.cabFb=`Máximo de ${SR_MAX_PROX} próximos passos.`; renderSr(); return; }
+  s.cabSalvando=true; s.cabFb='';
+  const btn=document.getElementById('sr-cab-salva'); if(btn) ocupado(btn,true);
+  let j;
+  try{ j=await (await fetch('/api/config?sr=1',{ method:'POST', headers:mpHeaders(), body:JSON.stringify({ acao:'salvar', proj, base:s.cabRev, dados }) })).json(); }
+  catch(e){ j={ ok:false, erro:humanizaErro(e) }; }
+  s.cabSalvando=false;
+  if(srProjAtual()!==proj){ toast(j&&j.ok?`✓ situação de ${proj} salva.`:`Não consegui salvar a situação de ${proj}.`,j&&j.ok?'ok':'warn'); return; }
+  if(j&&j.ok){
+    s.cab=(j.dados&&typeof j.dados==='object')?j.dados:null; s.cabRev=j.rev||''; s.cabProj=proj; s.cabErro='';
+    s.edit=false; s.rasc=null; s.cabFb=''; s.cabConf=null;
+    toast('✓ situação salva — todo mundo vê','ok');
+  } else if(j&&j.conflito){
+    const at=j.atual||{}; const d=(at.dados&&typeof at.dados==='object')?at.dados:null;
+    s.cab=d; s.cabRev=at.rev||''; s.cabProj=proj; s.cabErro='';
+    s.cabConf={ por:d&&d.por?d.por.nome:'', em:d?d.atualizadoEm:'', resumo:d?String(d.resumo||''):'' };
+    s.cabFb='';
+    toast('A situação foi alterada por outra pessoa — a tela mostra a versão dela; o seu texto foi mantido, confira e salve de novo.','warn');
+  } else { s.cabFb=(j&&j.erro)||'Não consegui salvar a situação.'; }
+  if(estado.vista==='statusrep') renderSr();
+}
 function srSituacaoHTML(c){
   const s=estado.sr; const cab=s.cab; const a=c.auto;
   const manual=cab&&cab.saude&&SR_SEMAFORO[cab.saude]?cab.saude:'';
@@ -179,8 +249,10 @@ function srSituacaoHTML(c){
   const tip='Regra do sugerido: 🔴 se há item bloqueado, 3 ou mais vencidos ou vencidos em 30% ou mais dos itens · 🟡 se há vencido, item aguardando o cliente ou 3 ou mais itens sem status report há '+c.N+' dias · 🟢 nos demais casos. O semáforo escrito por uma pessoa vale mais que o sugerido.';
   const sug=`<span class="sr-sug" data-tip="${escA(tip)}">sugerido pelos números: ${SR_SEMAFORO[a.saude].ic} (${esc(a.motivo)})</span>`;
   const dif=manual&&manual!==a.saude?`<span class="sr-dif">manual ${SR_SEMAFORO[manual].ic} · sugerido ${SR_SEMAFORO[a.saude].ic}</span>`:'';
+  const prontoLer=s.cabProj===srProjAtual()||s.cabErro;
   let corpo;
-  if(s.cabProj!==srProjAtual()&&!s.cabErro) corpo='<div class="muted small">Lendo a situação do projeto…</div>';
+  if(s.edit&&s.rasc) corpo=srCabFormHTML(c);
+  else if(s.cabProj!==srProjAtual()&&!s.cabErro) corpo='<div class="muted small">Lendo a situação do projeto…</div>';
   else if(s.cabErro) corpo=`<div class="muted small">⚠ Não consegui ler a situação escrita (${esc(s.cabErro)}). Os números abaixo valem; use o ↻.</div>`;
   else if(!cab) corpo='<div class="sr-vazio">Ninguém escreveu a situação ainda — o semáforo acima é só o sugerido pelos números.</div>';
   else {
@@ -189,11 +261,12 @@ function srSituacaoHTML(c){
       ${prox.length?`<div class="sr-prox"><h3>🎯 Próximos passos</h3><ul>${prox.map(p=>`<li>${esc(p.t)}${p.quando?` <span class="muted small">· ${esc(srDm(p.quando))}</span>`:''}${p.quem?` <span class="muted small">· ${esc(p.quem)}</span>`:''}</li>`).join('')}</ul></div>`:''}
       ${cab.riscos?`<div class="sr-riscos"><h3>⚠ Riscos</h3><p>${esc(cab.riscos).replace(/\n/g,'<br>')}</p></div>`:''}
       <div class="muted small sr-rodape-sit">Atualizado${cab.por&&cab.por.nome?` por ${esc(cab.por.nome)}`:''}${cab.atualizadoEm?` em ${esc(srQuando(cab.atualizadoEm))}`:''}</div>
-      ${Array.isArray(cab.hist)&&cab.hist.length?`<details class="sr-hist"><summary>📜 Histórico da situação (${cab.hist.length})</summary><ul>${cab.hist.map(h=>`<li>${esc(srQuando(h.em))} · ${esc(h.por||'')} · ${h.saude&&SR_SEMAFORO[h.saude]?SR_SEMAFORO[h.saude].ic:'—'} ${esc(h.resumo||'')}</li>`).join('')}</ul></details>`:''}`;
+      ${Array.isArray(cab.hist)&&cab.hist.length?`<details class="sr-hist" data-sr-hist="1" ${s.histAberto?'open':''}><summary>📜 Histórico da situação (${cab.hist.length})</summary><ul>${cab.hist.map(h=>`<li>${esc(srQuando(h.em))} · ${esc(h.por||'')} · ${h.saude&&SR_SEMAFORO[h.saude]?SR_SEMAFORO[h.saude].ic:'—'} ${esc(h.resumo||'')}</li>`).join('')}</ul></details>`:''}`;
   }
+  const edita=(!s.edit&&prontoLer)?`<button type="button" class="btn" data-sr-cab-edit="1" data-tip="Escreve a situação do projeto (semáforo, resumo, próximos passos e riscos) — todo mundo passa a ver o que você salvar">✏️ Editar a situação</button>`:'';
   return `<div class="card full sr-situacao"><h2>🧭 Situação do projeto <span>a mesma visão para todo o time</span></h2>
     <div class="sr-sem-linha"><span class="sr-semaforo ${manual||a.saude}" data-tip="${escA(tip)}">${sem.ic} ${esc(sem.rot)}</span>${dif}${sug}</div>
-    ${corpo}<div class="sr-sit-acoes" data-sr-slot="cab"></div></div>`;
+    ${corpo}<div class="sr-sit-acoes" data-sr-slot="cab">${edita}</div></div>`;
 }
 function srKpisHTML(c){
   const k=c.kpis; const N=c.N;
@@ -227,7 +300,8 @@ function srAcoesHTML(proj){
     <button class="btn" data-sr-copiar="1" data-tip="Copia o relatório em texto simples — para colar na ata, no Teams ou no e-mail">📋 Copiar relatório</button>
     <button class="btn" data-sr-link="1" data-tip="Copia o link desta tela já neste projeto — todo mundo abre a mesma visão">🔗 Copiar link</button>
     <button class="btn" data-sr-gp="1" data-tip="Abre a 🧭 Pendências deste projeto: quem precisa atualizar o quê, com a cobrança pronta">🧭 Pendências por pessoa</button>
-    <button class="btn" data-proj-ficha="${escA(proj)}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha</button></div>`;
+    <button class="btn" data-proj-ficha="${escA(proj)}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha</button>
+    ${srPodeEditarTpl()?'<button class="btn" data-sr-tpls="1" data-tip="Só gestores: edite os modelos de comentário do 📝 Atualizar (rótulo, texto, campos)">⚙️ Modelos</button>':''}</div>`;
 }
 function srCabHTML(sub,c){
   const proj=srProjAtual();
@@ -276,7 +350,7 @@ function srTextoRelatorio(c){
   const manual=cab&&cab.saude&&SR_SEMAFORO[cab.saude]?cab.saude:'';
   const L=[`📋 Status report — ${c.meta.nome||projNomeCod(proj)} — ${dataBR(c.hoje)}`];
   L.push(`Semáforo: ${SR_SEMAFORO[manual||c.auto.saude].ic} ${SR_SEMAFORO[manual||c.auto.saude].rot}${manual&&manual!==c.auto.saude?` (manual; os números sugerem ${SR_SEMAFORO[c.auto.saude].ic})`:` — ${manual?'manual':'sugerido'}: ${c.auto.motivo}`}`);
-  if(cab&&cab.resumo) L.push(`Resumo: ${cab.resumo}`);
+  if(cab&&cab.resumo) L.push(`Situação: ${cab.resumo}`);
   const prox=cab&&Array.isArray(cab.proximos)?cab.proximos.filter(p=>p&&p.t):[];
   if(prox.length){ L.push('🎯 Próximos passos:'); prox.forEach(p=>L.push(`• ${p.t}${p.quando?` — ${srDm(p.quando)}`:''}${p.quem?` — ${p.quem}`:''}`)); }
   if(cab&&cab.riscos) L.push(`⚠ Riscos: ${cab.riscos}`);
@@ -408,7 +482,7 @@ function srEscolheTpl(S,tpl,primeira){
   srCamposDe(tpl).forEach(f=>{ if(f.n==='data'&&S.vals.data===undefined&&!tpl.reagendar) S.vals.data=S.hoje; });
   srPintaCampos(); srPintaStatus(); srPintaPreview();
 }
-function srAoFecharModal(){ _sr=null; }
+function srAoFecharModal(){ _sr=null; _srT=null; }
 function srProximo(k){
   const c=srCalc(); if(!c) return null;
   const ordem=[...c.g.vencidos,...c.g.semana,...c.g.proxima,...c.g.bugs];
@@ -479,10 +553,80 @@ async function srPublica(){
       <div class="alx-modal-acoes">${prox?`<button class="btn primario" data-sr-prox="${escA(prox.k)}">⏭ Próximo item (${esc(prox.k)})</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
   } else toast(`Status report publicado em ${k}.`,'ok');
 }
+// ---- ⚙️ Modelos: editor dos modelos de comentário (gestor/admin) — grava cfg.srTemplates (T4) ----
+let _srT=null;   // estado só do modal ⚙️ aberto: { lista, edit (id aberto), fb, conf (confirmar voltar aos padrões) }
+const srPodeEditarTpl=()=>!!idApontar()&&(souAprovador()||temPapel('gestor')||temPapel('admin'));
+const srCopiaTpls=(l)=>JSON.parse(JSON.stringify(l));
+function srTplPintaLista(){
+  const T=_srT; const w=document.getElementById('srt-lista'); if(!T||!w) return;
+  w.innerHTML=T.lista.map((x,i)=>{
+    const tp=SR_TIPOS[x.tipo]||SR_TIPOS.andamento;
+    if(T.edit!==x.id) return `<div class="srt-item" data-srt-id="${escA(x.id)}"><div class="srt-res"><span class="srt-rot">${tp.ic} ${esc(x.rot||'(sem rótulo)')}</span>
+      <span class="muted small">${esc(tp.rot)}${x.reagendar?' · 📅 pede nova data':''}${x.done?' · ✅ sugere concluir':''}</span>
+      <div class="muted small srt-tx">${esc(x.texto||'')}</div></div>
+      <div class="srt-bt"><button type="button" class="gp-mini" data-srt-edit="${escA(x.id)}" aria-label="Editar o modelo ${escA(x.rot||'')}" data-tip="Editar">✏️</button><button type="button" class="gp-mini" data-srt-del="${escA(x.id)}" aria-label="Remover o modelo ${escA(x.rot||'')}" data-tip="Remover">🗑</button></div></div>`;
+    return `<div class="srt-item srt-ed" data-srt-id="${escA(x.id)}">
+      <div class="campo"><label for="srt-tipo">Tipo <span class="muted small">(fixo: é o semáforo do item)</span></label><select id="srt-tipo">${Object.keys(SR_TIPOS).map(k=>`<option value="${k}" ${x.tipo===k?'selected':''}>${SR_TIPOS[k].ic} ${esc(SR_TIPOS[k].rot)}</option>`).join('')}</select></div>
+      <div class="campo"><label for="srt-rot">Rótulo <span class="muted small">(1 a 60)</span></label><input type="text" id="srt-rot" maxlength="60" value="${escA(x.rot)}" autocomplete="off"></div>
+      <div class="campo"><label for="srt-texto">Texto <span class="muted small">(1 a 500; use {campo} para o que a pessoa preenche: proximo, data, prazo, quem, motivo, detalhe, impacto — ou outro nome)</span></label><textarea id="srt-texto" rows="3" maxlength="500">${esc(x.texto)}</textarea></div>
+      <div class="srt-ck"><label><input type="checkbox" id="srt-reag" ${x.reagendar?'checked':''}> 📅 pedir nova data (copia {data} para o vencimento)</label>
+        <label><input type="checkbox" id="srt-done" ${x.done?'checked':''}> ✅ sugerir concluir o ticket</label></div>
+      <div class="srt-bt"><button type="button" class="btn" data-srt-ok="1">Pronto</button></div></div>`; }).join('')||'<div class="sr-vazio">Nenhum modelo — adicione um ou use ↺ voltar aos padrões.</div>';
+  const fb=document.getElementById('srt-fb'); if(fb){ fb.hidden=!T.fb; fb.textContent=T.fb||''; fb.className='alx-fb ap-fb'+(T.fb?' erro':''); }
+  const pd=document.getElementById('srt-padroes'); if(pd) pd.textContent=T.conf?'Confirmar: voltar aos 8 padrões?':'↺ voltar aos padrões';
+}
+function srAbreTemplates(){
+  if(!srPodeEditarTpl()){ toast('Só gestores editam os modelos.','warn'); return; }
+  _srT={ lista:srCopiaTpls(srTemplates()), edit:'', fb:'', conf:false };
+  abreModal(`<h2>⚙️ Modelos de comentário do status report</h2>
+    <div class="muted small">Valem para todo o time, na hora de 📝 Atualizar. O <b>tipo</b> é fixo; rótulo e texto são seus. Cada <code>{campo}</code> do texto vira um campo no formulário.</div>
+    <div id="srt-lista" class="srt-lista"></div>
+    <div class="srt-add"><button type="button" class="btn" data-srt-add="1">➕ Novo modelo</button> <button type="button" class="btn" id="srt-padroes" data-srt-padroes="1">↺ voltar aos padrões</button></div>
+    <div class="alx-fb" id="srt-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" id="srt-salva">💾 Salvar</button><button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  srTplPintaLista();
+}
+function srTplValida(l){
+  for(const x of l){
+    const rot=String(x.rot||'').trim(); const tx=String(x.texto||'').trim();
+    if(!SR_TIPOS[x.tipo]) return { id:x.id, erro:'Escolha o tipo do modelo.' };
+    if(rot.length<1||rot.length>60) return { id:x.id, erro:'O rótulo precisa ter de 1 a 60 caracteres.' };
+    if(tx.length<1||tx.length>500) return { id:x.id, erro:`O texto de “${rot}” precisa ter de 1 a 500 caracteres.` };
+  }
+  return null;
+}
+function srTplSalva(){
+  const T=_srT; if(!T) return;
+  if(!srPodeEditarTpl()){ T.fb='Só gestores editam os modelos.'; srTplPintaLista(); return; }
+  if(!T.lista.length){ T.fb='Mantenha ao menos um modelo — ou use ↺ voltar aos padrões.'; srTplPintaLista(); return; }
+  const bad=srTplValida(T.lista);
+  if(bad){ T.fb=bad.erro; T.edit=bad.id; srTplPintaLista(); return; }
+  cfg.srTemplates=T.lista.map(x=>{ const o={ id:String(x.id), tipo:x.tipo, rot:String(x.rot).trim(), texto:String(x.texto).trim() }; if(x.reagendar) o.reagendar=true; if(x.done) o.done=true; return o; });
+  logAcao({ acao:'sr-modelos', para:`${cfg.srTemplates.length} modelo(s)`, ok:true },false);
+  salvaCfg();
+  toast('✓ modelos salvos — valem para todo o time','ok');
+  fechaModal();
+}
+function srTplPadroes(){
+  const T=_srT; if(!T) return;
+  if(!T.conf){ T.conf=true; srTplPintaLista(); return; }
+  delete cfg.srTemplates;
+  logAcao({ acao:'sr-modelos', para:'padrões', ok:true },false);
+  salvaCfg();
+  T.lista=srCopiaTpls(SR_TPLS_PADRAO); T.edit=''; T.fb=''; T.conf=false;
+  srTplPintaLista(); toast('↺ os 8 modelos padrão voltaram','ok');
+}
 // ---- Listeners delegados desta tela ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='statusrep') return;
   const cl=(q)=>e.target.closest&&e.target.closest(q); const s=estado.sr;
+  const ce=cl('[data-sr-cab-edit]'); if(ce){ srCabAbre(); return; }
+  const pa=cl('[data-sr-prox-add]'); if(pa){ const r=srCabRascunho(); if(!r) return;
+    if(r.proximos.length>=SR_MAX_PROX){ const d=document.getElementById('sr-prox-dica'); if(d) d.textContent=`Máximo de ${SR_MAX_PROX} passos.`; toast(`Máximo de ${SR_MAX_PROX} próximos passos.`,'warn'); return; }
+    r.proximos.push({ t:'', quando:'', quem:'' }); renderSr();
+    const ls=document.querySelectorAll('#sr-cab-form .sr-p-t'); if(ls.length) ls[ls.length-1].focus(); return; }
+  const pr=cl('[data-sr-prox-rm]'); if(pr){ const r=srCabRascunho(); if(!r) return; r.proximos.splice(Number(pr.getAttribute('data-sr-prox-rm')),1); renderSr(); return; }
+  const tp=cl('[data-sr-tpls]'); if(tp){ srAbreTemplates(); return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
   const ir=cl('[data-sr-ir]'); if(ir){ const b=document.getElementById('sr-'+ir.getAttribute('data-sr-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const so=cl('[data-sr-so-sem]'); if(so){ s.soSem=!s.soSem; renderSr(); return; }
@@ -490,13 +634,23 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const lk=cl('[data-sr-link]'); if(lk){ const p=srProjAtual(); if(p) gpCopia(srLinkTela(p),'🔗 Link copiado — todo mundo abre a mesma visão.'); return; }
   const gp=cl('[data-sr-gp]'); if(gp){ const p=srProjAtual(); if(p&&estado.gp){ estado.gp.proj=p; estado.gp.meus=false; estado.gp.resp=''; } vaiPara('gp'); return; }
   const b=e.target.closest&&e.target.closest('button'); if(!b) return;
-  if(b.id==='sr-refresh'){ if(b.disabled) return; s.cabProj=''; srCarrega(true); renderSr(); }   // o render seguinte mostra "buscando…" até a resposta
+  if(b.id==='sr-cab-salva'){ if(!b.disabled) srCabSalva(); }
+  else if(b.id==='sr-cab-cancela'){ srCabFecha(); }
+  else if(b.id==='sr-refresh'){ if(b.disabled) return; s.cabProj=''; srCarrega(true); renderSr(); }   // o render seguinte mostra "buscando…" até a resposta
   else if(b.id==='sr-retry'){ s.erro=''; s.cabProj=''; srCarrega(true); renderSr(); }
 });
+// Formulário da situação: cada digitação só atualiza o rascunho (nunca redesenha — o Chrome dispara `change` com o foco já fora).
+['input','change'].forEach(ev=>document.getElementById('conteudo').addEventListener(ev,(e)=>{
+  if(estado.vista!=='statusrep'||!estado.sr.edit) return;
+  if(e.target&&e.target.closest&&e.target.closest('#sr-cab-form')) srCabRascunho();
+}));
+document.getElementById('conteudo').addEventListener('toggle',(e)=>{
+  const d=e.target; if(d&&d.matches&&d.matches('[data-sr-hist]')) estado.sr.histAberto=!!d.open;
+},true);
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='statusrep') return;
   const t=e.target; const s=estado.sr; if(!t||!t.id) return;
-  if(t.id==='sr-proj'){ srProjSet(t.value); s.erro=''; s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; renderSr(); }
+  if(t.id==='sr-proj'){ srProjSet(t.value); s.erro=''; s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; s.cabConf=null; s.cabFb=''; s.histAberto=false; renderSr(); }
   else if(t.id==='sr-resp'){ s.resp=t.value; renderSr(); }
   else if(t.id==='sr-so-sem'){ s.soSem=!!t.checked; renderSr(); }
 });
@@ -523,3 +677,22 @@ document.getElementById('modal-body').addEventListener('change',(e)=>{
   else if(t.id==='sr-novadata'){ S.vencMan=true; }
   else if(t.id==='sr-st'){ S.stMan=true; S.st=t.value; }
 });
+
+// ---- Listeners do modal ⚙️ Modelos (só agem com ele aberto) ----
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const T=_srT; if(!T) return;
+  const cl=(q)=>e.target.closest&&e.target.closest(q);
+  const ed=cl('[data-srt-edit]'); if(ed){ T.edit=ed.getAttribute('data-srt-edit'); T.fb=''; srTplPintaLista(); const r=document.getElementById('srt-rot'); if(r) r.focus(); return; }
+  const dl=cl('[data-srt-del]'); if(dl){ const id=dl.getAttribute('data-srt-del'); T.lista=T.lista.filter(x=>x.id!==id); if(T.edit===id) T.edit=''; T.fb=''; srTplPintaLista(); return; }
+  if(cl('[data-srt-ok]')){ T.edit=''; srTplPintaLista(); return; }
+  if(cl('[data-srt-add]')){ const id='t-'+Math.random().toString(36).slice(2,8); T.lista.push({ id, tipo:'andamento', rot:'', texto:'' }); T.edit=id; T.fb=''; T.conf=false; srTplPintaLista(); const r=document.getElementById('srt-rot'); if(r) r.focus(); return; }
+  if(cl('[data-srt-padroes]')){ srTplPadroes(); return; }
+  if(cl('#srt-salva')){ srTplSalva(); }
+});
+['input','change'].forEach(ev=>document.getElementById('modal-body').addEventListener(ev,(e)=>{
+  const T=_srT; const t=e.target; if(!T||!t||!t.id||!t.id.startsWith('srt-')) return;
+  const x=T.lista.find(y=>y.id===T.edit); if(!x) return;
+  if(t.id==='srt-tipo') x.tipo=t.value; else if(t.id==='srt-rot') x.rot=t.value; else if(t.id==='srt-texto') x.texto=t.value;
+  else if(t.id==='srt-reag'){ if(t.checked) x.reagendar=true; else delete x.reagendar; }
+  else if(t.id==='srt-done'){ if(t.checked) x.done=true; else delete x.done; }
+}));
