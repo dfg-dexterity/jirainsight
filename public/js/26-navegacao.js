@@ -109,9 +109,10 @@ const ABAS=[
   { id:'agenda',       rot:'📅 Agenda',                 abas:[ {v:'agenda',rot:'📅 Eventos (Outlook → ticket)'}, {v:'agcontrole',rot:'🎫 Controle de tickets'}, {v:'chamadas',rot:'📞 Ligações'} ] },
   { id:'minhasemana',  rot:'📋 Meu Planejamento',       abas:[ {v:'minhasemana',rot:'📋 Minha semana'}, {v:'planrel',aud:'minha',rot:'📈 Planejado × realizado'} ] },
   { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'}, {v:'meustickets',rot:'🧾 Preciso criar meus tickets'} ] },
-  { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
+  { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'} ] },
   { id:'reclassificar',rot:'🗂 Reuniões',               abas:[ {v:'reclassificar',rot:'↔ Reclassificar'}, {v:'reuvinc',rot:'🔗 Vincular a tickets'} ] },
-  { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'}, {v:'statusrep',rot:'📋 Status report'} ] },
+  // 2026-11-05: o 🧭 Pendências do projeto (R29) mudou do 🛠 Tickets do time para o 📁 Projetos — é a visão do gerente DO PROJETO, ao lado do 📋 Status report.
+  { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'}, {v:'statusrep',rot:'📋 Status report'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
   { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
   { id:'planrel',      rot:'📊 Planejamento do time',   abas:[ {v:'planrel',aud:'gestor',rot:'👥 Por gestor'}, {v:'planrel',aud:'exec',rot:'👔 Visão executiva'}, {v:'planrel',aud:'proj',rot:'📁 Por projetos'} ] },
   // fase 3 — Dexterity Negócio
@@ -193,10 +194,20 @@ function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').for
 // 3 áreas, janela estreita), então um `max-height` fixo no CSS deixava o fim do 👤 Meu trabalho abaixo da janela.
 // Só no computador — na gaveta do celular o menu é um acordeão e quem rola é a gaveta.
 function navMenuAltura(g){
-  const m=g&&g.querySelector('.navg-menu'); if(!m) return; m.style.maxHeight='';
+  const m=g&&g.querySelector('.navg-menu'); if(!m) return; m.style.maxHeight=''; m.style.left=''; m.style.right='';
   if(window.matchMedia&&window.matchMedia('(max-width:760px)').matches) return;
+  // 2026-11-05: o grupo no canto direito da barra (Dexterity Insights) abria o menu para fora da tela — passando da borda,
+  // o menu se alinha pela direita do botão.
+  const r0=m.getBoundingClientRect(); if(r0.right>window.innerWidth-8){ m.style.left='auto'; m.style.right='0'; }
   const top=m.getBoundingClientRect().top; if(!top) return;
   m.style.maxHeight=Math.max(220, Math.floor(window.innerHeight-top-12))+'px';
+}
+// 🔢 Contadores nas linhas do menu (2026-11-05): o mesmo número da aba (ABAS_N — só dado já carregado), pintado na hora
+// de ABRIR o menu, que é quando a pessoa olha; nada é buscado por causa dele. Linhas com audiência (📊 planrel) ficam de fora.
+function navMenuContadores(g){
+  if(!g) return;
+  g.querySelectorAll('.navg-menu [data-v]').forEach(b=>{ b.querySelectorAll('.nav-n').forEach(x=>x.remove());
+    if(b.dataset.aud) return; const h=abaN(b.dataset.v); if(h) b.insertAdjacentHTML('beforeend', h.replace('class="aba-n"','class="aba-n nav-n"')); });
 }
 // 🧭 Lente do perfil: esconde na barra os grupos data-area fora dos papéis da pessoa (cfg.papeis) — mas o
 // grupo que contém a tela ABERTA sempre aparece (quem chega por link vê onde está). Nada é bloqueado:
@@ -271,10 +282,11 @@ const NAVCAT=[
   ['tickets','🛠 Tickets do time › 📋 Lista do período','entrega','issues lista periodo analise tickets'],
   ['qualidade','🛠 Tickets do time › 🔎 Qualidade (IA)','entrega','auditoria ia tickets qualidade analise'],
   ['audit','🛠 Tickets do time › ✅ Regras TI-04-014 (Auditoria)','entrega','validacoes ti-04-014 conformidade analise auditoria de tickets'],
-  ['gp','🛠 Tickets do time › 🧭 Pendências do projeto','entrega','gerente parados vencidos por pessoa sem atualizacao cobrar cobranca pendencias do projeto gerente de projeto sem data cadastro incompleto reunioes vencidas mensagem teams inbox r29'],
+  ['gp','📁 Projetos › 🧭 Pendências do projeto','entrega','gerente parados vencidos por pessoa sem atualizacao cobrar cobranca pendencias do projeto gerente de projeto sem data cadastro incompleto reunioes vencidas mensagem teams inbox r29'],
   ['reclassificar','🗂 Reuniões › ↔ Reclassificar','entrega','mover reunioes projeto gestao reuniao'],
   ['reuvinc','🗂 Reuniões › 🔗 Vincular a tickets','entrega','teams tickets ams apoio reuniao vincular gestao'],
   ['projetos','📁 Projetos › 📁 Portfólio e ficha','entrega','bi ficha portfolio epicos saude consolidado analise'],
+  ['acao:projficha','🔎 Abrir a ficha de um projeto…','entrega','ficha do projeto abrir projeto escolher projeto seletor espinha contrato plano cronograma apuracao resultado portfolio'],
   ['cronograma','📁 Projetos › 📅 Marcos e Cronograma','entrega','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup analise'],
   ['statusrep','📁 Projetos › 📋 Status report do projeto','entrega','status report situacao do projeto semaforo saude vencidos esta semana proxima semana bugs abertos atualizar comentario modelo template proximos passos riscos reuniao de status r01 ata copiar relatorio'],
   ['timesheet','⏱ Horas do time › ⏱ Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise timesheet'],
@@ -379,6 +391,7 @@ function navAcao(a){
     case 'convidar': comId('convidar colegas a apontar num ticket', ()=>abreBuscaTickets('', (k,info)=>abreConvidarApontar(k, info), '📨 Convidar a apontar: escolha o ticket')); return;
     case 'transformar': comId('transformar um chamado em atividade', ()=>abreTransformar('')); return;
     case 'meusproj': abreMeusTicketsProjeto(); return;
+    case 'projficha': abreEscolheProjeto({ titulo:'🔎 Abrir a ficha de um projeto', sub:'escolha o projeto — abre 📁 Projetos já na ficha dele (a 🦴 espinha leva a Contrato, Parceria, Plano, Cronograma, Execução, Apuração e Resultado)', aoEscolher:(k)=>{ if(typeof projAbreFicha==='function') projAbreFicha(k); } }); return;
     default: return;
   }
 }
@@ -442,6 +455,44 @@ document.addEventListener('click',(e)=>{
   const b=e.target.closest&&e.target.closest('[data-mtp-p]'); if(!b) return;
   const k=b.getAttribute('data-mtp-p'); _mtp=null; fechaModal();
   hxAbreApontar('todos', { semVenc:true, ate:MTP_ATE(), proj:k });
+});
+// ---- 🔎 Seletor de projeto genérico (2026-11-05, menus das áreas): a porta das linhas "…" que precisam de UM projeto
+// antes de abrir a tela (hoje: 🔎 Abrir a ficha de um projeto…). Lista o catálogo em memória (tkbProjetos, 12b) com os
+// 🕘 recentes da 🎫 busca primeiro, filtra sem acento, Enter escolhe o 1º; só lê o catálogo (garanteProjetos, memoizado).
+// `aoEscolher(k)` roda DEPOIS de fechar o modal. Não exige identidade (a ficha é lida pela conta de serviço). ----
+let _epj=null;
+function abreEscolheProjeto(o){
+  const op=o||{}; const m=_epj={ titulo:String(op.titulo||'🔎 Escolher projeto'), sub:String(op.sub||''), pick:(typeof op.aoEscolher==='function')?op.aoEscolher:null };
+  abreModal(`<h2>${esc(m.titulo)}${m.sub?` <span class="muted small">${esc(m.sub)}</span>`:''}</h2>
+    <input class="pal-q" id="epj-q" type="text" autocomplete="off" spellcheck="false" placeholder="filtrar projeto pelo nome ou pela chave…" aria-label="Filtrar projeto">
+    <div id="epj-lista" class="tkb-lista"></div>
+    <div class="muted small" style="padding:6px 10px 0">Enter escolhe o primeiro da lista · Esc fecha</div>`);
+  const q=document.getElementById('epj-q'); if(q){ q.addEventListener('input',()=>epjPinta());
+    q.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); const b=document.querySelector('#epj-lista [data-epj-p]'); if(b) b.click(); } });
+    setTimeout(()=>q.focus(),50); }
+  epjPinta();
+  ((typeof garanteProjetos==='function')?garanteProjetos():Promise.resolve()).then(()=>{ if(_epj===m) epjPinta(); }).catch(()=>{});
+}
+function epjPinta(){
+  const box=document.getElementById('epj-lista'); if(!box||!_epj) return;
+  const md=document.getElementById('modal'); if(md&&md.hidden){ _epj=null; return; }   // fechado por Esc/×: nada a pintar
+  const q=normPal((document.getElementById('epj-q')||{}).value||'');
+  const todos=(typeof tkbProjetos==='function')?tkbProjetos():[];
+  const bate=(p)=>!q||normPal(p.k+' '+p.nome).includes(q);
+  const rec=(typeof tkbRecentes==='function')?tkbRecentes():[];
+  const recentes=rec.map(k=>todos.find(p=>p.k===k)).filter(p=>p&&bate(p));
+  const outros=todos.filter(p=>!rec.includes(p.k)&&bate(p));
+  const linha=(p)=>`<div class="tkb-l"><button class="pal-row${p.arq?' pal-dim':''}" data-epj-p="${escA(p.k)}" title="${escA(p.nome)}"><span class="tkb-nome">${esc(p.nome)}</span><span class="muted small">${esc(p.k)}</span></button></div>`;
+  box.innerHTML=(!todos.length?'<div class="estado">Carregando o catálogo de projetos…</div>':'')
+    +(recentes.length?`<div class="pal-area">🕘 Recentes</div>${recentes.map(linha).join('')}`:'')
+    +(outros.length?`<div class="pal-area">${recentes.length?'Outros projetos':'Projetos'}</div>${outros.slice(0,80).map(linha).join('')}${outros.length>80?`<div class="muted small" style="padding:6px 10px">… e mais ${outros.length-80} — filtre pelo nome.</div>`:''}`:'')
+    ||(todos.length?'<div class="muted small" style="padding:8px">Nenhum projeto com esse nome.</div>':'');
+}
+document.addEventListener('click',(e)=>{
+  const b=e.target.closest&&e.target.closest('[data-epj-p]'); if(!b||!_epj) return;
+  const k=b.getAttribute('data-epj-p'), fn=_epj.pick; _epj=null; fechaModal();
+  if(typeof tkbLembra==='function') try{ tkbLembra(k); }catch(x){}
+  if(fn) fn(k);
 });
 document.addEventListener('click',(e)=>{
   const bp=e.target.closest&&e.target.closest('#btn-paleta'); if(bp){ abrePaleta(); return; }

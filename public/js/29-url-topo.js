@@ -163,7 +163,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   // Cabeçalho de grupo: abre/fecha o dropdown (não troca de aba).
   const hb=ev.target.closest('.navg-b');
   if(hb){ const g=hb.closest('.navg'); const abrir=!g.classList.contains('open');
-    fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); if(typeof navMenuAltura==='function') navMenuAltura(g); }
+    fechaMenusNav(); if(abrir){ g.classList.add('open'); hb.setAttribute('aria-expanded','true'); if(typeof navMenuAltura==='function') navMenuAltura(g); if(typeof navMenuContadores==='function') navMenuContadores(g); }
     ev.stopPropagation(); return; }
   // Item de ação (abre modal, não troca de aba) — a porta única é navAcao (26-navegacao.js).
   const ac=ev.target.closest('[data-acao]');

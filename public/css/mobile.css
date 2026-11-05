@@ -1852,6 +1852,8 @@
   .abas-tela .aba{flex:0 0 auto;margin-bottom:0}
   /* com a gaveta aberta, os botões flutuantes (🧭 e ↑) não cobrem os itens do fim do menu */
   body:has(#seg-vista.nav-aberto) #btn-guia,body:has(#seg-vista.nav-aberto) #to-top,body:has(#seg-vista.nav-aberto) #btn-reportar{display:none}
+  /* 🧭 menus por seção (2026-11-05): as linhas das áreas e do 👤 são alvo de dedo — 44px (HIG), não os 42 do pointer:coarse */
+  #seg-vista .navg-menu button{min-height:44px}
 }
 @media (max-width:600px){
   /* ▭ Modal = folha de tela cheia: largura total, rola por dentro, sem vazar para a página de trás */
