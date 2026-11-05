@@ -110,6 +110,36 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   — a foto do servidor tem os mesmos números da tela. O rodapé do app mostra só a versão (PR + descrição). Testes:
   `rentab-terc-test` (59), `clientes-ciclo-test` (113), `rentab-fat-test` (123, relógio fixo em 10/09/2026),
   `rentab-hist-test` (102), `agsem/rentab-foto-test` (79).
+- **📋 Status report do projeto (2026-11-05, a pedido do usuário: "uma ferramenta para atualizar o status report de projeto:
+  pegar os itens abertos que vencem na próxima semana ou do tipo bug; templates para atualizar o comentário no ticket com a
+  própria ação; tudo intuitivo, fácil de ler as pendências e de atualizar; todo mundo com a mesma visão das próximas atividades
+  e da situação do projeto"):** decisões do usuário — **D1** horizonte = até o **domingo da próxima semana** (`meta.ate`, constante
+  no servidor); **D2** **qualquer pessoa identificada** edita a situação (`SR_SO_GESTORES=false` nos DOIS lados — 20c e
+  `api/config.js` — religa a restrição a gestores/gerentes); **D3** o 📝 Atualizar também muda **nova data e status**, opcionais;
+  **D4** em projeto **AMS** o comentário sai como **nota interna** por padrão (caixa 🔒 marcada). Tela `public/js/20c-status-report.js`
+  (prefixo `sr`, vista `statusrep`, aba do grupo 📁 Projetos, `?v=statusrep&srproj=KEY` — `srproj` tem nome próprio para não
+  disputar o `?proj=`; chip 📋 na 🦴 espinha e botão `[data-gp-statusrep]` na 🧭 Pendências; é o **R01** da 📚 Central). **Dados:** os
+  itens vêm de `GET /api/vencimentos?statusrep=KEY` (conta de serviço: abertos vencidos/da semana/da próxima + bugs abertos, com
+  o último comentário `ult` e o último COM marcador `sr`); a **situação do projeto** (semáforo, resumo, ≤ 10 próximos passos,
+  riscos, 12 versões de `hist`) mora na linha **`sr_<KEY>`** de `jirainsight_config`, lida por `GET /api/config?sr=KEY` e gravada
+  por `POST ?sr=1 {acao:'salvar', proj, base, dados}` (identidade conferida no Jira, trava otimista por `rev`, `por`/`atualizadoEm`
+  sempre do servidor) — **nunca na `cfg`**; os **modelos** de comentário ficam em **`cfg.srTemplates`** (8 padrões em
+  `SR_TPLS_PADRAO`; ⚙️ Modelos só para gestor/admin, `srPodeEditarTpl`); o comentário leva o marcador
+  **"📋 Status report · <ic> <rot>"** na 1ª linha (`srMarcador`) — é por ele que a tela acha o último status report e o tipo
+  (`srTipoDe`, pelo emoji; modelo renomeado continua reconhecido). **Regras:** `srTemplates()` é LEITOR e não cria
+  `cfg.srTemplates` (criar `[]` no render marcaria a chave como mexida por esta sessão e ela venceria o remoto na mescla);
+  **uma `salvaCfg()` por ação** (o `logAcao(…, false)` por ação — status-report, reprogramar, status — e uma gravação só);
+  ordem **comentário → data → status** (o comentário falhou, para; data/status que falham são ditos sem desfazer o comentário
+  publicado); **atualização otimista** (`srAplicaLocal`, linha e grupo já refletem) e a leitura seguinte vai com `nocache=1`
+  (`estado.sr.sujo` — cada função da Vercel tem o seu cache); "↺ voltar aos padrões" e "voltar às versões" pedem confirmação;
+  ✏️ Editar aparece para todos e pede a identidade; no conflito (`rev` velha) a versão do colega aparece acima do formulário
+  aberto e o texto digitado é mantido; o campo de nova data do modal é `#sr-novadata`; o ⏭ (`srProximo`) pula o que já foi
+  atualizado hoje. Semáforo sugerido = `srSaudeAuto` (regra dita no `data-tip`), o manual vale mais. Testes (scratchpad
+  `status-plano/`, contra o `servidor-sr.mjs`): `sr-servidor-test` (39, handlers reais com Jira/Supabase falsos),
+  `status-report-test` (28), `status-report-at-test` (47), `status-report-cab-test` (34), `boot-test` (6) e `erro-troca-test` (1).
+  **Processo:** planejado por um modelo e executado por outro mais barato em 5 tarefas (T1 servidor · T2 tela · T3 📝 Atualizar ·
+  T4 situação editável + ⚙️ Modelos · T5 entrega); plano em `status-plano/plano-fable.md` no scratchpad. Desdobramentos no
+  roadmap: R172–R176.
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais
@@ -847,6 +877,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-023 | Ligações (Call tracking): detector do Mac e apontamento das chamadas | `3f4c6937-1e17-81f5-8bb7-c31280615ed8` |
   | TI-14-024 | Roadmap da solução: base no Notion sincronizada com o app (base `🗂 Roadmap da solução`, data source `bf1de04e-1690-4571-a225-c8bb79e0da03`, URL `https://app.notion.com/p/f6bcbeaa327c4fcc91b4852769cd257b`) | `400c6937-1e17-8140-9d5e-c68fa5bbd9f1` |
   | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
+  | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
