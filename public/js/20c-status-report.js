@@ -7,6 +7,7 @@
 // abertos vencidos/da semana/da próxima semana + bugs abertos — já com o ÚLTIMO comentário `ult` e o último comentário
 // com o MARCADOR "📋 Status report · …" `sr`); (2) a "situação do projeto" (semáforo, resumo, próximos passos, riscos)
 // mora numa linha própria `sr_<KEY>` em jirainsight_config, lida por GET /api/config?sr=KEY — NUNCA na `cfg`.
+// (3) 🧩 os tipos de item que NÃO entram (cfg.srTiposExcluir: padrão + por projeto) vão na leitura como &excl= — ver o bloco 🧩 abaixo.
 // Nesta etapa a tela é só LEITURA: o 📝 Atualizar (modelos de comentário) e a edição da situação entram depois e
 // se encaixam nos ganchos marcados com data-sr-slot (coluna de ação da linha e rodapé da situação).
 estado.sr=estado.sr||{ proj:'', dados:null, chave:'', carregando:'', erro:'', cache:{}, sujo:false, cab:null, cabB:false,
@@ -31,6 +32,34 @@ const SR_TPLS_PADRAO=[
   { id:'t-bug-valid',   tipo:'bug',         rot:'Bug — aguardando validação',     texto:'Correção entregue, aguardando validação de {quem} até {data}.' },
 ];
 const SR_SEMAFORO={ verde:{ic:'🟢',rot:'No rumo'}, amarelo:{ic:'🟡',rot:'Atenção'}, vermelho:{ic:'🔴',rot:'Crítico'} };
+// ---- 🧩 Tipos de item fora do relatório (2026-11-05, a pedido do usuário: "excluir alguns tipos de itens que não precisam
+// aparecer no report, por exemplo épicos, histórias, reuniões"). Decisões do usuário: uma lista PADRÃO para todos os
+// projetos + lista PRÓPRIA por projeto; qualquer pessoa identificada muda (SR_EXCL_SO_GESTORES=true religa a restrição a
+// gestores/admin); o item excluído SOME SEM RASTRO (blocos, KPIs, semáforo sugerido, "fora do relatório", 📋 texto copiado,
+// contador da aba); o padrão nasce com Épico, História e Reunião (sinônimos em inglês valem: Epic, Story, Meeting).
+// Mora em cfg.srTiposExcluir = { padrao:{tipos,por,em}, proj:{ KEY:{proprio:true,tipos,por,em} | {proprio:false,por,em} } }
+// — sempre OBJETOS com por/em (lista vazia solta "não conta como mudança" na mescla de três vias da config). srExcl é LEITOR
+// (não cria a chave); quem grava é srTiposSalva + salvaCfg() uma vez. O servidor recebe a lista expandida (&excl=) e tira os
+// itens antes do teto de 200; a tela filtra de novo em srCalc, para a troca valer na hora (antes da releitura).
+const SR_EXCL_PADRAO=['Épico','História','Reunião'];
+const SR_EXCL_SO_GESTORES=false;
+const SR_EXCL_MAX=40;
+const SR_TIPO_GRUPOS=[['epico','epic','epicos','epics'],['historia','story','user story','estoria','historias','stories'],['reuniao','meeting','reunioes','meetings']];
+const srNormTipo=(n)=>String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/,/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
+function srCanonTipo(n){ const k=srNormTipo(n); const g=SR_TIPO_GRUPOS.find(x=>x.includes(k)); return g?g[0]:k; }
+const srTiposLimpa=(l)=>[...new Set((Array.isArray(l)?l:[]).map(v=>String(v==null?'':v).trim().slice(0,40)).filter(Boolean))].slice(0,SR_EXCL_MAX);
+function srExcl(proj){
+  const x=(typeof cfg!=='undefined'&&cfg&&cfg.srTiposExcluir&&typeof cfg.srTiposExcluir==='object')?cfg.srTiposExcluir:{};
+  const p=(x.proj&&typeof x.proj==='object'&&proj)?x.proj[proj]:null;
+  if(p&&typeof p==='object'&&p.proprio===true) return { tipos:srTiposLimpa(p.tipos), fonte:'proj', por:String(p.por||''), em:String(p.em||'') };
+  const d=(x.padrao&&typeof x.padrao==='object'&&Array.isArray(x.padrao.tipos))?x.padrao:null;
+  return d?{ tipos:srTiposLimpa(d.tipos), fonte:'padrao', por:String(d.por||''), em:String(d.em||'') }:{ tipos:SR_EXCL_PADRAO.slice(), fonte:'fixo', por:'', em:'' };
+}
+// Conjunto dos nomes normalizados que saem (com os sinônimos de cada grupo).
+function srExclNorm(proj){ const set=new Set();
+  srExcl(proj).tipos.forEach(nm=>{ const k=srNormTipo(nm); if(!k) return; const g=SR_TIPO_GRUPOS.find(x=>x.includes(k)); (g||[k]).forEach(v=>set.add(v)); });
+  return set; }
+const srExclChave=(proj)=>[...srExclNorm(proj)].sort().join(',');
 // ---- Parâmetros ----
 function srProjAtual(){
   const s=estado.sr; if(s.proj) return s.proj;
@@ -60,19 +89,20 @@ function srCarrega(forca){
   const s=estado.sr; const proj=srProjAtual(); if(!proj) return;
   const f=!!forca;
   const nc=f||s.sujo;   // `sujo` (depois de publicar): o cache da tela segue valendo — já tem a atualização otimista —, mas a próxima leitura real vai sem o cache do servidor
+  const ek=srExclChave(proj); const ck=proj+'|'+ek;   // 🧩 a lista de tipos excluídos faz parte da leitura: mudou a lista, relê
   const c=s.cache[proj];
-  if(!f&&c&&(Date.now()-c.em)<SR_CACHE_MIN*60000){ s.dados=c.dados; s.chave=proj; s.erro=''; return; }
-  if(s.carregando===proj) return;
+  if(!f&&c&&c.ek===ek&&(Date.now()-c.em)<SR_CACHE_MIN*60000){ s.dados=c.dados; s.chave=proj; s.erro=''; return; }
+  if(s.carregando===ck) return;
   if(!f&&s.erro) return;   // falhou: nada de laço de releitura — o ↻ / "Tentar de novo" forçam
-  s.carregando=proj; s.erro=''; s.sujo=false;
-  fetch(`/api/vencimentos?statusrep=${encodeURIComponent(proj)}${nc?'&nocache=1':''}`)
+  s.carregando=ck; s.erro=''; s.sujo=false;
+  fetch(`/api/vencimentos?statusrep=${encodeURIComponent(proj)}${ek?`&excl=${encodeURIComponent(ek)}`:''}${nc?'&nocache=1':''}`)
     .then(r=>r.json().catch(()=>({erro:'resposta inválida'}))).then(j=>{
-      if(s.carregando===proj) s.carregando='';
+      if(s.carregando===ck) s.carregando='';
       if(!j||j.erro||!j.meta||!Array.isArray(j.itens)){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
-      else { s.cache[proj]={ dados:j, em:Date.now() }; if(srProjAtual()===proj){ s.dados=j; s.chave=proj; s.erro=''; } }
+      else { s.cache[proj]={ dados:j, em:Date.now(), ek }; if(srProjAtual()===proj){ s.dados=j; s.chave=proj; s.erro=''; } }
       if(estado.vista==='statusrep') renderSr();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador da aba
-    }).catch(e=>{ if(s.carregando===proj) s.carregando=''; if(srProjAtual()===proj) s.erro=humanizaErro(e);
+    }).catch(e=>{ if(s.carregando===ck) s.carregando=''; if(srProjAtual()===proj) s.erro=humanizaErro(e);
       if(estado.vista==='statusrep') renderSr(); });
 }
 // A situação do projeto (linha sr_<KEY>): leitura pública; sem linha = ainda ninguém escreveu. Uma leitura em voo;
@@ -130,7 +160,8 @@ function srSaudeAuto(c){
 function srCalc(){
   const s=estado.sr; const d=s.dados; if(!d||!d.meta) return null;
   const m=d.meta; const hoje=m.hoje||hojeSP(); const N=srN();
-  const c={ hoje, fimSemana:m.fimSemana||hoje, ate:m.ate||hoje, N, meta:m, todos:d.itens||[] };
+  const ex=srExclNorm(srProjAtual());   // 🧩 o tipo excluído some de tudo daqui para baixo (blocos, KPIs, semáforo, texto, contador)
+  const c={ hoje, fimSemana:m.fimSemana||hoje, ate:m.ate||hoje, N, meta:m, todos:(d.itens||[]).filter(t=>!ex.has(srNormTipo(t.t))) };
   const emSoSem=s.soSem;
   c.itens=c.todos.filter(t=>(!s.resp||(s.resp==='__sem__'?!t.respId:t.respId===s.resp))&&(!emSoSem||srSemSR(t,c)));
   c.g=srGrupos(c.itens,hoje,c.fimSemana,c.ate);
@@ -301,6 +332,7 @@ function srAcoesHTML(proj){
     <button class="btn" data-sr-link="1" data-tip="Copia o link desta tela já neste projeto — todo mundo abre a mesma visão">🔗 Copiar link</button>
     <button class="btn" data-sr-gp="1" data-tip="Abre a 🧭 Pendências deste projeto: quem precisa atualizar o quê, com a cobrança pronta">🧭 Pendências por pessoa</button>
     <button class="btn" data-proj-ficha="${escA(proj)}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha</button>
+    <button class="btn" data-sr-tipos="1" data-tip="Escolha os tipos de item que não entram no relatório (ex.: épicos, histórias, reuniões) — na lista padrão de todos os projetos ou numa lista só deste; vale para todo o time">🧩 Tipos no relatório</button>
     ${srPodeEditarTpl()?'<button class="btn" data-sr-tpls="1" data-tip="Só gestores: edite os modelos de comentário do 📝 Atualizar (rótulo, texto, campos)">⚙️ Modelos</button>':''}</div>`;
 }
 function srCabHTML(sub,c){
@@ -482,7 +514,7 @@ function srEscolheTpl(S,tpl,primeira){
   srCamposDe(tpl).forEach(f=>{ if(f.n==='data'&&S.vals.data===undefined&&!tpl.reagendar) S.vals.data=S.hoje; });
   srPintaCampos(); srPintaStatus(); srPintaPreview();
 }
-function srAoFecharModal(){ _sr=null; _srT=null; }
+function srAoFecharModal(){ _sr=null; _srT=null; _srX=null; }
 function srProximo(k){
   const c=srCalc(); if(!c) return null;
   const ordem=[...c.g.vencidos,...c.g.semana,...c.g.proxima,...c.g.bugs];
@@ -616,6 +648,91 @@ function srTplPadroes(){
   T.lista=srCopiaTpls(SR_TPLS_PADRAO); T.edit=''; T.fb=''; T.conf=false;
   srTplPintaLista(); toast('↺ os 8 modelos padrão voltaram','ok');
 }
+// ---- 🧩 Tipos no relatório: modal (lista padrão × lista própria do projeto) ----
+let _srX=null;   // estado só do modal 🧩 aberto: { proj, modo:'padrao'|'proj', lista (nomes que saem), fb, orig (para saber se mudou) }
+const srPodeExcl=()=>!!idApontar()&&(!SR_EXCL_SO_GESTORES||srPodeEditarTpl());
+const srExclPadraoAtual=()=>srExcl('').tipos;   // a lista padrão em vigor (gravada ou a fixa)
+// Candidatos do modal: os tipos abertos no projeto (meta.tipos, com a contagem) + os da lista em edição + os do padrão fixo,
+// um por grupo de sinônimos (Épico/Epic numa linha só, com o nome que o projeto usa).
+function srTiposCandidatos(X){
+  const d=estado.sr.dados; const mt=(d&&d.meta&&d.meta.tipos&&typeof d.meta.tipos==='object'&&estado.sr.chave===X.proj)?d.meta.tipos:{};
+  const m=new Map();
+  Object.entries(mt).forEach(([nome,n])=>{ const k=srCanonTipo(nome); if(!k) return; const a=m.get(k); if(a){ a.n=(a.n||0)+(Number(n)||0); } else m.set(k,{ k, nome, n:Number(n)||0 }); });
+  [...X.lista,...SR_EXCL_PADRAO].forEach(nome=>{ const k=srCanonTipo(nome); if(k&&!m.has(k)) m.set(k,{ k, nome, n:null }); });
+  return [...m.values()].sort((a,b)=>((b.n||0)-(a.n||0))||a.nome.localeCompare(b.nome,'pt'));
+}
+const srXMarcado=(X,k)=>X.lista.some(n=>srCanonTipo(n)===k);
+function srXPinta(){
+  const X=_srX; const w=document.getElementById('srx-lista'); if(!X||!w) return;
+  w.innerHTML=srTiposCandidatos(X).map(c=>`<label class="srx-tipo"><input type="checkbox" data-srx-tipo="${escA(c.k)}" data-srx-nome="${escA(c.nome)}" ${srXMarcado(X,c.k)?'checked':''}> <span class="srx-nome">${esc(c.nome)}</span> <span class="muted small">${c.n==null?'nenhum aberto agora':`${c.n} aberto${c.n>1?'s':''}`}</span></label>`).join('');
+  const x=(typeof cfg!=='undefined'&&cfg&&cfg.srTiposExcluir&&cfg.srTiposExcluir.proj&&typeof cfg.srTiposExcluir.proj==='object')?cfg.srTiposExcluir.proj:{};
+  const outros=Object.keys(x).filter(k=>k!==X.proj&&x[k]&&x[k].proprio===true).sort();
+  const av=document.getElementById('srx-aviso');
+  if(av) av.innerHTML=X.modo==='padrao'
+    ?`⚠ Você está mudando a <b>lista padrão</b>: vale para todos os projetos sem lista própria${outros.length?` (têm lista própria: ${outros.map(esc).join(', ')})`:''}.`
+    :`Só o <b>${esc(X.proj)}</b> usa esta lista. Para voltar ao padrão, escolha "Usar a lista padrão".`;
+  const orig=document.getElementById('srx-orig'); if(orig) orig.hidden=X.modo!=='padrao';
+  document.querySelectorAll('input[name="srx-modo"]').forEach(r=>{ r.checked=r.value===X.modo; });
+  const fb=document.getElementById('srx-fb'); if(fb){ fb.hidden=!X.fb; fb.textContent=X.fb||''; fb.className='alx-fb ap-fb'+(X.fb?' erro':''); }
+}
+function srAbreTipos(){
+  const proj=srProjAtual(); if(!proj) return;
+  const e=srExcl(proj); const modo=e.fonte==='proj'?'proj':'padrao';
+  _srX={ proj, modo, lista:e.tipos.slice(), fb:'', origProj:e.fonte==='proj'?e.tipos.slice():null, origPadrao:srExclPadraoAtual().slice() };
+  const quem=e.por?`<div class="muted small">Última mudança${e.fonte==='proj'?' desta lista':' do padrão'}: ${esc(e.por)}${e.em?` em ${esc(srQuando(e.em))}`:''}.</div>`:'';
+  abreModal(`<h2>🧩 Tipos de item no status report</h2>
+    <div class="muted small">Os tipos <b>marcados</b> não entram no relatório de <b>${esc(projNomeCod(proj))}</b>: somem dos blocos, dos números, do semáforo sugerido e do texto copiado. Vale para todo o time.</div>${quem}
+    <div class="srx-modo" role="radiogroup" aria-label="Qual lista vale para este projeto">
+      <label><input type="radio" name="srx-modo" value="padrao"> Usar a lista padrão <span class="muted small">— a mesma de todos os projetos sem lista própria</span></label>
+      <label><input type="radio" name="srx-modo" value="proj"> Lista própria deste projeto</label></div>
+    <div class="muted small srx-aviso" id="srx-aviso" role="status"></div>
+    <div class="srx-lista" id="srx-lista" role="group" aria-label="Tipos que não entram no relatório"></div>
+    <div class="srx-add"><input type="text" id="srx-novo" maxlength="40" placeholder="outro tipo (ex.: Subtarefa)" aria-label="Nome de outro tipo para tirar do relatório" autocomplete="off"><button type="button" class="btn" data-srx-add="1">＋ Adicionar</button><button type="button" class="btn" id="srx-orig" data-srx-orig="1" data-tip="Volta a lista padrão para Épico, História e Reunião">↺ Épico, História e Reunião</button></div>
+    <div class="alx-fb" id="srx-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" id="srx-salva">💾 Salvar</button><button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  srXPinta();
+}
+function srXModo(modo){
+  const X=_srX; if(!X||modo===X.modo) return;
+  X.modo=modo; X.fb='';
+  // Lista própria nasce da que estava valendo (a dele, se já tinha; senão o padrão); voltar ao padrão mostra o padrão.
+  X.lista=modo==='proj'?(X.origProj||srExclPadraoAtual()).slice():srExclPadraoAtual().slice();
+  srXPinta();
+}
+function srXAdiciona(){
+  const X=_srX; const inp=document.getElementById('srx-novo'); if(!X||!inp) return;
+  const nome=String(inp.value||'').trim().slice(0,40); if(!nome){ inp.focus(); return; }
+  const k=srCanonTipo(nome);
+  if(!srXMarcado(X,k)){ if(X.lista.length>=SR_EXCL_MAX){ X.fb=`Máximo de ${SR_EXCL_MAX} tipos.`; srXPinta(); return; } X.lista.push(nome); }
+  X.fb=''; inp.value=''; srXPinta(); inp.focus();
+}
+const srMesmaLista=(a,b)=>{ const A=[...new Set(a.map(srCanonTipo))].sort().join('|'); const B=[...new Set(b.map(srCanonTipo))].sort().join('|'); return A===B; };
+function srTiposSalva(){
+  const X=_srX; if(!X) return;
+  if(!idApontar()){ abreIdentidade('mudar os tipos do status report',{ depois:()=>{ if(estado.vista==='statusrep') srAbreTipos(); } }); return; }
+  if(!srPodeExcl()){ X.fb='Só gestores mudam os tipos do relatório.'; srXPinta(); return; }
+  const id=idApontar()||{}; const por=String(id.nome||id.email||'').slice(0,80); const em=new Date().toISOString();
+  const tipos=srTiposLimpa(X.lista);
+  const x=(cfg.srTiposExcluir&&typeof cfg.srTiposExcluir==='object')?cfg.srTiposExcluir:(cfg.srTiposExcluir={});
+  if(!x.proj||typeof x.proj!=='object') x.proj={};
+  const ant=x.proj[X.proj]; const tinhaProprio=!!(ant&&typeof ant==='object'&&ant.proprio===true);
+  let msg='';
+  if(X.modo==='proj'){
+    x.proj[X.proj]={ proprio:true, tipos, por, em };
+    msg=`${X.proj}: lista própria — ${tipos.length?tipos.join(', '):'nenhum tipo excluído'}`;
+  } else {
+    const mudouPadrao=!srMesmaLista(tipos,X.origPadrao)||!(x.padrao&&Array.isArray(x.padrao.tipos));
+    if(mudouPadrao) x.padrao={ tipos, por, em };
+    if(tinhaProprio) x.proj[X.proj]={ proprio:false, por, em };
+    if(!mudouPadrao&&!tinhaProprio){ fechaModal(); return; }   // nada mudou: nada a gravar
+    msg=mudouPadrao?`padrão — ${tipos.length?tipos.join(', '):'nenhum tipo excluído'}${tinhaProprio?` (e ${X.proj} voltou ao padrão)`:''}`:`${X.proj} voltou à lista padrão`;
+  }
+  logAcao({ acao:'sr-tipos', t:X.proj, para:msg, ok:true },false);
+  salvaCfg();
+  toast('✓ tipos do relatório salvos — valem para todo o time','ok');
+  fechaModal();
+  if(estado.vista==='statusrep') renderSr();   // a tela já filtra; a releitura (lista nova na chave) vem do render
+}
 // ---- Listeners delegados desta tela ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='statusrep') return;
@@ -627,6 +744,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     const ls=document.querySelectorAll('#sr-cab-form .sr-p-t'); if(ls.length) ls[ls.length-1].focus(); return; }
   const pr=cl('[data-sr-prox-rm]'); if(pr){ const r=srCabRascunho(); if(!r) return; r.proximos.splice(Number(pr.getAttribute('data-sr-prox-rm')),1); renderSr(); return; }
   const tp=cl('[data-sr-tpls]'); if(tp){ srAbreTemplates(); return; }
+  const tx=cl('[data-sr-tipos]'); if(tx){ srAbreTipos(); return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
   const ir=cl('[data-sr-ir]'); if(ir){ const b=document.getElementById('sr-'+ir.getAttribute('data-sr-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const so=cl('[data-sr-so-sem]'); if(so){ s.soSem=!s.soSem; renderSr(); return; }
@@ -696,3 +814,26 @@ document.getElementById('modal-body').addEventListener('click',(e)=>{
   else if(t.id==='srt-reag'){ if(t.checked) x.reagendar=true; else delete x.reagendar; }
   else if(t.id==='srt-done'){ if(t.checked) x.done=true; else delete x.done; }
 }));
+
+// ---- Listeners do modal 🧩 Tipos no relatório (só agem com ele aberto) ----
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const X=_srX; if(!X) return;
+  const cl=(q)=>e.target.closest&&e.target.closest(q);
+  if(cl('[data-srx-add]')){ srXAdiciona(); return; }
+  if(cl('[data-srx-orig]')){ X.lista=SR_EXCL_PADRAO.slice(); X.fb=''; srXPinta(); return; }
+  if(cl('#srx-salva')){ srTiposSalva(); }
+});
+document.getElementById('modal-body').addEventListener('change',(e)=>{
+  const X=_srX; const t=e.target; if(!X||!t) return;
+  if(t.name==='srx-modo'){ srXModo(t.value); return; }
+  if(t.matches&&t.matches('[data-srx-tipo]')){
+    const k=t.getAttribute('data-srx-tipo');
+    if(t.checked){ if(!srXMarcado(X,k)) X.lista.push(t.getAttribute('data-srx-nome')||k); }
+    else X.lista=X.lista.filter(n=>srCanonTipo(n)!==k);
+    X.fb='';
+  }
+});
+document.getElementById('modal-body').addEventListener('keydown',(e)=>{
+  if(!_srX||!e.target||e.target.id!=='srx-novo'||e.key!=='Enter') return;
+  e.preventDefault(); srXAdiciona();
+});

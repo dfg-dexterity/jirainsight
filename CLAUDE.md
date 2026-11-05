@@ -165,6 +165,26 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   **Processo:** planejado por um modelo e executado por outro mais barato em 5 tarefas (T1 servidor · T2 tela · T3 📝 Atualizar ·
   T4 situação editável + ⚙️ Modelos · T5 entrega); plano em `status-plano/plano-fable.md` no scratchpad. Desdobramentos no
   roadmap: R172–R176.
+  **🧩 Tipos fora do relatório (2026-11-05, a pedido do usuário: "excluir alguns tipos de itens que não precisam aparecer no
+  report, por exemplo épicos, histórias, reuniões"):** decisões do usuário — lista **padrão** para todos + lista **própria por
+  projeto**; **qualquer identificado** muda (`SR_EXCL_SO_GESTORES=false` religa a restrição); o excluído **some sem rastro**
+  (blocos, KPIs, semáforo sugerido, "fora do relatório", 📋 texto, contador da aba); o padrão nasce com **Épico, História e
+  Reunião** (`SR_EXCL_PADRAO`; sinônimos em `SR_TIPO_GRUPOS`: Epic, Story/User story, Meeting). Mora em **`cfg.srTiposExcluir`**
+  = `{ padrao:{tipos,por,em}, proj:{KEY:{proprio:true,tipos,por,em} | {proprio:false,por,em}} }` — **sempre objetos com
+  por/em**, nunca lista vazia solta (na mescla de três vias "vazio não conta como mudança": um `[]` de "não excluir nada"
+  sumiria num conflito); voltar ao padrão grava `proprio:false` em vez de apagar a chave. `srExcl(proj)` é LEITOR (fonte
+  `proj`/`padrao`/`fixo`, não cria nada); `srTiposSalva` grava + `logAcao('sr-tipos',…,false)` + UMA `salvaCfg()` e só regrava
+  o padrão se ele mudou (`srMesmaLista`). A leitura manda a lista **expandida e normalizada** (`srExclChave`, sem acento,
+  minúsculo) em `&excl=`; o servidor (`srExclDe`/`srNormTipoS` em `api/vencimentos.js`) tira o tipo ANTES do teto de 200, não
+  lê os comentários dele, não o conta em `meta.fora` e põe a lista na chave do cache; `meta.tipos` = abertos por tipo ANTES da
+  exclusão (só para o modal 🧩 oferecer os tipos do projeto). A tela filtra de novo em `srCalc` (vale na hora, antes da
+  releitura) e o cache da tela guarda a lista (`cache[proj].ek`; `s.carregando` = `proj|lista`). Modal 🧩 (`srAbreTipos`,
+  estado `_srX`, zerado em `srAoFecharModal`): candidatos = `meta.tipos` + a lista + o padrão fixo, um por grupo de
+  sinônimos (`srCanonTipo`); "＋ outro tipo" (Enter); "↺ Épico, História e Reunião". Testes: `sr-servidor-test` (+8 = 47) e
+  `status-report-tipos-test.mjs` (Playwright, 37 casos: padrão e sinônimos na URL, sem rastro na tela e no texto, KPI e
+  contador, modal, padrão × lista própria, outro projeto segue o padrão, Cancelar não grava, voltar ao padrão sem regravar,
+  leitor não cria a chave, mescla de três vias, sem identidade, celular 360 px); fixture com ACME-110…113 (Épico, História,
+  Reunião, Story) e o mesmo filtro no `servidor-sr.mjs`. Desdobramento: R190 (rótulo/status/épico e a mesma lista na 🧭).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais
