@@ -3364,6 +3364,18 @@
   .sr-hist ul{margin:6px 0 0;padding-left:18px}
   .sr-aviso{color:var(--amarelo);font-size:12.5px}
   .sr-fora{margin:6px 2px 18px}
+  /* 📝 Atualizar (modal do status report) */
+  .sr-at-cab{margin:4px 0 10px} .sr-at-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .sr-chip{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--grafite);cursor:pointer;padding:6px 12px;font-size:12.5px;font-family:var(--corpo);white-space:nowrap}
+  .sr-chip:hover{border-color:var(--cerceta)}
+  .sr-chip[aria-pressed="true"]{background:var(--cerceta);border-color:var(--cerceta);color:var(--cartao);font-weight:700}
+  .sr-at-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px;margin:8px 0}
+  .sr-at-campo input,.sr-at-campo select,.sr-at-opc input,.sr-at-opc select{width:100%;box-sizing:border-box}
+  #sr-texto{width:100%;box-sizing:border-box;min-height:120px}
+  .sr-refaz{margin-top:6px}
+  .sr-at-opc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;margin:8px 0}
+  .sr-at-int{display:flex;gap:8px;align-items:center;margin:8px 0;cursor:pointer;font-size:13px}
+  .sr-at-res{list-style:none;padding:0;margin:10px 0;font-size:13.5px} .sr-at-res li{margin:4px 0} .sr-at-res .ok{color:var(--musgo)} .sr-at-res .erro{color:var(--err)}
 
   /* ---- 📆 Hoje (24b-hoje.js, 2026-10-21): o planejamento do dia como ponto central ---- */
   .hj-tela{min-width:0}

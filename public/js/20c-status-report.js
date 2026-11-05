@@ -58,13 +58,14 @@ const srPrimeiro=(n)=>String(n||'').trim().split(/\s+/)[0]||'';
 // ---- Dados ----
 function srCarrega(forca){
   const s=estado.sr; const proj=srProjAtual(); if(!proj) return;
-  const f=!!forca||s.sujo;
+  const f=!!forca;
+  const nc=f||s.sujo;   // `sujo` (depois de publicar): o cache da tela segue valendo — já tem a atualização otimista —, mas a próxima leitura real vai sem o cache do servidor
   const c=s.cache[proj];
   if(!f&&c&&(Date.now()-c.em)<SR_CACHE_MIN*60000){ s.dados=c.dados; s.chave=proj; s.erro=''; return; }
   if(s.carregando===proj) return;
   if(!f&&s.erro) return;   // falhou: nada de laço de releitura — o ↻ / "Tentar de novo" forçam
   s.carregando=proj; s.erro=''; s.sujo=false;
-  fetch(`/api/vencimentos?statusrep=${encodeURIComponent(proj)}${f?'&nocache=1':''}`)
+  fetch(`/api/vencimentos?statusrep=${encodeURIComponent(proj)}${nc?'&nocache=1':''}`)
     .then(r=>r.json().catch(()=>({erro:'resposta inválida'}))).then(j=>{
       if(s.carregando===proj) s.carregando='';
       if(!j||j.erro||!j.meta||!Array.isArray(j.itens)){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
@@ -164,7 +165,7 @@ function srLinhaHTML(t,c){
     <div class="sr-c-venc">${venc}</div>
     <div class="sr-c-st"><span class="badge">${esc(t.status||'—')}</span></div>
     <div class="sr-c-sit">${sit}${selos.length?`<div class="sr-selos">${selos.join(' ')}</div>`:''}</div>
-    <div class="sr-c-acao" data-sr-slot="at"></div></div>`;
+    <div class="sr-c-acao" data-sr-slot="at"><button class="gp-mini sr-at" data-sr-at="${escA(t.k)}" data-tip="Publica um status report no ticket: escolha o modelo, preencha e publique (comentário, nova data e status no mesmo passo)">📝 Atualizar</button></div></div>`;
 }
 function srBlocoHTML(id,tit,sub,lista,c){
   const corpo=lista.length?`<div class="sr-tab"><div class="sr-tab-h"><div>Ticket</div><div>Resumo</div><div>Resp.</div><div>Venc.</div><div>Status</div><div>Situação</div><div></div></div>${lista.map(t=>srLinhaHTML(t,c)).join('')}</div>`
@@ -291,10 +292,198 @@ function srTextoRelatorio(c){
   L.push('',srLinkTela(proj));
   return L.join('\n');
 }
+// ---- 📝 Atualizar um item: modelo de comentário + nova data + status, no token da pessoa (T3) ----
+// Estado só do modal aberto (zerado ao abrir outro e ao fechar — fechaModal chama srAoFecharModal).
+let _sr=null;
+const SR_MARCA='📋 Status report ·';
+function srTemplates(){   // LEITOR: cfg.srTemplates se for uma lista válida e não vazia, senão os padrões (nunca cria a chave)
+  const l=cfg&&cfg.srTemplates;
+  if(Array.isArray(l)){
+    const v=l.filter(x=>x&&typeof x==='object'&&x.id&&x.rot&&typeof x.texto==='string'&&SR_TIPOS[x.tipo]);
+    if(v.length) return v;
+  }
+  return SR_TPLS_PADRAO;
+}
+function srPlaceholders(texto){ const r=[]; String(texto||'').replace(/\{(\w+)\}/g,(m,n)=>{ if(!r.includes(n)) r.push(n); return m; }); return r; }
+function srCamposDe(tpl){ return srPlaceholders(tpl&&tpl.texto).map(n=>({ n, ...(SR_CAMPOS[n]||{ rot:n, tipo:'text' }) })); }
+function srMarcador(tpl){ return `${SR_MARCA} ${(SR_TIPOS[tpl.tipo]||SR_TIPOS.andamento).ic} ${tpl.rot}`; }
+// valores: nome → texto já formatado (data em dd/mm/aaaa, pessoa pelo nome); vazio fica {campo}.
+function srMontaComentario(tpl,valores){
+  const corpo=String(tpl.texto||'').replace(/\{(\w+)\}/g,(m,n)=>{ const v=String((valores&&valores[n])||'').trim(); return v||m; });
+  return `${srMarcador(tpl)}\n\n${corpo}`;
+}
+const srTextoPronto=(txt)=>!!String(txt||'').trim()&&!/\{\w+\}/.test(String(txt));
+function srItem(k){ const d=estado.sr.dados; return (d&&d.itens||[]).find(t=>t.k===k)||null; }
+function srValoresTexto(S){
+  const v={};
+  srCamposDe(S.tpl).forEach(f=>{ const x=S.vals[f.n]||'';
+    v[f.n]=f.tipo==='date'?dataBR(x):f.tipo==='pessoa'?(S.pessoas[x]||''):x; });
+  return v;
+}
+function srPessoasDo(c){
+  const m={}; (c?c.todos:[]).forEach(t=>{ if(t.respId&&t.resp) m[t.respId]=t.resp; });
+  const proj=Object.keys(m);
+  const outras={}; Object.entries(pessoasUnidas()).forEach(([a,p])=>{ if(!m[a]&&p&&p.nome) outras[a]=p.nome; });
+  return { todas:Object.assign({},outras,m), proj, outras:Object.keys(outras).sort((a,b)=>outras[a].localeCompare(outras[b],'pt')) };
+}
+function srTplPadraoDe(t,tpls){
+  const bug=!!t.bug; const ids=bug?['t-bug-analise']:['t-andamento'];
+  return tpls.find(x=>ids.includes(x.id))||tpls.find(x=>(x.tipo==='bug')===bug)||tpls[0];
+}
+function srCampoHTML(S,f){
+  const id=`sr-f-${f.n}`; const v=S.vals[f.n]||'';
+  let ctl;
+  if(f.tipo==='pessoa'){
+    const P=S.pessoasInfo; const op=(a)=>`<option value="${escA(a)}" ${v===a?'selected':''}>${esc(S.pessoas[a])}</option>`;
+    ctl=`<select id="${id}"><option value="">— escolha —</option>${P.proj.length?`<optgroup label="Do projeto">${P.proj.map(op).join('')}</optgroup>`:''}${P.outras.length?`<optgroup label="Outras pessoas">${P.outras.map(op).join('')}</optgroup>`:''}</select>`;
+  } else ctl=`<input type="${f.tipo==='date'?'date':'text'}" id="${id}" value="${escA(v)}" autocomplete="off">`;
+  return `<div class="campo sr-at-campo"><label for="${id}">${esc(f.rot)}</label>${ctl}</div>`;
+}
+function srPintaCampos(){
+  const S=_sr; const w=document.getElementById('sr-campos'); if(!S||!w) return;
+  w.innerHTML=srCamposDe(S.tpl).map(f=>srCampoHTML(S,f)).join('')||'<div class="muted small">Este modelo não tem campos: escreva direto no comentário.</div>';
+  document.querySelectorAll('#modal-body [data-sr-tpl]').forEach(b=>{ const on=b.getAttribute('data-sr-tpl')===S.tpl.id; b.setAttribute('aria-pressed',on?'true':'false'); b.classList.toggle('on',on); });
+}
+// Só o que muda ao digitar: a prévia (se a pessoa ainda não escreveu nela), a nova data seguindo {data} e o botão.
+function srPintaPreview(){
+  const S=_sr; if(!S||S.feito) return;
+  const ta=document.getElementById('sr-texto');
+  if(ta&&!S.manual) ta.value=srMontaComentario(S.tpl,srValoresTexto(S));
+  const vd=document.getElementById('sr-novadata');
+  if(vd&&S.tpl.reagendar&&!S.vencMan) vd.value=S.vals.data||'';
+  const rf=document.getElementById('sr-refaz'); if(rf) rf.hidden=!S.manual;
+  const b=document.getElementById('sr-publica');
+  if(b) b.disabled=S.pub||!srTextoPronto(ta?ta.value:'');
+}
+function srPintaStatus(){
+  const S=_sr; const sel=document.getElementById('sr-st'); if(!S||!sel) return;
+  if(!S.stMan) S.st=S.tpl.done?(((S.trans||[]).find(x=>x.categoria==='done'&&!/cancel/i.test(x.nome||''))||{}).id||''):'';
+  const l=S.trans||[];
+  sel.innerHTML=`<option value="">${S.trans===null?'carregando as opções…':'— não mudar —'}</option>${l.map(x=>`<option value="${escA(x.id)}" ${S.st===String(x.id)?'selected':''}>${esc(x.nome)}${x.para&&x.para!==x.nome?` → ${esc(x.para)}`:''}</option>`).join('')}`;
+  const h=document.getElementById('sr-st-dica'); if(h) h.textContent=S.transErro?`⚠ ${S.transErro}`:'';
+}
+function srCarregaTransicoes(S){
+  if(S.transB||S.trans) return; const id=idApontar(); if(!id) return; S.transB=true;
+  fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listar:true,issue:S.k,email:id.email,token:id.token})})
+    .then(r=>r.json()).then(j=>{
+      S.transB=false;
+      if(j&&j.ok&&Array.isArray(j.transicoes)) S.trans=j.transicoes; else { S.trans=[]; S.transErro=(j&&j.erro)||'não consegui ler as mudanças de status'; }
+      if(_sr===S) srPintaStatus();
+    }).catch(e=>{ S.transB=false; S.trans=[]; S.transErro=humanizaErro(e); if(_sr===S) srPintaStatus(); });
+}
+function srAbreAtualizar(k){
+  const id=idApontar();
+  if(!id){ abreIdentidade('atualizar o status report no Jira',{ depois:()=>srAbreAtualizar(k) }); return; }
+  const t=srItem(k); if(!t){ toast('Não achei o item '+k+' na lista — use o ↻.','warn'); return; }
+  const c=srCalc(); const tpls=srTemplates();
+  const info=srPessoasDo(c);
+  const tpl=srTplPadraoDe(t,tpls);
+  _sr={ k, tpl, vals:{}, manual:false, vencMan:false, st:'', stMan:false, trans:null, transB:false, transErro:'', pub:false, feito:null,
+    pessoas:info.todas, pessoasInfo:info };
+  const S=_sr; const hoje=(c&&c.hoje)||hojeSP();
+  S.hoje=hoje;
+  const ams=/ams/i.test((estado.sr.dados&&estado.sr.dados.meta&&estado.sr.dados.meta.categoria)||'');
+  const ordem=t.bug?[...tpls.filter(x=>x.tipo==='bug'),...tpls.filter(x=>x.tipo!=='bug')]:[...tpls.filter(x=>x.tipo!=='bug'),...tpls.filter(x=>x.tipo==='bug')];
+  const venc=t.venc?`${esc(srDm(t.venc))}`:'sem data';
+  abreModal(`<h2>📝 Atualizar status report · ${esc(k)}</h2>
+    <div class="sr-at-cab"><b>${esc(t.resumo||'—')}</b><div class="muted small">${t.bug?'🐞 ':''}${esc(t.status||'—')} · vence ${venc} · ${t.resp?esc(t.resp):'sem responsável'}</div></div>
+    <div class="campo"><label>Modelo</label><div class="sr-at-chips" role="group" aria-label="Modelos de comentário">${ordem.map(x=>`<button type="button" class="chip sr-chip" data-sr-tpl="${escA(x.id)}" aria-pressed="${x.id===tpl.id}">${esc((SR_TIPOS[x.tipo]||{}).ic||'')} ${esc(x.rot)}</button>`).join('')}</div></div>
+    <div id="sr-campos" class="sr-at-campos"></div>
+    <div class="campo"><label for="sr-texto">Comentário que vai para o ticket <span class="muted small">— pode editar; a 1ª linha é o marcador que a tela reconhece</span></label>
+      <textarea id="sr-texto" class="alx-coment" rows="6"></textarea>
+      <button type="button" class="btn sr-refaz" id="sr-refaz" hidden>↺ refazer pelo modelo</button></div>
+    <div class="sr-at-opc">
+      <div class="campo"><label for="sr-novadata">📅 Nova data <span class="muted small">(opcional)</span></label><input type="date" id="sr-novadata" value=""></div>
+      <div class="campo"><label for="sr-st">🔁 Status <span class="muted small">(opcional)</span></label><select id="sr-st"></select><div class="muted small" id="sr-st-dica"></div></div></div>
+    ${mnPickerHtml([])}
+    ${ams?'<label class="sr-at-int"><input type="checkbox" id="sr-interno" checked> 🔒 nota interna <span class="muted small">— projeto AMS: o cliente não vê o comentário</span></label>':''}
+    <div class="alx-fb" id="sr-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" id="sr-publica" disabled>Publicar</button><button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  srEscolheTpl(S,tpl,true);
+  srCarregaTransicoes(S);
+}
+function srEscolheTpl(S,tpl,primeira){
+  S.tpl=tpl;
+  if(!primeira) S.manual=false;
+  srCamposDe(tpl).forEach(f=>{ if(f.n==='data'&&S.vals.data===undefined&&!tpl.reagendar) S.vals.data=S.hoje; });
+  srPintaCampos(); srPintaStatus(); srPintaPreview();
+}
+function srAoFecharModal(){ _sr=null; }
+function srProximo(k){
+  const c=srCalc(); if(!c) return null;
+  const ordem=[...c.g.vencidos,...c.g.semana,...c.g.proxima,...c.g.bugs];
+  const i=ordem.findIndex(t=>t.k===k);
+  const livre=(t)=>t.k!==k&&!(t.sr&&t.sr.dia===c.hoje);
+  return ordem.slice(i+1).find(livre)||ordem.find(livre)||null;
+}
+function srAplicaLocal(k,patch){
+  const t=srItem(k); if(!t) return;
+  Object.assign(t,patch);
+  if(patch.sr) t.ult={ por:patch.sr.por, porId:patch.sr.porId, dia:patch.sr.dia, quando:patch.sr.quando, texto:patch.sr.texto };
+}
+async function srPublica(){
+  const S=_sr; if(!S||S.pub||S.feito||!S.tpl) return;
+  const id=idApontar();
+  if(!id){ abreIdentidade('atualizar o status report no Jira',{ depois:()=>srAbreAtualizar(S.k) }); return; }
+  const k=S.k; const t=srItem(k)||{ k };
+  const ta=document.getElementById('sr-texto'); let txt=String((ta&&ta.value)||'').trim();
+  if(!srTextoPronto(txt)) return;
+  if(!txt.startsWith(SR_MARCA)) txt=`${srMarcador(S.tpl)}\n\n${txt}`;
+  const vEl=document.getElementById('sr-novadata'); const vv=vEl?vEl.value:'';
+  const novaData=(/^\d{4}-\d{2}-\d{2}$/.test(vv)&&vv!==(t.venc||''))?vv:'';
+  const stEl=document.getElementById('sr-st'); const stId=stEl?stEl.value:'';
+  const stNome=stId&&stEl.selectedOptions[0]?stEl.selectedOptions[0].textContent:'';
+  const itEl=document.getElementById('sr-interno'); const interno=!!(itEl&&itEl.checked);
+  const menc=mnPickerIds();
+  const btn=document.getElementById('sr-publica'); const fb=document.getElementById('sr-fb');
+  const aberto=()=>_sr===S;
+  const diz=(msg,cls)=>{ const f=document.getElementById('sr-fb'); if(aberto()&&f){ f.hidden=false; f.className='alx-fb ap-fb'+(cls?' '+cls:''); f.textContent=msg; } };
+  S.pub=true; if(btn) ocupado(btn,true); diz('Publicando o comentário…','');
+  const post=(b)=>fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,issue:k,email:id.email,token:id.token})}).then(r=>r.json()).catch(e=>({ ok:false, erro:humanizaErro(e) }));
+  // (a) o comentário: falhou, PARA (nada de data/status sem o status report).
+  const j1=await post({ comentar:true, texto:txt, ...(menc.length?{mencionar:menc}:{}), ...(interno?{interno:true}:{}) });
+  if(!j1||!j1.ok){
+    S.pub=false; const msg=(j1&&j1.erro)||'Não consegui publicar o comentário.';
+    if(aberto()){ if(btn) ocupado(btn,false); srPintaPreview(); diz(msg,'erro'); } else toast(`Status report de ${k}: ${msg}`,'warn');
+    return;
+  }
+  const res={ interno:!!(interno||j1.interno), data:null, st:null };
+  // (b) nova data, (c) status: cada falha é dita, sem desfazer o comentário.
+  if(novaData){ diz('Comentário publicado. Mudando a data…','');
+    const j2=await post({ reagendar:true, duedate:novaData }); res.data=(j2&&j2.ok)?{ ok:true, v:novaData }:{ ok:false, erro:(j2&&j2.erro)||'recusada' }; }
+  if(stId){ diz('Mudando o status…','');
+    const j3=await post({ transitionId:stId }); res.st=(j3&&j3.ok)?{ ok:true, nome:stNome }:{ ok:false, erro:(j3&&j3.erro)||'recusado' }; }
+  // auditoria: uma linha por ação, UMA gravação da config
+  const corpo=txt.split('\n').slice(2).join(' ').trim();
+  logAcao({ acao:'status-report', t:k, para:S.tpl.rot, motivo:corpo.slice(0,80), ok:true },false);
+  if(res.data&&res.data.ok) logAcao({ acao:'reprogramar', t:k, de:t.venc||'—', para:novaData, motivo:'📋 status report', ok:true },false);
+  if(res.st&&res.st.ok) logAcao({ acao:'status', t:k, de:t.status||'—', para:stNome, motivo:'📋 status report', ok:true },false);
+  salvaCfg();
+  // otimista: a linha (e o grupo) já refletem; a próxima leitura real vai sem o cache do servidor
+  const prox=srProximo(k);
+  const agora=new Date().toISOString(); const hoje=S.hoje;
+  const patch={ sr:{ rot:txt.split('\n')[0].slice(SR_MARCA.length).trim(), por:id.nome||id.email, porId:id.accountId||'', dia:hoje, quando:`${hoje} ${agora.slice(11,16)}`, texto:txt.split('\n').slice(2).join('\n').trim() } };
+  if(res.data&&res.data.ok) patch.venc=novaData;
+  if(res.st&&res.st.ok){ const tr=(S.trans||[]).find(x=>String(x.id)===String(stId)); patch.status=(tr&&tr.para)||stNome; patch.statCat=(tr&&tr.categoria)||t.statCat; }
+  srAplicaLocal(k,patch);
+  estado.sr.sujo=true;
+  if(estado.gp) estado.gp.cache={};
+  invalidaCacheDados();
+  if(estado.vista==='statusrep') renderSr();
+  S.pub=false; S.feito=res;
+  const linhas=[`<li class="ok">✓ Comentário publicado${res.interno?' como 🔒 nota interna':''}.</li>`];
+  if(res.data) linhas.push(res.data.ok?`<li class="ok">✓ Nova data: ${esc(dataBR(res.data.v))}.</li>`:`<li class="erro">⚠ Comentário publicado, mas a data não mudou: ${esc(res.data.erro)}</li>`);
+  if(res.st) linhas.push(res.st.ok?`<li class="ok">✓ Status: ${esc(res.st.nome)}.</li>`:`<li class="erro">⚠ Comentário publicado, mas o status não mudou: ${esc(res.st.erro)}</li>`);
+  if(aberto()){
+    abreModal(`<h2>✓ Publicado em ${esc(k)}</h2><ul class="sr-at-res">${linhas.join('')}</ul>
+      <div class="alx-modal-acoes">${prox?`<button class="btn primario" data-sr-prox="${escA(prox.k)}">⏭ Próximo item (${esc(prox.k)})</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
+  } else toast(`Status report publicado em ${k}.`,'ok');
+}
 // ---- Listeners delegados desta tela ----
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(estado.vista!=='statusrep') return;
   const cl=(q)=>e.target.closest&&e.target.closest(q); const s=estado.sr;
+  const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
   const ir=cl('[data-sr-ir]'); if(ir){ const b=document.getElementById('sr-'+ir.getAttribute('data-sr-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const so=cl('[data-sr-so-sem]'); if(so){ s.soSem=!s.soSem; renderSr(); return; }
   const cp=cl('[data-sr-copiar]'); if(cp){ const c=srCalc(); if(c) gpCopia(srTextoRelatorio(c),'📋 Relatório copiado — cole na ata, no Teams ou no e-mail.'); return; }
@@ -310,4 +499,27 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(t.id==='sr-proj'){ srProjSet(t.value); s.erro=''; s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; renderSr(); }
   else if(t.id==='sr-resp'){ s.resp=t.value; renderSr(); }
   else if(t.id==='sr-so-sem'){ s.soSem=!!t.checked; renderSr(); }
+});
+
+// ---- Listeners do modal 📝 Atualizar (delegados em #modal-body; só agem com o modal do status report aberto) ----
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  if(!_sr) return;
+  const cl=(q)=>e.target.closest&&e.target.closest(q);
+  const ch=cl('[data-sr-tpl]');
+  if(ch){ const tpl=srTemplates().find(x=>x.id===ch.getAttribute('data-sr-tpl')); if(tpl&&!_sr.feito&&!_sr.pub) srEscolheTpl(_sr,tpl,false); return; }
+  const pr=cl('[data-sr-prox]'); if(pr){ srAbreAtualizar(pr.getAttribute('data-sr-prox')); return; }
+  const b=e.target.closest&&e.target.closest('button'); if(!b) return;
+  if(b.id==='sr-publica'){ if(!b.disabled) srPublica(); }
+  else if(b.id==='sr-refaz'){ _sr.manual=false; srPintaPreview(); }
+});
+document.getElementById('modal-body').addEventListener('input',(e)=>{
+  const S=_sr; const t=e.target; if(!S||S.feito||!t||!t.id) return;
+  if(t.id==='sr-texto'){ S.manual=true; srPintaPreview(); }
+  else if(t.id.startsWith('sr-f-')){ S.vals[t.id.slice(5)]=t.value; srPintaPreview(); }
+});
+document.getElementById('modal-body').addEventListener('change',(e)=>{
+  const S=_sr; const t=e.target; if(!S||S.feito||!t||!t.id) return;
+  if(t.id.startsWith('sr-f-')){ S.vals[t.id.slice(5)]=t.value; srPintaPreview(); }
+  else if(t.id==='sr-novadata'){ S.vencMan=true; }
+  else if(t.id==='sr-st'){ S.stMan=true; S.st=t.value; }
 });

@@ -2013,6 +2013,14 @@
   #sr-so-sem{width:32px;height:32px}
   .sr-fora .lnk-ficha{min-height:44px}
 }
+@media (max-width:760px){
+  /* modal 📝 Atualizar: modelos rolam de lado, Publicar/Fechar com alvo de 44px */
+  .sr-at-chips{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .sr-chip{flex:0 0 auto;min-height:44px}
+  .sr-at-campos,.sr-at-opc{grid-template-columns:minmax(0,1fr)}
+  #sr-publica,[data-sr-prox],.sr-at-res~.alx-modal-acoes .btn{min-height:44px}
+  .sr-at-int{min-height:44px}
+}
 /* ---- fim: statusrep ---- */
 
 /* ---- 📱 grupo: portal (🌐 Portal do cliente: seções, formulário, tabelas editáveis, prévia) ---- */

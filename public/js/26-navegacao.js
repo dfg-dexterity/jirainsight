@@ -81,7 +81,7 @@ function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
   document.getElementById('modal').hidden=false;
 }
-function fechaModal(){ document.getElementById('modal').hidden=true;
+function fechaModal(){ document.getElementById('modal').hidden=true; if(typeof srAoFecharModal==='function') srAoFecharModal();   // 📝 status report: zera o estado do modal
   if(estado.vista==='gestao'){ try{ renderGestao(); }catch(e){} } }
 
 // Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
