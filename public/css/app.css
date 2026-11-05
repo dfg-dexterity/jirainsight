@@ -648,6 +648,8 @@
   .navg-sec{padding:8px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--linha);margin-top:4px;white-space:nowrap}
   .navg-cab+.navg-sec{border-top:0;margin-top:0;padding-top:4px}
   .navg-menu.navg-largo{min-width:300px}
+  /* 🔢 Contador na linha do menu (2026-11-05): o mesmo número da aba (ABAS_N), pintado ao abrir o menu (navMenuContadores). */
+  .navg-menu button .nav-n{display:inline-block;min-width:17px;padding:0 5px;margin-left:auto;border-radius:9px;background:var(--err,#d20a0a);color:#fff;font-size:10.5px;font-weight:800;line-height:17px;text-align:center}
   /* ➕ Criar ticket (2026-10-27): era o dropdown "➕ Novo ▾"; agora é um clique direto. Seletor com id para vencer o
      realce genérico do item ativo (.seg button[aria-pressed]) — pressionado fica grafite, nunca transparente. */
   #seg-vista #navg-novo-b{color:#fff;background:var(--cerceta);border-radius:999px;padding:7px 12px;margin:5px 2px 6px 6px;border-bottom:0;line-height:1;box-shadow:none}
