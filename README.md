@@ -114,7 +114,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `24b-hoje.js` | 📆 Hoje — lista do dia, linha do tempo, rituais 🌅/🌙, ⏱ cronômetro (pílula em todas as telas), 👥 Dia do time, card da Início |
 | `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
 | `25b-reportar.js` | 🐞 Reportar bug ou melhoria (ticket no Jira + issue no GitHub, `POST /api/criar {reportar:1}`) |
-| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas; fase 4: **memória** `abaLembra`/`abaUltima` — o menu volta à última aba do grupo — e **contadores** `ABAS_N`), favoritos, paleta Ctrl+K |
+| `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas; menus das áreas por seção (2026-11-05: `navMenuContadores`, `abreEscolheProjeto`); fase 4: **memória** `abaLembra`/`abaUltima` — o menu volta à última aba do grupo — e **contadores** `ABAS_N`), favoritos, paleta Ctrl+K |
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
 | `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |
@@ -545,12 +545,13 @@ dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
 
 ### Navegação e novidades
 
-- **Menu por função:** o topo é organizado em **Visão Geral** (inicial) + 3 grupos com
-  dropdown — **Análise** (Resumo, Timesheet, Ranking, Tickets), **Operação** (Apontar,
-  Planejar, Reclassificar) e **AMS & Governança** (AMS, Receita, Alertas, Admin). Cada item usa
-  **ícones de linha** (SVG monocromático, sprite `#ic-*`) em vez de emojis, para um visual mais
-  profissional. O grupo da aba ativa fica sublinhado; o selo de convites aparece também no
-  cabeçalho de **Operação**.
+- **Menus por perfil e por seção:** a barra tem o Dexterity Hub (🏠 Início, 📆 Hoje, ⏱ Apontar, 📥 Inbox,
+  🎯 Prioridades, 👤 Meu trabalho, ➕ Criar ticket) e as áreas **Dexterity Entrega / Negócio / Insights** pela lente do
+  perfil. Cada menu é organizado em **seções** (`.navg-sec`); cada tela — e **cada aba de um grupo** — é uma linha (aba =
+  linha recuada `.nav-sub`); "…" = o app pergunta o projeto/ticket antes (`data-acao` → `navAcao`). O grupo da tela aberta
+  fica sublinhado e as linhas com algo esperando ação mostram o número (`navMenuContadores`). Desenho em
+  `docs/menus-areas-2026-11-05.md` e `docs/menu-meu-trabalho-2026-10-27.md`. Cada item usa **ícones de linha** (SVG
+  monocromático, sprite `#ic-*`).
 - **Logo (canto superior esquerdo):** a **marca Dexterity** (pinwheel oficial em SVG, `public/logo.svg`) — clicável, volta para o início (Visão Geral).
 - **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.

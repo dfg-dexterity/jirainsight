@@ -58,7 +58,32 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `navMenuAltura`, limpo em `fechaMenusNav`; `max-width:calc(100vw - 32px)`; o cabeçalho do 👤 quebra linha), na gaveta
   do celular o `.nav-sub` recua 56px e os ícones de linha saem. Item novo no
   menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
-  Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px).
+  Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px; perdido num
+  reinício do ambiente — o `menus-test.mjs` de 2026-11-05 cobre os menus das áreas).
+- **🧭 Menus das áreas por seção (2026-11-05, a pedido do usuário: "organize mais explicitamente os menus, como o Meu
+  trabalho — em Projetos um sub-menu para Portfólio e ficha, Marcos e Cronograma, Status report, e assim em diante; estou
+  com dificuldade de achar as informações"):** Dexterity Entrega (PROJETOS · TICKETS E ALERTAS · HORAS E REUNIÕES DO TIME ·
+  CLIENTE), Negócio (CONTRATOS · APURAÇÃO E FATURAMENTO · RESULTADO) e Insights (VISÃO EXECUTIVA · RELATÓRIOS · PLANEJAMENTO
+  E USO) usam a MESMA mecânica do 👤 (`.navg-sec`, `.nav-sub`, `data-exata`, `data-aud`, `data-acao`), com a regra de
+  leitura das áreas (na Ajuda e no tour, ao lado da do 👤): **a linha diz a tela e o que você acha nela; linha recuada =
+  aba da tela de cima; "…" no fim = o app pergunta o projeto antes** (o 👤 é por intenção, "verbo + objeto"; as áreas são
+  por informação). **Toda aba de grupo é uma linha recuada do menu da área** (tela/aba nova = linha no `index.html` com
+  `data-exata` + `title` em TODA linha + NAVCAT; o `menus-test` reprova vista fora dos menus, exceto `config`/`roadmap` do
+  ⋯ Mais e `meudia`). Rótulos reusam as palavras do `ABAS.rot` — os títulos das abas **não** foram renomeados (R155, agora
+  reescrito para todos os grupos). Decisões: **🧭 Pendências do projeto (`gp`) mudou do grupo `gestao` para o `projetos`**
+  em `ABAS` (4ª aba do 📁, ao lado do 📋 Status report; é a visão do gerente DO projeto) e **só UMA linha "…"**: **🔎 Abrir a
+  ficha de um projeto…** (`data-acao="projficha"`, NAVCAT `acao:projficha`, → `abreEscolheProjeto({titulo,sub,aoEscolher})`,
+  o seletor de projeto genérico do 26 — catálogo `tkbProjetos` + 🕘 recentes, Enter = 1º — → `projAbreFicha`); as demais telas
+  por projeto já têm seletor próprio (R178). **👥 Dia do time** (`hojetime`) entrou em Entrega (`aplicaLente` não força o
+  grupo por ela). **Contadores:** `navMenuContadores(g)` (26) pinta `abaN(v)` como `.nav-n` ao abrir o menu (chamado no 29 junto
+  do `navMenuAltura`); linhas com `data-aud` ficam sem. **Borda direita:** `navMenuAltura` alinha à direita do botão o menu que
+  não cabe à esquerda (Insights). CSS: `.nav-n` no `app.css`; `min-height:44px` nas linhas do menu na gaveta do celular
+  (`mobile.css`). ⋯ Mais não mudou. Desenho em `docs/menus-areas-2026-11-05.md`. Teste: `menus-test.mjs` (Playwright, 171
+  casos: estrutura, honestidade do recuo, cobertura das VISTAS, navegação e realce linha a linha, audiência, `data-exata`,
+  seletor de projeto, lente, altura e borda no desktop, contadores, celular 360px com alvos ≥ 44px, teclado; fica no
+  scratchpad `status-plano/`, ao lado do `roda.sh`). **Processo:** planejado por um modelo e executado por outro mais barato
+  em 5 tarefas (T1 markup+CSS · T2 JS · T3 teste · T4 guias/tour/Ajuda/Novidades/Roadmap · T5 documentação); plano em
+  `menus-plano/plano-fable.md` no scratchpad.
 - **💰 Faturável pela categoria · 📊 Planejamento do time em Insights · 📑 Contratos com 📋 lista (2026-11-02, a pedido
   do usuário: "o número de horas faturáveis deve ser feito pela categoria do projeto JIRA"; "passe os relatórios de
   planejamento para o Insights"; "contratos cadastrados eu não consigo ver os dados deles, posso querer editar, deletar"):**
