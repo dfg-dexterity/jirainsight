@@ -280,6 +280,7 @@ function renderGp(){
     <div class="campo"><label>&nbsp;</label><label class="muted small" style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px"><input type="checkbox" id="gp-semvenc" ${gp.semVenc?'checked':''}> incluir sem vencimento</label></div>
     <div class="campo"><label>&nbsp;</label><button class="btn" id="gp-refresh" ${buscando?'disabled':''} data-tip="Rebuscar do Jira ignorando o cache">${buscando?'↻ buscando…':'↻ Atualizar'}</button></div>
     ${keys&&keys.length===1?`<div class="campo"><label>&nbsp;</label><button class="btn" data-proj-ficha="${escA(keys[0])}" data-tip="Voltar à ficha deste projeto em 📁 Projetos (🦴 espinha)">📁 Ficha de ${esc(projNome(keys[0]))}</button></div>`:''}
+    ${keys&&keys.length===1?`<div class="campo"><label>&nbsp;</label><button class="btn" data-gp-statusrep="${escA(keys[0])}" data-tip="Abre o 📋 Status report deste projeto (situação, itens da semana e bugs, atualização por modelo)">📋 Status report</button></div>`:''}
     ${gp.proj&&gp.proj.includes(',')?`<div class="campo"><label>&nbsp;</label><button class="chip" data-gp-limpar-proj="1" data-tip="Tirar o filtro de projetos vindo do link">✕ ${esc(gp.proj)}</button></div>`:''}
   </div>`;
   const cab=(sub)=>`<div class="card full gp-topo"><h2>🧭 Pendências do projeto <span>${sub}</span></h2>${filtros}`;
@@ -371,6 +372,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const cl=(s)=>e.target.closest&&e.target.closest(s); const gp=estado.gp;
   const ir=cl('[data-gp-ir]'); if(ir){ const b=document.getElementById('gp-'+ir.getAttribute('data-gp-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const m=cl('[data-gp-meus]'); if(m){ gp.meus=!gpMeusLigado(); gp.proj=''; renderGp(); return; }   // alterna o estado EXIBIDO
+  const srb=cl('[data-gp-statusrep]'); if(srb){ srProjSet(srb.getAttribute('data-gp-statusrep')); vaiPara('statusrep'); return; }
   const lp=cl('[data-gp-limpar-proj]'); if(lp){ gp.proj=''; renderGp(); return; }
   const msg=cl('[data-gp-msg]'); if(msg){ const c=gpCalc(); if(c) gpCopia(gpMensagem(c,msg.getAttribute('data-gp-msg')),'📋 Mensagem copiada — cole no chat da pessoa.'); return; }
   const com=cl('[data-gp-com]'); if(com){ gpAbreComentar(com.getAttribute('data-gp-com')); return; }

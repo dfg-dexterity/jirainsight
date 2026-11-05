@@ -234,10 +234,10 @@ const REL_SIGLA_NOME={ DEA:'Dexterity - Escopo Aberto', DEF:'Dexterity - Escopo 
 const REL_DIMS=['Entrega','Escopo','Tempo','Custo','Recursos','Risco','AMS','Portfólio'];
 // def = 10 caracteres na ordem de REL_SIGLAS (O / R / -)
 const REL_CAT=[
-  {id:'R01',nome:'Status Report Executivo',dim:'Entrega',freq:'Semanal',def:'OOOOOO-RR-',disp:'ok',vista:'projetos',
+  {id:'R01',nome:'Status Report Executivo',dim:'Entrega',freq:'Semanal',def:'OOOOOO-RR-',disp:'ok',vista:'statusrep',
    obj:'Uma página com a situação do projeto: progresso, prazo, esforço e pendências.',
    resp:'O projeto está no prazo, no escopo e no orçamento? O que precisa de decisão?',
-   como:'📁 Projetos — consolidado com saúde por projeto e ficha detalhada (épicos, esforço, evolução).'},
+   como:'📋 Status report do projeto — situação (semáforo, resumo, próximos passos, riscos), itens vencidos, desta e da próxima semana e bugs abertos, com a atualização por modelo de comentário no próprio ticket.'},
   {id:'R02',nome:'Burndown / Burnup de Sprint',dim:'Entrega',freq:'Diária (na sprint)',def:'OOOO---RO-',disp:'falta',vista:'projetos',
    obj:'Acompanhar o consumo do escopo comprometido dentro da sprint.',
    resp:'Vamos entregar o comprometido até o fim da sprint?',

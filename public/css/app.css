@@ -3329,6 +3329,41 @@
   .gp-mini{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);cursor:pointer;padding:2px 8px;font-size:12px;line-height:1.4}
   .gp-mini:hover{border-color:var(--cerceta);background:var(--hoverbg)}
   .gp-vazio{color:var(--muted);font-size:12.5px;padding:4px 0}
+  /* ---- 📋 Status report (20c) ---- */
+  .sr-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:4px 0 12px}
+  .sr-kpis .vg-k[data-sr-ir],.sr-kpis .vg-k[data-sr-so-sem]{cursor:pointer}
+  .sr-kpis .vg-k[data-sr-ir]:hover,.sr-kpis .vg-k[data-sr-so-sem]:hover{border-color:var(--cerceta)}
+  .sr-so-sem{display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px}
+  .sr-acoes-topo{gap:8px}
+  .sr-bloco h2 .sr-n{display:inline-block;min-width:26px;text-align:center;border-radius:999px;padding:1px 8px;background:var(--trilho);color:var(--grafite);font-size:13px;font-weight:700;font-family:var(--corpo);letter-spacing:0;vertical-align:middle;margin-right:4px}
+  .sr-tab{display:grid;grid-template-columns:minmax(100px,1fr) minmax(200px,3fr) minmax(90px,1fr) minmax(90px,1fr) minmax(110px,1.2fr) minmax(220px,3fr) max-content;align-items:start}
+  .sr-tab-h,.sr-row{display:contents}
+  .sr-tab-h>div{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:2px 10px 3px 0;border-bottom:1px solid var(--linha)}
+  .sr-row>div{border-bottom:1px solid var(--linha);padding:6px 10px 6px 0;min-width:0;font-size:12.5px}
+  .sr-c-res{overflow-wrap:anywhere}
+  .sr-c-k{white-space:nowrap}
+  .sr-atraso{color:var(--err);font-weight:700;font-size:11.5px}
+  .sr-hoje{color:var(--amarelo);font-weight:700;font-size:11.5px}
+  .sr-bug{font-size:12px}
+  .sr-sit.good{color:var(--musgo)} .sr-sit.warn{color:var(--amarelo)} .sr-sit.bad{color:var(--err)}
+  .sr-sit .sr-trecho{color:var(--grafite);font-weight:400;margin-top:2px;font-size:12px}
+  .sr-sit .sr-trecho-i{color:var(--muted)}
+  .sr-selos{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+  .sr-sel{font-size:11px;color:var(--muted);background:var(--trilho);border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .sr-vazio{color:var(--muted);font-size:12.5px;padding:4px 0}
+  .sr-situacao h3{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:10px 0 3px}
+  .sr-sem-linha{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .sr-semaforo{display:inline-flex;align-items:center;gap:8px;font-family:var(--titulo);font-size:20px;font-weight:700;border-radius:999px;padding:6px 18px;border:2px solid var(--linha);cursor:help}
+  .sr-semaforo.verde{border-color:var(--musgo);color:var(--musgo)} .sr-semaforo.amarelo{border-color:var(--amarelo);color:var(--amarelo)} .sr-semaforo.vermelho{border-color:var(--err);color:var(--err)}
+  .sr-sug,.sr-dif{font-size:12px;color:var(--muted)}
+  .sr-dif{font-weight:700;color:var(--amarelo)}
+  .sr-resumo p,.sr-riscos p{margin:0;font-size:13.5px;line-height:1.5}
+  .sr-prox ul{margin:0;padding-left:20px;font-size:13.5px} .sr-prox li{margin:2px 0}
+  .sr-rodape-sit{margin-top:10px}
+  .sr-hist{margin-top:6px;font-size:12.5px} .sr-hist summary{cursor:pointer;color:var(--cerceta)}
+  .sr-hist ul{margin:6px 0 0;padding-left:18px}
+  .sr-aviso{color:var(--amarelo);font-size:12.5px}
+  .sr-fora{margin:6px 2px 18px}
 
   /* ---- 📆 Hoje (24b-hoje.js, 2026-10-21): o planejamento do dia como ponto central ---- */
   .hj-tela{min-width:0}

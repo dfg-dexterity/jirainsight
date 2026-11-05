@@ -361,6 +361,8 @@ function projEspinha(key, d) {
     chip('execucao', 'entrega', '🛠 Execução', `${nBR(r.emAndamento)} em andamento · ${nBR(r.vencidos)} vencidos`, 'Abre 🛠 Tickets do time filtrado neste projeto — ações em massa (atribuir, status, reprogramar…)'),
     chip('gp', 'entrega', '🧭 Pendências', `${nBR(r.vencidos)} vencidos · ${gerentes.length ? 'gerente: ' + gerentes.map((a) => nomeDe(a).split(' ')[0]).join(', ') : 'sem gerente'}`,
       'Abre 🧭 Pendências do projeto: vencidos por pessoa, parados, sem data, cadastro incompleto — com a cobrança pronta (mensagem, Teams, comentário no Jira, Inbox)'),
+    chip('statusrep', 'entrega', '📋 Status report', `${nBR(r.vencidos)} vencidos · próximas semanas e bugs`,
+      'Abre o 📋 Status report deste projeto: situação (semáforo, resumo, próximos passos), itens vencidos, desta e da próxima semana e bugs abertos — com o 📝 Atualizar por modelo de comentário'),
     chip('apuracao', 'negocio', '🛡 Apuração', contrato ? (contrato.tipo === 'ams' ? `AMS · ${ciclo(contrato)}` : rotTipo(contrato.tipo)) : 'sem contrato',
       contrato ? (contrato.tipo === 'ams' ? 'Abre a apuração do ciclo AMS deste contrato (banco de horas, faturado)' : 'Abre 💰 Bolsa de horas & projetos — consumo × contratado e projeção') : 'A apuração precisa de um contrato no Admin — abre 📑 Contratos › 🏢 Clientes'),
     chip('resultado', 'negocio', '🏦 Resultado', cat, `Abre a 🏦 Controladoria na categoria "${cat}" com o 📁 Resultado deste projeto aberto: receita, custo por nível e por pessoa, vendido × realizado, plano × realizado e evolução`),
@@ -409,6 +411,7 @@ function projGerenteMuda(key, a, add) {
 function projEspinhaVai(id, key) {
   const { contrato, plano, parceria, frente } = projEspinhaDados(key);
   const ficha = (estado.projetos.fichas || {})[key] || {};
+  if (id === 'statusrep') { if (typeof srProjSet === 'function') srProjSet(key); vaiPara('statusrep'); return; }
   if (id === 'gp') { if (estado.gp) { estado.gp.proj = key; estado.gp.meus = false; estado.gp.resp = ''; } vaiPara('gp'); return; }
   if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }
   if (id === 'parceria') {
