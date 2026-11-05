@@ -30,6 +30,11 @@
 //                                           `semanal_*`: é dado pessoal — nunca na config compartilhada.
 //                                           Identidade = headers x-jira-* validados no Jira (planAuth).
 //
+// GET  /api/config?sr=KEY                -> 📋 STATUS REPORT: situação do projeto (semáforo, resumo, próximos passos, riscos, histórico)
+// POST /api/config?sr=1                  -> {acao:'salvar', proj, base, dados} (2026-11-05). Uma linha `sr_<KEY>` por projeto nesta
+//                                           tabela (nunca na config compartilhada). Leitura pública (sem R$ nem dado pessoal);
+//                                           gravação com identidade (planAuth) e trava otimista pelo updated_at.
+//
 // GET  /api/config?semanal=1[&semana=AAAA-MM-DD][&n=8] -> 📊 fotos do relatório semanal
 //                                           (as n mais recentes até a semana), recortadas
 //                                           pelo PAPEL da pessoa — identidade conferida no
@@ -47,7 +52,7 @@ import crypto from 'node:crypto';
 import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
 } from './_lib/util.js';
-import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida } from './_lib/semanal.js';
+import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida, meusProjetos } from './_lib/semanal.js';
 import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
 import {
   portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
@@ -549,6 +554,102 @@ async function planejamentoDia(req, res, base, headers) {
   }
 
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
+}
+
+// ============================================================================
+// 📋 Status report do projeto — a SITUAÇÃO do projeto (GET/POST /api/config?sr=…, 2026-11-05, a pedido do usuário:
+// "todo mundo tem a mesma visão de qual é a situação do projeto"). Uma linha `sr_<KEY>` por projeto nesta tabela
+// (o GET normal só devolve `default`, então isto nunca desce com a config para o navegador de todo o time):
+//   { saude:'verde'|'amarelo'|'vermelho'|'' ('' = sem override manual), resumo, proximos:[{t, quando, quem}] (≤ 10), riscos,
+//     atualizadoEm, por:{accountId, nome} (SEMPRE do servidor), hist:[{em, por, saude, resumo}] (≤ 12, só quando saude/resumo mudou) }
+// Leitura: pública (nada de R$ nem dado pessoal). Escrita: identidade conferida no Jira (planAuth) + trava otimista pelo updated_at.
+// D2 (usuário): qualquer pessoa identificada edita; SR_SO_GESTORES=true restringe a gestores e gerentes do projeto.
+// ============================================================================
+const SR_SO_GESTORES = false;
+const RE_SAUDE_SR = /^(verde|amarelo|vermelho|)$/;
+const srId = (p) => `sr_${p}`;
+function srLimpa(src) {
+  const s = (src && typeof src === 'object') ? src : {};
+  const saude = s.saude == null ? '' : String(s.saude);
+  if (!RE_SAUDE_SR.test(saude)) return { ok: false, erro: 'Semáforo inválido.' };
+  const proxSrc = Array.isArray(s.proximos) ? s.proximos : [];
+  if (proxSrc.length > 10) return { ok: false, erro: 'Máximo de 10 próximos passos.' };
+  const proximos = [];
+  for (const it of proxSrc) {
+    if (!it || typeof it !== 'object') continue;
+    const t = String(it.t || '').trim().slice(0, 200);
+    if (!t) continue;
+    const quando = RE_DATA_P.test(String(it.quando || '')) ? String(it.quando) : '';
+    proximos.push({ t, quando, quem: String(it.quem || '').trim().slice(0, 80) });
+  }
+  return { ok: true, dados: {
+    saude,
+    resumo: String(s.resumo == null ? '' : s.resumo).slice(0, 1500),
+    proximos,
+    riscos: String(s.riscos == null ? '' : s.riscos).slice(0, 1000),
+  } };
+}
+async function statusReportRow(req, res, base, headers) {
+  const emMs = (s) => { const t = Date.parse(String(s || '')); return Number.isFinite(t) ? t : null; };
+  const leLinha = async (id) => (await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}&select=id,data,updated_at`)))[0] || null;
+  if (req.method !== 'POST') {
+    const proj = String((req.query && req.query.sr) || '').toUpperCase();
+    if (!RE_PROJ_P.test(proj)) return json(res, 400, { ok: false, erro: 'Projeto inválido.' });
+    const row = await leLinha(srId(proj));
+    res.setHeader('Cache-Control', 'no-store');
+    return json(res, 200, { ok: true, proj, rev: row ? (row.updated_at || '') : '', dados: row ? (row.data || null) : null });
+  }
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const acc = String(quem.accountId || '');
+  if (!acc) return json(res, 401, { ok: false, erro: 'Sem accountId no Jira.' });
+  const b = await lerBody(req);
+  const proj = String(b.proj || '').trim().toUpperCase();
+  if (!RE_PROJ_P.test(proj)) return json(res, 400, { ok: false, erro: 'Projeto inválido.' });
+  if (String(b.acao || '') !== 'salvar') return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
+  if (SR_SO_GESTORES) {
+    let cfg = {};
+    try { cfg = ((await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${ID}&select=data`)))[0] || {}).data || {}; } catch (e) { /* sem config → só gestor legado */ }
+    const pode = (await planEhGestor(base, headers, quem)) || meusProjetos(cfg, acc, quem.email).includes(proj);
+    if (!pode) return json(res, 403, { ok: false, erro: 'Só gestores e gerentes do projeto editam a situação.' });
+  }
+  const lim = srLimpa(b.dados);
+  if (!lim.ok) return json(res, 400, { ok: false, erro: lim.erro });
+  const id = srId(proj);
+  const agora = new Date().toISOString();
+  const atual = await leLinha(id);
+  const baseRev = String(b.base || '');
+  const conflito = (row) => json(res, 200, {
+    ok: false, conflito: true,
+    erro: 'A situação deste projeto foi alterada por outra pessoa — recarregada para você conferir.',
+    atual: { rev: row ? (row.updated_at || '') : '', dados: row ? (row.data || null) : null },
+  });
+  if (atual && atual.updated_at && emMs(baseRev) !== emMs(atual.updated_at)) return conflito(atual);
+  if (!atual && baseRev) return conflito(null);   // o cliente acha que há linha e ela sumiu: não grava às cegas
+  const ant = (atual && atual.data && typeof atual.data === 'object') ? atual.data : {};
+  const histAnt = Array.isArray(ant.hist) ? ant.hist : [];
+  const mudou = !atual || String(ant.saude || '') !== lim.dados.saude || String(ant.resumo || '') !== lim.dados.resumo;
+  const hist = mudou
+    ? [{ em: agora, por: quem.nome || '', saude: lim.dados.saude, resumo: lim.dados.resumo.slice(0, 300) }, ...histAnt].slice(0, 12)
+    : histAnt.slice(0, 12);
+  const data = { ...lim.dados, atualizadoEm: agora, por: { accountId: acc, nome: quem.nome || '' }, hist };
+  if (JSON.stringify(data).length > 32768) return json(res, 413, { ok: false, erro: 'Situação grande demais.' });
+  let row;
+  if (atual) {
+    const filtro = atual.updated_at ? `&updated_at=eq.${encodeURIComponent(atual.updated_at)}` : '&updated_at=is.null';
+    const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${encodeURIComponent(id)}${filtro}`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data, updated_at: agora }),
+    }));
+    row = rows[0] || null;
+    if (!row) return conflito(await leLinha(id));   // outra aba gravou entre a leitura e a escrita
+  } else {
+    const rows = await sbRows(await sbFetch(base, headers, `${TABELA}?on_conflict=id`, {
+      method: 'POST', headers: { Prefer: 'return=representation,resolution=ignore-duplicates' }, body: JSON.stringify([{ id, data, updated_at: agora }]),
+    }));
+    row = rows[0] || null;
+    if (!row) return conflito(await leLinha(id));   // duas abas criando ao mesmo tempo
+  }
+  return json(res, 200, { ok: true, proj, rev: row.updated_at || agora, dados: row.data || data });
 }
 
 // ============================================================================
@@ -1405,6 +1506,9 @@ export default async function handler(req, res) {
       if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
       return await planejamentoDia(req, res, base, headers);
     }
+
+    // 📋 Status report: a situação do projeto (GET público / POST com identidade do Jira).
+    if (req.query && req.query.sr) return await statusReportRow(req, res, base, headers);
 
     // 📊 Uso do painel: grava o lote (POST) e devolve o período somado (GET).
     if (req.query && req.query.uso) {

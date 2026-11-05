@@ -2,6 +2,8 @@
 // Lista os chamados ABERTOS (statusCategory != Done) com data de vencimento até a
 // data pedida, com as horas já apontadas em cada um (timespent do Jira). Alimenta a
 // tela "Apontar" — apontamento rápido dos tickets vencendo/vencidos.
+// GET /api/vencimentos?statusrep=KEY[&nocache=1] -> 📋 status report do projeto (abertos até o domingo da próxima
+// semana + bugs abertos, com o último comentário e o último comentário com o marcador do status report).
 import {
   cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json, configCompartilhada,
 } from './_lib/util.js';
@@ -552,9 +554,145 @@ async function mencoesDe(q, res) {
   return json(res, 200, cacheSetTTL(ck, payload, 3));
 }
 
+// ---------------------------------------------------------------------------
+// GET /api/vencimentos?statusrep=KEY[&nocache=1] — 📋 STATUS REPORT do projeto (2026-11-05, a pedido do usuário:
+// "pegar os itens que estão abertos, que vencem na próxima semana ou do tipo bug, e ter templates para atualizar o
+// comentário no ticket; fácil de ler as pendências; todo mundo com a mesma visão").
+// Conta de serviço, leitura. Entra no relatório o item ABERTO (statusCategory != Done) que é BUG (pelo TIPO) OU tem
+// vencimento até `meta.ate` = domingo da PRÓXIMA semana (decisão D1: calendário, não 7 dias corridos). Fica de fora —
+// e só contado em `meta.fora` — o aberto sem data que não é bug (`semData`) e o que vence depois do horizonte (`depois`).
+// Cada item sai com o ÚLTIMO comentário (`ult`) e o último comentário com o MARCADOR do status report (`sr`): a 1ª linha
+// do comentário é "📋 Status report · <ic> <rótulo do modelo>" (escrito pelo 📝 Atualizar da tela, que publica pelo
+// /api/transicao). A fase de comentários vai em lotes de 50 e uma falha NUNCA derruba a lista (`truncado.comentarios`).
+// ---------------------------------------------------------------------------
+export const RE_BUG_SR = /\b(bug|erro|defeito|incidente|falha)\b/i;
+const RE_MARCADOR_SR = /^📋 Status report\s*·\s*(.+)$/u;
+const SR_MAX_ITENS = 200;
+function srAddDias(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+// Regra do filtro, pura (documenta e serve ao teste): 'vencido' | 'semana' | 'proxima' | 'bug' | null.
+export function srClassifica(it, hoje, fimSemana, ate) {
+  const v = it && it.venc;
+  if (v && v < hoje && v <= ate) return 'vencido';
+  if (v && v >= hoje && v <= fimSemana) return 'semana';
+  if (v && v > fimSemana && v <= ate) return 'proxima';
+  return it && it.bug ? 'bug' : null;
+}
+async function statusReport(q, res) {
+  const proj = String(q.statusrep || '').trim().toUpperCase();
+  if (!RE_PROJ_V.test(proj)) return json(res, 400, { erro: 'Projeto inválido.' });
+  const ck = `venc:sr:${proj}`;
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  const hoje = hojeSP();
+  const dow = new Date(`${hoje}T12:00:00-03:00`).getUTCDay();   // 0 = domingo
+  const fimSemana = srAddDias(hoje, (7 - dow) % 7);
+  const ate = srAddDias(fimSemana, 7);
+
+  const r1 = await jiraSearchAll({
+    jql: `project = "${proj}" AND statusCategory != Done ORDER BY duedate ASC, updated DESC`,
+    fields: ['summary', 'duedate', 'assignee', 'status', 'project', 'issuetype', 'priority', 'timespent',
+      'timeoriginalestimate', 'updated', 'created', 'parent', 'labels'],
+    pageSize: 100, maxPages: 5,
+  });
+  let nome = ''; let categoria = '';
+  const todos = r1.issues.map((it) => {
+    const f = it.fields || {};
+    const ass = f.assignee || {};
+    if (!nome && f.project) {
+      nome = f.project.name || '';
+      categoria = (f.project.projectCategory && f.project.projectCategory.name) || '';
+    }
+    const t = (f.issuetype && f.issuetype.name) || '';
+    return {
+      k: it.key,
+      resumo: f.summary || '',
+      p: (f.project && f.project.key) || String(it.key).split('-')[0],
+      t,
+      sub: !!(f.issuetype && f.issuetype.subtask),
+      bug: RE_BUG_SR.test(t),
+      status: (f.status && f.status.name) || '',
+      statCat: (f.status && f.status.statusCategory && f.status.statusCategory.key) || '',
+      venc: f.duedate || '',
+      respId: ass.accountId || '',
+      resp: ass.displayName || '',
+      prio: (f.priority && f.priority.name) || '',
+      seg: Number(f.timespent || 0),
+      est: Number(f.timeoriginalestimate || 0),
+      up: f.updated || '',
+      criado: String(f.created || '').slice(0, 10),
+      pai: (f.parent && f.parent.key) || '',
+      labels: (f.labels || []).slice(0, 10),
+    };
+  });
+  const fora = { semData: 0, depois: 0, total: todos.length };
+  const entra = [];
+  for (const it of todos) {
+    if (it.bug || (it.venc && it.venc <= ate)) { entra.push(it); continue; }
+    if (!it.venc) fora.semData += 1; else fora.depois += 1;
+  }
+  const truncItens = entra.length > SR_MAX_ITENS;
+  const itens = entra.slice(0, SR_MAX_ITENS);
+  itens.forEach((it) => { it.ult = null; it.sr = null; });
+
+  // Fase 2: o último comentário (e o último com marcador) dos itens que vão aparecer — lotes de 50.
+  let truncCom = false;
+  const dadosCom = (c) => {
+    const created = String(c.created || '');
+    return {
+      por: (c.author && c.author.displayName) || '—', porId: (c.author && c.author.accountId) || '',
+      dia: created.slice(0, 10), quando: created.slice(0, 16).replace('T', ' '),
+    };
+  };
+  for (let i = 0; i < itens.length; i += 50) {
+    const lote = itens.slice(i, i + 50);
+    try {
+      const rc = await jiraSearchAll({
+        jql: `key in (${lote.map((x) => x.k).join(',')})`,
+        fields: ['comment'], pageSize: 50, maxPages: 1,
+      });
+      const porChave = new Map(rc.issues.map((x) => [x.key, x]));
+      for (const it of lote) {
+        const coms = ((porChave.get(it.k) || {}).fields || {}).comment;
+        const lista = (coms && Array.isArray(coms.comments)) ? coms.comments : [];
+        if (!lista.length) continue;
+        const ultimo = lista[lista.length - 1];
+        it.ult = { ...dadosCom(ultimo), texto: adfTexto(ultimo.body).replace(/\s+/g, ' ').trim().slice(0, 240) };
+        for (let j = lista.length - 1; j >= 0; j -= 1) {
+          const c = lista[j];
+          const corpo = (c && c.body && Array.isArray(c.body.content)) ? c.body.content : [];
+          if (!corpo.length) continue;
+          const m = RE_MARCADOR_SR.exec(adfTexto(corpo[0]).trim());
+          if (!m) continue;
+          it.sr = {
+            rot: m[1].trim().slice(0, 80), ...dadosCom(c),
+            texto: adfTexto({ type: 'doc', content: corpo.slice(1) }).replace(/\s+/g, ' ').trim().slice(0, 400),
+          };
+          break;
+        }
+      }
+    } catch (e) { truncCom = true; }
+  }
+
+  const payload = {
+    meta: {
+      proj, nome, categoria, hoje, fimSemana, ate, geradoEm: new Date().toISOString(),
+      truncado: { abertos: !!r1.truncado, itens: truncItens, comentarios: truncCom },
+      fora,
+    },
+    itens,
+  };
+  return json(res, 200, cacheSetTTL(ck, payload, 3));
+}
+
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
+    if (q.statusrep) return await statusReport(q, res);
     if (q.mencoes === '1') return await mencoesDe(q, res);
     if (q.reuniao === '1') return await baseReuniao(q, res);
     if (q.detalhe) return await detalheTicket(q, res);
