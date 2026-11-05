@@ -2034,6 +2034,10 @@
   /* ⚙️ modelos */
   .srt-item{flex-direction:column} .srt-bt{width:100%} .srt-bt .gp-mini,.srt-bt .btn,.srt-add .btn,#srt-salva{min-height:44px}
   .srt-ed input,.srt-ed select,.srt-ed textarea{font-size:16px}
+  /* 🧩 tipos no relatório */
+  [data-sr-tipos],.srx-tipo,.srx-modo label,.srx-add .btn,#srx-salva{min-height:44px}
+  .srx-lista{grid-template-columns:1fr}
+  .srx-add input{font-size:16px;min-height:44px}
 }
 /* ---- fim: statusrep ---- */
 

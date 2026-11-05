@@ -3397,6 +3397,16 @@
   .srt-res{min-width:0;flex:1} .srt-rot{font-weight:700} .srt-tx{overflow-wrap:anywhere;margin-top:2px}
   .srt-bt{display:flex;gap:4px;flex:0 0 auto}
   .srt-ck{display:grid;gap:4px;font-size:12.5px} .srt-add{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+  /* 🧩 tipos de item fora do relatório */
+  .srx-modo{display:grid;gap:4px;margin:10px 0 4px;font-size:13px}
+  .srx-modo label{display:flex;gap:8px;align-items:baseline;cursor:pointer}
+  .srx-aviso{margin:2px 0 8px}
+  .srx-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin:8px 0}
+  .srx-tipo{display:flex;gap:8px;align-items:center;border:1px solid var(--linha);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px}
+  .srx-tipo:has(input:checked){background:var(--trilho);border-color:var(--grafite)}
+  .srx-nome{font-weight:600;overflow-wrap:anywhere}
+  .srx-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+  .srx-add input{flex:1 1 180px;min-width:0;font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:inherit}
 
   /* ---- 📆 Hoje (24b-hoje.js, 2026-10-21): o planejamento do dia como ponto central ---- */
   .hj-tela{min-width:0}

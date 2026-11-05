@@ -2,8 +2,9 @@
 // Lista os chamados ABERTOS (statusCategory != Done) com data de vencimento até a
 // data pedida, com as horas já apontadas em cada um (timespent do Jira). Alimenta a
 // tela "Apontar" — apontamento rápido dos tickets vencendo/vencidos.
-// GET /api/vencimentos?statusrep=KEY[&nocache=1] -> 📋 status report do projeto (abertos até o domingo da próxima
-// semana + bugs abertos, com o último comentário e o último comentário com o marcador do status report).
+// GET /api/vencimentos?statusrep=KEY[&excl=tipo,tipo][&nocache=1] -> 📋 status report do projeto (abertos até o domingo
+// da próxima semana + bugs abertos, com o último comentário e o último comentário com o marcador do status report;
+// `excl` = tipos de item que não entram no relatório).
 import {
   cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json, configCompartilhada,
 } from './_lib/util.js';
@@ -564,10 +565,25 @@ async function mencoesDe(q, res) {
 // Cada item sai com o ÚLTIMO comentário (`ult`) e o último comentário com o MARCADOR do status report (`sr`): a 1ª linha
 // do comentário é "📋 Status report · <ic> <rótulo do modelo>" (escrito pelo 📝 Atualizar da tela, que publica pelo
 // /api/transicao). A fase de comentários vai em lotes de 50 e uma falha NUNCA derruba a lista (`truncado.comentarios`).
+// 🧩 `excl` (2026-11-05, a pedido do usuário: "excluir alguns tipos de itens que não precisam aparecer no report — épicos,
+// histórias, reuniões"): nomes de TIPO já normalizados pela tela (sem acento, minúsculo; os sinônimos Epic/Story/Meeting a
+// tela já expande), separados por vírgula. O item de tipo excluído sai ANTES de tudo — não entra no teto de 200, não tem
+// comentários lidos e não conta em `meta.fora` (decisão do usuário: some sem rastro). `meta.tipos` = abertos por tipo
+// ANTES da exclusão (só para o 🧩 da tela oferecer os tipos que existem no projeto). A lista mora na config (cfg.srTiposExcluir,
+// padrão + por projeto) e quem a manda é a tela; o cache leva a lista na chave.
 // ---------------------------------------------------------------------------
 export const RE_BUG_SR = /\b(bug|erro|defeito|incidente|falha)\b/i;
 const RE_MARCADOR_SR = /^📋 Status report\s*·\s*(.+)$/u;
 const SR_MAX_ITENS = 200;
+const SR_MAX_EXCL = 60;
+// Mesma régua do srNormTipo da tela (20c): sem acento, minúsculo, espaços juntos, vírgula vira espaço.
+export function srNormTipoS(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/,/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+export function srExclDe(q) {
+  return [...new Set(String((q && q.excl) || '').split(',').map(srNormTipoS).filter(Boolean))].sort().slice(0, SR_MAX_EXCL);
+}
 function srAddDias(iso, n) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
@@ -583,7 +599,9 @@ export function srClassifica(it, hoje, fimSemana, ate) {
 async function statusReport(q, res) {
   const proj = String(q.statusrep || '').trim().toUpperCase();
   if (!RE_PROJ_V.test(proj)) return json(res, 400, { erro: 'Projeto inválido.' });
-  const ck = `venc:sr:${proj}`;
+  const excl = srExclDe(q);
+  const exclSet = new Set(excl);
+  const ck = `venc:sr:${proj}:${excl.join(',')}`;
   if (q.nocache !== '1') {
     const cached = cacheGet(ck);
     if (cached) return json(res, 200, cached);
@@ -629,9 +647,15 @@ async function statusReport(q, res) {
       labels: (f.labels || []).slice(0, 10),
     };
   });
-  const fora = { semData: 0, depois: 0, total: todos.length };
-  const entra = [];
+  const tipos = {};   // abertos por tipo, ANTES da exclusão — só para o 🧩 da tela
   for (const it of todos) {
+    const nm = it.t || '(sem tipo)';
+    if (tipos[nm] != null || Object.keys(tipos).length < 50) tipos[nm] = (tipos[nm] || 0) + 1;
+  }
+  const visiveis = exclSet.size ? todos.filter((it) => !exclSet.has(srNormTipoS(it.t))) : todos;
+  const fora = { semData: 0, depois: 0, total: visiveis.length };
+  const entra = [];
+  for (const it of visiveis) {
     if (it.bug || (it.venc && it.venc <= ate)) { entra.push(it); continue; }
     if (!it.venc) fora.semData += 1; else fora.depois += 1;
   }
@@ -682,7 +706,7 @@ async function statusReport(q, res) {
     meta: {
       proj, nome, categoria, hoje, fimSemana, ate, geradoEm: new Date().toISOString(),
       truncado: { abertos: !!r1.truncado, itens: truncItens, comentarios: truncCom },
-      fora,
+      fora, tipos, excl,
     },
     itens,
   };
