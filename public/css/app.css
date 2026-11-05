@@ -3329,6 +3329,72 @@
   .gp-mini{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--cerceta);cursor:pointer;padding:2px 8px;font-size:12px;line-height:1.4}
   .gp-mini:hover{border-color:var(--cerceta);background:var(--hoverbg)}
   .gp-vazio{color:var(--muted);font-size:12.5px;padding:4px 0}
+  /* ---- 📋 Status report (20c) ---- */
+  .sr-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:4px 0 12px}
+  .sr-kpis .vg-k[data-sr-ir],.sr-kpis .vg-k[data-sr-so-sem]{cursor:pointer}
+  .sr-kpis .vg-k[data-sr-ir]:hover,.sr-kpis .vg-k[data-sr-so-sem]:hover{border-color:var(--cerceta)}
+  .sr-so-sem{display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px}
+  .sr-acoes-topo{gap:8px}
+  .sr-bloco h2 .sr-n{display:inline-block;min-width:26px;text-align:center;border-radius:999px;padding:1px 8px;background:var(--trilho);color:var(--grafite);font-size:13px;font-weight:700;font-family:var(--corpo);letter-spacing:0;vertical-align:middle;margin-right:4px}
+  .sr-tab{display:grid;grid-template-columns:minmax(100px,1fr) minmax(200px,3fr) minmax(90px,1fr) minmax(90px,1fr) minmax(110px,1.2fr) minmax(220px,3fr) max-content;align-items:start}
+  .sr-tab-h,.sr-row{display:contents}
+  .sr-tab-h>div{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:2px 10px 3px 0;border-bottom:1px solid var(--linha)}
+  .sr-row>div{border-bottom:1px solid var(--linha);padding:6px 10px 6px 0;min-width:0;font-size:12.5px}
+  .sr-c-res{overflow-wrap:anywhere}
+  .sr-c-k{white-space:nowrap}
+  .sr-atraso{color:var(--err);font-weight:700;font-size:11.5px}
+  .sr-hoje{color:var(--amarelo);font-weight:700;font-size:11.5px}
+  .sr-bug{font-size:12px}
+  .sr-sit.good{color:var(--musgo)} .sr-sit.warn{color:var(--amarelo)} .sr-sit.bad{color:var(--err)}
+  .sr-sit .sr-trecho{color:var(--grafite);font-weight:400;margin-top:2px;font-size:12px}
+  .sr-sit .sr-trecho-i{color:var(--muted)}
+  .sr-selos{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+  .sr-sel{font-size:11px;color:var(--muted);background:var(--trilho);border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .sr-vazio{color:var(--muted);font-size:12.5px;padding:4px 0}
+  .sr-situacao h3{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:10px 0 3px}
+  .sr-sem-linha{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .sr-semaforo{display:inline-flex;align-items:center;gap:8px;font-family:var(--titulo);font-size:20px;font-weight:700;border-radius:999px;padding:6px 18px;border:2px solid var(--linha);cursor:help}
+  .sr-semaforo.verde{border-color:var(--musgo);color:var(--musgo)} .sr-semaforo.amarelo{border-color:var(--amarelo);color:var(--amarelo)} .sr-semaforo.vermelho{border-color:var(--err);color:var(--err)}
+  .sr-sug,.sr-dif{font-size:12px;color:var(--muted)}
+  .sr-dif{font-weight:700;color:var(--amarelo)}
+  .sr-resumo p,.sr-riscos p{margin:0;font-size:13.5px;line-height:1.5}
+  .sr-prox ul{margin:0;padding-left:20px;font-size:13.5px} .sr-prox li{margin:2px 0}
+  .sr-rodape-sit{margin-top:10px}
+  .sr-hist{margin-top:6px;font-size:12.5px} .sr-hist summary{cursor:pointer;color:var(--cerceta)}
+  .sr-hist ul{margin:6px 0 0;padding-left:18px}
+  .sr-aviso{color:var(--amarelo);font-size:12.5px}
+  .sr-fora{margin:6px 2px 18px}
+  /* 📝 Atualizar (modal do status report) */
+  .sr-at-cab{margin:4px 0 10px} .sr-at-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .sr-chip{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--grafite);cursor:pointer;padding:6px 12px;font-size:12.5px;font-family:var(--corpo);white-space:nowrap}
+  .sr-chip:hover{border-color:var(--cerceta)}
+  .sr-chip[aria-pressed="true"]{background:var(--cerceta);border-color:var(--cerceta);color:var(--cartao);font-weight:700}
+  .sr-at-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 12px;margin:8px 0}
+  .sr-at-campo input,.sr-at-campo select,.sr-at-opc input,.sr-at-opc select{width:100%;box-sizing:border-box}
+  #sr-texto{width:100%;box-sizing:border-box;min-height:120px}
+  .sr-refaz{margin-top:6px}
+  .sr-at-opc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;margin:8px 0}
+  .sr-at-int{display:flex;gap:8px;align-items:center;margin:8px 0;cursor:pointer;font-size:13px}
+  .sr-at-res{list-style:none;padding:0;margin:10px 0;font-size:13.5px} .sr-at-res li{margin:4px 0} .sr-at-res .ok{color:var(--musgo)} .sr-at-res .erro{color:var(--err)}
+  /* ✏️ Situação do projeto (formulário) e ⚙️ Modelos */
+  .sr-sit-acoes{margin-top:10px}
+  .sr-cab-form{display:grid;gap:10px;margin-top:6px}
+  .sr-cab-form textarea,.sr-cab-form input[type=text],.sr-cab-form select{width:100%;box-sizing:border-box}
+  .sr-cab-form textarea,.sr-cab-form input[type=text],.sr-cab-form input[type=date]{font-family:var(--corpo);font-size:13px;padding:7px 10px;
+    border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite)}
+  .sr-cab-form textarea{resize:vertical;line-height:1.5}
+  .sr-prox-ls{display:grid;gap:6px;margin-bottom:6px}
+  .sr-prox-l{display:grid;grid-template-columns:minmax(0,1fr) 150px minmax(0,200px) 34px;gap:6px;align-items:center}
+  .sr-prox-l input,.sr-prox-l select{min-width:0;width:100%;box-sizing:border-box}
+  .sr-cab-acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .sr-conflito{background:var(--trilho);border-left:4px solid var(--amarelo);border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12.5px}
+  .srt-lista{display:grid;gap:6px;margin:10px 0}
+  .srt-item{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;border:1px solid var(--linha);border-radius:8px;padding:8px 10px}
+  .srt-item.srt-ed{display:grid;gap:8px;background:var(--trilho)}
+  .srt-ed input[type=text],.srt-ed textarea,.srt-ed select{width:100%;box-sizing:border-box}
+  .srt-res{min-width:0;flex:1} .srt-rot{font-weight:700} .srt-tx{overflow-wrap:anywhere;margin-top:2px}
+  .srt-bt{display:flex;gap:4px;flex:0 0 auto}
+  .srt-ck{display:grid;gap:4px;font-size:12.5px} .srt-add{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
 
   /* ---- 📆 Hoje (24b-hoje.js, 2026-10-21): o planejamento do dia como ponto central ---- */
   .hj-tela{min-width:0}

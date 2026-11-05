@@ -60,6 +60,7 @@ function renderVista(){
   if(estado.vista==='reuvinc') return renderReuVinc();
   if(estado.vista==='gestao') return renderGestao();
   if(estado.vista==='gp') return renderGp();
+  if(estado.vista==='statusrep') return renderSr();
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
@@ -80,7 +81,7 @@ function abreModal(html){
   document.getElementById('modal-body').innerHTML=html;
   document.getElementById('modal').hidden=false;
 }
-function fechaModal(){ document.getElementById('modal').hidden=true;
+function fechaModal(){ document.getElementById('modal').hidden=true; if(typeof srAoFecharModal==='function') srAoFecharModal();   // 📝 status report: zera o estado do modal
   if(estado.vista==='gestao'){ try{ renderGestao(); }catch(e){} } }
 
 // Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
@@ -110,7 +111,7 @@ const ABAS=[
   { id:'planejar',     rot:'📝 Criar ticket',           abas:[ {v:'ondecrio',rot:'🌳 Passo 0 · Onde crio?'}, {v:'planejar',rot:'📝 Criar (lote, IA, voz)'}, {v:'meustickets',rot:'🧾 Preciso criar meus tickets'} ] },
   { id:'gestao',       rot:'🛠 Tickets do time',        abas:[ {v:'gestao',rot:'🛠 Ações em massa'}, {v:'tickets',rot:'📋 Lista do período'}, {v:'qualidade',rot:'🔎 Qualidade (IA)'}, {v:'audit',rot:'✅ Regras TI-04-014'}, {v:'gp',rot:'🧭 Pendências do projeto'} ] },
   { id:'reclassificar',rot:'🗂 Reuniões',               abas:[ {v:'reclassificar',rot:'↔ Reclassificar'}, {v:'reuvinc',rot:'🔗 Vincular a tickets'} ] },
-  { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'} ] },
+  { id:'projetos',     rot:'📁 Projetos',               abas:[ {v:'projetos',rot:'📁 Portfólio e ficha'}, {v:'cronograma',rot:'📅 Marcos e Cronograma'}, {v:'statusrep',rot:'📋 Status report'} ] },
   { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
   { id:'planrel',      rot:'📊 Planejamento do time',   abas:[ {v:'planrel',aud:'gestor',rot:'👥 Por gestor'}, {v:'planrel',aud:'exec',rot:'👔 Visão executiva'}, {v:'planrel',aud:'proj',rot:'📁 Por projetos'} ] },
   // fase 3 — Dexterity Negócio
@@ -143,6 +144,7 @@ const ABAS_N={
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
   gp:      { n:()=>(typeof gpPendN==='function')?gpPendN():null, tip:'ticket(s) vencido(s) ou parado(s) nos projetos em foco' },
+  statusrep: { n:()=>(typeof srPendN==='function')?srPendN():null, tip:'item(ns) vencido(s) no status report do projeto em foco' },
   agcontrole: { n:()=>{ const p=(typeof agPendentes==='function')?agPendentes():null; return p?p.length:null; }, tip:'reunião(ões) sem ticket — qualquer participante cria' },
   chamadas: { n:()=>(typeof chmPendentes==='function')?chmPendentes().length:null, tip:'ligação(ões) do Mac esperando ticket ou apontamento' },
 };
@@ -274,6 +276,7 @@ const NAVCAT=[
   ['reuvinc','🗂 Reuniões › 🔗 Vincular a tickets','entrega','teams tickets ams apoio reuniao vincular gestao'],
   ['projetos','📁 Projetos › 📁 Portfólio e ficha','entrega','bi ficha portfolio epicos saude consolidado analise'],
   ['cronograma','📁 Projetos › 📅 Marcos e Cronograma','entrega','r04 cronograma gantt cascata waterfall marcos epicos fases datas atraso previsao dependencias evolucao burnup analise'],
+  ['statusrep','📁 Projetos › 📋 Status report do projeto','entrega','status report situacao do projeto semaforo saude vencidos esta semana proxima semana bugs abertos atualizar comentario modelo template proximos passos riscos reuniao de status r01 ata copiar relatorio'],
   ['timesheet','⏱ Horas do time › ⏱ Timesheet','entrega','horas planilha clockwork pessoa dia lacuna analise timesheet'],
   ['ranking','⏱ Horas do time › 🏆 Ranking','entrega','engajamento cumprimento apontamento analise ranking'],
   ['planrel','📊 Planejamento do time (por gestor · executiva · por projetos)','insights','relatorios planejado realizado audiencia executiva gestor pessoa projeto drill tickets semana planejamento relatorios do planejamento'],

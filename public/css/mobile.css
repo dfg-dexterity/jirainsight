@@ -1983,6 +1983,58 @@
 }
 /* ---- fim: gp ---- */
 
+/* ---- 📱 grupo: statusrep (📋 Status report) ---- */
+@media (max-width:880px){
+  .sr-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  /* cada item vira um cartão: chave + 🔍 na 1ª linha, resumo em 2 linhas, resp/venc/status numa linha, situação por último */
+  .sr-tab{display:block} .sr-tab-h{display:none}
+  .sr-row{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .sr-row>div{border-bottom:0;padding:1px 0}
+  .sr-row .sr-c-k{order:0;flex:1 1 auto} .sr-row .sr-c-k a{display:inline-flex;align-items:center;min-height:44px}
+  .sr-row .sr-c-acao{order:1;flex:0 0 auto;margin-left:auto} .sr-row .sr-c-acao:empty{display:none}
+  .sr-row .sr-c-res{order:2;flex:0 0 100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .sr-row .sr-c-resp{order:3} .sr-row .sr-c-venc{order:4} .sr-row .sr-c-st{order:5}
+  .sr-row .sr-c-sit{order:6;flex:0 0 100%}
+  .sr-sem-linha{flex-direction:column;align-items:flex-start;gap:6px}
+  .sr-sit-acoes .btn{width:100%;min-height:44px}
+}
+@media (max-width:600px){
+  .sr-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .sr-filtros .campo{width:100%}
+  .sr-acoes-topo .btn{min-height:44px;flex:1 1 100%}
+  .sr-semaforo{font-size:18px}
+}
+@media (pointer:coarse){
+  .sr-acoes-topo .btn,.sr-row .gp-mini{min-height:44px}
+  .sr-row .gp-mini{min-width:44px}
+  #sr-proj,#sr-resp,#sr-refresh{min-height:44px} .sr-so-sem{min-height:44px}
+  #sr-so-sem{width:32px;height:32px}
+  .sr-fora .lnk-ficha{min-height:44px}
+}
+@media (max-width:760px){
+  /* modal 📝 Atualizar: modelos rolam de lado, Publicar/Fechar com alvo de 44px */
+  .sr-at-chips{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .sr-chip{flex:0 0 auto;min-height:44px}
+  .sr-at-campos,.sr-at-opc{grid-template-columns:minmax(0,1fr)}
+  #sr-publica,[data-sr-prox],.sr-at-res~.alx-modal-acoes .btn{min-height:44px}
+  .sr-at-int{min-height:44px}
+}
+@media (max-width:760px){
+  /* ✏️ situação do projeto: formulário em uma coluna; cada passo vira um bloco com ✕ de 44px */
+  .sr-prox-l{grid-template-columns:minmax(0,1fr) 44px;grid-template-areas:"t x" "q q" "w w";padding-bottom:8px;border-bottom:1px solid var(--linha)}
+  .sr-prox-l .sr-p-t{grid-area:t} .sr-prox-l .sr-p-q{grid-area:q} .sr-prox-l .sr-p-w{grid-area:w} .sr-prox-l [data-sr-prox-rm]{grid-area:x;min-height:44px;min-width:44px}
+  .sr-cab-form [data-sr-prox-add],.sr-cab-acoes .btn,[data-sr-cab-edit],[data-sr-tpls]{min-height:44px}
+  .sr-cab-acoes .btn{flex:1 1 100%}
+  .sr-cab-form input,.sr-cab-form select,.sr-cab-form textarea{font-size:16px}
+  .sr-prox-l input,.sr-prox-l select{min-height:44px}
+  /* ⚙️ modelos */
+  .srt-item{flex-direction:column} .srt-bt{width:100%} .srt-bt .gp-mini,.srt-bt .btn,.srt-add .btn,#srt-salva{min-height:44px}
+  .srt-ed input,.srt-ed select,.srt-ed textarea{font-size:16px}
+}
+/* ---- fim: statusrep ---- */
+
 /* ---- 📱 grupo: portal (🌐 Portal do cliente: seções, formulário, tabelas editáveis, prévia) ---- */
 @media (max-width:600px){
   /* as 5 seções em 2 colunas de dedo; o projeto em foco empilha */

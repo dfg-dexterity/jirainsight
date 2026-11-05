@@ -20,16 +20,16 @@ serve `public/` na raiz e cada arquivo em `api/*.js` vira um endpoint.
 
 - `GET /api/tempo` — apontamentos do **Clockwork** na janela; resolve projeto/tipo no Jira e classifica faturável.
 - `GET /api/atividade` — issues atualizadas no **Jira** com changelog → eventos por **autor da alteração**.
-- `GET /api/vencimentos` — issues com vencimento/sem responsável (central de alertas).
+- `GET /api/vencimentos` — issues com vencimento/sem responsável (central de alertas).  `?statusrep=KEY` devolve os itens do 📋 Status report do projeto (abertos até o domingo da próxima semana + bugs, com o último comentário).
 - `GET /api/projetos`, `GET /api/usuarios` — metadados (projetos/pessoas) para filtros e formulários.
-- `GET|POST /api/config` — config compartilhada do time (metas/ausências/contratos), o **painel do cliente** (`?portal=<token>`) e a **🔐 área do cliente com login** (`?pcli=<ação>`). A **gravação exige token do Jira** (cabeçalhos `X-Jira-Email`/`X-Jira-Token`).
+- `GET|POST /api/config` — config compartilhada do time (metas/ausências/contratos), o **painel do cliente** (`?portal=<token>`) e a **🔐 área do cliente com login** (`?pcli=<ação>`) e a **situação do projeto** do 📋 Status report (`GET ?sr=KEY` público; `POST ?sr=1` com identidade, linha `sr_<KEY>`). A **gravação exige token do Jira** (cabeçalhos `X-Jira-Email`/`X-Jira-Token`).
 - `POST /api/resumo` — resumo executivo por IA (Anthropic).
 - `POST /api/teams` — relatório diário de apontamento no Teams (cron via GitHub Actions).
 
 **Escrita com o token da própria pessoa** (enviado por requisição, nunca persistido):
 
 - `POST /api/apontar` — apontamento (Clockwork) + convites de reunião.
-- `POST /api/transicao` — transição de status, reagendar, atribuir, comentar.
+- `POST /api/transicao` — transição de status, reagendar, atribuir, comentar (`interno:true` na nota interna de projeto AMS — 📋 status report e reprogramação).
 - `POST /api/criar` — criação de issues (planejamento em lote).
 - `POST /api/reunioes` — mover/reclassificar issues entre projetos/tipos; agenda do Outlook; 🔒 trava do ticket de
   reunião (`{agtrava:'ler'|'reservar'|'confirmar'|'liberar'}`) e ⏰ alertas do organizador (`{agalertas:'ler'|'dispensar'}`).
@@ -106,6 +106,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `19-mencoes-inbox-analytics.js` | 💬 Menções, 📥 Inbox, 📈 Analytics de governança |
 | `20-gestao.js` | 🧰 Gestão de tickets (filtros salvos, ações em massa, ficha do ticket) |
 | `20b-gestao-projeto.js` | 🧭 **Pendências do projeto** (R29, `?v=gp`, aba do grupo 🛠 Tickets do time; chip 🧭 na espinha do projeto; escopo na URL em `gproj` para não disputar com o filtro global `proj`): a visão do **gerente** — meus projetos (`cfg.projGerentes`, editado na ficha do 📁 projeto com o líder do Jira como sugestão; `meusProjetos()` é leitor), N dias sem atualização, blocos por pessoa com o pior caso primeiro (⏰ vencidos · 🧊 parados · ⏳ vencem em 7 dias · 📝 cadastro incompleto · ⏱ sem apontamento · 📅 reuniões vencidas · 📊 plano × orçado × realizado da foto) e as **ações de cobrança**: 📋 copiar a mensagem da pessoa (com o link filtrado), 💬 abrir o chat do Teams, 📣 comentar no Jira em lote (token da própria pessoa, modelo "Cobrar atualização"), 📥 aviso no Inbox (um por remetente+pessoa), 🛠 abrir na Gestão. Dados: `/api/vencimentos?analytics=1&dias=N&projetos=A,B` (chaves validadas e entre aspas; nenhuma válida → 400) |
+| `20c-status-report.js` | 📋 **Status report do projeto** (R01, `?v=statusrep&srproj=KEY`, aba do grupo 📁 Projetos; chip 📋 na espinha do projeto; botão 📋 na 🧭 Pendências): UM projeto por vez — a situação (semáforo sugerido pelos números ou escrito por alguém, resumo, próximos passos, riscos; linha `sr_<KEY>` em `jirainsight_config`, lida por `GET /api/config?sr=KEY`, nunca na `cfg`), os KPIs e os itens abertos agrupados por vencimento (⏰ vencidos · 📅 esta semana · 📅 próxima semana · 🐞 bugs abertos sem data no horizonte), cada um com o último status report do ticket (comentário com o marcador `📋 Status report · …`) ou o último comentário; 📋 copia o relatório em texto e 🔗 o link. Dados: `GET /api/vencimentos?statusrep=KEY[&nocache=1]` (abertos até o domingo da próxima semana + bugs, com `ult`/`sr`). A situação é editável por qualquer pessoa identificada (✏️ Editar a situação: semáforo manual × sugerido, resumo, até 10 próximos passos, riscos; `POST /api/config?sr=1 {acao:'salvar', proj, base, dados}` com trava por `rev` e 12 versões de histórico). O **📝 Atualizar** por item publica um comentário por **modelo** (8 padrões em `SR_TPLS_PADRAO`, editáveis por gestor/admin em ⚙️ Modelos → `cfg.srTemplates`) com o marcador `📋 Status report · <ic> <rótulo>`, nova data e status opcionais (`POST /api/transicao` com `comentar`, `reagendar`, `transitionId`, no token da pessoa; `interno:true` = nota interna em projeto AMS) e o ⏭ próximo item. `SR_SO_GESTORES` (20c e `api/config.js`) restringe a edição da situação a gestores |
 | `21-criacao-rapida-convidar.js` | 🎫 Criar ticket por linguagem natural/voz, 📨 Convidar para apontar |
 | `22-rateio.js` · `23-transformar.js` | ➗ Rateio · 🔀 Transformar chamado em atividade |
 | `23b-transferir.js` | 🔗 Transferir ticket: o histórico inteiro (comentários, anexos, vínculos, filhos, status, horas) para outro ticket, e o original é excluído |

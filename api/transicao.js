@@ -11,6 +11,7 @@
 //     + reprogramacao:true -> comentário de REPROGRAMAÇÃO: em projetos das categorias
 //       "Dexterity - AMS" / "Parceria - AMS" entra como NOTA INTERNA do JSM
 //       (propriedade sd.public.comment — invisível no portal do cliente)
+//     + interno:true -> o mesmo tratamento (📋 status report em projeto AMS, 2026-11-05)
 //   { atribuir:true, issue, accountId, email, token } -> transfere o responsável (accountId vazio/null = sem responsável)
 //   { excluir:true, issue, email, token }             -> EXCLUI o ticket (irreversível; permissão "Excluir itens")
 import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json } from './_lib/util.js';
@@ -221,7 +222,7 @@ export default async function handler(req, res) {
       // entra como NOTA INTERNA do JSM. A categoria do projeto é resolvida (e cacheada)
       // pela chave do ticket; em projetos que não são JSM a propriedade é inócua.
       let interno = false;
-      if (b.reprogramacao) {
+      if (b.reprogramacao || b.interno) {
         const projKey = issue.split('-')[0];
         const ckCat = `catproj:${projKey}`;
         let cat = cacheGet(ckCat);
