@@ -465,6 +465,7 @@ function gxTicketInfo(k){
     || (((estado.analytics.dados||{}).abertos)||[]).find(x=>x.k===k)
     || (((estado.analytics.dados||{}).concluidos)||[]).find(x=>x.k===k)
     || ((typeof tkbInfo==='function'&&tkbInfo(k))||null)   // 🎫 busca de tickets (12b): resumo/projeto sem ir à rede
+    || ((typeof srItem==='function'&&srItem(k))||null)   // 📋 status report (20c): o ⏱ do ⋯ mostra o resumo do item
     || { k };
 }
 function abreModalApontarGx(k){

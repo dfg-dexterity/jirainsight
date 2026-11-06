@@ -11,7 +11,7 @@
 // Nesta etapa a tela é só LEITURA: o 📝 Atualizar (modelos de comentário) e a edição da situação entram depois e
 // se encaixam nos ganchos marcados com data-sr-slot (coluna de ação da linha e rodapé da situação).
 estado.sr=estado.sr||{ proj:'', dados:null, chave:'', carregando:'', erro:'', cache:{}, sujo:false, cab:null, cabB:false,
-  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false };
+  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false, mais:'' };
 const SR_PROJ_KEY='jirainsight_sr_proj_v1';   // último projeto aberto, só neste navegador
 const SR_CACHE_MIN=3;
 const SR_SO_GESTORES=false;                   // espelho da constante do servidor (D2): true restringe a edição da situação
@@ -173,6 +173,16 @@ function srCalc(){
 // 🔢 Contador da aba: vencidos do projeto carregado, só com dado já em memória.
 function srPendN(){ const s=estado.sr; if(!s.dados||s.chave!==srProjAtual()) return null; const c=srCalc(); return c?c.kpis.vencidos:null; }
 // ---- Desenho ----
+// Botões da coluna de ação: o rótulo vai num <span class="sr-rot"> (o CSS o esconde em tela estreita; title e aria-label ficam).
+function srAcoesLinhaHTML(k){
+  const K=escA(k);
+  // Só `title` + `aria-label` (sem data-tip: os dois juntos mostravam dois tooltips no desktop).
+  const bt=(attr,cls,ic,rot,tip)=>`<button class="gp-mini ${cls}" ${attr}="${K}" title="${escA(tip)}" aria-label="${escA(rot+' '+k)}">${ic} <span class="sr-rot">${esc(rot)}</span></button>`;
+  return bt('data-sr-at','sr-at','📝','Atualizar','Publica um status report no ticket: escolha o modelo, preencha e publique (comentário, nova data e status no mesmo passo)')
+    +bt('data-sr-fim','sr-fim','✅','Concluir','Conclui o ticket no Jira, com um comentário de status report já pronto (você pode editar ou apagar)')
+    +bt('data-sr-resp','sr-resp','👤','Transferir','Passa o ticket para outra pessoa, com um comentário que a marca (o Jira avisa)')
+    +`<button class="gp-mini sr-mais-b" data-sr-mais="${K}" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações de ${escA(k)}" title="Mais ações: mudar status, apontar horas, comentar, reagendar">⋯</button>`;
+}
 function srLinhaHTML(t,c){
   let venc='<span class="muted">sem data</span>';
   if(t.venc){
@@ -196,7 +206,7 @@ function srLinhaHTML(t,c){
     <div class="sr-c-venc">${venc}</div>
     <div class="sr-c-st"><span class="badge">${esc(t.status||'—')}</span></div>
     <div class="sr-c-sit">${sit}${selos.length?`<div class="sr-selos">${selos.join(' ')}</div>`:''}</div>
-    <div class="sr-c-acao" data-sr-slot="at"><button class="gp-mini sr-at" data-sr-at="${escA(t.k)}" data-tip="Publica um status report no ticket: escolha o modelo, preencha e publique (comentário, nova data e status no mesmo passo)">📝 Atualizar</button></div></div>`;
+    <div class="sr-c-acao" data-sr-slot="at">${srAcoesLinhaHTML(t.k)}</div></div>`;
 }
 function srBlocoHTML(id,tit,sub,lista,c){
   const corpo=lista.length?`<div class="sr-tab"><div class="sr-tab-h"><div>Ticket</div><div>Resumo</div><div>Resp.</div><div>Venc.</div><div>Status</div><div>Situação</div><div></div></div>${lista.map(t=>srLinhaHTML(t,c)).join('')}</div>`
@@ -341,6 +351,7 @@ function srCabHTML(sub,c){
 }
 function renderSr(){
   const cont=document.getElementById('conteudo'); const s=estado.sr;
+  s.mais='';
   if(typeof _projetosCache!=='undefined'&&!_projetosCache&&!s.catB){ s.catB=true; garanteProjetos().then(()=>{ if(estado.vista==='statusrep') renderSr(); }).catch(()=>{}); }
   const proj=srProjAtual();
   if(proj&&!s.proj) s.proj=proj;
@@ -484,6 +495,7 @@ function srAbreAtualizar(k){
   const c=srCalc(); const tpls=srTemplates();
   const info=srPessoasDo(c);
   const tpl=srTplPadraoDe(t,tpls);
+  _srA=null;
   _sr={ k, tpl, vals:{}, manual:false, vencMan:false, st:'', stMan:false, trans:null, transB:false, transErro:'', pub:false, feito:null,
     pessoas:info.todas, pessoasInfo:info };
   const S=_sr; const hoje=(c&&c.hoje)||hojeSP();
@@ -514,7 +526,7 @@ function srEscolheTpl(S,tpl,primeira){
   srCamposDe(tpl).forEach(f=>{ if(f.n==='data'&&S.vals.data===undefined&&!tpl.reagendar) S.vals.data=S.hoje; });
   srPintaCampos(); srPintaStatus(); srPintaPreview();
 }
-function srAoFecharModal(){ _sr=null; _srT=null; _srX=null; }
+function srAoFecharModal(){ _sr=null; _srT=null; _srX=null; _srA=null; }
 function srProximo(k){
   const c=srCalc(); if(!c) return null;
   const ordem=[...c.g.vencidos,...c.g.semana,...c.g.proxima,...c.g.bugs];
@@ -563,7 +575,7 @@ async function srPublica(){
   const corpo=txt.split('\n').slice(2).join(' ').trim();
   logAcao({ acao:'status-report', t:k, para:S.tpl.rot, motivo:corpo.slice(0,80), ok:true },false);
   if(res.data&&res.data.ok) logAcao({ acao:'reprogramar', t:k, de:t.venc||'—', para:novaData, motivo:'📋 status report', ok:true },false);
-  if(res.st&&res.st.ok) logAcao({ acao:'status', t:k, de:t.status||'—', para:stNome, motivo:'📋 status report', ok:true },false);
+  if(res.st&&res.st.ok){ const trL=(S.trans||[]).find(x=>String(x.id)===String(stId)); logAcao({ acao:'status', t:k, de:t.status||'—', para:(trL&&trL.para)||stNome, motivo:'📋 status report', ok:true },false); }
   salvaCfg();
   // otimista: a linha (e o grupo) já refletem; a próxima leitura real vai sem o cache do servidor
   const prox=srProximo(k);
@@ -584,6 +596,274 @@ async function srPublica(){
     abreModal(`<h2>✓ Publicado em ${esc(k)}</h2><ul class="sr-at-res">${linhas.join('')}</ul>
       <div class="alx-modal-acoes">${prox?`<button class="btn primario" data-sr-prox="${escA(prox.k)}">⏭ Próximo item (${esc(prox.k)})</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
   } else toast(`Status report publicado em ${k}.`,'ok');
+}
+// ---- ✅ Concluir · 👤 Transferir · ⋯ (status, apontar, comentar, reagendar): ações por item, no token da pessoa ----
+// Um modal só (srAcaoAbre/srAcaoExecuta) para os 5 modos; estado só do modal aberto em _srA (zerado em srAoFecharModal).
+// Ordem no Jira: concluir/status/reagendar = comentário e depois a mudança; transferir = troca de responsável e depois o comentário.
+let _srA=null;
+const SR_AC={
+  concluir:{ ic:'✅', tit:'Concluir', bt:'Concluir', motivo:'concluir o ticket no Jira' },
+  status:{ ic:'🔁', tit:'Mudar status', bt:'Mudar status', motivo:'mudar o status do ticket no Jira' },
+  transferir:{ ic:'👤', tit:'Transferir', bt:'Transferir', motivo:'transferir o ticket no Jira' },
+  comentar:{ ic:'💬', tit:'Comentar', bt:'Comentar', motivo:'comentar no ticket do Jira' },
+  reagendar:{ ic:'📅', tit:'Reagendar', bt:'Reagendar', motivo:'reagendar o ticket no Jira' } };
+// Tira os {campos} que ficaram no texto do modelo e arruma os espaços (o modelo do concluir tem {detalhe}).
+function srSemCampos(txt){
+  return String(txt||'').replace(/\{\w+\}/g,'').replace(/[ \t]{2,}/g,' ').replace(/[ \t]+$/gm,'').replace(/\n{3,}/g,'\n\n').trim();
+}
+function srMaisDia(iso,n){ const [y,m,d]=String(iso).split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); }
+function srTextoConcluir(hoje){
+  const tpl=srTemplates().find(t=>t.tipo==='concluido')||SR_TPLS_PADRAO[0];
+  return { tpl, texto:srSemCampos(srMontaComentario(tpl,{ data:dataBR(hoje) })) };
+}
+function srTextoTransfer(S){
+  if(S.pessoa===null) return '';
+  if(S.pessoa==='') return 'Ticket sem responsável por ora (atribuição removida pelo 📋 status report).';
+  return `Transferido para ${S.pessoas[S.pessoa]||'—'} pelo 📋 status report.`;
+}
+function srAcPessoasOpts(S){
+  const ok=(a)=>S.pessoas[a]&&!RE_EXCLUIR.test(S.pessoas[a]);
+  const op=(a)=>`<option value="${escA(a)}" ${S.pessoa===a?'selected':''}>${esc(S.pessoas[a])}</option>`;
+  const pr=S.proj.filter(ok).sort((a,b)=>S.pessoas[a].localeCompare(S.pessoas[b],'pt'));
+  const ou=S.outras.filter(ok);
+  return `<option value="__nada__" ${S.pessoa===null?'selected':''}>— escolha —</option><option value="__sem__" ${S.pessoa===''?'selected':''}>— sem responsável —</option>`
+    +(pr.length?`<optgroup label="Do projeto">${pr.map(op).join('')}</optgroup>`:'')
+    +(ou.length?`<optgroup label="Outras pessoas">${ou.map(op).join('')}</optgroup>`:'');
+}
+function srAcCorpo(S,id,ams){
+  const m=S.modo;
+  const coment=(rot,obrig)=>`<div class="campo"><label for="sr-ac-texto">${rot} <span class="muted small">${obrig?'— obrigatório':'— opcional'}</span></label><textarea id="sr-ac-texto" class="alx-coment" rows="${m==='concluir'?5:4}"></textarea></div>`;
+  let h='';
+  if(m==='concluir') h=`<div class="campo"><label for="sr-ac-st">🔁 Transição de conclusão</label><select id="sr-ac-st"></select><div class="muted small" id="sr-ac-st-dica"></div></div>`
+    +coment('Comentário que vai para o ticket <span class="muted small">(editável; apague tudo para só concluir)</span>',false);
+  else if(m==='status') h=`<div class="campo"><label for="sr-ac-st">🔁 Novo status</label><select id="sr-ac-st"></select><div class="muted small" id="sr-ac-st-dica"></div></div>`+coment('Comentário',false);
+  else if(m==='transferir') h=`<div class="campo"><label for="sr-ac-pessoa">👤 Para quem</label><select id="sr-ac-pessoa">${srAcPessoasOpts(S)}</select>
+      <div class="sr-ac-chips">${id.accountId?`<button type="button" class="chip sr-chip" data-sr-ac-eu="1">para mim</button>`:''}<button type="button" class="chip sr-chip" data-sr-ac-sem="1">sem responsável</button></div></div>`
+    +coment('Comentário',false)+mnPickerHtml([]);
+  else if(m==='comentar') h=coment('Comentário',true)+mnPickerHtml([]);
+  else h=`<div class="sr-at-opc"><div class="campo"><label for="sr-ac-data">📅 Nova data</label><input type="date" id="sr-ac-data" value="${escA(S.t.venc||S.hoje)}"></div>
+      <div class="campo"><label>Atalhos</label><div class="sr-ac-chips"><button type="button" class="chip sr-chip" data-sr-ac-dia="hoje">hoje</button><button type="button" class="chip sr-chip" data-sr-ac-dia="amanha">amanhã</button><button type="button" class="chip sr-chip" data-sr-ac-dia="seg">próxima segunda</button><button type="button" class="chip sr-chip" data-sr-ac-dia="rm" aria-pressed="false">remover data</button></div></div></div>`
+    +coment('Comentário',false);
+  const int=ams?'<label class="sr-at-int"><input type="checkbox" id="sr-ac-int" checked> 🔒 nota interna <span class="muted small">— projeto AMS: o cliente não vê o comentário</span></label>':'';
+  return h+int;
+}
+function srAcaoAbre(k,modo){
+  const cfgM=SR_AC[modo]; if(!cfgM) return;
+  const id=idApontar();
+  if(!id){ abreIdentidade(cfgM.motivo,{ depois:()=>{ if(estado.vista==='statusrep') srAcaoAbre(k,modo); } }); return; }
+  const t=srItem(k); if(!t){ toast('Não achei o item '+k+' na lista — use o ↻.','warn'); return; }
+  srMaisFecha();
+  const c=srCalc(); const info=srPessoasDo(c); const hoje=(c&&c.hoje)||hojeSP();
+  const pessoas=Object.assign({},info.todas); let outras=info.outras.slice();
+  if(id.accountId&&!pessoas[id.accountId]){ pessoas[id.accountId]=id.nome||id.email; outras.push(id.accountId); }
+  _sr=null;
+  _srA={ k, modo, t, hoje, trans:null, transB:false, transErro:'', sel:'', selMan:false, pessoa:null, pessoas, proj:info.proj.slice(), outras,
+    manual:false, mencMan:false, semData:false, pub:false, feito:null, tpl:null };
+  const S=_srA;
+  const ams=/ams/i.test((estado.sr.dados&&estado.sr.dados.meta&&estado.sr.dados.meta.categoria)||'');
+  const venc=t.venc?esc(srDm(t.venc)):'sem data';
+  abreModal(`<h2>${cfgM.ic} ${esc(cfgM.tit)} · ${esc(k)}</h2>
+    <div class="sr-at-cab"><b>${esc(t.resumo||'—')}</b><div class="muted small">${t.bug?'🐞 ':''}${esc(t.status||'—')} · vence ${venc} · ${t.resp?esc(t.resp):'sem responsável'}</div></div>
+    <div class="sr-ac-corpo">${srAcCorpo(S,id,ams)}</div>
+    <div class="alx-fb" id="sr-fb" hidden></div>
+    <div class="alx-modal-acoes"><button class="btn primario" id="sr-ac-ok" ${(modo==='concluir'||modo==='status')?'disabled':''}>${esc(cfgM.bt)}</button><button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  const ta=document.getElementById('sr-ac-texto');
+  if(modo==='concluir'){ const x=srTextoConcluir(hoje); S.tpl=x.tpl; if(ta) ta.value=x.texto; S.manual=true; }
+  if(modo==='concluir'||modo==='status'){ srAcaoPintaSt(); srAcaoCarregaTrans(S); }
+  const foco=document.getElementById(modo==='comentar'?'sr-ac-texto':modo==='transferir'?'sr-ac-pessoa':modo==='reagendar'?'sr-ac-data':'sr-ac-st');
+  if(foco) foco.focus();
+}
+function srAcaoCarregaTrans(S){
+  const id=idApontar(); if(!id||S.transB) return; S.transB=true;
+  fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listar:true,issue:S.k,email:id.email,token:id.token})})
+    .then(r=>r.json()).then(j=>{
+      S.transB=false;
+      if(j&&j.ok&&Array.isArray(j.transicoes)) S.trans=j.transicoes; else { S.trans=[]; S.transErro=(j&&j.erro)||'não consegui ler as mudanças de status'; }
+      if(_srA===S) srAcaoPintaSt();
+    }).catch(e=>{ S.transB=false; S.trans=[]; S.transErro=humanizaErro(e); if(_srA===S) srAcaoPintaSt(); });
+}
+const srEhCancel=(x)=>/cancel/i.test((x.nome||'')+' '+(x.para||''));
+function srAcaoPintaSt(){
+  const S=_srA; const sel=document.getElementById('sr-ac-st'); if(!S||!sel) return;
+  const l=S.trans||[]; let ops=l; let dica='';
+  if(S.modo==='concluir'){
+    const dn=l.filter(x=>x.categoria==='done'&&!srEhCancel(x));
+    if(dn.length) ops=dn; else if(l.length) dica='Nenhuma transição de conclusão disponível — escolha uma das opções.';
+    if(!S.selMan){ const pref=dn.find(x=>/particip|realiz|feito|conclu|done/i.test((x.nome||'')+' '+(x.para||'')))||dn[0]; S.sel=pref?String(pref.id):''; }
+  }
+  if(S.transErro) dica=`⚠ ${S.transErro}`;
+  else if(S.trans&&!l.length) dica='Nenhuma transição disponível para você neste ticket.';
+  const ph=S.trans===null?'<option value="">carregando as opções…</option>':((S.modo==='concluir'&&S.sel)?'':'<option value="">— escolha —</option>');
+  sel.innerHTML=ph+ops.map(x=>`<option value="${escA(x.id)}" ${S.sel===String(x.id)?'selected':''}>${esc(x.nome)}${x.para&&x.para!==x.nome?` → ${esc(x.para)}`:''}</option>`).join('');
+  const d=document.getElementById('sr-ac-st-dica');
+  if(d){ d.textContent=dica; if(S.trans&&!l.length) d.insertAdjacentHTML('beforeend',' <button type="button" class="gp-mini" data-sr-ac-retrans="1" data-tip="Ler de novo as transições do ticket">↻ tentar de novo</button>'); }
+  const ok=document.getElementById('sr-ac-ok'); if(ok&&!S.pub) ok.disabled=S.trans===null||!l.length;   // sem opção para escolher, o botão não promete nada
+}
+function srAcaoPessoa(v){
+  const S=_srA; if(!S) return;
+  S.pessoa=(v==='__nada__')?null:(v==='__sem__'?'':v);
+  const sel=document.getElementById('sr-ac-pessoa'); if(sel) sel.value=S.pessoa===null?'__nada__':(S.pessoa===''?'__sem__':S.pessoa);
+  const ta=document.getElementById('sr-ac-texto'); if(ta&&!S.manual) ta.value=srTextoTransfer(S);
+  if(!S.mencMan&&typeof _mnPick!=='undefined'&&_mnPick){
+    _mnPick.clear(); if(S.pessoa) _mnPick.set(S.pessoa,S.pessoas[S.pessoa]||S.pessoa);
+    if(typeof mnPickerRefresh==='function') mnPickerRefresh();
+  }
+}
+function srAcaoData(v){
+  const S=_srA; if(!S) return;
+  const inp=document.getElementById('sr-ac-data');
+  if(v==='rm'){ S.semData=!S.semData; if(inp){ inp.disabled=S.semData; } }
+  else { S.semData=false; if(inp){ inp.disabled=false; inp.value=v==='hoje'?S.hoje:v==='amanha'?srMaisDia(S.hoje,1):proximaSegunda(); } }
+  document.querySelectorAll('#modal-body [data-sr-ac-dia="rm"]').forEach(b=>{ b.setAttribute('aria-pressed',S.semData?'true':'false'); b.classList.toggle('on',S.semData); });
+}
+function srRemoveLocal(k){
+  const d=estado.sr.dados; if(!d||!Array.isArray(d.itens)) return;
+  const i=d.itens.findIndex(t=>t.k===k); if(i>=0) d.itens.splice(i,1);
+}
+async function srAcaoExecuta(){
+  const S=_srA; if(!S||S.pub||S.feito) return;
+  const modo=S.modo; const cm=SR_AC[modo];
+  const id=idApontar();
+  if(!id){ abreIdentidade(cm.motivo,{ depois:()=>{ if(estado.vista==='statusrep') srAcaoAbre(S.k,modo); } }); return; }
+  const k=S.k; const t=srItem(k)||S.t||{ k };
+  const aberto=()=>_srA===S;
+  const diz=(msg,cls)=>{ const f=document.getElementById('sr-fb'); if(aberto()&&f){ f.hidden=false; f.className='alx-fb ap-fb'+(cls?' '+cls:''); f.textContent=msg; } };
+  const ta=document.getElementById('sr-ac-texto'); let txt=String((ta&&ta.value)||'').trim();
+  const itEl=document.getElementById('sr-ac-int'); const interno=!!(itEl&&itEl.checked);
+  const stEl=document.getElementById('sr-ac-st'); const stId=stEl?stEl.value:'';
+  const stNome=stId&&stEl.selectedOptions[0]?stEl.selectedOptions[0].textContent:'';
+  const tr=stId?(S.trans||[]).find(x=>String(x.id)===String(stId)):null;
+  let novaData=''; let respNome='';
+  if(modo==='concluir'||modo==='status'){
+    if(S.trans===null){ diz('Aguarde: ainda lendo as opções de status do ticket.','erro'); return; }
+    if(!stId){ diz(modo==='concluir'?'Escolha a transição que conclui o ticket.':'Escolha o novo status.','erro'); return; }
+  } else if(modo==='transferir'){
+    if(S.pessoa===null){ diz('Escolha para quem transferir o ticket.','erro'); return; }
+    if((S.pessoa||'')===(t.respId||'')){ diz(S.pessoa?'Este ticket já é de '+(S.pessoas[S.pessoa]||'essa pessoa')+'.':'Este ticket já está sem responsável.','erro'); return; }
+    respNome=S.pessoa?(S.pessoas[S.pessoa]||''):'';
+  } else if(modo==='comentar'){
+    if(!txt){ diz('Escreva o comentário.','erro'); return; }
+  } else if(modo==='reagendar'){
+    const dv=(document.getElementById('sr-ac-data')||{}).value||'';
+    if(!S.semData){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(dv)){ diz('Escolha a nova data ou use “remover data”.','erro'); return; }
+      if(dv===(t.venc||'')){ diz('Essa já é a data do ticket.','erro'); return; }
+      novaData=dv;
+    } else if(!t.venc){ diz('O ticket já está sem data.','erro'); return; }
+  }
+  let marcado=false;
+  if(txt&&modo==='concluir'){ if(!txt.startsWith(SR_MARCA)) txt=`${srMarcador(S.tpl||srTextoConcluir(S.hoje).tpl)}\n\n${txt}`; marcado=true; }
+  const menc=(modo==='transferir'||modo==='comentar')?mnPickerIds():[];
+  const btn=document.getElementById('sr-ac-ok');
+  S.pub=true; if(btn) ocupado(btn,true);
+  const post=(b)=>fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,issue:k,email:id.email,token:id.token})}).then(r=>r.json()).catch(e=>({ ok:false, erro:humanizaErro(e) }));
+  const pComent=txt?{ id:'coment', msg:'Publicando o comentário…', body:{ comentar:true, texto:txt, ...(menc.length?{mencionar:menc}:{}), ...(interno?{interno:true}:{}) } }:null;
+  let pMain=null;
+  if(modo==='concluir'||modo==='status') pMain={ id:'main', msg:modo==='concluir'?'Concluindo o ticket…':'Mudando o status…', body:{ transitionId:stId } };
+  else if(modo==='transferir') pMain={ id:'main', msg:'Transferindo o ticket…', body:{ atribuir:true, accountId:S.pessoa||'' } };
+  else if(modo==='reagendar') pMain={ id:'main', msg:'Mudando a data…', body:{ reagendar:true, duedate:S.semData?null:novaData } };
+  const ordem=(modo==='transferir'?[pMain,pComent]:[pComent,pMain]).filter(Boolean);
+  const out={};
+  for(const p of ordem){
+    diz(p.msg,'');
+    const j=await post(p.body);
+    out[p.id]=(j&&j.ok)?{ ok:true, j }:{ ok:false, erro:(j&&j.erro)||(p.id==='coment'?'Não consegui publicar o comentário.':`Não consegui ${cm.tit.toLowerCase()} o ticket.`) };
+    if(!out[p.id].ok) break;
+  }
+  const primeiro=ordem[0];
+  if(!out[primeiro.id].ok){
+    S.pub=false; const msg=out[primeiro.id].erro;
+    if(aberto()){ if(btn) ocupado(btn,false); diz(msg,'erro'); } else toast(`${cm.tit} ${k}: ${msg}`,'warn');
+    return;
+  }
+  const feitoC=!!(out.coment&&out.coment.ok); const feitoM=!!(out.main&&out.main.ok);
+  const corpo=txt.split('\n').slice(marcado?2:0).join(' ').trim();
+  if(feitoC){
+    if(marcado) logAcao({ acao:'status-report', t:k, para:(S.tpl||srTextoConcluir(S.hoje).tpl).rot, motivo:corpo.slice(0,80), ok:true },false);
+    else logAcao({ acao:'comentario', t:k, para:corpo.slice(0,60), motivo:'📋 status report', ok:true },false);
+  }
+  if(feitoM){
+    if(modo==='concluir'||modo==='status') logAcao({ acao:'status', t:k, de:t.status||'—', para:(tr&&tr.para)||stNome, motivo:'📋 status report', ok:true },false);
+    else if(modo==='transferir') logAcao({ acao:'transferir-resp', t:k, de:t.resp||'—', para:respNome||'sem responsável', motivo:'📋 status report', ok:true },false);
+    else if(modo==='reagendar') logAcao({ acao:'reprogramar', t:k, de:t.venc||'—', para:novaData||'sem data', motivo:'📋 status report', ok:true },false);
+  }
+  salvaCfg();
+  const prox=srProximo(k);
+  const id2=id; const agora=new Date().toISOString();
+  const patch={};
+  if(feitoC){
+    const ult={ por:id2.nome||id2.email, porId:id2.accountId||'', dia:S.hoje, quando:`${S.hoje} ${agora.slice(11,16)}`, texto:(marcado?txt.split('\n').slice(2).join('\n'):txt).trim() };
+    if(marcado) patch.sr={ rot:txt.split('\n')[0].slice(SR_MARCA.length).trim(), ...ult }; else patch.ult=ult;
+  }
+  let sai=false; let motivoSai='';
+  if(feitoM){
+    if(modo==='concluir'||modo==='status'){
+      if(tr&&tr.categoria==='done') sai=true;
+      else { patch.status=(tr&&tr.para)||stNome; patch.statCat=(tr&&tr.categoria)||t.statCat; }
+    } else if(modo==='transferir'){ patch.resp=respNome; patch.respId=S.pessoa||''; }
+    else if(modo==='reagendar'){
+      patch.venc=novaData||'';
+      const c0=srCalc(); const ate=(c0&&c0.ate)||'9999-12-31';
+      if(!t.bug&&(!novaData||novaData>ate)){ sai=true; motivoSai=novaData?'a nova data passa do horizonte do relatório':'sem data e sem ser bug, o item não entra no relatório'; }
+    }
+  }
+  const pk=String(k).split('-')[0];
+  if(estado.sr.chave===pk){ srAplicaLocal(k,patch); if(sai) srRemoveLocal(k); }
+  else if(estado.sr.cache&&estado.sr.cache[pk]) delete estado.sr.cache[pk];   // a pessoa trocou de projeto com o pedido em voo: o cache dele não pode servir a lista velha
+  estado.sr.sujo=true;
+  if(estado.gp) estado.gp.cache={};
+  invalidaCacheDados();
+  if(estado.vista==='statusrep') renderSr();
+  if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador da aba (vencidos) acompanha a remoção otimista
+  S.pub=false; S.feito=out;
+  const linhas=[];
+  const intern=feitoC&&(interno||(out.coment.j&&out.coment.j.interno))?' como 🔒 nota interna':'';
+  const ctxt=feitoC?`Comentário publicado${intern}.`:'';
+  if(modo==='comentar') linhas.push(`<li class="ok">✓ ${esc(ctxt)}</li>`);
+  else {
+    if(modo==='transferir'){
+      linhas.push(`<li class="ok">✓ Responsável: ${esc(respNome||'sem responsável')}.</li>`);
+      if(feitoC) linhas.push(`<li class="ok">✓ ${esc(ctxt)}</li>`);
+      else if(out.coment) linhas.push(`<li class="erro">⚠ O ticket foi transferido, mas o comentário não saiu: ${esc(out.coment.erro)}</li>`);
+    } else {
+      if(feitoC) linhas.push(`<li class="ok">✓ ${esc(ctxt)}</li>`);
+      if(feitoM){
+        if(modo==='reagendar') linhas.push(`<li class="ok">✓ ${novaData?`Nova data: ${esc(dataBR(novaData))}`:'Data removida'}.</li>`);
+        else linhas.push(`<li class="ok">✓ ${sai?'Ticket concluído':'Status'}: ${esc((tr&&tr.para)||stNome)}.</li>`);
+      } else if(out.main) {
+        const oque=modo==='concluir'?'o ticket não foi concluído':modo==='reagendar'?'a data não mudou':'o status não mudou';
+        linhas.push(`<li class="erro">⚠ Comentário publicado, mas ${oque}: ${esc(out.main.erro)}</li>`);
+      }
+    }
+  }
+  if(sai) linhas.push(`<li class="muted">O item sai da lista${motivoSai?` (${esc(motivoSai)})`:''}; a próxima leitura do Jira confirma.</li>`);
+  if(aberto()){
+    abreModal(`<h2>✓ ${esc(cm.tit)} · ${esc(k)}</h2><ul class="sr-at-res">${linhas.join('')}</ul>
+      <div class="alx-modal-acoes">${prox?`<button class="btn primario" data-sr-prox="${escA(prox.k)}">⏭ Próximo item (${esc(prox.k)})</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
+  } else toast(`${cm.tit} ${k}: feito.`,'ok');
+}
+// ---- ⋯ menu de mais ações (um aberto por vez; Esc, clique fora ou escolher fecham) ----
+function srMaisFecha(){
+  estado.sr.mais='';
+  document.querySelectorAll('.sr-mais').forEach(m=>m.remove());
+  document.querySelectorAll('[data-sr-mais][aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));
+}
+function srMaisAbre(btn){
+  const k=btn.getAttribute('data-sr-mais'); const era=estado.sr.mais===k;
+  srMaisFecha(); if(era) return;
+  estado.sr.mais=k; btn.setAttribute('aria-expanded','true');
+  const K=escA(k);
+  const it=(a,txt)=>`<button type="button" role="menuitem" data-sr-acao="${a}" data-sr-k="${K}">${txt}</button>`;
+  btn.insertAdjacentHTML('afterend',`<div class="sr-mais" role="menu" aria-label="Mais ações de ${K}">${it('status','🔁 Mudar status')}${it('apontar','⏱ Apontar horas')}${it('comentar','💬 Comentar')}${it('reagendar','📅 Reagendar')}</div>`);
+  const p=btn.nextElementSibling&&btn.nextElementSibling.querySelector('button'); if(p) p.focus();
+}
+function srMaisEscolhe(a,k){
+  srMaisFecha();
+  if(a==='apontar'){
+    if(!idApontar()){ abreIdentidade('apontar horas no ticket',{ depois:()=>{ if(estado.vista==='statusrep') abreModalApontarGx(k); } }); return; }
+    abreModalApontarGx(k); return;
+  }
+  srAcaoAbre(k,a);
 }
 // ---- ⚙️ Modelos: editor dos modelos de comentário (gestor/admin) — grava cfg.srTemplates (T4) ----
 let _srT=null;   // estado só do modal ⚙️ aberto: { lista, edit (id aberto), fb, conf (confirmar voltar aos padrões) }
@@ -746,6 +1026,10 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const tp=cl('[data-sr-tpls]'); if(tp){ srAbreTemplates(); return; }
   const tx=cl('[data-sr-tipos]'); if(tx){ srAbreTipos(); return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
+  const fm=cl('[data-sr-fim]'); if(fm){ srAcaoAbre(fm.getAttribute('data-sr-fim'),'concluir'); return; }
+  const rs=cl('[data-sr-resp]'); if(rs){ srAcaoAbre(rs.getAttribute('data-sr-resp'),'transferir'); return; }
+  const mb=cl('[data-sr-mais]'); if(mb){ srMaisAbre(mb); return; }
+  const ma=cl('[data-sr-acao]'); if(ma){ srMaisEscolhe(ma.getAttribute('data-sr-acao'),ma.getAttribute('data-sr-k')); return; }
   const ir=cl('[data-sr-ir]'); if(ir){ const b=document.getElementById('sr-'+ir.getAttribute('data-sr-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const so=cl('[data-sr-so-sem]'); if(so){ s.soSem=!s.soSem; renderSr(); return; }
   const cp=cl('[data-sr-copiar]'); if(cp){ const c=srCalc(); if(c) gpCopia(srTextoRelatorio(c),'📋 Relatório copiado — cole na ata, no Teams ou no e-mail.'); return; }
@@ -836,4 +1120,52 @@ document.getElementById('modal-body').addEventListener('change',(e)=>{
 document.getElementById('modal-body').addEventListener('keydown',(e)=>{
   if(!_srX||!e.target||e.target.id!=='srx-novo'||e.key!=='Enter') return;
   e.preventDefault(); srXAdiciona();
+});
+
+// ---- Listeners do menu ⋯ (Esc e clique fora fecham; setas andam pelos itens) ----
+document.addEventListener('keydown',(e)=>{
+  if(!estado.sr||!estado.sr.mais) return;
+  const menu=document.querySelector('.sr-mais'); if(!menu) return;
+  if(e.key==='Escape'){ const b=document.querySelector('[data-sr-mais][aria-expanded="true"]'); srMaisFecha(); if(b) b.focus(); return; }
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(!menu.contains(document.activeElement)) return;   // foco fora do menu (ex.: Tab para um select): as setas são dele
+    const its=[...menu.querySelectorAll('[role="menuitem"]')]; if(!its.length) return;
+    const i=its.indexOf(document.activeElement); e.preventDefault();
+    its[(i+(e.key==='ArrowDown'?1:-1)+its.length)%its.length].focus();
+  }
+});
+document.addEventListener('focusin',(e)=>{
+  if(!estado.sr||!estado.sr.mais) return;
+  if(e.target&&e.target.closest&&e.target.closest('.sr-mais,[data-sr-mais]')) return;
+  srMaisFecha();   // Tab para fora da coluna de ação fecha o ⋯ (senão ficava aberto e preso)
+});
+document.addEventListener('click',(e)=>{
+  if(!estado.sr||!estado.sr.mais) return;
+  if(e.target.closest&&e.target.closest('.sr-mais,[data-sr-mais]')) return;
+  srMaisFecha();
+});
+
+// ---- Listeners do modal das ações ✅ 👤 ⋯ (só agem com ele aberto) ----
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const S=_srA; if(!S) return;
+  const cl=(q)=>e.target.closest&&e.target.closest(q);
+  if(cl('[data-mn-chip-del]')){ S.mencMan=true; return; }
+  const pr=cl('[data-sr-prox]'); if(pr){ srAbreAtualizar(pr.getAttribute('data-sr-prox')); return; }
+  if(S.feito||S.pub) return;
+  if(cl('[data-sr-ac-eu]')){ const id=idApontar(); if(id&&id.accountId) srAcaoPessoa(id.accountId); return; }
+  if(cl('[data-sr-ac-sem]')){ srAcaoPessoa('__sem__'); return; }
+  const dia=cl('[data-sr-ac-dia]'); if(dia){ srAcaoData(dia.getAttribute('data-sr-ac-dia')); return; }
+  if(cl('[data-sr-ac-retrans]')){ S.trans=null; S.transB=false; S.transErro=''; srAcaoPintaSt(); srAcaoCarregaTrans(S); return; }
+  const b=cl('button'); if(b&&b.id==='sr-ac-ok'&&!b.disabled) srAcaoExecuta();
+});
+document.getElementById('modal-body').addEventListener('input',(e)=>{
+  const S=_srA; const t=e.target; if(!S||S.feito||!t||!t.id) return;
+  if(t.id==='sr-ac-texto') S.manual=true;
+});
+document.getElementById('modal-body').addEventListener('change',(e)=>{
+  const S=_srA; const t=e.target; if(!S||S.feito||!t||!t.id) return;
+  if(t.id==='sr-ac-pessoa') srAcaoPessoa(t.value);
+  else if(t.id==='sr-ac-st'){ S.selMan=true; S.sel=t.value; }
+  else if(t.id==='sr-ac-data'){ S.semData=false; document.querySelectorAll('#modal-body [data-sr-ac-dia="rm"]').forEach(b=>{ b.setAttribute('aria-pressed','false'); b.classList.remove('on'); }); }
+  else if(t.id==='mn-add-pessoa') S.mencMan=true;
 });

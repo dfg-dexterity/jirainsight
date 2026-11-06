@@ -185,6 +185,43 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   contador, modal, padrão × lista própria, outro projeto segue o padrão, Cancelar não grava, voltar ao padrão sem regravar,
   leitor não cria a chave, mescla de três vias, sem identidade, celular 360 px); fixture com ACME-110…113 (Épico, História,
   Reunião, Story) e o mesmo filtro no `servidor-sr.mjs`. Desdobramento: R190 (rótulo/status/épico e a mesma lista na 🧭).
+  **✅ Concluir · 👤 Transferir · ⋯ no status report (2026-11-06, a pedido do usuário: "além do botão atualizar, outro botão
+  para eu poder finalizar o ticket, transferir para outra pessoa, parecido com as opções que eu tenho no Apontar"):**
+  decisões do usuário — **D1** a coluna de ação da linha fica `📝 Atualizar · ✅ Concluir · 👤 Transferir · ⋯`, e o menu ⋯
+  (`.sr-mais`, `role="menu"`, um aberto por vez, Esc/clique fora/escolher fecham; `estado.sr.mais`, só na sessão) traz
+  🔁 Mudar status · ⏱ Apontar horas (→ `abreModalApontarGx`, nada novo) · 💬 Comentar · 📅 Reagendar; **D2** o Concluir publica
+  um comentário **pré-preenchido e editável** (modelo de tipo `concluido`, `{data}` de hoje e os outros `{campos}` tirados por
+  `srSemCampos`; apagado = só a transição) e em projeto AMS sai como 🔒 nota interna (marcada); **D3** o Transferir escolhe a
+  pessoa (`srPessoasDo`: do projeto primeiro; "para mim"; "sem responsável") e o comentário opcional já leva a @menção
+  (`mnPickerHtml` com a pessoa marcada) — sem mensagem no Teams nesta entrega (R191); **D4** concluído **sai da lista na
+  hora** (`srRemoveLocal`, com o `srProximo` calculado ANTES de remover), KPIs e semáforo recalculam e o ⏭ leva ao próximo.
+  **Mecânica:** UM modal para as cinco ações — `srAcaoAbre(k, modo)` / `srAcaoExecuta()`, modo ∈ concluir · status ·
+  transferir · comentar · reagendar, estado `_srA` zerado em `srAoFecharModal` (`srAbreAtualizar` zera `_srA` e `srAcaoAbre`
+  zera `_sr`, para o ⏭ não abrir dois modais); sem identidade → `abreIdentidade(motivo, {depois})` e a ação continua. **Ordem
+  por modo (a ação principal por último ou primeiro conforme o caso):** concluir e status = comentário → transição; transferir
+  = **atribuir → comentário** (a troca é a ação principal; comentário que falha é dito e a troca fica); reagendar = comentário
+  → data; comentar = só o comentário. Falha no **primeiro** passo para tudo, mostra o erro no próprio modal e não grava nada;
+  falha no segundo vira aviso no modal de resultado sem desfazer o primeiro. Concluir escolhe a transição `done` que não casa
+  `/cancel/i` (preferindo `/particip|realiz|feito|conclu|done/i`; sem nenhuma `done`, oferece todas com aviso). **Uma
+  `salvaCfg()` por ação** (`logAcao(…, false)` por passo: `status-report` + `status` · `transferir-resp` · `reprogramar` ·
+  `comentario` — o comentário avulso grava `comentario`, a Gestão grava `comentar`). **Otimista:** `srAplicaLocal` (status/
+  statCat, resp/respId, venc, `ult` e `sr` quando o comentário tem marcador) e, depois, `estado.sr.sujo=true` +
+  `estado.gp.cache={}` + `invalidaCacheDados()` + `renderSr()`; a leitura seguinte vai com `nocache=1`. Reagendar também tira
+  o item da lista local quando fica sem data (e não é bug) ou depois do horizonte do relatório — o servidor o tiraria na
+  próxima leitura. O chip "amanhã" é o dia seguinte do calendário (`srMaisDia`), não o próximo dia útil. Validações: transferir
+  para quem já é o responsável, reagendar para a mesma data e tirar a data de ticket sem data são recusados; Concluir e Mudar
+  status só habilitam depois de ler as transições. Rótulos dos botões em `<span class="sr-rot">` (somem até 1300 px — a 1280 com rótulo a
+  tabela estourava —; `title` e `aria-label` ficam, sem `data-tip`, que dobrava o tooltip); no `mobile.css` o
+  item vira cartão até **880 px** (no tablet em pé os 4 alvos de 44 px não cabiam na grade e o ⋯ ficava fora da tela). **Fixture:** `servidor-sr.mjs` aceita `POST /api/transicao {atribuir:true, accountId}` (vazio = sem
+  responsável) com `FALHAS.atribuir`, antes do `transitionId`; `CHAMADAS` guarda a ordem das chamadas. Teste:
+  `status-report-acoes-test.mjs` (Playwright, 179 casos: estrutura e ⋯ no teclado, ordem das chamadas por `CHAMADAS`,
+  remoção otimista e contador da aba, AMS/🔒, falhas por passo — `FALHAS.comentar/transitionId/atribuir/listar` —,
+  preferência da transição de conclusão e "nenhuma done" via `TRANS_OVERRIDE` da fixture, filtro 🙋, regra
+  `manual`/`mencMan`, continuação `depois` após identificar, resposta com o modal já fechado, `sujo`→`nocache=1`,
+  larguras 360/800/820/1150/1200/1280). **Revisão em 3 lentes** (regras, UX/celular, cobertura do teste) no mesmo dia:
+  breakpoints 1100→1300 e 760→880, tooltip duplicado, setas do ⋯ presas com o foco fora, contador da aba velho,
+  ⏱ do ⋯ sem motivo de identidade, `listar` falho sem saída, `para` do histórico com o rótulo da option — todos
+  corrigidos. Desdobramentos: R191 (aviso no Teams ao transferir) e R192 (concluir com horas e em lote).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais
