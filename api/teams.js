@@ -20,6 +20,9 @@
 // sem dry=1 GRAVA e exige &confirmar=1; com dry=1 só calcula. Não carimba o agendador (teams_estado.ultimaFotoRentab é do cron).
 // No cron (?cron=1) a fase `rentab` roda no 1º tique ≥ 06:00 de cada dia útil e fotografa os dias que faltam até ONTEM (fim de semana, feriado
 // e cron parado são recuperados), no máximo 10 por tique; o formato das linhas está no cabeçalho de api/_lib/rentabFoto.js.
+// 💵 CUSTO/H DO ODOO (2026-11-06): no cron a fase `custos` roda 1× por dia útil (1º tique ≥ 06:30) e grava hr.employee.hourly_cost →
+// cfg.custosPessoa (+ a foto cfg.custosOdoo), pela mesma `sincronizaCustos` do botão ↻ da Controladoria (api/_lib/custosOdoo.js);
+// a resposta do cron traz SÓ contagens. Manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] (exige CRON_SECRET; sem dry grava).
 //
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
@@ -32,6 +35,7 @@ import { avisaTeamsDM } from './apontar.js';
 import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana, dataValida } from './_lib/semanal.js';
 import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
+import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -94,6 +98,14 @@ async function gravaTeamsEstado(patch, atual) {
     // em memória acompanha o que já foi gravado, senão a 2ª gravação apagaria a 1ª.
     if (atual && typeof atual === 'object') Object.assign(atual, patch);
   } catch (e) { /* pior caso: um envio duplicado amanhã — preferível a não enviar */ }
+}
+
+// Supabase para quem grava a config compartilhada a partir do cron (💵 custos do Odoo): { base, headers } ou null.
+function sbTeams() {
+  const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || '';
+  if (!base || !key) return null;
+  return { base, headers: { apikey: key, Authorization: `Bearer ${key}` } };
 }
 
 // Gate de horário: já passou da hora configurada e ainda não foi enviado hoje?
@@ -965,6 +977,19 @@ export default async function handler(req, res) {
       return json(res, outR.erro ? 502 : 200, outR);
     }
 
+    // ---- 💵 Custo/h do Odoo, chamada manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] ----
+    // A mesma sincronização do cron (fase `custos`) e do botão ↻ da Controladoria, na hora. Tem o custo/h por pessoa: EXIGE o
+    // CRON_SECRET (503 sem a env). Sem dry=1 GRAVA cfg.custosPessoa/cfg.custosOdoo → exige &confirmar=1. NÃO carimba o agendador.
+    if (String(q.tipo || '') === 'custos-odoo') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — a sincronização tem o custo/h por pessoa e só roda com o segredo do cron (defina a env na Vercel).' });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada GRAVA cfg.custosPessoa e cfg.custosOdoo — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      const sbC = sbTeams();
+      if (!sbC) return json(res, 200, { ok: false, erro: 'Supabase não configurado (a config compartilhada mora nele).' });
+      const rC = await sincronizaCustos({ sb: sbC, pessoas: await jiraUsuariosAtivos(), agora: new Date().toISOString(), dry });
+      const { data: _cfgGravada, ...semData } = rC; void _cfgGravada;   // a config inteira não precisa voltar na resposta manual
+      return json(res, rC.ok || rC.configurado === false ? 200 : 502, { dry, ...semData });
+    }
+
     if (!webhook && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
 
     const cfg = await configCompartilhada();
@@ -1139,6 +1164,27 @@ export default async function handler(req, res) {
             const { amostra, ...conta } = r;
             out.rentab = { feito: !r.erro, ...conta, ...(r.restam ? { proximo: `mais ${r.restam} dia(s) no próximo tique` } : {}) };
           } catch (e) { out.rentab = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
+        }
+      }
+      // 💵 Custo/h do Odoo (2026-11-06): 1× por dia útil, no 1º tique ≥ CUSTOS_ODOO_HORA, sincroniza hr.employee → cfg.custosPessoa
+      // (+ a foto cfg.custosOdoo) pela mesma `sincronizaCustos` do botão ↻ da Controladoria. Só CONTAGENS na resposta (nada de R$ por
+      // pessoa no log do cron). Falha não carimba: o próximo tique refaz. Não precisa do CRON_SECRET: o valor vai para a config
+      // compartilhada, que já é do time (o gate comum do endpoint continua valendo).
+      const gastoCu = Date.now() - t0;
+      if (!odooEnv()) out.custos = { feito: false, motivo: 'Odoo não configurado (ODOO_URL/ODOO_DB/ODOO_LOGIN/ODOO_API_KEY)' };
+      else if (semSupabase) out.custos = { feito: false, motivo: 'Supabase não configurado (a config compartilhada mora nele)' };
+      else if (pesado || gastoCu > 35000) out.custos = { feito: false, motivo: `adiado para o próximo tique (este já rodou ${pesado ? 'o resumo IA' : `${Math.round(gastoCu / 1000)} s`})` };
+      else {
+        const gcu = gateHorario(CUSTOS_ODOO_HORA, agora, hoje, ult('ultimaSincCustos'));
+        if (!gcu.pronto) out.custos = { feito: false, motivo: gcu.motivo, hora: CUSTOS_ODOO_HORA };
+        else {
+          try {
+            const r = await sincronizaCustos({ sb: sbTeams(), pessoas: await jiraUsuariosAtivos(), agora: new Date().toISOString() });
+            if (r.ok) await gravaTeamsEstado({ ultimaSincCustos: hoje }, estado);
+            out.custos = r.ok
+              ? { feito: true, mudou: !!r.mudou, funcionarios: r.funcionarios, casados: r.casados, aplicados: r.aplicados, excecoes: (r.excecoes || []).length, semPar: (r.semPar || []).length, semCusto: (r.semCusto || []).length }
+              : { feito: false, erro: String(r.erro || '').slice(0, 200) };
+          } catch (e) { out.custos = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
         }
       }
       return json(res, 200, out);

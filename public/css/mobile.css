@@ -1371,6 +1371,8 @@
   .ct-res-acoes{gap:6px}
   .ct-res-acoes>.spacer{display:none}
   .ct-cfg{padding:8px 10px}
+  .ct-cfg .ct-orig{white-space:normal}                      /* 🔗 selo de origem quebra linha em vez de empurrar o nome */
+  .ct-cfg .ct-pessoa{width:100%}
   .ct-tela .rm-2col>*,.rp-tela .rm-2col>*{min-width:0}
 
   /* ---- 💹 Rentabilidade ---- */
@@ -1614,6 +1616,10 @@
   .ct-l-tab td.ct-l-acoes{flex:1 1 100%;text-align:left;white-space:normal}
   .ct-l-acoes .btn{margin:4px 6px 0 0;min-height:36px}
   .ct-ver-tab th{width:auto}
+}
+@media (pointer:coarse){
+  /* 🔗 custo/h do Odoo (2026-11-06): o ↺ "voltar ao Odoo" é alvo de dedo também no tablet (a regra de 600 px não o alcançava) */
+  .ct-cfg .ct-orig-volta{min-width:32px;min-height:32px}
 }
 /* ---- fim: negocio ---- */
 

@@ -53,6 +53,82 @@ function ctContratoDe(p){
 function ctCustoBase(a){
   return (typeof alocCustoH==='function')?alocCustoH(a):Math.max(0,Number((cfg.custosPessoa||{})[a])||0);
 }
+// ---- 🔗 Custo/h do Odoo (2026-11-06, a pedido do usuário: "o custo dos funcionários é para vir do Odoo") ----
+// O SERVIDOR sincroniza (api/_lib/custosOdoo.js: cron do api/teams.js 1× por dia útil + POST /api/config?custos=1 pelo
+// botão ↻ abaixo) e grava cfg.custosPessoa + a foto cfg.custosOdoo {em, pessoas:{a:{custo,nome,por}}, semPar, semCusto}.
+// Aqui só se LÊ a foto (nunca se cria a chave) e se marca a EXCEÇÃO manual: valor digitado para quem TEM par no Odoo vira
+// cfg.custosOrigem[a]='manual' e a sincronização não o sobrescreve; ↺ volta ao valor do Odoo. Quem não tem par mantém o
+// digitado (decisão do usuário). Leitores: ctOdooFoto/ctOdooDe/ctOrigemDe — não criam nada.
+function ctOdooFoto(){ const o=cfg.custosOdoo; return (o&&typeof o==='object')?o:null; }
+function ctOdooDe(a){ const o=ctOdooFoto(); const p=o&&o.pessoas&&o.pessoas[a]; return (p&&Number(p.custo)>0)?p:null; }
+// Origem do custo/h de UMA pessoa: odoo · odoo-dif (digitado antes da sincronização; o Odoo tem outro valor) · excecao ·
+// sempar · semcusto · manual · '' (sem nada).
+function ctOrigemDe(a){
+  const od=ctOdooDe(a); const man=((cfg.custosOrigem||{})[a]==='manual'); const v=ctCustoBase(a); const o=ctOdooFoto();
+  if(od){ if(v>0&&Math.abs(v-od.custo)<0.005) return {k:'odoo'}; if(man) return {k:'excecao',odoo:od.custo}; return {k:'odoo-dif',odoo:od.custo}; }   // igual ao Odoo nunca é exceção
+  if(o&&(o.semPar||[]).some(x=>x&&x.a===a)) return {k:v>0?'sempar':'sempar0'};
+  if(o&&(o.semCusto||[]).some(x=>x&&x.a===a)) return {k:'semcusto',digitado:v>0};
+  return {k:v>0?'manual':''};
+}
+function ctOrigemHTML(a){
+  const og=ctOrigemDe(a); const v=(x)=>fmtBRL(x);
+  const volta=`<button type="button" class="lnk ct-orig-volta" data-ct-odoo-voltar="${escA(a)}" title="Voltar ao valor do Odoo (${v(og.odoo||0)}/h)" aria-label="Voltar ao valor do Odoo">↺</button>`;
+  switch(og.k){
+    case 'odoo': return `<span class="ct-orig ct-orig-odoo" data-tip="Valor sincronizado do Odoo (ficha do funcionário)">Odoo</span>`;
+    case 'odoo-dif': return `<span class="ct-orig ct-orig-dif" data-tip="Valor digitado depois da última sincronização (ou antes da primeira): o Odoo tem ${v(og.odoo)}/h. Na próxima sincronização este valor vira exceção manual — ou volte ao Odoo agora com ↺">≠ Odoo ${v(og.odoo)}</span>${volta}`;
+    case 'excecao': return `<span class="ct-orig ct-orig-exc" data-tip="Exceção manual: vale mais que o Odoo (${v(og.odoo)}/h) e a sincronização não a sobrescreve">exceção</span>${volta}`;
+    case 'sempar': return `<span class="ct-orig ct-orig-sem" data-tip="Sem funcionário correspondente no Odoo (por e-mail ou nome) — este valor digitado continua valendo">sem par no Odoo</span>`;
+    case 'sempar0': return `<span class="ct-orig ct-orig-sem" data-tip="Sem funcionário correspondente no Odoo e sem custo digitado — entra pelo custo padrão">sem par no Odoo</span>`;
+    case 'semcusto': return `<span class="ct-orig ct-orig-sem" data-tip="${og.digitado?'Encontrado no Odoo, mas com o campo de custo vazio ou zero lá — vale o valor digitado aqui':'Encontrado no Odoo, mas com o campo de custo vazio ou zero — preencha na ficha do funcionário ou digite aqui'}">sem custo no Odoo</span>`;
+    case 'manual': return `<span class="ct-orig" data-tip="Digitado à mão${ctOdooFoto()?'':' (ainda sem sincronização com o Odoo)'}">manual</span>`;
+    default: return '';
+  }
+}
+// "06/11 19:55 · há 2 h" — com o ano quando não é o corrente e a idade sempre (foto velha não pode parecer de hoje).
+function ctOdooQuando(iso){ try{ const d=new Date(iso); if(Number.isNaN(d.getTime())) return String(iso||'');
+  const anoDif=d.getFullYear()!==new Date().getFullYear();
+  const txt=d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',...(anoDif?{year:'numeric'}:{}),hour:'2-digit',minute:'2-digit'});
+  const min=Math.max(0,Math.round((Date.now()-d.getTime())/60000)); const idade=min<60?`há ${min} min`:(min<2880?`há ${Math.round(min/60)} h`:`há ${Math.round(min/1440)} dias`);
+  return `${txt} · ${idade}`; }catch(e){ return String(iso||''); } }
+// Bloco do ⚙️: a foto da última sincronização, o botão ↻ e as listas (sem par · sem custo no Odoo · exceções manuais com ↺).
+function ctOdooBlocoHTML(nomeDe){
+  const o=ctOdooFoto(); const ct=estado.ctrl;
+  const nome=(x)=>{ const n=nomeDe(x.a); const m=x.motivo==='homonimo'?' (homônimos no Odoo)':(x.motivo==='email-repetido'?' (e-mail repetido no Odoo)':'');
+    return esc((n&&n!==x.a?n:(x.nome||x.a))+m); };
+  const exc=Object.keys((cfg.custosPessoa||{})).filter(a=>(cfg.custosOrigem||{})[a]==='manual'&&ctOdooDe(a))
+    .map(a=>({a, nome:(nomeDe(a)!==a?nomeDe(a):(ctOdooDe(a).nome||a)), manual:ctCustoBase(a), odoo:ctOdooDe(a).custo})).sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
+  const n=o?Object.keys(o.pessoas||{}).length:0;
+  const status=o?`Sincronizado em <b>${esc(ctOdooQuando(o.em))}</b> · <b>${n}</b> pessoa(s) com o custo do Odoo${(o.semPar||[]).length?` · <b>${o.semPar.length}</b> sem par`:''}${(o.semCusto||[]).length?` · <b>${o.semCusto.length}</b> sem custo no Odoo`:''}${exc.length?` · <b>${exc.length}</b> exceção(ões) manual(is)`:''}.`
+    :'Ainda não sincronizado — o servidor sincroniza <b>todo dia útil a partir das 06:30</b>; ou importe agora.';
+  const lista=(arr,rot,tip,cls)=>(arr&&arr.length)?`<div class="muted small ${cls||''}" style="margin-top:4px" data-tip="${escA(tip)}">${rot}: ${arr.slice(0,12).map(nome).join(', ')}${arr.length>12?` e mais ${arr.length-12}`:''}</div>`:'';
+  const excHTML=exc.length?`<div class="muted small ct-odoo-exc" style="margin-top:4px" data-tip="Valores digitados depois da sincronização: valem mais que o Odoo e não são sobrescritos. ↺ volta ao valor do Odoo.">✎ Exceções manuais: ${exc.slice(0,12).map(x=>`${esc(x.nome.split(' ').slice(0,2).join(' '))} (${fmtBRL(x.manual)}; Odoo ${fmtBRL(x.odoo)}) <button type="button" class="lnk ct-orig-volta" data-ct-odoo-voltar="${escA(x.a)}" title="Voltar ao valor do Odoo (${fmtBRL(x.odoo)}/h)" aria-label="Voltar ${esc(x.nome)} ao valor do Odoo">↺</button>`).join(' · ')}${exc.length>12?` e mais ${exc.length-12}`:''}</div>`:'';
+  return `<div class="ct-odoo"><b class="small">🔗 Custo/h do Odoo</b> <span class="muted small" id="ct-odoo-st">${status}</span>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn" id="ct-odoo-sync" ${ct.odooB?'disabled':''} data-tip="Lê o custo/h dos funcionários ativos no Odoo (ficha do funcionário), casa com as pessoas do Jira por e-mail ou nome e grava para o time todo. Quem você digitou à mão depois da sincronização fica como exceção.">${ct.odooB?'Importando…':'↻ Importar do Odoo agora'}</button>
+      <span class="muted small">Quem não tem funcionário correspondente no Odoo mantém o custo digitado; valor digitado depois da sincronização vira exceção (↺ volta ao Odoo).</span></div>
+    ${lista(o&&o.semPar,'⚠ Sem par no Odoo (mantêm o custo digitado)','Pessoas ativas do Jira sem funcionário com o mesmo e-mail (ou nome) no Odoo — ajuste o e-mail de trabalho na ficha do funcionário no Odoo, ou digite o custo abaixo.','ct-odoo-sempar')}
+    ${lista(o&&o.semCusto,'ℹ️ No Odoo sem custo/h','Funcionário encontrado no Odoo, mas com o campo de custo vazio ou zero — preencha na ficha do funcionário no Odoo, ou digite o custo abaixo.','ct-odoo-semcusto')}
+    ${excHTML}</div>`;
+}
+// ↻ Importar do Odoo agora: o SERVIDOR sincroniza (a mesma rotina do cron) e devolve a config gravada; a tela adota o remoto
+// (cfgAdotaRemoto preserva o que ESTA sessão mudou), anota no 🗒 Histórico e grava UMA vez. Só gestor/admin (o servidor confere).
+async function ctOdooImporta(){
+  const ct=estado.ctrl; if(ct.odooB) return;
+  const id=(typeof idApontar==='function')?idApontar():null;
+  if(!id){ if(typeof abreIdentidade==='function') abreIdentidade('importar o custo/h do Odoo',{depois:()=>{ if(estado.vista==='controladoria') ctOdooImporta(); }}); return; }
+  ct.odooB=true; ct.cfgAberto=true; renderControladoria();
+  let j=null;
+  try{ j=await fetch('/api/config?custos=1',{method:'POST',headers:{'Content-Type':'application/json','x-jira-email':id.email||'','x-jira-token':id.token||''},body:'{}'}).then(r=>r.json()); }
+  catch(e){ j={ok:false,erro:String((e&&e.message)||e)}; }
+  ct.odooB=false;
+  if(!j||!j.ok){ toast('⚠ Não deu para importar do Odoo: '+humanizaErro((j&&j.erro)||'sem resposta do servidor'),'err'); if(estado.vista==='controladoria') renderControladoria(); return; }
+  if(j.data&&typeof j.data==='object'&&typeof cfgAdotaRemoto==='function') cfgAdotaRemoto({data:j.data, rev:j.rev});
+  const exc=(j.excecoes||[]).length; const sp=(j.semPar||[]).length; const sc=(j.semCusto||[]).length;
+  if(typeof logAcao==='function') logAcao({acao:'custos-odoo', motivo:`${j.aplicados||0} atualizado(s) · ${j.casados||0} com par · ${sp} sem par · ${sc} sem custo no Odoo · ${exc} exceção(ões)`}, false);
+  salvaCfg();
+  toast(`✓ Odoo: ${j.casados||0} pessoa(s) com custo${j.aplicados?` — ${j.aplicados} atualizada(s)`:' — nada mudou'}${sp?` · ${sp} sem par`:''}${sc?` · ${sc} sem custo no Odoo`:''}${exc?` · ${exc} exceção(ões) manual(is) mantida(s)`:''}.`,'ok');
+  if(estado.vista==='controladoria') renderControladoria();
+}
 function ctPrimeiroDiaMes(off){ const h=hojeSP(); const y=+h.slice(0,4), m=+h.slice(5,7)-1+(off||0);
   const d=new Date(Date.UTC(y,m,1)); return d.toISOString().slice(0,10); }
 // Busca os worklogs do período (cache pela chave de/até) + consolidado do Jira.
@@ -711,7 +787,7 @@ function renderControladoria(){
       :(ct.projB?'<div class="estado">Carregando o consolidado do Jira…</div>':'<div class="mp-dim">Sem dados do Jira para os projetos desta categoria.</div>')}
     ${ctExpl('<b>quanto do projeto já foi executado</b>: horas gastas ÷ estimativa dos tickets (Jira, histórico completo). Verde até 90%, amarelo até 110%, vermelho acima — vermelho significa que o esforço já passou do previsto; combine com a % de tickets concluídos para saber se está perto do fim ou estourando.')}</div>`:'';
   // ⚙️ configuração por categoria (gestor)
-  const blocoCfg=gestorEu?`<details class="ct-cfg" ${ct.cfgAberto?'open':''}><summary>⚙️ Configurar os relatórios desta categoria <span class="muted small">(gestores — vale para o time todo)</span></summary>
+  const blocoCfg=gestorEu?`<details class="ct-cfg" id="ct-cfg-gestor" ${ct.cfgAberto?'open':''}><summary>⚙️ Configurar os relatórios desta categoria <span class="muted small">(gestores — vale para o time todo · custo/h do Odoo)</span></summary>
     <div class="ap-vis" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
       ${CT_BLOCOS.map(([k,rot])=>`<label class="check"><input type="checkbox" data-ct-b="${k}" ${S[k]?'checked':''}> ${rot}</label>`).join('')}
     </div>
@@ -719,10 +795,11 @@ function renderControladoria(){
       <div class="campo"><label>Custo/h padrão (R$) <span class="muted small">para quem não tem custo próprio</span></label>
         <input type="number" id="ct-custopadrao" min="0" step="10" value="${escA(custoPadrao?String(custoPadrao):'')}" placeholder="ex.: 120"></div>
     </div>
-    <div style="margin-top:8px"><b class="small">Custo/h por pessoa</b> <span class="muted small">(R$/h — quem trabalhou nesta categoria no período; vazio = usa o custo padrão)</span>
+    ${ctOdooBlocoHTML(nomeDe)}
+    <div style="margin-top:8px"><b class="small">Custo/h por pessoa</b> <span class="muted small">(R$/h — quem trabalhou nesta categoria no período; vazio = usa o custo padrão, ou o do Odoo quando a pessoa tem par)</span>
       <div class="ap-vis" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-        ${Object.keys(d.porPessoa).sort((a,b)=>nomeDe(a).localeCompare(nomeDe(b),'pt')).map(a=>`<label class="small" style="display:inline-flex;align-items:center;gap:6px">${esc(nomeDe(a).split(' ').slice(0,2).join(' '))}
-          <input type="number" data-ct-custo="${escA(a)}" min="0" step="10" style="max-width:96px" placeholder="R$/h" value="${escA(ctCustoBase(a)>0?String(ctCustoBase(a)):'')}"></label>`).join('')}
+        ${Object.keys(d.porPessoa).sort((a,b)=>nomeDe(a).localeCompare(nomeDe(b),'pt')).map(a=>`<span class="ct-pessoa"><label class="small" style="display:inline-flex;align-items:center;gap:6px">${esc(nomeDe(a).split(' ').slice(0,2).join(' '))}
+          <input type="number" data-ct-custo="${escA(a)}" min="0" step="any" style="max-width:96px" placeholder="R$/h" value="${escA(ctCustoBase(a)>0?String(ctCustoBase(a)):'')}"></label>${ctOrigemHTML(a)}</span>`).join('')}
       </div></div>
     <div class="muted small" style="margin-top:8px">Cada CATEGORIA (ex.: AMS, Tarefas Avulsas) pode mostrar um conjunto diferente de blocos — desligue o que não faz sentido para aquele tipo de projeto. Tudo aqui fica salvo para o time.</div>
   </details>`:'';
@@ -801,7 +878,16 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
   else if(t.hasAttribute&&t.hasAttribute('data-ct-custo')){
     cfg.custosPessoa=cfg.custosPessoa||{};
     const a=t.getAttribute('data-ct-custo'); const v=Math.max(0,Number(t.value)||0);
-    if(v>0) cfg.custosPessoa[a]=v; else delete cfg.custosPessoa[a];
+    // 🔗 Odoo: TODO valor digitado vira EXCEÇÃO (cfg.custosOrigem[a]='manual') — mesmo nesta aba sem a foto do Odoo ou para
+    // quem hoje não tem par (revisão de 2026-11-06: a marca só nascia quando a aba conhecia o par, e uma aba com a config
+    // atrasada perdia o digitado na sincronização seguinte). A única exceção é digitar o MESMO valor do Odoo (volta a ser
+    // "Odoo"). Apagar o campo de quem tem par volta ao valor do Odoo na hora; ↺ idem.
+    const od=ctOdooDe(a);
+    if(v>0){ cfg.custosPessoa[a]=v;
+      if(od&&Math.abs(v-od.custo)<0.005){ if(cfg.custosOrigem) delete cfg.custosOrigem[a]; }
+      else { cfg.custosOrigem=cfg.custosOrigem||{}; cfg.custosOrigem[a]='manual'; } }
+    else { if(od){ cfg.custosPessoa[a]=od.custo; toast(`↺ ${nomePessoaDe(a)}: voltou ao custo do Odoo (${fmtBRL(od.custo)}/h).`,'ok'); } else delete cfg.custosPessoa[a];
+      if(cfg.custosOrigem) delete cfg.custosOrigem[a]; }
     ct.cfgAberto=true; salvaCfg(); renderControladoria(); }
 });
 // Enter/Espaço abrem o drill (as linhas anunciam role="button")
@@ -837,4 +923,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
     ct.ate=h; renderControladoria(); return; }
   if(t.id==='ct-retry'){ ct.tempoErro=''; ct.chaveT=''; renderControladoria(); return; }
+  if(t.id==='ct-odoo-sync'){ ctOdooImporta(); return; }   // 🔗 custo/h do Odoo, agora
+  if(t.hasAttribute('data-ct-odoo-voltar')){   // ↺ exceção manual → valor do Odoo
+    const a=t.getAttribute('data-ct-odoo-voltar'); const od=ctOdooDe(a); if(!od) return;
+    cfg.custosPessoa=cfg.custosPessoa||{}; cfg.custosPessoa[a]=od.custo; if(cfg.custosOrigem) delete cfg.custosOrigem[a];
+    ct.cfgAberto=true; salvaCfg(); toast(`↺ ${nomePessoaDe(a)}: voltou ao custo do Odoo (${fmtBRL(od.custo)}/h).`,'ok'); renderControladoria(); return; }
 });
