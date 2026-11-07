@@ -284,7 +284,7 @@ function renderConfig(){
       <div class="card cfgc">
         <h2>👥 Pessoas</h2>
         <div class="cfgc-chips">${chip(nOc,'ocultas (externas)')}${chip(nPlanejadas,'planejadas 🔮')}${chip(nCusto,'com custo/h')}${chip(nCat,'projetos com categoria')}${chip(nTravas,'travas antigas')}</div>
-        <div class="muted small">Usuários externos ocultos das visões (em Metas &amp; ausências) e o custo/hora de cada pessoa (manual ou importado do Odoo, na ⚙️ da 🏦 Controladoria). Vagas planejadas 🔮, categorias por projeto e travas eram cadastros da Alocação (macro), aposentada em 2026-09-13 — voltam com a aba Capacidade (🗺️ Roadmap); os dados continuam guardados.</div>
+        <div class="muted small">Usuários externos ocultos das visões (em Metas &amp; ausências) e o custo/hora de cada pessoa — <b>sincronizado do Odoo</b> (ficha do funcionário) todo dia útil às 06:30 e pelo ↻ da ⚙️ da 🏦 Controladoria, onde também se vê quem ficou sem par e se digita uma exceção manual. Vagas planejadas 🔮, categorias por projeto e travas eram cadastros da Alocação (macro), aposentada em 2026-09-13 — voltam com a aba Capacidade (🗺️ Roadmap); os dados continuam guardados.</div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="cf-abrir-metas-oc">Ocultar/reexibir pessoas</button>
           <button class="btn" data-goto="controladoria">Custos por pessoa (R$/h) →</button>

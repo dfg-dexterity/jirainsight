@@ -222,6 +222,41 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   breakpoints 1100→1300 e 760→880, tooltip duplicado, setas do ⋯ presas com o foco fora, contador da aba velho,
   ⏱ do ⋯ sem motivo de identidade, `listar` falho sem saída, `para` do histórico com o rótulo da option — todos
   corrigidos. Desdobramentos: R191 (aviso no Teams ao transferir) e R192 (concluir com horas e em lote).
+- **🔗 Custo/h das pessoas vindo do Odoo (2026-11-06, a pedido do usuário: "onde está o custo dos funcionários usado no
+  Jira Insight? É para vir do Odoo"):** o custo/h morava SÓ em `cfg.custosPessoa` (R$/h por accountId), digitado no ⚙️ da
+  🏦 Controladoria — a rota `GET /api/usuarios?custos=1` lia o `hourly_cost` do `hr.employee`, mas o único botão que a
+  chamava ficou na Alocação arquivada (R076). Decisões do usuário: **automático + botão** e **quem não tem par no Odoo mantém
+  o manual e a tela avisa**. **`api/_lib/custosOdoo.js` é a fonte ÚNICA** (`odooEnv` · `lerFuncionariosOdoo` — só ativos,
+  campo `ODOO_CAMPO_CUSTO`, padrão `hourly_cost` · `casaCustos` — e-mail de trabalho primeiro, depois nome sem acento ·
+  `aplicaCustosOdoo` — pura · `sincronizaCustos` — lê o `default`, aplica e grava com **trava otimista pelo `updated_at`**, 3
+  tentativas, nunca last-writer-wins). Chamada por DOIS lugares: a fase **`custos` do cron** do `api/teams.js` (1º tique ≥
+  `CUSTOS_ODOO_HORA`=06:30 de dia útil, cursor `teams_estado.ultimaSincCustos` só com sucesso; a resposta do cron traz SÓ
+  contagens; manual `?tipo=custos-odoo[&dry=1][&confirmar=1]` exige `CRON_SECRET`) e **`POST /api/config?custos=1`** (botão
+  **↻ Importar do Odoo agora** na ⚙️ da Controladoria; `planAuth` + papel gestor/admin por `papeisDe`; devolve a config
+  gravada + `rev` e a tela faz `cfgAdotaRemoto` + `logAcao('custos-odoo', false)` + UMA `salvaCfg()`). **Dados:**
+  `cfg.custosPessoa` não mudou de contrato (`alocCustoH`/`rpCustoH` seguem a leitura única); **`cfg.custosOdoo`** =
+  `{em, campo, n, pessoas:{a:{custo,nome,por}}, semPar:[{a,nome}], semCusto:[{a,nome}]}` é a foto, **escrita só pelo
+  servidor** (a tela lê por `ctOdooFoto`/`ctOdooDe`/`ctOrigemDe`, que não criam nada); **`cfg.custosOrigem[a]='manual'`** é a
+  **exceção**: TODO valor digitado pelo gestor (mesmo numa aba sem a foto ou para quem não tem par — revisão: a marca só
+  nascia quando a aba conhecia o par, e uma aba com a config atrasada perdia o digitado na sincronização seguinte) — a
+  sincronização não a sobrescreve (`aplicaCustosOdoo` só a lê para quem casou) e a tela mostra "exceção" + ↺
+  (`[data-ct-odoo-voltar]`); digitar o mesmo valor do Odoo tira a marca; apagar o campo de quem tem par volta ao Odoo na hora.
+  O servidor também decide a exceção sozinho (`aplicaCustosOdoo`): valor que difere do que a ÚLTIMA foto gravou e do Odoo
+  novo foi digitado DEPOIS da sincronização → marca `manual` ali (cobre a aba com a config atrasada e clientes antigos);
+  igual ao Odoo → tira a marca. Valor que existia ANTES da 1ª sincronização (sem foto anterior) é trocado pelo do Odoo
+  (selo "≠ Odoo" até lá). Homônimos, e-mail repetido no Odoo ou duas contas do Jira no mesmo funcionário NÃO casam
+  (`semPar` com `motivo` homonimo/email-repetido/duplicado — a tela diz); `cfg.ocultos` fica fora do casamento.
+  Funcionário com custo 0 no Odoo não zera ninguém (`semCusto`). O selo fica FORA do `<label>` (`.ct-pessoa`: tocar nele
+  não abre o teclado); `.ct-orig-volta` tem estilo próprio (não existe `.lnk` no CSS); o `<details>` do gestor é
+  `#ct-cfg-gestor` (alvo do guia). **`GET /api/usuarios?custos=1` foi REMOVIDA (410)** — devolvia nome, e-mail e R$/h de
+  todos os funcionários sem identidade nem segredo. Selos de origem (`ctOrigemHTML`): Odoo · ≠ Odoo (digitado antes da 1ª
+  sincronização; a próxima troca) · exceção · sem par no Odoo · sem custo no Odoo · manual. Textos da ⚙️ Config (28) e guia da 🏦 atualizados. Testes
+  (scratchpad `custos-plano/`): `custos-servidor-test.mjs` (25 casos: lib pura + `sincronizaCustos` com Odoo/Supabase falsos +
+  handlers reais do config, do teams e do usuarios) e `custos-tela-test.mjs` (Playwright, 79 casos, contra `servidor-custos.mjs`,
+  que importa `casaCustos`/`aplicaCustosOdoo` reais). **Revisão em 3 lentes** (9 agentes, 6 achados confirmados — todos
+  corrigidos): exceção perdida em aba com a config atrasada, homônimos/duplicados, rota `?custos=1` sem identidade, ↺ sem
+  estilo e pequeno no toque, selo dentro do label abrindo o teclado, passo do guia com o ⚙️ fechado. Desdobramentos:
+  R193 (vínculo manual Jira↔Odoo), R194 (custo com vigência); R069 reescrito (nível/departamento na mesma passagem).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais

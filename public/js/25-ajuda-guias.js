@@ -507,7 +507,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-11-06';
+const GUIAS_REV='2026-11-06';   // 🔗 custo/h do Odoo na ⚙️ da Controladoria (passo novo no guia da 🏦)
 const GUIAS={
   hoje:{t:'📆 Hoje — Meu dia',p:[
     {s:'#conteudo .hj-nav',ti:'O dia aberto',tx:'‹ › andam um dia; "hoje" volta. O selo diz se o dia está planejado (🌅) ou fechado (🌙). Dá para abrir ontem para rever, ou amanhã para já deixar pronto.'},
@@ -868,7 +868,8 @@ const GUIAS={
     {s:'#ct-res',ti:'📁 Resultado do projeto',tx:'Um projeto em foco (🧾 na linha do projeto, ou o chip 🏦 Resultado da ficha): horas, receita, custo e margem do período; custo por nível (Júnior/Pleno/Sênior) e por pessoa; vendido × realizado do contrato; plano de rentabilidade × realizado; evolução mensal. Os botões levam à ficha, ao plano, às Métricas do tipo e ao contrato.',quando:'Aparece com um projeto em foco — clique no 🧾 de uma linha da tabela de projetos.'},
     {c:'👥 Custo por pessoa',ti:'👥 Custo por pessoa',tx:'Quem custou o quê no período, pelo custo/hora — o custo de gestão aparece separado.'},
     {c:'⏳ Execução do esforço',ti:'⏳ Quanto já foi executado',tx:'O andamento do esforço do projeto e a evolução mês a mês — para ver se o consumo está no ritmo certo.'},
-    {s:'#ct-custopadrao',ti:'Custo padrão',tx:'O valor usado quando a pessoa não tem custo/hora cadastrado — mexer aqui muda toda a apuração.'}]},
+    {s:'#ct-custopadrao',ti:'Custo padrão',tx:'O valor usado quando a pessoa não tem custo/hora cadastrado — mexer aqui muda toda a apuração.'},
+    {s:'#ct-cfg-gestor>summary',ti:'🔗 Custo/h do Odoo (dentro do ⚙️)',tx:'Abra este ⚙️: lá dentro fica o bloco 🔗 Custo/h do Odoo. O custo/hora de cada pessoa vem da ficha do funcionário no Odoo — o servidor sincroniza todo dia útil a partir das 06:30 e o botão ↻ importa agora. A linha diz quando foi a última sincronização, quem ficou sem par (mantém o valor digitado) e quem está sem custo no Odoo; ao lado de cada R$/h um selo mostra a origem (Odoo · exceção · sem par). Todo valor que você digita vira exceção manual, que a sincronização respeita — ↺ volta ao Odoo.',quando:'Aparece para gestores (o ⚙️ Configurar os relatórios desta categoria).'}]},
   config:{t:'⚙️ Central de configurações',p:[
     {s:'#conteudo .cfgc-grid',ti:'Todos os ajustes num lugar',tx:'Cada cartão é uma área: metas, pessoas, perfis de navegação, Teams, planejamento, identidade, auditoria e integrações.'},
     {s:'#conteudo .cfgc-perfis',ti:'🧭 Perfis de navegação',tx:'Marque, por pessoa, quem é gestor (vê Dexterity Entrega), negócio (Dexterity Negócio), diretoria (Dexterity Insights, abre na Visão Geral) e admin (vê tudo). É lente, não permissão: toda tela continua abrindo por link e pelo Ctrl+K. Sem papel, aprovadores são gestores e o resto é consultor.'},

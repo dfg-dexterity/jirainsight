@@ -47,12 +47,20 @@
 //                                           em ordem cronológica, só a fatia do plano pedido. Identidade conferida no Jira (headers
 //                                           x-jira-*); sem identidade → 401; plano fora de /^rp[a-z0-9]+$/ → 400. Nunca cacheado.
 //
+// POST /api/config?custos=1 [{dry}]      -> 💵 CUSTO/H DO ODOO (2026-11-06): o gestor/admin pede a sincronização AGORA — a mesma
+//                                           `sincronizaCustos` (api/_lib/custosOdoo.js) que o cron do api/teams.js roda 1× por dia
+//                                           útil: hr.employee.hourly_cost → cfg.custosPessoa (quem casou por e-mail/nome e não é
+//                                           exceção manual) + a foto cfg.custosOdoo; gravação no `default` com trava otimista.
+//                                           Devolve { ok, rev, data (a config gravada), casados, aplicados, excecoes, semPar, semCusto }.
+//                                           Identidade (planAuth) + papel gestor/admin (papeisDe) — senão 401/403.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
-  json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL,
+  json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL, jiraUsuariosAtivos,
 } from './_lib/util.js';
 import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida, meusProjetos } from './_lib/semanal.js';
+import { sincronizaCustos } from './_lib/custosOdoo.js';
 import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
 import {
   portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
@@ -1462,6 +1470,30 @@ async function rentabHistLe(req, res, base, headers) {
   return json(res, 200, { ok: true, plano, gran: granQ, ate, n, itens });
 }
 
+// ===========================================================================
+// 💵 CUSTO/H DO ODOO — POST /api/config?custos=1 (2026-11-06): o botão ↻ da ⚙️ da 🏦 Controladoria. A regra mora em
+// api/_lib/custosOdoo.js (a mesma do cron); aqui só a porta: identidade conferida no Jira, papel gestor/admin pela config
+// ATUAL (a mesma régua do POST comum para as chaves de papel), e a resposta devolve a config gravada + rev para a tela
+// adotar o remoto sem reler. `dry:true` no corpo calcula sem gravar (prévia).
+// ===========================================================================
+async function custosOdooRota(req, res, base, headers) {
+  if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use POST' });
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  let cfgAtual = {};
+  try { cfgAtual = ((await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${ID}&select=data`)))[0] || {}).data || {}; } catch (e) { /* sem config → papel pelo aprovador legado */ }
+  const ps = papeisDe(cfgAtual, quem);
+  if (!ps.includes('gestor') && !ps.includes('admin')) return json(res, 403, { ok: false, erro: 'Só gestores ou admin do painel importam o custo/h do Odoo.' });
+  const b = await lerBody(req);
+  let pessoas;
+  try { pessoas = await jiraUsuariosAtivos(); } catch (e) {
+    return json(res, 502, { ok: false, erro: `Jira: ${String(e && e.message ? e.message : e).slice(0, 200)}` });
+  }
+  const r = await sincronizaCustos({ sb: { base, headers }, pessoas, agora: new Date().toISOString(), dry: !!(b && b.dry) });
+  res.setHeader('Cache-Control', 'no-store');
+  return json(res, 200, r);
+}
+
 export default async function handler(req, res) {
   if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
     res.setHeader('Cache-Control', 'no-store');
@@ -1509,6 +1541,9 @@ export default async function handler(req, res) {
 
     // 📋 Status report: a situação do projeto (GET público / POST com identidade do Jira).
     if (req.query && req.query.sr) return await statusReportRow(req, res, base, headers);
+
+    // 💵 Custo/h do Odoo: o gestor pede a sincronização agora (o cron do api/teams.js faz a mesma coisa 1× por dia útil).
+    if (req.query && req.query.custos) return await custosOdooRota(req, res, base, headers);
 
     // 📊 Uso do painel: grava o lote (POST) e devolve o período somado (GET).
     if (req.query && req.query.uso) {
