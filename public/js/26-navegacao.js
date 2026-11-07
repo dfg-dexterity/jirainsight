@@ -70,6 +70,7 @@ function renderVista(){
   if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='uso') return renderUso();
   if(estado.vista==='semanal') return renderSemanal();
+  if(['dash','dashfin','dashhoras','dashsaude','dashtime'].includes(estado.vista)) return renderDash();   // 📊 Dashboard de KPIs (18c)
   if(estado.vista==='portal') return renderPortal();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
@@ -119,6 +120,8 @@ const ABAS=[
   { id:'admin',        rot:'📑 Contratos',              abas:[ {v:'admin',rot:'🏢 Clientes'}, {v:'parcerias',rot:'🤝 Parceiros (consultorias)'} ] },
   { id:'ams',          rot:'🛡 Apuração de contratos',  abas:[ {v:'ams',rot:'🛡 AMS (por ciclo)'}, {v:'receita',rot:'💰 Bolsa de horas & projetos'} ] },
   // fase 3 — Dexterity Insights
+  // 2026-11-07 (📊 Dashboard de KPIs): a visão geral e as 4 visões por indicador, lidas das fotos semanais/mensais do servidor.
+  { id:'dash',         rot:'📈 Dashboard de KPIs',      abas:[ {v:'dash',rot:'📈 Resumo dos KPIs'}, {v:'dashfin',rot:'💰 Financeiro'}, {v:'dashhoras',rot:'⏱ Horas'}, {v:'dashsaude',rot:'🩺 Saúde da entrega'}, {v:'dashtime',rot:'👥 Time e capacidade'} ] },
   { id:'visao',        rot:'📊 Visão Geral',            abas:[ {v:'visao',rot:'📊 Painel executivo'}, {v:'resumo',rot:'🧠 Resumo (KPIs + IA)'} ] },
   { id:'relatorios',   rot:'📚 Central de Relatórios',  abas:[ {v:'relatorios',rot:'📚 Catálogo R01–R29'}, {v:'analytics',rot:'📈 Analytics (26 visões)'}, {v:'metricas',rot:'📈 Métricas por tipo'}, {v:'semanal',rot:'📊 Semanal'} ] },
   { id:'config',       rot:'⚙️ Central de configurações',abas:[ {v:'config',rot:'⚙️ Central'}, {acao:'metas',rot:'🎯 Metas & ausências'}, {acao:'log',rot:'🗒 Histórico de ações'} ] },
@@ -299,8 +302,13 @@ const NAVCAT=[
   ['ams','🛡 Apuração de contratos › 🛡 AMS (por ciclo)','negocio','ciclo faturado banco horas chamados gestao apuracao ams governanca'],
   ['receita','🛡 Apuração de contratos › 💰 Bolsa de horas & projetos (Receita)','negocio','bolsa horas projetos consumo contratado gestao receita apuracao'],
   ['rentab','💹 Rentabilidade de projetos','negocio','rentabilidade plano projeto duracao carga horaria valor hora receita esforco previsto eficiencia cenario simulacao alocacao consultor junior gestao custo margem folga planner visual realizado odoo ordem de venda faturamento periodos'],
-  ['controladoria','🏦 Controladoria de Projetos','negocio','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria resultado do projeto custo por nivel vendido realizado todas as categorias'],
+  ['controladoria','🏦 Controladoria de Projetos','insights','margem custo receita funcionario gestao esforco executado financeiro categoria ams tarefas avulsas controladoria resultado do projeto custo por nivel vendido realizado todas as categorias'],
   // Dexterity Insights — diretoria e governança
+  ['dash','📈 Dashboard de KPIs › 📈 Resumo dos KPIs','insights','dashboard kpis indicadores linha do tempo semana a semana mes a mes 12 meses comparar periodo anterior receita margem horas faturavel vendido vencidos bugs capacidade tiles tendencia diretoria painel de indicadores'],
+  ['dashfin','📈 Dashboard de KPIs › 💰 Financeiro','insights','dashboard financeiro receita custo margem percentual custo de gestao por categoria por projeto por pessoa evolucao semanal mensal linha do tempo kpi dinheiro faturamento'],
+  ['dashhoras','📈 Dashboard de KPIs › ⏱ Horas realizadas × vendidas','insights','dashboard horas realizadas faturaveis vendidas consumo do vendido percentual faturavel por nivel por tipo de esforco junior pleno senior linha do tempo kpi'],
+  ['dashsaude','📈 Dashboard de KPIs › 🩺 Saúde da entrega','insights','dashboard saude da entrega vencidos bugs parados sem vencimento sem responsavel criados concluidos saldo semaforo projetos execucao do esforco estimado gasto linha do tempo kpi'],
+  ['dashtime','📈 Dashboard de KPIs › 👥 Time e capacidade','insights','dashboard time capacidade planejado realizado execucao aderencia ausencias horas por pessoa plano semanal linha do tempo kpi equipe'],
   ['visao','📊 Visão Geral › 📊 Painel executivo','insights','inicio home executiva kpis painel executivo diretoria'],
   ['resumo','📊 Visão Geral › 🧠 Resumo (KPIs + IA)','insights','kpis horas faturavel ia analise resumo'],
   ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R29','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise codigo r visoes blocos'],

@@ -54,6 +54,15 @@
 //                                           Devolve { ok, rev, data (a config gravada), casados, aplicados, excecoes, semPar, semCusto }.
 //                                           Identidade (planAuth) + papel gestor/admin (papeisDe) — senão 401/403.
 //
+// GET  /api/config?kpis=1&gran=sem|mes[&n=52|12][&ate=AAAA-MM-DD] -> 📊 DASHBOARD DE KPIs (2026-11-07): as fotos semanais (`kpis_<segunda>`) ou mensais
+//                                           (`kpim_<AAAA-MM>`) gravadas pelo cron do api/teams.js (formato em api/_lib/kpi.js), em ordem
+//                                           cronológica, as `n` terminando no período de `ate` (padrão: hoje; n padrão 52 semanas / 12 meses).
+//                                           { ok, gran, n, de, ate, fim, papeis, accountId, itens:[fotos], pendentes } — `pendentes` = períodos da
+//                                           janela ainda sem foto. RECORTE POR PAPEL no servidor: gestor/negócio/diretoria/admin veem tudo; os
+//                                           demais não recebem nenhum R$ e só a própria linha de pessoa. Identidade (planAuth) — 401 sem; nunca cacheado.
+// POST /api/config?kpis=1 {acao:'atualizar'} -> o ↻ "atualizar agora" da tela: gestor/admin (papeisDe) refazem a semana e o mês CORRENTES agora (UMA
+//                                           leitura do Clockwork) e recebem as duas fotos em `itens`; 403 para os demais; 429 se refeito há menos de 1 min.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
@@ -61,6 +70,7 @@ import {
 } from './_lib/util.js';
 import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida, meusProjetos } from './_lib/semanal.js';
 import { sincronizaCustos } from './_lib/custosOdoo.js';
+import { leKpis, recorteKpi, kpiChaves, kpiChaveDe, kpiHorizonte, fotosKpi, KPIS_MAX, KPIM_MAX } from './_lib/kpi.js';
 import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
 import {
   portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
@@ -1494,6 +1504,59 @@ async function custosOdooRota(req, res, base, headers) {
   return json(res, 200, r);
 }
 
+// ===========================================================================
+// 📊 DASHBOARD DE KPIs — leitura das fotos (GET) e o ↻ atualizar agora (POST) — 2026-11-07
+// As fotos vivem em linhas `kpis_<segunda>` / `kpim_<AAAA-MM>` (o GET normal só devolve `default`, então R$ e custo por pessoa nunca descem com a
+// config). O PAPEL é decidido AQUI (papeisDe, como no ?semanal=1): quem não vê tudo não recebe nenhum R$ — o recorte é do servidor, a tela só avisa.
+// ===========================================================================
+async function kpisRota(req, res, base, headers) {
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  // Revisão de 2026-11-07: se a config não lê, NÃO se rebaixa a pessoa a consultor em silêncio (a tela mostraria "sem R$" como se fosse o perfil) — 502.
+  let cfg;
+  try {
+    const rc = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+    if (!rc.ok) throw new Error(`Supabase ${rc.status}`);
+    const rows = await rc.json();
+    cfg = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+  } catch (e) { cfg = null; }
+  res.setHeader('Cache-Control', 'no-store');
+  if (!cfg) return json(res, 502, { ok: false, erro: 'Não consegui ler a configuração para decidir o seu perfil — tente de novo.' });
+  const papeis = papeisDe(cfg, quem);
+  const horizonte = kpiHorizonte(spHoje());
+  if (req.method === 'POST') {
+    const b = await lerBody(req);
+    if (String((b && b.acao) || '') !== 'atualizar') return json(res, 400, { ok: false, erro: 'Ação desconhecida — use {acao:"atualizar"}.' });
+    if (!papeis.includes('gestor') && !papeis.includes('admin')) return json(res, 403, { ok: false, erro: 'Só gestores ou admin do painel refazem as fotos de KPI agora.' });
+    // Trava do ↻ (revisão de 2026-11-07): BEST-EFFORT por instância (memória da função) — só é armada no SUCESSO, para um erro não prender o gestor por
+    // um minuto; a proteção real contra refeitas simultâneas é o upsert idempotente (a mesma linha é trocada, nada duplica).
+    if (cacheGet('kpi:atualizar')) return json(res, 429, { ok: false, erro: 'As fotos acabaram de ser refeitas — aguarde um minuto.' });
+    let r;
+    try { r = await fotosKpi({ cfg, sb: { base, headers }, soCorrente: true, devolve: true, orcamentoMs: 50000 }); }
+    catch (e) { return json(res, 502, { ok: false, erro: `Não consegui refazer as fotos: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); }
+    if (!r.correnteOk) return json(res, 502, { ok: false, erro: `Não consegui refazer as fotos${r.erro ? `: ${r.erro}` : '.'}`, falhas: r.falhas });
+    cacheSetTTL('kpi:atualizar', 1, 1);
+    return json(res, 200, { ok: true, papeis, accountId: quem.accountId, ...horizonte, itens: r.fotos.map((f) => recorteKpi(f, { papeis, accountId: quem.accountId })), truncado: r.truncado });
+  }
+  const gran = String(q.gran || 'sem');
+  if (gran !== 'sem' && gran !== 'mes') return json(res, 400, { ok: false, erro: 'gran inválido — use sem ou mes.' });
+  const ateQ = String(q.ate || '').trim();
+  if (ateQ && !dataValida(ateQ)) return json(res, 400, { ok: false, erro: 'ate inválido — use AAAA-MM-DD (uma data que exista).' });
+  const nQ = Math.floor(Number(q.n));
+  const n = Math.max(1, Math.min(gran === 'mes' ? KPIM_MAX : KPIS_MAX, Number.isFinite(nQ) && nQ > 0 ? nQ : (gran === 'mes' ? 12 : 52)));
+  const fim = kpiChaveDe(gran, ateQ || spHoje());
+  const chaves = kpiChaves(gran, fim, n);
+  const fotos = await leKpis({ gran, ate: fim, n }, { base, headers });
+  const dentro = new Set(chaves);
+  const itens = fotos.filter((f) => dentro.has(f.chave)).map((f) => recorteKpi(f, { papeis, accountId: quem.accountId }));
+  const tem = new Set(itens.map((f) => f.chave));
+  return json(res, 200, {
+    ok: true, gran, n, de: chaves[0] || '', ate: ateQ || spHoje(), fim, papeis, accountId: quem.accountId,
+    ...horizonte, itens, pendentes: chaves.filter((c) => !tem.has(c)).length,
+  });
+}
+
 export default async function handler(req, res) {
   if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
     res.setHeader('Cache-Control', 'no-store');
@@ -1549,6 +1612,9 @@ export default async function handler(req, res) {
     if (req.query && req.query.uso) {
       return req.method === 'POST' ? await usoGrava(req, res, base, headers) : await usoLe(req, res, base, headers);
     }
+
+    // 📊 Dashboard de KPIs: as fotos semanais/mensais recortadas pelo papel (GET) e o ↻ atualizar agora (POST, gestor/admin).
+    if (req.query && req.query.kpis) return await kpisRota(req, res, base, headers);
 
     // 📸 Histórico da Rentabilidade: a fatia de um plano nas fotos diárias/semanais (GET, com identidade).
     if (req.query && req.query.rentabhist) return await rentabHistLe(req, res, base, headers);

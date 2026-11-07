@@ -172,8 +172,9 @@ function maisNovo(a, b) {
   if (qa !== qb) return qa > qb ? a : b;
   return String(a.id || '') >= String(b.id || '') ? a : b;
 }
-// Contagens dos ANL_CHECKS sobre uma lista de abertos (base dos indicadores e da qualidade).
-function contaAbertos(lista, hoje, N) {
+// Contagens dos ANL_CHECKS sobre uma lista de abertos (base dos indicadores e da qualidade). Exportada em 2026-11-07 para o
+// 📊 Dashboard de KPIs (api/_lib/kpi.js) contar vencidos/parados/sem data/sem responsável com a MESMA régua — sem mudar o cálculo.
+export function contaAbertos(lista, hoje, N) {
   const c = { n: 0, nNaoAgrup: 0, comVenc: 0, vencidos: 0, parados: 0, semVenc: 0, semResp: 0, estZero: 0, semDesc: 0, atualizados: 0, emAnd: 0, emAndEst: 0, desc40: 0, reuVenc: 0 };
   for (const t of lista) {
     const agrup = RE_AGRUP.test(t.t || ''); const reu = RE_REUNIAO.test(t.t || '');
@@ -374,6 +375,17 @@ export function calculaFoto(inp) {
     truncado: { atividade: !!tr.atividade, abertos: !!tr.abertos, worklogs: !!tr.worklogs, tickets: !!tr.tickets },
     time, pessoas, projetos,
   };
+}
+
+/**
+ * Só o bloco de TEMPO da foto (plano × capacidade × realizado, por pessoa) — o que o 📊 Dashboard de KPIs (api/_lib/kpi.js) reaproveita sem
+ * duplicar regra (2026-11-07, "oferecer KPIs em formato de dashboard"). É o `calculaFoto` com tickets e atividade vazios: devolve o MESMO
+ * `time`/`pessoas` que o relatório semanal calcularia para os mesmos planos, worklogs e config (horas em SEGUNDOS, como lá).
+ * inp: seg, ate?, fotoEm?, cfg, planos, itens, worklogs, usuarios — o resto do calculaFoto fica vazio.
+ */
+export function calculaTime(inp) {
+  const f = calculaFoto({ ...inp, abertos: [], atividade: { eventos: [] }, criados: [], concluidos: [], projetosCat: {}, truncado: {} });
+  return { time: f.time, pessoas: f.pessoas };
 }
 
 /**

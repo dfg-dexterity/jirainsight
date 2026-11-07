@@ -1256,6 +1256,41 @@
   :is(.mob-met,.mob-mt,.mob-tk) .btn.rt-step{min-width:36px;min-height:36px;padding:4px 9px}
   .mob-uso .uso-chips .rc-cod{min-height:32px;display:inline-flex;align-items:center}
 }
+  /* ---- 📊 Dashboard de KPIs: gráficos, small multiples e tiles (2026-11-07) ---- */
+@media (max-width:760px){
+  .dsh-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dsh-tile{padding:10px 11px}
+  .dsh-t-val{font-size:clamp(20px,6.4vw,26px)}
+  .dsh-sm{grid-template-columns:minmax(0,1fr);gap:10px}
+  .tsc-gut{--tsc-h:clamp(150px,30vh,210px)}
+  .tsc-top{flex-direction:column;align-items:stretch}
+  .tsc-tab-wrap{max-width:100%}
+  .dsh-filtros{flex-direction:column;align-items:stretch;gap:10px}
+  .dsh-filtros>*{min-width:0}
+  /* revisão de 2026-11-07: os chips QUEBRAM em linhas (a rolagem horizontal escondia 10 de 13 indicadores sem nenhuma pista) */
+  .dsh-chips{flex-wrap:wrap;gap:6px}
+  .dsh-chips>*{flex:0 1 auto}
+  /* filtros recolhidos sob um resumo + botões numa linha: o 1º cartão de KPI aparece logo abaixo do título */
+  .dsh-filtros-m{display:flex;flex-direction:column;gap:8px}
+  .dsh-filtros-det>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:13.5px;font-weight:600;line-height:1.3;padding:6px 2px;overflow-wrap:anywhere}
+  .dsh-filtros-in{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:6px 0 2px}
+  .dsh-filtros-m .dsh-acoes{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+  .dsh-filtros-m .dsh-acoes .tsc-btn{flex:1 1 auto;padding:0 8px;font-size:12.5px;white-space:nowrap}
+  .dsh-comp label.check{min-height:44px;display:flex;align-items:center;gap:8px}
+  .dsh-minis-dica,.dsh-nota-cel{margin:2px 2px 8px;line-height:1.4}
+}
+@media (max-width:560px){
+  /* rodapé 📸: no celular cada aviso é uma linha e o "·" separador some (ele caía sozinho numa linha) */
+  .dsh-rodape{display:block}
+  .dsh-rodape>span{display:block;margin:3px 0}
+  .dsh-rodape>.dsh-sep{display:none}
+  /* a anotação ⏳ vira só o ícone (o title leva o texto): "em anda…" cortado não dizia nada */
+  .tsc-anot-tx{display:none}
+}
+@media (pointer:coarse){
+  .tsc-lg,.tsc-btn,.dsh-chip{min-height:44px;padding:0 13px}
+  .dsh-click{min-height:44px}
+}
 /* ---- fim: analises ---- */
 
 /* ---- 📱 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias) ---- */
@@ -2138,3 +2173,17 @@
   .hj-timer-stop{min-width:44px;min-height:36px}
 }
 /* ---- fim: hoje ---- */
+/* ---- 📊 Dashboard de KPIs: a tela (2026-11-07) ---- */
+@media (max-width:760px){
+  .dsh-filtros .campo{width:100%}
+  .dsh-filtros select{max-width:none;width:100%;min-height:44px;font-size:16px}
+  .dsh-acoes{margin-left:0}
+  .dsh-q-row{grid-template-columns:minmax(0,1fr) 84px;grid-template-areas:"n v" "b b";gap:4px 8px}
+  .dsh-q-n{grid-area:n} .dsh-q-v{grid-area:v} .dsh-q-b{grid-area:b}
+  .dsh-tab-wrap{max-width:100%}
+  .ct-rapida{flex-direction:column;align-items:stretch}
+}
+@media (pointer:coarse){
+  .dsh-q-row,.ct-rapida .btn{min-height:44px}
+  .dsh-glossario summary{min-height:44px;display:flex;align-items:center}
+}

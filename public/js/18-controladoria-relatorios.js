@@ -134,13 +134,29 @@ function ctPrimeiroDiaMes(off){ const h=hojeSP(); const y=+h.slice(0,4), m=+h.sl
 // Busca os worklogs do período (cache pela chave de/até) + consolidado do Jira.
 // Em erro, NÃO refaz sozinho (o botão "Tentar de novo" limpa o erro e refaz) —
 // senão o render re-dispararia o fetch em loop contra a API.
+// ⚡ 2026-11-07 (a pedido do usuário: "hoje está lento quando eu vejo por ano"): intervalo > 62 dias COM identidade = leitura rápida —
+// os meses FECHADOS vêm das fotos mensais do servidor (api/_lib/kpi.js, GET /api/config?kpis=1&gran=mes) e só o que as fotos não
+// cobrem (o mês corrente, a ponta que começa no meio do mês, até 3 meses ainda sem foto) é lido ao vivo em /api/tempo. Sem identidade,
+// intervalo curto, "🐢 ler tudo ao vivo" ou fotos indisponíveis: o caminho de sempre, intacto.
+const CT_RAPIDO_DIAS=62;          // acima disto o intervalo vai pelas fotos
+const CT_RAPIDO_AO_VIVO_MAX=3;    // meses fechados SEM foto que ainda valem a leitura ao vivo; acima disso a tela avisa e mostra o que há
+const CT_RAP_TTL_MS=10*60*1000;
+function ctDias(de,ate){ return Math.round((Date.parse(ate+'T00:00:00Z')-Date.parse(de+'T00:00:00Z'))/86400000)+1; }
+function ctRapidoQuer(ct){
+  if(ct.classico||ct.rapFalhou||!ct.de||!ct.ate) return false;
+  if(ctDias(ct.de,ct.ate)<=CT_RAPIDO_DIAS) return false;
+  return !!((typeof idApontar==='function')&&idApontar());
+}
 function ctGarante(){
   const ct=estado.ctrl;
   if(!ct.de){ ct.de=ctPrimeiroDiaMes(-2); ct.ate=hojeSP(); }   // padrão: últimos 3 meses (comparável)
   if(ct.ate<ct.de){ const x=ct.de; ct.de=ct.ate; ct.ate=x; }   // intervalo invertido: corrige
   if(ct.de<voltaDias(ct.ate,365)) ct.de=voltaDias(ct.ate,365); // teto de 1 ano (limite da API)
   const chave=ct.de+'|'+ct.ate;
-  if(ct.chaveT!==chave&&!ct.tempoB&&!ct.tempoErro){
+  if(ct._chaveRap!==chave){ ct._chaveRap=chave; ct.classico=false; ct.rapFalhou=false; ct.rapAviso=''; }   // período novo: tenta o rápido de novo
+  ct.modo=ctRapidoQuer(ct)?'fotos':'';
+  if(ct.modo==='fotos') ctGaranteRapido();
+  else if(ct.chaveT!==chave&&!ct.tempoB&&!ct.tempoErro){
     ct.tempoB=true;
     fetch(`/api/tempo?desde=${encodeURIComponent(ct.de)}&ate=${encodeURIComponent(ct.ate)}`)
       .then(r=>r.json()).then(j=>{ ct.tempoB=false;
@@ -157,13 +173,148 @@ function ctGarante(){
       if(estado.vista==='controladoria') renderControladoria(); });
   }
 }
+// O plano da leitura rápida: os meses do intervalo, quais saem inteiros das fotos (fechados e dentro do intervalo) e quais vão ao vivo.
+function ctPlanoRapido(ct){
+  const hoje=hojeSP(); const meses=[]; let ym=ct.de.slice(0,7); const fimYm=ct.ate.slice(0,7);
+  for(let g=0;g<40&&ym<=fimYm;g++){
+    const ini=ym+'-01'; const [y,m]=ym.split('-').map(Number); const fim=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
+    const cheio=ini>=ct.de&&fim<=ct.ate&&fim<hoje;
+    meses.push({ym, de:ini>ct.de?ini:ct.de, ate:fim<ct.ate?fim:ct.ate, cheio});
+    ym=new Date(Date.UTC(y,m,1)).toISOString().slice(0,7);
+  }
+  return {meses, fimYm, nReq:Math.max(1,Math.min(36,meses.length))};
+}
+// revisão de 2026-11-07: o servidor só fotografa os meses fechados até o HORIZONTE (a resposta traz `horizonteMes`; sem ele, 24 meses atrás —
+// o backfill do cron). Mês fechado SEM foto e ANTES do horizonte nunca será completado pelo servidor: a tela não pode prometer isso.
+const CT_RAPIDO_HORIZONTE_MESES=24;
+const CT_PAPEIS_FIN=['gestor','negocio','diretoria','admin'];   // a mesma régua do veTudo() do servidor (api/_lib/kpi.js): quem recebe o R$ das fotos
+function ctYmSoma(ym,n){ const [y,m]=String(ym).split('-').map(Number); return new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,7); }
+function ctYmBR(ym){ return String(ym).slice(5,7)+'/'+String(ym).slice(0,4); }
+function ctGaranteRapido(){
+  const ct=estado.ctrl; const R=ct.rap=ct.rap||{por:{},carr:{},tempo:{},tempoB:{},ver:0}; R.tempoErro=R.tempoErro||{};
+  const plano=ctPlanoRapido(ct); const kf=`${plano.nReq}|${ct.ate}`;
+  const F=R.por[kf];
+  if(!F||Date.now()-F.em>CT_RAP_TTL_MS){
+    if(R.carr[kf]) return; R.carr[kf]=true;
+    const id=idApontar()||{};
+    fetch(`/api/config?kpis=1&gran=mes&n=${plano.nReq}&ate=${encodeURIComponent(ct.ate)}`,{headers:{'x-jira-email':id.email||'','x-jira-token':id.token||''},cache:'no-store'})
+      .then(r=>r.json().catch(()=>({ok:false,erro:`Resposta inesperada do servidor (HTTP ${r.status}).`}))).then(j=>{ R.carr[kf]=false;
+        const hor=(j&&/^\d{4}-\d{2}$/.test(String(j.horizonteMes||'')))?j.horizonteMes:ctYmSoma(hojeSP().slice(0,7),-CT_RAPIDO_HORIZONTE_MESES);
+        if(!j||j.ok===false||!Array.isArray(j.itens)||!j.itens.length){
+          const todosAntes=plano.meses.filter(m=>m.cheio).length>0&&plano.meses.every(m=>!m.cheio||m.ym<hor);
+          ct.rapFalhou=true; ct.rapAviso=(!j||j.ok===false)?`Não consegui ler as fotos mensais do servidor (${humanizaErro((j&&j.erro)||'sem resposta')}) — leitura ao vivo.`
+            :todosAntes?`Este período é anterior a ${ctYmBR(hor)}, de onde o servidor guarda as fotos mensais — leitura ao vivo (mais lenta).`
+            :'O servidor ainda não tirou as fotos mensais deste período — leitura ao vivo (mais lenta). As fotos saem todo dia útil, a partir das 07:00.'; }
+        else if(!(Array.isArray(j.papeis)?j.papeis.some(p=>CT_PAPEIS_FIN.includes(p)):true)||j.itens.some(f=>f&&f.fin&&!f.fin.porCat)){
+          // revisão de 2026-11-07: perfil sem R$ recebe a foto RECORTADA (só a própria linha em porPessoa) — nunca contar isso como mês coberto
+          ct.rapFalhou=true; ct.rapAviso='Seu perfil não recebe o financeiro das fotos mensais — lendo tudo ao vivo (mais lento).'; }
+        else { R.por[kf]={itens:j.itens,em:Date.now(),pendentes:j.pendentes||0,horizonteMes:hor}; R.ver++; }
+        if(estado.vista==='controladoria') renderControladoria();
+      }).catch(e=>{ R.carr[kf]=false; ct.rapFalhou=true; ct.rapAviso=`Sem resposta do servidor nas fotos mensais (${String((e&&e.message)||e)}) — leitura ao vivo.`; if(estado.vista==='controladoria') renderControladoria(); });
+    return;
+  }
+  // o que as fotos não cobrem vai ao vivo (faixas contíguas viram UMA chamada)
+  const hor=F.horizonteMes||ctYmSoma(hojeSP().slice(0,7),-CT_RAPIDO_HORIZONTE_MESES);
+  const cobertos=new Set(F.itens.filter(f=>f&&f.fin&&f.fin.porCat&&!f.parcial).map(f=>f.chave));
+  const faltantes=plano.meses.filter(m=>m.cheio&&!cobertos.has(m.ym));
+  const fora=faltantes.filter(m=>m.ym<hor);          // antes do horizonte: o servidor NUNCA fotografa
+  const aguardando=faltantes.filter(m=>m.ym>=hor);   // dentro do horizonte: o cron ainda completa
+  // fora do horizonte só vai ao vivo por faixa contígua que cabe no limite; o que passar disso fica de fora e a faixa ⚡ diz
+  const foraVivo=new Set(); let corrida=[]; const fechaCorrida=()=>{ if(corrida.length&&corrida.length<=CT_RAPIDO_AO_VIVO_MAX) corrida.forEach(m=>foraVivo.add(m.ym)); corrida=[]; };
+  plano.meses.forEach(m=>{ if(fora.includes(m)) corrida.push(m); else fechaCorrida(); }); fechaCorrida();
+  const aguardaVivo=aguardando.length<=CT_RAPIDO_AO_VIVO_MAX;
+  const aoVivo=plano.meses.filter(m=>!m.cheio||foraVivo.has(m.ym)||(aguardaVivo&&aguardando.includes(m)));
+  const faixas=[]; aoVivo.forEach(m=>{ const u=faixas[faixas.length-1]; const dia=u?new Date(Date.parse(u.ate+'T00:00:00Z')+86400000).toISOString().slice(0,10):''; if(u&&m.de<=dia) u.ate=m.ate; else faixas.push({de:m.de,ate:m.ate}); });
+  R.faixas=faixas; R.faltam=aguardando.map(m=>m.ym); R.faltaAviso=!aguardaVivo;
+  R.horizonteMes=hor; R.foraSem=fora.filter(m=>!foraVivo.has(m.ym)).map(m=>m.ym); R.foraVivo=fora.filter(m=>foraVivo.has(m.ym)).map(m=>m.ym);
+  faixas.forEach(fx=>{ const k=fx.de+'|'+fx.ate; if(R.tempo[k]||R.tempoB[k]||R.tempoErro[k]) return; R.tempoB[k]=true;
+    // revisão de 2026-11-07: falha numa faixa ao vivo NÃO derruba a leitura rápida — guarda o erro DA FAIXA, mantém as fotos e oferece ↻ só dela
+    fetch(`/api/tempo?desde=${encodeURIComponent(fx.de)}&ate=${encodeURIComponent(fx.ate)}`).then(r=>r.json()).then(j=>{ R.tempoB[k]=false;
+      if(j&&!j.erro){ R.tempo[k]=j; delete R.tempoErro[k]; } else R.tempoErro[k]=humanizaErro((j&&j.erro)||'sem resposta');
+      R.ver++; if(estado.vista==='controladoria') renderControladoria();
+    }).catch(e=>{ R.tempoB[k]=false; R.tempoErro[k]=String((e&&e.message)||e); R.ver++; if(estado.vista==='controladoria') renderControladoria(); }); });
+}
+// ---- ⚡ monta o mesmo `d` do ctDados() a partir das fotos mensais (+ o que foi lido ao vivo) ----
+// Um tempo ao vivo (/api/tempo) vira "foto" mensal com as MESMAS regras do ctDados — assim há UM acumulador só e as duas fontes se somam.
+function ctFotosDeTempo(t){
+  const projMeta=(t&&t.projetos)||{}; const gest=ctGestoresSet((t&&t.pessoas)||{}); const custoPad=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+  const meses={}; const contratos={};
+  ((t&&t.worklogs)||[]).forEach(w=>{ if(!w||!w.a) return; const ym=String(w.d||'').slice(0,7); if(!ym) return;
+    const F=meses[ym]=meses[ym]||{v:1,gran:'mes',chave:ym,parcial:true,aoVivo:true,fin:{receita:0,custo:0,custoGest:0,semCusto:[],porCat:{},porProj:{},porPessoa:{}},_sc:new Set()};
+    const fin=F.fin; const s=Number(w.s)||0; const h=s/3600; const pm=projMeta[w.p]||{}; const cat=pm.categoria||'Sem categoria';
+    const chB=ctCustoBase(w.a); const ch=chB>0?chB:custoPad; const cu=h*ch; if(!(chB>0)) F._sc.add(w.a);
+    if(!(w.p in contratos)) contratos[w.p]=ctContratoDe(w.p); const c=contratos[w.p]; const vh=c?(Number(c.valorHora)||0):0;
+    const fa=wFat(w,cat); const rc=(fa&&vh)?h*vh:0; const eg=gest.has(w.a); const tipo=w.t||'—';
+    const K=fin.porCat[cat]=fin.porCat[cat]||{h:0,hf:0,r:0,c:0,cg:0}; K.h+=h; if(fa) K.hf+=h; K.r+=rc; K.c+=cu; if(eg) K.cg+=cu;
+    const P=fin.porProj[w.p]=fin.porProj[w.p]||{nome:pm.nome||w.p,cat,h:0,hf:0,r:0,c:0,cg:0,vh,tipos:{},pessoas:[]}; P.h+=h; if(fa) P.hf+=h; P.r+=rc; P.c+=cu; if(eg) P.cg+=cu;
+    P.tipos[tipo]=(P.tipos[tipo]||0)+h; if(!P.pessoas.includes(w.a)) P.pessoas.push(w.a);
+    const U=fin.porPessoa[w.a]=fin.porPessoa[w.a]||{nome:((t.pessoas||{})[w.a]||{}).nome||w.a,h:0,hf:0,c:0,gestor:eg}; U.h+=h; if(fa) U.hf+=h; U.c+=cu;
+    fin.receita+=rc; fin.custo+=cu; if(eg) fin.custoGest+=cu; });
+  return Object.values(meses).map(F=>{ F.fin.semCusto=[...F._sc]; delete F._sc; return F; });
+}
+function ctDadosDeFotos(fotos, tempo){
+  const ct=estado.ctrl;
+  const vivos=(Array.isArray(tempo)?tempo:(tempo?[tempo]:[])).reduce((a,t)=>a.concat(ctFotosDeTempo(t)),[]);
+  const lista=(fotos||[]).filter(f=>f&&f.fin&&f.fin.porCat).concat(vivos);
+  const projMeta={}; const pessoas={}; const gest=new Set(); const semCustoTodos=new Set();
+  const porCatAll={}; const porProjAll={}; const porPessoaAll={};
+  lista.forEach(f=>{ const ym=String(f.chave||'').slice(0,7);
+    Object.entries(f.fin.porCat||{}).forEach(([c,K])=>{ const C=porCatAll[c]=porCatAll[c]||{cat:c,seg:0,segFat:0,custo:0,rec:0,custoGest:0,projetos:new Set()};
+      C.seg+=(Number(K.h)||0)*3600; C.segFat+=(Number(K.hf)||0)*3600; C.custo+=Number(K.c)||0; C.rec+=Number(K.r)||0; C.custoGest+=Number(K.cg)||0; });
+    Object.entries(f.fin.porProj||{}).forEach(([k,p])=>{ const cat=p.cat||'Sem categoria'; projMeta[k]={nome:p.nome||k,categoria:cat};
+      const P=porProjAll[k]=porProjAll[k]||{cat,seg:0,segFat:0,custo:0,custoGest:0,rec:0,vh:0,tipos:{},pessoas:new Set(),mes:{}};
+      P.cat=cat; P.seg+=(Number(p.h)||0)*3600; P.segFat+=(Number(p.hf)||0)*3600; P.custo+=Number(p.c)||0; P.custoGest+=Number(p.cg)||0; P.rec+=Number(p.r)||0; if(Number(p.vh)>0) P.vh=Number(p.vh);
+      Object.entries(p.tipos||{}).forEach(([t,h])=>{ P.tipos[t]=(P.tipos[t]||0)+(Number(h)||0)*3600; }); (p.pessoas||[]).forEach(a=>P.pessoas.add(a));
+      const M=P.mes[ym]=P.mes[ym]||{seg:0,custo:0,rec:0}; M.seg+=(Number(p.h)||0)*3600; M.custo+=Number(p.c)||0; M.rec+=Number(p.r)||0;
+      if(porCatAll[cat]) porCatAll[cat].projetos.add(k); });
+    Object.entries(f.fin.porPessoa||{}).forEach(([a,u])=>{ pessoas[a]=pessoas[a]||{nome:u.nome||a}; if(u.gestor) gest.add(a);
+      const U=porPessoaAll[a]=porPessoaAll[a]||{seg:0,custo:0}; U.seg+=(Number(u.h)||0)*3600; U.custo+=Number(u.c)||0; });
+    (f.fin.semCusto||[]).forEach(a=>semCustoTodos.add(a)); });
+  const rc=relCtxAtivo('controladoria');
+  const cats=Object.keys(porCatAll).filter(c=>!rc||rc.siglas.includes(relSiglaDe(c))).sort((a,b)=>a.localeCompare(b,'pt'));
+  if(!ct.cat||!cats.includes(ct.cat)) ct.cat=cats[0]||'';
+  const C0=porCatAll[ct.cat]||{seg:0,segFat:0,custo:0,rec:0,custoGest:0};
+  const por={}; const porTipo={}; const porMes={}; const projMes={}; const pessoasCat=new Set(); let temContrato=false;
+  Object.entries(porProjAll).filter(([,P])=>P.cat===ct.cat).forEach(([k,P])=>{
+    por[k]={p:k,seg:P.seg,segFat:P.segFat,custo:P.custo,custoGest:P.custoGest,rec:P.rec,temC:P.vh>0,pessoas:new Set(P.pessoas),tipos:Object.assign({},P.tipos)};
+    if(P.vh>0) temContrato=true; projMes[k]=P.mes;
+    Object.entries(P.tipos).forEach(([t,sg])=>{ porTipo[t]=(porTipo[t]||0)+sg; }); P.pessoas.forEach(a=>pessoasCat.add(a));
+    Object.entries(P.mes).forEach(([ym,m])=>{ const M=porMes[ym]=porMes[ym]||{custo:0,rec:0,seg:0}; M.custo+=m.custo; M.rec+=m.rec; M.seg+=m.seg; }); });
+  const porPessoa={}; pessoasCat.forEach(a=>{ const U=porPessoaAll[a]||{seg:0,custo:0}; porPessoa[a]={a,seg:U.seg,custo:U.custo,gestor:gest.has(a)}; });   // horas/custo de TODAS as categorias (as fotos não dividem a pessoa por categoria)
+  const semCusto=new Set([...semCustoTodos].filter(a=>pessoasCat.has(a)));
+  const porCat={}; cats.forEach(c=>{ porCat[c]=porCatAll[c]; });
+  const ult=lista.reduce((m,f)=>(f.fotoEm&&!f.aoVivo&&f.fotoEm>m?f.fotoEm:m),'');
+  // revisão de 2026-11-07: foto mensal cujo Clockwork foi cortado no teto do servidor entra nos totais incompleta — a faixa ⚡ avisa (o 📊 já avisava)
+  const truncados=lista.filter(f=>!f.aoVivo&&f.truncado&&f.truncado.worklogs).map(f=>String(f.chave||'')).sort();
+  return { cats, wl:[], por, porPessoa, porTipo, porMes, semCusto, segTot:C0.seg, segFat:C0.segFat, custoTot:C0.custo, custoGest:C0.custoGest, recTot:C0.rec,
+    temContrato, projMeta, pessoas, resumos:{}, gest, porCat, modo:'fotos', projMes, pessoaGeral:true, fotoEm:ult, nFotos:lista.filter(f=>!f.aoVivo).length, truncados };
+}
+// O `d` da leitura rápida (null enquanto as fotos ou as horas ao vivo não chegaram); memorizado pela categoria e pela versão do cache.
+function ctDadosRapido(){
+  const ct=estado.ctrl; const R=ct.rap; if(!R) return null;
+  const plano=ctPlanoRapido(ct); const F=R.por[`${plano.nReq}|${ct.ate}`]; if(!F||!R.faixas) return null;
+  // faixa ao vivo com erro conta como ausente (revisão de 2026-11-07): as fotos seguem na tela e a faixa ⚡ oferece ↻ só daquela faixa
+  const tempos=[]; const lidas=[]; const faixasErro=[];
+  for(const fx of R.faixas){ const k=fx.de+'|'+fx.ate; const t=R.tempo[k]; if(t){ tempos.push(t); lidas.push(fx); } else if((R.tempoErro||{})[k]) faixasErro.push({de:fx.de,ate:fx.ate,k,msg:R.tempoErro[k]}); else return null; }
+  const chave=`${ct.cat}|${ct.de}|${ct.ate}|${R.ver}`; if(R._dk===chave&&R._d) return R._d;
+  const cheios=new Set(plano.meses.filter(m=>m.cheio).map(m=>m.ym));   // as pontas (meio de mês) e o mês corrente vêm ao vivo, nunca da foto
+  const fotos=F.itens.filter(f=>f&&cheios.has(f.chave)&&!f.parcial);
+  const d=ctDadosDeFotos(fotos, tempos); d.faltam=R.faltam||[]; d.faltaAviso=!!R.faltaAviso; d.faixas=lidas; d.faixasErro=faixasErro; d.foraSem=R.foraSem||[]; d.foraVivo=R.foraVivo||[]; d.horizonteMes=R.horizonteMes||''; d.pendentes=F.pendentes;
+  R._dk=chave; R._d=d; return d;
+}
 // Agregação da categoria ativa: por projeto, por pessoa, por tipo e por mês.
 function ctDados(){
-  const ct=estado.ctrl; const t=ct.tempo; if(!t||ct.chaveT!==(ct.de+'|'+ct.ate)) return null;
+  const ct=estado.ctrl; if(ct.modo==='fotos') return ctDadosRapido();
+  const t=ct.tempo; if(!t||ct.chaveT!==(ct.de+'|'+ct.ate)) return null;
+  return ctAgrega(t);
+}
+// `semMuta`: o chamador não quer que a categoria escolhida seja trocada (drill sob demanda sobre um trecho curto).
+function ctAgrega(t, semMuta){
+  const ct=estado.ctrl;
   const projMeta=t.projetos||{};
   const rc=relCtxAtivo('controladoria');   // 📚 R13/R26 pela Central: só as categorias dos tipos O/R do relatório
   const cats=[...new Set(Object.values(projMeta).map(x=>(x&&x.categoria)||'Sem categoria'))].filter(c=>!rc||rc.siglas.includes(relSiglaDe(c))).sort((a,b)=>a.localeCompare(b,'pt'));
-  if(!ct.cat||!cats.includes(ct.cat)) ct.cat=cats[0]||'';
+  if(!semMuta&&(!ct.cat||!cats.includes(ct.cat))) ct.cat=cats[0]||'';
   const gest=ctGestoresSet(t.pessoas||{});
   // 🧭 todas as categorias lado a lado (fase 4): horas, receita, custo e margem de cada uma (mesmas regras)
   const custoPad=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0); const contratoDe={}; const porCat={};
@@ -200,6 +351,7 @@ function ctDados(){
 // ---- 📁 Resultado do projeto (fase 4): o que as 📈 Métricas por tipo contam de um projeto, numa tela só ----
 function ctResultado(d, key){
   const ct=estado.ctrl; const custoPadrao=Math.max(0,Number((cfg.ctrl||{}).custoPadrao)||0);
+  const rapido=d.modo==='fotos';   // ⚡ sem worklogs: o total e o mês a mês saem das fotos; nível e pessoa pedem a leitura ao vivo
   const wl=d.wl.filter(w=>w.p===key);
   const contrato=ctContratoDe(key); const vh=contrato?(Number(contrato.valorHora)||0):0;
   const nivel={}; ['senior','pleno','junior',''].forEach(k=>{ nivel[k]={k,seg:0,custo:0,pessoas:new Set()}; });
@@ -209,6 +361,8 @@ function ctResultado(d, key){
     const U=porPessoa[w.a]=porPessoa[w.a]||{a:w.a,seg:0,custo:0,nivel:n,gestor:d.gest.has(w.a)}; U.seg+=s; U.custo+=cu;
     const m=(w.d||'').slice(0,7); const M=porMes[m]=porMes[m]||{seg:0,custo:0,rec:0}; M.seg+=s; M.custo+=cu; M.rec+=rc;
     seg+=s; if(fa) segFat+=s; custo+=cu; rec+=rc; if(d.gest.has(w.a)) custoGest+=cu; });
+  if(rapido){ const P=(d.por||{})[key]||{seg:0,segFat:0,custo:0,rec:0,custoGest:0}; seg=P.seg; segFat=P.segFat; custo=P.custo; rec=P.rec; custoGest=P.custoGest;
+    Object.entries((d.projMes||{})[key]||{}).forEach(([ym,m])=>{ porMes[ym]={seg:m.seg,custo:m.custo,rec:m.rec}; }); }
   const cons=((ct.proj&&ct.proj.projetos)||[]).find(x=>x.key===key)||null;
   const ficha=((estado.projetos&&estado.projetos.fichas)||{})[key]||null;
   const vendidas=contrato?ctHorasDoProjeto(contrato,key):0;   // AMS = horas do ciclo · horas abertas = o alocado a este projeto
@@ -221,7 +375,7 @@ function ctResultado(d, key){
   const plano=(typeof rpPlanos==='function')?(rpPlanos().find(x=>x&&x.projeto===key)||null):null;
   let calc=null; if(plano&&typeof rpCalc==='function'&&typeof rpCenario==='function'){ try{ calc=rpCalc(plano,rpCenario(plano)); }catch(e){ calc=null; } }
   const cat=((d.projMeta[key]||{}).categoria)||ct.cat||'';
-  return { key, cat, sigla:relSiglaDe(cat), wl, contrato, vh, nivel, porPessoa, porMes, seg, segFat, custo, rec, custoGest, cons, ficha, vendidas, gastoJira, estJira, valorVendido, custoReal, custoRealAprox, plano, calc };
+  return { key, cat, sigla:relSiglaDe(cat), semDetalhe:rapido, wl, contrato, vh, nivel, porPessoa, porMes, seg, segFat, custo, rec, custoGest, cons, ficha, vendidas, gastoJira, estJira, valorVendido, custoReal, custoRealAprox, plano, calc };
 }
 function ctResultadoHTML(d, key){
   const R=ctResultado(d,key); const ct=estado.ctrl; const nome=projNome(key);
@@ -235,7 +389,7 @@ function ctResultadoHTML(d, key){
     ${R.contrato?`<button class="btn" data-ct-contrato="${escA(R.contrato.id)}" data-tip="Editar o contrato em 📑 Contratos › 🏢 Clientes">📑 Contrato</button>`:''}
     <span class="spacer"></span><button class="btn" data-ct-res-fechar="1" data-tip="Fecha o resultado do projeto (a categoria continua)">✕ fechar</button></div>`;
   const cab=`<h2>📁 Resultado do projeto — ${esc(nome)} <span>${esc(key)} · ${esc(R.cat)} · ${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))}</span></h2>`;
-  if(!R.wl.length) return `<div class="card full ct-res" id="ct-res">${cab}${acoes}<div class="estado">Sem horas apontadas em <b>${esc(nome)}</b> entre ${esc(fmtBR(ct.de))} e ${esc(fmtBR(ct.ate))} — amplie o período nos filtros acima${R.cat!==ct.cat?` (o projeto é da categoria "${esc(R.cat)}")`:''}.</div></div>`;
+  if(!R.wl.length&&!(R.semDetalhe&&R.seg)) return `<div class="card full ct-res" id="ct-res">${cab}${acoes}<div class="estado">Sem horas apontadas em <b>${esc(nome)}</b> entre ${esc(fmtBR(ct.de))} e ${esc(fmtBR(ct.ate))} — amplie o período nos filtros acima${R.cat!==ct.cat?` (o projeto é da categoria "${esc(R.cat)}")`:''}.</div></div>`;
   const margem=R.rec-R.custo; const mgp=ctPct(margem,R.rec); const [mgRot,mgCls]=ctSemaforo(mgp);
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi t"><div class="v">${fmtH(R.seg)}</div><div class="l">Horas no período<div class="ct-kl">${ctPct(R.segFat,R.seg)==null?'—':ctPct(R.segFat,R.seg)+'%'} faturáveis</div></div></div>
@@ -246,9 +400,10 @@ function ctResultadoHTML(d, key){
   </div>`;
   const nivRows=['senior','pleno','junior',''].map(k=>R.nivel[k]).filter(N=>N.seg>0).map(N=>`<tr><td><b>${esc(nivRot[N.k])}</b></td><td class="num">${N.pessoas.size}</td><td class="num">${fmtH(N.seg)}</td><td class="num">${ctPct(N.seg,R.seg)}%</td><td class="num">${fmtBRL(N.custo)}</td><td class="num">${ctPct(N.custo,R.custo)==null?'—':ctPct(N.custo,R.custo)+'%'}</td><td class="num">${fmtBRL(N.seg?N.custo/(N.seg/3600):0)}/h</td></tr>`).join('');
   const temNivel=Object.values(R.porPessoa).some(u=>u.nivel);
-  const blNivel=`<div><div class="mp-h3">🎓 Custo por nível</div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Nível</th><th class="num">Pessoas</th><th class="num">Horas</th><th class="num">% horas</th><th class="num">Custo</th><th class="num">% custo</th><th class="num">Custo/h médio</th></tr></thead><tbody>${nivRows}</tbody></table></div>${temNivel?'':'<div class="muted small">Ninguém tem nível cadastrado ainda — em 📈 Métricas por tipo › ⚙️ Perfis (Júnior/Pleno/Sênior).</div>'}</div>`;
+  const semDet=`<div class="muted small ct-semdet">As fotos mensais não guardam as horas de cada pessoa por projeto. <button type="button" class="btn rt-step" data-ct-classico="1" data-tip="Lê todas as horas do intervalo no Clockwork e no Jira (pode levar de 10 a 60 segundos)">🐢 Ler as horas ao vivo para ver nível e pessoa</button></div>`;
+  const blNivel=R.semDetalhe?`<div><div class="mp-h3">🎓 Custo por nível</div>${semDet}</div>`:`<div><div class="mp-h3">🎓 Custo por nível</div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Nível</th><th class="num">Pessoas</th><th class="num">Horas</th><th class="num">% horas</th><th class="num">Custo</th><th class="num">% custo</th><th class="num">Custo/h médio</th></tr></thead><tbody>${nivRows}</tbody></table></div>${temNivel?'':'<div class="muted small">Ninguém tem nível cadastrado ainda — em 📈 Métricas por tipo › ⚙️ Perfis (Júnior/Pleno/Sênior).</div>'}</div>`;
   const pesAll=Object.values(R.porPessoa).sort((a,b)=>b.custo-a.custo); const pes=pesAll.slice(0,8);
-  const blPes=`<div><div class="mp-h3">👥 Custo por pessoa <span class="mp-dim">${pesAll.length} pessoa(s)${pes.length<pesAll.length?' · as 8 maiores':''} · clique para os tickets</span></div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th>Nível</th><th class="num">Horas</th><th class="num">Custo</th><th class="num">% custo</th></tr></thead><tbody>${pes.map(U=>`<tr class="ct-click" data-ct-drill="pj=${escA(key)}&a=${escA(encodeURIComponent(U.a))}" role="button" tabindex="0"><td>${esc(nomeDe(U.a))}${U.gestor?' <span class="badge" data-tip="Pessoa listada como gestora">🧑‍💼 gestão</span>':''}</td><td>${esc(nivRot[U.nivel]||'—')}</td><td class="num">${fmtH(U.seg)}</td><td class="num"><b>${fmtBRL(U.custo)}</b></td><td class="num">${ctPct(U.custo,R.custo)==null?'—':ctPct(U.custo,R.custo)+'%'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const blPes=R.semDetalhe?`<div><div class="mp-h3">👥 Custo por pessoa</div>${semDet}</div>`:`<div><div class="mp-h3">👥 Custo por pessoa <span class="mp-dim">${pesAll.length} pessoa(s)${pes.length<pesAll.length?' · as 8 maiores':''} · clique para os tickets</span></div><div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th>Nível</th><th class="num">Horas</th><th class="num">Custo</th><th class="num">% custo</th></tr></thead><tbody>${pes.map(U=>`<tr class="ct-click" data-ct-drill="pj=${escA(key)}&a=${escA(encodeURIComponent(U.a))}" role="button" tabindex="0"><td>${esc(nomeDe(U.a))}${U.gestor?' <span class="badge" data-tip="Pessoa listada como gestora">🧑‍💼 gestão</span>':''}</td><td>${esc(nivRot[U.nivel]||'—')}</td><td class="num">${fmtH(U.seg)}</td><td class="num"><b>${fmtBRL(U.custo)}</b></td><td class="num">${ctPct(U.custo,R.custo)==null?'—':ctPct(U.custo,R.custo)+'%'}</td></tr>`).join('')}</tbody></table></div></div>`;
   let vr;
   if(!R.contrato) vr='<div class="muted small">Sem contrato no Admin para este projeto — cadastre em <b>📑 Contratos › 🏢 Clientes</b> (horas contratadas e valor-hora) para comparar vendido × realizado.</div>';
   else { const c=R.contrato; const temCons=R.gastoJira!=null; const pcH=(R.vendidas&&temCons)?ctPct(R.gastoJira,R.vendidas):null;
@@ -660,11 +815,35 @@ function renderRelatorios(){
     cfg.relcat={m:{}}; salvaCfg(); toast('Matriz restaurada para o padrão.','ok'); renderRelatorios(); });
 }
 
+// ⚡ a faixa que diz de onde vêm os números: fotos do servidor (rápido), ao vivo por causa de um aviso, ou ao vivo por escolha.
+function ctFaixaHTML(d){
+  const ct=estado.ctrl; const logado=!!((typeof idApontar==='function')&&idApontar()); const longo=ct.de&&ctDias(ct.de,ct.ate)>CT_RAPIDO_DIAS;
+  if(ct.modo==='fotos'){
+    const viv=(d?d.faixas:[]).map(f=>`${fmtBR(f.de)}–${fmtBR(f.ate)}`).join(', ');
+    if(!d) return `<div class="ct-rapida" role="status"><span class="ct-rap-t">⚡ <b>Leitura rápida</b>: lendo as fotos mensais do servidor…</span></div>`;
+    const falt=(d.faltam||[]).length; const fora=(d.foraSem||[]).length; const foraV=(d.foraVivo||[]).length; const erros=d.faixasErro||[]; const trunc=d.truncados||[];
+    const hojeYm=hojeSP().slice(0,7)+'-01'; const pl=(n,u,p)=>n===1?u:p;
+    let txt=`⚡ <b>Leitura rápida</b>: ${d.nFotos} mês(es) fechado(s) pelas fotos do servidor${d.fotoEm?` (última foto ${esc(ctOdooQuando(d.fotoEm).split(' · ')[0])})`:''}${viv?`, ${esc(viv)} ao vivo`:''}`;
+    if(falt) txt+=d.faltaAviso?` · <b>${falt} meses ainda sem foto — não entraram nos números</b> (o servidor completa nos próximos dias úteis; ou leia tudo ao vivo)`:` · ${falt} mês(es) ainda sem foto, lido(s) ao vivo`;
+    if(fora) txt+=` · <b>${fora} ${pl(fora,'mês anterior a','meses anteriores a')} ${esc(ctYmBR(d.horizonteMes))} ${pl(fora,'não é fotografado','não são fotografados')} pelo servidor — números parciais</b>; use o 🐢 Ler tudo ao vivo`;
+    if(foraV) txt+=` · ${foraV} ${pl(foraV,'mês anterior a','meses anteriores a')} ${esc(ctYmBR(d.horizonteMes))} (sem foto no servidor) lido(s) ao vivo`;
+    if(trunc.length) txt+=` · <b>⚠ ${trunc.length} ${pl(trunc.length,'mês com foto truncada','meses com foto truncada')} (${esc(trunc.join(', '))})</b> — leia ao vivo para conferir`;
+    txt+=viv?`. O detalhe por pessoa e por ticket só cobre o trecho lido ao vivo (${esc(viv)}).`:'. O detalhe por pessoa e por ticket não existe nesta leitura — use o 🐢 Ler tudo ao vivo.';
+    const errosHTML=erros.map(e=>`<span class="ct-rap-t ct-rap-erro">⚠ ${e.ate>=hojeYm?'mês corrente':'trecho'} (${esc(fmtBR(e.de))}–${esc(fmtBR(e.ate))}) não lido: ${esc(e.msg)} <button type="button" class="btn" data-ct-faixa-retry="${esc(e.k)}">↻ tentar de novo</button></span>`).join('');
+    const lenta=d.faltaAviso||fora>0||erros.length>0||trunc.length>0;
+    return `<div class="ct-rapida${lenta?' lenta':''}" role="status"><span class="ct-rap-t">${txt}</span><button type="button" class="btn" data-ct-classico="1" data-tip="Lê todas as horas do intervalo no Clockwork e no Jira — mais lento (10 a 60 s), com custo por pessoa e por ticket">🐢 Ler tudo ao vivo</button>${errosHTML}</div>`;
+  }
+  if(logado&&longo&&ct.rapAviso) return `<div class="ct-rapida lenta" role="status"><span class="ct-rap-t">🐢 ${esc(ct.rapAviso)}</span><button type="button" class="btn" data-ct-rapido="1">⚡ Tentar a leitura rápida</button></div>`;
+  if(logado&&longo&&ct.classico) return `<div class="ct-rapida lenta" role="status"><span class="ct-rap-t">🐢 Leitura <b>ao vivo</b> de todo o intervalo (mais lenta, com o detalhe por pessoa e por ticket).</span><button type="button" class="btn" data-ct-rapido="1">⚡ Voltar à leitura rápida</button></div>`;
+  if(!logado&&longo) return `<div class="ct-rapida lenta" role="status"><span class="ct-rap-t">🐢 Por mais de ${CT_RAPIDO_DIAS} dias a leitura é lenta. <b>Identifique-se</b> no ⏱ Apontar e este intervalo passa a abrir em segundos, pelas fotos mensais do servidor.</span></div>`;
+  return '';
+}
 function renderControladoria(){
   const cont=document.getElementById('conteudo');
   const ct=estado.ctrl;
   ctGarante();
   const d=ctDados();
+  const faixa=ctFaixaHTML(d);
   const filtros=`<div class="ap-filtros">
     <div class="campo"><label>De</label><input type="date" id="ct-de" value="${escA(ct.de||'')}"></div>
     <div class="campo"><label>Até</label><input type="date" id="ct-ate" value="${escA(ct.ate||'')}"></div>
@@ -676,9 +855,9 @@ function renderControladoria(){
   </div>`;
   if(!d){
     cont.replaceChildren(el(`<div class="ct-tela"><div class="card full"><h2>🏦 Controladoria de Projetos <span>margem, custos e esforço por categoria de projeto</span></h2>
-      ${filtros}
+      ${filtros}${faixa}
       ${ct.tempoErro?`<div class="erro">${esc(ct.tempoErro)} <button class="btn" id="ct-retry">Tentar de novo</button></div>`
-        :'<div class="estado">Carregando as horas do período…</div>'}</div></div>`));
+        :`<div class="estado">${ct.modo==='fotos'?'Lendo as fotos mensais do servidor…':'Carregando as horas do período…'}</div>`}</div></div>`));
     return;
   }
   const S=ctBlocosDe(ct.cat);
@@ -744,7 +923,9 @@ function renderControladoria(){
       <td class="num"><b>${fmtBRL(U.custo)}</b></td>
       <td class="num">${ctPct(U.custo,d.custoTot)==null?'—':ctPct(U.custo,d.custoTot)+'%'}</td></tr>`;
   }).join('');
-  const blocoPes=S.custopes?`<div class="card full"><h2>👥 Custo por pessoa <span>quem carrega o custo da categoria — clique numa linha para os tickets da pessoa</span></h2>
+  const blocoPes=S.custopes&&d.modo==='fotos'?`<div class="card full"><h2>👥 Custo por pessoa <span>quem carrega o custo da categoria</span></h2>
+    <div class="estado">⚡ Na leitura rápida o <b>custo por pessoa dentro da categoria</b> não existe: as fotos mensais guardam as horas de cada pessoa no total, não por categoria. O custo de gestão (${fmtBRL(d.custoGest)}) é exato. Para ver cada pessoa na categoria, use um intervalo de até ${CT_RAPIDO_DIAS} dias, <button type="button" class="btn rt-step" data-ct-classico="1">🐢 leia tudo ao vivo</button> ou veja a quebra por pessoa no <button type="button" class="btn rt-step" data-goto="dashfin">📊 Dashboard de KPIs › 💰 Financeiro</button>.</div></div>`
+    :S.custopes?`<div class="card full"><h2>👥 Custo por pessoa <span>quem carrega o custo da categoria — clique numa linha para os tickets da pessoa</span></h2>
     <div class="scroll-x"><table class="mp-tab-mini"><thead><tr><th>Pessoa</th><th class="num">Horas</th><th class="num">Custo/h</th><th class="num">Custo no período</th><th class="num">% do custo</th></tr></thead>
     <tbody>${pesRows}</tbody></table></div>
     ${ctExpl(`o <b>custo de gestão</b> (${fmtBRL(d.custoGest)}) soma as horas de quem está na lista de gestores (⚙️ Configurações → Meu Planejamento — gestores). O custo/h de cada pessoa é cadastrado no <b>⚙️ desta tela</b> (gestores); quem não tem, usa o custo padrão${custoPadrao?` (${fmtBRL(custoPadrao)}/h)`:' (não definido)'}.`)}</div>`:'';
@@ -805,7 +986,7 @@ function renderControladoria(){
   </details>`:'';
   cont.replaceChildren(el(`<div class="ct-tela">
     <div class="card full"><h2>🏦 Controladoria de Projetos <span>${esc(fmtBR(ct.de))} → ${esc(fmtBR(ct.ate))} · a saúde financeira de cada categoria, explicada</span></h2>
-      ${filtros}
+      ${filtros}${faixa}
       <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="muted small">Categoria:</span>${chipsCat}</div>
       <details class="ct-cfg"><summary>❓ Como ler este relatório <span class="muted small">(para quem não vive de métricas)</span></summary>
         <div class="muted small" style="margin-top:6px;line-height:1.5">
@@ -828,8 +1009,9 @@ function renderControladoria(){
 }
 // 🔎 Drill da controladoria: tickets por trás do número, com AÇÕES.
 // qs: '' (tudo) · pj=KEY · mes=YYYY-MM · tipo=NOME · a=accountId
-function ctAbreTickets(qs){
-  const d=ctDados(); if(!d) return;
+function ctAbreTickets(qs, d0, rg){
+  const d=d0||ctDados(); if(!d) return;
+  if(d.modo==='fotos') return ctAbreTicketsRapido(qs);
   const f=new URLSearchParams(qs||'');
   const pj=f.get('pj')||'', mes=f.get('mes')||'', tipo=f.get('tipo')||'', ac=f.get('a')||'';
   const nomeDe=(a)=>((d.pessoas[a]&&d.pessoas[a].nome)||a);
@@ -853,7 +1035,7 @@ function ctAbreTickets(qs){
     <td>${esc([...x.quem].map(a=>nomeDe(a).split(' ')[0]).join(', ').slice(0,60))}</td>
     <td>${/^[A-Z]/.test(x.k)?`<button class="btn rt-step" data-gx-det="${escA(x.k)}" data-tip="Ficha completa">🔍</button>
       <button class="btn rt-step" data-gx-st="${escA(x.k)}" data-tip="Alterar o status">🔁</button>`:''}</td></tr>`).join('');
-  abreModal(`<h2>🎫 Tickets — ${esc(tit)} <span class="muted small">${lista.length} ticket(s) · ${esc(fmtBR(estado.ctrl.de))} → ${esc(fmtBR(estado.ctrl.ate))}</span></h2>
+  abreModal(`<h2>🎫 Tickets — ${esc(tit)} <span class="muted small">${lista.length} ticket(s) · ${esc(fmtBR((rg||estado.ctrl).de))} → ${esc(fmtBR((rg||estado.ctrl).ate))}</span></h2>
     <div class="scroll-x" style="max-height:56vh;overflow:auto"><table class="mp-tab-mini"><thead><tr><th>Ticket</th><th>Resumo</th><th>Tipo</th><th class="num">Horas</th><th class="num">Custo</th><th>Quem</th><th></th></tr></thead>
     <tbody>${rows||'<tr><td colspan="7" class="mp-dim">Nada aqui.</td></tr>'}</tbody></table></div>
     ${lista.length>120?`<div class="muted small" style="margin-top:4px">Mostrando os 120 maiores de ${lista.length} tickets — refine pelo drill de um projeto/mês ou abra tudo na Gestão.</div>`:''}
@@ -861,6 +1043,22 @@ function ctAbreTickets(qs){
       ${keys.length?`<button class="btn" data-ct-gestao="${escA(keys.slice(0,200).join(','))}">🛠 Abrir na Gestão (${Math.min(keys.length,200)}${keys.length>200?` de ${keys.length}`:''})</button>
       <button class="btn" data-ct-rateio="${escA(keys.slice(0,100).join(','))}">➗ Enviar para o Rateio${keys.length>100?` (100 de ${keys.length})`:''}</button>`:''}
       <button class="btn" id="gx-fechar">Fechar</button></div>`);
+}
+
+// ⚡ O drill na leitura rápida: não há worklogs em memória, então lê SÓ o trecho clicado (o mês da coluna; senão os últimos 31 dias do intervalo).
+function ctAbreTicketsRapido(qs){
+  const ct=estado.ctrl; const f=new URLSearchParams(qs||''); const mes=f.get('mes')||'';
+  let de,ate;
+  if(/^\d{4}-\d{2}$/.test(mes)){ const [y,m]=mes.split('-').map(Number); de=mes+'-01'; ate=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10); if(de<ct.de) de=ct.de; if(ate>ct.ate) ate=ct.ate; }
+  else { ate=ct.ate; de=voltaDias(ate,30); if(de<ct.de) de=ct.de; }
+  const R=ct.rap=ct.rap||{por:{},carr:{},tempo:{},tempoB:{},ver:0}; R.dr=R.dr||{}; const k=de+'|'+ate;
+  const abre=(t)=>{ const dd=ctAgrega(t,true); ctAbreTickets(qs, Object.assign(dd,{modo:''}), {de,ate}); };
+  if(R.dr[k]) return abre(R.dr[k]);
+  abreModal(`<h2>🎫 Tickets <span class="muted small">${esc(fmtBR(de))} → ${esc(fmtBR(ate))}</span></h2><div class="estado" aria-busy="true">Lendo as horas de ${esc(fmtBR(de))} a ${esc(fmtBR(ate))}…</div>${mes?'':`<div class="muted small">Na leitura rápida o detalhe por ticket vem dos últimos 31 dias do intervalo; escolha uma coluna do mês a mês para outro mês, ou 🐢 leia tudo ao vivo.</div>`}`);
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{
+    if(!j||j.erro){ abreModal(`<h2>🎫 Tickets</h2><div class="erro">${esc((j&&j.erro)||'Falha ao ler as horas.')}</div><div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+    R.dr[k]=j; if(document.getElementById('modal').hidden) return; abre(j);
+  }).catch(e=>{ abreModal(`<h2>🎫 Tickets</h2><div class="erro">${esc(String((e&&e.message)||e))}</div><div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`); });
 }
 
 // ---- Listeners delegados desta tela (#conteudo / #modal-body / document) ----
@@ -915,14 +1113,17 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(t.hasAttribute('data-ct-res')){ ct.destaque=t.getAttribute('data-ct-res'); ct.rolar=true; renderControladoria(); return; }   // 📁 resultado do projeto
   if(t.hasAttribute('data-ct-res-fechar')){ ct.destaque=''; renderControladoria(); return; }
   if(t.hasAttribute('data-ct-plano-novo')){ if(typeof projEspinhaVai==='function') projEspinhaVai('plano', t.getAttribute('data-ct-plano-novo')); return; }
-  if(t.hasAttribute('data-ct-metricas')){ const k=t.getAttribute('data-ct-metricas'); const m=estado.metricas; const s=relSiglaDe(((estado.ctrl.tempo&&estado.ctrl.tempo.projetos&&estado.ctrl.tempo.projetos[k])||{}).categoria||'');
+  if(t.hasAttribute('data-ct-metricas')){ const k=t.getAttribute('data-ct-metricas'); const m=estado.metricas; const dd=ctDados(); const s=relSiglaDe((((dd&&dd.projMeta)||{})[k]||{}).categoria||'');   // ⚡ na leitura rápida o catálogo vem das fotos, não de ct.tempo
     if(s) m.sigla=s; m.proj=k; vaiPara('metricas'); return; }
   if(t.hasAttribute('data-ct-contrato')){ estado.admin.editId=t.getAttribute('data-ct-contrato'); vaiPara('admin'); return; }
   if(t.hasAttribute('data-ct-cat')){ ct.cat=t.getAttribute('data-ct-cat'); ct.destaque=''; renderControladoria(); return; }   // destaque: projeto em foco vindo da 🦴 espinha (ficha) ou do 🧾
   if(t.hasAttribute('data-ct-per')){ const p=t.getAttribute('data-ct-per'); const h=hojeSP();
     ct.de=p==='mes'?ctPrimeiroDiaMes(0):p==='3m'?ctPrimeiroDiaMes(-2):p==='6m'?ctPrimeiroDiaMes(-5):h.slice(0,4)+'-01-01';
     ct.ate=h; renderControladoria(); return; }
-  if(t.id==='ct-retry'){ ct.tempoErro=''; ct.chaveT=''; renderControladoria(); return; }
+  if(t.id==='ct-retry'){ ct.tempoErro=''; ct.chaveT=''; ct.rapFalhou=false; ct.rapAviso=''; if(ct.rap){ ct.rap.por={}; ct.rap.tempo={}; ct.rap.tempoErro={}; ct.rap.tempoB={}; ct.rap.ver++; } renderControladoria(); return; }
+  if(t.hasAttribute('data-ct-faixa-retry')){ const k=t.getAttribute('data-ct-faixa-retry'); const R=ct.rap; if(R){ R.tempoErro=R.tempoErro||{}; delete R.tempoErro[k]; delete R.tempo[k]; delete R.tempoB[k]; R.ver++; } renderControladoria(); return; }   // ↻ só a faixa que falhou (revisão de 2026-11-07)
+  if(t.hasAttribute('data-ct-classico')){ ct.classico=true; ct.destaque=ct.destaque; renderControladoria(); return; }   // 🐢 ler tudo ao vivo
+  if(t.hasAttribute('data-ct-rapido')){ ct.classico=false; ct.rapFalhou=false; ct.rapAviso=''; if(ct.rap){ ct.rap.por={}; ct.rap.tempoErro={}; ct.rap.ver++; } renderControladoria(); return; }   // ⚡ de volta às fotos
   if(t.id==='ct-odoo-sync'){ ctOdooImporta(); return; }   // 🔗 custo/h do Odoo, agora
   if(t.hasAttribute('data-ct-odoo-voltar')){   // ↺ exceção manual → valor do Odoo
     const a=t.getAttribute('data-ct-odoo-voltar'); const od=ctOdooDe(a); if(!od) return;

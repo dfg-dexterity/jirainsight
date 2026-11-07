@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp','statusrep','portal'];
+const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp','statusrep','portal','dash','dashfin','dashhoras','dashsaude','dashtime'];
 // 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
 // favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
 const VISTA_ALIAS={
@@ -51,6 +51,10 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
+  if(estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: nomes próprios (kgran/kmeses/kcat/kproj) para não disputar o cat/proj globais
+    if(['sem','mes'].includes(p.get('kgran'))) dh.gran=p.get('kgran');
+    if([3,6,12].includes(+p.get('kmeses'))) dh.meses=+p.get('kmeses');
+    if(p.get('kcat')) dh.cat=p.get('kcat'); if(p.get('kproj')) dh.proj=(p.get('kproj')||'').toUpperCase(); }
   if(/^\d{4}-\d{2}-\d{2}$/.test(p.get('semana')||'')&&estado.semanal) estado.semanal.sel=p.get('semana');   // 📊 Relatório semanal: semana (segunda) aberta pelo link
   // 🧭 Pendências do projeto: o escopo da tela (uma chave ou várias, vindas do link/aviso) viaja em ?gproj= — nome
   // próprio para não disputar o ?proj= do filtro global (que continua descendo para _pendentesURL e sobrevive ao
@@ -99,6 +103,9 @@ function estadoParaURL(){
   if(estado.vista==='cronograma' && estado.cronograma.proj) p.set('cproj',estado.cronograma.proj);
   if(estado.vista==='statusrep' && estado.sr && estado.sr.proj) p.set('srproj',estado.sr.proj);   // 📋 Status report: projeto
   if(estado.vista==='semanal' && estado.semanal && estado.semanal.sel) p.set('semana',estado.semanal.sel);
+  if(/^dash/.test(estado.vista) && estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: só o que foge do padrão vai para o link
+    if(dh.gran!=='sem') p.set('kgran',dh.gran); if(dh.meses!==12) p.set('kmeses',String(dh.meses));
+    if(dh.cat) p.set('kcat',dh.cat); if(dh.proj) p.set('kproj',dh.proj); }
   if(estado.vista==='portal'){ const pt=estado.portal; if(pt.proj) p.set('pproj',pt.proj); if(pt.proj&&pt.sec&&pt.sec!=='projetos') p.set('psec',pt.sec); }   // 🌐 Portal do cliente
   if(estado.vista==='rateio'){ const ks=rtParse(estado.rateio.texto);
     if(ks.length&&ks.length<=30) p.set('rtk',ks.join(','));   // link compartilhável (listas curtas)
