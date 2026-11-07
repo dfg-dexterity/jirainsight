@@ -7,7 +7,7 @@
 // Configuração:
 //   TEAMS_WEBHOOK_URL  (obrigatória)  URL do webhook do canal
 //   CRON_SECRET        (opcional)     se definida, exige Authorization: Bearer <segredo>
-//                                     (OBRIGATÓRIA para o ?tipo=semanal, ?tipo=rentab e ?tipo=agenda-alerta — dados por pessoa / custo e R$)
+//                                     (OBRIGATÓRIA para o ?tipo=semanal, ?tipo=rentab, ?tipo=kpis e ?tipo=agenda-alerta — dados por pessoa / custo e R$)
 //   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude (opcional no relatório semanal)
 //   TEAMS_GESTORES_WEBHOOK_URL        canal dos gestores (cartão do relatório semanal; sem ela, não envia)
 //   TEAMS_DM_WEBHOOK_URL              fluxo de mensagem direta (pendências para cada gerente de projeto)
@@ -23,6 +23,11 @@
 // 💵 CUSTO/H DO ODOO (2026-11-06): no cron a fase `custos` roda 1× por dia útil (1º tique ≥ 06:30) e grava hr.employee.hourly_cost →
 // cfg.custosPessoa (+ a foto cfg.custosOdoo), pela mesma `sincronizaCustos` do botão ↻ da Controladoria (api/_lib/custosOdoo.js);
 // a resposta do cron traz SÓ contagens. Manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] (exige CRON_SECRET; sem dry grava).
+// 📊 FOTOS DE KPI (2026-11-07, 📊 Dashboard de KPIs em Insights): no cron a fase `kpis` roda no 1º tique ≥ KPI_HORA (07:00) de cada dia útil —
+// refaz a semana e o mês CORRENTES (parciais, UMA leitura do Clockwork) e, nos tiques seguintes do mesmo dia, as semanas/meses FECHADOS que
+// faltam (até 3 fotos por tique); formato e regras no cabeçalho de api/_lib/kpi.js. Cursor teams_estado.ultimaFotoKpi só quando a semana e o
+// mês correntes gravaram; a resposta do cron traz SÓ contagens e chaves (as fotos têm R$ por pessoa). Manual:
+// ?tipo=kpis[&dry=1][&confirmar=1][&max=N≤20][&chave=AAAA-MM-DD|AAAA-MM] (exige CRON_SECRET; sem dry grava; não carimba o agendador).
 //
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
@@ -36,6 +41,7 @@ import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comp
 import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
 import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
+import { fotosKpi, kpisPendentes, leIdsKpi, KPI_HORA, KPI_MAX_TIQUE } from './_lib/kpi.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -977,6 +983,24 @@ export default async function handler(req, res) {
       return json(res, outR.erro ? 502 : 200, outR);
     }
 
+    // ---- 📊 Fotos de KPI, chamada manual: ?tipo=kpis[&dry=1][&confirmar=1][&max=N][&chave=AAAA-MM-DD|AAAA-MM] ----
+    // O backfill rápido do Dashboard de KPIs (o cron faz 3 fotos por tique): refaz a semana/mês correntes e os períodos fechados que faltam, até
+    // `max` (1–20; padrão 3), ou só o período de `chave` (segunda-feira AAAA-MM-DD ou mês AAAA-MM). As fotos têm receita e custo por pessoa:
+    // EXIGE o CRON_SECRET (503 sem a env). Sem dry=1 GRAVA → exige &confirmar=1. Refazer é idempotente (upsert), e refazer uma semana FECHADA conserva o retrato de saúde da foto anterior; fin/horas/time são recalculados (revisão de 2026-11-07). NÃO carimba o agendador. A
+    // resposta traz só chaves e contagens — nunca o conteúdo das fotos.
+    if (String(q.tipo || '') === 'kpis') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — as fotos de KPI têm receita e custo por pessoa e só rodam com o segredo do cron (defina a env na Vercel).' });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada GRAVA as fotos de KPI (kpis_/kpim_) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      const chaveK = String(q.chave || '').trim();
+      if (chaveK && !/^\d{4}-\d{2}(-\d{2})?$/.test(chaveK)) return json(res, 400, { erro: 'chave inválida — use a segunda-feira (AAAA-MM-DD) ou o mês (AAAA-MM).' });
+      const maxK = q.max == null || q.max === '' ? KPI_MAX_TIQUE : Math.floor(Number(q.max));
+      if (!Number.isFinite(maxK) || maxK < 1 || maxK > 20) return json(res, 400, { erro: 'max inválido — use um número de 1 a 20.' });
+      let outK;
+      try { outK = await fotosKpi({ cfg: await configCompartilhada(), max: maxK, dry, chave: chaveK || undefined, corrente: true, orcamentoMs: 45000 }); }
+      catch (e) { return json(res, 400, { erro: String(e && e.message ? e.message : e).slice(0, 300) }); }
+      return json(res, (outK.falhas.length && !outK.feitas.length) ? 502 : 200, outK);
+    }
+
     // ---- 💵 Custo/h do Odoo, chamada manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] ----
     // A mesma sincronização do cron (fase `custos`) e do botão ↻ da Controladoria, na hora. Tem o custo/h por pessoa: EXIGE o
     // CRON_SECRET (503 sem a env). Sem dry=1 GRAVA cfg.custosPessoa/cfg.custosOdoo → exige &confirmar=1. NÃO carimba o agendador.
@@ -1185,6 +1209,37 @@ export default async function handler(req, res) {
               ? { feito: true, mudou: !!r.mudou, funcionarios: r.funcionarios, casados: r.casados, aplicados: r.aplicados, excecoes: (r.excecoes || []).length, semPar: (r.semPar || []).length, semCusto: (r.semCusto || []).length }
               : { feito: false, erro: String(r.erro || '').slice(0, 200) };
           } catch (e) { out.custos = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
+        }
+      }
+      // 📊 Fotos de KPI (2026-11-07): depois dos custos do Odoo (o custo/h do dia já veio). No 1º tique ≥ KPI_HORA de cada dia útil refaz a semana e
+      // o mês CORRENTES (UMA leitura do Clockwork) e, nos tiques seguintes do mesmo dia, os períodos FECHADOS que faltam (ou que só têm a foto
+      // parcial), no máximo KPI_MAX_TIQUE por tique — corrente → semanas → meses. O cursor ultimaFotoKpi só avança quando a semana E o mês
+      // correntes gravaram; enquanto houver pendência o gate libera de novo. Só CONTAGENS e chaves na resposta (R$ por pessoa fica no Supabase).
+      const gastoKp = Date.now() - t0;
+      if (!segredo) out.kpis = { feito: false, motivo: 'CRON_SECRET não configurado (a foto tem receita e custo por pessoa)' };
+      else if (semSupabase) out.kpis = { feito: false, motivo: 'Supabase não configurado (as fotos precisam dele)' };
+      else if (pesado || gastoKp > 30000) out.kpis = { feito: false, motivo: `adiado para o próximo tique (este já rodou ${pesado ? 'o resumo IA' : `${Math.round(gastoKp / 1000)} s`})` };
+      else {
+        const gk = gateHorario(KPI_HORA, agora, hoje, '');
+        if (!gk.pronto) out.kpis = { feito: false, motivo: gk.motivo, hora: KPI_HORA };
+        else {
+          try {
+            const ultKp = ult('ultimaFotoKpi'); const correnteFeita = ultKp === hoje;
+            const ex = await leIdsKpi();
+            const pend = kpisPendentes({ hoje, existentes: ex });
+            if (correnteFeita && !pend.total) out.kpis = { feito: false, motivo: `em dia (última foto: ${ultKp})`, hora: KPI_HORA };
+            else {
+              const r = await fotosKpi({ cfg, corrente: !correnteFeita, max: KPI_MAX_TIQUE, existentes: ex, orcamentoMs: Math.max(5000, 45000 - gastoKp) });
+              if (r.correnteOk) await gravaTeamsEstado({ ultimaFotoKpi: hoje }, estado);
+              out.kpis = {
+                feito: !!r.feitas.length && !r.falhas.length, corrente: !!r.correnteOk, fotos: r.feitas.length,
+                semanas: r.feitas.filter((f) => f.gran === 'sem').map((f) => f.chave), meses: r.feitas.filter((f) => f.gran === 'mes').map((f) => f.chave),
+                falhas: r.falhas, restam: r.restam, truncado: r.truncado,
+                ...(r.orcamento ? { orcamento: r.orcamento } : {}), ...(r.erro ? { erro: r.erro } : {}),
+                ...(r.restam ? { proximo: `mais ${r.restam} período(s) fechado(s) nos próximos tiques` } : {}),
+              };
+            }
+          } catch (e) { out.kpis = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
         }
       }
       return json(res, 200, out);

@@ -167,16 +167,21 @@
           <button data-v="receita" data-exata class="nav-sub" title="Bolsa de horas & projetos (Receita): consumo × contratado, projeção, receita estimada por período e a seção ⏱ Horas abertas (aba do 🛡 Apuração de contratos)">💰 Bolsa de horas & projetos</button>
           <div class="navg-sec">Resultado</div>
           <button data-v="rentab" data-exata title="Rentabilidade de projetos: o plano financeiro de cada projeto — receita por modelo, alocação, custo e margem, períodos de faturamento ligados à ordem de venda no Odoo, ⚖️ vendido × gasto, 📖 indicadores explicados e 📈 histórico"><svg class="nav-ic"><use href="#ic-receita"/></svg>💹 Rentabilidade de projetos</button>
-          <button data-v="controladoria" data-exata title="Controladoria de projetos: receita, custo e margem por categoria de projeto (com semáforo), 🧭 todas as categorias lado a lado e o 📁 Resultado do projeto (custo por nível e por pessoa, vendido × realizado)"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria de projetos</button>
         </div>
       </div>
       <div class="navg" data-area="insights">
         <button class="navg-b" id="navg-in-b" type="button" aria-haspopup="true" aria-expanded="false"><svg class="nav-ic"><use href="#ic-analise"/></svg><span class="nav-marca">Dexterity</span> Insights <span class="nav-car">▾</span></button>
         <div class="navg-menu navg-largo" role="menu">
           <div class="navg-cab">Dexterity Insights · diretoria e governança · onde está cada informação</div>
-          <div class="navg-sec">Visão executiva</div>
-          <button data-v="visao" data-exata title="Visão Geral — painel executivo: apontamento do time, saúde da entrega, alertas críticos e atividade; cada bloco leva ao detalhe (a tela inicial da diretoria)"><svg class="nav-ic"><use href="#ic-visao"/></svg>📊 Visão Geral: painel executivo</button>
-          <button data-v="resumo" data-exata class="nav-sub" title="Resumo: os KPIs do período (horas por pessoa e projeto, % faturável, uso do Jira, top projetos) e o 🧠 resumo das atividades por IA (aba do 📊 Visão Geral)">🧠 Resumo (KPIs + IA)</button>
+          <div class="navg-sec">Indicadores</div>
+          <button data-v="dash" data-exata title="Dashboard de KPIs — a linha do tempo das fotos do servidor (12 meses, semana a semana ou mês a mês): receita, margem, horas, saúde da entrega e capacidade do time, com Δ contra o período anterior. Abre no 📈 Resumo dos KPIs e em menos de 1 s"><svg class="nav-ic"><use href="#ic-analise"/></svg>📈 Dashboard de KPIs</button>
+          <button data-v="dashfin" data-exata class="nav-sub" title="Financeiro: receita, custo e margem (R$ e %) ao longo do tempo, com a quebra por categoria, projeto e pessoa (aba do 📈 Dashboard de KPIs)">💰 Financeiro</button>
+          <button data-v="dashhoras" data-exata class="nav-sub" title="Horas: realizadas × faturáveis × vendidas, % faturável e consumo do vendido, por nível e por tipo de esforço (aba do 📈 Dashboard de KPIs)">⏱ Horas: realizadas × vendidas</button>
+          <button data-v="dashsaude" data-exata class="nav-sub" title="Saúde da entrega: vencidos, bugs e parados abertos, criados × concluídos, semáforos dos projetos e execução do esforço (aba do 📈 Dashboard de KPIs)">🩺 Saúde da entrega</button>
+          <button data-v="dashtime" data-exata class="nav-sub" title="Time e capacidade: capacidade, planejado e realizado, execução e aderência ao plano semanal, por pessoa (aba do 📈 Dashboard de KPIs)">👥 Time e capacidade</button>
+          <button data-v="controladoria" data-exata title="Controladoria de projetos: receita, custo e margem por categoria de projeto (com semáforo), 🧭 todas as categorias lado a lado e o 📁 Resultado do projeto — por ano abre em segundos, pelas fotos mensais do servidor"><svg class="nav-ic"><use href="#ic-receita"/></svg>🏦 Controladoria de projetos</button>
+          <button data-v="visao" data-exata title="Visão Geral — painel executivo: a foto de HOJE, ao vivo — apontamento do time, saúde da entrega, alertas críticos e atividade; cada bloco leva ao detalhe (a tela inicial da diretoria). Para a evolução no tempo, use o 📈 Dashboard de KPIs"><svg class="nav-ic"><use href="#ic-visao"/></svg>📊 Visão Geral: painel executivo</button>
+          <button data-v="resumo" data-exata class="nav-sub" title="Resumo: os KPIs do período do topo (horas por pessoa e projeto, % faturável, uso do Jira, top projetos) + o 🧠 resumo das atividades por IA (aba do 📊 Visão Geral)">🧠 Resumo (KPIs + IA)</button>
           <div class="navg-sec">Relatórios</div>
           <button data-v="relatorios" data-exata title="Central de Relatórios: o catálogo oficial R01–R29 numa matriz relatório × tipo de projeto (essencial · recomendado), com o link para a tela que entrega cada um"><svg class="nav-ic"><use href="#ic-tickets"/></svg>📚 Central de Relatórios (R01–R29)</button>
           <button data-v="analytics" data-exata class="nav-sub" title="Analytics: 26 visões de governança — prazos, pessoas, horas, reuniões e qualidade; cada achado abre na Gestão para agir (aba da 📚 Central)">📈 Analytics (26 visões)</button>
@@ -323,6 +328,7 @@
 <script defer src="/js/17b-rentabilidade.js"></script>
 <script defer src="/js/18-controladoria-relatorios.js"></script>
 <script defer src="/js/18b-relatorio-semanal.js"></script>
+<script defer src="/js/18c-dashboard.js"></script>
 <script defer src="/js/19-mencoes-inbox-analytics.js"></script>
 <script defer src="/js/20-gestao.js"></script>
 <script defer src="/js/20b-gestao-projeto.js"></script>

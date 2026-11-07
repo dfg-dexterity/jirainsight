@@ -257,6 +257,98 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   corrigidos): exceção perdida em aba com a config atrasada, homônimos/duplicados, rota `?custos=1` sem identidade, ↺ sem
   estilo e pequeno no toque, selo dentro do label abrindo o teclado, passo do guia com o ⚙️ fechado. Desdobramentos:
   R193 (vínculo manual Jira↔Odoo), R194 (custo com vigência); R069 reescrito (nível/departamento na mesma passagem).
+- **📊 Dashboard de KPIs em Insights + 🏦 Controladoria rápida por ano (2026-11-06, a pedido do usuário: "passe essa tela
+  para os insights, crie diversas visões que possa comparar em uma linha de tempo os indicadores, gráficos e relatórios
+  modernos interativos, kpis no formato de um dashboard"; "crie menus mais claros no guia Insights"; "leve em consideração
+  desempenho: hoje está lento quando eu vejo por ano"):** decisões do usuário — a tela é a **🏦 Controladoria** (assunção
+  explícita do plano, não contestada) e ela **muda de Negócio para Insights** (`?v=controladoria` segue abrindo; NAVCAT área
+  `insights`); horizonte **12 meses, semana a semana E mês a mês**; indicadores **receita·custo·margem**, **horas realizadas ×
+  vendidas × faturáveis**, **saúde da entrega** e **time e capacidade**. **Por que era lento:** a Controladoria lia
+  `/api/tempo` (Clockwork paginado + enriquecimento de cada issue no Jira) a cada abertura, com cache de 20 min em UMA instância
+  da Vercel — um ano = dezenas de segundos. **A saída é a das 📸 fotos da Rentabilidade e do 📊 semanal: o servidor fotografa
+  os indicadores e a tela só lê a fatia.** (1) **Fotos** em `jirainsight_config` (nunca na `cfg`, nunca descem pelo GET
+  normal): `kpis_<segunda>` e `kpim_<AAAA-MM>`, formato v1 no cabeçalho de `api/_lib/kpi.js` (fonte ÚNICA do cálculo, funções
+  puras: `kpiFinanceiro`, `kpiFaturavel`, `calculaSaude`, `kpiTime`, `calculaKpiSemana`/`calculaKpiMes`) — `fin` e `horas` nas
+  duas granularidades, `saude` e `time` SÓ na semanal (o mês agrega as semanas cuja segunda cai nele e a tela diz isso);
+  horas em horas decimais, R$ com 2 casas, percentuais NÃO gravados (a tela calcula); retenção `KPIS_MAX=104` semanas e
+  `KPIM_MAX=36` meses, poda na gravação, upsert idempotente. (2) **Quem fotografa:** fase **`kpis`** do cron do `api/teams.js`
+  (1º tique ≥ `KPI_HORA`=07:00 de dia útil, **até `KPI_MAX_TIQUE`=3 fotos por tique**: semana e mês correntes — parciais, refeitos
+  todo dia, uma leitura do Clockwork para os dois —, depois as semanas fechadas sem foto (até 52) e os meses fechados (até 12);
+  cursor `teams_estado.ultimaFotoKpi` só quando a corrente gravou; a resposta do cron traz SÓ contagens — **nada de R$ por pessoa
+  em log nem no Teams**); manual `?tipo=kpis[&dry=1][&confirmar=1][&max=N≤20][&chave=]` exige `CRON_SECRET`. (3) **Quem lê:**
+  `GET /api/config?kpis=1&gran=sem|mes&n=&ate=` (identidade → 401; **recorte por papel no servidor**: gestor/negócio/diretoria/
+  admin veem tudo; os demais NÃO recebem `fin` e só a própria linha em `porPessoa`; `no-store`; devolve `pendentes` = períodos
+  sem foto) e `POST ?kpis=1 {acao:'atualizar'}` (gestor/admin refazem a semana e o mês correntes — o ↻). Sem função serverless
+  nova (limite de 12). (4) **Tela** `public/js/18c-dashboard.js` (prefixo `dsh`): 5 vistas num grupo de abas `dash` (📈 Resumo
+  dos KPIs · 💰 Financeiro · ⏱ Horas · 🩺 Saúde da entrega · 👥 Time e capacidade; o grupo/menu é "📈 Dashboard de KPIs" — o 📈
+  distingue a linha do tempo das fotos da 📊 Visão Geral ao vivo; `renderDash()` lê `estado.vista`); **`DSH_IND` é a
+  fonte ÚNICA dos indicadores** (`id, grupo, rot, un, bom, cor, tile, de, q, calc, ler`) e alimenta tiles, chips, tooltips, tabela,
+  CSV e o glossário "📖 Como ler" — indicador novo = entrada nova ali (o teste reprova tile sem `data-dsh-ind`); filtros período
+  3·6·12 meses, semana/mês, categoria, projeto, pessoa, ☐ comparar (série `ref` tracejada), ▦ tabela, 📋 copiar, 📥 CSV, ↻;
+  **unidades diferentes nunca dividem o eixo** (small multiples), `n = W × (comparar ? 2 : 1)` limitado a 104/36; URL `kgran`
+  (só `mes`), `kmeses` (só ≠ 12), `kcat`, `kproj` (nomes próprios para não disputar `cat`/`proj`); drill do ponto → 🏦
+  Controladoria com de/até do período (fin/horas), 🧭 Pendências/📈 Analytics (saúde) ou 📊 Planejamento do time (time); sem
+  identidade a tela explica e leva ao ⏱ Apontar; consultor vê horas/saúde/time sem R$ (a 💰 mostra aviso). (5) **Motor de
+  gráficos** (`07-graficos-cards.js`, `tsChart` continua compatível): colunas/empilhadas, `s.ref`, `legendToggle`, `brush` (zoom
+  arrastando, ↺), `annot`, `unidade`, `tabela` acessível, `drill`, toque move o crosshair; `dshTileHTML`; paleta categórica em
+  ordem fixa `DSH_CORES` validada com o `validate_palette.js` do guia dataviz nos 3 temas, status (`--musgo`/`--amarelo`/`--err`)
+  reservado e nunca série; CSS no `app.css` e, para o celular, no bloco do grupo analises do `mobile.css` (só dentro de `@media`).
+  (6) **🏦 Controladoria rápida** (`18-controladoria-relatorios.js`): intervalo > `CT_RAPIDO_DIAS`=62 **e** identidade →
+  `ct.modo='fotos'`: os meses fechados vêm das fotos mensais, **só o mês corrente é lido ao vivo** (`/api/tempo`, UMA chamada) e
+  `ctDadosDeFotos(fotos, tempo)` monta o MESMO `d` do `ctDados` (mais `modo`, `projMes`, `fotoEm`, `nFotos`); até
+  `CT_RAPIDO_AO_VIVO_MAX`=3 meses sem foto são lidos ao vivo, mais que isso a tela avisa; o que precisa de worklog (drill por
+  ticket, 📁 Resultado por ticket) lê SÓ o mês/trecho clicado (`ctAbreTicketsRapido`, ≤ 31 dias); o detalhe por nível/pessoa de
+  todo o intervalo fica atrás do `🐢 Ler tudo ao vivo` (`[data-ct-classico]`, ⚡ `[data-ct-rapido]` volta); sem identidade ou
+  intervalo ≤ 62 dias o caminho antigo (`ctAgrega`) segue **intacto**. (7) **Regras de dado** — as MESMAS das telas de hoje:
+  faturável = `w.f` E categoria do projeto (`CAT_FATURAVEL`, prefixo "XXX |" na falta de categoria; `kpiFaturavel` é o porte do
+  `wFat`), receita = horas faturáveis × `valorHora` do contrato (`ctContratoDe`), custo = horas × custo/h (`custosPessoa`, depois
+  `ctrl.custoPadrao`, senão `semCusto`), `vend` = `rpVendEntre` dos planos da Rentabilidade com projeto. **Gate de paridade
+  `scripts/check-kpi-paridade.mjs`** (em `npm run check`, ao lado do `check-rentab-paridade`): carrega 01 e 18 no `vm` e compara
+  `ctDados()` × `kpiFinanceiro()` em ≥ 8 fixtures, e `ctDadosDeFotos` ≡ `ctDados` nos totais — quem mudar a regra de um lado é
+  reprovado. (8) **Menu de Insights** em 3 seções (INDICADORES · RELATÓRIOS · PLANEJAMENTO E USO): 📊 Dashboard de KPIs com as 4
+  abas recuadas, 🏦 Controladoria, 📊 Visão Geral e 🧠 Resumo (recuado); a Controladoria saiu do menu de Negócio. Testes (scratchpad
+  `dash-plano/`, runner `roda.sh`, porta 8793): `kpi-servidor-test.mjs` (75, handlers reais com Jira/Clockwork/Supabase falsos),
+  `servidor-dash.mjs` (fixture: 52 semanas + 12 meses sintéticos, 2 semanas sem foto e 2 retroativas, recorte por identidade,
+  `POST /api/_dash {limpar|opc:{horizonteMes,semMeses,truncMes,xss,retroTudo,volume}|falhaFaixa}`), `dash-tela-test.mjs`
+  (Playwright, 293) e `c1-graficos-test.mjs` (24, contra `serve-demo.mjs` na 8794). **Processo:** planejado por um modelo e
+  executado por outro mais barato em 5 tarefas (T1 servidor · T2 gráficos · T3 tela+menu+Controladoria rápida · T4 testes · T5
+  documentação); plano em `dash-plano/plano-fable.md` no scratchpad. Desdobramentos no roadmap: R195 (fotos além de 24 meses e
+  exportação da série), R196 (metas por indicador e alerta no Teams), R197 (PDF e cartão do Teams), R198 (dashboard por pessoa);
+  R182 e R174 reescritos.
+  **Revisão em 3 lentes (2026-11-07; 8 achados confirmados + importantes/menores, corrigidos em 4 frentes paralelas + testes +
+  reverificação, `dash-plano/workflow-dash-fix.js`):** (a) **refoto de semana fechada** (`calculaKpiSemana`): `montaKpi` lê
+  criados/concluídos SEMPRE (`precisaTickets`), a foto refeita **conserva os campos de momento** (vencidos, bugs, parados,
+  semáforos, exec) da foto anterior e refaz criados/concluídos/saldo (`mesclaPorProj`); foto anterior com `saude.retro` NÃO vale
+  como retrato (`retratoValido`) — vale também para `?tipo=kpis&chave=<semana fechada>`; (b) **horizonte**: `KPI_MESES_BACKFILL`=24
+  (era 12 — "ano passado" nunca fechava), **1 mês fechado por tique** (`KPI_MESES_POR_TIQUE`), orçamento do tique pela duração da
+  última foto (`KPI_FOTO_PRIMEIRA_MS`=15 s), e o GET/POST `?kpis=1` devolvem **`horizonteMes`/`horizonteSem`** — a tela NUNCA copia
+  a constante; a 🏦 rápida separa `foraHorizonte` (faixas de até 3 meses vão ao vivo; mais que isso avisa "não são fotografados — use
+  o 🐢", sem prometer que o servidor completa) de `aguardando` (dentro do horizonte, "o servidor completa nos próximos dias
+  úteis"); (c) `kpisRota` responde **502** quando a `cfg` não lê (antes caía em perfil de consultor) e a trava do ↻ só arma no
+  sucesso (best-effort por instância; a proteção real é o upsert idempotente — R201); (d) **perfil sem R$ na 🏦 rápida**: `papeis`
+  sem gestor/negócio/diretoria/admin OU foto com `fin` sem `porCat` → caminho ao vivo com aviso, foto recortada NUNCA conta como
+  mês coberto (`cobertos` exige `fin.porCat`); faixa ao vivo que falha mantém as fotos (`R.tempoErro[k]`, `[data-ct-faixa-retry]`
+  relê só a faixa); foto com `truncado.worklogs` avisa (`d.truncados`); o 👥 da rápida linka `[data-goto="dashfin"]`; (e) **gate**
+  `check-kpi-paridade` com 1573 comparações: caso misto (foto de set + `/api/tempo` de out ≡ `ctDados` set+out) e
+  `ctDadosDeFotos([], tempo)` ≡ `ctAgrega` (prova `ctFotosDeTempo`); 4 mutações reprovadas de propósito; (f) **gráficos** (07):
+  `.tsc-bar{min-width:3px}` com a folga `.tsc-sp` só em barra ≥ 5 px (52×2 barras a 360 px ficavam com 0 px), small multiples com
+  2+ séries ganham legenda + `.dsh-sm-vs` por série (hero `.dsh-sm-v` = total no empilhado), readout `.flipL` nos primeiros pontos e
+  some 1,5 s após o toque, `opts.fimParcial` (último ponto vazado `.tsc-pt-oco`, segmento `.tsc-parc`, barra `.tsc-bar-parc`),
+  `vals[i].rot` no readout da série ref ("sem. 22/06–28/06"), anotação `.tsc-anot` + `.tsc-anot-tx` (escondido ≤ 560 px); (g)
+  **tela**: cache das fotos por identidade (`cache[g].idk`, `dshZeraCache` ao trocar/perder identidade, leitura em voo de outra
+  identidade descartada); 🩺 separada em **estoques** (vencidos, bugs, parados, semáforos — cores únicas 0–4) e **fluxo**
+  (`grp:'fluxo'`: Criados × Concluídos em barras lado a lado no small multiple, saldo em linha); tiles dizem "não se aplica a este
+  recorte" / "sem retrato (semana anterior ao início das fotos)" em vez de "sem foto"; quem não é gestor/negócio/diretoria/admin
+  vê o 👥 fixado na própria pessoa (`dshEuForcado`, rodapé avisa; o ⏱ segue pelo recorte); ☐ comparar some da Visão geral e o
+  rodapé diz "comparação indisponível" quando o período anterior não tem foto; quebra com texto por indicador ("no último
+  período com foto" × "somando o período") e nota "= todas as categorias"; `−0 pp` arredondado antes do sinal; CSV/📋 da Visão
+  geral exportam `dashhoras` para quem não vê R$; guias sem HTML cru (o `tour-pop` usa `esc(txt)`); celular ≤ 760 px: chips com
+  `flex-wrap`, filtros num `<details class="dsh-filtros-det">` (`estado.dash.filtrosAbertos`), comparar com 44 px, barras só das
+  últimas 26 semanas (`DSH_SEM_CEL`, com nota), rodapé um aviso por linha. **Ficou de fora (de propósito):** semanas retro
+  misturadas com normais seguem como buraco no gráfico (só "sem retrato" quando TODA a janela é retro); `ctFotosDeTempo` continua
+  uma 3ª cópia da regra (o gate a prende). O rodapé do Dashboard também lê o horizonte (`dshHorizonte(gran)`, do cache da
+  resposta): período anterior a ele é dito como "não são fotografados pelo servidor", nunca como "o servidor completa" (N80–N83).
+  Novos no roadmap: R199 (abrir sem as leituras do boot), R200 (semáforo sugerido na foto), R201 (trava do ↻ no Supabase).
 - **🧩 Hierarquia no ⏱ Apontar (2026-10-27, a pedido do usuário: "melhore a visualização dos tickets que possuem pai,
   inclusive quando possui mais de um nível; facilite a atribuição de um ticket a um épico ou história"):** o
   `/api/vencimentos` (lista e `?detalhe=`) devolve **`pais`** = `{CHAVE:{r,t,ic,n,st,pai}}` com TODOS os ancestrais
@@ -995,6 +1087,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-024 | Roadmap da solução: base no Notion sincronizada com o app (base `🗂 Roadmap da solução`, data source `bf1de04e-1690-4571-a225-c8bb79e0da03`, URL `https://app.notion.com/p/f6bcbeaa327c4fcc91b4852769cd257b`) | `400c6937-1e17-8140-9d5e-c68fa5bbd9f1` |
   | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
   | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
+  | TI-14-027 | Dashboard de KPIs em Insights: fotos semanais/mensais dos indicadores, linha do tempo e 🏦 Controladoria rápida por ano | `411c6937-1e17-8196-9b04-c38185acfaae` |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 

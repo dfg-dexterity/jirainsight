@@ -2650,10 +2650,121 @@
     box-shadow:0 10px 28px rgba(15,31,51,.32);z-index:5;min-width:118px}
   .tsc.on .tsc-read{opacity:1}
   .tsc-read.flip{transform:translateX(-100%) translateX(-12px)}
+  .tsc-read.flipL{transform:translateX(12px)}   /* nos primeiros pontos o balão abre para a direita (espelho do flip) */
   .tsc-read .h{font-weight:700;margin-bottom:5px;font-size:11.5px;color:#cfe0f5;letter-spacing:.3px}
   .tsc-read .r{display:flex;align-items:center;gap:7px;line-height:1.7}
   .tsc-read .r i{width:9px;height:9px;border-radius:2px;flex:0 0 auto}
   .tsc-read .r span{color:#b8c6da;margin-right:8px} .tsc-read .r b{margin-left:auto;font-variant-numeric:tabular-nums}
+  /* ===== 📊 Dashboard de KPIs (2026-11-07) — extensões do .tsc, small multiples e tiles =====
+     Paleta categórica em ORDEM FIXA (--dsh-1…6: cerceta · roxo · rosa · azul · âmbar · cinza do "Outros"),
+     validada com o validate_palette.js do guia de dataviz nas 3 superfícies do app (cartão claro #FFFFFF,
+     escuro #16212F, Dexterity #242424). Status (--musgo/--amarelo/--err) NUNCA é cor de série. */
+  :root{--dsh-1:#009994;--dsh-2:#6B4FD8;--dsh-3:#BE185D;--dsh-4:#2563EB;--dsh-5:#B45309;--dsh-6:var(--muted2)}
+  [data-theme="dark"]{--dsh-1:#20A9A1;--dsh-2:#8B7CF0;--dsh-3:#DB2777;--dsh-4:#3987E5;--dsh-5:#D97706}
+  [data-theme="dexterity"]{--dsh-1:#10A89F;--dsh-2:#8B7CF0;--dsh-3:#DB2777;--dsh-4:#3987E5;--dsh-5:#D97706}
+  .dsh-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  /* gráfico: topo (legenda + botões) */
+  .tsc-top{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+  .tsc-top .tsc-legend{margin-bottom:0}
+  .tsc-tools{display:flex;gap:6px;flex-wrap:wrap}
+  .tsc-btn,.tsc-lg{font-family:var(--corpo);font-size:12px;line-height:1;color:var(--muted);background:var(--cartao);border:1px solid var(--linha);border-radius:999px;padding:5px 10px;cursor:pointer}
+  .tsc-btn:hover,.tsc-lg:hover{border-color:var(--cerceta);color:var(--cerceta)}
+  .tsc-btn[aria-pressed="true"]{border-color:var(--cerceta);color:var(--cerceta);background:var(--hoverbg)}
+  .tsc-btn:focus-visible,.tsc-lg:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
+  .tsc-lg{display:inline-flex;align-items:center;gap:6px;color:var(--texto2)}
+  .tsc-lg i{margin-right:0}
+  .tsc-lg.off{opacity:.55;text-decoration:line-through}
+  .tsc-lgt{gap:6px}
+  .tsc-legend i.ln{width:14px;height:3px;border-radius:2px;vertical-align:middle}
+  .tsc-legend i.ref{width:14px;height:0;border-radius:0;border-top:2px dashed var(--muted2);background:none;vertical-align:middle}
+  /* coluna dos rótulos do eixo y FORA do traço (nada de rótulo por cima da linha no celular) */
+  .tsc-gut .tsc-in{position:absolute;left:var(--tsc-yw,44px);right:14px;top:0;bottom:0}
+  .tsc-gut .tsc-yl{width:calc(var(--tsc-yw,44px) - 8px)}
+  .tsc-gut .tsc-cross{top:var(--tsc-ct,14px);bottom:var(--tsc-cb,30px)}
+  .tsc-gut .tsc-line,.tsc-gut .tsc-grid,.tsc-gut .tsc-meta,.tsc-gut .tsc-annot,.tsc-gut .tsc-zero{vector-effect:non-scaling-stroke}
+  .tsc-zero{stroke:var(--muted2);stroke-width:1.2}
+  .tsc-ref{stroke-dasharray:5 4;stroke-dashoffset:0;animation:none}
+  .tsc-noanim .tsc-line:not(.tsc-ref){animation:none;stroke-dashoffset:0}
+  .tsc-noanim .tsc-area{animation:none;opacity:1} .tsc-noanim .tsc-bar{animation:none}
+  .tsc-svg-top{pointer-events:none}
+  .tsc-pt{position:absolute;width:7px;height:7px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+  /* período em andamento (opts.fimParcial): ponto vazado na cor da superfície e último segmento tracejado */
+  .tsc-pt-oco{width:9px;height:9px;box-sizing:border-box;background:var(--cartao);border:2px solid}
+  .tsc-parc{stroke-dasharray:4 4;stroke-dashoffset:0;animation:none}
+  /* barras: HTML por cima da grade (cantos arredondados não distorcem como num SVG esticado) */
+  .tsc-bars{position:absolute;inset:0;pointer-events:none}
+  /* revisão de 2026-11-07: barra nunca pinta menos de 3 px (52 semanas × 2 séries a 360 px davam 0 px com as bordas de folga);
+     a folga de 1+1 px entre barras só existe quando a barra tem >= 5 px (classe .tsc-sp, decidida no _tscBuild) */
+  .tsc-bar{position:absolute;box-sizing:border-box;min-width:3px;background-clip:padding-box;transform-origin:50% 100%;animation:tscGrow .5s ease both}
+  .tsc-bar.tsc-sp{border-left:1px solid transparent;border-right:1px solid transparent}
+  .tsc-bar-parc{opacity:.9}
+  .tsc-gap{border-bottom:2px solid transparent}
+  @keyframes tscGrow{from{transform:scaleY(0)}to{transform:none}}
+  .tsc-band .tsc-cross{width:var(--bw,4%);transform:translateX(-50%);background:var(--muted2)}
+  .tsc-band.on .tsc-cross{opacity:.16}
+  .tsc-read .r.tot{border-top:1px solid rgba(255,255,255,.18);margin-top:3px;padding-top:2px}
+  .tsc-read .r.tot span{margin-left:16px}
+  /* anotações e rótulo direto do último ponto */
+  .tsc-annot{stroke:var(--muted2);stroke-width:1;stroke-dasharray:3 3;opacity:.85}
+  .tsc-an{position:absolute;transform:translateX(4px);font-size:10.5px;line-height:12px;color:var(--muted);background:var(--cartao);padding:0 3px;border-radius:3px;white-space:nowrap;pointer-events:none;max-width:34%;overflow:hidden;text-overflow:ellipsis}
+  .tsc-anot-tx{display:inline}   /* a frente do celular (mobile.css, < 560 px) esconde só o texto e deixa o ícone */
+  .tsc-an.flip{transform:translateX(calc(-100% - 4px))}
+  .tsc-end{position:absolute;transform:translate(-100%,-135%);font-size:11px;font-weight:700;line-height:14px;font-variant-numeric:tabular-nums;color:var(--grafite);background:var(--cartao);border-left:3px solid;padding:0 4px;border-radius:2px;pointer-events:none;white-space:nowrap}
+  /* zoom (brush) */
+  .tsc-brushable .tsc-plot{cursor:crosshair;user-select:none;-webkit-user-select:none;touch-action:pan-y}
+  .tsc-brushsel{position:absolute;top:0;bottom:0;display:none;background:rgba(0,153,148,.15);border-left:1px solid var(--cerceta);border-right:1px solid var(--cerceta);pointer-events:none}
+  /* tabela: sempre no DOM (leitor de tela), à vista só com o ▦ */
+  .tsc-tab-wrap{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .tsc-taboon .tsc-tab-wrap{position:static;width:auto;height:auto;clip-path:none;overflow:auto;max-height:340px}
+  .tsc-taboon .tsc-plot{display:none}
+  .tsc-tab{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  .tsc-tab th,.tsc-tab td{padding:5px 8px;border-bottom:1px solid var(--linha2);text-align:right;white-space:nowrap}
+  .tsc-tab thead th{position:sticky;top:0;background:var(--cartao2);color:var(--muted);font-weight:700}
+  .tsc-tab tbody th{text-align:left;font-weight:600;color:var(--texto2)} .tsc-tab thead th:first-child{text-align:left}
+  /* barra de filtros e chips de indicador (usados por 18c) */
+  .dsh-filtros{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px}
+  .dsh-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .dsh-chip{font-family:var(--corpo);font-size:12.5px;line-height:1.1;color:var(--texto2);background:var(--cartao);border:1px solid var(--linha);border-radius:999px;padding:6px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .dsh-chip i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .dsh-chip:hover{border-color:var(--cerceta)} .dsh-chip[aria-pressed="true"]{border-color:var(--cerceta);background:var(--hoverbg);color:var(--grafite);font-weight:600}
+  .dsh-chip:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
+  /* small multiples: uma unidade por gráfico, mesmo eixo x */
+  .dsh-sm{display:grid;grid-template-columns:repeat(var(--dsh-cols,2),minmax(0,1fr));gap:14px;margin-bottom:16px}
+  .dsh-sm-c{min-width:0;background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:11px 12px 8px;box-shadow:var(--sombra)}
+  .dsh-sm-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+  .dsh-sm-n{display:flex;align-items:center;gap:6px;min-width:0;font-size:12px;font-weight:700;color:var(--texto2)}
+  .dsh-sm-n i{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+  .dsh-sm-v{font-family:var(--titulo);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dsh-sm-vals{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;gap:2px 10px;min-width:0}
+  .dsh-sm-vs{display:inline-flex;align-items:center;gap:5px;font-family:var(--titulo);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dsh-sm-vs i{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+  .dsh-sm-nota{font-size:11px;color:var(--muted);margin-top:4px}
+  @media (max-width:1100px){ .dsh-sm{grid-template-columns:repeat(min(var(--dsh-cols,2),2),minmax(0,1fr))} }
+  /* tiles de KPI */
+  .dsh-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+  @media (max-width:1180px){ .dsh-tiles{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  .dsh-tile{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;background:var(--cartao);border:1px solid var(--linha);border-radius:10px;padding:13px 14px 12px;box-shadow:var(--sombra);text-align:left;color:var(--grafite);font-family:var(--corpo)}
+  .dsh-tile.st-ok{border-left:4px solid var(--musgo)} .dsh-tile.st-warn{border-left:4px solid var(--amarelo)} .dsh-tile.st-err{border-left:4px solid var(--err)} .dsh-tile.st-nd{border-left:4px solid var(--muted2)}
+  .dsh-click{cursor:pointer;transition:transform .12s ease,border-color .12s ease}
+  .dsh-click:hover{border-color:var(--cerceta);transform:translateY(-1px)}
+  .dsh-click:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
+  .dsh-t-rot{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+  .dsh-t-val{font-family:var(--titulo);font-size:clamp(24px,2.2vw,34px);font-weight:700;line-height:1.1;letter-spacing:.3px;overflow-wrap:anywhere}
+  .dsh-t-d{font-size:12px;font-weight:600;color:var(--muted)}
+  .dsh-t-d.bom{color:var(--musgo)} .dsh-t-d.ruim{color:var(--err)}
+  .dsh-t-vs{font-weight:400;color:var(--muted)}
+  .dsh-t-parc{cursor:help}
+  .dsh-t-spark{position:relative;height:30px;margin:5px 4px 2px 2px}
+  .dsh-t-spark svg{display:block;width:100%;height:100%;overflow:visible}
+  .dsh-t-sp{stroke:var(--dsh-1);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .dsh-t-spp{stroke-dasharray:3 3}
+  .dsh-t-dot{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--dsh-1);transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--cartao)}
+  .dsh-t-st{align-self:flex-start;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid currentColor;margin-top:3px}
+  .dsh-t-st.ok{color:var(--musgo)} .dsh-t-st.warn{color:var(--amarelo)} .dsh-t-st.err{color:var(--err)} .dsh-t-st.nd{color:var(--muted)}
+  .dsh-t-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  [data-theme="dexterity"] .dsh-tile,[data-theme="dexterity"] .dsh-sm-c{border-radius:2px;box-shadow:none}
+  @media (prefers-reduced-motion:reduce){ .tsc-bar{animation:none} .dsh-click{transition:none} }
+  @media print{ .tsc-bar{animation:none} .tsc-top .tsc-tools{display:none} }
   /* Treemap interativo */
   .tm{width:100%}
   .tm-svg{width:100%;height:auto;display:block;max-height:clamp(300px,42vh,460px)}
@@ -3549,3 +3660,50 @@
   [data-theme="dark"] .hj-lt-lac{color:#6EE7B7;background:rgba(16,185,129,.12)} [data-theme="dark"] .hj-lt-lac:hover{background:rgba(16,185,129,.22)}
   [data-theme="dark"] .hj-lt-wl{background:#34D399}
   [data-theme="dark"] .hj-kpi.aten{border-color:#F59E0B} [data-theme="dark"] .hj-kpi.ok{border-color:#34D399}
+
+  /* ===== 📊 Dashboard de KPIs — a tela (18c, 2026-11-07) e a ⚡ leitura rápida da 🏦 Controladoria ===== */
+  .dsh-tela{display:flex;flex-direction:column;gap:14px}
+  .dsh-filtros .campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .dsh-filtros .campo>label{font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted)}
+  .dsh-filtros select{font-family:var(--corpo);font-size:13px;padding:7px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);min-width:150px;max-width:260px}
+  .dsh-filtros select:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
+  .dsh-filtros .dsh-comp{justify-content:flex-end}
+  .dsh-filtros .dsh-comp label.check{font-size:13px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--texto2);display:inline-flex;align-items:center;gap:6px}
+  .dsh-acoes{flex-direction:row!important;flex-wrap:wrap;gap:6px!important;align-items:center;margin-left:auto}
+  .dsh-ativos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-4px 0 10px}
+  .dsh-aviso{margin-top:8px;font-size:13px}
+  .dsh-h3{margin:0 0 8px;font-family:var(--titulo);font-size:15px}
+  .dsh-chips-nota{margin:6px 0 10px}
+  .dsh-graf{min-width:0}
+  .dsh-sm-titulo{margin:12px 0 6px}
+  .dsh-minis{margin-bottom:0}
+  .dsh-mini .tsc{margin-top:2px}
+  .dsh-tab-wrap{margin:8px 0 12px;max-height:340px;overflow:auto}
+  .dsh-tabela tbody th{white-space:nowrap}
+  .dsh-vazio .estado{line-height:1.5}
+  .dsh-quebra .dsh-chips{margin:6px 0 8px}
+  .dsh-q-ind{margin-bottom:8px}
+  .dsh-q{display:flex;flex-direction:column;gap:3px}
+  .dsh-q-row{display:grid;grid-template-columns:minmax(120px,28%) minmax(0,1fr) 92px;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;font-size:12.5px;color:var(--texto2);background:none;border:1px solid transparent;border-radius:8px;padding:5px 8px}
+  button.dsh-q-row{cursor:pointer}
+  button.dsh-q-row:hover{background:var(--hoverbg);border-color:var(--linha)}
+  button.dsh-q-row:focus-visible{outline:2px solid var(--cerceta);outline-offset:1px}
+  .dsh-q-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dsh-q-b{height:12px;background:var(--cartao2);border-radius:6px;overflow:hidden}
+  .dsh-q-b i{display:block;height:100%;background:var(--dsh-1);border-radius:6px;min-width:2px}
+  .dsh-q-b i.neg{background:var(--err)}
+  .dsh-q-v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dsh-glossario{padding:10px 14px}
+  .dsh-glossario summary{cursor:pointer;font-weight:700;font-size:13px}
+  .dsh-glossario dl{margin:10px 0 0;display:grid;gap:8px}
+  .dsh-glossario dt{font-weight:700;font-size:13px}
+  .dsh-glossario dd{margin:2px 0 0;font-size:12.5px;line-height:1.45;color:var(--texto2)}
+  .dsh-rodape{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:12px;color:var(--muted);padding:10px 14px}
+  .dsh-sep{color:var(--muted2)}
+  /* 🏦 Controladoria em Insights: a faixa da leitura rápida (fotos mensais do servidor) */
+  .ct-rapida{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;border-radius:8px;border-left:4px solid var(--cerceta);background:var(--hoverbg);font-size:12.5px;line-height:1.45}
+  .ct-rapida.lenta{border-left-color:var(--amarelo)}
+  .ct-rapida .btn{padding:4px 10px}
+  .ct-rapida .ct-rap-t{flex:1 1 320px;min-width:0}
+  [data-theme="dexterity"] .ct-rapida{border-radius:2px}
+  @media print{ .dsh-filtros,.dsh-acoes,.dsh-glossario{display:none} }
