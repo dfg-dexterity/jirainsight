@@ -23,6 +23,8 @@
 //                                           x-jira-token) — o accountId é resolvido no
 //                                           servidor, nunca confiado do corpo.
 //
+// GET/POST /api/config?push=1            -> 🔔 Web Push do iPad/celular (2026-11-09): inscrever · cancelar · prefs · testar, da PRÓPRIA pessoa
+//                                           (linha `push_<accountId>`; formato no bloco pushRota abaixo). Sem função nova.
 // POST /api/config?dia=1                 -> 📆 Hoje (planejamento do DIA de cada pessoa, 2026-10-21):
 //                                           ler {de, ate} · salvar {d, dia, base} (trava otimista) ·
 //                                           time {d} (só gestor). Uma linha por pessoa e dia nesta mesma
@@ -70,6 +72,8 @@ import {
 } from './_lib/util.js';
 import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida, meusProjetos } from './_lib/semanal.js';
 import { sincronizaCustos } from './_lib/custosOdoo.js';
+import { notificaPessoas } from './_lib/notifica.js';
+import { pushEnviaPara, pushLe, pushInscreve, pushCancela, pushPrefs, pushConfigurado, pushChavePublica, pushIdDe } from './_lib/push.js';
 import { leKpis, recorteKpi, kpiChaves, kpiChaveDe, kpiHorizonte, fotosKpi, KPIS_MAX, KPIM_MAX } from './_lib/kpi.js';
 import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
 import {
@@ -419,7 +423,30 @@ async function planejamento(req, res, base, headers) {
       status_anterior: 'enviado', status_novo: campos.status, executado_por: quemStr,
       executado_em: agora, comentario, snapshot: { total: Number(p.total_planejado) || 0, itens },
     });
-    return json(res, 200, { ok: true, plano: planPublico(upd, itens) });
+    // 🔔 Avisa o DONO do plano (Teams DM, se houver TEAMS_DM_WEBHOOK_URL, + Web Push do iPad). Nunca derruba a decisão: aguarda o aviso com teto
+    // de 6 s (o Teams tem 4,5 s e o push 4 s, em paralelo) e DIZ o resultado na resposta — a função da Vercel congela ao responder, então
+    // um aviso deixado para trás se perderia em silêncio. O texto não leva o motivo da devolução (tela bloqueada); só contagens, sem nomes.
+    let aviso = { teams: null, push: null, tempoEsgotado: false };
+    try {
+      const seg = String(p.semana_inicio || '').slice(0, 10);
+      const dd = `${seg.slice(8, 10)}/${seg.slice(5, 7)}`;
+      const ok = decisao === 'aprovar';
+      const corpo = ok ? `Seu plano da semana ${dd} foi aprovado` : `Seu plano da semana ${dd} foi devolvido — veja o motivo`;
+      const link = `/?v=minhasemana&w=${encodeURIComponent(seg)}`;
+      const envio = notificaPessoas([{ accountId: p.account_id, nome: p.usuario_nome || '', email: p.usuario_email || '' }], () => ({
+        titulo: ok ? '✅ Plano da semana aprovado' : '↩ Plano da semana devolvido',
+        texto: `${corpo}. [Abrir o plano](https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}${link})`,
+      }), { tipo: 'plano', push: () => ({ titulo: ok ? '✅ Plano aprovado' : '↩ Plano devolvido', corpo, url: link, tag: `plano-${seg}` }) });
+      envio.catch(() => {});   // se perder a corrida, a rejeição tardia não vira erro solto
+      const r = await Promise.race([envio, new Promise((res2) => setTimeout(() => res2(null), 6000))]);
+      if (r) aviso = {
+        teams: r.teams ? { enviados: r.teams.enviados || 0, total: r.teams.total || 0, falhas: (r.teams.falhas || []).length, semEmail: (r.teams.semEmail || []).length } : null,
+        push: r.push ? { enviados: r.push.enviados || 0, pessoas: r.push.pessoas || 0, semInscricao: r.push.semInscricao || 0, falhas: r.push.falhas || 0 } : null,
+        tempoEsgotado: false,
+      };
+      else aviso.tempoEsgotado = true;
+    } catch (e) { aviso.erro = true; /* o aviso é cortesia: a decisão já foi gravada */ }
+    return json(res, 200, { ok: true, plano: planPublico(upd, itens), aviso });
   }
 
   return json(res, 400, { ok: false, erro: 'Ação desconhecida.' });
@@ -1557,6 +1584,80 @@ async function kpisRota(req, res, base, headers) {
   });
 }
 
+// ============================================================================
+// 🔔 Web Push (2026-11-09, camada iPad) — /api/config?push=1
+//   GET  [&e=<sha256(endpoint).slice(0,16)>] -> { ok, configurado, chave, inscrito, n, prefs, podeSexta }   (+ motivo quando faltam as envs VAPID)
+//   POST {acao:'inscrever', sub:{endpoint,keys:{p256dh,auth}}, ua} -> { ok, id, n, prefs }
+//        {acao:'cancelar', endpoint} -> { ok, n }   ·  {acao:'prefs', prefs:{convites,reunioes,sexta,plano}} -> { ok, prefs }
+//        {acao:'testar'} -> { ok, enviados }  (1 por minuto por pessoa, em memória; só as inscrições da PRÓPRIA pessoa)
+// Identidade pelo Jira (planAuth); 401 sem ela; 503 + motivo sem VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY. Nunca devolve endpoint (nem de outra pessoa:
+// o GET só diz se o `e` pedido está entre as inscrições da própria pessoa). As inscrições moram em `push_<accountId>` (api/_lib/push.js).
+const PUSH_MOTIVO = 'Notificações não configuradas no servidor (faltam VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY na Vercel).';
+const _pushTeste = new Map();   // accountId -> instante do último teste (best-effort por instância)
+async function pushRota(req, res, base, headers) {
+  res.setHeader('Cache-Control', 'no-store');
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const acc = String(quem.accountId || '');
+  if (!acc) return json(res, 401, { ok: false, erro: 'Sem accountId no Jira.' });
+  const sb = { base, headers };
+  const configurado = pushConfigurado();
+  if (req.method === 'POST') {
+    if (!configurado) return json(res, 503, { ok: false, configurado: false, motivo: PUSH_MOTIVO, erro: PUSH_MOTIVO });
+    const b = await lerBody(req);
+    const acao = String((b && b.acao) || '');
+    try {
+      if (acao === 'inscrever') {
+        const ua = String(b.ua || (req.headers && req.headers['user-agent']) || '');
+        const d = await pushInscreve(acc, b.sub, ua, b.prefs, sb);
+        return json(res, 200, { ok: true, id: pushIdDe(b.sub.endpoint), n: d.subs.length, prefs: d.prefs });
+      }
+      if (acao === 'cancelar') {
+        const d = await pushCancela(acc, String((b && b.endpoint) || ''), sb);
+        return json(res, 200, { ok: true, n: d.subs.length });
+      }
+      if (acao === 'prefs') {
+        const d = await pushPrefs(acc, b.prefs, sb);
+        return json(res, 200, { ok: true, prefs: d.prefs });
+      }
+      if (acao === 'testar') {
+        const ult = _pushTeste.get(acc) || 0;
+        if (Date.now() - ult < 60000) return json(res, 429, { ok: false, erro: 'Um teste por minuto — aguarde um instante.' });
+        const d = await pushLe(acc, sb);
+        if (!d.subs.length) return json(res, 200, { ok: false, enviados: 0, erro: 'Nenhuma inscrição neste usuário — ative as notificações primeiro.' });
+        _pushTeste.set(acc, Date.now());
+        if (_pushTeste.size > 500) for (const k of _pushTeste.keys()) { _pushTeste.delete(k); if (_pushTeste.size <= 250) break; }
+        // o teste ignora as preferências (tipo fora da lista) e vai só para a própria pessoa
+        const r = await pushEnviaPara([{ accountId: acc }], { titulo: '🔔 Notificações ativas', corpo: 'Notificações ativas neste iPad', url: '/', tag: 'teste' }, { tipo: 'teste', sb });
+        return json(res, 200, { ok: r.enviados > 0, enviados: r.enviados, ...(r.enviados ? {} : { erro: 'O envio de teste não chegou ao serviço de push — tente reativar as notificações.' }) });
+      }
+    } catch (e) {
+      const st = Number(e && e.status) || 500;
+      return json(res, st, { ok: false, erro: String(e && e.message ? e.message : e).slice(0, 200) });
+    }
+    return json(res, 400, { ok: false, erro: 'Ação desconhecida — use inscrever, cancelar, prefs ou testar.' });
+  }
+  if (req.method !== 'GET') return json(res, 405, { ok: false, erro: 'Use GET ou POST' });
+  let d;
+  try { d = await pushLe(acc, sb); } catch (e) { return json(res, 502, { ok: false, erro: 'Não consegui ler as suas notificações — tente de novo.' }); }
+  // podeSexta: gestor/admin (papeisDe) ou gerente de algum projeto (cfg.projGerentes). A config que não lê só esconde a categoria.
+  let podeSexta = false;
+  try {
+    const rc = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+    if (rc.ok) {
+      const rows = await rc.json();
+      const cfg = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+      const ps = papeisDe(cfg, quem);
+      podeSexta = ps.includes('gestor') || ps.includes('admin') || meusProjetos(cfg, acc, quem.email).length > 0;
+    }
+  } catch (e) { /* segue sem a categoria */ }
+  const e = String((req.query && req.query.e) || '').trim().toLowerCase();
+  return json(res, 200, {
+    ok: true, configurado, ...(configurado ? { chave: pushChavePublica() } : { motivo: PUSH_MOTIVO }),
+    inscrito: /^[0-9a-f]{16}$/.test(e) ? d.subs.some((s) => s.id === e) : false, n: d.subs.length, prefs: d.prefs, podeSexta,
+  });
+}
+
 export default async function handler(req, res) {
   if (hostEhPortal(req) && !(req.query && (req.query.pcli || req.query.portal))) {
     res.setHeader('Cache-Control', 'no-store');
@@ -1615,6 +1716,9 @@ export default async function handler(req, res) {
 
     // 📊 Dashboard de KPIs: as fotos semanais/mensais recortadas pelo papel (GET) e o ↻ atualizar agora (POST, gestor/admin).
     if (req.query && req.query.kpis) return await kpisRota(req, res, base, headers);
+
+    // 🔔 Web Push (iPad): inscrição, preferências e teste da PRÓPRIA pessoa (GET/POST, identidade obrigatória).
+    if (req.query && req.query.push) return await pushRota(req, res, base, headers);
 
     // 📸 Histórico da Rentabilidade: a fatia de um plano nas fotos diárias/semanais (GET, com identidade).
     if (req.query && req.query.rentabhist) return await rentabHistLe(req, res, base, headers);

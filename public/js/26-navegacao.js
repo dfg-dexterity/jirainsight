@@ -9,6 +9,7 @@
 // falha vira um cartão com o motivo, ↻ tentar de novo e 🏠 Início; o erro continua indo ao console (e o 🐞 Reportar o
 // leva), e é relançado fora da pilha para não sumir dos testes (pageerror).
 function render(){
+  try{ navEntra(estado.vista); }catch(e){}   // 🍎 pilha ‹ › do modo instalado: empilha quando a vista MUDA (re-render da mesma vista não conta)
   try{ return renderVista(); }
   catch(e){ try{ console.error('[render]', estado.vista, e); }catch(_){} telaComErro(e); setTimeout(()=>{ throw e; },0); }
 }
@@ -198,7 +199,7 @@ function fechaMenusNav(){ document.querySelectorAll('#seg-vista .navg.open').for
 // Só no computador — na gaveta do celular o menu é um acordeão e quem rola é a gaveta.
 function navMenuAltura(g){
   const m=g&&g.querySelector('.navg-menu'); if(!m) return; m.style.maxHeight=''; m.style.left=''; m.style.right='';
-  if(window.matchMedia&&window.matchMedia('(max-width:760px)').matches) return;
+  if(navModo()!=='barra') return;   // gaveta e barra lateral são acordeões no fluxo: quem rola é a gaveta/lateral, não o menu
   // 2026-11-05: o grupo no canto direito da barra (Dexterity Insights) abria o menu para fora da tela — passando da borda,
   // o menu se alinha pela direita do botão.
   const r0=m.getBoundingClientRect(); if(r0.right>window.innerWidth-8){ m.style.left='auto'; m.style.right='0'; }
@@ -512,3 +513,79 @@ document.addEventListener('keydown',(e)=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); abrePaleta(); }
 });
 setTimeout(renderNavFavs,0);   // adiado: VISTAS (usada na validação) é declarada mais abaixo
+
+// ======================================================================================
+// 🍎 CAMADA iPad (2026-11-09, T1): modo de navegação, barra lateral recolhível e pilha ‹ › (public/css/ipad.css).
+// navModo() é o PREDICADO ÚNICO do "como o menu se apresenta": 'gaveta' (≤760 ou tablet de toque em pé, < 1024),
+// 'lateral' (toque ≥ 1024: o iPad em paisagem ou o 12,9" em pé — barra à esquerda) ou 'barra' (computador com mouse).
+// As MESMAS queries moram no ipad.css; trocar de faixa ao vivo (girar, Split View) fecha menus e refaz o modo sem recarregar.
+const NAV_LATERAL_KEY='jirainsight_nav_lateral_v1';
+function navMq(q){ try{ return !!(window.matchMedia&&window.matchMedia(q).matches); }catch(e){ return false; } }
+function navModo(){
+  if(navMq('(max-width:760px)')) return 'gaveta';
+  if(navMq('(hover:none) and (pointer:coarse)')) return navMq('(min-width:1024px)')?'lateral':'gaveta';
+  return 'barra';
+}
+function navLateralRecolhida(){ try{ return localStorage.getItem(NAV_LATERAL_KEY)==='0'; }catch(e){ return false; } }   // padrão: expandida
+// Reflete o modo no <body> (body.nav-lateral, body.nav-recolhida) e no botão ☰ — na lateral ele recolhe/expande a barra.
+function navModoAplica(){
+  const b=document.body; if(!b) return; const modo=navModo();
+  b.classList.toggle('nav-lateral', modo==='lateral');
+  b.classList.toggle('nav-recolhida', modo==='lateral'&&navLateralRecolhida());
+  const t=document.getElementById('nav-toggle'); if(!t) return;
+  const lab=t.querySelector('.nt-label');   // o rótulo visível acompanha o aria-label (Recolher / Menu)
+  if(modo==='lateral'){ const aberta=!b.classList.contains('nav-recolhida');
+    t.setAttribute('aria-expanded', aberta?'true':'false'); t.setAttribute('aria-label', aberta?'Recolher a barra lateral':'Expandir a barra lateral');
+    if(lab) lab.textContent=aberta?'Recolher':'Menu'; }
+  else { const s=document.getElementById('seg-vista'); t.setAttribute('aria-expanded', s&&s.classList.contains('nav-aberto')?'true':'false'); t.setAttribute('aria-label','Abrir menu de navegação');
+    if(lab) lab.textContent='Menu'; }
+}
+// Recolhe/expande a barra lateral (só no modo lateral) e lembra a escolha neste navegador.
+function navLateralToggle(){
+  if(navModo()!=='lateral') return false;
+  const recolher=!document.body.classList.contains('nav-recolhida');
+  try{ localStorage.setItem(NAV_LATERAL_KEY, recolher?'0':'1'); }catch(e){}
+  fechaMenusNav(); navModoAplica(); return true;
+}
+function navModoMudou(){ fechaMenusNav(); if(typeof fechaDrawer==='function') fechaDrawer(); if(typeof fechaMenusHdr==='function') fechaMenusHdr(); navModoAplica(); }
+['(max-width:760px)','(hover:none) and (pointer:coarse) and (min-width:1024px)','(hover:none) and (pointer:coarse)'].forEach(q=>{
+  try{ const m=window.matchMedia(q); if(m.addEventListener) m.addEventListener('change', navModoMudou); else if(m.addListener) m.addListener(navModoMudou); }catch(e){} });
+navModoAplica();
+// ---- 🍎 Pilha de navegação (‹ voltar · avançar ›): no app instalado o Safari some e a URL só usa replaceState. render()
+// chama navEntra(vista) a cada desenho; só empilha quando a vista MUDA. navVolta/navAvanca navegam SEM empilhar. ----
+estado.nav=estado.nav||{ pilha:[], pos:-1 };
+const NAV_PILHA_MAX=50;
+function navEntra(v){
+  const n=estado.nav; if(!n||!v||n.indo) return;
+  if(n.pilha[n.pos]===v) return;
+  n.pilha=n.pilha.slice(0,n.pos+1); n.pilha.push(v);
+  if(n.pilha.length>NAV_PILHA_MAX) n.pilha.shift();
+  n.pos=n.pilha.length-1; navHistAtualiza();
+}
+function navVai(i){
+  const n=estado.nav; if(!n||i<0||i>=n.pilha.length||i===n.pos) return false;
+  n.pos=i; n.indo=true; try{ vaiPara(n.pilha[i]); } finally { n.indo=false; }
+  navHistAtualiza(); return true;
+}
+function navVolta(){ return navVai(estado.nav.pos-1); }
+function navAvanca(){ return navVai(estado.nav.pos+1); }
+function navHistAtualiza(){
+  const n=estado.nav; const vo=document.getElementById('nav-voltar'), av=document.getElementById('nav-avancar');
+  if(vo) vo.disabled=!(n.pos>0); if(av) av.disabled=!(n.pos<n.pilha.length-1);
+}
+document.addEventListener('click',(e)=>{
+  const t=e.target.closest&&e.target.closest('#nav-voltar,#nav-avancar'); if(!t||t.disabled) return;
+  if(t.id==='nav-voltar') navVolta(); else navAvanca(); });
+// Teclado (Magic Keyboard / Mac): ⌘[ voltar · ⌘] avançar · ⌘1…⌘5 = os botões fixos da barra. Só com ⌘/Ctrl e fora de campos
+// (nunca atrapalha digitar) e sem modal por cima (Esc é quem fecha).
+const NAV_ATALHOS_NUM=['acoes','hoje','apontar','inbox','prioridades'];
+document.addEventListener('keydown',(e)=>{
+  if(!(e.metaKey||e.ctrlKey)||e.altKey||e.shiftKey) return;
+  const k=e.key; const num=/^[1-5]$/.test(k); if(k!=='['&&k!==']'&&!num) return;
+  const a=document.activeElement, tag=a?(a.tagName||'').toLowerCase():'';
+  if(tag==='input'||tag==='textarea'||tag==='select'||(a&&a.isContentEditable)) return;
+  const md=document.getElementById('modal'); if(md&&!md.hidden) return;
+  e.preventDefault();
+  if(k==='[') navVolta(); else if(k===']') navAvanca();
+  else { const b=document.querySelector(`#seg-vista > .navtab[data-v="${NAV_ATALHOS_NUM[+k-1]}"]`); if(b) b.click(); }   // o clique = o mesmo caminho do botão (memória de abas, drawer fechando)
+});

@@ -271,6 +271,7 @@ function carregaInbox(forca){
     ? agTravaPost({agalertas:'ler'}).then(j=>{ ib.agAlertas=(j&&j.ok&&Array.isArray(j.avisos))?j.avisos:[]; }).catch(()=>{ ib.agAlertas=ib.agAlertas||[]; })
     : Promise.resolve();
   Promise.all([pC,pM,pP,pA]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
+    if(typeof pshBadge==='function') pshBadge(estado.vista==='inbox'?0:inboxPend());   // 🔔 selo do ícone do app instalado (zerado com o Inbox aberto)
     if(estado.vista==='inbox') renderInbox(); else agendaRenderAcoes(); });   // o card 💬 Aguardando sua resposta da Início lê as menções
 }
 function renderInbox(){
@@ -283,6 +284,7 @@ function renderInbox(){
     return;
   }
   if(!ib.carregou && !ib.carregando){ carregaInbox(false); }
+  if(typeof pshGarante==='function'){ pshGarante(); pshBadge(0); }   // 🔔 estado das notificações (aviso abaixo) + abrir o Inbox zera o selo do ícone
   if(!ib.carregou){ cont.replaceChildren(el(`<div class="estado">📥 Montando sua caixa de entrada…</div>`)); return; }
 
   const cvs=estado.apontar.convites||[];
@@ -430,6 +432,7 @@ function renderInbox(){
       <span class="muted small">convites, menções, planos semanais e aprovações que dependem de você</span>
       <span class="spacer"></span>
       <button class="btn" id="ib-forcar" data-tip="Rebusca convites e menções agora (ignora o cache do servidor)">⟳ Atualizar</button></div>
+    ${typeof pshAvisoInboxHTML==='function'?pshAvisoInboxHTML():''}
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}

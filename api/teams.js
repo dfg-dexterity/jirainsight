@@ -37,6 +37,7 @@ import { coletaAtividade } from './_lib/atividade.js';
 import { chamaClaude } from './_lib/ia.js';
 import { magicoCore } from './criar.js';
 import { avisaTeamsDM } from './apontar.js';
+import { notificaPessoas } from './_lib/notifica.js';
 import { montaFotoSemanal, gravaFoto, marcaRealFechado, anotaFoto, leFotos, comparaFotos, segundaDe, diaFotoSemana, dataValida } from './_lib/semanal.js';
 import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
@@ -582,6 +583,17 @@ async function semanalFoto({ cfg, seg, dry }) {
   const fechou = await marcaRealFechado(anterior.semana, anterior.realFechado);
   return { fase: 'foto', gravada: true, ...resumo, fotosGuardadas: g.total, podadas: g.apagadas, realFechadoAnterior: fechou ? anterior.semana : '' };
 }
+// ⏰ Alerta de fim do dia: o `dm` que o alertaFimDoDia (api/_lib/agenda.js) recebe — Teams DM + Web Push (tipo reunioes). O push diz só o
+// título da reunião (ou a contagem) e leva ao 🎫 Controle; o corpo do Teams continua com a lista completa.
+export function dmAlertaReunioes(pend, mensagemDe) {
+  return notificaPessoas(pend, mensagemDe, { tipo: 'reunioes', push: (p) => {
+    const m = mensagemDe(p) || {};
+    const n = Number((String(m.titulo || '').match(/\((\d+)\)/) || [])[1]) || 1;
+    const t = (String(m.texto || '').match(/\*\*(.+?)\*\*/) || [])[1] || '';
+    return { titulo: '⏰ Reunião sem ticket', corpo: n === 1 && t ? `Reunião '${t}' terminou sem ticket — crie agora` : `${n} reuniões suas terminaram sem ticket — crie agora`, url: '/?v=agcontrole', tag: 'agenda-alerta' };
+  } }).then((r) => r.teams);
+}
+
 // Fase ENVIO: lê a foto (e a anterior), IA, cartão dos gestores, mensagem a cada gerente.
 // `marcar` diz ao chamador se pode carimbar `ultimoEnvioSemanal`: entregou em algum canal, ou
 // não há o que tentar de novo — sem canal dos gestores E (sem fluxo de DM OU sem nenhum gerente
@@ -606,16 +618,28 @@ async function semanalEnvio({ cfg, seg, dry, soDM }) {
   const wG = reenvioDM ? '' : (process.env.TEAMS_GESTORES_WEBHOOK_URL || '');
   const canal = reenvioDM ? { ok: false, motivo: 'reenvio só das mensagens diretas que falharam — o cartão dos gestores já foi enviado.' }
     : wG ? await enviaCartao(wG, cartao) : { ok: false, motivo: 'TEAMS_GESTORES_WEBHOOK_URL não configurada — o cartão dos gestores não foi enviado.' };
-  const dm = dms.length ? await avisaTeamsDM(dms.map((m) => ({ accountId: m.accountId, nome: m.nome, email: m.email })), (p) => {
+  // 🔔 Teams DM + Web Push (iPad) pelo ponto único. O push leva só a CONTAGEM de pendências (nada de nome, hora ou R$); a tag por semana
+  // faz o reenvio (só dos que falharam no Teams) substituir a notificação em vez de empilhar outra.
+  const pushSexta = (p) => {
+    const m = dms.find((x) => x.accountId === p.accountId) || {};
+    const n = Number(m.pendencias) || 0;
+    const um = (m.projetos || []).length === 1;
+    return { titulo: '🧭 Pendências dos seus projetos', corpo: n ? `${n} pendência(s) nos seus projetos esta semana — vale cobrar data, status e apontamento` : 'Nada pendente nos seus projetos esta semana',
+      url: um ? `/?v=gp&gproj=${encodeURIComponent(m.projetos[0])}` : '/?v=semanal', tag: `sexta-${foto.semana}` };
+  };
+  let push = null;
+  const dm = dms.length ? (await notificaPessoas(dms.map((m) => ({ accountId: m.accountId, nome: m.nome, email: m.email })), (p) => {
     const m = dms.find((x) => x.accountId === p.accountId);
     return { semana: foto.semana, titulo: m.titulo, texto: m.texto, cartao: cartaoDM(m), projetos: m.projetos };
-  }) : { enviados: 0, total: 0, semEmail: [], falhas: [], falhasIds: [] };
+  }, { tipo: 'sexta', push: pushSexta }).then((r) => { push = r.push; return r.teams; }))
+    : { enviados: 0, total: 0, semEmail: [], falhas: [], falhasIds: [] };
   const entregue = !!(canal.ok || (dm && dm.enviados > 0));
   // Nada a tentar de novo: sem canal dos gestores e (sem fluxo de DM, ou fluxo com zero destinatários).
   const nadaATentar = !wG && (dm === null || dm.total === 0);
   const dmFalhas = (dm && Array.isArray(dm.falhasIds)) ? dm.falhasIds.slice() : [];
   return {
     ...base, entregue, marcar: entregue || nadaATentar, dmFalhas,
+    ...(push ? { push: { enviados: push.enviados, pessoas: push.pessoas, semInscricao: push.semInscricao } } : {}),
     canal: canal.ok ? { enviado: true, status: canal.status } : { enviado: false, ...(canal.motivo ? { motivo: canal.motivo } : { status: canal.status, erro: canal.erro }) },
     gerentes: dm === null ? { total: dms.length, enviados: 0, motivo: 'TEAMS_DM_WEBHOOK_URL não configurada — nenhum gerente recebeu a mensagem.' }
       : (dm.total === 0 && !reenvioDM ? { ...dm, motivo: 'nenhum gerente de projeto cadastrado (cfg.projGerentes) — nada a enviar.' } : dm),
@@ -1154,7 +1178,7 @@ export default async function handler(req, res) {
             const antes = String(ult('agendaAlertaAte') || '');
             const limite = `${addDias(hoje, -5)}T00:00`;   // teto (emenda de feriado): a janela começa no limite, não em hoje 00:00
             const desde = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(antes) && antes < ate ? (antes > limite ? antes : limite) : `${hoje}T00:00`;
-            const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: avisaTeamsDM, dry: false,
+            const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: dmAlertaReunioes, dry: false,
               painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
             // Leitura do Graph que falhou de passagem (429/5xx) ou gravação que falhou: NÃO carimba — o próximo tique refaz a
             // mesma janela (o Inbox não duplica e a mensagem do Teams só vai para quem ganhou alerta novo).
@@ -1252,7 +1276,7 @@ export default async function handler(req, res) {
       const reDH = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
       const ate = reDH.test(String(q.ate || '')) ? q.ate : `${hoje}T${agora}`;
       const desde = reDH.test(String(q.desde || '')) ? q.desde : `${hoje}T00:00`;
-      const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: avisaTeamsDM, dry,
+      const r = await alertaFimDoDia({ desde, ate, ativos: await jiraUsuariosAtivos(), cfg, dm: dmAlertaReunioes, dry,
         painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
       return json(res, 200, { dry, desde, ate, ...r });
     }

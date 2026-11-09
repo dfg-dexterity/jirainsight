@@ -2182,6 +2182,7 @@
   .dsh-q-n{grid-area:n} .dsh-q-v{grid-area:v} .dsh-q-b{grid-area:b}
   .dsh-tab-wrap{max-width:100%}
   .ct-rapida{flex-direction:column;align-items:stretch}
+  .ct-rapida .ct-rap-t{flex:0 0 auto}
 }
 @media (pointer:coarse){
   .dsh-q-row,.ct-rapida .btn{min-height:44px}

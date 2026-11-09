@@ -174,7 +174,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
     ev.stopPropagation(); return; }
   // Item de ação (abre modal, não troca de aba) — a porta única é navAcao (26-navegacao.js).
   const ac=ev.target.closest('[data-acao]');
-  if(ac){ fechaMenusNav(); fechaDrawer(); navAcao(ac.getAttribute('data-acao'));
+  if(ac){ if(navModo()!=='lateral') fechaMenusNav(); fechaDrawer(); navAcao(ac.getAttribute('data-acao'));
     ev.stopPropagation(); return; }
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
@@ -188,7 +188,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
     // (data-exata — o rótulo diz a tela) abrem exatamente a aba pedida.
     if(!b.closest('#nav-favs')&&!b.hasAttribute('data-exata')&&typeof abaUltima==='function'){
       const m=abaUltima(v); if(m){ if(m.aud) estado.planrel.aud=m.aud; v=m.v; } } }
-  estado.vista=v; marcaVista(estado.vista); fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();
+  estado.vista=v; marcaVista(estado.vista); if(navModo()!=='lateral') fechaMenusNav(); fechaDrawer(); render(); estadoParaURL();   // na barra lateral o grupo escolhido continua aberto (é acordeão, não pop-up)
   window.scrollTo({ top:0, behavior:'smooth' });
 });
 // Menu sanduíche (celular/tablet estreito): abre/fecha o painel de navegação.
@@ -196,6 +196,7 @@ function fechaDrawer(){ const s=document.getElementById('seg-vista'); if(s) s.cl
   const t=document.getElementById('nav-toggle'); if(t) t.setAttribute('aria-expanded','false'); }
 (function(){ const t=document.getElementById('nav-toggle'); if(!t) return;
   t.addEventListener('click', (e)=>{ e.stopPropagation();
+    if(navLateralToggle()) return;   // 🍎 iPad em paisagem: o ☰ recolhe/expande a barra lateral (modo 'lateral', 26) em vez de abrir a gaveta
     const s=document.getElementById('seg-vista'); if(!s) return;
     const abrir=!s.classList.contains('nav-aberto');
     s.classList.toggle('nav-aberto', abrir); t.setAttribute('aria-expanded', abrir?'true':'false');
@@ -214,7 +215,7 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') fechaMenusHdr()
 // Clique fora fecha os menus de navegação abertos (e o drawer mobile).
 document.addEventListener('click', (e)=>{
   const dentro=e.target.closest && (e.target.closest('#seg-vista')||e.target.closest('#nav-toggle'));
-  if(!dentro){ fechaMenusNav(); fechaDrawer(); } });
+  if(!dentro){ if(navModo()!=='lateral') fechaMenusNav(); fechaDrawer(); } });   // barra lateral: acordeão fixo, clicar no conteúdo não o fecha
 document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ fechaMenusNav(); fechaDrawer(); } });
 document.getElementById('f-periodo').addEventListener('change', (ev)=>{ estado.periodo=ev.target.value; recarrega(); });
 document.getElementById('btn-refresh').addEventListener('click', ()=>{ delete estado.cache[estado.periodo]; if(estado.ranking) estado.ranking.tempoPer={}; estado.alertas.dados=null; estado.alertas.semHoras=null; estado.ams.dados=null; estado.ams.range='';

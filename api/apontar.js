@@ -27,6 +27,7 @@
 //   POST { recusarConvite:id, email, token }              -> recusa um convite
 import { randomUUID } from 'node:crypto';
 import { jiraBase, cacheClear, json, jiraUsuariosAtivos } from './_lib/util.js';
+import { notificaPessoas } from './_lib/notifica.js';
 
 const RE_ISSUE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -210,7 +211,7 @@ export async function avisaTeamsDM(pendentes, mensagemDe) {
     if (!p.email || !RE_EMAIL.test(p.email)) { semEmail.push(p.nome || p.accountId); return; }
     const corpo = { email: p.email, nome: p.nome || '', ...(mensagemDe(p) || {}) };
     try {
-      const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+      const r = await fetch(webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(4500) });   // teto: o webhook lento não segura a resposta (o catch registra o abort)
       if (r.status >= 200 && r.status < 300) enviados += 1;
       else { falhas.push(`${p.nome || p.email}: HTTP ${r.status}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
     } catch (e) { falhas.push(`${p.nome || p.email}: ${String(e && e.message ? e.message : e).slice(0, 80)}`); if (p.accountId) falhasIds.push(String(p.accountId)); }
@@ -228,7 +229,8 @@ async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pend
   const painel = `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}/?v=apontar`;
   const texto = `**${criadoPor}** convidou você a apontar **${tempo}** (${dia}) na reunião **${issue}**${resumo ? ` — ${resumo}` : ''}.\n\n[Abrir o painel e confirmar com 1 clique](${painel})`;
   const titulo = `👥 Convite de apontamento — ${issue}`;
-  return avisaTeamsDM(pendentes, () => ({
+  // 🔔 Teams DM + Web Push (iPad) pelo ponto único; o push leva só "<quem> convidou você a apontar <tempo> em <ISSUE>" (sem o resumo do ticket).
+  return notificaPessoas(pendentes, () => ({
     issue, titulo, texto,
     cartao: {
       type: 'message',
@@ -244,7 +246,10 @@ async function avisaTeamsIndividual(req, { issue, resumo, segundos, inicio, pend
         },
       }],
     },
-  }));
+  }), {
+    tipo: 'convites',
+    push: () => ({ titulo: '👥 Convite de apontamento', corpo: `${criadoPor} convidou você a apontar ${tempo} em ${issue}`, url: '/?v=apontar', tag: `convite-${issue}` }),
+  }).then((r) => r.teams);   // o chamador segue recebendo o retorno do avisaTeamsDM (null sem webhook)
 }
 
 // ---------------- GET: convites pendentes da pessoa ----------------

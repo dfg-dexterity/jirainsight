@@ -60,6 +60,49 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   menu = linha no `index.html` (com `data-exata` ou `data-acao`) + `title` + caso em `navAcao` se for ação + NAVCAT.
   Teste: `menu-test.mjs` (Playwright: ações, seletor, Ctrl+K, sem identidade, estrutura, realce, celular 360px; perdido num
   reinício do ambiente — o `menus-test.mjs` de 2026-11-05 cobre os menus das áreas).
+- **📱 Dexterity Hub de classe iPad (2026-11-09, a pedido do usuário: "deixe o aplicativo nativo para iPad, planeje com Fable,
+  execute em um modelo mais barato"):** decisões do usuário — **PWA de classe iPad** (sem App Store), **todas as telas**, offline =
+  **abrir e ler o que já carregou** (nada é gravado sem rede) e **Web Push nesta entrega**. (1) **`public/css/ipad.css`** (carrega
+  depois do `mobile.css`; o computador com mouse não muda um pixel — `desk-shots` a 1440 com mouse: `ipad.css` vazio × atual = 0 px nas 52 telas; `main` × atual = 0 px em 49 telas — Início, Config e Roadmap diferem só pelo conteúdo novo (card ✨ Novidades, cartão 🔔, itens do roadmap)): só `@media`
+  permitidas pelo gate de `check-entrega.mjs` ("🍎 ipad.css: …") — tablet `(hover:none) and (pointer:coarse) and (min-width:761px)`,
+  paisagem `…(min-width:1024px)`, em pé `…(max-width:1023px)`, `(display-mode: standalone)` e `(pointer:coarse) and (min-width:601px)` — o `(pointer:coarse)` SOLTO só existe como contêiner do espelho
+  aninhado `@media (min-width:601px) and (max-width:760px)` do Split View 2/3: **o gate reprova regra direta nele** (alcançaria o iPhone),
+  `@media` aninhado fora desse padrão e texto terminado em `;` fora de bloco (`@import`/`@charset`)). Seções base + um bloco por grupo
+  (`/* ---- 🍎 grupo: X ---- */`, ordem do mobile.css, montados pela T5 a partir dos blocos dos 5 grupos de telas); tokens
+  `--ipad-lateral:272px/--ipad-alvo:44px/--ipad-gap:14px`; **nunca `*/` dentro de comentário CSS**. (2) **`navModo()`** (26) =
+  `gaveta|lateral|barra` (lateral = toque ≥ 1024; mouse a 800 px segue `barra`); `navModoAplica` põe `body.nav-lateral`/
+  `body.nav-recolhida`; ☰ recolhe a lateral (`navLateralToggle`, `localStorage jirainsight_nav_lateral_v1`, '0' = recolhida);
+  `#conteudo` é contêiner `conteudo` só na lateral (blocos usam `@container conteudo`). Pilha `estado.nav={pilha,pos,indo}` (máx. 50,
+  `navEntra` no `render()`, `navVolta/navAvanca/navVai`, botões `#nav-voltar`/`#nav-avancar` em `#nav-hist`, só com `body.pwa`;
+  hook de teste `localStorage.jirainsight_pwa_sim='1'`), ⌘/Ctrl+[ ], ⌘1–5 (Início/Hoje/Apontar/Inbox/Prioridades), `tipToque`
+  (balão por toque longo de 450 ms), `focusin` do modal rola o campo ao centro. (3) **Manifesto/abertura:** `id:"/"`,
+  `display_override`, 4 shortcuts, 34 `apple-touch-startup-image` (`scripts/gera-splash.mjs`, 1,35 MB), `badge-96.png`.
+  (4) **Web Push:** `api/_lib/webpush.js` (cifra RFC 8291 + VAPID ES256, sem dependência), `push.js`, `notifica.js`
+  (`notificaPessoas(pendentes, mensagemDe, {tipo, push, teams})` — Teams **e** push), linha **`push_<accountId>`** em
+  `jirainsight_config` (nunca na `cfg`, não desce pelo GET normal), `GET/POST /api/config?push=1` (`inscrever|cancelar|prefs|testar`,
+  teto de 8 inscrições, `testar` com limite de 1/min em memória), tipos `convites|reunioes|sexta|plano` com URL relativa; **nada de R$,
+  e-mail ou link no texto**. Cliente `public/js/31b-push.js` (prefixo `psh`, `pshEstado()` ∈ instalar|nao-suportado|negado|sem-id|
+  carregando|erro|sem-chave|pedir|ativo; `pshAtivar` só com `ev.isTrusted`; cartão `#psh-card` na ⚙️ Central, ⋯ Mais `#btn-mais-notif`,
+  aviso `.psh-aviso` no 📥 Inbox, selo do ícone). Envs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+  (`scripts/gera-vapid.mjs`); **`pushSubValida` só aceita hosts de push reais** (`web.push.apple.com`/`*.push.apple.com`, `fcm.googleapis.com`, `android.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`; `PUSH_HOSTS_EXTRA` = hosts exatos extras) e recusa porta explícita e usuário/senha na URL (o servidor faz POST nesse endereço); o Teams do `avisaTeamsDM` tem teto de 4,5 s e o `?plan decidir` aguarda o `notificaPessoas` (teto 6 s) e devolve `aviso:{teams,push,tempoEsgotado}` na resposta (só contagens, sem nomes). (5) **Offline de leitura:** `sw.js` **v3** (`ji-pwa-v3` estáticos, **`ji-dados-v2`** dados por pessoa —
+  chave `<origem>/__dados/<sha16(e-mail|token)|anon><path><query>` (o **par**: token errado/ausente não lê a cópia; o token nunca é guardado),
+  2 MB/cópia, poda 150/7 dias (no activate e a cada 50 gravações); resposta com **`Cache-Control: no-store`/`private` NUNCA vira cópia**;
+  lista fechada de rotas GET `/api/config`, `vencimentos`, `tempo`, `atividade`, `usuarios`, `projetos`, `reunioes`, `resumo`; parâmetros que
+  bloqueiam o cache `uso pcli push custos portal ct ref dec kpis rentabhist semanal sr`; o `activate` apaga o `ji-dados-v1` (chave só por
+  e-mail); **trocar/esquecer a identidade** (`salvaIdApontar`/`limpaIdApontar` → `idTrocou`, 13) apaga `ji-dados-v2`/`v1` e, se o **e-mail**
+  mudou, solta o push da pessoa anterior (`pshSolta`, 31b: `cancelar` com a identidade ANTIGA + `unsubscribe`; só trocar o token não solta); resposta offline com **`X-JI-Offline`** e `no-store`; cache `ji-push` para push/`pushsubscriptionchange`);
+  `fetchApp` (01, IIFE que embrulha `window.fetch`) recusa escrita sem rede com `OFFLINE_FRASE` e `estado.offline={em,desde}` liga a
+  faixa `#offline-faixa`; gancho de teste `localStorage.jirainsight_sw_dev='1'` registra o SW em localhost
+  (`swPermitido`, 30). (6) **Regras:** tela nova = regras no bloco do grupo do `ipad.css`, nunca fora de `@media`; teste de largura
+  de conteúdo com a lateral usa `@container conteudo`; texto de push passa por `esc`/sem markdown; `pwaSimulado` só para teste e só em `127.0.0.1`/`localhost`.
+  **Fora do escopo (medido):** o Split View 1/2 (**507–600 px**) fica com o `mobile.css` — `audit-final.json` a 507×1024: 0 ofensores, mas 975 alvos < 44 e 691 fontes < 12 nas 52 telas, sem meta nem bloco no `ipad.css` (o gate só aceita o espelho a partir de 601). **Ficou de fora de propósito:** o WebKit real (não há aqui — ver `[Manual step]`), `container-type` x `position:fixed` no Safari e
+  o `dshMobile`/`usoDisp` com 760 px soltos. **Testes** (scratchpad `ipad-plano/`, `roda.sh <porta> <teste>`, fixture
+  `servidor-ipad.mjs` com 4 personas): `ipad-base-test` (base, modos, pilha, atalhos, splash, manifest, gate), `push-servidor-test`
+  (`node --test`), `push-tela-test`, `offline-test`, `sw-test` (node), `ipad-hub|apontar|entrega|negocio|insights-test` (auditoria
+  `scripts/ipad-audit.mjs` lida como meta) — contagens e saídas na entrega abaixo. **[Manual step]:** criar as 3 variáveis VAPID na
+  Vercel (+ redeploy) e testar no iPad de verdade. Desdobramentos no roadmap: R202 (fila de escrita offline), R203 (App Store/
+  Capacitor), R204 (push de menções e do Inbox), R205 (Pencil/hover/atalhos ⌘ por tela), R206 (widgets e Atalhos da Apple); R051
+  reescrito; R189, R026 e R123 saíram (superados). Documento: `docs/ipad-2026-11-09.md`.
 - **🧭 Menus das áreas por seção (2026-11-05, a pedido do usuário: "organize mais explicitamente os menus, como o Meu
   trabalho — em Projetos um sub-menu para Portfólio e ficha, Marcos e Cronograma, Status report, e assim em diante; estou
   com dificuldade de achar as informações"):** Dexterity Entrega (PROJETOS · TICKETS E ALERTAS · HORAS E REUNIÕES DO TIME ·
@@ -1088,6 +1131,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
   | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
   | TI-14-027 | Dashboard de KPIs em Insights: fotos semanais/mensais dos indicadores, linha do tempo e 🏦 Controladoria rápida por ano | `411c6937-1e17-8196-9b04-c38185acfaae` |
+  | TI-14-028 | Dexterity Hub de classe iPad: camada iPad, barra lateral, Web Push e offline de leitura | _a criar_ |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 

@@ -291,6 +291,8 @@ function renderConfig(){
         </div>
       </div>
 
+      ${typeof pshCardHTML==='function'?pshCardHTML():''}
+
       <div class="card cfgc">
         <h2>🔑 Identidade no Jira (apontar/criar)</h2>
         <div class="muted small">${id
@@ -324,6 +326,7 @@ function renderConfig(){
 
     </div>
   </div>`));
+  if(typeof pshGarante==='function') pshGarante();   // 🔔 cartão de notificações: lê o estado do servidor uma vez
 }
 // 🧭 Tabela pessoa × papel (gestor · negócio · diretoria · admin) para a Central de configurações.
 // Consultor é o padrão implícito (não se marca). Chaves de cfg.papeis: accountId; o campo extra aceita
@@ -337,7 +340,7 @@ function cfgPerfisTabela(){
   const extras=Object.keys(m).filter(k=>!u[k]).map(k=>`${k}=${(Array.isArray(m[k])?m[k]:[m[k]]).join(',')}`);
   return `<div class="scroll-x" style="margin-top:8px;max-height:360px;overflow:auto"><table class="mp-tab-mini cf-papeis"><thead><tr><th>Pessoa</th>${cols.map(c=>`<th class="num" data-tip="${escA(c[2])}">${esc(c[1])}</th>`).join('')}</tr></thead>
     <tbody>${pessoas.map(p=>`<tr><td>${esc(p.nome)}${aprovador(p)?' <span class="muted small" data-tip="Está na lista de aprovadores do planejamento (vale como gestor mesmo sem marcar)">· aprovador</span>':''}</td>
-      ${cols.map(c=>`<td class="num"><input type="checkbox" data-cf-papel="${escA(p.a)}|${c[0]}" ${tem(p.a,c[0])?'checked':''} aria-label="${escA(p.nome+' · '+c[1])}"></td>`).join('')}</tr>`).join('')||'<tr><td colspan="5" class="mp-dim">Carregando as pessoas do Jira…</td></tr>'}</tbody></table></div>
+      ${cols.map(c=>`<td class="num"><label class="cf-pap-alvo"><input type="checkbox" data-cf-papel="${escA(p.a)}|${c[0]}" ${tem(p.a,c[0])?'checked':''} aria-label="${escA(p.nome+' · '+c[1])}"></label></td>`).join('')}</tr>`).join('')||'<tr><td colspan="5" class="mp-dim">Carregando as pessoas do Jira…</td></tr>'}</tbody></table></div>
     <div class="campo" style="margin-top:8px"><label>Outras pessoas (e-mail=papéis, um por linha) <span class="muted">ex.: socio@dexterityit.com.br=diretoria,negocio</span></label><textarea id="cf-papeis-extra" class="pl-texto" style="min-height:56px" placeholder="email@dexterityit.com.br=diretoria">${esc(extras.join('\n'))}</textarea></div>`;
 }
 // Prévia dos envios ao Teams (?dry=1 gera o cartão sem enviar).

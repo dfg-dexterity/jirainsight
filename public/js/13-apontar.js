@@ -12,8 +12,17 @@ const fmtBR = (iso) => iso ? `${iso.slice(8,10)}/${iso.slice(5,7)}` : '';
 // o próprio token; o token do painel não serve para apontar em nome de outros.)
 const ID_KEY='dexterity_apontar_id_v1';
 function idApontar(){ try{ const o=JSON.parse(localStorage.getItem(ID_KEY)); if(o&&o.email&&o.token) return o; }catch(e){} return null; }
-function salvaIdApontar(o){ try{ localStorage.setItem(ID_KEY, JSON.stringify(o)); }catch(e){} }
-function limpaIdApontar(){ try{ localStorage.removeItem(ID_KEY); }catch(e){} }
+// Trocar/esquecer a identidade: as cópias offline ('ji-dados-v2', e a v1 antiga) e a inscrição de push são da pessoa ANTERIOR.
+function apagaCopiaOffline(){ try{ if(window.caches){ caches.delete('ji-dados-v2').catch(()=>{}); caches.delete('ji-dados-v1').catch(()=>{}); } }catch(e){} }
+function idMudou(ant, nova){ return !!ant && (!nova || String(ant.email||'').trim().toLowerCase()!==String(nova.email||'').trim().toLowerCase() || String(ant.token||'')!==String(nova.token||'')); }
+function idTrocou(ant, nova){   // só em evento (o 31b carrega depois): guard typeof
+  if(!idMudou(ant, nova)) return;
+  apagaCopiaOffline();
+  const mesmaPessoa=!!nova&&String(ant.email||'').trim().toLowerCase()===String(nova.email||'').trim().toLowerCase();   // só trocou o token: o push segue
+  try{ if(!mesmaPessoa&&typeof pshSolta==='function') pshSolta(ant); }catch(e){}
+}
+function salvaIdApontar(o){ const ant=idApontar(); try{ localStorage.setItem(ID_KEY, JSON.stringify(o)); }catch(e){} idTrocou(ant, o); }
+function limpaIdApontar(){ const ant=idApontar(); try{ localStorage.removeItem(ID_KEY); }catch(e){} idTrocou(ant, null); }
 
 // Converte texto de tempo em segundos: "1h30", "2h", "30m", "1:30", "1,5" (=horas).
 function parseTempo(str){

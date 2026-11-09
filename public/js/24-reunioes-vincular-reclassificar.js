@@ -224,7 +224,7 @@ function renderReclass(){
     : '<option value="">— nenhum projeto destino com esse tipo —</option>';
 
   const rows=lista.map(t=>`<tr>
-      <td class="c"><input type="checkbox" class="rc-chk" data-id="${escA(t.id)}" ${rc.sel[t.id]?'checked':''} aria-label="selecionar ${escA(t.k)}"></td>
+      <td class="c"><label class="rc-chk-l"><input type="checkbox" class="rc-chk" data-id="${escA(t.id)}" ${rc.sel[t.id]?'checked':''} aria-label="selecionar ${escA(t.k)}"></label></td>
       <td><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></td>
       <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
       <td><span class="badge">${esc(t.status)}</span></td>
@@ -247,7 +247,7 @@ function renderReclass(){
         Reunião que é mesmo <strong>processo administrativo</strong>? Selecione e use <strong>✓ Confirmar processo administrativo</strong> — ela recebe a label <code>${esc(RC_LABEL_ADM)}</code> no Jira e deixa de aparecer aqui.</div>
       <div class="ts-wrap"><table class="rc-tab">
         <thead><tr>
-          <th class="c"><input type="checkbox" id="rc-all" ${todosVis?'checked':''} aria-label="selecionar todos"></th>
+          <th class="c"><label class="rc-chk-l"><input type="checkbox" id="rc-all" ${todosVis?'checked':''} aria-label="selecionar todos"></label></th>
           <th>Ticket</th><th>Resumo</th><th>Status</th><th>Tipo</th>
         </tr></thead><tbody>${rows}</tbody></table></div>
       <div class="rc-foot">

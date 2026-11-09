@@ -5,7 +5,7 @@
 // Sem build e sem framework, o roadmap é só um array em public/js/05-novidades-roadmap.js
 // — fácil de esquecer. Aqui ele deixa de depender de memória: se entrou novidade e a
 // data de revisão do roadmap ficou para trás, a verificação falha e o PR fica vermelho.
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const ARQ = 'public/js/05-novidades-roadmap.js';
 const srcNov = readFileSync(ARQ, 'utf8');
@@ -230,6 +230,63 @@ try {
   else if (pMob < pApp) erros.push('📱 index.html: /css/mobile.css precisa vir DEPOIS de /css/app.css (vence os empates pela ordem).');
   if (!erros.some((e) => e.startsWith('📱'))) console.log(`Mobile: ✓ mobile.css com ${nMedia} bloco(s) @media, todos de celular/toque, carregado depois do app.css`);
 } catch (e) { erros.push(`📱 mobile.css: não consegui conferir (${e.message}).`); }
+
+// ---- 🍎 ipad.css: a camada do iPad também não pode encostar no desktop (mouse) nem no celular ----
+// Toda regra fica dentro de @media de TABLET COM TOQUE (hover:none + pointer:coarse + min-width 761/1024), do modo instalado
+// (display-mode: standalone) ou de (pointer:coarse); @container só dentro deles; carrega depois do mobile.css.
+try {
+  const css = readFileSync('public/css/ipad.css', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g, '""');
+  const norm = (m) => m.replace(/^@media\s+/, '').replace(/\s*:\s*/g, ':').replace(/\s+/g, ' ').trim();
+  const PERMITIDAS = [
+    /^(screen and )?\(hover:none\) and \(pointer:coarse\) and \(min-width:(761|1024)px\)( and \(max-width:\d+px\))?$/,
+    /^\(display-mode:standalone\)( and \(orientation:(portrait|landscape)\))?$/,
+    /^\(pointer:coarse\)$/,                       // SÓ como contêiner do espelho aninhado 601–760 (abaixo): regra direta alcançaria o iPhone
+    /^\(pointer:coarse\) and \(min-width:601px\)$/,
+  ];
+  // @media aninhado: só o espelho do Split View 2/3 dentro de (pointer:coarse)
+  const ANINHADAS = [[/^\(pointer:coarse\)$/, /^\(min-width:601px\) and \(max-width:760px\)$/]];
+  let prof = 0, ini = 0, nMedia = 0, nContainer = 0, externa = '';
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') {
+      const pre = css.slice(ini, i).trim();
+      if (prof === 0) {
+        if (/^@container/.test(pre)) erros.push(`🍎 ipad.css: "${pre.slice(0, 60)}" — @container só pode aparecer DENTRO de um @media permitido.`);
+        else if (!pre.startsWith('@media')) erros.push(`🍎 ipad.css: "${pre.slice(0, 60)}" está fora de @media — toda regra desta folha fica dentro de uma media query de tablet com toque (o computador com mouse não pode mudar).`);
+        else if (!PERMITIDAS.some((re) => re.test(norm(pre)))) erros.push(`🍎 ipad.css: "${pre.slice(0, 90)}" não é uma media permitida — use (hover:none) and (pointer:coarse) and (min-width:761px|1024px), (display-mode: standalone) ou (pointer:coarse) and (min-width:601px).`);
+        else { nMedia++; externa = norm(pre); }
+      } else if (prof === 1) {
+        if (/^@container/.test(pre)) nContainer++;
+        else if (/^@media/.test(pre)) {
+          if (!ANINHADAS.some(([ext, intRe]) => ext.test(externa) && intRe.test(norm(pre)))) erros.push(`🍎 ipad.css: "${pre.slice(0, 90)}" — @media aninhado só é permitido como (min-width:601px) and (max-width:760px) dentro de (pointer:coarse).`);
+        } else if (externa === '(pointer:coarse)') erros.push(`🍎 ipad.css: regra "${pre.slice(0, 60)}" direta em @media (pointer:coarse) alcançaria o iPhone — use (pointer:coarse) and (min-width:601px), (display-mode: standalone) ou o espelho aninhado (min-width:601px) and (max-width:760px).`);
+      }
+      prof++;
+      ini = i + 1;
+    } else if (ch === ';' && prof <= 1) {
+      const pre = css.slice(ini, i).trim();
+      if (prof === 0 && pre) erros.push(`🍎 ipad.css: "${pre.slice(0, 60)}" — nada fora de @media (nem @import/@charset: o gate não consegue conferir o que uma folha importada faz no desktop).`);
+      ini = i + 1;
+    }
+    else if (ch === '}') { prof--; ini = i + 1; if (prof < 0) { erros.push('🍎 ipad.css: chave "}" sobrando.'); break; } }
+  }
+  if (prof > 0) erros.push('🍎 ipad.css: chave "{" sem fechar.');
+  if (css.slice(ini).trim()) erros.push(`🍎 ipad.css: texto solto no fim ("${css.slice(ini).trim().slice(0, 40)}").`);
+  const html = readFileSync('public/index.html', 'utf8');
+  const pApp = html.indexOf('href="/css/app.css"'), pMob = html.indexOf('href="/css/mobile.css"'), pIpad = html.indexOf('href="/css/ipad.css"');
+  if (pIpad < 0) erros.push('🍎 ipad.css: o index.html não carrega /css/ipad.css.');
+  else if (!(pApp < pMob && pMob < pIpad)) erros.push('🍎 ipad.css: a ordem dos <link> precisa ser app.css → mobile.css → ipad.css (vence os empates pela ordem).');
+  // telas de abertura (apple-touch-startup-image): o arquivo existe e a media não se repete
+  const medias = new Set();
+  for (const m of html.matchAll(/<link rel="apple-touch-startup-image" href="([^"]+)" media="([^"]+)"/g)) {
+    if (!existsSync('public' + m[1])) erros.push(`🍎 index.html: tela de abertura "${m[1]}" não existe (rode node scripts/gera-splash.mjs).`);
+    if (medias.has(m[2])) erros.push(`🍎 index.html: media de tela de abertura repetida (${m[2]}).`);
+    medias.add(m[2]);
+  }
+  if (!erros.some((e) => e.startsWith('🍎'))) console.log(`iPad: ✓ ipad.css com ${nMedia} bloco(s) @media${nContainer ? ` (${nContainer} @container)` : ''}, só de tablet com toque/modo instalado, carregado depois do mobile.css · ${medias.size} telas de abertura`);
+} catch (e) { erros.push(`🍎 ipad.css: não consegui conferir (${e.message}).`); }
 
 console.log('Entrega (Novidades + Roadmap):');
 if (erros.length) {
