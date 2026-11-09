@@ -27,6 +27,44 @@ function pwaEhIOS(){
 function pwaInstalado(){
   return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
 }
+// 🍎 Modo instalado (2026-11-09, camada iPad): body.pwa liga o que só faz sentido sem o Safari por perto — os botões ‹ › do
+// cabeçalho (pilha de navegação, 26), o overscroll contido (ipad.css). Vale com o app aberto pelo ícone (display-mode:
+// standalone / navigator.standalone) OU com o gancho de TESTE `localStorage.jirainsight_pwa_sim==='1'` (o Chromium dos testes
+// nunca está "instalado"); o gancho não muda mais nada e some se a chave for apagada.
+function pwaSimulado(){ try{ return /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && localStorage.getItem('jirainsight_pwa_sim')==='1'; }catch(e){ return false; } }   // como o jirainsight_sw_dev: só em localhost
+function pwaAplicaBody(){
+  const on=pwaInstalado()||pwaSimulado();
+  document.body.classList.toggle('pwa', on);
+  const h=document.getElementById('nav-hist'); if(h) h.hidden=!on;
+  if(on&&typeof navHistAtualiza==='function') navHistAtualiza();
+}
+pwaAplicaBody();
+try{ const mq=window.matchMedia('(display-mode: standalone)'); if(mq.addEventListener) mq.addEventListener('change', pwaAplicaBody); }catch(e){}
+// 🍎 Dica por toque LONGO: o toque curto já mostra o balão por 2,5 s (01-nucleo); segurar 450 ms em [data-tip] o mostra
+// em tamanho de leitura (.tip-toque) por 4 s sem bloquear o clique. Só com ponteiro de toque.
+let _tipLongo=0, _tipLongoXY=null;
+function tipToque(e){
+  if(!(window.matchMedia&&matchMedia('(pointer:coarse)').matches)) return;
+  clearTimeout(_tipLongo);
+  const t=e.target.closest&&e.target.closest('[data-tip]'); if(!t||!e.touches||!e.touches[0]) return;
+  const x=e.touches[0].clientX, y=e.touches[0].clientY; _tipLongoXY={x,y};
+  _tipLongo=setTimeout(()=>{ mostraTip(t.getAttribute('data-tip'), t.getAttribute('data-tip2'), t.getAttribute('data-tipk'), x, y);
+    const el=document.querySelector('.tip'); if(el) el.classList.add('tip-toque');
+    clearTimeout(_tipTimer); _tipTimer=setTimeout(()=>{ escondeTip(); const k=document.querySelector('.tip'); if(k) k.classList.remove('tip-toque'); }, 4000); }, 450);
+}
+function tipToqueLimpa(){ const k=document.querySelector('.tip.tip-toque'); if(k) k.classList.remove('tip-toque'); }
+document.addEventListener('touchstart', tipToqueLimpa, {passive:true, capture:true});   // o balão grande só vale para o toque longo que o criou
+document.addEventListener('mousemove', tipToqueLimpa, {passive:true, capture:true});
+document.addEventListener('touchstart', tipToque, {passive:true});
+document.addEventListener('touchmove', (e)=>{ if(!_tipLongoXY||!e.touches[0]) return; if(Math.hypot(e.touches[0].clientX-_tipLongoXY.x, e.touches[0].clientY-_tipLongoXY.y)>10) clearTimeout(_tipLongo); }, {passive:true});
+['touchend','touchcancel'].forEach(n=>document.addEventListener(n, ()=>clearTimeout(_tipLongo), {passive:true}));
+// 🍎 O teclado do iPad cobre metade da tela: campo focado dentro do modal rola à vista (só sob toque; o teclado leva ~300 ms para subir).
+document.addEventListener('focusin', (e)=>{
+  if(!(window.matchMedia&&matchMedia('(pointer:coarse)').matches)) return;
+  const t=e.target; if(!t||!t.matches||!t.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]),textarea,select')) return;
+  if(!t.closest||!t.closest('#modal-body')) return;
+  setTimeout(()=>{ try{ if(document.activeElement===t) t.scrollIntoView({block:'center', behavior:'smooth'}); }catch(_){} }, 320);
+});
 function abreInstalar(){
   const passoIOS=(n,txt)=>`<div class="nov-item"><span class="nov-data">${n}.</span><span class="nov-txt">${txt}</span></div>`;
   let corpo='';
@@ -59,8 +97,14 @@ function abreInstalar(){
   });
 }
 document.getElementById('btn-instalar').addEventListener('click', abreInstalar);
-// Service worker: só registra em produção (https); rede-primeiro, nunca toca /api/.
-if('serviceWorker' in navigator && location.protocol==='https:'){
+// Service worker: só registra em produção (https). TESTE: em 127.0.0.1/localhost o registro só acontece com
+// localStorage.jirainsight_sw_dev==='1' (gancho dos testes offline/push — as demais suítes seguem sem SW).
+// sw.js v3: rede primeiro (cópia para o offline); dados de leitura da lista fechada ficam em cópia por pessoa (ji-dados-v2, chave = hash de e-mail|token).
+function swPermitido(){
+  if(location.protocol==='https:') return true;
+  try{ return /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && localStorage.getItem('jirainsight_sw_dev')==='1'; }catch(e){ return false; }
+}
+if('serviceWorker' in navigator && swPermitido()){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
 }
 { const bl=document.getElementById('btn-log'); if(bl) bl.addEventListener('click', abreLogAcoes); }

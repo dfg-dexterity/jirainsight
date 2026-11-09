@@ -368,6 +368,56 @@ function toast(msg, tipo){
   const dur=tipo==='err'?6500:(tipo==='warn'?5000:3500);
   setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>{ if(t.parentNode) t.remove(); },280); }, dur);
 }
+// 📡 OFFLINE DE LEITURA (2026-11-09, camada iPad): UM embrulho do window.fetch para /api/ da MESMA origem.
+// O service worker (sw.js v3) guarda a cópia dos GET da lista fechada e, sem rede, a devolve com o cabeçalho
+// X-JI-Offline (ISO de quando foi guardada). Aqui: GET que volta com o cabeçalho (ou navigator.onLine falso) liga
+// estado.offline={em,desde} e a faixa #offline-faixa; escrita (POST/PUT/PATCH/DELETE) sem rede é recusada ANTES da
+// rede com uma frase clara (os try/catch das telas já mostram o erro) — nada é gravado nem enfileirado.
+const OFFLINE_FRASE='📡 Sem conexão — nada foi gravado. Tente quando a internet voltar.';
+function offlinePinta(){
+  const f=document.getElementById('offline-faixa'); if(!f) return;
+  const o=estado.offline;
+  if(!o){ f.hidden=true; f.textContent=''; return; }
+  let hh=''; if(o.em){ const d=new Date(o.em); if(!isNaN(d)) hh=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}); }
+  f.textContent=hh?`📡 Sem conexão — mostrando dados de ${hh} · gravações ficam para quando a rede voltar`
+                  :'📡 Sem conexão — gravações ficam para quando a rede voltar';
+  f.hidden=false;
+}
+// em = a cópia MAIS ANTIGA vista (a mais honesta quando a tela mistura leituras); sem ISO só marca o "desde".
+function offlineMarca(emISO){
+  const o=estado.offline||(estado.offline={ em:'', desde:new Date().toISOString() });
+  if(emISO && (!o.em || emISO<o.em)) o.em=emISO;
+  offlinePinta();
+}
+function offlineLimpa(){ if(estado.offline){ estado.offline=null; offlinePinta(); } }
+(function fetchApp(){
+  if(window.__fetchApp||typeof window.fetch!=='function') return; window.__fetchApp=true;
+  const orig=window.fetch.bind(window);
+  window.fetch=function(input, init){
+    let u=null, metodo='GET';
+    try{
+      const href=typeof input==='string'?input:(input&&input.url)||String(input);
+      const x=new URL(href, location.href); if(x.origin===location.origin && x.pathname.startsWith('/api/')) u=x;
+      metodo=String((init&&init.method)||(input&&typeof input==='object'&&input.method)||'GET').toUpperCase();
+    }catch(e){}
+    if(!u) return orig(input, init);
+    if(metodo!=='GET'&&metodo!=='HEAD'){
+      if(navigator.onLine===false){ offlineMarca(''); return Promise.reject(new Error(OFFLINE_FRASE)); }
+      return orig(input, init);
+    }
+    return orig(input, init).then(r=>{
+      try{
+        const off=r.headers.get('X-JI-Offline');
+        if(off) offlineMarca(off);
+        else if(r.ok && navigator.onLine!==false) offlineLimpa();
+      }catch(e){}
+      return r;
+    });
+  };
+  window.addEventListener('offline', ()=>{ offlineMarca(''); });
+  window.addEventListener('online', ()=>{ offlineLimpa(); });
+  if(navigator.onLine===false) setTimeout(()=>offlineMarca(''),0);
+})();
 // Skeleton de carregamento que imita o painel (KPIs + tabela) com shimmer.
 function skeletonPainel(){
   const kpis=Array.from({length:4},()=>`<div class="skel-kpi"><div class="skel skel-l"></div><div class="skel skel-v"></div></div>`).join('');

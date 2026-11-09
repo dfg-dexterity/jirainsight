@@ -50,8 +50,9 @@ public/
   index.html       só o HTML (head, cabeçalho, navegação, contêineres) + as tags <script defer>
   css/app.css      toda a folha de estilo (tema claro/escuro, componentes, telas, ajustes iOS)
   css/mobile.css   📱 a camada do celular/tablet: SÓ media queries, um bloco por grupo de telas — ver "Celular e tablet"
+  css/ipad.css     🍎 a camada do iPad (toque ≥ 761 px): SÓ media queries, barra lateral e um bloco por grupo de telas — ver "📱 iPad e PWA"
   js/NN-nome.js    o painel, dividido em 36 módulos por domínio — ver tabela abaixo
-  sw.js            service worker (rede primeiro; /js e /css com cópia para o offline)
+  sw.js            service worker v3 (rede primeiro; /js e /css com cópia; dados de leitura por pessoa em ji-dados-v2 ; Web Push)
   portal.html      área do cliente (AMS): login por conta (?pcli=) ou link por contrato (?c=)
 scripts/
   check-syntax.mjs sintaxe de api/** e public/js/** + ORDEM DE CARREGAMENTO dos módulos
@@ -124,6 +125,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
 | `30-eventos-boot.js` | listeners delegados (`#conteudo`, `#modal-body`, `document`), PWA, tema, marca animada e a inicialização — carrega por último |
+| `31b-push.js` | 🔔 **Notificações (Web Push)** — o cartão `#psh-card` da ⚙️ Central e o item ⋯ Mais › 🔔: `pshEstado()` (instalar · nao-suportado · negado · sem-id · carregando · erro · sem-chave · pedir · ativo), `pshAtivar()` (só em gesto do usuário), preferências por tipo (convites, reuniões, sexta, plano), 🧪 testar, selo do ícone com o total do Inbox e o aviso `.psh-aviso` do 📥 Inbox. Fala com `GET/POST /api/config?push=1` |
 | `31-uso.js` | 📊 **Uso do painel** — o coletor e a tela. O coletor conta **abertura** por troca de tela (gancho de uma linha no `render()`) e **tempo** num relógio de 15s que só anda com a **aba visível** e com interação nos últimos 5 min (`usoPulso`); o acumulado fica no `localStorage` por `dia|tela` e sobe em lotes (`usoEnvia`, `sendBeacon` ao fechar a aba) para `POST /api/config?uso=1` — sem endpoint novo. A tela (`renderUso`) mostra KPIs, por dia, por aparelho, ranking de telas por tempo, por pessoa e as telas sem uso; `usoPodeTudo()` decide entre o consolidado do time (gestor/negócio/diretoria/admin) e o uso pessoal. Só id de tela e duração viajam — nenhum conteúdo |
 
 **Para acrescentar um módulo:** crie `public/js/NN-nome.js`, adicione a tag `<script defer>` na
@@ -202,6 +204,39 @@ davam zoom 70 → 0, iPad em pé (768/820px) sem vazamento. Limitações conheci
 largas (Catálogo, Uso, planner da Rentabilidade) rolam de lado por desenho; algumas regras usam
 `:has()` (iOS ≥ 15.4 — aparelhos antigos caem no leiaute empilhado, nada quebra).
 
+### 📱 iPad e PWA (camada iPad — 2026-11-09)
+
+O Dexterity Hub é um **PWA de classe iPad** (decisão do usuário: o mesmo app, sem App Store, atualizado no deploy):
+
+- **`public/css/ipad.css`** carrega **depois** do `mobile.css` e, como ele, só tem regras dentro de `@media` — o computador
+  com mouse não muda um pixel. As únicas condições permitidas (o gate do `npm run check` confere, mensagens "🍎 ipad.css: …"):
+  tablet com toque `(hover:none) and (pointer:coarse) and (min-width:761px)`, paisagem `…(min-width:1024px)`, em pé
+  `…(min-width:761px) and (max-width:1023px)`, `(display-mode: standalone)` e `(pointer:coarse)` (nele, o espelho do Split View 2/3,
+  601–760 px). Estrutura: base tablet (alvos de 44 px, `100dvh`, menus por toque) · barra lateral · modo instalado · **um bloco
+  por grupo de telas** (`/* ---- 🍎 grupo: X ---- */`, na ordem do `mobile.css`). Tokens `--ipad-lateral/--ipad-alvo/--ipad-gap`.
+  Na lateral o `#conteudo` é `container-type:inline-size` (`conteudo`) e os blocos usam `@container conteudo (max-width:…)`.
+- **`navModo()`** (`26-navegacao.js`) é o predicado único: `gaveta` (≤ 760 ou toque < 1024) · `lateral` (toque ≥ 1024: o MESMO
+  `#seg-vista` vira coluna fixa, ☰ recolhe e lembra em `jirainsight_nav_lateral_v1`) · `barra` (mouse). Girar o iPad ou mudar o
+  Split View troca o modo ao vivo (`navModoMudou`).
+- **Modo instalado** (`body.pwa`): botões `‹ ›` (`#nav-voltar`/`#nav-avancar`, pilha de 50 telas em `estado.nav`), ⌘/Ctrl+[ e ],
+  ⌘1–5 (Início, Hoje, Apontar, Inbox, Prioridades), tela de abertura própria (34 PNGs em `public/icons/splash/`, gerados por
+  `node scripts/gera-splash.mjs`, que imprime os `<link>`) e 4 atalhos no ícone (`manifest.webmanifest`). Teste sem instalar:
+  `localStorage.jirainsight_pwa_sim='1'`.
+- **Web Push** (`api/_lib/webpush.js` cifra RFC 8291 + VAPID, `push.js`, `notifica.js`; rota `?push=1` em `api/config.js`; tabela
+  `push_<accountId>` em `jirainsight_config`, nunca na `cfg`): convite para apontar, ⏰ reunião sem ticket, pendências de sexta
+  (gerentes) e plano aprovado/devolvido — sem R$, e-mail nem link. `notificaPessoas()` manda Teams **e** push. **Variáveis:**
+  `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (gere com `node scripts/gera-vapid.mjs`) e `VAPID_SUBJECT` (padrão `mailto:ti@dexterityit.com.br`);
+  sem elas o cartão 🔔 diz o motivo e o resto funciona. Exige iPadOS ≥ 16.4 e o app na Tela de Início.
+- **Offline de leitura** (`sw.js` v3 + `fetchApp` no `01-nucleo.js`): GET de uma lista fechada de rotas é guardado por pessoa
+  (`ji-dados-v2 (chave = hash de e-mail|token; respeita no-store; apagado ao trocar de pessoa)`, 2 MB por cópia, 150 entradas/7 dias) e servido com `X-JI-Offline` quando não há rede; a faixa `#offline-faixa`
+  diz de que horas são os dados; escrita sem rede é recusada com uma frase e **nada** é gravado (a fila de escrita é o R202).
+- **Auditoria**: `node scripts/ipad-audit.mjs <url> [presets] [vistas] [dirShots]` (iPad emulado no Chromium: viewport + toque +
+  DPR 2 + UA de iPad; **não há WebKit aqui** — o que só o Safari mostra fica no teste manual) mede `ofens`, `alvos44`, `fontes12`,
+  `campos16`, `espacoMorto` e `scrollX` nas 52 telas × 5 tamanhos. **Prova de que o computador não mudou:** `desk-shots` a 1440 px com
+  mouse, diff pixel a pixel: `ipad.css` vazio × atual = 0 px nas 52 telas; `main` × atual = 0 px em 49 telas — Início, Config e Roadmap diferem só pelo conteúdo novo (card ✨ Novidades, cartão 🔔, itens do roadmap).
+- **Passos manuais (tickets `[Manual step]`):** criar as 3 variáveis VAPID na Vercel e redeploy; testar no iPad real (instalar,
+  🔔 + 🧪, ‹ ›, girar, Split View, modo avião).
+
 > Sem build não há bundler para pegar erros: rode **`npm run check`** (ou deixe a CI rodar)
 > para validar sintaxe, ordem de carregamento e a entrega (Novidades/Roadmap) antes de publicar.
 
@@ -213,6 +248,8 @@ largas (Catálogo, Uso, planner da Rentabilidade) rolam de lado por desenho; alg
 | `JIRA_EMAIL` | sim | e-mail da conta admin do Jira |
 | `JIRA_API_TOKEN` | sim | token de API do Jira |
 | `CLOCKWORK_API_TOKEN` | sim | token da API do Clockwork (Pro) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | não | chaves do **Web Push** (base64url; pública 87 caracteres, privada 43) — `node scripts/gera-vapid.mjs`. Sem elas as notificações 🔔 ficam desligadas e o cartão explica |
+| `VAPID_SUBJECT` | não | contato do remetente do push (padrão `mailto:ti@dexterityit.com.br`) |
 | `CACHE_TTL_MIN` | não | minutos de cache no servidor (padrão 20) |
 | `NAO_FATURAVEL_REGEX` | não | regex que marca o tipo como **não faturável** — testada no **nome _e_ na descrição** do tipo de issue (padrão `n[aã]o.{0,4}fatur`, que cobre "não faturável", "não-faturavel" e "não é faturável") |
 | `JIRA_CF_CHAMADO_CLIENTE` | não | id do campo Jira "Número do Chamado Cliente" exibido na aba AMS (padrão `customfield_10270`) |

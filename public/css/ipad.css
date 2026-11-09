@@ -1,0 +1,687 @@
+/* 🍎 Camada iPad do Dexterity Hub (2026-11-09, a pedido do usuário: "deixe o aplicativo nativo para iPad").
+   REGRA DESTA FOLHA (a mesma do mobile.css, conferida por scripts/check-entrega.mjs — mensagens "🍎 ipad.css: …"):
+   TODA regra mora dentro de um @media destas famílias — o computador com mouse não muda um pixel (prova: diff de
+   screenshots das 52 telas a 1440 px: ipad.css vazio × atual = 0 pixel) e o celular ≤ 760 px segue só com o mobile.css:
+     • TABLET   (hover:none) and (pointer:coarse) and (min-width:761px)  — iPad em pé e em paisagem, tablet Android;
+     • PAISAGEM (hover:none) and (pointer:coarse) and (min-width:1024px) — barra lateral (modo 'lateral' do navModo());
+     • EM PÉ    (hover:none) and (pointer:coarse) and (min-width:761px) and (max-width:1023px) — gaveta (modo 'gaveta');
+     • (display-mode: standalone) — só o que é do app instalado;
+     • (pointer:coarse) and (min-width:601px) — toque a partir de 601 px; (pointer:coarse) SOZINHO só como contêiner do espelho aninhado
+       @media (min-width:601px) and (max-width:760px) (Split View 2/3) — regra direta nele alcançaria o iPhone e o gate reprova.
+   O prefixo "screen and" é permitido (a impressão nunca pega a barra lateral). `@container` só dentro de um desses @media.
+   As MESMAS queries moram em navModo() (26-navegacao.js): trocar de faixa ao vivo (girar, Split View) muda o modo sem recarregar.
+   Carrega DEPOIS do mobile.css (vence os empates pela ordem). Os blocos por grupo de telas (cabeçalho "🍎 grupo: X")
+   seguem a ordem do mobile.css. Tokens: --ipad-lateral (largura da barra), --ipad-alvo (alvo de toque), --ipad-gap. */
+
+/* ================= 1. Base tablet: respiro, alvos de 44 px, toque, teclado ================= */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  :root{--ipad-lateral:272px;--ipad-alvo:44px;--ipad-gap:14px}
+  /* respiro: o cartão de conteúdo ganha folga lateral (no mouse o clamp é menor) */
+  #conteudo{padding:14px clamp(12px,2vw,20px)}
+  /* alvos de toque ≥ 44 px (Apple HIG) nos controles PRIMÁRIOS: botões, abas, linhas de menu, chips-botão, campos */
+  .btn,.hdrmenu-m button,.navg-menu button,.nav-toggle,.seg button,.pal-row,.gu-b,.tour-nav .btn{min-height:var(--ipad-alvo)}
+  .abas-tela .aba{min-height:var(--ipad-alvo);display:inline-flex;align-items:center}
+  button.chip,a.chip,.chip[role=button]{min-height:var(--ipad-alvo);display:inline-flex;align-items:center}
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),select,textarea{min-height:var(--ipad-alvo);font-size:16px}
+  select{min-width:0}
+  label.check,.cfgc-tog{min-height:var(--ipad-alvo)}
+  #to-top,#btn-guia,#btn-reportar{min-height:var(--ipad-alvo)}
+  /* sem o atraso do duplo toque e sem o menu de "segurar" do iOS nos controles */
+  button,a,[role=button],summary,label,select,.chip,.aba{touch-action:manipulation}
+  button,[role=button],.chip,.aba{-webkit-touch-callout:none}
+  /* menus abrem por toque e fecham por toque fora (29-url-topo.js): linhas folgadas e rolagem que não vaza para a página */
+  .hdrmenu-m{max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  /* 100dvh: a altura da janela que NÃO conta a barra do Safari nem o teclado — modais, sobreposições e listas */
+  .modal-bg,.pg-bg{height:100vh;height:100dvh;overscroll-behavior:contain}
+  .tkb-lista{max-height:52vh;max-height:52dvh}
+  .ts-drill{max-height:62vh;max-height:62dvh}
+  .toasts{bottom:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  /* com o teclado virtual aberto nada fixo pode depender da altura: o guia sem alvo respeita a área segura */
+  .tour-pop.livre{bottom:22px;bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+}
+/* (pointer:coarse) SOLTO só abriga o espelho aninhado 601–760; o que vale para o iPad (e não para o iPhone ≤ 600) mora aqui */
+@media (pointer:coarse) and (min-width:601px){
+  /* tooltips por toque (30-eventos-boot.js: toque curto = 2,5 s · toque longo = .tip-toque 4 s): tamanho de leitura no dedo */
+  .tip.tip-toque{font-size:14px;line-height:1.4;max-width:340px;padding:10px 13px;border-radius:12px}
+  /* ‹ › do app instalado: alvo de dedo (o wrapper só aparece com body.pwa — 30-eventos-boot.js) */
+  .nav-hist{display:flex;align-items:center;gap:4px;margin-left:10px;padding-bottom:10px}
+  .nav-hist[hidden]{display:none}
+  .nav-hist-b{min-width:44px;min-height:44px;padding:0;font-size:28px;line-height:1;display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--linha);background:var(--cartao);color:var(--grafite);border-radius:10px}
+  .nav-hist-b:disabled{opacity:.35}
+  #offline-faixa[hidden]{display:none}
+  body.pwa{overscroll-behavior-y:none}
+}
+
+/* ================= 2a. Tablet em pé (761–1023): a gaveta do ☰ com mais respiro ================= */
+/* Em pé não há largura para a barra lateral nem para a barra de abas: o menu é a MESMA gaveta do celular (acordeão), só que
+   com alvos de 44 e fonte de leitura. (Copiado do app.css e do mobile.css — nada aqui depende das regras ≤ 760.) */
+@media screen and (hover:none) and (pointer:coarse) and (min-width:761px) and (max-width:1023px){
+  .nav-toggle{display:inline-flex}
+  #seg-vista{display:none;width:100%;flex-direction:column;gap:0;margin-top:6px;background:var(--cartao);border:1px solid var(--linha);
+    border-radius:12px;padding:6px;box-shadow:0 16px 40px rgba(34,54,79,.16)}
+  #seg-vista.nav-aberto{display:flex;max-height:calc(100vh - 96px);max-height:calc(100dvh - 96px);overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+  #seg-vista>.navtab,.navg{width:100%}
+  .navg{position:static;display:flex;flex-direction:column}
+  #seg-vista>.navtab,.navg-b{width:100%;box-sizing:border-box;justify-content:flex-start;padding:13px 12px;margin:0;border-radius:8px;
+    border-bottom:0;font-size:15px;white-space:normal;min-height:var(--ipad-alvo)}
+  #nav-favs>.navtab{width:100%;box-sizing:border-box;justify-content:flex-start;padding:13px 12px;margin:0;border-radius:8px;border-bottom:0;font-size:15px;white-space:normal}
+  .navg-b .nav-car{margin-left:auto;transition:transform .18s ease}
+  .navg.open>.navg-b .nav-car{transform:rotate(180deg)}
+  .navg-menu{position:static;display:none;min-width:0;width:100%;margin:0;padding:2px 0 6px;border:0;border-radius:0;background:transparent;
+    box-shadow:none;max-height:none;overflow:visible;max-width:none}
+  .navg.open>.navg-menu{display:flex;flex-direction:column}
+  .navg-menu button{padding:12px 12px 12px 38px;font-size:14px;border-radius:8px;white-space:normal;min-height:var(--ipad-alvo)}
+  .navg-menu .nav-sub{padding-left:56px}
+  .navg-menu button .nav-ic{display:none}
+  .seg button[aria-pressed="true"]{border-bottom-color:transparent;background:var(--hoverbg);box-shadow:inset 3px 0 0 var(--cerceta)}
+  .navg.ativo>.navg-b[aria-pressed="true"]{background:var(--hoverbg)}
+  #seg-vista #navg-novo-b{border-radius:8px;margin:6px 0;padding:13px 12px;line-height:1.2}
+  .navg-cab{white-space:normal;padding-left:12px}
+  .navg-sec{white-space:normal;padding:10px 12px 4px 20px}
+  .navg-menu.navg-largo{min-width:0}
+  /* 🔍 e 🎫: dois botões lado a lado, com o nome (no computador são só o ícone) */
+  #seg-vista>#btn-paleta,#seg-vista>#btn-tkb{width:auto;flex:1 1 calc(50% - 3px);margin-top:4px;justify-content:center;border:1px solid var(--linha);font-size:14px}
+  #seg-vista>#btn-paleta{margin-right:6px}
+  #btn-paleta::after{content:'Buscar tela'}
+  #btn-tkb::after{content:'Buscar ticket'}
+  #seg-vista.nav-aberto{flex-direction:row;flex-wrap:wrap;align-content:flex-start}
+  body:has(#seg-vista.nav-aberto) #btn-guia,body:has(#seg-vista.nav-aberto) #to-top,body:has(#seg-vista.nav-aberto) #btn-reportar{display:none}
+  /* em pé os flutuantes com rótulo (🐞 Reportar, 🧭 Guia desta tela) cobriam chips e números no rodapé da tela: viram
+     círculos de ícone de 44 px, como no celular (o texto segue no aria-label/title) */
+  .fl-rot{display:none}
+  #to-top,#btn-guia,#btn-reportar{width:44px;height:44px;padding:0;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+  #to-top[hidden],#btn-guia[hidden]{display:none}
+  #btn-guia .nov-dot{position:absolute;top:5px;right:5px;margin:0}
+}
+
+/* ================= 2b. Barra lateral (≥ 1024 com toque: iPad em paisagem, 12,9" em pé) ================= */
+/* O MESMO #seg-vista vira uma coluna fixa à esquerda (sticky, 100dvh) com os grupos como acordeão; o .wrap vira grade
+   [barra | respiro | marca | ‹ › | vão | ☰]. O <header> some da árvore de caixas (display:contents) para que a marca, o ☰ e a
+   barra de ferramentas sejam itens da grade — a barra lateral atravessa as linhas 1–9. ☰ (#nav-toggle) recolhe/expande a barra
+   (body.nav-recolhida, lembrado em localStorage) e o conteúdo ocupa a largura toda. */
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  .wrap{display:grid;grid-template-columns:var(--ipad-lateral) 18px auto auto minmax(0,1fr) auto;align-items:start;column-gap:0;row-gap:0;
+    max-width:none;margin:0;padding-left:0;padding-top:0}   /* sem folga no topo: a barra encosta na borda da janela */
+  header{display:contents}
+  .brand{grid-column:3;grid-row:1;align-self:center;margin-top:22px}
+  .nav-hist{grid-column:4;grid-row:1;align-self:center}
+  .spacer{display:none}
+  .ic-defs{position:absolute;width:0;height:0}   /* o sprite SVG do início do body gerava uma linha vazia de 21 px acima da barra */
+  .nav-toggle{display:inline-flex;grid-column:6;grid-row:1;align-self:center;margin:22px 0 10px}
+  /* aqui o ☰ não abre gaveta: recolhe a barra — fica sempre com as 3 barrinhas (o X é da gaveta) */
+  .nav-toggle[aria-expanded="true"] .nt-bars{background:currentColor}
+  .nav-toggle[aria-expanded="true"] .nt-bars::before{top:-6px;transform:none}
+  .nav-toggle[aria-expanded="true"] .nt-bars::after{top:6px;transform:none}
+  .hdr-tools{grid-column:3 / -1;grid-row:2;margin-bottom:20px;border-bottom:1px solid var(--linha)}
+  #offline-faixa{grid-column:3 / -1;grid-row:3}
+  #erro-box{grid-column:3 / -1;grid-row:4}
+  .filtros{grid-column:3 / -1;grid-row:5}
+  #rel-ctx{grid-column:3 / -1;grid-row:6}
+  #abas{grid-column:3 / -1;grid-row:7}
+  #conteudo{grid-column:3 / -1;grid-row:8;min-width:0;container-type:inline-size;container-name:conteudo}   /* @container conteudo: os blocos por grupo medem o CONTEÚDO, não a janela */
+  footer{grid-column:3 / -1;grid-row:9}
+  .print-head{grid-column:3 / -1;grid-row:1}
+  /* a coluna da barra */
+  #seg-vista{display:flex;flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;gap:0;grid-column:1;grid-row:1 / 10;position:sticky;top:0;
+    align-self:start;width:auto;height:100vh;height:100dvh;margin:0;padding:12px 8px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--cartao);border-right:1px solid var(--linha);box-sizing:border-box}
+  body.nav-recolhida #seg-vista{display:none}
+  body.nav-recolhida .wrap{grid-template-columns:0 0 auto auto minmax(0,1fr) auto;padding-left:clamp(12px,2vw,24px)}
+  /* acordeão sempre visível (regras do acordeão da gaveta, copiadas — não dependem do ≤ 760) */
+  #seg-vista>.navtab,.navg{width:100%}
+  .navg{position:static;display:flex;flex-direction:column}
+  #seg-vista>.navtab,.navg-b{width:100%;box-sizing:border-box;justify-content:flex-start;padding:12px 12px;margin:0;border-radius:8px;border-bottom:0;
+    font-size:15px;white-space:normal;text-align:left;min-height:var(--ipad-alvo)}
+  #seg-vista .nav-ic{display:inline-block}
+  .navg-b .nav-car{margin-left:auto;transition:transform .18s ease}
+  .navg.open>.navg-b .nav-car{transform:rotate(180deg)}
+  .navg-menu{position:static;display:none;min-width:0;width:100%;margin:0;padding:2px 0 6px;border:0;border-radius:0;background:transparent;
+    box-shadow:none;max-height:none;overflow:visible;max-width:none}
+  .navg.open>.navg-menu{display:flex;flex-direction:column}
+  .navg-menu button{padding:11px 12px 11px 30px;font-size:14px;border-radius:8px;white-space:normal;min-height:var(--ipad-alvo)}
+  .navg-menu .nav-sub{padding-left:46px}
+  .navg-menu button .nav-ic{display:none}
+  #seg-vista .navg-cab{display:none}   /* o botão do grupo já diz o nome: sem o subtítulo repetido em caixa-alta */
+  .navg-sec{white-space:normal;padding:10px 12px 4px 14px}
+  .navg-menu.navg-largo{min-width:0}
+  .seg button[aria-pressed="true"]{border-bottom-color:transparent;background:var(--hoverbg);box-shadow:inset 3px 0 0 var(--cerceta)}
+  .navg.ativo>.navg-b[aria-pressed="true"]{background:var(--hoverbg)}
+  #nav-favs>.navtab{width:100%;box-sizing:border-box;justify-content:flex-start;padding:12px;margin:0;border-radius:8px;border-bottom:0;font-size:15px;white-space:normal}
+  #seg-vista #navg-novo-b{border-radius:8px;margin:6px 0;padding:12px;line-height:1.2}
+  #seg-vista>#btn-paleta,#seg-vista>#btn-tkb{border:1px solid var(--linha);margin-top:6px;font-size:14px}
+  #btn-paleta::after{content:'Buscar tela'}
+  #btn-tkb::after{content:'Buscar ticket'}
+  /* o 🐞 fica na coluna da barra (vazia no rodapé), nunca sobre os cartões; a barra ganha folga no fim para o último item não ficar atrás dele */
+  #btn-reportar{left:14px}
+  #seg-vista{padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+  body.nav-recolhida #btn-reportar{left:18px}
+}
+
+/* ================= 3. Modo instalado ================= */
+@media (display-mode: standalone){
+  /* o elástico do iOS fica só nos rolantes internos: a página inteira não "puxa" */
+  body{overscroll-behavior-y:none}
+  /* ‹ › também no app instalado no COMPUTADOR (Chrome/Edge com mouse): o 30 liga body.pwa por display-mode, não por toque; o navegador comum não muda */
+  .nav-hist{display:flex;align-items:center;gap:4px;margin-left:10px;padding-bottom:10px}
+  .nav-hist[hidden]{display:none}
+  .nav-hist-b{min-width:44px;min-height:44px;padding:0;font-size:28px;line-height:1;display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--linha);background:var(--cartao);color:var(--grafite);border-radius:10px}
+  .nav-hist-b:disabled{opacity:.35}
+}
+
+/* ---- 🍎 grupo: global (menu, abas, modais, guias, paleta Ctrl+K, busca 🎫, avisos, rodapé) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  /* modal: ocupa mais da folha no iPad e o × tem alvo de dedo */
+  .modal{max-width:min(860px,calc(100vw - 48px))}
+  .modal-bg{padding:32px 24px;padding-top:calc(32px + env(safe-area-inset-top,0px));padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
+  .modal-x{width:44px;height:44px;top:6px;right:8px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+  /* guias e tour: balão legível e botões de 44 */
+  .tour-pop,.tour-pop.guia{max-width:min(400px,calc(100vw - 32px))}
+  .tour-nav{gap:10px}
+  .tour-pop p{font-size:14px}
+  /* paleta Ctrl+K e busca 🎫: lista folgada, setas de ⭐ com alvo de dedo */
+  #pal-list [data-pal-v]{min-height:var(--ipad-alvo)}
+  .pal-fav{min-width:var(--ipad-alvo);min-height:var(--ipad-alvo);display:inline-flex;align-items:center;justify-content:center}
+  .pal-q{min-height:var(--ipad-alvo);font-size:16px}
+  .tkb-l .pal-row{min-height:var(--ipad-alvo)}
+  /* avisos (toasts) e rodapé */
+  .toasts{max-width:min(92vw,420px)}
+  footer{font-size:12px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  /* abas do grupo: quebram em linhas folgadas (a barra de abas do computador é 1 linha densa) */
+  .abas-tela{gap:4px}
+  .abas-tela .aba{padding:8px 14px}
+  /* menu de ⋯ Mais / tema / exportar: linhas de 44 já vêm da base; ícone-botão do tema também */
+  #btn-tema,.hdrmenu-b{min-width:var(--ipad-alvo)}
+  /* fontes de 12 px no mínimo nos rótulos globais (T5: marca da barra, rótulo das abas, período, filtros do topo, rodapé, eixos dos gráficos) */
+  .nav-marca,.abas-rot,#versaoApp,footer a,#hdr-periodo>span,.filtros label,.filtros .campo>label,.tsc-yl,.tsc-xl{font-size:12px}
+  .filtros select,.filtros input:not([type=checkbox]):not([type=radio]){min-height:var(--ipad-alvo)}
+}
+/* Split View 2/3 (~678 px, abaixo de 761): o cabeçalho e as abas também com alvo de dedo. Só toque; o computador não casa. */
+@media (pointer:coarse){
+  @media (min-width:601px) and (max-width:760px){
+    .btn,.nav-toggle,.hdrmenu-b,#btn-tema,#btn-refresh,.abas-tela .aba{min-height:44px}
+    #btn-tema,.hdrmenu-b{min-width:44px}
+    .nav-marca,.abas-rot,#versaoApp,footer a,#hdr-periodo>span,.filtros label,.filtros .campo>label{font-size:12px}
+    .filtros select{min-height:44px}
+    /* rótulos e eixos que nenhum bloco de grupo espelhou (o Split View 2/3 só tem o mobile.css) */
+    #conteudo :is(.dt,.mtp-rot,.anl-des,.s,.dsh-t-sub,.dsh-t-rot,.dsh-t-st,.ct-kl,.ct-orig,.rc-badge,.anl-badge,.tsc-yl,.tsc-xl,.hl,.l,.vg-pill,.ams-nav-cur,.ams-note,.rc2-fl,.mpg-rot){font-size:12px}
+    #conteudo button.rc-cell{min-width:44px;min-height:44px}
+    #conteudo button.rc-link,#conteudo tr.rm-click td,#conteudo .ct-click{min-height:44px}
+    #conteudo button[data-cl-del]{min-width:44px}
+    .cf-papeis label.cf-pap-alvo{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin:0}
+  }
+}
+/* ---- fim: global ---- */
+
+/* ---- 🍎 grupo: reportar (🐞 reportar bug ou melhoria — 25b) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  .rep-tipo{min-height:64px;padding:10px 12px}
+  .rep-tipos{gap:10px}
+  .rep-acoes .btn{min-height:var(--ipad-alvo)}
+  .rep-ctx{min-height:var(--ipad-alvo);align-items:center}
+  .rep-ctx input{width:22px;height:22px;margin-top:0}
+  .rep-2col textarea{min-height:96px}
+}
+/* ---- fim: reportar ---- */
+
+/* ===== 4. Blocos por grupo de telas (montados na T5, na ordem do mobile.css) ===== */
+
+/* ---- 🍎 grupo: inicio (⚡ Ações de hoje) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  .hxd-row a{display:flex;align-items:center;min-height:44px}
+  #conteudo .apr-l,#conteudo .vp-row{min-height:44px;box-sizing:border-box;align-items:center}
+  #conteudo details>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
+  #conteudo [style*="font-size:11.5px"]{font-size:12px!important}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  .hxd-row a{display:flex;align-items:center;min-height:44px}
+  #conteudo .apr-l,#conteudo .vp-row{min-height:44px;box-sizing:border-box;align-items:center}
+  #conteudo details>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
+  #conteudo [style*="font-size:11.5px"]{font-size:12px!important}
+  #conteudo .btn,#abas .aba,#conteudo .aba{min-height:44px;box-sizing:border-box}
+  #conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo select,#conteudo textarea{min-height:44px;box-sizing:border-box}
+  #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
+}}
+/* ---- fim: inicio ---- */
+
+/* ---- 🍎 grupo: pessoal (Inbox, Menções, Meu dia, Roadmap, Meu Planejamento, Planejado × realizado, 🎯 Prioridades) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .mp-btn,#conteudo .mp-tab,#conteudo .mp-lnk,#conteudo .lnk-btn,#conteudo a.mono{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
+  #conteudo a.mono{justify-content:flex-start}
+  #conteudo .mp-btn.mp-add{display:flex}
+  #conteudo button.chip,#conteudo .ap-vis .chip{min-height:44px;box-sizing:border-box}
+  #conteudo label:has(input[type=checkbox]),#conteudo label:has(input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  #conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
+  #conteudo .mp-2col>*{min-width:0;overflow-x:auto}
+  #conteudo .pr-selo,#conteudo .pr-chip{font-size:12px}
+  #abas .abas-tela .abas-rot,.abas-tela .abas-rot{font-size:12px}
+  #conteudo .campo label{font-size:12px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .mp-btn,#conteudo .mp-tab,#conteudo .mp-lnk,#conteudo .lnk-btn,#conteudo a.mono{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
+  #conteudo a.mono{justify-content:flex-start}
+  #conteudo .mp-btn.mp-add{display:flex}
+  #conteudo button.chip,#conteudo .ap-vis .chip{min-height:44px;box-sizing:border-box}
+  #conteudo label:has(input[type=checkbox]),#conteudo label:has(input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  #conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
+  #conteudo .mp-2col>*{min-width:0;overflow-x:auto}
+  #conteudo .pr-selo,#conteudo .pr-chip{font-size:12px}
+  #abas .abas-tela .abas-rot,.abas-tela .abas-rot{font-size:12px}
+  #conteudo .campo label{font-size:12px}
+  #conteudo .btn,#abas .aba,#conteudo .aba{min-height:44px;box-sizing:border-box}
+  #conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo select,#conteudo textarea{min-height:44px;box-sizing:border-box}
+  #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
+}}
+/* ---- fim: pessoal ---- */
+
+/* ---- 🍎 grupo: apontar (Apontar, Rateio, Agenda, 📞 Ligações) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) .btn{min-height:44px;box-sizing:border-box}
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) :is(select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range])){min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-chips .chip,#conteudo .tela-apontar .ap-vis .chip,#conteudo .tela-apontar .ap-grp-bar .chip,#conteudo .tela-apontar .ap-trans .chip,#mh-card .ap-chips .chip,#conteudo .tela-rateio .ap-vis .chip,#conteudo .tela-rateio .ap-chips .chip,[data-rg-chip],#rg-todos,#rg-nenhum,#rg-time-salvar,#conteudo .tela-chamadas .chm-acoes-l .btn{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-l2{gap:8px}
+  #conteudo .tela-apontar .ap-l2 .badge,#conteudo .tela-apontar .ap-l2 .st-btn{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:12px;padding:4px 12px}
+  #conteudo .tela-apontar .ap-l1>a,#conteudo .tela-apontar .cv-row>a,#conteudo .tela-apontar .ap-proj-head,#conteudo .tela-apontar table.ap-tab td>a{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-proj-head{display:flex}
+  #conteudo .tela-apontar .ap-rec-tgl{min-width:44px;min-height:44px}
+  #mh-card .mts-nav .btn{min-width:44px;min-height:44px;font-size:16px}
+  #mh-card .mts-tgl{min-width:44px;min-height:44px;padding:0;margin:-14px -14px;font-size:14px}
+  #mh-card .mts-c1 a,#mh-card .mts-lchip{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
+  #mh-card .mts-lchip{min-height:36px}
+  #conteudo .tela-rateio .rt-step{min-width:44px;min-height:44px}
+  #conteudo .tela-rateio .rt-tab td a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .tela-agenda .ag-sec>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .tela-agenda .ag-ct-row a,#conteudo .tela-agenda .ag-info a,#conteudo .tela-agenda .ag-ev a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .tela-chamadas summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  .ag-modal .agm-extra-lista .chip,.chm-modal .chm-conv .chip,.chm-modal .chm-chips .chip{min-height:44px}
+  .ag-modal .agm-extra-rm,.chm-modal .chm-conv-rm{min-width:44px;min-height:44px}
+  .chm-modal .chm-tk,.chm-modal .check,.ag-modal .check{min-height:44px}
+  #conteudo .tela-apontar .campo label,#conteudo .tela-rateio .campo label,#conteudo .tela-agenda .campo label,#conteudo .tela-chamadas .campo label,#mh-card .mts-tab th,#mh-card .mts-tab th.mts-d,#conteudo .tela-apontar .kpi .l,#conteudo .tela-apontar .ap-proj-cont,#conteudo .tela-apontar table.ap-tab th,#conteudo .tela-agenda .badge,#conteudo .tela-agenda .ag-ct-atras,#conteudo .tela-agenda .ag-ct-head>span,#conteudo .tela-chamadas code,#conteudo .tela-chamadas .chm-kpis .l,#conteudo .tela-rateio .rt-tab th,#mh-card .mts-hora,#mh-card .mts-blk{font-size:12px}
+  #conteudo .tela-apontar .ap-filtros{gap:12px 16px;align-items:flex-end}
+  #conteudo .tela-apontar .ap-filtros>.campo:has(.ap-chips){flex:1 1 300px;min-width:0}
+  #conteudo .tela-apontar .ap-filtros>.campo:has(select){flex:1 1 200px;min-width:0}
+  #conteudo .tela-apontar .ap-filtros>.campo select,#conteudo .tela-apontar .ap-filtros>.campo input[type=search]{width:100%;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-filtros>.check{min-height:44px;align-self:flex-end}
+  #conteudo .tela-apontar .ap-filtros>.check input{width:22px;height:22px}
+  #conteudo .tela-apontar .ap-vis{gap:8px}
+  #conteudo .tela-apontar .ap-log{gap:10px}
+  #conteudo .tela-apontar .ap-log input{min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-log .ap-tempo{width:96px}
+  #conteudo .tela-apontar .ap-log .ap-coment{flex:1 1 220px;min-width:0}
+  #conteudo .tela-apontar .ap-log .btn{min-height:44px}
+  #conteudo .tela-apontar .ap-trans select,#conteudo .tela-apontar .ap-trans input{min-height:44px;box-sizing:border-box}
+  #conteudo .tela-agenda .ag-ct-tab{grid-template-columns:minmax(150px,2fr) minmax(80px,.8fr) minmax(110px,1.1fr) minmax(150px,1.3fr)}
+  #conteudo .tela-agenda .ag-ct-row>div{min-width:0}
+  #conteudo .tela-agenda .ag-ct-acao .btn{min-height:44px}
+  #conteudo .tela-agenda .ag-ct-faixa>.btn{min-height:44px}
+  #conteudo .tela-agenda .ag-acao .btn,#conteudo .tela-agenda .ag-ev .btn{min-height:44px}
+  #conteudo .tela-agenda .ag-ct-faixa{gap:10px}
+  #conteudo .tela-chamadas .chm-row{align-items:center}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) .btn{min-height:44px;box-sizing:border-box}
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) :is(select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range])){min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-chips .chip,#conteudo .tela-apontar .ap-vis .chip,#conteudo .tela-apontar .ap-grp-bar .chip,#conteudo .tela-apontar .ap-trans .chip,#mh-card .ap-chips .chip,#conteudo .tela-rateio .ap-vis .chip,#conteudo .tela-rateio .ap-chips .chip,[data-rg-chip],#rg-todos,#rg-nenhum,#rg-time-salvar,#conteudo .tela-chamadas .chm-acoes-l .btn{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-l2{gap:8px}
+  #conteudo .tela-apontar .ap-l2 .badge,#conteudo .tela-apontar .ap-l2 .st-btn{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;font-size:12px;padding:4px 12px}
+  #conteudo .tela-apontar .ap-l1>a,#conteudo .tela-apontar .cv-row>a,#conteudo .tela-apontar .ap-proj-head,#conteudo .tela-apontar table.ap-tab td>a{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-proj-head{display:flex}
+  #conteudo .tela-apontar .ap-rec-tgl{min-width:44px;min-height:44px}
+  #mh-card .mts-nav .btn{min-width:44px;min-height:44px;font-size:16px}
+  #mh-card .mts-tgl{min-width:44px;min-height:44px;padding:0;margin:-14px -14px;font-size:14px}
+  #mh-card .mts-c1 a,#mh-card .mts-lchip{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
+  #mh-card .mts-lchip{min-height:36px}
+  #conteudo .tela-rateio .rt-step{min-width:44px;min-height:44px}
+  #conteudo .tela-rateio .rt-tab td a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .tela-agenda .ag-sec>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .tela-agenda .ag-ct-row a,#conteudo .tela-agenda .ag-info a,#conteudo .tela-agenda .ag-ev a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .tela-chamadas summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  .ag-modal .agm-extra-lista .chip,.chm-modal .chm-conv .chip,.chm-modal .chm-chips .chip{min-height:44px}
+  .ag-modal .agm-extra-rm,.chm-modal .chm-conv-rm{min-width:44px;min-height:44px}
+  .chm-modal .chm-tk,.chm-modal .check,.ag-modal .check{min-height:44px}
+  #conteudo .tela-apontar .campo label,#conteudo .tela-rateio .campo label,#conteudo .tela-agenda .campo label,#conteudo .tela-chamadas .campo label,#mh-card .mts-tab th,#mh-card .mts-tab th.mts-d,#conteudo .tela-apontar .kpi .l,#conteudo .tela-apontar .ap-proj-cont,#conteudo .tela-apontar table.ap-tab th,#conteudo .tela-agenda .badge,#conteudo .tela-agenda .ag-ct-atras,#conteudo .tela-agenda .ag-ct-head>span,#conteudo .tela-chamadas code,#conteudo .tela-chamadas .chm-kpis .l,#conteudo .tela-rateio .rt-tab th,#mh-card .mts-hora,#mh-card .mts-blk{font-size:12px}
+  #conteudo .tela-apontar .ap-filtros{gap:12px 16px;align-items:flex-end}
+  #conteudo .tela-apontar .ap-filtros>.campo:has(.ap-chips){flex:1 1 300px;min-width:0}
+  #conteudo .tela-apontar .ap-filtros>.campo:has(select){flex:1 1 200px;min-width:0}
+  #conteudo .tela-apontar .ap-filtros>.campo select,#conteudo .tela-apontar .ap-filtros>.campo input[type=search]{width:100%;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-filtros>.check{min-height:44px;align-self:flex-end}
+  #conteudo .tela-apontar .ap-filtros>.check input{width:22px;height:22px}
+  #conteudo .tela-apontar .ap-vis{gap:8px}
+  #conteudo .tela-apontar .ap-log{gap:10px}
+  #conteudo .tela-apontar .ap-log input{min-height:44px;box-sizing:border-box}
+  #conteudo .tela-apontar .ap-log .ap-tempo{width:96px}
+  #conteudo .tela-apontar .ap-log .ap-coment{flex:1 1 220px;min-width:0}
+  #conteudo .tela-apontar .ap-log .btn{min-height:44px}
+  #conteudo .tela-apontar .ap-trans select,#conteudo .tela-apontar .ap-trans input{min-height:44px;box-sizing:border-box}
+  #conteudo .tela-agenda .ag-ct-tab{grid-template-columns:minmax(150px,2fr) minmax(80px,.8fr) minmax(110px,1.1fr) minmax(150px,1.3fr)}
+  #conteudo .tela-agenda .ag-ct-row>div{min-width:0}
+  #conteudo .tela-agenda .ag-ct-acao .btn{min-height:44px}
+  #conteudo .tela-agenda .ag-ct-faixa>.btn{min-height:44px}
+  #conteudo .tela-agenda .ag-acao .btn,#conteudo .tela-agenda .ag-ev .btn{min-height:44px}
+  #conteudo .tela-agenda .ag-ct-faixa{gap:10px}
+  #conteudo .tela-chamadas .chm-row{align-items:center}
+}}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  @container conteudo (max-width:820px){
+    /* com a barra lateral o conteúdo de um 12,9" em pé tem ≈ 700 px: a grade de ações vira linha abaixo do título */
+    .tela-agenda .ag-ct-tab{grid-template-columns:minmax(140px,2fr) minmax(70px,.8fr) minmax(100px,1.1fr)}
+    .tela-agenda .ag-ct-head>span:nth-child(4){display:none}
+    .tela-agenda .ag-ct-row>div:nth-child(-n+3){border-bottom:0}
+    .tela-agenda .ag-ct-acao{grid-column:1 / -1;justify-content:flex-start;padding-bottom:6px!important}
+    .tela-apontar .ap-filtros>.campo:has(.ap-chips){flex-basis:100%}
+  }
+}
+/* ---- fim: apontar ---- */
+
+/* ---- 🍎 grupo: projetos (Projetos: portfólio e ficha, 📅 Marcos e Cronograma — as abas do 📁) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .vg-k .l,#conteudo th,#conteudo .campo>label,#conteudo .hdr-sel>span,.hdr-tools .hdr-sel span{font-size:12px}
+  .hdr-tools .hdr-sel select{min-height:44px;font-size:16px}
+  #conteudo .pp-legend span{font-size:12px}
+  #conteudo button.chip,#conteudo a.chip,#conteudo .btn,#abas .aba{min-height:44px;box-sizing:border-box}
+  #conteudo select,.filtros select,.filtros input:not([type=checkbox]):not([type=radio]):not([type=hidden]),#conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo textarea{min-height:44px;font-size:16px;box-sizing:border-box}
+  #conteudo details>summary{min-height:44px;box-sizing:border-box;display:flex;align-items:center}
+  #conteudo [data-proj-sort]{min-height:44px}
+  #conteudo label:has(>input[type=checkbox]),#conteudo label:has(>input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .vg-k .l,#conteudo th,#conteudo .campo>label,#conteudo .hdr-sel>span,.hdr-tools .hdr-sel span{font-size:12px}
+  .hdr-tools .hdr-sel select{min-height:44px;font-size:16px}
+  #conteudo .pp-legend span{font-size:12px}
+  #conteudo button.chip,#conteudo a.chip,#conteudo .btn,#abas .aba{min-height:44px;box-sizing:border-box}
+  #conteudo select,.filtros select,.filtros input:not([type=checkbox]):not([type=radio]):not([type=hidden]),#conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo textarea{min-height:44px;font-size:16px;box-sizing:border-box}
+  #conteudo details>summary{min-height:44px;box-sizing:border-box;display:flex;align-items:center}
+  #conteudo [data-proj-sort]{min-height:44px}
+  #conteudo label:has(>input[type=checkbox]),#conteudo label:has(>input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+}}
+/* ---- fim: projetos ---- */
+
+/* ---- 🍎 grupo: time (Timesheet, Ranking, Tickets, Qualidade, Auditoria, 🛠 Gestão, ⚠ Alertas) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .badge,.filtros .campo>label,#conteudo .aloc-badge,#conteudo .kpi .l,#conteudo .alx-pill,#conteudo .alx-meta span,#conteudo .al-sev,#conteudo .al-cat,#conteudo .rk-badge,#conteudo .rk-sub,#conteudo .dsem,#conteudo label.tk-group-sel,#conteudo .gx-acts button,#conteudo th.ts-nome,#conteudo .ts-d .dsem{font-size:12px}
+  #conteudo .gx-acts button{min-height:44px;min-width:44px;padding:0 12px;box-sizing:border-box}
+  #conteudo .gx-acts{gap:6px}
+  #conteudo td:has(>.gx-acts){min-width:250px}
+  #conteudo .al-link{font-size:12px;display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+  #conteudo label:has(>input[type=checkbox]),#conteudo label:has(>input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  #conteudo input.alx-chk,#conteudo input.gx-chk,#conteudo input#gx-all{-webkit-appearance:none;appearance:none;box-sizing:border-box;width:44px;height:44px;min-height:44px;margin:0;flex:none;border:0;border-radius:8px;cursor:pointer;background:linear-gradient(var(--cartao),var(--cartao)) center/20px 20px no-repeat,linear-gradient(var(--muted),var(--muted)) center/24px 24px no-repeat}
+  #conteudo input.alx-chk:checked,#conteudo input.gx-chk:checked,#conteudo input#gx-all:checked{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4 10.5l4 4 8-9' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/20px 20px no-repeat,linear-gradient(var(--cerceta),var(--cerceta)) center/24px 24px no-repeat}
+  #conteudo input.alx-chk:focus-visible,#conteudo input.gx-chk:focus-visible,#conteudo input#gx-all:focus-visible{outline:2px solid var(--cerceta);outline-offset:-4px}
+  #conteudo .alx-acoes .chip,#conteudo .alx-acoes .btn,#conteudo [data-alx-reprog],#conteudo [data-alx-copiar]{min-height:44px}
+  #conteudo [data-gx-det],#conteudo [data-gx-r],#conteudo [data-gx-st],#conteudo [data-gx-msg],#conteudo [data-gx-trf],#conteudo [data-gx-conv],#conteudo [data-gx-apont],#conteudo [data-tft-abre]{min-height:44px;min-width:44px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .gx-modos .spacer{display:none}   /* Gestão a 678: o rótulo 'Agrupar:' não fica órfão na ponta direita */
+  #conteudo .badge,.filtros .campo>label,#conteudo .aloc-badge,#conteudo .kpi .l,#conteudo .alx-pill,#conteudo .alx-meta span,#conteudo .al-sev,#conteudo .al-cat,#conteudo .rk-badge,#conteudo .rk-sub,#conteudo .dsem,#conteudo label.tk-group-sel,#conteudo .gx-acts button,#conteudo th.ts-nome,#conteudo .ts-d .dsem{font-size:12px}
+  #conteudo .gx-acts button{min-height:44px;min-width:44px;padding:0 12px;box-sizing:border-box}
+  #conteudo .gx-acts{gap:6px}
+  #conteudo td:has(>.gx-acts){min-width:250px}
+  #conteudo .al-link{font-size:12px;display:inline-flex;align-items:center;min-height:44px;min-width:44px}
+  #conteudo label:has(>input[type=checkbox]),#conteudo label:has(>input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  #conteudo input.alx-chk,#conteudo input.gx-chk,#conteudo input#gx-all{-webkit-appearance:none;appearance:none;box-sizing:border-box;width:44px;height:44px;min-height:44px;margin:0;flex:none;border:0;border-radius:8px;cursor:pointer;background:linear-gradient(var(--cartao),var(--cartao)) center/20px 20px no-repeat,linear-gradient(var(--muted),var(--muted)) center/24px 24px no-repeat}
+  #conteudo input.alx-chk:checked,#conteudo input.gx-chk:checked,#conteudo input#gx-all:checked{background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4 10.5l4 4 8-9' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/20px 20px no-repeat,linear-gradient(var(--cerceta),var(--cerceta)) center/24px 24px no-repeat}
+  #conteudo input.alx-chk:focus-visible,#conteudo input.gx-chk:focus-visible,#conteudo input#gx-all:focus-visible{outline:2px solid var(--cerceta);outline-offset:-4px}
+  #conteudo .alx-acoes .chip,#conteudo .alx-acoes .btn,#conteudo [data-alx-reprog],#conteudo [data-alx-copiar]{min-height:44px}
+  #conteudo [data-gx-det],#conteudo [data-gx-r],#conteudo [data-gx-st],#conteudo [data-gx-msg],#conteudo [data-gx-trf],#conteudo [data-gx-conv],#conteudo [data-gx-apont],#conteudo [data-tft-abre]{min-height:44px;min-width:44px}
+}}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:761px) and (max-width:1023px){
+  /* tablet em pé: os filtros dos Alertas em 2 por linha (o mobile.css empilha em 1 coluna de ponta a ponta) */
+  #conteudo .alx-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center}
+  #conteudo .alx-filtros select{width:100%}
+}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  @container conteudo (max-width:780px){
+    #conteudo .alx-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center}
+    #conteudo .alx-filtros select{width:100%}
+  }
+}
+/* ---- fim: time ---- */
+
+/* ---- 🍎 grupo: insights (Dashboard de KPIs, Controladoria, Visão Geral, Resumo, Analytics, Central de Relatórios, Métricas, Meu tempo) ---- */
+/* Telas: .ct-tela (.dsh-tela é a do Dashboard; a Controladoria é só .ct-tela) · .vis-tela · .res-tela · .mob-anl · .mob-rel · .mob-met · .mob-mt.
+   O celular (mobile.css ≤ 760, inclusive o Split View 2/3 de 678 px) segue só com o mobile.css; aqui entram o iPad em pé (761–1023) e em paisagem. */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  /* alvos de 44 px: chips de filtro/atalho/período, células da matriz R×tipo, links-botão e linhas clicáveis das tabelas */
+  #conteudo :is(.ct-tela,.mob-rel,.mob-met,.mob-mt,.mob-anl,.res-tela,.vis-tela) .chip,
+  #conteudo :is(.mob-rel,.mob-met,.mob-mt) .ap-chips .chip{min-height:var(--ipad-alvo);padding-top:8px;padding-bottom:8px;box-sizing:border-box}
+  #conteudo .dsh-chip{min-height:var(--ipad-alvo)}
+  #conteudo :is(.ct-tela,.vis-tela,.res-tela,.mob-anl) .btn.rt-step{min-height:var(--ipad-alvo);min-width:var(--ipad-alvo);box-sizing:border-box}
+  #conteudo .ct-tela details>summary{min-height:var(--ipad-alvo);display:flex;align-items:center;box-sizing:border-box}
+  #conteudo :is(.mob-rel,.mob-met,.mob-mt) :is(.rc-cell,.rc-link,button.rc-cod,.btn.rt-step){min-height:var(--ipad-alvo);min-width:var(--ipad-alvo);box-sizing:border-box}
+  #conteudo .mob-rel .rc-cell{width:var(--ipad-alvo);height:var(--ipad-alvo)}
+  #conteudo :is(.mob-rel,.mob-met,.mob-mt,.mob-anl) :is(.rc-link,button.rc-cod){display:inline-flex;align-items:center}
+  #conteudo .mob-rel .rc-link{min-width:0}
+  #conteudo :is(.ct-tela,.mob-met,.mob-rel) tr:is(.ct-click,.rm-click)>td{height:var(--ipad-alvo);box-sizing:border-box}
+  #conteudo .ct-tela .ct-tb.ct-click{min-height:var(--ipad-alvo);box-sizing:border-box}
+  #conteudo .vis-tela .vg-card a:not(.btn){display:inline-flex;align-items:center;min-height:var(--ipad-alvo);padding:0 6px}
+  /* texto miúdo sobe para 12 px (rótulos de campo, tiles, KPIs, selos, cabeçalhos de tabela, notas) */
+  #conteudo :is(.ct-tela,.vis-tela,.res-tela,.mob-anl,.mob-rel,.mob-met,.mob-mt) :is(label,th,.kpi .l,.vg-k .l,.vg-k .s,.vg-hero .l,.vg-hero .s,.vg-health .hl,.dsh-t-rot,.dsh-t-sub,.dsh-t-st,.dsh-sm-nota,.ct-orig,.mpg-sub,.mpg-rot,.mpg-rot b,.anl-des,.anl-badge,.rc-cod,.rc-th,.rc-badge,.mtp-rot,.tsc-yl,.tsc-xl,.tsc-anot-tx,.vg-pill,.vg-card .d,div.l,div.s,div.hl,.ct-kl){font-size:12px}
+  /* Dashboard: o rótulo dos filtros e os selos dos tiles não ficam atrás do resto */
+  #conteudo .dsh-filtros select{min-height:var(--ipad-alvo)}
+  /* o valor em R$ da Controladoria não quebra em duas linhas */
+  #conteudo .ct-tela .kpis.ts-kpis .kpi .v{font-size:clamp(22px,2vw,30px);white-space:nowrap}
+  #conteudo .ct-tela .ct-orig{display:inline-block;padding:2px 4px}
+}
+
+/* iPad em pé (761–1023): conteúdo de ≈ 764 px — filtros em 2 por linha, KPIs e cartões em colunas sem buraco */
+@media screen and (hover:none) and (pointer:coarse) and (min-width:761px) and (max-width:1023px){
+  #conteudo .dsh-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;align-items:end}
+  #conteudo .dsh-filtros select{max-width:none;width:100%;min-width:0}
+  #conteudo .dsh-filtros .dsh-acoes{grid-column:1 / -1;justify-content:flex-end;margin-left:0}
+  #conteudo .dsh-filtros .dsh-comp{grid-column:1 / -1;justify-content:flex-start}
+  #conteudo .ct-tela .kpis.ts-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #conteudo .mob-anl .kpis.ts-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #conteudo .res-tela .kpis{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+  #conteudo .res-tela .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #conteudo .vis-tela .vg-hero{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+  #conteudo .vis-tela .vg-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #conteudo .mob-mt .rm-2col{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+/* paisagem com barra lateral: o conteúdo mede ≈ 880 px (medido no contêiner, não na janela) */
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  @container conteudo (max-width:960px){
+    #conteudo .ct-tela .kpis.ts-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+    #conteudo .vis-tela .vg-hero{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+  }
+}
+/* ---- fim: insights ---- */
+
+/* ---- 🍎 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias, Contratos/Admin) ---- */
+/* O celular (mobile.css ≤ 760) cobre o Split View 2/3 (678 px); aqui só entram o iPad em pé (761–1023) e em paisagem. As classes de
+   raiz .ams-tela/.rc-tela/.ct-tela/.rp-tela/.pc-tela e .vw-admin só escopam: fichas, botões e tabelas são componentes compartilhados. */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  /* alvos de 44: botões-passo das linhas (👁 ver · ✏️ editar · ⧉ · 🗑), chips de ficha 📁 e cabeçalhos de gaveta (<summary>) */
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) .btn.rt-step{min-height:var(--ipad-alvo);min-width:var(--ipad-alvo);padding:6px 12px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) .lnk-ficha{min-height:var(--ipad-alvo);padding:6px 14px;font-size:13px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) details>summary{min-height:var(--ipad-alvo);display:flex;align-items:center;box-sizing:border-box}
+  .vw-admin button[data-cl-del]{min-width:var(--ipad-alvo)}
+  /* texto miúdo sobe para 12 px (rótulos de KPI, selos, cabeçalhos de tabela, notas) */
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) :is(.ams-dl .dt,.rp-mini .dt,.ams-k .l,.rc2-fl,.ams-ch-b,.ams-nav-cur,.ams-note,.badge,.ct-kl,.rp-vg .vg-k .s,.ams-mc .mm,.rc-tela .kpi .l,.rc-tela .rc2-card .l,.rc-tela .rc2-card span,.ams-tp-b,.ams-tp-h,.ams-ch-t,.ams-rel-cum,.ams-tela .tsc-yl,.ams-tela .tsc-xl,.rc-tela h2 span){font-size:12px}
+  :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin,.vw-config,.uso-card,.uso-mini) :is(th,.mp-tab-mini th,.mp-tab-cmp th){font-size:12px}
+  .rp-tela [data-rp-ind].dt{font-size:12px}
+  /* lista de contratos (Clientes / Parceiros): as ações quebram em linhas dentro da célula em vez de sumir na rolagem lateral */
+  .ct-lista td>.btn.rt-step,.ct-lista .ct-l-acoes .btn.rt-step,:is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela) td>.btn.rt-step{min-height:var(--ipad-alvo);min-width:var(--ipad-alvo);padding:6px 12px}
+  .ct-l-tab{width:100%}
+  .ct-l-tab :is(th,td){padding-left:4px;padding-right:4px}
+  .ct-l-acoes{white-space:normal;min-width:0;width:1%}
+  .ct-l-acoes .btn{white-space:nowrap}
+  /* cartões de contrato: um cartão só ocupa a linha (auto-fit), vários dividem em colunas de ≥ 340 px */
+  :is(.pc-tela,.vw-admin) .ad-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .ct-l-acoes .btn{margin:2px 4px 2px 0}
+  /* 🛡 AMS: a barra de ciclo (anterior · ciclo · próximo · atualizar) quebra com respiro e os botões têm texto inteiro */
+  .ams-tela .ams-nav{flex-wrap:wrap;row-gap:8px}
+  .ams-tela .ams-nav [data-ams-nav],.ams-tela .ams-nav [data-ams-cur]{white-space:nowrap}
+  /* ⚙️ Central de configurações: seletores e colunas de papéis com alvo de dedo */
+  .vw-config select,.vw-config :is(.cfgc,.cfgc-sec,.campo) select,:is(.vw-admin,.vw-config) :is(select,input:not([type=checkbox]):not([type=radio])){height:auto;min-height:var(--ipad-alvo);box-sizing:border-box}
+  .vw-config :is(label,.muted,.small,code,th){font-size:12px}
+  .cf-papeis td.num{padding:0}
+  .cf-papeis label.cf-pap-alvo{display:flex;align-items:center;justify-content:center;min-width:var(--ipad-alvo);min-height:var(--ipad-alvo);margin:0}
+  .cf-papeis label.cf-pap-alvo input{width:24px;height:24px;margin:0}
+  /* 📊 Uso do painel: texto ≥ 12 e barras de dispositivo lado a lado */
+  .uso-card :is(span,.muted,.small){font-size:max(12px,1em)}
+}
+/* paisagem com barra lateral: o conteúdo mede ≈ 760–1100 px (medido no contêiner, não na janela) */
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  @container conteudo (max-width:820px){
+    :is(.ams-tela,.pc-tela,.rp-tela,.ct-tela,.vw-admin) .ams-dgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .rc2-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+    .rp-tela .vg-hero{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+}
+/* ---- fim: negocio ---- */
+
+/* ---- 🍎 grupo: config (Criar ticket, Onde crio, Meus tickets, Reclassificar, Reuniões) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) .btn{min-height:44px;box-sizing:border-box}
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) :is(select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range])){min-height:44px;box-sizing:border-box}
+  #conteudo .vw-planejar .chip,#conteudo .vw-ondecrio .chip,#conteudo .vw-meustickets .chip,#conteudo .vw-reclass .chip,#conteudo .vw-reuvinc .chip{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
+  #conteudo .vw-planejar select,#conteudo .vw-ondecrio select,#conteudo .vw-meustickets select,#conteudo .vw-reclass select,#conteudo .vw-reuvinc select,#conteudo .vw-planejar .pl-grid input,#conteudo .vw-planejar .pl-grid select{min-height:44px;box-sizing:border-box}
+  #conteudo .vw-planejar .btn,#conteudo .vw-ondecrio .btn,#conteudo .vw-meustickets .btn,#conteudo .vw-reclass .btn,#conteudo .vw-reuvinc .btn{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .vw-planejar summary,#conteudo .vw-ondecrio summary,#conteudo .vw-meustickets summary,#conteudo .vw-reclass summary,#conteudo .vw-reuvinc summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .vw-reclass .rc-tab a,#conteudo .vw-reuvinc .rc-tab a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .vw-reclass .rc-chk-l{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;cursor:pointer}
+  #conteudo .vw-reclass .rc-chk-l input{min-height:0;width:22px;height:22px;margin:0}
+  #conteudo .vw-meustickets .mt-tab input,#conteudo .vw-meustickets .mt-opcao input[type=text],#conteudo .vw-reclass input,#conteudo .vw-reuvinc input{min-height:44px;box-sizing:border-box}
+  #conteudo .vw-meustickets .mt-opcao,#conteudo .vw-meustickets label:has(input[type=radio]),#conteudo .vw-meustickets label:has(input[type=checkbox]){min-height:44px;display:flex;align-items:center;gap:8px}
+  #conteudo .vw-planejar .campo label,#conteudo .vw-ondecrio .campo label,#conteudo .vw-meustickets .campo label,#conteudo .vw-meustickets label,#conteudo .vw-reclass .campo label,#conteudo .vw-reuvinc .campo label,#conteudo .vw-planejar .muted.small,#conteudo .vw-planejar .small,#conteudo .vw-ondecrio .small,#conteudo .vw-reclass .small,#conteudo .vw-reuvinc .small{font-size:12px}
+  #conteudo .vw-planejar .pl-grid{gap:14px 16px}
+  #rc-retry,#rv-retry{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .vw-reclass .ap-filtros,#conteudo .vw-reuvinc .ap-filtros{gap:12px 16px;align-items:flex-end}
+  #conteudo .vw-reclass .ap-filtros>.campo,#conteudo .vw-reuvinc .ap-filtros>.campo{flex:1 1 200px;min-width:0}
+  #conteudo .vw-reclass .ap-filtros>.campo:last-child>label,#conteudo .vw-reuvinc .ap-filtros>.campo:last-child>label{display:none}
+  #conteudo .vw-reclass .ap-filtros>.campo:last-child,#conteudo .vw-reuvinc .ap-filtros>.campo:last-child{flex:0 0 auto}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) .btn{min-height:44px;box-sizing:border-box}
+  #conteudo :is(.tela-apontar,.tela-rateio,.tela-agenda,.tela-chamadas,.vw-planejar,.vw-ondecrio,.vw-meustickets,.vw-reclass,.vw-reuvinc) :is(select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range])){min-height:44px;box-sizing:border-box}
+  #conteudo .vw-planejar .chip,#conteudo .vw-ondecrio .chip,#conteudo .vw-meustickets .chip,#conteudo .vw-reclass .chip,#conteudo .vw-reuvinc .chip{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
+  #conteudo .vw-planejar select,#conteudo .vw-ondecrio select,#conteudo .vw-meustickets select,#conteudo .vw-reclass select,#conteudo .vw-reuvinc select,#conteudo .vw-planejar .pl-grid input,#conteudo .vw-planejar .pl-grid select{min-height:44px;box-sizing:border-box}
+  #conteudo .vw-planejar .btn,#conteudo .vw-ondecrio .btn,#conteudo .vw-meustickets .btn,#conteudo .vw-reclass .btn,#conteudo .vw-reuvinc .btn{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .vw-planejar summary,#conteudo .vw-ondecrio summary,#conteudo .vw-meustickets summary,#conteudo .vw-reclass summary,#conteudo .vw-reuvinc summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  #conteudo .vw-reclass .rc-tab a,#conteudo .vw-reuvinc .rc-tab a{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .vw-reclass .rc-chk-l{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;cursor:pointer}
+  #conteudo .vw-reclass .rc-chk-l input{min-height:0;width:22px;height:22px;margin:0}
+  #conteudo .vw-meustickets .mt-tab input,#conteudo .vw-meustickets .mt-opcao input[type=text],#conteudo .vw-reclass input,#conteudo .vw-reuvinc input{min-height:44px;box-sizing:border-box}
+  #conteudo .vw-meustickets .mt-opcao,#conteudo .vw-meustickets label:has(input[type=radio]),#conteudo .vw-meustickets label:has(input[type=checkbox]){min-height:44px;display:flex;align-items:center;gap:8px}
+  #conteudo .vw-planejar .campo label,#conteudo .vw-ondecrio .campo label,#conteudo .vw-meustickets .campo label,#conteudo .vw-meustickets label,#conteudo .vw-reclass .campo label,#conteudo .vw-reuvinc .campo label,#conteudo .vw-planejar .muted.small,#conteudo .vw-planejar .small,#conteudo .vw-ondecrio .small,#conteudo .vw-reclass .small,#conteudo .vw-reuvinc .small{font-size:12px}
+  #conteudo .vw-planejar .pl-grid{gap:14px 16px}
+  #rc-retry,#rv-retry{min-height:44px;min-width:44px;box-sizing:border-box}
+  #conteudo .vw-reclass .ap-filtros,#conteudo .vw-reuvinc .ap-filtros{gap:12px 16px;align-items:flex-end}
+  #conteudo .vw-reclass .ap-filtros>.campo,#conteudo .vw-reuvinc .ap-filtros>.campo{flex:1 1 200px;min-width:0}
+  #conteudo .vw-reclass .ap-filtros>.campo:last-child>label,#conteudo .vw-reuvinc .ap-filtros>.campo:last-child>label{display:none}
+  #conteudo .vw-reclass .ap-filtros>.campo:last-child,#conteudo .vw-reuvinc .ap-filtros>.campo:last-child{flex:0 0 auto}
+}}
+/* ---- fim: config ---- */
+
+/* ---- 🍎 grupo: semanal (📊 Relatório semanal) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .sm-acoes .btn,#conteudo .sm-acoes button{min-width:44px;min-height:44px}
+  #conteudo button.rc-cod,#conteudo .rc-cod{font-size:12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .sm-acoes .btn,#conteudo .sm-acoes button{min-width:44px;min-height:44px}
+  #conteudo button.rc-cod,#conteudo .rc-cod{font-size:12px;min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
+}}
+/* ---- fim: semanal ---- */
+
+/* ---- 🍎 grupo: gp (🧭 Pendências do projeto) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo label:has(>#gp-semvenc){min-height:44px!important}   /* o 20b põe min-height:34px inline */
+  #conteudo .gp-mini{min-height:44px;min-width:44px}
+  #conteudo .lnk-ficha{min-height:44px;font-size:12px}
+  #conteudo .gp-tab-h>div,#conteudo .gp-chips .badge,#conteudo .gp-c-st .badge,#conteudo label.muted.small{font-size:12px}
+  #conteudo .gp-tab-h>div{letter-spacing:.3px}
+  #conteudo .gp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo label:has(>#gp-semvenc){min-height:44px!important}   /* o 20b põe min-height:34px inline */
+  #conteudo .gp-mini{min-height:44px;min-width:44px}
+  #conteudo .lnk-ficha{min-height:44px;font-size:12px}
+  #conteudo .gp-tab-h>div,#conteudo .gp-chips .badge,#conteudo .gp-c-st .badge,#conteudo label.muted.small{font-size:12px}
+  #conteudo .gp-tab-h>div{letter-spacing:.3px}
+}}
+/* ---- fim: gp ---- */
+
+/* ---- 🍎 grupo: statusrep (📋 Status report) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .sr-tab-h>div,#conteudo .sr-atraso,#conteudo .sr-hoje,#conteudo .sr-sel,#conteudo .sr-c-st .badge,#conteudo .sr-fora .lnk-ficha,#conteudo label.sr-so-sem{font-size:12px}
+  #conteudo .sr-fora .lnk-ficha{min-height:44px}
+  #conteudo .sr-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .sr-tab-h>div,#conteudo .sr-atraso,#conteudo .sr-hoje,#conteudo .sr-sel,#conteudo .sr-c-st .badge,#conteudo .sr-fora .lnk-ficha,#conteudo label.sr-so-sem{font-size:12px}
+  #conteudo .sr-fora .lnk-ficha{min-height:44px}
+}}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  /* a barra lateral tira 272 px do conteúdo: o app.css decide pela JANELA (1300) e a coluna de ações (4 botões com rótulo) estoura em 1366 */
+  @container conteudo (max-width:1180px){
+    #conteudo .sr-c-acao .sr-rot{display:none}
+    #conteudo .sr-tab{grid-template-columns:minmax(84px,1fr) minmax(140px,3fr) minmax(60px,1fr) minmax(70px,1fr) minmax(90px,1.2fr) minmax(130px,3fr) max-content}
+  }
+  /* iPad 12.9 em pé (janela 1024 = barra lateral, conteúdo ≈ 690 px): a tabela de 7 colunas não cabe, vira cartão como no celular (o app.css só faz isso com a JANELA ≤ 880) */
+  @container conteudo (max-width:780px){
+    #conteudo .sr-tab{display:block}
+    #conteudo .sr-tab-h{display:none}
+    #conteudo .sr-row{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--linha)}
+    #conteudo .sr-row>div{border-bottom:0;padding:1px 0}
+    #conteudo .sr-row .sr-c-k{order:0;flex:1 1 auto}
+    #conteudo .sr-row .sr-c-k a{display:inline-flex;align-items:center;min-height:44px}
+    #conteudo .sr-row .sr-c-acao{order:1;flex:0 1 auto;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+    #conteudo .sr-row .sr-c-acao:empty{display:none}
+    #conteudo .sr-row .sr-mais{position:static;width:100%;margin-top:4px;flex:0 0 100%}
+    #conteudo .sr-row:has(.sr-mais){align-items:flex-start}
+    #conteudo .sr-row .sr-c-res{order:2;flex:0 0 100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    #conteudo .sr-row .sr-c-resp{order:3}
+    #conteudo .sr-row .sr-c-venc{order:4}
+    #conteudo .sr-row .sr-c-st{order:5}
+    #conteudo .sr-row .sr-c-sit{order:6;flex:0 0 100%}
+  }
+}
+/* ---- fim: statusrep ---- */
+
+/* ---- 🍎 grupo: portal (🌐 Portal do cliente) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .pt-rasc,#conteudo .pt-tab th,#conteudo th{font-size:12px}
+  #conteudo button.rt-step,#conteudo [data-pt-abrir],#conteudo [data-pt-refresh-lista]{min-height:44px;min-width:44px;box-sizing:border-box}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .pt-rasc,#conteudo .pt-tab th,#conteudo th{font-size:12px}
+  #conteudo button.rt-step,#conteudo [data-pt-abrir],#conteudo [data-pt-refresh-lista]{min-height:44px;min-width:44px;box-sizing:border-box}
+}}
+/* ---- fim: portal ---- */
+
+/* ---- 🍎 grupo: hoje (📆 Hoje — Meu dia e Dia do time) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .hj-nav .btn{min-width:44px;min-height:44px}
+  #conteudo .hj-sub .badge,#conteudo .hj-lt-ev-s .badge{min-height:44px;display:inline-flex;align-items:center}
+  #conteudo .hj-kpi-r,#conteudo .hj-lt-h,#conteudo .hj-lt-lac,#conteudo .hj-time-tab th,#conteudo .hj-lt-ev,#conteudo .hj-lt-ev-t,#conteudo .hj-lt-blk,#conteudo .hj-lt-agora,#conteudo .hj-lt-agora span,#conteudo .hj-lt-leg span{font-size:12px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .hj-nav .btn{min-width:44px;min-height:44px}
+  #conteudo .hj-sub .badge,#conteudo .hj-lt-ev-s .badge{min-height:44px;display:inline-flex;align-items:center}
+  #conteudo .hj-kpi-r,#conteudo .hj-lt-h,#conteudo .hj-lt-lac,#conteudo .hj-time-tab th,#conteudo .hj-lt-ev,#conteudo .hj-lt-ev-t,#conteudo .hj-lt-blk,#conteudo .hj-lt-agora,#conteudo .hj-lt-agora span,#conteudo .hj-lt-leg span{font-size:12px}
+  #conteudo .btn,#abas .aba,#conteudo .aba{min-height:44px;box-sizing:border-box}
+  #conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo select,#conteudo textarea{min-height:44px;box-sizing:border-box}
+  #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
+}}
+/* ---- fim: hoje ---- */
