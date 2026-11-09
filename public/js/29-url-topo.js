@@ -51,6 +51,7 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
+  if(vURL==='minhasemana'&&/^\d{4}-\d{2}-\d{2}$/.test(p.get('w')||'')&&estado.minhasemana){ const mp=estado.minhasemana; mp.w=semChave(p.get('w')); mp.aba='plano'; }   // 📋 Meu Planejamento: a semana do link (aviso de aprovação/devolução no Teams ou no push)
   if(estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: nomes próprios (kgran/kmeses/kcat/kproj) para não disputar o cat/proj globais
     if(['sem','mes'].includes(p.get('kgran'))) dh.gran=p.get('kgran');
     if([3,6,12].includes(+p.get('kmeses'))) dh.meses=+p.get('kmeses');

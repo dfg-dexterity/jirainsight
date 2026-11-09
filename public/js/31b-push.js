@@ -141,11 +141,16 @@ async function pshSolta(idAntiga){
     const reg=await pshRegRapido(); const sub=reg&&reg.pushManager?await reg.pushManager.getSubscription():null;
     psh.sub=false; psh.e=''; psh.cfg=null; psh.carregou=false; psh.msg='';
     if(!sub) return;
-    if(idAntiga&&idAntiga.email&&idAntiga.token){
-      try{ await fetch('/api/config?push=1',{ method:'POST', headers:{ 'Content-Type':'application/json', 'x-jira-email':idAntiga.email, 'x-jira-token':idAntiga.token },
-        body:JSON.stringify({ acao:'cancelar', endpoint:sub.endpoint }) }); }catch(_){}
-    }
+    // Solta o navegador PRIMEIRO: o aviso ao servidor é best-effort (com teto de 5 s) e não pode segurar o unsubscribe —
+    // um pedido sem resposta deixaria o aparelho recebendo os avisos da pessoa anterior. Endpoint que o servidor não
+    // conseguir cancelar morre sozinho: o push seguinte volta 404/410 e a inscrição é podada.
+    const endpoint=sub.endpoint;
     try{ await sub.unsubscribe(); }catch(_){}
+    if(idAntiga&&idAntiga.email&&idAntiga.token){
+      try{ const sinal=(typeof AbortSignal!=='undefined'&&AbortSignal.timeout)?AbortSignal.timeout(5000):undefined;
+        await fetch('/api/config?push=1',{ method:'POST', signal:sinal, headers:{ 'Content-Type':'application/json', 'x-jira-email':idAntiga.email, 'x-jira-token':idAntiga.token },
+        body:JSON.stringify({ acao:'cancelar', endpoint }) }); }catch(_){}
+    }
     try{ if(window.caches) caches.open('ji-push').then(c=>c.delete('/__push/pendente')).catch(()=>{}); }catch(_){}
   }catch(e){}
   finally{ try{ pshRepinta(); }catch(_){} }
@@ -196,7 +201,7 @@ function pshNavega(url){
   if(!VISTAS.includes(v)) v='acoes';
   try{ const m=document.getElementById('modal'); if(m&&!m.hidden) fechaModal(); }catch(e){}
   if(v==='gp'){ const k=x.searchParams.get('gproj'); if(k&&/^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(k)&&estado.gp) estado.gp.proj=k.toUpperCase(); }
-  if(v==='minhasemana'){ const w=x.searchParams.get('w'); if(/^\d{4}-\d{2}-\d{2}$/.test(w||'')&&estado.minhasemana) estado.minhasemana.w=w; }
+  if(v==='minhasemana'){ const w=x.searchParams.get('w'); if(/^\d{4}-\d{2}-\d{2}$/.test(w||'')&&estado.minhasemana){ estado.minhasemana.w=semChave(w); estado.minhasemana.aba='plano'; } }
   vaiPara(v); return true;
 }
 try{
