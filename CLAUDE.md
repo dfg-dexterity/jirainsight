@@ -1131,7 +1131,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-025 | Planejamento do dia (📆 Hoje): lista do dia, linha do tempo, rituais e cronômetro | `400c6937-1e17-8173-880b-f0a83cc4bae5` |
   | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
   | TI-14-027 | Dashboard de KPIs em Insights: fotos semanais/mensais dos indicadores, linha do tempo e 🏦 Controladoria rápida por ano | `411c6937-1e17-8196-9b04-c38185acfaae` |
-  | TI-14-028 | Dexterity Hub de classe iPad: camada iPad, barra lateral, Web Push e offline de leitura | _a criar_ |
+  | TI-14-028 | Dexterity Hub de classe iPad: camada iPad, barra lateral, Web Push e offline de leitura | `413c6937-1e17-815a-88f7-fb381e20dfe8` |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
