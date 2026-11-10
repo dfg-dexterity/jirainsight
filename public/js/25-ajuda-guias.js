@@ -527,7 +527,7 @@ function posicionaTour(){
 // usuário: "toda modificação atualiza as etapas; todas as telas têm o guia pronto"): toda entrega relê o
 // guia da tela que mexeu, o passo dela no tour e a linha da Ajuda, e carimba a data aqui — mesmo que nada
 // mude, a data confirma que foi relido. Ficou para trás da última novidade? O gate reprova.
-const GUIAS_REV='2026-11-09';   // 📱 Dexterity Hub de classe iPad (barra lateral, ‹ ›, 🔔 notificações, faixa offline: guias da Início, Inbox e Central, tour rápido, Ajuda 'No iPad') · antes: revisão do Dashboard (menu 📈, filtros recolhidos no celular, guia da 🩺 com os 6 cartões reais) · 📊 Dashboard de KPIs em Insights (5 guias novos, tour e Ajuda; 🏦 Controladoria mudou para Insights e ganhou o passo da leitura rápida) · antes: 🔗 custo/h do Odoo na ⚙️ da Controladoria
+const GUIAS_REV='2026-11-10';   // relidos: correção do erro de tempo esgotado do Clockwork não muda passo de guia · antes:   // 📱 Dexterity Hub de classe iPad (barra lateral, ‹ ›, 🔔 notificações, faixa offline: guias da Início, Inbox e Central, tour rápido, Ajuda 'No iPad') · antes: revisão do Dashboard (menu 📈, filtros recolhidos no celular, guia da 🩺 com os 6 cartões reais) · 📊 Dashboard de KPIs em Insights (5 guias novos, tour e Ajuda; 🏦 Controladoria mudou para Insights e ganhou o passo da leitura rápida) · antes: 🔗 custo/h do Odoo na ⚙️ da Controladoria
 const GUIAS={
   hoje:{t:'📆 Hoje — Meu dia',p:[
     {s:'#conteudo .hj-nav',ti:'O dia aberto',tx:'‹ › andam um dia; "hoje" volta. O selo diz se o dia está planejado (🌅) ou fechado (🌙). Dá para abrir ontem para rever, ou amanhã para já deixar pronto.'},

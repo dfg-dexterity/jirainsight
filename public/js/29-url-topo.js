@@ -153,14 +153,26 @@ async function recarrega(forca){
     cont.innerHTML='';
     const msg=String(e.message||e);
     const fonte=/clockwork|tempo/i.test(msg)?'Clockwork (horas)':/jira|atividade/i.test(msg)?'Jira (movimentações)':'API do painel';
-    const causa=/failed to fetch|network|rede/i.test(msg)?'sem conexão com o servidor (rede/VPN ou deploy em andamento)'
-      :/401|403|token/i.test(msg)?'credenciais da conta de serviço inválidas ou expiradas'
+    // ⏱ Tempo esgotado: quase sempre o PERÍODO do topo (salvo de outra tela — telas como o 📋 Meu Planejamento nem
+    // mostram o seletor) é longo demais para ler ao vivo. Diz qual é e oferece ler só os últimos 7 dias.
+    const timeout=/tempo esgotado|timed out|\b504\b/i.test(msg);
+    const naoJson=!timeout&&/resposta inválida do servidor|unexpected token|not valid json/i.test(msg);
+    const selP=document.getElementById('f-periodo'); const optP=selP&&selP.querySelector(`option[value="${estado.periodo}"]`);
+    const rotP=optP?optP.textContent:estado.periodo;
+    const curto=['hoje','ontem','estaSemana','semanaPassada','7d'].includes(estado.periodo);
+    const causa=timeout?`o período "${rotP}" demorou mais que o limite do servidor para ser lido ao vivo`+(curto?' (o Clockwork ou o Jira estão lentos agora)':'')
+      :naoJson?'o servidor devolveu uma página de erro em vez dos dados (função que caiu ou deploy em andamento)'
+      :/failed to fetch|network|rede/i.test(msg)?'sem conexão com o servidor (rede/VPN ou deploy em andamento)'
+      :/\b(401|403)\b|credenc|unauthor|forbidden/i.test(msg)?'credenciais da conta de serviço inválidas ou expiradas'
       :/429/.test(msg)?'limite de requisições atingido — aguarde um instante':'instabilidade momentânea na fonte de dados';
+    const acao=timeout&&!curto?'escolha um período menor (ou leia os últimos 7 dias abaixo) — para o ano inteiro, o 📈 Dashboard de KPIs e a 🏦 Controladoria leem as fotos prontas'
+      :timeout||naoJson?'tente de novo em instantes':'tente de novo; se persistir, verifique as variáveis na Vercel ou fale com o administrador';
     document.getElementById('erro-box').innerHTML =
       `<div class="erro"><strong>Falha ao carregar — ${esc(fonte)}.</strong> ${esc(msg)}
-        <div class="muted small" style="margin-top:6px">Possível causa: ${esc(causa)}. Ação recomendada: tente de novo; se persistir, verifique as variáveis na Vercel ou fale com o administrador.</div>
-        <button class="btn" id="erro-retry" style="margin-top:8px">↻ Tentar de novo</button></div>`;
-    const rb=document.getElementById('erro-retry'); if(rb) rb.addEventListener('click', recarrega);
+        <div class="muted small" style="margin-top:6px">Possível causa: ${esc(causa)}. Ação recomendada: ${esc(acao)}.</div>
+        <button class="btn" id="erro-retry" style="margin-top:8px">↻ Tentar de novo</button>${timeout&&!curto?' <button class="btn" id="erro-7d" style="margin-top:8px">📅 Ler só os últimos 7 dias</button>':''}</div>`;
+    const rb=document.getElementById('erro-retry'); if(rb) rb.addEventListener('click', ()=>recarrega());
+    const r7=document.getElementById('erro-7d'); if(r7) r7.addEventListener('click', ()=>{ estado.periodo='7d'; if(selP) selP.value='7d'; recarrega(); });
     return false;
   }
 }
