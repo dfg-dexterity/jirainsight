@@ -345,7 +345,14 @@ function humanizaErro(txt){
   const s=raw.toLowerCase();
   if(/\b429\b|rate.?limit|too many|limite de (taxa|requisi)|muitas requisi/.test(s))
     return 'Muitas solicitações em pouco tempo. Aguarde alguns segundos e tente de novo.';
-  if(/\b401\b|\b403\b|unauthor|forbidden|token|credenc|permiss|expir|inv[áa]lid/.test(s))
+  // Antes da regra de credencial: "Unexpected token 'A', "An error o"… is not valid JSON" é o servidor que devolveu a página
+  // de erro da Vercel (tempo esgotado, função que caiu) — não sessão vencida. O "token" solto casava aqui e mandava a pessoa
+  // gerar um token novo à toa (2026-11-10).
+  if(/tempo esgotado|function_invocation_timeout|\b504\b|gateway timeout|timed out|passou de \d+ ?s/.test(s))
+    return 'O servidor demorou demais para responder (passou do limite de tempo). Tente de novo; se o período for longo, escolha um menor.';
+  if(/unexpected token|is not valid json|resposta inv[áa]lida do servidor|an error occurred/.test(s))
+    return 'O servidor respondeu com uma página de erro em vez dos dados. Tente de novo em instantes.';
+  if(/\b401\b|\b403\b|unauthor|forbidden|token (de api )?(inv[áa]lid|expir|revog)|invalid token|credenc|permiss|expir|inv[áa]lid/.test(s))
     return 'Sua sessão do Jira pode ter expirado. Reabra “identifique-se” (aba Apontar) e gere um novo token de API.';
   if(/failed to fetch|networkerror|network error|load failed|offline|sem conex|timeout|timed out|aborted/.test(s))
     return 'Falha de conexão. Verifique sua internet e tente novamente.';
@@ -523,11 +530,23 @@ function usuariosP(forca){
 }
 // As três leituras do período, em paralelo. Separado de carrega() para o boot poder
 // dispará-las ANTES de a config compartilhada responder (ver 30-eventos-boot.js).
+// Lê o corpo como JSON SEM quebrar quando a Vercel devolve a página de erro dela em texto ("An error occurred with your
+// deployment… FUNCTION_INVOCATION_TIMEOUT") — a função passou do limite de tempo ou caiu. Devolve {erro} com o motivo em
+// português; o "Unexpected token 'A'… is not valid JSON" cru virava "credenciais inválidas" na tela (2026-11-10).
+async function jsonOuErro(r){
+  const txt=await r.text();
+  try{ return JSON.parse(txt); }
+  catch(_){
+    const timeout=r.status===504||/FUNCTION_INVOCATION_TIMEOUT|timed out|Task timed out/i.test(txt);
+    return { erro: timeout ? `tempo esgotado — o servidor passou do limite lendo os dados (HTTP ${r.status})`
+      : `resposta inválida do servidor (HTTP ${r.status})`, timeout };
+  }
+}
 function buscaDados(periodo, forca){
   const q = forca ? '&nocache=1' : '';
   return Promise.all([
-    fetch(`/api/tempo?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
-    fetch(`/api/atividade?janela=${periodo}${q}`).then(r=>r.json()).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/tempo?janela=${periodo}${q}`).then(jsonOuErro).catch(e=>({erro:String(e.message||e)})),
+    fetch(`/api/atividade?janela=${periodo}${q}`).then(jsonOuErro).catch(e=>({erro:String(e.message||e)})),
     usuariosP(!!forca),
   ]);
 }

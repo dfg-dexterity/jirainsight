@@ -58,7 +58,7 @@ function mpCarregaReal(w, forca){
   if(!forca && mp.real[w]) return; if(mp.realB[w]) return;
   mp.realB[w]=1;
   fetch(`/api/tempo?desde=${encodeURIComponent(w)}&ate=${encodeURIComponent(mtsSoma(w,6))}${forca?'&nocache=1':''}`)
-    .then(r=>r.json()).then(j=>{ mp.realB[w]=0;
+    .then(jsonOuErro).then(j=>{ mp.realB[w]=0;
       mp.real[w]=j.erro?{erro:humanizaErro(j.erro)}:{wl:j.worklogs||[], projetos:j.projetos||{}};
       if(estado.vista==='minhasemana') renderMinhaSemana();
     }).catch(e=>{ mp.realB[w]=0; mp.real[w]={erro:humanizaErro(e)}; if(estado.vista==='minhasemana') renderMinhaSemana(); });
