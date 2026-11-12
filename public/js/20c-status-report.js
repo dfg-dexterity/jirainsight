@@ -98,13 +98,18 @@ function srCarrega(forca){
   fetch(`/api/vencimentos?statusrep=${encodeURIComponent(proj)}${ek?`&excl=${encodeURIComponent(ek)}`:''}${nc?'&nocache=1':''}`)
     .then(r=>r.json().catch(()=>({erro:'resposta inválida'}))).then(j=>{
       if(s.carregando===ck) s.carregando='';
-      if(!j||j.erro||!j.meta||!Array.isArray(j.itens)){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
+      const falhou=!j||j.erro||!j.meta||!Array.isArray(j.itens);
+      if(falhou){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
       else { s.cache[proj]={ dados:j, em:Date.now(), ek }; if(srProjAtual()===proj){ s.dados=j; s.chave=proj; s.erro=''; } }
       if(s.acharRele&&srProjAtual()===proj){ const kk=s.acharRele; s.acharRele='';   // só refaz se a busca na tela ainda é a dela (outra busca ou o ✕ cancelam)
-        if(estado.vista==='statusrep'&&s.achar&&s.achar.k===kk){ srAchar(kk,true); return; } }
+        if(estado.vista==='statusrep'&&s.achar&&s.achar.k===kk){
+          if(falhou){ srAcharFalhaRele(kk,(j&&j.erro)||'resposta vazia'); return; }   // sem lista nova: não dá para dizer que o Jira "não devolveu"
+          srAchar(kk,true); return; } }
       if(estado.vista==='statusrep') renderSr();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador da aba
     }).catch(e=>{ if(s.carregando===ck) s.carregando=''; if(srProjAtual()===proj) s.erro=humanizaErro(e);
+      if(s.acharRele&&srProjAtual()===proj){ const kk=s.acharRele; s.acharRele='';
+        if(estado.vista==='statusrep'&&s.achar&&s.achar.k===kk){ srAcharFalhaRele(kk,e); return; } }
       if(estado.vista==='statusrep') renderSr(); });
 }
 // A situação do projeto (linha sr_<KEY>): leitura pública; sem linha = ainda ninguém escreveu. Uma leitura em voo;
@@ -405,6 +410,10 @@ function srAcharRola(k){
   const r=document.querySelector(`.sr-row[data-sr-k="${CSS.escape(k)}"]`); if(!r) return;
   try{ r.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){ r.scrollIntoView(); }
   r.classList.add('sr-achado'); setTimeout(()=>r.classList.remove('sr-achado'),2500);
+}
+// A releitura pedida pelo 🔎 falhou: diz isso (nada de "Relendo…" para sempre nem "o Jira não devolveu" sem lista nova).
+function srAcharFalhaRele(k,erro){
+  srAcharMostra({ q:k, k, tom:'warn', html:`Não consegui reler a lista do Jira para procurar <b>${esc(k)}</b>: ${esc(humanizaErro(erro))} Use o ↻ Atualizar e procure de novo.` });
 }
 function srAcharMostra(o){ estado.sr.achar=o; if(estado.vista==='statusrep') renderSr(); }
 async function srAchar(q,jaReleu){
