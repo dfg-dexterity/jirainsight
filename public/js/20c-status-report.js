@@ -11,7 +11,7 @@
 // Nesta etapa a tela é só LEITURA: o 📝 Atualizar (modelos de comentário) e a edição da situação entram depois e
 // se encaixam nos ganchos marcados com data-sr-slot (coluna de ação da linha e rodapé da situação).
 estado.sr=estado.sr||{ proj:'', dados:null, chave:'', carregando:'', erro:'', cache:{}, sujo:false, cab:null, cabB:false,
-  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false, mais:'' };
+  cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false, mais:'', achar:null, acharRele:'' };
 const SR_PROJ_KEY='jirainsight_sr_proj_v1';   // último projeto aberto, só neste navegador
 const SR_CACHE_MIN=3;
 const SR_SO_GESTORES=false;                   // espelho da constante do servidor (D2): true restringe a edição da situação
@@ -69,7 +69,7 @@ function srProjAtual(){
 }
 function srProjSet(k){
   k=String(k||'').toUpperCase(); const s=estado.sr;
-  if(k!==s.proj){ s.resp=''; s.erro=''; }   // o erro era do projeto anterior: sem isto, o novo nunca seria lido
+  if(k!==s.proj){ s.resp=''; s.erro=''; s.achar=null; s.acharRele=''; }   // o erro era do projeto anterior: sem isto, o novo nunca seria lido
   s.proj=k;
   try{ if(k) localStorage.setItem(SR_PROJ_KEY,k); }catch(e){}
 }
@@ -100,6 +100,7 @@ function srCarrega(forca){
       if(s.carregando===ck) s.carregando='';
       if(!j||j.erro||!j.meta||!Array.isArray(j.itens)){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
       else { s.cache[proj]={ dados:j, em:Date.now(), ek }; if(srProjAtual()===proj){ s.dados=j; s.chave=proj; s.erro=''; } }
+      if(s.acharRele&&srProjAtual()===proj){ const kk=s.acharRele; s.acharRele=''; if(estado.vista==='statusrep'){ srAchar(kk,true); return; } }
       if(estado.vista==='statusrep') renderSr();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador da aba
     }).catch(e=>{ if(s.carregando===ck) s.carregando=''; if(srProjAtual()===proj) s.erro=humanizaErro(e);
@@ -334,7 +335,8 @@ function srFiltrosHTML(c){
     ${c?`<div class="campo"><label>Pessoa</label><select id="sr-resp"><option value="">todas</option><option value="__sem__" ${s.resp==='__sem__'?'selected':''}>— sem responsável —</option>${resps.map(([a,n])=>`<option value="${escA(a)}" ${s.resp===a?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="campo"><label>&nbsp;</label><label class="muted small sr-so-sem"><input type="checkbox" id="sr-so-sem" ${s.soSem?'checked':''}> só sem status report recente</label></div>`:''}
     <div class="campo"><label>&nbsp;</label><button class="btn" id="sr-refresh" ${buscando?'disabled':''} data-tip="Rebuscar do Jira ignorando o cache">${buscando?'↻ buscando…':'↻ Atualizar'}</button></div>
-  </div>`;
+    ${c?`<div class="campo sr-achar-c"><label for="sr-achar">Achar ticket</label><div class="sr-achar-l"><input type="text" id="sr-achar" maxlength="200" placeholder="ex.: ${escA(proj)}-123" autocomplete="off" value="${escA(s.achar&&s.achar.q||'')}" aria-describedby="sr-achar-res"><button class="btn" type="button" data-sr-achar="1" title="Acha o ticket no relatório ou diz por que ele não aparece" aria-label="Achar ticket no relatório">🔎</button></div></div>`:''}
+  </div>${c&&s.achar&&s.achar.html?`<div class="sr-achar-res sr-achar-${escA(s.achar.tom||'info')}" id="sr-achar-res" role="status">${s.achar.html} <button type="button" class="gp-mini" data-sr-achar-fecha="1" aria-label="Fechar a resposta da busca">✕</button></div>`:''}`;
 }
 function srAcoesHTML(proj){
   return `<div class="ap-vis sr-acoes-topo">
@@ -385,6 +387,63 @@ function renderSr(){
     srBlocoHTML('bug','🐞 Bugs abertos sem data no horizonte','sem data, ou com data depois do horizonte',c.g.bugs,c)].join(''):'';
   cont.replaceChildren(el(`<div>${srCabHTML(sub,c)}${aviso.length?`<div class="card full sr-aviso">${aviso.map(esc).join('<br>')}</div>`:''}${srSituacaoHTML(c)}${c.todos.length?srKpisHTML(c):''}${vazio}${blocos}${rodape}</div>`));
   estadoParaURL();
+}
+// ---- 🔎 Achar ticket — "por que não aparece?" (2026-11-12, JI-285: "não aparece o ticket COP-1155 no status report") ----
+// A tela tem quatro jeitos de um aberto não aparecer: o tipo está na lista 🧩, o filtro Pessoa, o "só sem status report
+// recente" e a regra do relatório (concluído, sem data e não é bug, vence depois do horizonte, outro projeto). A busca diz
+// QUAL, com o botão que desfaz; se o ticket devia estar na lista, relê do Jira (nocache) e procura de novo UMA vez.
+// O resultado mora em estado.sr.achar ({q,k,html,tom}, html já escapado) e some ao trocar de projeto.
+const SR_RE_BUG=/\b(bug|erro|defeito|incidente|falha)\b/i;   // mesma régua do RE_BUG_SR do servidor (api/vencimentos.js)
+function srAcharChave(q){ const m=/([A-Za-z][A-Za-z0-9_]*-\d+)/.exec(String(q||'')); return m?m[1].toUpperCase():''; }
+function srGrupoDe(t,c){ const v=t.venc||'';
+  if(v&&v<c.hoje) return { id:'venc', rot:'⏰ Vencidos' };
+  if(v&&v<=c.fimSemana) return { id:'sem', rot:'📅 Esta semana' };
+  if(v&&v<=c.ate) return { id:'prox', rot:'📅 Próxima semana' };
+  return { id:'bug', rot:'🐞 Bugs abertos' }; }
+function srAcharRola(k){
+  const r=document.querySelector(`.sr-row[data-sr-k="${CSS.escape(k)}"]`); if(!r) return;
+  try{ r.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){ r.scrollIntoView(); }
+  r.classList.add('sr-achado'); setTimeout(()=>r.classList.remove('sr-achado'),2500);
+}
+function srAcharMostra(o){ estado.sr.achar=o; if(estado.vista==='statusrep') renderSr(); }
+async function srAchar(q,jaReleu){
+  const s=estado.sr; const proj=srProjAtual(); const k=srAcharChave(q); const K=`<b>${esc(k)}</b>`;
+  if(!k){ srAcharMostra({ q:String(q||''), k:'', tom:'warn', html:'Digite a chave do ticket (ex.: COP-1155) ou cole o link do Jira.' }); return; }
+  const c=s.dados&&s.chave===proj?srCalc():null;
+  if(!c){ srAcharMostra({ q:k, k, tom:'warn', html:'Espere a lista do projeto carregar e procure de novo.' }); return; }
+  const tipoFora=(t)=>srExclNorm(proj).has(srNormTipo(t));
+  const qualLista=()=>srExcl(proj).fonte==='proj'?`a lista própria do ${esc(proj)}`:'a lista padrão';
+  const naTela=c.itens.find(t=>t.k===k);
+  if(naTela){ const g=srGrupoDe(naTela,c);
+    srAcharMostra({ q:k, k, tom:'ok', html:`✓ ${K} está no bloco <b>${esc(g.rot)}</b>${naTela.venc?` (vence ${esc(srDm(naTela.venc))})`:''}.` });
+    srAcharRola(k); return; }
+  const filtrado=c.todos.find(t=>t.k===k);
+  if(filtrado){
+    const mot=[]; const bts=[];
+    if(s.resp&&(s.resp==='__sem__'?!!filtrado.respId:filtrado.respId!==s.resp)){
+      mot.push(`o filtro <b>Pessoa</b> está ligado e o responsável é ${esc(filtrado.resp||'ninguém')}`); bts.push('<button type="button" class="gp-mini" data-sr-achar-limpa="resp">mostrar todas as pessoas</button>'); }
+    if(s.soSem&&!srSemSR(filtrado,c)){
+      mot.push(`o filtro <b>só sem status report recente</b> está ligado e ele tem status report de ${esc(srDm(filtrado.sr&&filtrado.sr.dia))}`); bts.push('<button type="button" class="gp-mini" data-sr-achar-limpa="sem">desligar o filtro</button>'); }
+    srAcharMostra({ q:k, k, tom:'warn', html:`${K} está no relatório, mas escondido: ${mot.join(' e ')||'um filtro da tela'}. ${bts.join(' ')}` }); return; }
+  const doServ=(s.dados.itens||[]).find(t=>t.k===k);
+  if(doServ&&tipoFora(doServ.t)){
+    srAcharMostra({ q:k, k, tom:'warn', html:`${K} não aparece porque o tipo <b>${esc(doServ.t)}</b> está fora do relatório pela ${qualLista()} (🧩). <button type="button" class="gp-mini" data-sr-tipos="1">🧩 abrir os tipos</button>` }); return; }
+  srAcharMostra({ q:k, k, tom:'info', html:`🔎 Lendo ${K} no Jira…` });
+  let f; try{ f=await fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(jsonOuErro); }catch(e){ f={ erro:humanizaErro(e) }; }
+  if(!s.achar||s.achar.k!==k||srProjAtual()!==proj) return;   // outra busca ou outro projeto enquanto lia
+  if(!f||f.erro){ srAcharMostra({ q:k, k, tom:'warn', html:`Não consegui ler ${K} no Jira: ${esc(humanizaErro(f&&f.erro||'sem resposta'))}` }); return; }
+  const c2=srCalc()||c; const ate=c2.ate;
+  let html='';
+  if(f.p&&f.p!==proj) html=`${K} é do projeto <b>${esc(projNomeCod(f.p))}</b>, não do ${esc(proj)}. <button type="button" class="gp-mini" data-sr-achar-proj="${escA(f.p)}">abrir o status report do ${esc(f.p)}</button>`;
+  else if(f.statCat==='done') html=`${K} está <b>concluído</b> (status “${esc(f.status||'—')}”${f.resolvido?`, em ${esc(srDm(f.resolvido))}`:''}) — o relatório só mostra itens abertos.`;
+  else if(tipoFora(f.t)) html=`${K} não aparece porque o tipo <b>${esc(f.t)}</b> está fora do relatório pela ${qualLista()} (🧩). <button type="button" class="gp-mini" data-sr-tipos="1">🧩 abrir os tipos</button>`;
+  else if(!f.venc&&!SR_RE_BUG.test(f.t||'')) html=`${K} não tem <b>data de vencimento</b> e não é bug — o relatório mostra vencidos, os desta semana e os da próxima (até ${esc(srDm(ate))}) e os bugs abertos. Dê uma data ao ticket para ele entrar.`;
+  else if(f.venc&&f.venc>ate&&!SR_RE_BUG.test(f.t||'')) html=`${K} vence em <b>${esc(srDm(f.venc))}</b>, depois do horizonte do relatório (até ${esc(srDm(ate))}). Ele entra quando a data chegar perto.`;
+  else if(!jaReleu){
+    srAcharMostra({ q:k, k, tom:'info', html:`${K} deveria estar no relatório (aberto${f.venc?`, vence ${esc(srDm(f.venc))}`:', bug'}). Relendo a lista do Jira…` });
+    s.acharRele=k; s.cabProj=''; srCarrega(true); return; }
+  else html=`${K} está aberto${f.venc?` e vence ${esc(srDm(f.venc))}`:''}, mas o Jira não o devolveu na lista do ${esc(proj)} mesmo relendo agora. Abra o ticket no Jira e confira o projeto e o status; se continuar, use o 🐞 Reportar com esta chave.`;
+  srAcharMostra({ q:k, k, tom:'warn', html });
 }
 // ---- 📋 Copiar relatório (texto simples para ata/Teams/e-mail) ----
 function srLinkTela(proj){ return `${location.origin}/?v=statusrep&srproj=${encodeURIComponent(proj)}`; }
@@ -1025,6 +1084,10 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pr=cl('[data-sr-prox-rm]'); if(pr){ const r=srCabRascunho(); if(!r) return; r.proximos.splice(Number(pr.getAttribute('data-sr-prox-rm')),1); renderSr(); return; }
   const tp=cl('[data-sr-tpls]'); if(tp){ srAbreTemplates(); return; }
   const tx=cl('[data-sr-tipos]'); if(tx){ srAbreTipos(); return; }
+  if(cl('[data-sr-achar]')){ const i=document.getElementById('sr-achar'); srAchar(i?i.value:''); return; }
+  if(cl('[data-sr-achar-fecha]')){ s.achar=null; renderSr(); return; }
+  const al=cl('[data-sr-achar-limpa]'); if(al){ if(al.getAttribute('data-sr-achar-limpa')==='resp') s.resp=''; else s.soSem=false; const q=s.achar&&s.achar.k; renderSr(); if(q) srAchar(q); return; }
+  const ap=cl('[data-sr-achar-proj]'); if(ap){ const q=s.achar&&s.achar.k; srProjSet(ap.getAttribute('data-sr-achar-proj')); s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; s.cabConf=null; s.histAberto=false; renderSr(); if(q){ if(s.dados&&s.chave===srProjAtual()) srAchar(q); else s.acharRele=q; } return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
   const fm=cl('[data-sr-fim]'); if(fm){ srAcaoAbre(fm.getAttribute('data-sr-fim'),'concluir'); return; }
   const rs=cl('[data-sr-resp]'); if(rs){ srAcaoAbre(rs.getAttribute('data-sr-resp'),'transferir'); return; }
@@ -1049,6 +1112,12 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 document.getElementById('conteudo').addEventListener('toggle',(e)=>{
   const d=e.target; if(d&&d.matches&&d.matches('[data-sr-hist]')) estado.sr.histAberto=!!d.open;
 },true);
+// 🔎 Enter no campo "Achar ticket" busca (o Esc limpa só o campo, sem fechar nada).
+document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+  if(estado.vista!=='statusrep'||!e.target||e.target.id!=='sr-achar') return;
+  if(e.key==='Enter'){ e.preventDefault(); srAchar(e.target.value); }
+  else if(e.key==='Escape'&&e.target.value){ e.preventDefault(); e.stopPropagation(); e.target.value=''; }
+});
 document.getElementById('conteudo').addEventListener('change',(e)=>{
   if(estado.vista!=='statusrep') return;
   const t=e.target; const s=estado.sr; if(!t||!t.id) return;
