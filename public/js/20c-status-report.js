@@ -1098,7 +1098,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   if(cl('[data-sr-achar]')){ const i=document.getElementById('sr-achar'); srAchar(i?i.value:''); return; }
   if(cl('[data-sr-achar-fecha]')){ s.achar=null; s.acharRele=''; renderSr(); return; }
   const al=cl('[data-sr-achar-limpa]'); if(al){ if(al.getAttribute('data-sr-achar-limpa')==='resp') s.resp=''; else s.soSem=false; const q=s.achar&&s.achar.k; renderSr(); if(q) srAchar(q); return; }
-  const ap=cl('[data-sr-achar-proj]'); if(ap){ const q=s.achar&&s.achar.k; srProjSet(ap.getAttribute('data-sr-achar-proj')); s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; s.cabConf=null; s.histAberto=false; renderSr(); if(q){ if(s.dados&&s.chave===srProjAtual()) srAchar(q); else s.acharRele=q; } return; }
+  const ap=cl('[data-sr-achar-proj]'); if(ap){ const q=s.achar&&s.achar.k; srProjSet(ap.getAttribute('data-sr-achar-proj')); s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; s.cabConf=null; s.histAberto=false; if(q){ const pj=srProjAtual(); s.achar={ q, k:q, tom:'info', html:`🔎 Abrindo o status report de ${esc(projNomeCod(pj))} para procurar <b>${esc(q)}</b>…` };   // srProjSet zerou a busca: ela volta, para a continuação reconhecê-la
+      if(s.dados&&s.chave===pj){ renderSr(); srAchar(q); } else { s.acharRele=q; renderSr(); } } else renderSr(); return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
   const fm=cl('[data-sr-fim]'); if(fm){ srAcaoAbre(fm.getAttribute('data-sr-fim'),'concluir'); return; }
   const rs=cl('[data-sr-resp]'); if(rs){ srAcaoAbre(rs.getAttribute('data-sr-resp'),'transferir'); return; }
