@@ -13,7 +13,7 @@
 //   • scripts/check-roadmap-commits.mjs — o commit que mexe no app sem mudar ROADMAP nem ROADMAP_REV;
 //   • scripts/check-entrega.mjs — ROADMAP_REV para trás da última entrada de NOVIDADES.
 // É a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-11-12.4';   // 🔎 novo R208 (aviso dos itens escondidos pela 🧩) · antes:   // ⏱ novo R207 (período longo lido mês a mês) · antes:   // 📱 Dexterity Hub de classe iPad: novos R202 fila de escrita offline · R203 App Store (Capacitor) · R204 push de menções e do Inbox · R205 Pencil/hover/atalhos ⌘ · R206 widgets e Atalhos da Apple; R189, R026 e R123 saíram (entregues em parte e reescritos nos novos); R051 reescrito
+const ROADMAP_REV='2026-11-12.5';   // 🔎 novo R208 (aviso dos itens escondidos pela 🧩) · antes:   // ⏱ novo R207 (período longo lido mês a mês) · antes:   // 📱 Dexterity Hub de classe iPad: novos R202 fila de escrita offline · R203 App Store (Capacitor) · R204 push de menções e do Inbox · R205 Pencil/hover/atalhos ⌘ · R206 widgets e Atalhos da Apple; R189, R026 e R123 saíram (entregues em parte e reescritos nos novos); R051 reescrito
 // Cada item tem um `id` ESTÁVEL (R###): é a chave que liga este array à base "Roadmap da solução" no Notion
 // (processo TI-14-024, scripts/roadmap-notion.mjs). Item novo = próximo número livre; o id nunca muda nem é
 // reaproveitado, mesmo que o título seja reescrito — scripts/check-entrega.mjs reprova id ausente ou repetido.
