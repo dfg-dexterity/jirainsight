@@ -3456,6 +3456,13 @@
   .sr-kpis .vg-k[data-sr-ir],.sr-kpis .vg-k[data-sr-so-sem]{cursor:pointer}
   .sr-kpis .vg-k[data-sr-ir]:hover,.sr-kpis .vg-k[data-sr-so-sem]:hover{border-color:var(--cerceta)}
   .sr-so-sem{display:inline-flex;gap:5px;align-items:center;cursor:pointer;min-height:34px}
+  .sr-achar-l{display:flex;gap:4px;align-items:center}
+  .sr-achar-l input{width:150px}
+  .sr-achar-res{margin:8px 0 0;padding:8px 10px;border-radius:8px;border:1px solid var(--linha);background:var(--cartao);font-size:13px;line-height:1.45}
+  .sr-achar-ok{border-color:var(--musgo)}
+  .sr-achar-warn{border-color:var(--amarelo)}
+  .sr-achar-res .gp-mini{margin-left:4px}
+  .sr-row.sr-achado{outline:2px solid var(--amarelo);outline-offset:-2px;transition:outline-color .3s}
   .sr-acoes-topo{gap:8px}
   .sr-bloco h2 .sr-n{display:inline-block;min-width:26px;text-align:center;border-radius:999px;padding:1px 8px;background:var(--trilho);color:var(--grafite);font-size:13px;font-weight:700;font-family:var(--corpo);letter-spacing:0;vertical-align:middle;margin-right:4px}
   .sr-tab{display:grid;grid-template-columns:minmax(100px,1fr) minmax(200px,3fr) minmax(90px,1fr) minmax(90px,1fr) minmax(110px,1.2fr) minmax(220px,3fr) max-content;align-items:start}
