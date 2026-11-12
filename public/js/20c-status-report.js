@@ -100,7 +100,8 @@ function srCarrega(forca){
       if(s.carregando===ck) s.carregando='';
       if(!j||j.erro||!j.meta||!Array.isArray(j.itens)){ if(srProjAtual()===proj) s.erro=(j&&j.erro)||'resposta vazia'; }
       else { s.cache[proj]={ dados:j, em:Date.now(), ek }; if(srProjAtual()===proj){ s.dados=j; s.chave=proj; s.erro=''; } }
-      if(s.acharRele&&srProjAtual()===proj){ const kk=s.acharRele; s.acharRele=''; if(estado.vista==='statusrep'){ srAchar(kk,true); return; } }
+      if(s.acharRele&&srProjAtual()===proj){ const kk=s.acharRele; s.acharRele='';   // só refaz se a busca na tela ainda é a dela (outra busca ou o ✕ cancelam)
+        if(estado.vista==='statusrep'&&s.achar&&s.achar.k===kk){ srAchar(kk,true); return; } }
       if(estado.vista==='statusrep') renderSr();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador da aba
     }).catch(e=>{ if(s.carregando===ck) s.carregando=''; if(srProjAtual()===proj) s.erro=humanizaErro(e);
@@ -408,6 +409,7 @@ function srAcharRola(k){
 function srAcharMostra(o){ estado.sr.achar=o; if(estado.vista==='statusrep') renderSr(); }
 async function srAchar(q,jaReleu){
   const s=estado.sr; const proj=srProjAtual(); const k=srAcharChave(q); const K=`<b>${esc(k)}</b>`;
+  if(!jaReleu) s.acharRele='';   // busca nova cancela a releitura que outra busca tinha pedido
   if(!k){ srAcharMostra({ q:String(q||''), k:'', tom:'warn', html:'Digite a chave do ticket (ex.: COP-1155) ou cole o link do Jira.' }); return; }
   const c=s.dados&&s.chave===proj?srCalc():null;
   if(!c){ srAcharMostra({ q:k, k, tom:'warn', html:'Espere a lista do projeto carregar e procure de novo.' }); return; }
@@ -1085,7 +1087,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const tp=cl('[data-sr-tpls]'); if(tp){ srAbreTemplates(); return; }
   const tx=cl('[data-sr-tipos]'); if(tx){ srAbreTipos(); return; }
   if(cl('[data-sr-achar]')){ const i=document.getElementById('sr-achar'); srAchar(i?i.value:''); return; }
-  if(cl('[data-sr-achar-fecha]')){ s.achar=null; renderSr(); return; }
+  if(cl('[data-sr-achar-fecha]')){ s.achar=null; s.acharRele=''; renderSr(); return; }
   const al=cl('[data-sr-achar-limpa]'); if(al){ if(al.getAttribute('data-sr-achar-limpa')==='resp') s.resp=''; else s.soSem=false; const q=s.achar&&s.achar.k; renderSr(); if(q) srAchar(q); return; }
   const ap=cl('[data-sr-achar-proj]'); if(ap){ const q=s.achar&&s.achar.k; srProjSet(ap.getAttribute('data-sr-achar-proj')); s.cab=null; s.cabProj=''; s.edit=false; s.rasc=null; s.cabConf=null; s.histAberto=false; renderSr(); if(q){ if(s.dados&&s.chave===srProjAtual()) srAchar(q); else s.acharRele=q; } return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
