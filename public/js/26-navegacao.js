@@ -71,7 +71,7 @@ function renderVista(){
   if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='uso') return renderUso();
   if(estado.vista==='semanal') return renderSemanal();
-  if(['dash','dashfin','dashhoras','dashsaude','dashtime'].includes(estado.vista)) return renderDash();   // 📊 Dashboard de KPIs (18c)
+  if(['dash','dashfin','dashhoras','dashsaude','dashtime','dashdisc'].includes(estado.vista)) return renderDash();   // 📊 Dashboard de KPIs (18c)
   if(estado.vista==='portal') return renderPortal();
   if(estado.vista==='config') return renderConfig();
   return renderResumo();
@@ -122,7 +122,7 @@ const ABAS=[
   { id:'ams',          rot:'🛡 Apuração de contratos',  abas:[ {v:'ams',rot:'🛡 AMS (por ciclo)'}, {v:'receita',rot:'💰 Bolsa de horas & projetos'} ] },
   // fase 3 — Dexterity Insights
   // 2026-11-07 (📊 Dashboard de KPIs): a visão geral e as 4 visões por indicador, lidas das fotos semanais/mensais do servidor.
-  { id:'dash',         rot:'📈 Dashboard de KPIs',      abas:[ {v:'dash',rot:'📈 Resumo dos KPIs'}, {v:'dashfin',rot:'💰 Financeiro'}, {v:'dashhoras',rot:'⏱ Horas'}, {v:'dashsaude',rot:'🩺 Saúde da entrega'}, {v:'dashtime',rot:'👥 Time e capacidade'} ] },
+  { id:'dash',         rot:'📈 Dashboard de KPIs',      abas:[ {v:'dash',rot:'📈 Resumo dos KPIs'}, {v:'dashfin',rot:'💰 Financeiro'}, {v:'dashhoras',rot:'⏱ Horas'}, {v:'dashsaude',rot:'🩺 Saúde da entrega'}, {v:'dashtime',rot:'👥 Time e capacidade'}, {v:'dashdisc',rot:'🧭 Disciplina do time'} ] },
   { id:'visao',        rot:'📊 Visão Geral',            abas:[ {v:'visao',rot:'📊 Painel executivo'}, {v:'resumo',rot:'🧠 Resumo (KPIs + IA)'} ] },
   { id:'relatorios',   rot:'📚 Central de Relatórios',  abas:[ {v:'relatorios',rot:'📚 Catálogo R01–R29'}, {v:'analytics',rot:'📈 Analytics (26 visões)'}, {v:'metricas',rot:'📈 Métricas por tipo'}, {v:'semanal',rot:'📊 Semanal'} ] },
   { id:'config',       rot:'⚙️ Central de configurações',abas:[ {v:'config',rot:'⚙️ Central'}, {acao:'metas',rot:'🎯 Metas & ausências'}, {acao:'log',rot:'🗒 Histórico de ações'} ] },
@@ -310,6 +310,7 @@ const NAVCAT=[
   ['dashhoras','📈 Dashboard de KPIs › ⏱ Horas realizadas × vendidas','insights','dashboard horas realizadas faturaveis vendidas consumo do vendido percentual faturavel por nivel por tipo de esforco junior pleno senior linha do tempo kpi'],
   ['dashsaude','📈 Dashboard de KPIs › 🩺 Saúde da entrega','insights','dashboard saude da entrega vencidos bugs parados sem vencimento sem responsavel criados concluidos saldo semaforo projetos execucao do esforco estimado gasto linha do tempo kpi'],
   ['dashtime','📈 Dashboard de KPIs › 👥 Time e capacidade','insights','dashboard time capacidade planejado realizado execucao aderencia ausencias horas por pessoa plano semanal linha do tempo kpi equipe'],
+  ['dashdisc','📈 Dashboard de KPIs › 🧭 Disciplina do time','insights','disciplina vencidos viraram o dia planejou fechou hoje planejamento diario foto meia-noite evolucao por pessoa kpi'],
   ['visao','📊 Visão Geral › 📊 Painel executivo','insights','inicio home executiva kpis painel executivo diretoria'],
   ['resumo','📊 Visão Geral › 🧠 Resumo (KPIs + IA)','insights','kpis horas faturavel ia analise resumo'],
   ['relatorios','📚 Central de Relatórios › 📚 Catálogo R01–R29','insights','catalogo relatorios tipo projeto categoria matriz configuravel essencial recomendado dimensao entrega escopo tempo custo recursos risco ams portfolio central dea def pea pef dams pams imi ipa itpr analise codigo r visoes blocos'],

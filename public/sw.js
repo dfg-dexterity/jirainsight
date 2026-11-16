@@ -27,7 +27,7 @@ const PUSHC = 'ji-push';
 const ESTATICOS = ['/manifest.webmanifest', '/logo.svg',
   '/icons/icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 const DADOS_ROTAS = ['/api/config', '/api/vencimentos', '/api/tempo', '/api/atividade', '/api/usuarios', '/api/projetos', '/api/reunioes', '/api/resumo'];
-const DADOS_PARAM_PROIBIDO = ['uso', 'pcli', 'push', 'custos', 'portal', 'ct', 'ref', 'dec', 'kpis', 'rentabhist', 'semanal', 'sr'];
+const DADOS_PARAM_PROIBIDO = ['uso', 'pcli', 'push', 'custos', 'portal', 'ct', 'ref', 'dec', 'kpis', 'rentabhist', 'semanal', 'sr', 'disc'];
 const DADOS_MAX_BYTES = 2 * 1024 * 1024;
 const DADOS_MAX_ENTRADAS = 150;
 const DADOS_MAX_IDADE_MS = 7 * 24 * 3600 * 1000;

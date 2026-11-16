@@ -13,7 +13,7 @@
 // agrega as semanas cuja segunda cai no mês (estoques = a última foto do mês; fluxos = soma) e diz isso no rodapé.
 // Semana/mês CORRENTES são `parcial` (⏳ — o número ainda muda; o gestor pode ↻ atualizar agora).
 
-const DSH_VISTAS = ['dash', 'dashfin', 'dashhoras', 'dashsaude', 'dashtime'];
+const DSH_VISTAS = ['dash', 'dashfin', 'dashhoras', 'dashsaude', 'dashtime', 'dashdisc'];
 const DSH_TTL_MS = 10 * 60 * 1000;           // a foto não muda de minuto em minuto: 10 min de cache por sessão bastam
 const DSH_MAXN = { sem: 104, mes: 36 };      // retenção do servidor (KPIS_MAX / KPIM_MAX)
 const DSH_SEMANAS = { 3: 13, 6: 26, 12: 52 };
@@ -25,6 +25,9 @@ estado.dash = estado.dash || {
   gran: 'sem', meses: 12, ate: '', cache: { sem: null, mes: null }, carr: { sem: false, mes: false }, erro: { sem: '', mes: '' }, ver: 0,
   cat: '', proj: '', pessoa: '', comparar: true, ind: {}, tabela: false, qd: {}, off: {}, atualizando: false, _jan: null, filtrosAbertos: false,
 };
+// 🧭 Disciplina do time (18d): estado próprio da aba (carga, janela e filtros não dividem nada com as fotos de KPI sem|mes). Nasce aqui para o
+// 29-url-topo ler os links kdg/kdp antes de o 18d carregar.
+estado.dash.disc = estado.dash.disc || { gran: 'dia', per: 66, cache: {}, carr: {}, erro: {}, ver: 0, _jan: null, grade: true, ord: 'nome', ordDir: 1 };
 
 // ---- datas (sem fuso: tudo ISO AAAA-MM-DD / AAAA-MM) ----
 const dshAdd = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -33,8 +36,10 @@ const dshFimMes = (ym) => { const [y, m] = ym.split('-').map(Number); return new
 const dshMesMais = (ym, n) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
 // as `n` chaves (segundas ou meses) terminando em `fim`, em ordem cronológica
 function dshChaves(gran, fim, n) { const out = []; for (let i = n - 1; i >= 0; i--) out.push(gran === 'sem' ? dshAdd(fim, -7 * i) : dshMesMais(fim, -i)); return out; }
-const dshRotX = (gran, x) => (gran === 'sem' ? `${x.slice(8, 10)}/${x.slice(5, 7)}` : `${DSH_MES[+x.slice(5, 7) - 1]}/${x.slice(2, 4)}`);
-const dshLeituraX = (gran, x) => (gran === 'sem' ? `Semana de ${dataBR(x)} a ${dataBR(dshAdd(x, 6))}` : `${DSH_MES_LONGO[+x.slice(5, 7) - 1]} de ${x.slice(0, 4)}`);
+const dshRotX = (gran, x) => (gran === 'dia' ? `${x.slice(8, 10)}/${x.slice(5, 7)}` : gran === 'sem' ? `${x.slice(8, 10)}/${x.slice(5, 7)}` : `${DSH_MES[+x.slice(5, 7) - 1]}/${x.slice(2, 4)}`);
+const DSH_DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const dshDow = (iso) => { const [y, m, d] = iso.split('-').map(Number); return DSH_DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]; };
+const dshLeituraX = (gran, x) => (gran === 'dia' ? `${dshDow(x)}, ${dataBR(x)}` : gran === 'sem' ? `Semana de ${dataBR(x)} a ${dataBR(dshAdd(x, 6))}` : `${DSH_MES_LONGO[+x.slice(5, 7) - 1]} de ${x.slice(0, 4)}`);
 const dshNum = (v) => ((typeof v === 'number' && Number.isFinite(v)) ? v : null);
 function dshQuando(iso) { try { const d = new Date(iso); if (Number.isNaN(d.getTime())) return ''; return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
 
@@ -44,6 +49,8 @@ function dshQuando(iso) { try { const d = new Date(iso); if (Number.isNaN(d.getT
 // q(entrada): o mesmo indicador numa linha da quebra (categoria/projeto/pessoa…) — null quando a linha não tem como calculá-lo.
 // ===========================================================================
 const _dshR = (a, b) => (b > 0 ? a / b * 100 : null);
+// 🧭 Disciplina: o valor de um campo no rec do servidor (rec.disc) — do time, ou da pessoa filtrada (F.pessoa; a linha pode nem existir no recorte)
+const dscV = (r, F, k) => { const d = r && r.disc; if (!d) return null; const b = F.pessoa ? (d.porPessoa || {})[F.pessoa] : d; return b ? dshNum(b[k]) : null; };
 const DSH_IND = [
   // ---- 💰 Financeiro ----
   { id: 'receita', grupo: 'fin', rot: 'Receita', un: 'R$', bom: 'cima', cor: 0, tile: 1, de: (r, F, S) => S && S.r, q: (e) => e.r,
@@ -115,6 +122,29 @@ const DSH_IND = [
     calc: 'Realizado ÷ capacidade.', ler: 'Perto de 100% é o time cheio: de 80% a 105% no ritmo · até 120% acima da capacidade · além disso, sobrecarga; abaixo de 80%, ociosidade ou apontamento atrasado.' },
   { id: 'tausH', grupo: 'time', rot: 'Ausências', un: 'h', bom: null, cor: 4, de: (r, F) => dshTimeV(r, F, 'ausH'), q: () => null,
     calc: 'Horas de ausência cadastradas (⚙️ Metas & ausências) × meta diária.', ler: 'Capacidade que já saiu da semana por férias, atestados e feriados.' },
+  // ---- 🧭 Disciplina do time (foto à meia-noite de cada dia útil — vista dashdisc, módulo 18d) ----
+  { id: 'dvenc', grupo: 'disc', rot: 'Vencidos que viraram o dia', un: 'n', bom: 'baixo', cor: 0, tile: 1, momento: true, de: (r, F) => dscV(r, F, 'venc'), q: (e) => dshNum(e.venc),
+    calc: 'Tickets ABERTOS na meia-noite do dia com vencimento até esse dia, de quem estava no público (ativos do Jira − ocultos − ausentes − meta 0). É a mesma régua do card ⚠ Meus tickets vencidos da Início (todos os tipos, sem filtro de projeto): a pessoa vê na tela dela o mesmo número e sabe como zerar. Por isso difere dos Vencidos da 🩺 Saúde da entrega, que tira épicos e ARQ.',
+    ler: 'Quantos tickets dormiram vencidos. Cair é bom. É um retrato da meia-noite: dias fotografados depois (recuperada) trazem a hora real; dias sem foto a tempo não têm este número porque o estado aberto/vencido não se reconstrói.' },
+  { id: 'dnovos', grupo: 'disc', rot: 'Novos vencidos', un: 'n', bom: 'baixo', cor: 1, tile: 1, tipo: 'bar', grp: 'dfluxo', momento: true, de: (r, F) => dscV(r, F, 'novos'), q: (e) => dshNum(e.novos),
+    calc: 'Dos vencidos que viraram o dia, os que passaram a vencer nesta noite (vencimento depois do dia útil anterior; cobre fim de semana e feriado entre os dois dias). Na semana: soma dos dias.',
+    ler: 'O que escapou do prazo ontem. Cair é bom.' },
+  { id: 'dsaiu', grupo: 'disc', rot: 'Saíram do vencido', un: 'n', bom: 'cima', cor: 0, tipo: 'bar', grp: 'dfluxo', momento: true, de: (r, F) => dscV(r, F, 'saiu'), q: (e) => dshNum(e.saiu),
+    calc: 'Vencidos do dia útil anterior + novos de hoje − vencidos de hoje (concluídos ou reprogramados). Calculado pelo servidor ao ler; fica em branco sem a foto do dia anterior ou depois de uma foto retroativa.',
+    ler: 'Quanto saiu da pilha de vencidos desde a foto anterior. Subir é bom.' },
+  { id: 'dcomvenc', grupo: 'disc', rot: 'Pessoas com vencido', un: 'n', bom: 'baixo', cor: 3, momento: true, de: (r, F) => dscV(r, F, 'comVenc'), q: () => null,
+    calc: 'Pessoas do público com ao menos 1 ticket vencido na meia-noite. Não se divide por pessoa.', ler: 'Se os vencidos estão concentrados em poucas pessoas ou espalhados pelo time.' },
+  { id: 'dplan', grupo: 'disc', rot: 'Planejaram o dia', un: '%', bom: 'cima', cor: 0, tile: 1, de: (r, F) => _dshR(dscV(r, F, 'plan'), dscV(r, F, 'esp')), q: (e) => _dshR(e.plan, e.esp),
+    calc: 'Pessoas do público com o ritual 🌅 Planejar feito no 📆 Hoje até o fim do dia (carimbo gravado pelo servidor na 1ª vez) e pelo menos 1 item no dia (item levado para outro dia não conta). Planejar tarde conta; planejar no dia seguinte, não. Na semana: pessoas-dia.',
+    ler: 'Quem organizou o dia no Hoje. Subir é bom. "Usaram o Hoje" é mais largo: conta quem só montou a lista sem concluir o ritual.' },
+  { id: 'dcedo', grupo: 'disc', rot: 'Planejaram até 12h', un: '%', bom: 'cima', cor: 1, de: (r, F) => _dshR(dscV(r, F, 'cedo'), dscV(r, F, 'esp')), q: (e) => _dshR(e.cedo, e.esp),
+    calc: 'Dos que planejaram, os que planejaram na véspera ou até o horário de corte (o servidor informa o corte, no rodapé), sobre o público.', ler: 'Planejar cedo é o que dá efeito ao dia. Subir é bom.' },
+  { id: 'dfech', grupo: 'disc', rot: 'Fecharam o dia', un: '%', bom: 'cima', cor: 2, tile: 1, de: (r, F) => _dshR(dscV(r, F, 'fech'), dscV(r, F, 'esp')), q: (e) => _dshR(e.fech, e.esp),
+    calc: 'Pessoas do público com o ritual 🌙 Fechar o dia feito até o fim do dia. Quem fechou e depois mexeu continua contando; fechar na manhã seguinte não conta. Na semana: pessoas-dia.', ler: 'Quem fechou o dia (apontou, reorganizou o que ficou). Subir é bom.' },
+  { id: 'dusou', grupo: 'disc', rot: 'Usaram o 📆 Hoje', un: '%', bom: 'cima', cor: 3, de: (r, F) => _dshR(dscV(r, F, 'usou'), dscV(r, F, 'esp')), q: (e) => _dshR(e.usou, e.esp),
+    calc: 'Pessoas do público com o dia aberto e pelo menos 1 item (mesmo em rascunho).', ler: 'A adoção da ferramenta, antes de olhar a disciplina do ritual.' },
+  { id: 'dfeito', grupo: 'disc', rot: 'Itens concluídos', un: '%', bom: 'cima', cor: 4, tile: 1, de: (r, F) => _dshR(dscV(r, F, 'feitos'), dscV(r, F, 'itens')), q: (e) => _dshR(e.feitos, e.itens),
+    calc: 'Itens do dia marcados como feitos ÷ itens do dia (item levado para outro dia fica fora dos dois), somando o público.', ler: 'Do que foi planejado, quanto foi entregue no dia.' },
 ];
 const DSH_BY = Object.fromEntries(DSH_IND.map((i) => [i.id, i]));
 const DSH_VIS = {
@@ -123,6 +153,7 @@ const DSH_VIS = {
   dashhoras: { rot: '⏱ Horas', grupo: 'horas', titulo: 'Horas: realizadas × faturáveis × vendidas', sub: 'o esforço do time contra o que foi vendido', padrao: ['real', 'fat', 'vend', 'pctfat', 'consumo'], quebra: ['cat', 'proj', 'pessoa', 'nivel', 'tipo'] },
   dashsaude: { rot: '🩺 Saúde da entrega', grupo: 'saude', titulo: 'Saúde da entrega', sub: 'vencidos, bugs, parados, criados × concluídos e os semáforos dos projetos', padrao: ['vencidos', 'bugs', 'parados', 'criados', 'concluidos', 'execpct'], quebra: ['proj'] },
   dashtime: { rot: '👥 Time e capacidade', grupo: 'time', titulo: 'Time e capacidade', sub: 'capacidade, planejado e realizado, execução e aderência', padrao: ['tcap', 'tplan', 'treal', 'texec', 'tader'], quebra: ['pessoa'] },
+  dashdisc: { rot: '🧭 Disciplina do time', grupo: 'disc', titulo: 'Disciplina do time', sub: 'vencidos que viram o dia e o planejamento diário no 📆 Hoje, dia a dia', padrao: ['dplan', 'dfech', 'dvenc', 'dnovos'], quebra: [] },
 };
 // Visão geral: 8 tiles (cada um leva à sua visão) e 4 gráficos pequenos (um por visão)
 const DSH_GERAL_TILES = [['receita', 'dashfin'], ['margempct', 'dashfin'], ['real', 'dashhoras'], ['pctfat', 'dashhoras'], ['consumo', 'dashhoras'], ['vencidos', 'dashsaude'], ['bugs', 'dashsaude'], ['tcapuso', 'dashtime']];
@@ -139,9 +170,10 @@ function dshIdk() { const id = (typeof idApontar === 'function' && idApontar()) 
 function dshZeraCache() {
   const D = estado.dash; D.cache = { sem: null, mes: null }; D.erro = { sem: '', mes: '' }; D.ver++; D._jan = null; D._mapa = null;
   D.pessoa = ''; D.atualizando = false;   // a pessoa filtrada pode nem ser visível para a nova identidade
+  if (D.disc) { D.disc.cache = {}; D.disc.erro = {}; D.disc.carr = {}; D.disc.ver++; D.disc._jan = null; }
 }
 function dshHeaders() { const id = (typeof idApontar === 'function' && idApontar()) || {}; return { 'x-jira-email': id.email || '', 'x-jira-token': id.token || '' }; }
-function dshPapeis() { const c = estado.dash.cache; return (c.sem && c.sem.papeis) || (c.mes && c.mes.papeis) || []; }
+function dshPapeis() { const c = estado.dash.cache; const d = (estado.dash.disc && estado.dash.disc.cache) || {}; return (c.sem && c.sem.papeis) || (c.mes && c.mes.papeis) || (d.dia && d.dia.papeis) || (d.sem && d.sem.papeis) || []; }
 const dshVeTudo = () => dshPapeis().some((p) => DSH_VE_TUDO.includes(p));
 const dshPodeAtualizar = () => dshPapeis().some((p) => p === 'gestor' || p === 'admin');
 function dshJanelaW() { const D = estado.dash; return D.gran === 'sem' ? (DSH_SEMANAS[D.meses] || 52) : D.meses; }
@@ -226,6 +258,7 @@ function dshTimeMes(fs) {
 }
 // A janela: `atual` (W períodos) e `ant` (os W anteriores, para o "comparar"), memorizada pela versão do cache.
 function dshJanela() {
+  if (estado.vista === 'dashdisc' && typeof dscJanela === 'function') return dscJanela();   // 🧭 a janela da Disciplina é do 18d (dia a dia)
   const D = estado.dash; const chave = `${D.ver}|${D.gran}|${D.meses}`;
   if (D._jan && D._jan.k === chave) return D._jan;
   const W = dshJanelaW(); const hoje = hojeSP(); const gran = D.gran;
@@ -245,7 +278,7 @@ function dshJanela() {
   D._jan = { k: chave, gran, W, atual: recs.slice(W), ant: recs.slice(0, W), fim };
   return D._jan;
 }
-const dshTemFoto = (r) => !!(r && !r.vazio && (r.fin || r.horas || r.saude || r.time));
+const dshTemFoto = (r) => !!(r && !r.vazio && (r.fin || r.horas || r.saude || r.time || r.disc));
 // Horizonte das fotos, vindo do servidor na resposta do ?kpis=1 (horizonteSem = segunda mais antiga fotografada, 'AAAA-MM-DD';
 // horizonteMes = mês fechado mais antigo, 'AAAA-MM'). Vazio = desconhecido (servidor antigo) — a tela não supõe nada.
 function dshHorizonte(gran) { const c = estado.dash.cache; const k = gran === 'sem' ? 'horizonteSem' : 'horizonteMes'; return (c.sem && c.sem[k]) || (c.mes && c.mes[k]) || ''; }
@@ -272,6 +305,7 @@ const dshFiltro = () => { const D = estado.dash; return { cat: D.cat, proj: D.pr
 function dshEuForcado() { if (dshVeTudo() || !dshPapeis().length) return ''; const c = estado.dash.cache; return (c.sem && c.sem.accountId) || (c.mes && c.mes.accountId) || ''; }
 // cada grupo só aplica os filtros que fazem sentido (saúde não se divide por pessoa; o plano semanal não se divide por projeto)
 function dshFGrupo(grupo, F) {
+  if (grupo === 'disc') return { cat: '', proj: '', pessoa: (typeof dscEuForcado === 'function' && dscEuForcado()) || F.pessoa };
   if (grupo === 'saude') return { cat: F.cat, proj: F.proj, pessoa: '' };
   if (grupo === 'time') return { cat: '', proj: '', pessoa: dshEuForcado() || F.pessoa };
   return F.pessoa ? { cat: '', proj: '', pessoa: F.pessoa } : { cat: F.cat, proj: F.proj, pessoa: '' };
@@ -357,7 +391,11 @@ const DSH_SEM_CEL = 26;
 function dshCel() { try { return window.matchMedia('(max-width:560px)').matches; } catch (e) { return false; } }
 function dshMobile() { try { return window.matchMedia('(max-width:760px)').matches; } catch (e) { return false; } }
 const dshTemBarra = (g) => g.stack || g.inds.some((i) => i.tipo === 'bar');
-function dshRecorteBarras(g, jan) { return (estado.dash.gran === 'sem' && dshTemBarra(g) && dshCel() && jan.atual.length > DSH_SEM_CEL) ? DSH_SEM_CEL : 0; }
+// a granularidade DA JANELA (a Disciplina é dia a dia/semana a semana por conta própria; as demais abas leem estado.dash.gran)
+const dshGranJ = (jan) => (jan && jan.gran) || estado.dash.gran;
+const DSH_DIA_CEL = 44;   // no celular, 66–132 barras diárias também não cabem: as últimas 44
+function dshRecorteBarras(g, jan) { const gr = dshGranJ(jan); if (!dshTemBarra(g) || !dshCel()) return 0; return gr === 'sem' ? (jan.atual.length > DSH_SEM_CEL ? DSH_SEM_CEL : 0) : (gr === 'dia' && jan.atual.length > DSH_DIA_CEL ? DSH_DIA_CEL : 0); }
+const dshNotaRecorte = (jan) => (dshGranJ(jan) === 'dia' ? `Mostrando os últimos ${DSH_DIA_CEL} dias úteis (no celular as barras diárias não cabem) — "Semana a semana" mostra o período inteiro.` : `Mostrando as últimas ${DSH_SEM_CEL} semanas (no celular as barras não cabem em 52) — "Mês a mês" mostra o ano inteiro.`);
 function dshSeriesDe(g, jan, F, comparar) {
   const lim = dshRecorteBarras(g, jan); const atual = lim ? jan.atual.slice(-lim) : jan.atual; const ant = lim ? jan.ant.slice(-lim) : jan.ant;
   const xs = atual.map((r) => r.chave); const series = []; const ids = [];
@@ -368,14 +406,14 @@ function dshSeriesDe(g, jan, F, comparar) {
   });
   if (comparar && !g.stack) {
     // `rot` = a semana/mês de onde vem o ponto tracejado (o readout o mostra: o valor é do período anterior, não do que está sob o cursor)
-    const rotRef = (r) => (jan.gran === 'sem' ? `sem. ${dshRotX('sem', r.chave)}–${dshRotX('sem', dshAdd(r.chave, 6))}` : dshRotX('mes', r.chave));
+    const rotRef = (r) => (jan.gran === 'dia' ? dshRotX('dia', r.chave) : jan.gran === 'sem' ? `sem. ${dshRotX('sem', r.chave)}–${dshRotX('sem', dshAdd(r.chave, 6))}` : dshRotX('mes', r.chave));
     const ind = g.inds[0]; const ref = ant.map((r, i) => ({ x: xs[i], v: dshVal(ind, r, F), rot: rotRef(r) }));
     if (ref.some((p) => p.v != null)) { series.push({ nome: ind.rot + ' (período anterior)', ref: true, tipo: 'line', vals: ref }); ids.push(ind.id); }
   }
   return { series, ids };
 }
 function dshOptsGrafico(g, jan, ids, extra) {
-  const D = estado.dash; const gran = D.gran;
+  const gran = dshGranJ(jan);
   const parc = jan.atual.length && jan.atual[jan.atual.length - 1].parcial && dshTemFoto(jan.atual[jan.atual.length - 1]) ? jan.atual[jan.atual.length - 1].chave : '';
   return Object.assign({
     unidade: g.un, reta: g.un === 'n', stacked: g.stack, fimParcial: !!parc, xlabel: (x) => dshRotX(gran, x), readX: (x) => dshLeituraX(gran, x),
@@ -399,12 +437,12 @@ function dshGraficosHTML(ids, jan, F, comparar) {
       const it = { id: g.inds[0].id, nome: dshTituloGrupo(g), unidade: g.un, series: s.series, reta: g.un === 'n', stacked: g.stack };
       // revisão de 2026-11-07: com 2+ séries NÃO se manda cor/vals da 1ª como "o" valor do grupo — o 07 decide (legenda + um valor por série)
       if (g.inds.length === 1) { it.cor = dshCorInd(g.inds[0]); it.vals = s.series[0].vals; }
-      if (dshRecorteBarras(g, jan)) it.nota = `Mostrando as últimas ${DSH_SEM_CEL} semanas (no celular as barras não cabem em 52) — "Mês a mês" mostra o ano inteiro.`;
+      if (dshRecorteBarras(g, jan)) it.nota = dshNotaRecorte(jan);
       return it;
     });
-    resto = dshSmallMultiples(itens, { xlabel: (x) => dshRotX(D.gran, x), readX: (x) => dshLeituraX(D.gran, x), annot: dshOptsGrafico(g0, jan, s0.ids).annot, fimParcial: dshOptsGrafico(g0, jan, s0.ids).fimParcial, cols: Math.min(itens.length, 3), drill: (x, id) => dshDrill(x, id), grupo: 'dshsm' });
+    resto = dshSmallMultiples(itens, { xlabel: (x) => dshRotX(dshGranJ(jan), x), readX: (x) => dshLeituraX(dshGranJ(jan), x), annot: dshOptsGrafico(g0, jan, s0.ids).annot, fimParcial: dshOptsGrafico(g0, jan, s0.ids).fimParcial, cols: Math.min(itens.length, 3), drill: (x, id) => dshDrill(x, id), grupo: 'dshsm' });
   }
-  const nota0 = dshRecorteBarras(g0, jan) ? `<div class="muted small dsh-nota-cel">Mostrando as últimas ${DSH_SEM_CEL} semanas (no celular as barras não cabem em 52) — "Mês a mês" mostra o ano inteiro.</div>` : '';
+  const nota0 = dshRecorteBarras(g0, jan) ? `<div class="muted small dsh-nota-cel">${esc(dshNotaRecorte(jan))}</div>` : '';
   return `<div class="dsh-graf">${princ}</div>${nota0}${resto ? `<div class="dsh-sm-titulo muted small">Outras unidades — cada uma no seu eixo:</div>${resto}` : ''}`;
 }
 
@@ -422,18 +460,19 @@ function dshStatusTile(ind, v) {
 // Por que não há número: sem foto na janela × a foto existe mas o indicador não se divide por este recorte (pessoa/projeto) ×
 // semana retroativa (a foto de momento não existe). Antes tudo virava "sem foto neste período", contradizendo o rodapé.
 function dshSemValor(ind, jan, F) {
-  const campo = ind.grupo === 'fin' ? 'fin' : ind.grupo === 'horas' ? 'horas' : ind.grupo === 'saude' ? 'saude' : 'time';
+  const campo = ind.grupo === 'fin' ? 'fin' : ind.grupo === 'horas' ? 'horas' : ind.grupo === 'saude' ? 'saude' : ind.grupo === 'disc' ? 'disc' : 'time';
   const com = jan.atual.filter((r) => !r.vazio && r[campo]);
   if (!com.length) return 'sem foto neste período';
   if (ind.grupo === 'saude' && ind.momento && com.every((r) => r[campo].retro)) return 'sem retrato (semana anterior ao início das fotos)';
+  if (ind.grupo === 'disc' && ind.momento && com.every((r) => r.modo === 'retro')) return 'sem retrato (a foto deste período é retroativa)';
   return 'não se aplica a este recorte';
 }
 function dshTileSpec(ind, jan, F, extra) {
-  const D = estado.dash; const at = jan.atual; const gran = D.gran;
+  const at = jan.atual; const gran = dshGranJ(jan);
   let i = at.length - 1; while (i >= 0 && (at[i].parcial || dshVal(ind, at[i], F) == null)) i--;
   let usaParcial = false;
   if (i < 0) { i = at.length - 1; while (i >= 0 && dshVal(ind, at[i], F) == null) i--; usaParcial = i >= 0; }
-  const spec = { id: ind.id, rot: ind.rot, unidade: ind.un, deltaBom: ind.bom, tip: `${ind.rot}: ${ind.calc}`, cor: dshCorInd(ind), deltaRef: gran === 'sem' ? 'semana anterior' : 'mês anterior' };
+  const spec = { id: ind.id, rot: ind.rot, unidade: ind.un, deltaBom: ind.bom, tip: `${ind.rot}: ${ind.calc}`, cor: dshCorInd(ind), deltaRef: gran === 'dia' ? 'dia útil anterior' : (gran === 'sem' ? 'semana anterior' : 'mês anterior') };
   Object.assign(spec, extra || {});
   if (i < 0) { spec.valor = null; spec.sub = dshSemValor(ind, jan, F); return spec; }
   const v = dshVal(ind, at[i], F); spec.valor = v; spec.parcial = usaParcial;
@@ -446,7 +485,7 @@ function dshTileSpec(ind, jan, F, extra) {
   }
   spec.spark = at.slice(0, i + 1).map((r) => dshVal(ind, r, F));
   Object.assign(spec, dshStatusTile(ind, v));
-  const per = at[i]; let sub = (gran === 'sem' ? `semana ${dshRotX('sem', per.chave)}–${dshRotX('sem', dshAdd(per.chave, 6))}` : dshLeituraX('mes', per.chave));
+  const per = at[i]; let sub = (gran === 'dia' ? dshLeituraX('dia', per.chave) : gran === 'sem' ? `semana ${dshRotX('sem', per.chave)}–${dshRotX('sem', dshAdd(per.chave, 6))}` : dshLeituraX('mes', per.chave));
   const ult = at[at.length - 1];
   if (!usaParcial && ult.parcial && ult !== per) { const pv = dshVal(ind, ult, F); if (pv != null) sub += ` · ⏳ agora ${dshFmt(ind.un, pv)}`; }
   else if (usaParcial) sub += ' · ainda em andamento';
@@ -524,10 +563,10 @@ function dshQuebraHTML(v, jan, F) {
 // Tabela, CSV e cópia — as mesmas séries do gráfico
 // ===========================================================================
 function dshTabelaDados(v, jan, F) {
-  const D = estado.dash; const ids = dshIdsDe(v); const inds = ids.map((id) => DSH_BY[id]).filter(Boolean);
+  const ids = dshIdsDe(v); const inds = ids.map((id) => DSH_BY[id]).filter(Boolean);
   // revisão de 2026-11-07: não repete a unidade que o rótulo já traz ("Margem %", "% faturável")
   const cab = ['Período', ...inds.map((i) => (i.un === '%' ? i.rot : `${i.rot} (${i.un === 'n' ? 'qtd' : i.un})`))];
-  const linhas = jan.atual.map((r) => [dshLeituraX(D.gran, r.chave) + (r.parcial ? ' ⏳' : ''), ...inds.map((i) => dshVal(i, r, F))]);
+  const linhas = jan.atual.map((r) => [dshLeituraX(dshGranJ(jan), r.chave) + (r.parcial ? ' ⏳' : ''), ...inds.map((i) => dshVal(i, r, F))]);
   return { cab, linhas, inds, ids };
 }
 function dshTabelaHTML(dados) {
@@ -540,7 +579,7 @@ const dshVisExporta = (v) => (v === 'dash' ? (dshSemFin() ? 'dashhoras' : 'dashf
 function dshCsv() {
   const v = estado.vista; const jan = dshJanela(); const dados = dshTabelaDados(dshVisExporta(v), jan, dshFiltro());
   const n2 = (x) => (x == null ? '' : String(Math.round(x * 100) / 100).replace('.', ','));
-  baixaCSV(`dashboard-${v}-${estado.dash.gran === 'sem' ? 'semanal' : 'mensal'}.csv`, [dados.cab, ...dados.linhas.map((l) => [l[0], ...l.slice(1).map(n2)])]);
+  baixaCSV(`dashboard-${v}-${dshGranJ(jan) === 'dia' ? 'diario' : dshGranJ(jan) === 'sem' ? 'semanal' : 'mensal'}.csv`, [dados.cab, ...dados.linhas.map((l) => [l[0], ...l.slice(1).map(n2)])]);
 }
 function dshCopia() {
   const jan = dshJanela(); const dados = dshTabelaDados(dshVisExporta(estado.vista), jan, dshFiltro());
@@ -560,6 +599,11 @@ function dshDrill(x, indId) {
     const ct = estado.ctrl; ct.de = rec.de; ct.ate = rec.ate > hoje ? hoje : rec.ate; ct.destaque = ''; ct.cat = '';
     if (D.proj) { ct.cat = (dshMapaProj()[D.proj] || {}).cat || ''; ct.destaque = D.proj; ct.rolar = true; } else if (D.cat) ct.cat = D.cat;
     vaiPara('controladoria'); return;
+  }
+  if (ind.grupo === 'disc') {   // 🧭 vencidos → 🛠 Gestão; planejou/fechou → o dia no 📆 Hoje do time (gestão) ou o meu 📆 Hoje
+    if (['dvenc', 'dnovos', 'dsaiu', 'dcomvenc'].includes(ind.id)) { vaiPara('gestao'); return; }
+    if (dshVeTudo() && estado.hoje) { estado.hoje.d = rec.chave; vaiPara('hojetime'); } else vaiPara('hoje');
+    return;
   }
   if (ind.grupo === 'saude') {
     if (D.proj && estado.gp) { estado.gp.proj = D.proj; vaiPara('gp'); } else vaiPara('analytics');
@@ -715,7 +759,8 @@ function dshGeralHTML(jan, F, semFin) {
 function renderDash() {
   const D = estado.dash; const v = DSH_VISTAS.includes(estado.vista) ? estado.vista : 'dash'; const cont = document.getElementById('conteudo');
   if (typeof _tscReset === 'function') _tscReset();
-  if (!(typeof idApontar === 'function' && idApontar())) { if (D.cache.sem || D.cache.mes) dshZeraCache(); cont.replaceChildren(el(dshSemIdHTML())); return; }
+  if (!(typeof idApontar === 'function' && idApontar())) { if (D.cache.sem || D.cache.mes || (D.disc && Object.keys(D.disc.cache).length)) dshZeraCache(); cont.replaceChildren(el(dshSemIdHTML())); return; }
+  if (v === 'dashdisc' && typeof renderDisc === 'function') return renderDisc();   // 🧭 Disciplina do time: carga, filtros e corpo próprios (18d)
   dshGarante();
   const need = dshNecessidades(); const grans = Object.keys(need);
   const faltam = grans.filter((g) => !D.cache[g]);

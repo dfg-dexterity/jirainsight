@@ -29,6 +29,13 @@
 // mês correntes gravaram; a resposta do cron traz SÓ contagens e chaves (as fotos têm R$ por pessoa). Manual:
 // ?tipo=kpis[&dry=1][&confirmar=1][&max=N≤20][&chave=AAAA-MM-DD|AAAA-MM] (exige CRON_SECRET; sem dry grava; não carimba o agendador).
 //
+// 🧭 DISCIPLINA DO TIME (2026-11-16): foto à MEIA-NOITE de cada dia útil com os vencidos que viraram o dia e quem planejou/fechou o dia no 📆 Hoje
+// (formato em api/_lib/disciplina.js). O cron noturno (segundo agendamento do workflow: ?cron=1&so=disciplina, 00:05–05:35 SP, só a fase da foto, sem
+// Teams) tira a foto; o primeiro tique ≥ 06:00 recupera (modo `recuperada`/`retro`) e faz o backfill retro (até 5 dias por tique). A fase roda ANTES do
+// ranking (o cartão das 08:00 já acha a foto) e mesmo em dia não útil (o dia que terminou é o último útil). Cursores teams_estado.ultimaFotoDisc e
+// discRetro; a resposta do cron traz SÓ contagens (nenhum nome). Manual: ?tipo=disciplina[&dia=AAAA-MM-DD][&dry=1][&confirmar=1][&forcar=1] (exige
+// CRON_SECRET; sem dry grava; não carimba o agendador; com dry=1 devolve a `foto` inteira — é a prévia de quem tem o segredo).
+//
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
 import crypto from 'node:crypto';
@@ -43,6 +50,7 @@ import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
 import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
 import { fotosKpi, kpisPendentes, leIdsKpi, KPI_HORA, KPI_MAX_TIQUE } from './_lib/kpi.js';
+import { discPublico, discAlvo, discEhUtil, fotoDisc, leIdsDisc, leDisc, discCompara, discDiaSP, discHoraSP, discPendentesRetro, DISC_RETRO_TIQUE, DISC_NOITE_ATE, DISC_MEDIA_DIAS } from './_lib/disciplina.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
 // saída do Teams é calculada sobre os bytes exatos do corpo.
@@ -197,28 +205,114 @@ const cartaoAdaptive = (blocos) => ({
 // ---------------------------------------------------------------------------
 // RANKING diário (cartão original).
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 🧭 DISCIPLINA DO DIA no cartão do ranking (2026-11-16). O cartão NÃO recalcula nada: lê a foto `disc_<dia>` (e as até 7 anteriores) que a fase
+// `disciplina` do cron tirou à meia-noite. Função pura: recebe as fotos e devolve { blocos, stats }. Sem foto do dia = UMA linha de aviso (nunca
+// se calcula ao vivo: o número não seria o da meia-noite e destoaria do histórico). Só contagens e nomes: nada de R$, e-mail ou link.
+// ---------------------------------------------------------------------------
+const DISC_NOMES_MAX = 12;
+const nomeLimpo = (s) => (String(s || '').replace(/[*_\[\]@`]/g, '').replace(/\s+/g, ' ').trim() || '—');
+const decPt = (x) => Number(x).toFixed(1).replace('.', ',');
+const nomesTxt = (itens) => (itens.length > DISC_NOMES_MAX
+  ? `${itens.slice(0, DISC_NOMES_MAX).join(' · ')} · … e mais ${itens.length - DISC_NOMES_MAX}`
+  : itens.join(' · '));
+// Trecho "🟢 ▼ 3 contra 12/11": a seta é o sentido do número; a bolinha, se isso é bom (🟢) ou ruim (🔴). d null/sem dia anterior = sem trecho.
+function discDelta(d, antDia, baixoEhBom, unidade) {
+  if (d == null || !antDia) return '';
+  const ref = ddmmDe(antDia);
+  if (d === 0) return `⚪ ＝ contra ${ref}`;
+  const bom = (d < 0) === baixoEhBom;
+  return `${bom ? '🟢' : '🔴'} ${d > 0 ? '▲' : '▼'} ${Math.abs(d)}${unidade === 'pp' ? ' pp' : ''} contra ${ref}`;
+}
+function blocosDisciplina(dia, fotos) {
+  const lista = (Array.isArray(fotos) ? fotos : []).filter((f) => f && f.dia && f.time);
+  const foto = lista.find((f) => f.dia === dia) || null;
+  if (!foto) {
+    return {
+      blocos: [{ type: 'TextBlock', wrap: true, isSubtle: true, spacing: 'Medium', text: `🧭 Disciplina do dia: a foto da meia-noite de ${ddmmDe(dia)} não foi tirada — sem indicadores hoje.` }],
+      stats: { modo: 'sem-foto', venc: null, plan: null, fech: null, esp: null },
+    };
+  }
+  const t = foto.time; const esp = Number(t.esp) || 0;
+  const retro = foto.modo === 'retro' || t.venc == null;
+  const stats = { modo: foto.modo || 'noite', venc: t.venc == null ? null : t.venc, plan: Number(t.plan) || 0, fech: Number(t.fech) || 0, esp };
+  if (esp <= 0) return { blocos: [], stats };
+  const ants = lista.filter((f) => f.dia < dia).sort((a, b) => (a.dia < b.dia ? 1 : -1));
+  const c = discCompara(foto, ants);
+  const pessoas = Object.values(foto.porPessoa || {}).filter((p) => p && typeof p === 'object');
+  const pct = (n) => Math.round((100 * (Number(n) || 0)) / esp);
+  const mediaTxt = (b, txt) => (b.media == null ? '' : `média de ${b.n} dias úteis: ${txt}`);
+
+  let origem = 'foto da meia-noite';
+  if (foto.modo === 'recuperada') origem = `foto recuperada às ${discHoraSP(foto.fotoEm) || '—'} de ${ddmmDe(discDiaSP(foto.fotoEm) || dia)} (o cron da meia-noite não rodou)`;
+  else if (foto.modo === 'retro') origem = 'foto retroativa';
+
+  // ⏰ vencidos
+  let linhaV;
+  if (retro) linhaV = '⏰ Vencidos: sem retrato deste dia (a foto não foi tirada a tempo)';
+  else {
+    const comV = t.comVenc != null ? t.comVenc : pessoas.filter((p) => (p.venc || 0) > 0).length;
+    const partes = [`⏰ **Vencidos que viraram o dia: ${t.venc}**${t.venc > 0 ? ` em ${comV} pessoa(s)` : ''}`];
+    const dl = discDelta(c.venc.dAnt, c.venc.antDia, true, 'pessoas'); if (dl) partes.push(dl);
+    const md = mediaTxt(c.venc, decPt(c.venc.media || 0)); if (md) partes.push(md);
+    if ((t.novos || 0) > 0) partes.push(`${t.novos} novo(s) nesta noite`);
+    if (foto.truncado) partes.push('contagem parcial');
+    linhaV = partes.join(' · ');
+    const tem = pessoas.filter((p) => (p.venc || 0) > 0)
+      .sort((x, y) => (y.venc - x.venc) || nomeLimpo(x.nome).localeCompare(nomeLimpo(y.nome), 'pt'))
+      .map((p) => `${nomeLimpo(p.nome)} (${p.venc})`);
+    linhaV += `\n\nQuem tem: ${tem.length ? nomesTxt(tem) : 'ninguém 🎉'}`;
+  }
+  // 🌅 planejaram
+  const pl = [`🌅 **Planejaram o dia no 📆 Hoje: ${t.plan} de ${esp} (${pct(t.plan)}%)**`];
+  { const dl = discDelta(c.plan.dAnt, c.plan.antDia, false, c.plan.unidade); if (dl) pl.push(dl);
+    const md = mediaTxt(c.plan, `${c.plan.media}%`); if (md) pl.push(md);
+    const tarde = (Number(t.plan) || 0) - (Number(t.cedo) || 0); if (tarde > 0) pl.push(`${tarde} depois do meio-dia`); }
+  const naoPlan = pessoas.filter((p) => !p.plan).map((p) => nomeLimpo(p.nome)).sort((a, b) => a.localeCompare(b, 'pt'));
+  const linhaP = `${pl.join(' · ')}\n\n${naoPlan.length ? `Não planejaram: ${nomesTxt(naoPlan)}` : 'todos planejaram 🎉'}`;
+  // 🌙 fecharam
+  const fe = [`🌙 **Fecharam o dia: ${t.fech} de ${esp} (${pct(t.fech)}%)**`];
+  { const dl = discDelta(c.fech.dAnt, c.fech.antDia, false, c.fech.unidade); if (dl) fe.push(dl);
+    const md = mediaTxt(c.fech, `${c.fech.media}%`); if (md) fe.push(md); }
+  let linhaF = fe.join(' · ');
+  if ((Number(t.plan) || 0) > 0) {
+    const naoFech = pessoas.filter((p) => p.plan && !p.fech).map((p) => nomeLimpo(p.nome)).sort((a, b) => a.localeCompare(b, 'pt'));
+    linhaF += `\n\n${naoFech.length ? `Planejaram e não fecharam: ${nomesTxt(naoFech)}` : 'todos fecharam 🎉'}`;
+  }
+
+  return {
+    blocos: [
+      { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', wrap: true, text: `🧭 Disciplina do dia — ${ddmmDe(dia)} · ${origem}` },
+      { type: 'ColumnSet', spacing: 'Small', columns: [
+        kpiCol(t.venc == null ? '—' : String(t.venc), 'Vencidos que viraram o dia'),
+        kpiCol(`${pct(t.plan)}%`, 'Planejaram o dia'),
+        kpiCol(`${pct(t.fech)}%`, 'Fecharam o dia'),
+      ] },
+      { type: 'TextBlock', wrap: true, spacing: 'Small', text: linhaV },
+      { type: 'TextBlock', wrap: true, spacing: 'Small', text: linhaP },
+      { type: 'TextBlock', wrap: true, spacing: 'Small', text: linhaF },
+      { type: 'TextBlock', isSubtle: true, size: 'Small', wrap: true, spacing: 'Small', text: '_Evolução por pessoa: Dexterity Insights › 📈 Dashboard de KPIs › 🧭 Disciplina do time._' },
+    ],
+    stats,
+  };
+}
+
 async function montaRanking(cfg, extras, removidos, hoje) {
   // Último dia útil FECHADO antes de hoje.
   let dia = addDias(hoje, -1);
   for (let i = 0; i < 10 && !ehUtilBR(dia, extras, removidos); i += 1) dia = addDias(dia, -1);
 
   const [{ porPessoa }, pessoas] = await Promise.all([worklogsRange(dia, dia), jiraUsuariosAtivos()]);
-  const ocultos = new Set((cfg.ocultos || []).map((o) => o.a));   // usuários externos: fora do relatório
-  const ehAusente = (a) => (cfg.ausencias || []).some((x) => x.a === a && dia >= x.de && dia <= x.ate);
-  const metaSeg = (a) => Math.max(0, Number((cfg.metasPessoa || {})[a] != null ? cfg.metasPessoa[a] : cfg.metaGlobalH) || 0) * 3600;
-
   // Uma linha por pessoa ativa (com meta no dia), ordenada por quem mais precisa
-  // apontar (maior lacuna primeiro) — espelha a aba "Ranking" do painel.
-  const linhas = Object.keys(pessoas)
-    .filter((a) => !ehAusente(a) && !ocultos.has(a))
-    .map((a) => {
+  // apontar (maior lacuna primeiro) — espelha a aba "Ranking" do painel. O PÚBLICO (ativos − ocultos − ausentes − meta 0)
+  // é o mesmo da 🧭 Disciplina do time: uma função só (discPublico, api/_lib/disciplina.js).
+  const linhas = discPublico(cfg, pessoas, dia)
+    .map(({ a, nome, metaSeg: meta }) => {
       const seg = porPessoa[a] || 0;
-      const meta = metaSeg(a);
       const pct = meta ? Math.round((seg / meta) * 100) : null;
       const lacuna = Math.max(0, meta - seg);
       return { a, nome: pessoas[a].nome, seg, meta, pct, lacuna };
     })
-    .filter((l) => l.meta > 0)
     .sort((x, y) => (y.lacuna - x.lacuna) || (x.pct - y.pct) || x.nome.localeCompare(y.nome, 'pt'));
 
   // KPIs do dia (cabeçalho do cartão).
@@ -260,6 +354,11 @@ async function montaRanking(cfg, extras, removidos, hoje) {
     { type: 'TextBlock', weight: 'Bolder', spacing: 'Medium', text: 'Ranking — quem mais precisa apontar' },
     { type: 'TextBlock', wrap: true, text: linhasTxt.length ? linhasTxt.join('\n\n') : '_Ninguém com meta no período._' },
   ];
+  // 🧭 Disciplina do dia: lê a foto da meia-noite (nunca recalcula); falha de leitura NUNCA derruba o ranking — vira o aviso de "sem foto".
+  let disc;
+  try { disc = blocosDisciplina(dia, await leDisc({ ate: dia, n: DISC_MEDIA_DIAS + 1 }, sbTeams())); }
+  catch (e) { disc = blocosDisciplina(dia, []); }
+  blocos.push(...disc.blocos);
   const uso = [];
   if (criados != null) uso.push(`Chamados criados: **${criados}**`);
   if (resolvidos != null) uso.push(`Resolvidos: **${resolvidos}**`);
@@ -268,8 +367,47 @@ async function montaRanking(cfg, extras, removidos, hoje) {
 
   return {
     cartao: cartaoAdaptive(blocos), dia,
-    stats: { pessoas: linhas.length, emDia: nEmDia, atrasadas: nAtrasadas, pctGeral },
+    stats: { pessoas: linhas.length, emDia: nEmDia, atrasadas: nAtrasadas, pctGeral, disciplina: disc.stats },
   };
+}
+
+// ---------------------------------------------------------------------------
+// 🧭 DISCIPLINA DO TIME — a fase do ?cron=1 (e do tique noturno ?cron=1&so=disciplina). Fotografa o último dia útil fechado (modo noite no tique
+// da madrugada, recuperada depois) e, no tique diurno, o backfill retro. Só CONTAGENS na resposta (nenhum nome vai para o log do Actions).
+// ---------------------------------------------------------------------------
+const DISC_RETRO_HORA = DISC_NOITE_ATE;   // o backfill só roda a partir daqui (o tique da madrugada é só da foto principal)
+async function faseDisciplina({ cfg, hoje, agora, estado, semSupabase, segredo, noturno, t0 }) {
+  if (!segredo) return { feito: false, motivo: 'CRON_SECRET não configurado (a foto tem dados por pessoa)' };
+  if (semSupabase) return { feito: false, motivo: 'Supabase não configurado (as fotos precisam dele)' };
+  const out = { feito: false };
+  const alvo = discAlvo(hoje, cfg);
+  const ult = String((estado || {}).ultimaFotoDisc || '');
+  out.dia = alvo;
+  try {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ult) && ult >= alvo) out.motivo = `em dia (última foto: ${ult})`;
+    else {
+      const r = await fotoDisc({ cfg, dia: alvo, agora: new Date().toISOString() });
+      if (r.ok) {
+        await gravaTeamsEstado({ ultimaFotoDisc: alvo }, estado);
+        const t = r.time || {};
+        Object.assign(out, { feito: true, modo: r.modo, mantida: !!r.mantida, pessoas: t.esp, venc: t.venc, plan: t.plan, fech: t.fech, truncado: !!r.truncado });
+      } else out.erro = String(r.erro || '').slice(0, 200);
+      out.ms = r.ms;
+    }
+    // Backfill retro (só no tique diurno, depois das 06:00, 1× por dia até acabar): dias úteis sem foto, até DISC_RETRO_TIQUE por tique.
+    if (!noturno && agora >= DISC_RETRO_HORA && String((estado || {}).discRetro || '') !== hoje && Date.now() - t0 < 15000) {
+      const existentes = await leIdsDisc('');
+      const pend = discPendentesRetro({ hoje, cfg, existentes });
+      const lote = pend.slice(0, DISC_RETRO_TIQUE); const feitos = [];
+      for (const d of lote) {
+        const rr = await fotoDisc({ cfg, dia: d, agora: new Date().toISOString() });
+        if (rr.ok) feitos.push(d);
+      }
+      out.retro = feitos;
+      if (feitos.length === pend.length) await gravaTeamsEstado({ discRetro: hoje }, estado);
+    }
+  } catch (e) { out.erro = String(e && e.message ? e.message : e).slice(0, 200); }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -1025,6 +1163,25 @@ export default async function handler(req, res) {
       return json(res, (outK.falhas.length && !outK.feitas.length) ? 502 : 200, outK);
     }
 
+    // ---- 🧭 Disciplina do time, chamada manual: ?tipo=disciplina[&dia=AAAA-MM-DD][&dry=1][&confirmar=1][&forcar=1] ----
+    // A mesma foto da fase `disciplina` do cron, na hora (padrão: o último dia útil fechado). Tem nomes e dados por pessoa: EXIGE o CRON_SECRET (503 sem a
+    // env). Sem dry=1 GRAVA `disc_<dia>` → exige &confirmar=1. NÃO carimba o agendador. `forcar=1` troca uma foto melhor (noite) por uma pior. Com dry=1
+    // devolve a `foto` inteira (prévia de quem tem o segredo); a resposta gravada traz só contagens.
+    if (String(q.tipo || '') === 'disciplina') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — a foto de disciplina tem dados por pessoa e só roda com o segredo do cron (defina a env na Vercel).' });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada GRAVA a foto de disciplina (disc_) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      const cfgD = await configCompartilhada();
+      const hojeD = spDate(new Date());
+      const diaQ = String(q.dia || '').trim();
+      if (diaQ && !dataValida(diaQ)) return json(res, 400, { erro: 'dia inválido — use AAAA-MM-DD (uma data que exista).' });
+      const diaD = diaQ || discAlvo(hojeD, cfgD);
+      if (!discEhUtil(diaD, cfgD)) return json(res, 400, { erro: `${diaD} não é dia útil — a foto é só de dia útil.` });
+      if (diaD >= hojeD) return json(res, 400, { erro: `${diaD} é hoje ou futuro — a foto só vale depois que o dia fecha (último dia possível: ${discAlvo(hojeD, cfgD)}).` });
+      const rD = await fotoDisc({ cfg: cfgD, dia: diaD, agora: new Date().toISOString(), dry, forcar: q.forcar === '1' });
+      const { foto: fotoD, ...contaD } = rD;
+      return json(res, rD.ok ? 200 : 502, { dry, ...contaD, ...(dry && fotoD ? { foto: fotoD } : {}) });
+    }
+
     // ---- 💵 Custo/h do Odoo, chamada manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] ----
     // A mesma sincronização do cron (fase `custos`) e do botão ↻ da Controladoria, na hora. Tem o custo/h por pessoa: EXIGE o
     // CRON_SECRET (503 sem a env). Sem dry=1 GRAVA cfg.custosPessoa/cfg.custosOdoo → exige &confirmar=1. NÃO carimba o agendador.
@@ -1038,7 +1195,10 @@ export default async function handler(req, res) {
       return json(res, rC.ok || rC.configurado === false ? 200 : 502, { dry, ...semData });
     }
 
-    if (!webhook && !dry) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
+    // O tique noturno da disciplina (?cron=1&so=disciplina) não envia nada ao Teams: não depende do webhook.
+    const soDisciplina = q.cron === '1' && q.so === 'disciplina';
+    if (soDisciplina && (dry || q.forcar === '1')) return json(res, 400, { erro: 'so=disciplina é só do agendador — para a prévia ou para refazer use ?tipo=disciplina.' });
+    if (!webhook && !dry && !soDisciplina) return json(res, 200, { enviado: false, erro: 'TEAMS_WEBHOOK_URL não configurada.' });
 
     const cfg = await configCompartilhada();
     const extras = new Set(Object.keys(cfg.feriadosExtra || {}));
@@ -1051,9 +1211,6 @@ export default async function handler(req, res) {
 
     // ---- Modo agendador (?cron=1): decide os DOIS envios pelos horários do painel ----
     if (q.cron === '1' && !dry && q.forcar !== '1') {
-      if (!ehUtilBR(hoje, extras, removidos)) {
-        return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.` });
-      }
       const estado = await teamsEstado();                       // null = sem Supabase · false = ilegível
       if (estado === ESTADO_ILEGIVEL) {
         // Sem saber o que já foi enviado, qualquer decisão repete envios e sobrescreve o estado:
@@ -1064,6 +1221,13 @@ export default async function handler(req, res) {
       const ult = (k) => (semSupabase ? undefined : String((estado || {})[k] || ''));
       const out = {};
       const t0 = Date.now(); let pesado = false;                // orçamento do tique (60 s na Vercel)
+      // 🧭 Disciplina do time (2026-11-16): ANTES do ranking (o cartão das 08:00 já acha a foto) e ANTES do teste de dia útil (o sábado/feriado
+      // fotografa o último dia útil que terminou). No tique noturno (?so=disciplina) é só isto.
+      out.disciplina = await faseDisciplina({ cfg, hoje, agora, estado, semSupabase, segredo, noturno: soDisciplina, t0 });
+      if (soDisciplina) return json(res, 200, { disciplina: out.disciplina });
+      if (!ehUtilBR(hoje, extras, removidos)) {
+        return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.`, disciplina: out.disciplina });
+      }
 
       const gr = gateHorario(horaRank, agora, hoje, ult('ultimoEnvio'));
       if (gr.pronto) {
@@ -1302,7 +1466,7 @@ export default async function handler(req, res) {
       return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.` });
     }
     const m = await montaRanking(cfg, extras, removidos, hoje);
-    if (dry) return json(res, 200, { enviado: false, dry: true, dia: m.dia, cartao: m.cartao });
+    if (dry) return json(res, 200, { enviado: false, dry: true, dia: m.dia, disciplina: m.stats.disciplina, cartao: m.cartao });
     const env = await enviaCartao(webhook, m.cartao);
     return json(res, 200, { enviado: env.ok, dia: m.dia, status: env.status, ...m.stats, ...(env.ok ? {} : { erro: env.erro }) });
   } catch (err) {
