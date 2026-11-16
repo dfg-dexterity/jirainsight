@@ -1291,6 +1291,14 @@
   .tsc-lg,.tsc-btn,.dsh-chip{min-height:44px;padding:0 13px}
   .dsh-click{min-height:44px}
 }
+@media (max-width:760px){
+  /* 🧭 Disciplina do time: a tabela por pessoa e a grade rolam dentro do contêiner; ordenar e filtrar com alvo de toque */
+  .dsc-ord,.dsc-nome{min-height:44px;display:inline-flex;align-items:center}
+  .dsc-tab th,.dsc-tab td,.dsc-grade th,.dsc-grade td{padding:4px 6px}
+  .dsc-grade tbody th{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+  .dsc-g-c{min-width:40px;min-height:44px}
+  .dsc-leg{line-height:1.45}
+}
 /* ---- fim: analises ---- */
 
 /* ---- 📱 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias) ---- */

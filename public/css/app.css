@@ -3707,6 +3707,28 @@
   .dsh-glossario dd{margin:2px 0 0;font-size:12.5px;line-height:1.45;color:var(--texto2)}
   .dsh-rodape{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:12px;color:var(--muted);padding:10px 14px}
   .dsh-sep{color:var(--muted2)}
+  /* 🧭 Disciplina do time (18d): tabela por pessoa e a grade dia a dia */
+  .dsc-pes .dsc-aviso{margin:0 0 8px}
+  .dsc-tab th,.dsc-tab td{white-space:nowrap}
+  .dsc-tab thead th{text-align:right}
+  .dsc-tab thead th:first-child,.dsc-tab tbody th{text-align:left}
+  .dsc-tab tbody th{font-weight:600;text-transform:none;letter-spacing:0}
+  .dsc-ord{font:inherit;font-weight:700;color:inherit;background:none;border:0;padding:2px 0;cursor:pointer;text-align:inherit}
+  .dsc-ord:hover{color:var(--cerceta)}
+  .dsc-ord:focus-visible,.dsc-nome:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
+  .dsc-nome{font:inherit;color:var(--grafite);background:none;border:0;padding:2px 0;cursor:pointer;text-align:left;text-decoration:underline dotted var(--muted2)}
+  .dsc-nome:hover{color:var(--cerceta)}
+  .dsc-tab tr.dsc-sel>*{background:var(--hoverbg)}
+  .dsc-leg{margin:0 0 8px;line-height:1.5}
+  .dsc-grade{table-layout:auto}
+  .dsc-grade th,.dsc-grade td{text-align:center}
+  .dsc-grade tbody th{text-align:left;font-weight:600;text-transform:none;letter-spacing:0;position:sticky;left:0;background:var(--cartao)}
+  .dsc-g-d>span{display:block;line-height:1.25}
+  .dsc-g-c{font-size:14px;min-width:46px}
+  .dsc-g-c.pl.fe{background:color-mix(in srgb,var(--musgo) 14%,transparent)}
+  .dsc-g-x{color:var(--muted2)}
+  .dsc-g-f{background:var(--hoverbg)}
+  .dsc-v{margin-left:2px;font-size:10px;font-weight:700;color:var(--err)}
   /* 🏦 Controladoria em Insights: a faixa da leitura rápida (fotos mensais do servidor) */
   .ct-rapida{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:0 0 10px;padding:8px 12px;border-radius:8px;border-left:4px solid var(--cerceta);background:var(--hoverbg);font-size:12.5px;line-height:1.45}
   .ct-rapida.lenta{border-left-color:var(--amarelo)}

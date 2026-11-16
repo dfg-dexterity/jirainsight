@@ -65,6 +65,13 @@
 // POST /api/config?kpis=1 {acao:'atualizar'} -> o ↻ "atualizar agora" da tela: gestor/admin (papeisDe) refazem a semana e o mês CORRENTES agora (UMA
 //                                           leitura do Clockwork) e recebem as duas fotos em `itens`; 403 para os demais; 429 se refeito há menos de 1 min.
 //
+// GET  /api/config?disc=1&gran=dia|sem[&n=66|26][&ate=AAAA-MM-DD] -> 🧭 DISCIPLINA DO TIME (2026-11-16): as fotos diárias `disc_<AAAA-MM-DD>` (vencidos que
+//                                           viraram o dia · planejou o dia no 📆 Hoje · fechou o dia) tiradas à meia-noite pelo cron do api/teams.js
+//                                           (formato em api/_lib/disciplina.js), agregadas em `itens:[rec]` — um por dia útil (gran=dia, n 1–132) ou por
+//                                           semana (gran=sem, n 1–60). { ok, gran, n, de, ate, fim, papeis, accountId, horizonte, desde, planAte, itens, pendentes }.
+//                                           RECORTE POR PAPEL no servidor: gestor/negócio/diretoria/admin veem a lista por pessoa; os demais recebem os
+//                                           totais do time e só a PRÓPRIA linha. Identidade (planAuth) — 401 sem; config ilegível → 502; só GET; nunca cacheado.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
@@ -76,6 +83,7 @@ import { notificaPessoas } from './_lib/notifica.js';
 import { pushEnviaPara, pushLe, pushInscreve, pushCancela, pushPrefs, pushConfigurado, pushChavePublica, pushIdDe } from './_lib/push.js';
 import { leKpis, recorteKpi, kpiChaves, kpiChaveDe, kpiHorizonte, fotosKpi, KPIS_MAX, KPIM_MAX } from './_lib/kpi.js';
 import { leFotosRentab, RE_ID_PLANO, RPDIA_MAX, RPSEM_MAX } from './_lib/rentabFoto.js';
+import { leDisc, leIdsDisc, discRecs, recorteDisc, discChaves, discAlvo, DISC_HOJE_DESDE, DISC_PLAN_ATE, DISC_MAX } from './_lib/disciplina.js';
 import {
   portalProjetoPayload, projetosPublicados, contratoDoProjeto, adminProjetos, adminConfig,
   adminItensLista, adminItemEscreve, adminDecisao, adminSugestoes, portalCacheLimpa,
@@ -457,6 +465,8 @@ async function planejamento(req, res, base, headers) {
 // "usar o Jira Insight como ponto central de planejamento do dia, incluindo controle da agenda e priorização").
 // Modelo (um JSON por pessoa e dia, linha `dia_<accountId>_<AAAA-MM-DD>` desta tabela):
 //   { st:'rascunho'|'planejado'|'fechado', planejadoEm, fechadoEm, nota,
+//     plan1, fech1 (carimbos do SERVIDOR, 2026-11-16: a 1ª vez que a linha foi gravada planejada / fechada — o cliente não os manda nem os muda;
+//     alimentam a 🧭 Disciplina do time, api/_lib/disciplina.js; linhas antigas caem em planejadoEm/fechadoEm),
 //     itens:[{ id, k (ticket|''), t (texto), p (projeto|''), est (seg), feito, feitoEm, ini ('HH:MM'|''),
 //              orig ('plano'|'venc'|'hoje'|'prio'|'andamento'|'reuniao'|'ontem'|'manual'|'busca'), ev (evento da agenda|''),
 //              nota, movido ('AAAA-MM-DD'|'') }] }
@@ -555,7 +565,15 @@ async function planejamentoDia(req, res, base, headers) {
       // o cliente acha que existe uma linha (base) e ela sumiu: não grava por cima às cegas
       return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi removido em outro lugar — recarregado.', dia: null });
     }
-    const data = { ...lim.dia, nome: quem.nome || '', email: quem.email || '' };
+    // Carimbos do SERVIDOR (🧭 Disciplina): a 1ª gravação planejada/fechada fica para sempre — replanejar à tarde ou reabrir não os muda.
+    // Dia LEGADO (gravado antes dos carimbos, sem plan1/fech1): vale o planejadoEm/fechadoEm que JÁ ESTAVA na linha (gravado na época,
+    // antes desta edição) — senão editar hoje um dia planejado ontem carimbaria hoje e apagaria o dia do histórico (revisão do PR #229).
+    const ant = (atual && atual.data) || {};
+    const legP = (ant.planejadoEm && ant.st && ant.st !== 'rascunho') ? diaIso(ant.planejadoEm) : '';
+    const legF = ant.fechadoEm ? diaIso(ant.fechadoEm) : '';   // fechadoEm gravado = fechou naquela hora (reabrir depois não apaga)
+    const plan1 = ant.plan1 || legP || ((lim.dia.planejadoEm && lim.dia.st !== 'rascunho') ? agora : '');
+    const fech1 = ant.fech1 || legF || (lim.dia.st === 'fechado' ? agora : '');
+    const data = { ...lim.dia, nome: quem.nome || '', email: quem.email || '', ...(plan1 ? { plan1 } : {}), ...(fech1 ? { fech1 } : {}) };
     if (JSON.stringify(data).length > 65536) return json(res, 413, { ok: false, erro: 'Dia grande demais.' });
     let row;
     if (atual) {
@@ -1585,6 +1603,55 @@ async function kpisRota(req, res, base, headers) {
 }
 
 // ============================================================================
+// 🧭 DISCIPLINA DO TIME — leitura das fotos diárias (GET /api/config?disc=1, 2026-11-16). As fotos vivem em linhas `disc_<AAAA-MM-DD>` (o GET normal só
+// devolve `default`); o PAPEL é decidido AQUI (papeisDe) e o recorte é do servidor: quem não vê tudo recebe os totais do time e só a própria linha.
+// ============================================================================
+async function discRota(req, res, base, headers) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') return json(res, 405, { ok: false, erro: 'Use GET' });
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  let cfg;
+  try {
+    const rc = await fetch(`${base}/rest/v1/${TABELA}?id=eq.${ID}&select=data`, { headers });
+    if (!rc.ok) throw new Error(`Supabase ${rc.status}`);
+    const rows = await rc.json();
+    cfg = (Array.isArray(rows) && rows[0] && rows[0].data) || {};
+  } catch (e) { cfg = null; }
+  if (!cfg) return json(res, 502, { ok: false, erro: 'Não consegui ler a configuração para decidir o seu perfil — tente de novo.' });
+  const papeis = papeisDe(cfg, quem);
+  const gran = String(q.gran || 'dia');
+  if (gran !== 'dia' && gran !== 'sem') return json(res, 400, { ok: false, erro: 'gran inválido — use dia ou sem.' });
+  const ateQ = String(q.ate || '').trim();
+  if (ateQ && !dataValida(ateQ)) return json(res, 400, { ok: false, erro: 'ate inválido — use AAAA-MM-DD (uma data que exista).' });
+  const nQ = Math.floor(Number(q.n));
+  const teto = gran === 'sem' ? 60 : 132;
+  const n = Math.max(1, Math.min(teto, Number.isFinite(nQ) && nQ > 0 ? nQ : (gran === 'sem' ? 26 : 66)));
+  const hoje = spHoje();
+  const fimQ = ateQ || (gran === 'sem' ? hoje : discAlvo(hoje, cfg));
+  const chaves = discChaves(gran, fimQ, n, cfg);
+  if (!chaves.length) return json(res, 400, { ok: false, erro: 'Período inválido.' });
+  const fim = chaves[chaves.length - 1];
+  const ateDia = gran === 'sem' ? addDiasIso(fim, 6) : fim;
+  const sb = { base, headers };
+  let fotos; let ids;
+  try {
+    [fotos, ids] = await Promise.all([
+      leDisc({ ate: ateDia, n: gran === 'sem' ? Math.min(DISC_MAX, n * 5 + 1) : n + 1 }, sb),
+      leIdsDisc('', sb),
+    ]);
+  } catch (e) { return json(res, 502, { ok: false, erro: `Não consegui ler as fotos: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); }
+  const itens = discRecs({ gran, chaves, fotos }).map((r) => recorteDisc(r, { papeis, accountId: quem.accountId }));
+  const dias = [...ids].sort();
+  const semFoto = itens.filter((r) => r.vazio && r.ate >= DISC_HOJE_DESDE).length;
+  return json(res, 200, {
+    ok: true, gran, n, de: chaves[0], ate: ateDia, fim, papeis, accountId: quem.accountId,
+    horizonte: dias[0] || '', desde: DISC_HOJE_DESDE, planAte: DISC_PLAN_ATE, itens, pendentes: semFoto,
+  });
+}
+
+// ============================================================================
 // 🔔 Web Push (2026-11-09, camada iPad) — /api/config?push=1
 //   GET  [&e=<sha256(endpoint).slice(0,16)>] -> { ok, configurado, chave, inscrito, n, prefs, podeSexta }   (+ motivo quando faltam as envs VAPID)
 //   POST {acao:'inscrever', sub:{endpoint,keys:{p256dh,auth}}, ua} -> { ok, id, n, prefs }
@@ -1716,6 +1783,9 @@ export default async function handler(req, res) {
 
     // 📊 Dashboard de KPIs: as fotos semanais/mensais recortadas pelo papel (GET) e o ↻ atualizar agora (POST, gestor/admin).
     if (req.query && req.query.kpis) return await kpisRota(req, res, base, headers);
+
+    // 🧭 Disciplina do time: as fotos diárias recortadas pelo papel (GET, com identidade).
+    if (req.query && req.query.disc) return await discRota(req, res, base, headers);
 
     // 🔔 Web Push (iPad): inscrição, preferências e teste da PRÓPRIA pessoa (GET/POST, identidade obrigatória).
     if (req.query && req.query.push) return await pushRota(req, res, base, headers);

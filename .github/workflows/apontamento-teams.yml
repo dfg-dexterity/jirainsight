@@ -7,12 +7,19 @@ name: Relatório de apontamento no Teams
 # O HORÁRIO do envio é configurável NO PAINEL (Configurações → 🎯 Metas & ausências →
 # "Ranking diário no Teams"): este cron roda de 30 em 30 min e o endpoint (?cron=1)
 # decide quando enviar — 1× por dia, a partir da hora escolhida (cfg.teamsHora).
+#
+# 🧭 Disciplina do time (2026-11-16): um SEGUNDO agendamento, de madrugada, tira a foto da meia-noite do dia útil que acabou (vencidos que viraram o
+# dia + planejou/fechou o dia no 📆 Hoje). Ele chama ?cron=1&so=disciplina: só a fase da foto — nada é enviado ao Teams. São 12 tiques por noite
+# (o cron do GitHub pode atrasar ou pular); o 1º que gravar carimba o cursor e os outros custam uma leitura do Supabase. O 1º tique diurno
+# (≥ 06:00) ainda recupera a foto que faltou.
 
 on:
   schedule:
     # A cada 30 min, 09:00–23:30 UTC = 06:00–20:30 em America/Sao_Paulo (UTC-3).
     # Seg–sex; o endpoint pula feriados e só envia na hora configurada no painel.
     - cron: '0,30 9-23 * * 1-5'
+    # NOVO: 00:05–05:35 em America/Sao_Paulo de ter–sáb = a madrugada seguinte a cada dia útil seg–sex (foto da 🧭 Disciplina do time).
+    - cron: '5,35 3-8 * * 2-6'
   workflow_dispatch:          # disparo manual (aba Actions → Run workflow) envia NA HORA
     inputs:
       dry:
@@ -39,11 +46,14 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           DRY: ${{ github.event.inputs.dry }}
           EVENTO: ${{ github.event_name }}
+          AGENDA: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
           URL="${URL:-https://jirainsight.vercel.app/api/teams}"
           # Agendado: o endpoint aplica o horário configurado no painel (gate ?cron=1).
-          if [ "${EVENTO:-}" = "schedule" ]; then URL="${URL}?cron=1"; fi
+          # Madrugada (segundo agendamento): só a fase da foto de disciplina. Demais agendamentos: o gate de sempre.
+          if [ "${EVENTO:-}" = "schedule" ] && [ "${AGENDA:-}" = "5,35 3-8 * * 2-6" ]; then URL="${URL}?cron=1&so=disciplina";
+          elif [ "${EVENTO:-}" = "schedule" ]; then URL="${URL}?cron=1"; fi
           if [ "${DRY:-0}" = "1" ]; then URL="${URL}?dry=1"; fi
           AUTH=()
           if [ -n "${CRON_SECRET:-}" ]; then AUTH=(-H "Authorization: Bearer ${CRON_SECRET}"); fi

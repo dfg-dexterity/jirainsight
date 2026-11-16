@@ -2,6 +2,42 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
+  fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
+  com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**
+  três indicadores: vencidos que viram o dia · planejou o dia no 📆 Hoje · fechou o dia (🌙) · **D3** nova aba **🧭 Disciplina do
+  time** no 📈 Dashboard de KPIs (dia a dia e semana a semana, por pessoa) e ▲▼ no cartão contra o dia anterior e a média de 7 dias
+  úteis · **D4** foto à meia-noite de SP, só dia útil, do dia útil que acabou. (1) **Lib `api/_lib/disciplina.js`** = fonte ÚNICA (funções
+  puras + as com rede, deps trocáveis em `DISC_DEPS`; formato v1 no cabeçalho): `discPublico` (a MESMA regra do `montaRanking`, que passou
+  a chamá-la: ativos − ocultos − ausentes em D − meta 0), `discModo`, `discPlanoPessoa`, `discVencidos`, `calculaDisc`, `discAgrega`,
+  `discRecs`, `discCompara`, `recorteDisc`, `fotoDisc` (não lança). **Vencidos** = a régua do card "⚠ Meus tickets vencidos" da Início
+  (todos os tipos, sem filtro ARQ; JQL `duedate <= D AND (statusCategory != Done OR resolved >= D+1)` para tolerar o atraso do cron);
+  responsável fora do público vai em `fora`, nunca no total. **Planejou** = carimbo do servidor **`plan1`** (antes dele, `planejadoEm`
+  do cliente) em dia `<= D` **e** ≥ 1 item sem `movido`; `cedo` = véspera ou até `DISC_PLAN_ATE` (12:00); **fechou** = **`fech1`**
+  (ou `fechadoEm`) em dia `<= D` — fechar e reabrir continua contando. `plan1`/`fech1` nascem na 1ª gravação em `planejamentoDia`
+  (`salvar`, `api/config.js`) e o cliente nunca os manda. (2) **Foto `disc_<AAAA-MM-DD>`** em `jirainsight_config` (nunca na `cfg`):
+  só contagens por pessoa, sem e-mail, sem chave/título de ticket; 400 linhas; upsert que **nunca rebaixa** o modo — `noite`
+  (tique em D+1 entre 00:00 e 05:59) > `recuperada` (até o fim do próximo dia útil, guarda a hora real) > `retro` (vencidos `null`:
+  `duedate` e responsável mudam e o passado não se reconstrói; público = ativos de HOJE, aproximação dita na tela). (3) **Agendamento:**
+  segundo cron no `apontamento-teams.yml` (`5,35 3-8 * * 2-6`, que é 00:05–05:35 SP de ter–sáb) chama `?cron=1&so=disciplina`; a fase
+  `faseDisciplina` do `api/teams.js` roda ANTES do ranking e antes da checagem de dia não útil (sábado/feriado fotografa o dia que
+  terminou), não depende do webhook do Teams, só avança o cursor `teams_estado.ultimaFotoDisc` com sucesso, e no tique diurno
+  recupera até `DISC_RETRO_TIQUE`=5 dias por vez (cursor `discRetro`, nada antes de `DISC_HOJE_DESDE`=2026-10-21); a resposta do cron
+  traz SÓ contagens; manual `?tipo=disciplina[&dia=][&dry=1][&confirmar=1][&forcar=1]` exige `CRON_SECRET`. (4) **Cartão:**
+  `blocosDisciplina` lê a foto do mesmo dia do ranking e as até 7 anteriores (média só com ≥ 3; até 12 nomes por lista; sem foto =
+  uma linha de aviso; falha de leitura nunca derruba o ranking; sem R$ nem `@`). (5) **Tela** `public/js/18d-disciplina.js` (prefixo
+  `dsc`, vista `dashdisc`, 6ª aba do grupo `dash`): reusa as primitivas do 18c (`DSH_IND` ganhou o grupo `disc`: `dvenc`, `dnovos`,
+  `dsaiu`, `dcomvenc`, `dplan`, `dcedo`, `dfech`, `dusou`, `dfeito`; `dshGranJ` leva `dia` aos rótulos), tabela por pessoa, grade dos
+  últimos dias, drill para `hojetime`/`gestao`; leitura `GET /api/config?disc=1&gran=dia|sem&n=&ate=` (`discRota`: 401 sem
+  identidade, 502 com a cfg ilegível, `no-store`, **recorte por papel no servidor** — quem não é gestor/negócio/diretoria/admin recebe
+  os totais e só a própria linha); URL `kdg`/`kdp`; `'disc'` em `DADOS_PARAM_PROIBIDO` do `sw.js`. Sem função serverless nova (12).
+  Testes (scratchpad `disc-plano/`, porta 8795, runner `roda.sh`): `disc-servidor-test.mjs` (`node --test`, 48 casos: lib, cron,
+  rota manual, `?disc=1`, `plan1`/`fech1`, cartão), `servidor-disc.mjs` (fixture com 70 dias úteis, 1 sem foto, 1 `recuperada`, 3
+  `retro`) e `disc-tela-test.mjs` (Playwright, 117); regressão: `dash-tela-test` (293) e `c1-graficos-test` (24) seguem verdes (só as
+  asserções de contagem de abas foram atualizadas para 6). Documento: `docs/disciplina-2026-11-16.md`. **[Manual step]:** depois do
+  merge, conferir na aba Actions que o cron noturno aparece e rodar `?tipo=disciplina&dry=1` com o segredo (a fase exige
+  `CRON_SECRET` na Vercel). Desdobramentos no roadmap: R209 (mês a mês e prévia do dia), R210 (lembrete individual), R211 (metas e
+  alerta), R212 (chaves dos vencidos), R213 (relatório de sexta); R196 e R198 ganharam a ligação.
 - **Navegação por perfil (2026-09-13, a pedido do usuário):** o **Dexterity Hub** é o conteúdo
   genérico (para todos: Início, 📆 Hoje, ⏱ Apontar, 📥 Inbox, 🎯 Prioridades, 👤 Meu trabalho, ➕ Criar ticket);
   as áreas **Dexterity Entrega** (gestores de entrega/PMs), **Dexterity Negócio** (comercial,

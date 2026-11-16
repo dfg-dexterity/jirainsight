@@ -496,6 +496,11 @@
     #conteudo .vis-tela .vg-hero{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
   }
 }
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  /* 🧭 Disciplina do time: ordenar e filtrar por nome com alvo de 44 px; a grade ganha célula maior */
+  #conteudo .dsc-ord,#conteudo .dsc-nome{min-height:var(--ipad-alvo);display:inline-flex;align-items:center}
+  #conteudo .dsc-g-c{min-height:var(--ipad-alvo);min-width:var(--ipad-alvo)}
+}
 /* ---- fim: insights ---- */
 
 /* ---- 🍎 grupo: negocio (AMS, Receita, Controladoria, Rentabilidade, Parcerias, Contratos/Admin) ---- */
