@@ -566,8 +566,13 @@ async function planejamentoDia(req, res, base, headers) {
       return json(res, 200, { ok: false, conflito: true, erro: 'O seu dia foi removido em outro lugar — recarregado.', dia: null });
     }
     // Carimbos do SERVIDOR (🧭 Disciplina): a 1ª gravação planejada/fechada fica para sempre — replanejar à tarde ou reabrir não os muda.
-    const plan1 = (atual && atual.data && atual.data.plan1) || ((lim.dia.planejadoEm && lim.dia.st !== 'rascunho') ? agora : '');
-    const fech1 = (atual && atual.data && atual.data.fech1) || (lim.dia.st === 'fechado' ? agora : '');
+    // Dia LEGADO (gravado antes dos carimbos, sem plan1/fech1): vale o planejadoEm/fechadoEm que JÁ ESTAVA na linha (gravado na época,
+    // antes desta edição) — senão editar hoje um dia planejado ontem carimbaria hoje e apagaria o dia do histórico (revisão do PR #229).
+    const ant = (atual && atual.data) || {};
+    const legP = (ant.planejadoEm && ant.st && ant.st !== 'rascunho') ? diaIso(ant.planejadoEm) : '';
+    const legF = ant.fechadoEm ? diaIso(ant.fechadoEm) : '';   // fechadoEm gravado = fechou naquela hora (reabrir depois não apaga)
+    const plan1 = ant.plan1 || legP || ((lim.dia.planejadoEm && lim.dia.st !== 'rascunho') ? agora : '');
+    const fech1 = ant.fech1 || legF || (lim.dia.st === 'fechado' ? agora : '');
     const data = { ...lim.dia, nome: quem.nome || '', email: quem.email || '', ...(plan1 ? { plan1 } : {}), ...(fech1 ? { fech1 } : {}) };
     if (JSON.stringify(data).length > 65536) return json(res, 413, { ok: false, erro: 'Dia grande demais.' });
     let row;

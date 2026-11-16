@@ -602,7 +602,10 @@ function dshDrill(x, indId) {
   }
   if (ind.grupo === 'disc') {   // 🧭 vencidos → 🛠 Gestão; planejou/fechou → o dia no 📆 Hoje do time (gestão) ou o meu 📆 Hoje
     if (['dvenc', 'dnovos', 'dsaiu', 'dcomvenc'].includes(ind.id)) { vaiPara('gestao'); return; }
-    if (dshVeTudo() && estado.hoje) { estado.hoje.d = rec.chave; vaiPara('hojetime'); } else vaiPara('hoje');
+    // o dia do ponto vale nos DOIS caminhos (gestor → 👥 Dia do time; os demais → o MEU 📆 Hoje); dRef = hoje, senão o hjD() volta para hoje
+    const diaP = rec.gran === 'sem' ? (rec.ate > hoje ? hoje : rec.ate) : rec.chave;
+    if (estado.hoje) { estado.hoje.d = diaP; estado.hoje.dRef = hoje; }
+    vaiPara(dshVeTudo() && estado.hoje ? 'hojetime' : 'hoje');
     return;
   }
   if (ind.grupo === 'saude') {
