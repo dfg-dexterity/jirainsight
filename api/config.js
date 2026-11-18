@@ -898,8 +898,7 @@ async function portalDados(req, res, c, extra) {
     apuracao: c.apuracao || 'trimestral',
     ciclo: { start: cyc.start, end: cyc.end, meses: cyc.meses },
     horas: {
-      contratadasCiclo: Number(c.horasCiclo != null ? c.horasCiclo : c.horasContratadas) || 0,
-      minMes: Number(c.minMes) || 0, tetoMes: Number(c.tetoMes) || 0,
+      ...portalHorasContrato(c),
       // consumidoSeg = todas as horas do ciclo; faturavelSeg = só as faturáveis (estas consomem o pacote).
       consumidoSeg: 0, faturavelSeg: 0, porMes: {}, bancoSeg: 0, excedenteSeg: 0,
     },
@@ -1723,6 +1722,14 @@ async function pushRota(req, res, base, headers) {
     ok: true, configurado, ...(configurado ? { chave: pushChavePublica() } : { motivo: PUSH_MOTIVO }),
     inscrito: /^[0-9a-f]{16}$/.test(e) ? d.subs.some((s) => s.id === e) : false, n: d.subs.length, prefs: d.prefs, podeSexta,
   });
+}
+
+/** Horas e limites que o portal mostra: os parâmetros de ciclo só valem para contrato AMS (um contrato que já foi AMS
+ *  e mudou de tipo pode ter horasCiclo/minMes/tetoMes antigos guardados). */
+export function portalHorasContrato(c) {
+  const ams = !c || !c.tipo || c.tipo === 'ams';   // sem tipo = legado, tratado como AMS (como sempre foi)
+  return { contratadasCiclo: Number(ams && c && c.horasCiclo != null ? c.horasCiclo : (c && c.horasContratadas)) || 0,
+    minMes: ams ? (Number(c && c.minMes) || 0) : 0, tetoMes: ams ? (Number(c && c.tetoMes) || 0) : 0 };
 }
 
 export default async function handler(req, res) {

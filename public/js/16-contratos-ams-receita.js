@@ -381,12 +381,24 @@ function ctCopia(c){ const x=JSON.parse(JSON.stringify(c||{})); delete x.id; del
 // ---- Formulário do contrato: o tipo, os projetos marcados e as horas alocadas vivem em estado.admin.form (e não no
 // DOM): a busca pode esconder um projeto marcado, e trocar o tipo redesenha a lista — nada disso pode perder a escolha.
 const ctNorm=(s)=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+// id do campo → chave em estado.admin.form.campos (tudo o que a pessoa digita mora no estado: a tela redesenha
+// sozinha — consumo das horas abertas chegando, mescla da config — e não pode levar o que foi digitado).
+const CT_FORM_IDS={ 'ad-cliente':'cliente','ad-horas':'horas','ad-valor':'valor','ad-inicio':'inicio','ad-fim':'fim',
+  'ad-respdex':'respDex','ad-respcli':'respCliente','ad-apur':'apuracao','ad-hciclo':'horasCiclo','ad-min':'minMes',
+  'ad-teto':'tetoMes','ad-banco':'bancoHoras','ad-obs':'obs','ad-cl-fecha':'clFecha','ad-cl-fatdia':'clFatDia','ad-cl-inicio':'clInicio' };
 function ctFormEstado(edit){
   const ad=estado.admin; const chave=ad.editId?('e:'+ad.editId):(ad.dup?('d:'+((ad.dup._dupDe&&ad.dup._dupDe.id)||'')):'novo');
   if(!ad.form||ad.form.chave!==chave){
     const marc={}; ((edit&&edit.projetos)||[]).forEach(k=>{ marc[k]=true; });
     const aloc={}; Object.keys((edit&&edit.alocacao)||{}).forEach(k=>{ const h=ctAlocDe(edit,k); if(h>0) aloc[k]=h; });
-    ad.form={ chave, tipo:(edit&&edit.tipo)||'ams', marc, aloc, busca:'', todos:false };
+    const e=edit||null; const num=(x)=>(Number(x)>0?String(x):''); const tx=(x)=>(x==null?'':String(x));
+    const ams=!!e&&e.tipo==='ams';
+    const sel0=(e&&e.clienteId&&clDe(e.clienteId))?e.clienteId:'';
+    ad.form={ chave, tipo:(e&&e.tipo)||'ams', marc, aloc, busca:'', todos:false,
+      campos:{ cliente:tx(e&&e.cliente), horas:num(e&&e.horasContratadas), valor:num(e&&e.valorHora), horasCiclo:ams?num(amsHorasCiclo(e)):num(e&&e.horasCiclo),
+        minMes:num(e&&e.minMes), tetoMes:num(e&&e.tetoMes), inicio:tx(e&&e.inicio), fim:tx(e&&e.fim), respDex:tx(e&&e.respDex), respCliente:tx(e&&e.respCliente),
+        obs:tx(e&&e.obs), apuracao:(e&&e.apuracao)||'trimestral', bancoHoras:!e||e.bancoHoras!==false, clFecha:'', clFatDia:'0', clInicio:'' },
+      ciclo:{ sel:sel0, orfao:!!(e&&e.clienteId&&!sel0), tocado:false, origem:!!sel0, sug:false } };
   }
   return ad.form;
 }
@@ -408,7 +420,8 @@ function ctProjListaHTML(f){
     return true; }).sort((a,b)=>((f.marc[b.key]?1:0)-(f.marc[a.key]?1:0))||a.key.localeCompare(b.key));
   if(!lista.length) return `<div class="muted small" id="ad-projs">${busca?`Nenhum projeto com “${esc(f.busca)}”.`
     :`Nenhum projeto das categorias <b>${esc(cats.join(', '))}</b> no Jira — marque <b>mostrar todos os projetos</b>.`}</div>`;
-  const tag=(p)=>{ const sig=ctSiglaProj(p); return sig&&!cats.includes(sig)?` <span class="muted small" data-tip="${escA(p.categoria||'sem categoria')}">(${esc(sig)})</span>`:(!sig?' <span class="muted small">(sem categoria)</span>':''); };
+  const tagBase=(p)=>{ const sig=ctSiglaProj(p); return sig&&!cats.includes(sig)?` <span class="muted small" data-tip="${escA(p.categoria||'sem categoria')}">(${esc(sig)})</span>`:(!sig?' <span class="muted small">(sem categoria)</span>':''); };
+  const tag=(p)=>{ const o=ctOutroContrato(p.key, estado.admin.editId||null); return tagBase(p)+(o?` <span class="ad-proj-outro" data-tip="${escA('Este projeto já está no contrato '+ctCodCli(o)+' — a receita do projeto usa só um dos dois')}">já em ${esc(ctCodCli(o))}</span>`:''); };
   if(f.tipo!=='horas') return `<div class="rg-pessoas" id="ad-projs">${lista.map(p=>
     `<label class="check"><input type="checkbox" data-ad-proj="${escA(p.key)}" ${f.marc[p.key]?'checked':''}> ${esc(p.nome||p.key)} (${esc(p.key)})${tag(p)}</label>`).join('')}</div>`;
   return `<div class="ad-aloc-lista" id="ad-projs">${lista.map(p=>{ const on=!!f.marc[p.key];
@@ -484,11 +497,11 @@ function ctAlocTabelaHTML(c, cs){
 // em vez de sumir. Registro que não é objeto (null, texto) não quebra a tela: fica fora e a tela avisa (🧹 limpar).
 function ctItemValido(c){ return !!c&&typeof c==='object'&&!Array.isArray(c); }
 const CT_ROTULOS={ cod:'ID', cliente:'Cliente', consultoria:'Consultoria parceira', tipo:'Tipo de contrato', modalidade:'Modalidade',
-  inicio:'Início', fim:'Fim', valorHora:'Valor-hora (R$)', horasContratadas:'Horas contratadas', horasCiclo:'Horas por ciclo', apuracao:'Apuração (ciclo)',
+  inicio:'Início', fim:'Fim', valorHora:'Valor-hora (R$)', horasContratadas:'Horas contratadas', horasCiclo:'Horas por ciclo', apuracao:'Ciclo de apuração do AMS',
   minMes:'Mínimo mensal (h)', tetoMes:'Teto mensal (h)', bancoHoras:'Banco de horas', respDex:'Responsável Dexterity', respCliente:'Responsável / Cliente',
   projetos:'Projetos do Jira', alocacao:'Horas alocadas por projeto', avisoDias:'Aviso prévio (dias)', fatFecha:'Fechamento do ciclo (dia)', fatDia:'Dia da nota',
   prazoReceb:'Recebimento (dias após a nota)', retPct:'Retenção na fonte (%)', conta:'Conta de recebimento', contato:'Contato', obs:'Observações',
-  pasta:'Pasta do contrato', clienteId:'Ciclo de faturamento do cliente', criadoEm:'Criado em', copiaDe:'Cópia de', atualizadoEm:'Atualizado em', atualizadoPor:'Atualizado por', id:'Id interno' };
+  pasta:'Pasta do contrato', clienteId:'Ciclo de faturamento do cliente', criadoEm:'Criado em', copiaDe:'Cópia de', atualizadoEm:'Atualizado em', atualizadoPor:'Atualizado por', criadoPor:'Criado por', id:'Id interno' };
 // Valor de um campo para a tela: texto simples; listas e objetos viram um resumo (o JSON completo vai no <details>).
 function ctCampoTxt(k, v){
   if(v==null||v==='') return '—';
@@ -557,6 +570,77 @@ document.addEventListener('click', (e)=>{
   if(alvo) alvo.click(); else toast('A tela mudou — abra o contrato de novo.','err');
 });
 
+// ---- 🗓 o campo do ciclo de faturamento no formulário do contrato (JI-299) ----
+function ctCicloTmp(f){ const c=(f&&f.campos)||{}; const fecha=Math.round(Number(c.clFecha)); if(!(fecha>=1&&fecha<=31)) return null;
+  const fd=c.clFatDia===''||c.clFatDia==null?0:Math.round(Number(c.clFatDia));
+  return { fatFecha:fecha, fatDia:(fd>=0&&fd<=31)?fd:0, inicio:/^\d{4}-\d{2}-\d{2}$/.test(c.clInicio||'')?c.clInicio:'', ajustes:{} }; }
+function ctCicloDeHoje(cl){ try{ const h=hojeSP(); const P=pcPeriodo(cl, pcYmDaData(cl,h)); return `<b>${esc(labelMesAbbr(P.ym))}</b> (${esc(dataBR(P.ini))} → ${esc(dataBR(P.fim))})`; }catch(e){ return ''; } }
+function ctCicloDicaHTML(f){
+  const ci=f.ciclo||{sel:''}; const nome=String((f.campos&&f.campos.cliente)||'').trim(); let d;
+  if(ci.orfao&&!ci.sel) d='⚠ O ciclo que estava ligado a este contrato foi excluído do cadastro — escolha outro ou deixe no mês civil.';
+  else if(ci.sel==='__novo'){ const ja=clPorNome(nome);
+    d=ja?`Já existe o ciclo de <b>${esc(ja.nome)}</b> (${esc(clFechaRot(ja))}) — será usado o existente; os dias acima não mudam o cadastro dele.`
+      :(!nome?'Preencha o campo Cliente: o ciclo é cadastrado com esse nome.'
+        :`O ciclo de <b>${esc(nome)}</b> é cadastrado junto com o contrato, ao salvar. Depois dá para ajustar cada ciclo (datas próprias, colar da planilha) no bloco 🗓 acima.`); }
+  else if(ci.sel&&clDe(ci.sel)){ const cl=clDe(ci.sel);
+    d=`<b>${esc(cl.nome)}</b> · ${esc(clFechaRot(cl))} · ${esc(clNotaRot(cl))} · ciclo de hoje ${ctCicloDeHoje(cl)} <button type="button" class="btn rt-step" data-ad-ciclo-ver="${escA(cl.id)}">📅 ver ciclos</button>`
+      +((ci.sug&&!ci.tocado)?' <span class="muted">✓ sugerido pelo nome do cliente</span>':''); }
+  else if(!idApontar()) d='Sem ciclo próprio o contrato segue o <b>mês civil</b>. Para cadastrar o ciclo do cliente, identifique-se no ⏱ Apontar.';
+  else if(!clLista().length) d='Nenhum ciclo cadastrado ainda — escolha <b>＋ Novo ciclo para este cliente…</b> para informar o dia em que o cliente fecha o faturamento. Sem isso vale o <b>mês civil</b>.';
+  else d='Sem ciclo próprio vale o <b>mês civil</b>.';
+  return d+'<div class="muted small">Para que serve: é o calendário de faturamento do cliente (dia em que o período fecha e dia da nota). A 💹 Rentabilidade usa esse ciclo nos planos do cliente (períodos de faturamento e ordem de venda) e já o sugere ao criar o plano de um projeto deste contrato. Não muda a apuração do AMS nem a Receita — o tamanho do pacote AMS (mensal, trimestral…) é o campo “Ciclo de apuração do AMS”, mais abaixo.</div>';
+}
+function ctCicloPreviaTxt(f){ const t=ctCicloTmp(f); if(!t) return 'Informe o dia de fechamento para ver o ciclo de hoje.';
+  try{ const h=hojeSP(); const P=pcPeriodo(t, pcYmDaData(t,h)); return `Ciclo de hoje: <b>${esc(labelMesAbbr(P.ym))}</b> · ${esc(dataBR(P.ini))} → ${esc(dataBR(P.fim))} · nota ${esc(dataBR(P.nota))}`; }catch(e){ return 'Não deu para calcular o ciclo com estes dias.'; } }
+function ctCicloCampoHTML(f){
+  const ci=f.ciclo||(f.ciclo={sel:'',orfao:false,tocado:false,origem:false,sug:false}); const c=f.campos||{}; const pode=clPodeEditar();
+  const ops=clLista().map(x=>`<option value="${escA(x.id)}" ${ci.sel===x.id?'selected':''}>${esc(x.nome||x.id)} · ${esc(clFechaRot(x))} · ${esc(clNotaRot(x))}</option>`).join('');
+  const novo=ci.sel==='__novo';
+  return `<label for="ad-cliente-id">🗓 Ciclo de faturamento do cliente <span class="muted">(dia de fechamento e da nota · opcional)</span></label>
+    <select id="ad-cliente-id"><option value="" ${ci.sel===''?'selected':''}>— mês civil (sem ciclo próprio) —</option>${ops}<option value="__novo" ${novo?'selected':''} ${pode?'':'disabled'}>＋ Novo ciclo para este cliente…</option></select>
+    ${novo?`<div id="ad-ciclo-novo" class="ad-ciclo-novo">
+      <div class="campo"><label for="ad-cl-fecha">O ciclo fecha no dia</label><input type="number" id="ad-cl-fecha" min="1" max="31" step="1" value="${escA(c.clFecha||'')}" placeholder="ex.: 25"><div class="muted small">1 a 31 — 31 = último dia do mês</div></div>
+      <div class="campo"><label for="ad-cl-fatdia">A nota sai no dia</label><input type="number" id="ad-cl-fatdia" min="0" max="31" step="1" value="${escA(c.clFatDia==null?'0':c.clFatDia)}"><div class="muted small">0 = no dia do fechamento</div></div>
+      <div class="campo"><label for="ad-cl-inicio">O 1º ciclo começa em</label><input type="date" id="ad-cl-inicio" value="${escA(c.clInicio||'')}"><div class="muted small">opcional — ex.: 26/12/2025</div></div>
+      <div id="ad-ciclo-previa" class="muted small" aria-live="polite">${ctCicloPreviaTxt(f)}</div></div>`:''}
+    <div id="ad-ciclo-dica" class="muted" aria-live="polite">${ctCicloDicaHTML(f)}</div>`;
+}
+function ctCicloPrevia(){ const e=document.getElementById('ad-ciclo-previa'); const f=estado.admin.form; if(e&&f) e.innerHTML=ctCicloPreviaTxt(f); }
+function ctFocoGuarda(re){ const a=document.activeElement; if(!a||!a.id||!re.test(a.id)) return null; return { id:a.id, a:a.selectionStart, b:a.selectionEnd }; }
+function ctFocoRestaura(foco){ if(!foco) return; const e2=document.getElementById(foco.id); if(!e2) return;
+  try{ e2.focus({preventScroll:true}); if(foco.a!=null&&e2.setSelectionRange) e2.setSelectionRange(foco.a,foco.b); }catch(x){} }
+function ctCicloAtualiza(){
+  const w=document.getElementById('ad-ciclo'); const f=estado.admin&&estado.admin.form; if(!w||!f||!f.ciclo) return;
+  const ci=f.ciclo; if(ci.sel&&ci.sel!=='__novo'&&!clDe(ci.sel)){ ci.sel=''; ci.orfao=true; }
+  const foco=ctFocoGuarda(/^ad-(cl-|cliente-id)/); w.innerHTML=ctCicloCampoHTML(f); ctFocoRestaura(foco); ctCicloPrevia();
+}
+function ctCicloVer(id){ _clSt.cal=id; clRender(); setTimeout(()=>{ const c=document.querySelector('[data-cl-card="'+id+'"]'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'}); },40); }
+// Linha "Ciclo de faturamento" do cartão do contrato (os três tipos).
+function ctCicloLinha(c){
+  const cl=c.clienteId?clDe(c.clienteId):null; let dd;
+  if(cl) dd=`${esc(cl.nome||'')} · ${esc(clFechaRot(cl))} <button type="button" class="btn rt-step" data-ad-ciclo-ver="${escA(cl.id)}" data-tip="Ver e ajustar os ciclos deste cliente">📅</button>`;
+  else if(c.clienteId) dd=`<span class="rp-neg">ciclo excluído</span> <button type="button" class="btn rt-step" data-ad-ciclo-def="${escA(c.id)}">definir</button>`;
+  else dd=`mês civil <button type="button" class="btn rt-step" data-ad-ciclo-def="${escA(c.id)}">definir</button>`;
+  return `<div class="ams-dl" data-ad-ciclo-l><div class="dt">Ciclo de faturamento</div><div class="dd">${dd}</div></div>`;
+}
+// Projeto que já está em OUTRO contrato (leitor; só avisa).
+function ctOutroContrato(k, excetoId){ return (Array.isArray(cfg.contratos)?cfg.contratos:[]).find(x=>ctItemValido(x)&&x.id!==excetoId&&Array.isArray(x.projetos)&&x.projetos.includes(k))||null; }
+// Ciclos AMS já marcados como faturados que deixam de coincidir com um ciclo se a apuração/início mudarem.
+function ctFaturadosOrfaos(c, apuracao, inicio){
+  const fat=(c&&c.faturados&&typeof c.faturados==='object')?c.faturados:{}; const alvo={ apuracao:apuracao||'trimestral', inicio:inicio||'' };
+  return Object.keys(fat).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&amsCicloVigente(alvo,k).start!==k).sort(); }
+const CT_DIF_CHAVES=['cliente','tipo','valorHora','horasContratadas','horasCiclo','apuracao','minMes','tetoMes','bancoHoras','inicio','fim','respDex','respCliente','obs','clienteId','projetos','alocacao'];
+function ctDifTxt(antes, depois){ const out=CT_DIF_CHAVES.filter(k=>JSON.stringify(antes[k])!==JSON.stringify(depois[k])).map(k=>CT_ROTULOS[k]||k); const t=out.join(', '); return t.length>200?t.slice(0,197)+'…':t; }
+function ctRemoveTxt(c){
+  const L=[`Remover o contrato ${ctCodCli(c)} · ${c.cliente||''}?`,'','Ele sai da apuração do AMS, da Receita e da Controladoria.'];
+  const ps=Array.isArray(c.projetos)?c.projetos:[]; if(ps.length) L.push(`• ${ps.length} projeto(s) do Jira deixam de ter contrato (${ps.slice(0,5).join(', ')}${ps.length>5?'…':''})`);
+  if(c.portalToken) L.push('• o 🔗 link do cliente para de funcionar');
+  const ac=estado.admin&&estado.admin.acessos&&estado.admin.acessos[c.id];
+  if(c.portalToken||(Array.isArray(ac)&&ac.length)) L.push('• as contas de acesso do cliente (👤 Acessos / 🌐 Portal) ligadas a ele param de entrar — revogue-as antes, se houver');
+  const nf=Object.keys((c.faturados&&typeof c.faturados==='object')?c.faturados:{}).length; if(nf) L.push(`• ${nf} ciclo(s) AMS marcado(s) como faturado(s) perdem o registro`);
+  const cl=c.clienteId?clDe(c.clienteId):null; if(cl) L.push(`• o ciclo de faturamento do cliente (${cl.nome}) continua cadastrado`);
+  return L.join('\n'); }
+
 function ctProjAtualiza(){
   const w=document.getElementById('ad-projs-wrap'); const f=estado.admin.form; if(!w||!f) return;
   w.innerHTML=ctProjListaHTML(f);
@@ -571,13 +655,15 @@ function renderAdmin(){
   const contratos=contratosTodos.filter(ctItemValido); const nInval=contratosTodos.length-contratos.length;   // 📋 registro que não é contrato não quebra a tela
   // Contratos antigos ganham o código na primeira vez que alguém identificado abre a tela (uma gravação só).
   if(cfgShared&&idApontar()&&ctGaranteCodigos(contratos,'CT','ctSeq')) salvaCfg();
-  if(ad.editId&&!contratos.some(c=>c.id===ad.editId)) ad.editId=null;
+  // contrato removido por outra pessoa: com formulário em edição aberto, mantém-no (salvaContrato avisa e oferece salvar como novo)
+  if(ad.editId&&!contratos.some(c=>c.id===ad.editId)&&!(ad.form&&ad.form.chave==='e:'+ad.editId)) ad.editId=null;
   const edit = ad.editId ? contratos.find(c=>c.id===ad.editId) : (ad.dup||null);
   // 📋 o formulário só abre quando pedido (＋ Novo contrato, editar, duplicar) — ou quando ainda não há contrato nenhum.
   const formAberto=!!(ad.novo||ad.editId||ad.dup||!contratos.length);
   const dup = !ad.editId&&ad.dup ? ad.dup : null;
   const pode=clPodeEditar();   // 🗓 quem cadastra os ciclos de faturamento por cliente (16g)
-  const f=ctFormEstado(edit);   // tipo, projetos marcados e horas alocadas do formulário (sobrevivem ao redesenho)
+  const f=ctFormEstado(edit);   // tipo, projetos marcados, horas alocadas e campos do formulário (sobrevivem ao redesenho)
+  const C=f.campos; const foco=ctFocoGuarda(/^ad-/);
   const projBox=`<div class="ad-proj-barra">
       <input type="search" id="ad-proj-busca" value="${escA(f.busca)}" placeholder="🔎 filtrar projetos (nome ou chave)" aria-label="Filtrar projetos">
       <label class="check"><input type="checkbox" id="ad-proj-todos" ${f.todos?'checked':''}> mostrar todos os projetos</label>
@@ -585,35 +671,35 @@ function renderAdmin(){
     <div id="ad-projs-wrap">${ctProjListaHTML(f)}</div>
     <div class="muted small" id="ad-aloc-resumo"></div>`;
 
-  const form=`<div class="card full">
+  const form=`<div class="card full" data-ad-form="${escA(f.chave)}">
     <h2>${dup?`⧉ Novo contrato — cópia de ${esc(dup._dupDe&&dup._dupDe.cod||'')} ${esc(dup._dupDe&&dup._dupDe.nome||'')}`:(edit?`Editar contrato <span class="badge ct-cod" data-tip="ID do contrato">${esc(ctCodCli(edit))}</span>`:'Novo contrato / cliente')}</h2>
-    ${dup?'<div class="aviso">⧉ Cópia pronta para ajustar: confira o nome, as datas e os projetos e clique em <b>Adicionar contrato</b>. O link do cliente não é copiado (cada contrato tem o seu) e o novo contrato ganha um ID próprio.</div>':''}
+    ${dup?'<div class="aviso">⧉ Cópia pronta para ajustar: confira o nome, as datas e os projetos e clique em <b>Adicionar contrato</b>. O link do cliente não é copiado (cada contrato tem o seu) e o novo contrato ganha um ID próprio. O ciclo de faturamento do cliente vem ligado ao mesmo cliente — confira.</div>':''}
     <div class="pl-grid">
-      <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(edit?edit.cliente:'')}" placeholder="Nome do cliente"></div>
-      <div class="campo"><label>🗓 Ciclo de faturamento do cliente <span class="muted">(opcional)</span></label><select id="ad-cliente-id" data-tip="Liga este contrato ao ciclo de faturamento cadastrado em 🗓 Ciclos de faturamento por cliente (abaixo). É só um vínculo informativo: nada muda no AMS nem na Receita."><option value="">— nenhum —</option>${clLista().map(x=>`<option value="${escA(x.id)}" ${edit&&edit.clienteId===x.id?'selected':''}>${esc(x.nome||x.id)} · ${esc(clFechaRot(x))}</option>`).join('')}</select></div>
+      <div class="campo"><label>Cliente</label><input type="text" id="ad-cliente" value="${escA(C.cliente)}" placeholder="Nome do cliente"></div>
+      <div class="campo ad-ciclo" id="ad-ciclo">${ctCicloCampoHTML(f)}</div>
       <div class="campo"><label>Tipo de contrato</label><select id="ad-tipo">
         ${TIPOS_CONTRATO.map(([v,l])=>`<option value="${v}" ${f.tipo===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
-      <div class="campo" id="ad-horas-wrap"><label id="ad-horas-rot">Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(edit&&edit.horasContratadas!=null?String(edit.horasContratadas):'')}" placeholder="ex.: 100"></div>
-      <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(edit&&edit.valorHora!=null?String(edit.valorHora):'')}" placeholder="ex.: 122"></div>
-      <div class="campo"><label>Início da vigência</label><input type="date" id="ad-inicio" value="${escA(edit?edit.inicio||'':'')}"></div>
-      <div class="campo" id="ad-fim-wrap"><label>Fim da vigência <span class="muted">(opcional)</span></label><input type="date" id="ad-fim" value="${escA(edit?edit.fim||'':'')}"></div>
-      <div class="campo"><label>Responsável Dexterity</label><input type="text" id="ad-respdex" value="${escA(edit?edit.respDex||'':'')}" placeholder="nome do responsável (Dexterity)"></div>
-      <div class="campo"><label>Responsável / Nome do Cliente</label><input type="text" id="ad-respcli" value="${escA(edit?edit.respCliente||'':'')}" placeholder="responsável pelo lado do cliente"></div>
+      <div class="campo" id="ad-horas-wrap"><label id="ad-horas-rot">Horas contratadas</label><input type="number" id="ad-horas" min="0" step="1" value="${escA(C.horas)}" placeholder="ex.: 100"></div>
+      <div class="campo"><label>Valor-hora (R$)</label><input type="number" id="ad-valor" min="0" step="0.01" value="${escA(C.valor)}" placeholder="ex.: 122"></div>
+      <div class="campo"><label>Início da vigência</label><input type="date" id="ad-inicio" value="${escA(C.inicio)}"></div>
+      <div class="campo" id="ad-fim-wrap"><label>Fim da vigência <span class="muted">(opcional)</span></label><input type="date" id="ad-fim" value="${escA(C.fim)}"></div>
+      <div class="campo"><label>Responsável Dexterity</label><input type="text" id="ad-respdex" value="${escA(C.respDex)}" placeholder="nome do responsável (Dexterity)"></div>
+      <div class="campo"><label>Responsável / Nome do Cliente</label><input type="text" id="ad-respcli" value="${escA(C.respCliente)}" placeholder="responsável pelo lado do cliente"></div>
     </div>
     <fieldset id="ad-ams" style="border:1px solid var(--linha);border-radius:10px;padding:12px 14px;margin:4px 0 8px">
       <legend class="muted small" style="padding:0 6px">Parâmetros do AMS (apuração e banco de horas)</legend>
       <div class="pl-grid">
-        <div class="campo"><label>Apuração (ciclo)</label><select id="ad-apur">
-          ${AMS_APUR.map(([v,l])=>`<option value="${v}" ${((edit&&edit.apuracao)||'trimestral')===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
-        <div class="campo"><label>Horas por ciclo</label><input type="number" id="ad-hciclo" min="0" step="1" value="${escA(edit&&edit.horasCiclo!=null?String(edit.horasCiclo):'')}" placeholder="ex.: 60"></div>
-        <div class="campo"><label>Mínimo mensal (h)</label><input type="number" id="ad-min" min="0" step="1" value="${escA(edit&&edit.minMes!=null?String(edit.minMes):'')}" placeholder="ex.: 20"></div>
-        <div class="campo"><label>Teto mensal (h)</label><input type="number" id="ad-teto" min="0" step="1" value="${escA(edit&&edit.tetoMes!=null?String(edit.tetoMes):'')}" placeholder="ex.: 60"></div>
+        <div class="campo"><label data-tip="De quanto em quanto tempo o pacote de horas é apurado (mensal, trimestral…). Não é o ciclo de faturamento do cliente (dia de fechamento e da nota), que fica no campo 🗓 acima.">Ciclo de apuração do AMS</label><select id="ad-apur">
+          ${AMS_APUR.map(([v,l])=>`<option value="${v}" ${C.apuracao===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+        <div class="campo"><label>Horas por ciclo</label><input type="number" id="ad-hciclo" min="0" step="1" value="${escA(C.horasCiclo)}" placeholder="ex.: 60"></div>
+        <div class="campo"><label>Mínimo mensal (h)</label><input type="number" id="ad-min" min="0" step="1" value="${escA(C.minMes)}" placeholder="ex.: 20"></div>
+        <div class="campo"><label>Teto mensal (h)</label><input type="number" id="ad-teto" min="0" step="1" value="${escA(C.tetoMes)}" placeholder="ex.: 60"></div>
       </div>
-      <label class="check" style="margin-top:6px"><input type="checkbox" id="ad-banco" ${(!edit||edit.bancoHoras!==false)?'checked':''}> Banco de horas dentro do ciclo (saldo não consumido vale até o fim do ciclo; <strong>não acumula</strong> para o ciclo seguinte)</label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="ad-banco" ${C.bancoHoras?'checked':''}> Banco de horas dentro do ciclo (saldo não consumido vale até o fim do ciclo; <strong>não acumula</strong> para o ciclo seguinte)</label>
       <div class="muted small" id="ad-ams-resumo" style="margin-top:8px"></div>
     </fieldset>
     <div class="campo"><label id="ad-projs-rot">${ctProjRotulo(f.tipo)}</label>${projBox}</div>
-    <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(edit?edit.obs||'':'')}" placeholder="opcional"></div>
+    <div class="campo"><label>Observações</label><input type="text" id="ad-obs" value="${escA(C.obs)}" placeholder="opcional"></div>
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
       <button class="btn primario" id="ad-salvar">${edit&&!dup?'Salvar alterações':'Adicionar contrato'}</button>
       ${edit||(ad.novo&&contratos.length)?`<button class="btn" id="ad-cancelar">${dup?'Cancelar cópia':(edit?'Cancelar edição':'Cancelar')}</button>`:''}
@@ -630,6 +716,7 @@ function renderAdmin(){
     const vh=Number(c.valorHora)||0;
     const semProj=!(c.projetos||[]).length;
     const dl=(l,v)=>`<div class="ams-dl"><div class="dt">${l}</div><div class="dd">${v}</div></div>`;
+    const cicloL=ctCicloLinha(c); const vigTxt=c.inicio?`${esc(fmtBR(c.inicio))}${c.fim?` → ${esc(fmtBR(c.fim))}`:''}`:(c.fim?`até ${esc(fmtBR(c.fim))}`:'—');
     let detalhes;
     if(horas){
       const al=ctAlocTotal(c); const aAlocar=contr-al;
@@ -639,9 +726,10 @@ function renderAdmin(){
         ${dl('Valor do contrato', vh&&contr?fmtBRL(contr*vh):'—')}
         ${dl('Alocado nos projetos', `${fmtHd(al)}${contr?` <span class="muted">(${Math.round(al/contr*100)}%)</span>`:''}`)}
         ${dl('A alocar', aAlocar<0?`<b style="color:var(--err)">−${fmtHd(-aAlocar)}</b>`:(aAlocar>0?`<b style="color:var(--amarelo)">${fmtHd(aAlocar)}</b>`:'0h'))}
-        ${dl('Vigência', c.inicio?`${esc(fmtBR(c.inicio))}${c.fim?` → ${esc(fmtBR(c.fim))}`:''}`:'—')}
+        ${dl('Vigência', vigTxt)}
         ${dl('Responsável Dexterity', c.respDex?esc(c.respDex):'—')}
         ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
+        ${cicloL}
       </div>
       <div class="ad-aloc-bloco"><div class="ad-aloc-cab"><b>📌 Alocação por projeto</b> <span class="muted small">consumo ${esc(ctFonteTxt(csH))}</span>
         <span class="spacer"></span><button class="btn" data-ad-alocar="${escA(c.id)}">📌 ${aAlocar>0&&!(c.projetos||[]).length?'alocar horas':'ajustar alocação'}</button></div>
@@ -656,18 +744,20 @@ function renderAdmin(){
         ${dl('Valor anual', pool?(vh?`${fmtBRL(parcela*ca)} <span class="muted">· ${pool*ca}h</span>`:`${pool*ca}h/ano`):'—')}
         ${dl('Mínimo mensal', c.minMes?`${c.minMes}h`:'—')}
         ${dl('Teto mensal', c.tetoMes?`${c.tetoMes}h`:'—')}
-        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+        ${dl('Vigência', vigTxt)}
         ${dl('Banco de horas', c.bancoHoras!==false?'Sim · dentro do ciclo':'Não')}
         ${dl('Responsável Dexterity', c.respDex?esc(c.respDex):'—')}
         ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
+        ${cicloL}
       </div>`;
     } else {
       detalhes=`<div class="ams-dgrid">
         ${dl('Valor-hora', vh?fmtBRL(vh):'—')}
         ${dl('Horas contratadas', contr?`${contr}h`:'—')}
-        ${dl('Início da vigência', c.inicio?esc(fmtBR(c.inicio)):'—')}
+        ${dl('Vigência', vigTxt)}
         ${dl('Responsável Dexterity', c.respDex?esc(c.respDex):'—')}
         ${dl('Responsável / Cliente', c.respCliente?esc(c.respCliente):'—')}
+        ${cicloL}
       </div>`;
     }
     const projetos=horas?'':`<div class="ams-dprojs muted small">Projetos: ${semProj?'<strong style="color:#B45309">nenhum mapeado</strong>':projChipsFicha(c.projetos)}</div>`;
@@ -688,6 +778,12 @@ function renderAdmin(){
       : (horas && contr && ctAlocTotal(c)>contr)
       ? `<div class="ad-cons" style="color:var(--err)">⚠ A alocação passa das horas contratadas em <strong>${fmtHd(ctAlocTotal(c)-contr)}</strong>.</div>`
       : '';
+    const avs=[];
+    if(ams&&!amsHorasCiclo(c)) avs.push('⚠ Sem <b>horas por ciclo</b> — a apuração não tem pacote para comparar.');
+    if(ams&&!c.inicio) avs.push('⚠ Sem <b>início da vigência</b> — os ciclos são contados a partir de janeiro; informe o início para alinhar os ciclos ao contrato.');
+    if(c.fim&&c.fim<hojeSP()) avs.push(`🏁 Contrato <b>encerrado</b> em ${esc(dataBR(c.fim))} — as horas apontadas depois disso continuam aparecendo no consumo.`);
+    (Array.isArray(c.projetos)?c.projetos:[]).slice(0,40).forEach(k=>{ const o=ctOutroContrato(k,c.id); if(o&&avs.length<8) avs.push(`⚠ <b>${esc(k)}</b> também está em ${esc(ctCodCli(o))} — a receita do projeto usa só um dos contratos.`); });
+    const avisosHTML=avs.map(a=>`<div class="ad-cons ad-avisos" style="color:#B45309">${a}</div>`).join('');
     return `<div class="ad-card${over?' over':''}">
       <div class="ad-top"><span class="badge ct-cod" data-tip="ID do contrato — use para citar e procurar">${esc(ctCodCli(c))}</span> <strong>${esc(c.cliente||'(sem nome)')}</strong> <span class="badge">${esc(rotuloTipo(c.tipo))}</span>
         <span class="spacer"></span>
@@ -699,6 +795,7 @@ function renderAdmin(){
       ${projetos}
       ${obs}
       ${avisoSemProj}
+      ${avisosHTML}
       <div class="ad-cons">${horas?`Consumo ${esc(ctFonteTxt(csH))}`:'Consumo no período'}: <strong>${fmtH(cons.seg)}</strong>${contr?` de ${contr}h${ams?'/ciclo':''}${pctv!=null?` <span class="${over?'ad-over':''}">(${pctv}%)</span>`:''}`:''}${vh?` · estimado <strong>${fmtBRL(cons.valor)}</strong>`:''}${ams?' <span class="muted">· apuração completa na aba <strong>AMS</strong></span>':''}${horas?' <span class="muted">· projeto a projeto na aba <strong>💰 Bolsa de horas &amp; projetos</strong></span>':''}</div>
       ${portalLine}
     </div>`;
@@ -726,13 +823,14 @@ function renderAdmin(){
     </div>
   </div>`));
   const tsel=document.getElementById('ad-tipo'); if(tsel) tsel.addEventListener('change', amsToggleForm);
-  ['ad-apur','ad-hciclo','ad-valor'].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input', amsResumoForm); });
+  ['ad-apur','ad-hciclo','ad-valor','ad-inicio'].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener('input', amsResumoForm); });
   if(document.getElementById('ad-apur')) document.getElementById('ad-apur').addEventListener('change', amsResumoForm);
   // Abre o seletor nativo ao clicar em qualquer parte do campo de data (não só no
   // ícone) — alguns navegadores não abrem o calendário ao clicar no texto.
   const din=document.getElementById('ad-inicio');
   if(din) din.addEventListener('click', ()=>{ try{ if(din.showPicker) din.showPicker(); }catch(e){} });
   amsToggleForm();
+  ctCicloPrevia(); ctFocoRestaura(foco);
 }
 // Mostra/esconde os campos de AMS conforme o tipo e atualiza o resumo derivado (h/ano, parcela).
 function amsToggleForm(){
@@ -741,7 +839,6 @@ function amsToggleForm(){
   const ams=document.getElementById('ad-ams'); if(ams) ams.style.display=isAms?'':'none';
   const hw=document.getElementById('ad-horas-wrap'); if(hw) hw.style.display=isAms?'none':'';
   const hr=document.getElementById('ad-horas-rot'); if(hr) hr.textContent=isHoras?'Horas contratadas (total)':'Horas contratadas';
-  const fw=document.getElementById('ad-fim-wrap'); if(fw) fw.style.display=isHoras?'':'none';
   const f=estado.admin.form; if(f&&f.tipo!==t.value){ f.tipo=t.value; ctProjAtualiza(); } else ctAlocResumo();
   amsResumoForm();
 }
@@ -754,50 +851,92 @@ function amsResumoForm(){
   const ca=amsCiclosAno(ap); const anual=hc*ca; const parts=[];
   if(hc){ parts.push(`<strong>${hc}h</strong> por ciclo`); parts.push(`<strong>${anual}h/ano</strong> (${ca} ${ca>1?'ciclos':'ciclo'})`); }
   if(hc&&vh){ parts.push(`parcela <strong>${fmtBRL(hc*vh)}</strong> · ano <strong>${fmtBRL(anual*vh)}</strong>`); }
-  r.innerHTML = parts.length ? ('≈ '+parts.join(' · ')) : 'Preencha “horas por ciclo” e “valor-hora” para ver o resumo (h/ano e parcela).';
+  let h0=parts.length ? ('≈ '+parts.join(' · ')) : 'Preencha “horas por ciclo” e “valor-hora” para ver o resumo (h/ano e parcela).';
+  if(!hc) h0+=' <span class="rp-neg">· ⚠ sem horas por ciclo a apuração não tem pacote para comparar</span>';
+  if(!(document.getElementById('ad-inicio')||{}).value) h0+=' <span class="rp-neg">· ⚠ sem início da vigência os ciclos contam a partir de janeiro</span>';
+  r.innerHTML=h0;
 }
 function salvaContrato(){
-  const v=(id)=>{ const e=document.getElementById(id); return e?e.value.trim():''; };
-  const fb=document.getElementById('ad-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; }
-  const cliente=v('ad-cliente');
-  if(!cliente){ if(fb){ fb.classList.add('err'); fb.textContent='Informe o nome do cliente.'; } return; }
   const f=estado.admin.form||{marc:{},aloc:{}};
+  const v=(id)=>{ const k=CT_FORM_IDS[id]; const e=document.getElementById(id); const x=(k&&f.campos&&f.campos[k]!=null&&typeof f.campos[k]!=='boolean')?f.campos[k]:(e?e.value:''); return String(x).trim(); };
+  const fb=document.getElementById('ad-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent=''; }
+  const erro=(m)=>{ if(fb){ fb.hidden=false; fb.classList.add('err'); fb.textContent=m; } };
+  const cliente=v('ad-cliente');
+  if(!cliente) return erro('Informe o nome do cliente.');
   const projetos=Object.keys(f.marc).filter(k=>f.marc[k]);   // do estado: inclui os marcados que a busca escondeu
   const tipo=v('ad-tipo')||'ams';
   const dados={
     cliente, tipo,
     valorHora:Math.max(0,Number(v('ad-valor'))||0),
-    inicio:v('ad-inicio'), respDex:v('ad-respdex'), respCliente:v('ad-respcli'),
+    inicio:v('ad-inicio'), fim:v('ad-fim'), respDex:v('ad-respdex'), respCliente:v('ad-respcli'),
     obs:v('ad-obs'), projetos,
   };
-  const cid=v('ad-cliente-id'); if(cid&&clDe(cid)) dados.clienteId=cid;   // 🗓 vínculo opcional com o ciclo do cliente (só informativo)
+  const reData=/^\d{4}-\d{2}-\d{2}$/;
+  if(dados.inicio&&!reData.test(dados.inicio)) return erro('Data de início inválida.');
+  if(dados.fim&&!reData.test(dados.fim)) return erro('Data de fim inválida.');
+  if(dados.fim&&dados.inicio&&dados.fim<dados.inicio) return erro('O fim da vigência é anterior ao início.');
   if(tipo==='ams'){
     dados.apuracao=v('ad-apur')||'trimestral';
     dados.horasCiclo=Math.max(0,Number(v('ad-hciclo'))||0);
     dados.minMes=Math.max(0,Number(v('ad-min'))||0);
     dados.tetoMes=Math.max(0,Number(v('ad-teto'))||0);
-    const bk=document.getElementById('ad-banco'); dados.bancoHoras=bk?bk.checked:true;
+    dados.bancoHoras=(f.campos&&typeof f.campos.bancoHoras==='boolean')?f.campos.bancoHoras:(document.getElementById('ad-banco')?document.getElementById('ad-banco').checked:true);
     dados.horasContratadas=dados.horasCiclo;   // compat com o preview genérico
+    if(dados.tetoMes>0&&dados.minMes>0&&dados.tetoMes<dados.minMes) return erro(`O teto mensal (${dados.tetoMes}h) é menor que o mínimo mensal (${dados.minMes}h).`);
   } else {
     dados.horasContratadas=Math.max(0,Number(v('ad-horas'))||0);
   }
   if(tipo==='horas'){   // ⏱ horas abertas: o total é obrigatório; a alocação pode ficar para depois, mas não passa do total
-    const erro=(m)=>{ if(fb){ fb.classList.add('err'); fb.textContent=m; } };
     if(!dados.horasContratadas) return erro('Informe as horas contratadas (o total do contrato) — a alocação nos projetos pode ficar para depois.');
-    const fim=v('ad-fim'); if(fim&&dados.inicio&&fim<dados.inicio) return erro('O fim da vigência é anterior ao início.');
     const a=ctAlocForm();
     if(a.alocado>dados.horasContratadas) return erro(`A alocação (${fmtHd(a.alocado)}) passa das horas contratadas (${fmtHd(dados.horasContratadas)}) em ${fmtHd(a.alocado-dados.horasContratadas)}. Reduza a alocação ou aumente o total.`);
-    dados.fim=fim; dados.alocacao={};
+    dados.alocacao={};
     projetos.forEach(k=>{ const h=Math.max(0,Number(f.aloc[k])||0); if(h>0) dados.alocacao[k]=h; });
   }
-  cfg.contratos=cfg.contratos||[];
+  // 🗓 ciclo de faturamento: aqui só valida — o cliente nasce junto com o contrato, depois de todas as conferências
+  const sel=(f.ciclo&&f.ciclo.sel)||''; let cicloNovo=null;
+  if(sel==='__novo'){
+    if(!clPodeEditar()) return erro('Identifique-se no ⏱ Apontar para cadastrar o ciclo do cliente.');
+    if(!clPorNome(cliente)){
+      const c0=f.campos||{}; const fecha=Math.round(Number(c0.clFecha));
+      if(!(fecha>=1&&fecha<=31)) return erro('Informe o dia em que o ciclo do cliente fecha (1 a 31; 31 = último dia do mês).');
+      const fd=(c0.clFatDia===''||c0.clFatDia==null)?0:Math.round(Number(c0.clFatDia));
+      if(!(fd>=0&&fd<=31)) return erro('O dia da nota vai de 0 a 31 (0 = no dia do fechamento).');
+      const ini=String(c0.clInicio||''); if(ini&&!reData.test(ini)) return erro('Data do 1º ciclo inválida.');
+      cicloNovo={ fatFecha:fecha, fatDia:fd, inicio:ini };
+    }
+  }
   const ad=estado.admin;
-  if(ad.editId){ const c=cfg.contratos.find(x=>x.id===ad.editId); if(c){ Object.assign(c, dados); if(!dados.clienteId) delete c.clienteId;
-      if(tipo!=='horas'){ delete c.alocacao; delete c.fim; } }   // mudou de tipo: a alocação de horas abertas não fica pendurada
+  const c=ad.editId?(Array.isArray(cfg.contratos)?cfg.contratos:[]).find(x=>ctItemValido(x)&&x.id===ad.editId):null;
+  if(ad.editId&&!c){
+    erro('Este contrato foi removido por outra pessoa enquanto você editava. Os dados continuam no formulário: clique em Salvar como novo contrato para não perder.');
+    ad.editId=null; ad.novo=true; f.chave='novo';
+    const b=document.getElementById('ad-salvar'); if(b) b.textContent='Salvar como novo contrato';
+    const h=document.querySelector('[data-ad-form] h2'); if(h) h.textContent='Novo contrato / cliente';
+    return; }
+  if(c&&c.tipo==='ams'&&tipo==='ams'){   // mudar apuração/início desloca os ciclos: as marcas de faturado ficam órfãs
+    const orf=ctFaturadosOrfaos(c,dados.apuracao,dados.inicio);
+    if(orf.length&&!confirm(`Mudar a apuração ou o início da vigência desloca os ciclos deste contrato.\n\n${orf.length} ciclo(s) já marcado(s) como faturado(s) (${orf.map(k=>dataBR(k)).join(', ')}) deixam de coincidir com um ciclo e voltam a aparecer como pendentes de faturamento.\n\nAs marcas continuam guardadas (voltam se você desfizer a mudança). Continuar?`)){ if(fb) fb.hidden=true; return; } }
+  cfg.contratos=Array.isArray(cfg.contratos)?cfg.contratos:[];
+  if(sel==='__novo'){ const ja=clPorNome(cliente); const cl=ja||clCria(cliente,cicloNovo||{});
+    if(cl){ dados.clienteId=cl.id; if(!ja) logAcao({acao:'ciclo-cliente-criar', t:'', de:cliente, para:`${clFechaRot(cl)} · ${clNotaRot(cl)}`, ok:true}, false); } }
+  else if(sel&&clDe(sel)) dados.clienteId=sel;
+  const eu=idApontar()||{}; const quem=eu.nome||eu.email||'';
+  if(c){ const antes=JSON.parse(JSON.stringify(c));
+    Object.assign(c, dados); if(!dados.clienteId) delete c.clienteId;
+    if(tipo!=='horas') delete c.alocacao;
+    if(!dados.fim) delete c.fim;
+    if(tipo!=='ams'){ ['apuracao','horasCiclo','minMes','tetoMes','bancoHoras'].forEach(k=>{ delete c[k]; }); }   // não fica AMS pendurado (faturados fica: histórico)
+    c.atualizadoEm=hojeSP(); c.atualizadoPor=quem;
+    const dif=ctDifTxt(antes,c);
+    logAcao({acao:'contrato-editar', t:'', de:`${ctCodCli(c)} · ${c.cliente}`, para:dif||'sem mudança', ok:true}, false);
+    try{ toast(`Contrato ${ctCodCli(c)} atualizado.`,'ok'); }catch(e){}
     ad.editId=null; }
-  else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP();
+  else { dados.id='c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); dados.cod=ctProxCod(cfg.contratos,'CT','ctSeq'); dados.criadoEm=hojeSP(); dados.criadoPor=quem;
     if(ad.dup&&ad.dup._dupDe) dados.copiaDe=ad.dup._dupDe.cod||ad.dup._dupDe.id;
-    cfg.contratos.push(dados); try{ toast(`Contrato ${dados.cod} adicionado.`,'ok'); }catch(e){} }
+    cfg.contratos.push(dados);
+    logAcao({acao:'contrato-criar', t:'', de:'', para:`${dados.cod} · ${dados.cliente} · ${rotuloTipo(tipo)}`, ok:true}, false);
+    try{ toast(`Contrato ${dados.cod} adicionado.`,'ok'); }catch(e){} }
   ad.dup=null; ad.form=null; ad.novo=false; salvaCfg(); renderAdmin();
 }
 // O formulário abre abaixo da 📋 tabela: leva a pessoa até ele (e ao 1º campo).
@@ -1113,7 +1252,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   const rel=e.target.closest&&e.target.closest('[data-ams-rel]');
   if(rel){ escondeTip(); amsDrillRel((estado.ams&&estado.ams.sel)||'', rel.getAttribute('data-ams-rel'), rel.getAttribute('data-ams-relv')); return; }
   const amsEdit=e.target.closest&&e.target.closest('[data-ams-edit]');
-  if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); vaiPara('admin'); return; }
+  if(amsEdit){ escondeTip(); estado.admin.editId=amsEdit.getAttribute('data-ams-edit'); estado.admin.dup=null; estado.admin.novo=false; vaiPara('admin'); ctVaiProForm(); return; }
   const fat=e.target.closest&&e.target.closest('[data-ams-fatura]');
   if(fat){ escondeTip();
     const ams=(cfg.contratos||[]).filter(c=>c.tipo==='ams'&&(c.projetos||[]).length);
@@ -1139,7 +1278,7 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
       body:JSON.stringify({rotular:true, issues:keys, labels, remover:!marcar, email:idJ.email, token:idJ.token})})
       .then(r=>r.json()).then(j=>{
         if(j.ok){ toast(`✓ ${j.rotulados} ticket(s) ${marcar?'marcados como FATURADO':'desmarcados'} no Jira (labels ${labels.join(', ')}).`,'ok');
-          logAcao({acao:marcar?'ams-faturado':'ams-desfaturado', t:'', de:c.nome||c.id, para:`${j.rotulados} tickets · ciclo ${cyc.start}`, ok:true}); }
+          logAcao({acao:marcar?'ams-faturado':'ams-desfaturado', t:'', de:c.cliente||c.id, para:`${j.rotulados} tickets · ciclo ${cyc.start}`, ok:true}); }
         else toast(`⚠ Labels no Jira: ${j.rotulados||0} ok, ${((j.falhas||[]).length)||'?'} falha(s)${j.erro?' — '+j.erro:''}. O status do ciclo no painel foi salvo.`,'err');
       }).catch(e=>toast('⚠ Falha ao gravar as labels no Jira: '+(e.message||e)+'. O status do ciclo no painel foi salvo.','err'));
     return; }
@@ -1153,6 +1292,8 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 // redesenhar a tela — o que foi digitado nos outros campos fica onde está.
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   const t=e.target; if(!t||!estado.admin.form) return; const f=estado.admin.form;
+  if(t.id&&CT_FORM_IDS[t.id]&&f.campos){ f.campos[CT_FORM_IDS[t.id]]=t.type==='checkbox'?t.checked:t.value; }
+  if(t.id==='ad-cliente-id'&&f.ciclo){ f.ciclo.sel=t.value; f.ciclo.tocado=true; f.ciclo.orfao=false; f.ciclo.sug=false; ctCicloAtualiza(); if(t.value==='__novo'){ const i=document.getElementById('ad-cl-fecha'); if(i) i.focus(); } return; }
   if(t.hasAttribute&&t.hasAttribute('data-ad-proj')){ const k=t.getAttribute('data-ad-proj'); if(t.checked) f.marc[k]=true; else delete f.marc[k];
     const l=t.closest('.ad-aloc-l'); if(l){ l.classList.toggle('on',t.checked); const h=l.querySelector('[data-ad-aloc]'); if(h){ h.disabled=!t.checked; h.placeholder=t.checked?'a alocar':'—'; if(t.checked&&f.aloc[k]) h.value=f.aloc[k]; if(!t.checked) h.value=''; } }
     ctAlocResumo(); }
@@ -1160,6 +1301,11 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   const t=e.target; if(!t||!estado.admin.form) return; const f=estado.admin.form;
+  if(t.id&&CT_FORM_IDS[t.id]&&f.campos){ f.campos[CT_FORM_IDS[t.id]]=t.type==='checkbox'?t.checked:t.value; }
+  if(t.id==='ad-cl-fecha'||t.id==='ad-cl-fatdia'||t.id==='ad-cl-inicio'){ ctCicloPrevia(); return; }
+  if(t.id==='ad-cliente'&&f.ciclo){ const ci=f.ciclo;
+    if(ci.sel==='__novo'){ const d=document.getElementById('ad-ciclo-dica'); if(d) d.innerHTML=ctCicloDicaHTML(f); }
+    else if(!ci.tocado&&!ci.origem){ const ja=clPorNome(t.value); const ns=ja?ja.id:''; if(ns!==ci.sel){ ci.sel=ns; ci.sug=!!ja; ci.orfao=false; ctCicloAtualiza(); } } }
   if(t.hasAttribute&&t.hasAttribute('data-ad-aloc')){ const k=t.getAttribute('data-ad-aloc'); const h=Number(t.value);
     if(t.value===''||!(h>0)) delete f.aloc[k]; else f.aloc[k]=h; ctAlocResumo(); }
   else if(t.id==='ad-proj-busca'){ f.busca=t.value; ctProjAtualiza(); }
@@ -1168,6 +1314,9 @@ document.getElementById('conteudo').addEventListener('input', (e)=>{
 document.getElementById('conteudo').addEventListener('click', (e)=>{
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
   if(t.hasAttribute('data-ir-admin')){ vaiPara('admin'); return; }
+  if(t.hasAttribute('data-ad-ciclo-ver')){ ctCicloVer(t.getAttribute('data-ad-ciclo-ver')); return; }
+  if(t.hasAttribute('data-ad-ciclo-def')){ estado.admin.editId=t.getAttribute('data-ad-ciclo-def'); estado.admin.dup=null; estado.admin.novo=false; renderAdmin(); ctVaiProForm();
+    setTimeout(()=>{ const sl=document.getElementById('ad-cliente-id'); if(sl) sl.focus(); },80); return; }
   if(t.hasAttribute('data-ad-alocar-ir')){ estado.admin.editId=t.getAttribute('data-ad-alocar-ir'); estado.admin.dup=null; vaiPara('admin');
     setTimeout(()=>{ const w=document.getElementById('ad-projs-wrap'); if(w) w.scrollIntoView({block:'center'}); },60); return; }
   if(t.id==='ad-salvar'){ salvaContrato(); }
@@ -1175,14 +1324,18 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='ad-cancelar'){ estado.admin.editId=null; estado.admin.dup=null; estado.admin.form=null; estado.admin.novo=false; renderAdmin(); }
   else if(t.hasAttribute('data-ad-edit')){ estado.admin.editId=t.getAttribute('data-ad-edit'); estado.admin.dup=null; estado.admin.novo=false; renderAdmin(); ctVaiProForm(); }
   else if(t.hasAttribute('data-ad-alocar')){   // 📌 alocar horas: abre o contrato já na lista de projetos
-    estado.admin.editId=t.getAttribute('data-ad-alocar'); estado.admin.dup=null; renderAdmin();
+    estado.admin.editId=t.getAttribute('data-ad-alocar'); estado.admin.dup=null; estado.admin.novo=false; renderAdmin();
     const w=document.getElementById('ad-projs-wrap'); if(w){ w.scrollIntoView({block:'center'}); const i=w.querySelector('input[data-ad-aloc]:not([disabled])'); if(i) i.focus({preventScroll:true}); } }
   else if(t.hasAttribute('data-ad-dup')){ const c=(cfg.contratos||[]).find(x=>x.id===t.getAttribute('data-ad-dup')); if(!c) return;
     estado.admin.editId=null; estado.admin.dup=ctCopia(c); estado.admin.novo=false; renderAdmin(); ctVaiProForm();
     try{ const i=document.getElementById('ad-cliente'); if(i){ i.focus({preventScroll:true}); i.select(); } }catch(x){} }
-  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del'); const c=(cfg.contratos||[]).find(x=>x.id===id);
-    if(!confirm(`Remover o contrato ${c?ctCodCli(c)+' · '+(c.cliente||''):''}? Ele sai da apuração do AMS, da Receita e da Controladoria.`)) return;
-    cfg.contratos=(cfg.contratos||[]).filter(c=>c.id!==id); if(estado.admin.editId===id) estado.admin.editId=null; salvaCfg(); renderAdmin(); }
+  else if(t.hasAttribute('data-ad-del')){ const id=t.getAttribute('data-ad-del'); const c=(Array.isArray(cfg.contratos)?cfg.contratos:[]).find(x=>ctItemValido(x)&&x.id===id);
+    if(!c){ toast('Este contrato já não está na lista — a tela foi atualizada.','warn'); renderAdmin(); return; }
+    if(!confirm(ctRemoveTxt(c))) return;
+    logAcao({acao:'contrato-remover', t:'', de:`${ctCodCli(c)} · ${c.cliente||''}`, para:'', ok:true}, false);
+    cfg.contratos=(Array.isArray(cfg.contratos)?cfg.contratos:[]).filter(x=>!(ctItemValido(x)&&x.id===id));
+    if(estado.admin.editId===id){ estado.admin.editId=null; estado.admin.form=null; }
+    salvaCfg(); try{ toast(`Contrato ${ctCodCli(c)} removido.`,'ok'); }catch(e){} renderAdmin(); }
   else if(t.hasAttribute('data-ad-portal')||t.hasAttribute('data-ad-portal-novo')){
     const id=t.getAttribute('data-ad-portal')||t.getAttribute('data-ad-portal-novo');
     const c=(cfg.contratos||[]).find(x=>x.id===id);

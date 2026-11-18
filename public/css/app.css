@@ -1291,6 +1291,14 @@
   .ad-meta{margin:6px 0}
   .ad-cons{font-size:13px;color:#334155;border-top:1px dashed var(--linha);padding-top:7px;margin-top:4px}
   .ad-over{color:#B91C1C;font-weight:700}
+  /* 🗓 ciclo de faturamento no formulário do contrato (JI-299, 2026-11-18) */
+  .ad-ciclo{flex:1 1 100%;min-width:0}
+  .ad-ciclo>select{max-width:520px}
+  .ad-ciclo-novo{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px}
+  .ad-ciclo-novo input[type=number]{width:96px}
+  #ad-ciclo-dica{margin-top:6px;font-size:12.5px;line-height:1.45;text-transform:none;letter-spacing:0}
+  #ad-ciclo-previa{flex:1 1 100%}
+  .ad-proj-outro{font-size:11px;color:#B45309;border:1px solid currentColor;border-radius:999px;padding:0 6px;margin-left:4px;white-space:nowrap}
   .ad-card .ad-top .btn{padding:4px 10px;font-size:12px}
   /* 🔖 ID visível do contrato (CT-001 / PC-001) e a linha do topo do cartão que agora quebra quando não cabe (3 botões) */
   .ad-card .ad-top{flex-wrap:wrap}
