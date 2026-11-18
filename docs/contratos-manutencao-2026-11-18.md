@@ -47,5 +47,5 @@ revogar as contas do portal ao remover. R040, R045 e R184 foram reescritos.
 
 ## Testes
 
-`contratos-manut-test.mjs` (Playwright, 119 asserções, porta 8796, fixture `servidor-contratos.mjs`) e `contratos-servidor-test.mjs`
+`contratos-manut-test.mjs` (Playwright, 122 asserções, porta 8796, fixture `servidor-contratos.mjs`) e `contratos-servidor-test.mjs`
 (`node --test`, 8 casos do `portalHorasContrato`), no scratchpad `contratos-plano/`. Gates: `npm run check`.

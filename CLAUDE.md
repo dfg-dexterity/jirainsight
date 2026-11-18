@@ -213,7 +213,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `salvaCfg()`; sem R$ no texto); o faturamento de ciclo grava `c.cliente` (era `c.nome`, que não existe). Mobile: cinco regras no bloco
   `📱 grupo: config` do `mobile.css`. **Ficou de fora (de propósito):** consumo de bolsa/projeto desde o início (R214), contrato encerrado fora das
   contas (R215), AMS com aditivo por vigência (R216), revogar portal ao remover (R217); R040 e R184 reescritos. Testes (scratchpad
-  `contratos-plano/`, porta 8796, runner `roda.sh`): `contratos-manut-test.mjs` (Playwright, 119 asserções: A–K — ciclo, redesenho, trocas de tipo,
+  `contratos-plano/`, porta 8796, runner `roda.sh`): `contratos-manut-test.mjs` (Playwright, 122 asserções: A–K — ciclo, redesenho, campo não mexido segue a versão do colega na mescla, trocas de tipo,
   AMS faturado, conflito, remover, duplicar, celular 360 px) contra `servidor-contratos.mjs`, e `contratos-servidor-test.mjs` (`node --test`, 8
   casos do `portalHorasContrato`). Documento: `docs/contratos-manutencao-2026-11-18.md`.
 - **💹 Rentabilidade: terceirizado interno · ciclo por cliente · faturamento pelo vendido · ⚖️ vendido × gasto · 📖

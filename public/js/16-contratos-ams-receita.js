@@ -386,19 +386,31 @@ const ctNorm=(s)=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/
 const CT_FORM_IDS={ 'ad-cliente':'cliente','ad-horas':'horas','ad-valor':'valor','ad-inicio':'inicio','ad-fim':'fim',
   'ad-respdex':'respDex','ad-respcli':'respCliente','ad-apur':'apuracao','ad-hciclo':'horasCiclo','ad-min':'minMes',
   'ad-teto':'tetoMes','ad-banco':'bancoHoras','ad-obs':'obs','ad-cl-fecha':'clFecha','ad-cl-fatdia':'clFatDia','ad-cl-inicio':'clInicio' };
+// Valores do formulário a partir de um contrato (ou vazios, no contrato novo).
+function ctCamposDe(e){
+  const num=(x)=>(Number(x)>0?String(x):''); const tx=(x)=>(x==null?'':String(x)); const ams=!!e&&e.tipo==='ams';
+  return { cliente:tx(e&&e.cliente), horas:num(e&&e.horasContratadas), valor:num(e&&e.valorHora), horasCiclo:ams?num(amsHorasCiclo(e)):num(e&&e.horasCiclo),
+    minMes:num(e&&e.minMes), tetoMes:num(e&&e.tetoMes), inicio:tx(e&&e.inicio), fim:tx(e&&e.fim), respDex:tx(e&&e.respDex), respCliente:tx(e&&e.respCliente),
+    obs:tx(e&&e.obs), apuracao:(e&&e.apuracao)||'trimestral', bancoHoras:!e||e.bancoHoras!==false, clFecha:'', clFatDia:'0', clInicio:'' };
+}
 function ctFormEstado(edit){
   const ad=estado.admin; const chave=ad.editId?('e:'+ad.editId):(ad.dup?('d:'+((ad.dup._dupDe&&ad.dup._dupDe.id)||'')):'novo');
   if(!ad.form||ad.form.chave!==chave){
     const marc={}; ((edit&&edit.projetos)||[]).forEach(k=>{ marc[k]=true; });
     const aloc={}; Object.keys((edit&&edit.alocacao)||{}).forEach(k=>{ const h=ctAlocDe(edit,k); if(h>0) aloc[k]=h; });
-    const e=edit||null; const num=(x)=>(Number(x)>0?String(x):''); const tx=(x)=>(x==null?'':String(x));
-    const ams=!!e&&e.tipo==='ams';
+    const e=edit||null;
     const sel0=(e&&e.clienteId&&clDe(e.clienteId))?e.clienteId:'';
-    ad.form={ chave, tipo:(e&&e.tipo)||'ams', marc, aloc, busca:'', todos:false,
-      campos:{ cliente:tx(e&&e.cliente), horas:num(e&&e.horasContratadas), valor:num(e&&e.valorHora), horasCiclo:ams?num(amsHorasCiclo(e)):num(e&&e.horasCiclo),
-        minMes:num(e&&e.minMes), tetoMes:num(e&&e.tetoMes), inicio:tx(e&&e.inicio), fim:tx(e&&e.fim), respDex:tx(e&&e.respDex), respCliente:tx(e&&e.respCliente),
-        obs:tx(e&&e.obs), apuracao:(e&&e.apuracao)||'trimestral', bancoHoras:!e||e.bancoHoras!==false, clFecha:'', clFatDia:'0', clInicio:'' },
+    const campos=ctCamposDe(e);
+    ad.form={ chave, tipo:(e&&e.tipo)||'ams', tipo0:(e&&e.tipo)||'ams', marc, aloc, busca:'', todos:false,
+      campos, orig:Object.assign({},campos),
       ciclo:{ sel:sel0, orfao:!!(e&&e.clienteId&&!sel0), tocado:false, origem:!!sel0, sug:false } };
+  } else if(ad.editId&&edit&&ad.form.orig){
+    // 🔀 o contrato mudou noutra sessão (mescla da config) com o formulário aberto: o campo que a pessoa NÃO mexeu
+    // acompanha a versão nova — senão salvar devolveria o valor antigo por cima da mudança do colega. O que foi
+    // digitado aqui continua valendo.
+    const f=ad.form; const novo=ctCamposDe(edit);
+    Object.keys(novo).forEach(k=>{ if(/^cl/.test(k)) return; if(String(f.campos[k])===String(f.orig[k])&&String(novo[k])!==String(f.orig[k])){ f.campos[k]=novo[k]; f.orig[k]=novo[k]; } });
+    const t=edit.tipo||'ams'; if(f.tipo===f.tipo0&&t!==f.tipo0){ f.tipo=t; f.tipo0=t; }
   }
   return ad.form;
 }
@@ -857,6 +869,7 @@ function amsResumoForm(){
   r.innerHTML=h0;
 }
 function salvaContrato(){
+  if(estado.admin.editId&&estado.admin.form){ const c0=(Array.isArray(cfg.contratos)?cfg.contratos:[]).find(x=>ctItemValido(x)&&x.id===estado.admin.editId); if(c0) ctFormEstado(c0); }   // 🔀 campos não mexidos seguem a versão atual
   const f=estado.admin.form||{marc:{},aloc:{}};
   const v=(id)=>{ const k=CT_FORM_IDS[id]; const e=document.getElementById(id); const x=(k&&f.campos&&f.campos[k]!=null&&typeof f.campos[k]!=='boolean')?f.campos[k]:(e?e.value:''); return String(x).trim(); };
   const fb=document.getElementById('ad-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent=''; }
