@@ -409,7 +409,8 @@ function ctFormEstado(edit){
     // acompanha a versão nova — senão salvar devolveria o valor antigo por cima da mudança do colega. O que foi
     // digitado aqui continua valendo.
     const f=ad.form; const novo=ctCamposDe(edit);
-    Object.keys(novo).forEach(k=>{ if(/^cl/.test(k)) return; if(String(f.campos[k])===String(f.orig[k])&&String(novo[k])!==String(f.orig[k])){ f.campos[k]=novo[k]; f.orig[k]=novo[k]; } });
+    // (/^cl[A-Z]/ = clFecha, clFatDia e clInicio, do ciclo novo — não do contrato; o nome do cliente acompanha a versão nova)
+    Object.keys(novo).forEach(k=>{ if(/^cl[A-Z]/.test(k)) return; if(String(f.campos[k])===String(f.orig[k])&&String(novo[k])!==String(f.orig[k])){ f.campos[k]=novo[k]; f.orig[k]=novo[k]; } });
     const t=edit.tipo||'ams'; if(f.tipo===f.tipo0&&t!==f.tipo0){ f.tipo=t; f.tipo0=t; }
   }
   return ad.form;
