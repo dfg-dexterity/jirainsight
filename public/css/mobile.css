@@ -491,6 +491,12 @@
   .tela-apontar .ap-log .ap-coment{flex:1 1 130px;min-width:0}
   .tela-apontar .ap-log .btn{flex:0 0 auto}
   .tela-apontar .ap-log .btn.primario{padding:7px 14px}
+  .tela-apontar .ap-log>.ap-chips:has(.apc-chip){flex-wrap:wrap}
+  .tela-apontar .ap-log>.ap-chips .apc-chip{order:-1;flex:1 1 calc(50% - 4px);overflow:hidden;text-overflow:ellipsis}
+  .tela-apontar .ap-log>.ap-chips .apc-chip.apc-so{flex-basis:100%}
+  .tela-apontar .apc-faixa{padding:8px 10px;gap:6px 8px}
+  .tela-apontar .apc-res{display:none}
+  .tela-apontar .apc-ult{flex:1 1 100%}
   /* Painéis abertos na linha (status, reagendar, responsável, mover, comentar) */
   .tela-apontar .ap-trans{padding:8px;gap:6px}
   .tela-apontar .ap-trans-rot{flex:1 1 100%}
@@ -600,6 +606,8 @@
   .tela-apontar .ap-trans .chip,#mh-card .ap-chips .chip,
   .tela-rateio .ap-vis .chip,[data-rg-chip],#rg-todos,#rg-nenhum,#rg-time-salvar{min-height:36px;padding-top:6px;padding-bottom:6px}
   .tela-apontar .ap-rec-tgl{min-width:34px;min-height:34px}
+  .tela-apontar .apc-faixa .chip{min-height:36px}
+  .tela-apontar .apc-k,.tela-apontar .apc-fecha{min-height:36px;min-width:36px}
   .tela-apontar .ap-proj-head{min-height:44px}
   .tela-rateio .rt-step{min-width:38px;min-height:38px}
   .tela-agenda .ag-sec>summary{min-height:44px;box-sizing:border-box}

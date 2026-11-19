@@ -158,6 +158,7 @@ function registraExtraDia(dia, seg, k){
   ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
   ap.extraLogs=ap.extraLogs||[];
   ap.extraLogs.push({d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'—'});
+  if(dia===hojeSP()&&typeof apcMarcaFim==='function') apcMarcaFim(k||'');   // 13c: fim do último lançamento de hoje neste navegador
   // ⏱ card "Apontamento do time" da Início: reflete o meu lançamento na hora,
   // sem esperar o Clockwork (o 🔄 atualizar relê tudo do servidor).
   const ax=estado.acoes, id=idApontar();
@@ -198,6 +199,9 @@ function mtsLogsSemana(seg0){
   });
   return logs;
 }
+// Minuto do dia (fuso SP) AGORA (13c: "desde o último lançamento"); null se o navegador não souber.
+function apAgoraMinSP(){ try{ const p=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour12:false,hour:'2-digit',minute:'2-digit'}).format(new Date());
+  const [h,m]=p.split(':').map(Number); return (h%24)*60+m; }catch(e){ return null; } }
 // Minuto do dia (fuso SP) do início do worklog; null quando não há hora útil.
 function mtsMinSP(dt){
   if(!dt||dt.length<=10) return null;
@@ -341,6 +345,7 @@ function htmlPainelHoras(){
 }
 // Atualiza só o painel (sem re-renderizar a lista) após um apontamento.
 function atualizaPainelHoras(){
+  if(typeof apcAtualizaTudo==='function') apcAtualizaTudo();   // 13c: chips dinâmicos e faixa acompanham o total do dia
   const alvo=document.getElementById('mh-card'); if(!alvo) return;
   const novo=el(htmlPainelHoras()); if(novo) alvo.replaceWith(novo);
 }
@@ -507,13 +512,14 @@ function renderApontar(){
     ? `<button class="badge st-btn" data-ap-resp="${escA(t.k)}" data-tip="Responsável — clique para transferir">👤 ${esc(t.resp)} ▾</button>`
     : `<button class="badge st-btn sem-venc" data-ap-resp="${escA(t.k)}" data-tip="Sem responsável — clique para atribuir">👤 atribuir ▾</button>`;
   // `pula` (🧩 2026-10-27): níveis do topo do caminho que o cartão não repete — no agrupado por épico, a raiz é o cabeçalho.
+  const apcDin=(id&&id.accountId&&typeof apcChipsHTML==='function')?apcChipsHTML(hoje):'';   // 13c: uma vez por render
   const linhaTicket=(t,extras,pula)=>{
     const url=`${jiraBase()}/browse/${encodeURIComponent(t.k)}`;
     const ehReuniao = RE_ROTINA.test(t.t||'') || /reuni/i.test(t.resumo||'');
     const logCtrl = id ? `
       <div class="ap-log">
         <div class="ap-log-info ${t.seg?'tem':'zero'}">${infoLog(t.seg)}</div>
-        <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}</div>
+        <div class="ap-chips">${['30m','1h','2h','4h','8h'].map(c=>`<button class="chip" data-ap-chip="${c}">${c}</button>`).join('')}${apcDin}</div>
         <input type="text" class="ap-tempo" placeholder="1h30" aria-label="Tempo">
         <input type="date" class="ap-data" value="${escA(hoje)}" max="${escA(hoje)}" aria-label="Dia do trabalho">
         <input type="text" class="ap-coment" placeholder="comentário (opcional)" aria-label="Comentário">
@@ -550,23 +556,37 @@ function renderApontar(){
   // Reusa a linhaTicket (status, reagendar, responsável, comentar, mover, vincular,
   // chips e apontar). Ticket fora da lista de abertos (ex.: concluído ou vencendo
   // longe) busca a ficha completa via ?detalhe= e entra com tudo também.
-  const recRow=(r)=>{
-    const selo=`<span class="badge codigo-proj" data-tip="${escA(r.p)}">${esc(projNome(r.p))}</span>
-      <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
-      <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>`;
-    const tk=todos.find(t=>t.k===r.k) || ap.recDet[r.k];
-    if(tk) return linhaTicket(tk, selo);
+  // Busca a ficha de um ticket fora da lista (uma vez por chave; falha libera para tentar de novo).
+  const garanteDet=(r)=>{
     if(!ap.recDetB[r.k]){ ap.recDetB[r.k]=true;
       fetch(`/api/vencimentos?detalhe=${encodeURIComponent(r.k)}`).then(x=>x.json()).then(j=>{
         ap.recDet[r.k]=(j&&j.k)?j:{ k:r.k, resumo:r.resumo||'', p:r.p||'', t:'', tIcon:'', status:'', venc:'', resp:'', respId:'', prio:'', prioIcon:'', seg:r.seg||0, est:0 };
         if(estado.vista==='apontar') renderApontar();
       }).catch(()=>{ ap.recDetB[r.k]=false; });
     }
+  };
+  const recRow=(r)=>{
+    const selo=`<span class="badge codigo-proj" data-tip="${escA(r.p)}">${esc(projNome(r.p))}</span>
+      <span class="badge com-horas" data-tip="Suas horas neste ticket nos últimos 14 dias">você: ${fmtH(r.seg)}</span>
+      <span class="badge" data-tip="Seu último apontamento neste ticket">último: ${fmtBR(r.ult)}</span>`;
+    const tk=todos.find(t=>t.k===r.k) || ap.recDet[r.k];
+    if(tk) return linhaTicket(tk, selo);
+    garanteDet(r);
     return `<div class="ap-row ap-rec" data-k="${escA(r.k)}"><div class="ap-l1">
       <a href="${jiraBase()}/browse/${encodeURIComponent(r.k)}" target="_blank" rel="noopener">${esc(r.k)} ↗</a>
       <span class="ap-resumo">${esc(r.resumo||'')}</span><span class="spacer"></span>${selo}
       <span class="muted small">carregando a ficha…</span></div></div>`;
   };
+  // ---- 🕑 13c: linha de apontamento aberta no topo ("Continuar de onde parei") ----
+  const apcAb=(id&&id.accountId&&ap.apcAberto&&ap.apcAberto.a===id.accountId)?ap.apcAberto:null;
+  let apcLinha='';
+  if(apcAb){
+    const tk=todos.find(t=>t.k===apcAb.k)||ap.recDet[apcAb.k];
+    const fecha=`<button class="badge st-btn apc-fecha" data-apc-fecha aria-label="Fechar a linha" data-tip="Fechar esta linha">✕</button>`;
+    if(tk) apcLinha=`<div class="apc-linha" id="apc-linha">${linhaTicket(tk, fecha)}</div>`;
+    else { garanteDet({k:apcAb.k, p:String(apcAb.k).split('-')[0], resumo:'', seg:0});
+      apcLinha=`<div class="apc-linha" id="apc-linha"><div class="ap-row ap-rec" data-k="${escA(apcAb.k)}"><div class="ap-l1"><strong>${esc(apcAb.k)}</strong><span class="spacer"></span><span class="muted small">carregando a ficha…</span>${fecha}</div></div></div>`; }
+  }
   // Fica no FIM da página e recolhido por padrão: o protagonista da aba é o
   // ⏱ Meu timesheet — os recentes são um atalho de reapontamento, não o foco.
   const recs=ap.recentes||[];
@@ -654,6 +674,7 @@ function renderApontar(){
 
   cont.replaceChildren(el(`<div class="tela-apontar">
     ${faixaId}
+    <div class="apc-bloco" id="apc-bloco"><div id="apc-slot">${typeof apcFaixaHTML==='function'?apcFaixaHTML():''}</div>${apcLinha}</div>
     ${bannerConvites}
     ${htmlPainelHoras()}
     <div class="kpis ts-kpis">
@@ -676,6 +697,7 @@ function renderApontar(){
     </div>
     ${blocoRecentes}
   </div>`));
+  if(typeof apcDepoisRender==='function') apcDepoisRender();
 }
 
 // Modal de identificação (uma vez por navegador). `motivo` (2026-10-27, opcional): quando uma ação "a frio" do menu
@@ -749,6 +771,9 @@ async function fazApontamento(btn){
   if(seg==null){ fb.classList.add('err'); fb.textContent='Tempo inválido — use 1h30, 2h, 45m ou 1,5.'; tempoEl.focus(); return; }
   if(seg<60||seg>24*3600){ fb.classList.add('err'); fb.textContent='Tempo fora do limite (mínimo 1m, máximo 24h).'; tempoEl.focus(); return; }
   const inicio=dataEl.value||hojeSP(); const comentario=comEl.value.trim();
+  // 13c: a hora do chip "desde as HH:MM" só vai com o chip intacto (texto não mexido) e para hoje
+  const horaChip=(tempoEl.dataset.apcHora&&tempoEl.dataset.apcVal===tempoEl.value.trim()&&inicio===hojeSP())?tempoEl.dataset.apcHora:'';
+  const naFaixa=!!row.closest('#apc-linha');
   if(!(await planGate(inicio))){ fb.hidden=true; return; }   // 🚧 dia sem planejamento: avisa ou bloqueia (cfg.planGate — porta única no 04)
   ocupado(btn,true); fb.textContent='Apontando…';
   try{
@@ -756,13 +781,16 @@ async function fazApontamento(btn){
     // (anterior ao worklog novo) não pode contar este lançamento duas vezes.
     await apGaranteMeusLogs(inicio);
     // A janela chegando redesenha a lista (apCarregaRecentes → renderApontar): a linha capturada pode ter saído da tela.
-    const rowNova=document.querySelector(`#conteudo .ap-row[data-k="${CSS.escape(k)}"]`);
-    if(rowNova&&rowNova!==row){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=fbDe(row);
-      btn=row.querySelector(`[data-ap-key="${CSS.escape(k)}"]`)||btn; fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; ocupado(btn,true); }
+    if(!row.isConnected){   // só reobtém se a linha saiu do DOM — e na mesma zona (faixa do topo × lista)
+      const cands=[...document.querySelectorAll(`#conteudo .ap-row[data-k="${CSS.escape(k)}"]`)];
+      const rowNova=cands.find(r=>!!r.closest('#apc-linha')===naFaixa)||cands[0];
+      if(rowNova){ row=rowNova; tempoEl=row.querySelector('.ap-tempo'); comEl=row.querySelector('.ap-coment'); fb=fbDe(row);
+        btn=row.querySelector(`[data-ap-key="${CSS.escape(k)}"]`)||btn; fb.hidden=false; fb.className='ap-fb'; fb.textContent='Apontando…'; ocupado(btn,true); }
+    }
     const j=await fetch('/api/apontar',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({issue:k,segundos:seg,inicio,comentario,email:id.email,token:id.token})}).then(r=>r.json());
+      body:JSON.stringify({issue:k,segundos:seg,inicio,comentario,...(horaChip?{hora:horaChip}:{}),email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
-      row.classList.add('feito'); tempoEl.value=''; comEl.value='';
+      row.classList.add('feito'); tempoEl.value=''; comEl.value=''; delete tempoEl.dataset.apcHora; delete tempoEl.dataset.apcVal;
       // Atualiza o total do ticket na lista (otimista) e derruba caches locais.
       const dados=estado.apontar.porData[chaveVenc()];
       const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.seg=(t.seg||0)+seg;
@@ -786,7 +814,7 @@ async function fazApontamento(btn){
         fb.textContent=`✓ ${fmtH(seg)} apontadas em ${k} (${fmtBR(inicio)}). `+(conferido?`Total do dia ${fmtBR(inicio)}: ${fmtH(totalDia)}.`
           :`Não consegui somar o que você já tinha em ${fmtBR(inicio)} — só este lançamento foi contado.`);
         toast(`✓ ${fmtH(seg)} apontadas em ${k}.`,'ok'); }
-      logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio, ok:true});
+      logAcao({acao:'apontar', t:k, para:fmtH(seg)+' em '+inicio+(horaChip?' '+horaChip:''), ok:true});
       // "Meus tickets recentes" acompanha sem nova busca.
       const recs=estado.apontar.recentes;
       if(Array.isArray(recs)){

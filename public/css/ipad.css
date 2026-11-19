@@ -324,6 +324,7 @@
   #conteudo .tela-agenda .ag-acao .btn,#conteudo .tela-agenda .ag-ev .btn{min-height:44px}
   #conteudo .tela-agenda .ag-ct-faixa{gap:10px}
   #conteudo .tela-chamadas .chm-row{align-items:center}
+  #conteudo .tela-apontar .apc-faixa .chip,#conteudo .tela-apontar .apc-k,#conteudo .tela-apontar .apc-fecha{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
 }
 @media (pointer:coarse){
 @media (min-width:601px) and (max-width:760px){
@@ -369,6 +370,7 @@
   #conteudo .tela-agenda .ag-acao .btn,#conteudo .tela-agenda .ag-ev .btn{min-height:44px}
   #conteudo .tela-agenda .ag-ct-faixa{gap:10px}
   #conteudo .tela-chamadas .chm-row{align-items:center}
+  #conteudo .tela-apontar .apc-faixa .chip,#conteudo .tela-apontar .apc-k,#conteudo .tela-apontar .apc-fecha{min-height:44px;min-width:44px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center}
 }}
 @media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
   @container conteudo (max-width:820px){
