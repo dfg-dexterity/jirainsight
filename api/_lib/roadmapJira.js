@@ -142,7 +142,7 @@ export function rjPlano(itens, historias, saidas = []) {
     if (hist.has(h.id)) { avisos.push({ tipo: 'repetida', id: h.id, key: h.key, aviso: `história repetida para ${h.id} (a ${hist.get(h.id).key} vale; esta não é tocada)` }); continue; }
     hist.set(h.id, h);
   }
-  const noApp = new Set(); const sai = new Set(saidas || []);
+  const noApp = new Set(); const sai = new Set(saidas || []); const adotares = [];
   for (const it of (itens || [])) {
     noApp.add(it.id);
     const h = hist.get(it.id);
@@ -176,7 +176,7 @@ export function rjPlano(itens, historias, saidas = []) {
       if (h.temRegua) acoes.push({ tipo: 'desc', id: it.id, key: h.key, d: it.d, set: { h: hD }, prop: p });
       else avisos.push({ tipo: 'semRegua', id: it.id, key: h.key, aviso: 'a descrição do app mudou, mas a História não tem a linha --- : não é reescrita' });
     }
-    if (Object.keys(adota).length) acoes.push({ tipo: 'adotar', id: it.id, key: h.key, set: adota, prop: p });
+    if (Object.keys(adota).length) adotares.push({ tipo: 'adotar', id: it.id, key: h.key, set: adota, prop: p });
   }
   for (const [id, h] of hist) {
     if (noApp.has(id)) continue;
@@ -185,6 +185,7 @@ export function rjPlano(itens, historias, saidas = []) {
     if (h.status === 'indeterminate') acoes.push({ tipo: 'entregue', id, key: h.key });
     else if (h.status === 'new') acoes.push({ tipo: 'cancelar', id, key: h.key });
   }
+  acoes.push(...adotares);   // adotar por ÚLTIMO: o que muda o status (entregue/cancelar/transições/rótulos) não espera por ele
   return { acoes, avisos };
 }
 
@@ -263,7 +264,7 @@ export const RJ_JQL = `project = ${RJ_PROJETO} AND labels = roadmap AND labels =
 // Lê as histórias do roadmap já no Jira. Lança se a leitura vier cortada (agir sobre uma lista parcial criaria duplicatas).
 export async function rjLeHistorias(deps) {
   const d = { ...depsPadrao(), ...(deps || {}) };
-  const { issues, truncado } = await d.busca(RJ_JQL, ['summary', 'status', 'labels', 'description'], [RJ_PROP]);
+  const { issues, truncado } = await d.busca(RJ_JQL, ['summary', 'status', 'labels', 'description', 'updated'], [RJ_PROP]);
   if (truncado) throw new Error('Leitura das histórias cortada pelo limite de páginas — nada foi feito.');
   const out = [];
   for (const is of issues || []) {
@@ -277,10 +278,18 @@ export async function rjLeHistorias(deps) {
     const prop = is.properties && is.properties[RJ_PROP] && typeof is.properties[RJ_PROP] === 'object' ? is.properties[RJ_PROP] : null;
     out.push({
       key: is.key, id, status: cat === 'done' || cat === 'new' || cat === 'indeterminate' ? cat : 'indeterminate',
-      statusNome: (f.status && f.status.name) || '', labels, resumo: String(f.summary || ''), prop, temRegua: adfTemRegua(f.description),
+      updated: String(f.updated || ''), statusNome: (f.status && f.status.name) || '', labels, resumo: String(f.summary || ''), prop, temRegua: adfTemRegua(f.description),
     });
   }
   out.sort((a, b) => String(a.key).localeCompare(String(b.key), 'en', { numeric: true }));
+  // Sanidade: mais de 50% sem a propriedade pode ser só a carga inicial — ou a busca não devolver `properties` (aí adotaríamos a cada rodada).
+  // Lê a propriedade de UMA das sem propriedade (a de maior `updated`): se ela existir lá, a busca não está devolvendo — erro claro.
+  const sem = out.filter((h) => !h.prop);
+  if (out.length && sem.length > out.length * 0.5) {
+    const alvo = [...sem].sort((a, b) => (a.updated < b.updated ? 1 : a.updated > b.updated ? -1 : 0))[0];
+    const g = await d.req('GET', `/rest/api/3/issue/${encodeURIComponent(alvo.key)}/properties/${RJ_PROP}`);
+    if (!falhou(g) && g.json && g.json.value !== undefined && g.json.value !== null) throw new Error('a busca do Jira não devolve properties — nada foi feito.');
+  }
   return out;
 }
 

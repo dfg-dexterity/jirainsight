@@ -42,12 +42,12 @@ on:
         required: false
         default: ''
 
-concurrency:
-  group: roadmap-notion
-  cancel-in-progress: false
 
 jobs:
   sincronizar:
+    concurrency:
+      group: roadmap-notion
+      cancel-in-progress: false
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -71,6 +71,10 @@ jobs:
           node scripts/roadmap-notion.mjs "${ARGS[@]}"
 
   jira:
+    # concurrency POR JOB: execuções de deployment_status de Preview/pending não podem cancelar a de Production-success.
+    concurrency:
+      group: roadmap-jira
+      cancel-in-progress: false
     # push NÃO dispara este job (o deploy ainda não está no ar): ele espera o deployment_status de sucesso em Production.
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
@@ -84,7 +88,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Só segue se o deploy for a ponta de origin/main
+        if: github.event_name == 'deployment_status'
+        run: |
+          git fetch --quiet origin main
+          if [ "$(git rev-parse origin/main)" != "${{ github.event.deployment.sha }}" ]; then
+            echo "::notice::O SHA do deploy não é a ponta de origin/main (redeploy de commit antigo) — nada a sincronizar."
+            echo "PULAR=1" >> "$GITHUB_ENV"
+          fi
       - name: Manter as Histórias do roadmap no Jira (JI)
+        if: env.PULAR != '1'
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TEAMS_CRON_URL: ${{ secrets.TEAMS_CRON_URL }}

@@ -24,7 +24,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   ao array** → `reabrir` (transição 11 **e PUT `resolution:null`**, o Jira não limpa sozinho — recusa vira `avisos.semLimparResolucao` —, tira o
   rótulo, comentário). **Resumo e descrição por PROPRIEDADE:** a propriedade da issue `dexhub.roadmap` = `{h, r}` guarda o hash (só letras e
   dígitos) do último texto que o app mandou; só se reescreve quando o hash do app **muda** em relação à propriedade — nunca se compara com o texto
-  do Jira. **Sem a propriedade = ADOTA** (grava o hash atual, ação `adotar`, e NÃO reescreve): é o estado das 207 Stories da carga inicial (a carga
+  do Jira. **Sem a propriedade = ADOTA** (grava o hash atual, ação `adotar`, sempre por ÚLTIMO na lista, e NÃO reescreve; se mais de 50% das Histórias vierem sem ela, a lib lê `GET /issue/{key}/properties/dexhub.roadmap` de uma — se houver valor lá, erro "a busca do Jira não devolve properties"): é o estado das 207 Stories da carga inicial (a carga
   usou a descrição do Notion e pôs "Origem: JI-xxx" acima do `---` em 12). A descrição só é reescrita **acima da 1ª `---`**; sem a linha `---` na
   História é só aviso (`semRegua`), nunca reescrita. Nunca apaga nada nem mexe em épico, responsável, subtarefas ou worklogs. (2) **Rota** `POST
   /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1][&forcar=1]` com `{itens:[{id,s,t,d}], saidas:['R###']}` (até 400; id `^R\d{3,4}$`, s ∈
@@ -35,13 +35,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (entregue+cancelar) acima de 15 **ou** de 20% das histórias; edições (desc+resumo) acima de 25. **`?tipo=` desconhecido em qualquer rota do
   `api/teams.js` = 400** (nunca cai no ranking/cron; conhecidos: aviso, semanal, rentab, kpis, disciplina, custos-odoo, roadmap-jira, agenda-alerta,
   prioridades, resumo — rota nova = incluir em `TIPOS_CONHECIDOS`). Sem função serverless nova (12). (3) **CI:** job `jira` do
-  `.github/workflows/roadmap-notion.yml`, independente do Notion. **Gatilho:** `deployment_status` (state `success`, ambiente `Production`) — só
+  `.github/workflows/roadmap-notion.yml`, independente do Notion. **Gatilho:** `deployment_status` (state `success`, ambiente `Production`; `concurrency` fica DENTRO de cada job, e o job só segue se o SHA do deploy for a ponta de `origin/main`) — só
   depois do deploy do SHA no ar, porque a rota é a do site (chamar no `push` rodaria a rota ANTIGA); mais `schedule` diário (rede de segurança, sem
   `saidas`) e `workflow_dispatch` (`dry=1` por padrão; input `antes` = commit de referência das saídas). **Escrita só com a variável do repositório
   `ROADMAP_JIRA_ESCREVER=1`** (Settings › Variables, `vars.*`); sem ela a CI chama com `dry=1` e imprime contagens + os R### de desc/resumo/cancelar/
   entregue. A CI **falha** se a resposta não tiver `contagens` (deploy antigo) e repete a chamada enquanto `avisos.adiadas` > 0 (máx. 3). `BASE` sai
   do secret `TEAMS_CRON_URL` ou `https://jirainsight.vercel.app`; sem `CRON_SECRET` só avisa; o log mostra só contagens e ids. (4) **Teste** (fora do
-  repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 41 casos): `rjPlano`, saídas explícitas (R214–R217 intocadas), freios,
+  repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 45 casos): `rjPlano`, saídas explícitas (R214–R217 intocadas), freios,
   adoção por propriedade, resolução (reabrir limpa, entregue grava), tempo limite e orçamento, 502 fixo, Bearer, tipo desconhecido, o script do
   payload num repo git temporário e o workflow, além do handler REAL do `api/teams.js` contra um Jira falso por HTTP. **[Manual step]:** criar o
   secret `CRON_SECRET` e a variável `ROADMAP_JIRA_ESCREVER=1` no repositório do GitHub (secret = o da Vercel) e o status **Cancelado** no fluxo do JI.
@@ -862,7 +862,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   falha reverte + toast; sucesso = `↩ Desfazer` 10 s + `crReleFicha` (nocache, debounce). `crLinhas` NÃO muda (gate de
   paridade). Servidor: `editaLote` aceita `resumo`, `inicio`, `links:[{acao:'add',de,para}|{acao:'rm',id}]`; a ficha traz
   o `id` dos links. Regra aprendida: clique simples no nome espera 300 ms pelo duplo (abrir o épico no 1º clique engolia
-  o 2º no modal). Teste: `cronograma-test.mjs` (41 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
+  o 2º no modal). Teste: `cronograma-test.mjs` (45 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
   **Revisão do 📆 Hoje (mesmo dia):** fila de gravação POR DIA (`h.sv[d]`), destino gravado antes de marcar `movido`
   (`hjLevaPara`), `hjEstClamp`/`HJ_MAX_ITENS` no cliente, reuniões fora do Planejado, ↻ + `visibilitychange`, cronômetro
   com `a`=accountId, foco devolvido pelo seletor (`hjFocoSel`), `:has(:focus-visible)` para ↑↓ (o `:focus-within` deslocava
