@@ -26,7 +26,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   ficha 🔍, 📋 Status report, 🧭 Pendências, 🏠 Início, 📥 Inbox, menus e Ctrl+K (`acao:bloqueio`). **Regras:** depois de escrever, `sujo` só faz a próxima
   leitura ir com `nocache=1` (o índice de busca do Jira atrasa alguns segundos e sobrescreveria a atualização otimista); a vista redesenha sempre quando a
   leitura chega, as demais só se os dados mudaram; azul da Ciência = `--bq-azul` (não havia azul nos tokens); tela nova que mostre bloqueio = chamar
-  `bqSeloHTML`, nunca montar o selo. Testes (scratchpad `bloq-plano/`, porta 8797, runner `roda.sh`): `bloq-servidor-test.mjs` (`node --test`, 68 casos),
+  `bqSeloHTML`, nunca montar o selo. Testes (scratchpad `bloq-plano/`, porta 8797, runner `roda.sh`): `bloq-servidor-test.mjs` (`node --test`, 72 casos — os 4 últimos são da revisão do PR #236: aviso que não chegou a ninguém não fica marcado e o cursor não avança; comentário ilegível não poda o dedupe; ficha com `comment` paginado lê o histórico inteiro; histórico truncado nunca tira label nem impedimento),
   `bloq-smoke-test.mjs` (Playwright, 29 asserções) e `bloq-tela-test.mjs` (Playwright, 201 asserções, blocos A–K); auditorias mobile (393/360 px) e iPad (6 tamanhos) da vista com 0 ofensores; regressão `sr-servidor-test` 47, `push-servidor-test` 14,
   `disc-servidor-test` 49, `status-report-acoes-test` 179, `menus-test` 185, `push-tela-test` 93. Documento: `docs/bloqueios-2026-11-19.md`. **[Manual step]:** conferir Labels e Flagged na tela dos projetos (e `JIRA_CF_FLAGGED`
   se o campo tiver outro nome), rodar `?tipo=bloqueios&dry=1` com o segredo depois do merge e testar um 🔴 real. Desdobramentos no roadmap: R218 (limpar ao

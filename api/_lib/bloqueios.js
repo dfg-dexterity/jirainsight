@@ -717,6 +717,8 @@ export async function bqEscreve({ issue, acao, dados, headers, base, ehInterno, 
   }
   // ---- reconciliar label e flag ----
   const des = bqDesejado(estNovo);
+  // histórico truncado (> BQ_MAX_COMENT): pode haver bloqueio aberto que não foi lido — nunca tira a label nem o impedimento
+  if (rc.x.truncado) { if (labels.includes(BQ_LABEL_ABERTO)) des.labelAberto = true; if (flagAtual) des.flag = true; }
   const passos = { comentario: passoComent, label: { ok: true }, flag: { ok: true } };
   const ops = [];
   if (!labels.includes(BQ_LABEL_HIST)) ops.push({ add: BQ_LABEL_HIST });
@@ -795,7 +797,9 @@ export async function bqEscalaRoda({ cfg, hoje, dry = false, deps = {}, painel }
   try { linha = await leLinha('bloq_estado'); } catch (e) { return { ok: false, feito: false, erro: `bloq_estado ilegível: ${String(e && e.message ? e.message : e).slice(0, 120)}` }; }
   let usuarios = {};
   try { usuarios = await (D.usuarios || jiraUsuariosAtivos)(); } catch (e) { usuarios = {}; }
-  const r = bqEscalaCalcula({ itens: lista.itens, estado: (linha && linha.data) || {}, hoje: h, cfg: cfg || {}, usuarios, truncado: lista.meta.truncado.itens });
+  const erroComent = (lista.itens || []).some((x) => x && x.erroComent);
+  // ticket com comentários ilegíveis vem sem bloqueios: não pode podar o dedupe dele nem contar a rodada como completa
+  const r = bqEscalaCalcula({ itens: lista.itens, estado: (linha && linha.data) || {}, hoje: h, cfg: cfg || {}, usuarios, truncado: !!(lista.meta.truncado.itens || lista.meta.truncado.comentarios || erroComent) });
   const destinos = new Set([...r.lembretes, ...r.escalas].map((g) => g.para.accountId));
   const out = { ok: true, feito: true, dry: !!dry, abertos: r.conta.abertos, vencidos: r.conta.vencidos, lembrados: r.conta.lembrados, escalados: r.conta.escalados, destinatarios: destinos.size, falhas: 0, semCanal: false, truncado: !!lista.meta.truncado.itens };
   if (dry) {
@@ -803,18 +807,42 @@ export async function bqEscalaRoda({ cfg, hoje, dry = false, deps = {}, painel }
     return out;
   }
   const notifica = D.notifica || notificaPessoas;
+  // Por chave (ticket#bloqueio), quem efetivamente recebeu: só o que chegou a ALGUÉM fica marcado no dedupe —
+  // aviso que não saiu por nenhum canal volta a ser tentado (no próximo tique quando houver canal; senão, no próximo dia).
+  const entregue = { lemb: new Set(), esc: new Set() }; const tentado = { lemb: new Set(), esc: new Set() };
+  let algumCanal = false; let transitoria = false;
   const envia = async (grupos, tipo) => {
     if (!grupos.length) return;
     const porId = new Map(grupos.map((g) => [g.para.accountId, g]));
-    const res = await notifica(grupos.map((g) => g.para), (p) => msgEscala(porId.get(p.accountId), tipo, base).teams(),
-      { tipo: 'bloqueios', push: (p) => msgEscala(porId.get(p.accountId), tipo, base).push() });
+    grupos.forEach((g) => g.itens.forEach((x) => tentado[tipo].add(`${x.k}#${x.id}`)));
+    let res = null;
+    try {
+      res = await notifica(grupos.map((g) => g.para), (p) => msgEscala(porId.get(p.accountId), tipo, base).teams(),
+        { tipo: 'bloqueios', push: (p) => msgEscala(porId.get(p.accountId), tipo, base).push() });
+    } catch (e) { out.falhas += 1; transitoria = true; return; }
     const t = res && res.teams; const ps = res && res.push;
     if (t && Array.isArray(t.falhas)) out.falhas += t.falhas.length;
     if (ps && ps.falhas) out.falhas += ps.falhas;
-    if (!t && !(ps && ps.enviados)) out.semCanal = true;
+    const tOk = !!(t && Number(t.enviados) > 0); const pOk = !!(ps && Number(ps.enviados) > 0);
+    if (!tOk && !pOk) { if (!t || t.erro || (Array.isArray(t.falhas) && t.falhas.length) || (ps && ps.falhas)) transitoria = true; else out.semCanal = true; return; }
+    algumCanal = true;
+    const falhou = new Set(t && Array.isArray(t.falhasIds) ? t.falhasIds.map(String) : []);
+    grupos.forEach((g) => {
+      const recebeu = !falhou.has(String(g.para.accountId)) || pOk;
+      if (recebeu) g.itens.forEach((x) => entregue[tipo].add(`${x.k}#${x.id}`)); else transitoria = true;
+    });
   };
-  try { await envia(r.lembretes, 'lemb'); await envia(r.escalas, 'esc'); } catch (e) { out.falhas += 1; }
+  await envia(r.lembretes, 'lemb'); await envia(r.escalas, 'esc');
   const novo = r.novoEstado;
+  const antes = (linha && linha.data) || {};
+  ['lemb', 'esc'].forEach((tipo) => {
+    tentado[tipo].forEach((ch) => {
+      if (entregue[tipo].has(ch)) return;
+      const velho = (antes[tipo] || {})[ch];
+      if (velho) novo[tipo][ch] = velho; else delete novo[tipo][ch];
+    });
+  });
+  void algumCanal;
   const igual = JSON.stringify({ e: novo.esc, l: novo.lemb }) === JSON.stringify({ e: ((linha && linha.data) || {}).esc || {}, l: ((linha && linha.data) || {}).lemb || {} });
   if (!igual || !(linha && linha.data)) {
     try {
@@ -822,5 +850,8 @@ export async function bqEscalaRoda({ cfg, hoje, dry = false, deps = {}, painel }
       if (!g.ok) return { ...out, ok: false, feito: false, erro: `não gravou bloq_estado: ${String(g.erro || 'Supabase não configurado').slice(0, 120)}` };
     } catch (e) { return { ...out, ok: false, feito: false, erro: `não gravou bloq_estado: ${String(e && e.message ? e.message : e).slice(0, 120)}` }; }
   }
+  // comentário ilegível ou aviso que falhou de passagem: o dedupe do que saiu está gravado, mas a rodada não está completa —
+  // ok:false mantém o cursor do cron parado e o próximo tique tenta só o que faltou
+  if (erroComent || transitoria) return { ...out, ok: false, feito: false, erro: erroComent ? 'comentários de algum ticket não puderam ser lidos — tento de novo no próximo tique' : 'algum aviso não saiu — tento de novo no próximo tique' };
   return out;
 }

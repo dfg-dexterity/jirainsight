@@ -11,7 +11,7 @@ import {
   cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json, configCompartilhada,
 } from './_lib/util.js';
 
-import { bqLista, bqEstado } from './_lib/bloqueios.js';
+import { bqLista, bqEstado, bqComentarios } from './_lib/bloqueios.js';
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -446,7 +446,12 @@ async function detalheTicket(q, res) {
     comentarios, anexos,
     worklogs: { totalSeg, porPessoa, ultimos },
   };
-  try { payload.bloqueios = bqEstado(comAll).bloqueios; } catch (e) { payload.bloqueios = []; }   // 🚧 os comentários já estão lidos: sem chamada nova
+  // 🚧 bloqueios: os comentários já lidos bastam, salvo quando o Jira paginou o campo `comment` (total > lidos) — aí lê o histórico inteiro
+  try {
+    const totC = (f.comment && Number(f.comment.total)) || comAll.length;
+    if (totC > comAll.length) { const c = await bqComentarios(d.key); payload.bloqueios = bqEstado(c.lista).bloqueios; if (c.truncado) payload.bloqTruncado = true; }
+    else payload.bloqueios = bqEstado(comAll).bloqueios;
+  } catch (e) { payload.bloqueios = []; payload.bloqErro = true; }
   return json(res, 200, cacheSetTTL(ck, payload, 3));
 }
 
