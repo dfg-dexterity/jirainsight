@@ -809,35 +809,32 @@ export async function bqEscalaRoda({ cfg, hoje, dry = false, deps = {}, painel }
   const notifica = D.notifica || notificaPessoas;
   // Por chave (ticket#bloqueio), quem efetivamente recebeu: só o que chegou a ALGUÉM fica marcado no dedupe —
   // aviso que não saiu por nenhum canal volta a ser tentado (no próximo tique quando houver canal; senão, no próximo dia).
-  const entregue = { lemb: new Set(), esc: new Set() }; const tentado = { lemb: new Set(), esc: new Set() };
+  const entregue = { lemb: new Set(), esc: new Set() }; const tentado = { lemb: new Set(), esc: new Set() }; const faltou = { lemb: new Set(), esc: new Set() };
   let algumCanal = false; let transitoria = false;
   const envia = async (grupos, tipo) => {
     if (!grupos.length) return;
-    const porId = new Map(grupos.map((g) => [g.para.accountId, g]));
-    grupos.forEach((g) => g.itens.forEach((x) => tentado[tipo].add(`${x.k}#${x.id}`)));
-    let res = null;
-    try {
-      res = await notifica(grupos.map((g) => g.para), (p) => msgEscala(porId.get(p.accountId), tipo, base).teams(),
-        { tipo: 'bloqueios', push: (p) => msgEscala(porId.get(p.accountId), tipo, base).push() });
-    } catch (e) { out.falhas += 1; transitoria = true; return; }
-    const t = res && res.teams; const ps = res && res.push;
-    if (t && Array.isArray(t.falhas)) out.falhas += t.falhas.length;
-    if (ps && ps.falhas) out.falhas += ps.falhas;
-    const tOk = !!(t && Number(t.enviados) > 0); const pOk = !!(ps && Number(ps.enviados) > 0);
-    if (!tOk && !pOk) { if (!t || t.erro || (Array.isArray(t.falhas) && t.falhas.length) || (ps && ps.falhas)) transitoria = true; else out.semCanal = true; return; }
-    algumCanal = true;
-    const falhou = new Set(t && Array.isArray(t.falhasIds) ? t.falhasIds.map(String) : []);
-    grupos.forEach((g) => {
-      const recebeu = !falhou.has(String(g.para.accountId)) || pOk;
-      if (recebeu) g.itens.forEach((x) => entregue[tipo].add(`${x.k}#${x.id}`)); else transitoria = true;
-    });
+    // UMA chamada por destinatário: o resultado do push vem só somado (enviados), então é assim que se sabe QUEM recebeu
+    await Promise.all(grupos.map(async (g) => {
+      g.itens.forEach((x) => tentado[tipo].add(`${x.k}#${x.id}`));
+      let res = null;
+      try {
+        res = await notifica([g.para], () => msgEscala(g, tipo, base).teams(), { tipo: 'bloqueios', push: () => msgEscala(g, tipo, base).push() });
+      } catch (e) { out.falhas += 1; transitoria = true; g.itens.forEach((x) => faltou[tipo].add(`${x.k}#${x.id}`)); return; }
+      const t = res && res.teams; const ps = res && res.push;
+      if (t && Array.isArray(t.falhas)) out.falhas += t.falhas.length;
+      if (ps && ps.falhas) out.falhas += ps.falhas;
+      const tOk = !!(t && Number(t.enviados) > 0); const pOk = !!(ps && Number(ps.enviados) > 0);
+      if (tOk || pOk) { algumCanal = true; g.itens.forEach((x) => entregue[tipo].add(`${x.k}#${x.id}`)); return; }
+      g.itens.forEach((x) => faltou[tipo].add(`${x.k}#${x.id}`));
+      if (!t || t.erro || (Array.isArray(t.falhas) && t.falhas.length) || (ps && ps.falhas)) transitoria = true; else out.semCanal = true;
+    }));
   };
   await envia(r.lembretes, 'lemb'); await envia(r.escalas, 'esc');
   const novo = r.novoEstado;
   const antes = (linha && linha.data) || {};
   ['lemb', 'esc'].forEach((tipo) => {
     tentado[tipo].forEach((ch) => {
-      if (entregue[tipo].has(ch)) return;
+      if (entregue[tipo].has(ch) && !faltou[tipo].has(ch)) return;   // alguém sem aviso = a chave volta a valer (quem recebeu pode receber de novo — melhor que perder)
       const velho = (antes[tipo] || {})[ch];
       if (velho) novo[tipo][ch] = velho; else delete novo[tipo][ch];
     });
