@@ -2,6 +2,37 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🎫 Roadmap do app → Jira, manutenção automática (2026-11-18, a pedido do usuário: "Sincronize o roadmap do Notion com o Jira, crie e
+  mantenha sincronizado os dois; se não formos criar determinada funcionalidade do roadmap nós cancelamos no Jira"):** decisões do usuário —
+  um **ÉPICO por área do app**, uma **HISTÓRIA por item do roadmap** (resumo `R### <título>`, rótulos `dexterity-hub`, `roadmap`,
+  `roadmap-R###`), **SUBTAREFAS** com a construção; **cancelado = Feito + resolução "Won't Do"** (ou "Não será feito") **+ rótulo `cancelado`**
+  (o fluxo do JI não tem status Cancelado — há um [Manual step] para criá-lo). A carga inicial (épicos JI-303..JI-310, uma História por item)
+  foi feita pelo MCP; esta entrega é a **manutenção**. (1) **Lib `api/_lib/roadmapJira.js`** = fonte ÚNICA (formato e regras no cabeçalho; deps
+  trocáveis em `RJ_DEPS`, como `DISC_DEPS`): `rjPlano` (PURA: itens × histórias lidas → ações `criar` · `transicao` · `rotulo` · `resumo` · `desc` ·
+  `entregue` · `cancelar` · `reabrir` + `avisos`), `rjLeHistorias` (JQL `project = JI AND labels = roadmap AND labels = dexterity-hub AND issuetype =
+  "História"`, paginada; **lança se a leitura vier cortada** — agir sobre lista parcial duplicaria e cancelaria à toa), `rjAplica` (em série, pausa
+  curta, orçamento de 45 s — o que sobra fica para a próxima rodada —, erro num item não para os outros, devolve só contagens + ids `R###`),
+  `rjSincroniza` e o parser `literalDe`/`leRoadmapApp` (o `roadmap-notion.mjs` passou a importá-lo — sem regra duplicada). Regras do plano: item
+  sem história → `criar` no épico padrão **JI-307** com rótulo `sem-area`; `fazendo` + A fazer → transição 21; `planejado`/`avaliacao` com a
+  história já em andamento **não rebaixa** (só aviso); `avaliacao` ↔ rótulo `em-avaliacao`; título mudou → resumo (corte de 250, aparado);
+  descrição mudou → reescreve **só o trecho acima da linha `---`** (a comparação é por hash do texto só com letras e dígitos: a conversão
+  markdown→ADF do Jira troca pontuação e numeração, e comparar o texto cru reescreveria a cada rodada); saiu do array e está **em andamento** =
+  `entregue` (transição 41 + comentário "Saiu do roadmap do app ao ser entregue — confira a entrega"); saiu e está **A fazer** = `cancelar`
+  (rótulo `cancelado` **primeiro**, depois transição 41, resolução, comentário); **Feito nunca é tocado** (nem reaberto), exceto a com rótulo
+  `cancelado` que **voltou ao array** → `reabrir` (transição 11, tira o rótulo, comentário); nunca apaga nada e nunca mexe em épico, responsável,
+  subtarefas ou worklogs. (2) **Rota** `POST /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1][&forcar=1]` com `{itens:[{id,s,t,d}]}` (até 400;
+  id `^R\d{3,4}$`, s ∈ fazendo|planejado|avaliacao, t ≤ 300, d ≤ 4000): **exige `CRON_SECRET`** (503 sem a env, 401 no gate comum), só POST,
+  sem `dry` exige `confirmar=1`, **não entra no `?cron=1`**; resposta `{ok, dry, contagens:{criar,transicao,rotulo,resumo,desc,entregue,cancelar,
+  reabrir,erros}, ids, avisos}` — nunca título nem descrição; 502 se algum item falhou; **freio**: entregue + cancelar acima de 15 **e** de 20% das
+  histórias = 409 (payload suspeito: array truncado cancelaria o roadmap) — `forcar=1` libera. Sem função serverless nova (12). (3) **CI:** job
+  `jira` no `.github/workflows/roadmap-notion.yml` (independente do Notion; `scripts/roadmap-jira-payload.mjs` imprime o corpo; `BASE` sai do secret
+  `TEAMS_CRON_URL` ou `https://jirainsight.vercel.app`; sem `CRON_SECRET` só avisa; no disparo manual `dry=1`; o log mostra só as contagens).
+  (4) **Teste** (fora do repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 23 casos): `rjPlano` (todos os casos,
+  inclusive não rebaixa, Feito intocável, reabrir, só o trecho acima do `---`, corte de 250) e o handler REAL do `api/teams.js` contra um Jira falso
+  por HTTP (401/503/405/400, dry não escreve, confirmar escreve, erro em um item não para os outros, idempotência, resolução com fallback, freio,
+  resposta sem textos). **[Manual step]:** criar o secret `CRON_SECRET` no repositório do GitHub (o mesmo da Vercel) e o status **Cancelado** no
+  fluxo do JI (aí o cancelar passa a usá-lo). Desdobramentos no roadmap: R240 (status Cancelado), R241 (chave JI no card do 🗺️), R242 (área
+  automática), R243 (aviso no Teams do que o sync fechou), R244 (esforço estimado × horas por História).
 - **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
   fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
   com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**
@@ -1241,6 +1272,12 @@ schemas via `ToolSearch` quando necessário.
 > **NÃO recopiar essas horas** — a transferência está completa; as horas do TAD-829
 > são duplicatas históricas (a API não move nem apaga worklogs; limpeza só pela UI).
 
+> **Mudança de 2026-11-18 (a pedido do usuário):** a entrega de **item do roadmap** NÃO cria mais Tarefa solta sob JI-7..JI-13: usa a **História
+> `R###`** do item (`labels = roadmap-R###`) — as **SUBTAREFAS** da construção e o **worklog** vão nela — e, ao entregar, marca a História como Feito.
+> Entrega **fora do roadmap** (correção, ajuste pedido na hora) → **Tarefa sob o épico da área** (JI-303 Hub · JI-304 Entrega · JI-305 Negócio ·
+> JI-306 Insights · JI-307 Plataforma · JI-308 Teams e bot · JI-309 Mac e detector · JI-310 Portal do cliente). O **[Manual step]** segue igual, no
+> mesmo épico.
+
 A cada **entrega/commit** desta ferramenta:
 
 1. **Criar uma TAREFA no projeto `JI`** (tipo "Tarefa" — id `11112`; em 2026-08-28 o
@@ -1377,7 +1414,7 @@ push na main, `.github/workflows/check.yml`, com `fetch-depth: 0`):
 Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
 de itens — quem lê sabe se está olhando algo atual.
 
-## 🗂 Roadmap no Notion — MANTER SINCRONIZADO (acordo de 2026-10-21, a pedido do usuário)
+## 🗂 Roadmap no Notion e no Jira — MANTER SINCRONIZADO (acordo de 2026-10-21 no Notion; 2026-11-18 no Jira, a pedido do usuário)
 
 > Pedido literal: *"crie uma página vinculada a essa igual às demais do Notion; nessa página crie uma base
 > de dados do Notion com o Roadmap, com mais campos — categoria da melhoria, esforço em tokens estimado,
@@ -1409,5 +1446,21 @@ de itens — quem lê sabe se está olhando algo atual.
   ambiente: o script é testado contra um Notion falso (`roadmap-notion-test.mjs` no scratchpad; o servidor falso vive
   no mesmo processo, por isso o script roda com `execFile` assíncrono — `execFileSync` bloqueia o laço e o filho
   nunca recebe resposta).
+- **No Jira (desde 2026-11-18):** cada item do roadmap tem uma **História** no projeto `JI` (tipo "História", id 11113), com os rótulos
+  `dexterity-hub`, `roadmap` e **`roadmap-R###`** (a chave que liga o item à História), sob o **épico da sua área**: Hub (pessoa) JI-303 ·
+  Entrega (gestão) JI-304 · Negócio JI-305 · Insights JI-306 · Plataforma JI-307 · Teams e bot JI-308 · Mac e detector JI-309 · Portal do cliente
+  JI-310. Transições do JI: 11 A fazer · 21 Fazendo · 31 Em análise · 41 Feito.
+- **Quem manda em quê (as três pontas):** o **app** manda em título (resumo `R### <título>`), descrição **acima da linha `---`** e estágio; o
+  **Notion** manda nas dimensões de planejamento; o **Jira** manda no épico certo, nas subtarefas, nas horas e no status Feito da entrega. Tudo da
+  linha `---` para baixo na descrição da História é do Notion/da entrega e a sincronização nunca toca.
+- **Regra de cancelamento:** se não vamos criar a funcionalidade, ela **sai do array `ROADMAP`** e o Jira acompanha: História A fazer → **cancelada**
+  (Feito + resolução "Won't Do"/"Não será feito" + rótulo `cancelado` + comentário); em andamento → tratada como **entregue** (Feito + comentário "confira
+  a entrega"); Feito nunca muda. Se o item **voltar** ao array, a História cancelada é **reaberta**. No Notion a linha vira "Fora do roadmap" como antes.
+- **Rota** `POST /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1]` (`CRON_SECRET`), chamada pelo job `jira` da CI a cada push na main que
+  mexa no 05 — detalhes e regras do plano em `api/_lib/roadmapJira.js` e no primeiro bullet deste arquivo.
+- **O que a entrega faz pelo MCP** (a CI só mantém título/descrição/estágio): (a) **classifica** a História nova (rótulo `sem-area`, no JI-307) no
+  **épico da área** e preenche a **parte de baixo da descrição** (a linha `---` com categoria, onda, tamanho, impacto, áreas, telas, Notion);
+  (b) cria as **SUBTAREFAS da construção** (tipo "Subtarefa", id 10010) sob a História do item e aponta as horas nelas/na História; (c) marca a
+  História como **Feito** e grava `Ticket Jira` + `Entregue em` no Notion.
 - **Para o time:** a tela 🗺️ Roadmap do app mostra o id de cada item e linka a base (`[data-rm-notion]`); mudar o
   estágio de um item é mudança no app (pedir na entrega ou pelo 🐞 Reportar), não no Notion.

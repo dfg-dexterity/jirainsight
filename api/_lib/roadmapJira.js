@@ -104,7 +104,8 @@ export function rjValidaCorpo(corpo) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Funções puras
 // ---------------------------------------------------------------------------------------------------------------------------------
-export const rjResumoDe = (it) => `${it.id} ${String(it.t).replace(/\s+/g, ' ').trim()}`.slice(0, RJ_RESUMO_MAX);
+// O corte pode deixar um espaço no fim; o Jira o apara, então aparamos também (senão o resumo "mudaria" a cada rodada).
+export const rjResumoDe = (it) => `${it.id} ${String(it.t).replace(/\s+/g, ' ').trim()}`.slice(0, RJ_RESUMO_MAX).trim();
 const soConteudo = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 export const rjHashDesc = (texto) => crypto.createHash('sha1').update(soConteudo(texto)).digest('hex').slice(0, 12);
 
