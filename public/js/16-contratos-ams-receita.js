@@ -978,7 +978,7 @@ function renderAMS(){
   const contratos=(cfg.contratos||[]);
   const hoje=hojeSP();
   // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
-  const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
+  const amsList=contratos.filter(c=>c&&c.tipo==='ams' && (c.projetos||[]).length);
   const cSel=amsContratoSel(amsList);
   if(cSel && (estado.ams.sel||'')!==cSel.id) estado.ams.sel=cSel.id;   // fixa a seleção efetiva
   const refSel=amsRefSel();

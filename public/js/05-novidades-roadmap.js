@@ -13,7 +13,7 @@
 //   • scripts/check-roadmap-commits.mjs — o commit que mexe no app sem mudar ROADMAP nem ROADMAP_REV;
 //   • scripts/check-entrega.mjs — ROADMAP_REV para trás da última entrada de NOVIDADES.
 // É a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-11-18.4';   // 📇 R183 (Ficha do cliente): tela, navegação, chip na espinha e CSS (T2) · antes: // 📇 R183 (Ficha do cliente) passa a fazendo: leitores clf* em 16h (T1) · antes: // 🔀 o nome do cliente também segue a versão do colega · antes:   // 🔀 revisão do PR #231: campo não mexido do formulário do contrato segue a versão do colega · antes:   // 📑 novos R214–R217 (contratos: consumo de bolsa/pr
+const ROADMAP_REV='2026-11-18.5';   // 🛠 Contratos: a tela 🛠️ AMS não quebra com um registro nulo em cfg.contratos (descoberto no teste da ficha) · antes: // 📇 R183 (Ficha do cliente): tela, navegação, chip na espinha e CSS (T2) · antes: // 📇 R183 (Ficha do cliente) passa a fazendo: leitores clf* em 16h (T1) · antes: // 🔀 o nome do cliente também segue a versão do colega · antes:   // 🔀 revisão do PR #231: campo não mexido do formulário do contrato segue
 // Cada item tem um `id` ESTÁVEL (R###): é a chave que liga este array à base "Roadmap da solução" no Notion
 // (processo TI-14-024, scripts/roadmap-notion.mjs). Item novo = próximo número livre; o id nunca muda nem é
 // reaproveitado, mesmo que o título seja reescrito — scripts/check-entrega.mjs reprova id ausente ou repetido.
