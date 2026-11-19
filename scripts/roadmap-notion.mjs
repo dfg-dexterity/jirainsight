@@ -25,6 +25,7 @@
 // Roda na CI a cada push na main que mexa no 05 (.github/workflows/roadmap-notion.yml) e, sem os secrets,
 // a CI só avisa: a sincronização fica por conta da entrega (MCP), como o CLAUDE.md descreve.
 import { readFileSync } from 'node:fs';
+import { literalDe } from '../api/_lib/roadmapJira.js';
 
 const ARQ = process.env.ROADMAP_ARQ || 'public/js/05-novidades-roadmap.js';
 const DRY = process.argv.includes('--dry');
@@ -45,24 +46,7 @@ const FORA = 'Fora do roadmap';
 const ENTREGUE = 'Entregue';
 const RICH_MAX = 2000;   // limite do Notion por objeto de rich_text
 
-// ---- leitura do ROADMAP (o mesmo parser do gate de entrega: o array é literal, sem interpolação) ----
-function literalDe(nome, src) {
-  const i = src.indexOf(`const ${nome}=`);
-  if (i < 0) return null;
-  let p = i + `const ${nome}=`.length;
-  const ini = p;
-  let prof = 0; let aspa = ''; let escapa = false;
-  for (; p < src.length; p += 1) {
-    const c = src[p];
-    if (escapa) { escapa = false; continue; }
-    if (aspa) { if (c === '\\') escapa = true; else if (c === aspa) aspa = ''; continue; }
-    if (c === "'" || c === '"' || c === '`') { aspa = c; continue; }
-    if (c === '[' || c === '{' || c === '(') prof += 1;
-    else if (c === ']' || c === '}' || c === ')') prof -= 1;
-    else if (c === ';' && prof === 0) break;
-  }
-  return new Function(`return (${src.slice(ini, p).trim()})`)();
-}
+// ---- leitura do ROADMAP: o parser literal mora em api/_lib/roadmapJira.js (fonte única, também usada pelo sync com o Jira) ----
 export function leRoadmap(src) {
   const arr = literalDe('ROADMAP', src);
   if (!Array.isArray(arr) || !arr.length) throw new Error(`ROADMAP não encontrado em ${ARQ}`);

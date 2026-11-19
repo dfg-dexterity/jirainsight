@@ -12,6 +12,10 @@ name: Roadmap → Notion
 #   · NOTION_TOKEN       → integração interna do Notion com acesso à base (Settings › Connections › Develop)
 #   · NOTION_ROADMAP_DB  → id da base "Roadmap da solução"
 # Sem eles o job só avisa e termina verde: a sincronização fica por conta da entrega (MCP do Notion).
+#
+# Segundo job (`jira`, independente do Notion — roda mesmo sem NOTION_TOKEN): manutenção das Histórias do roadmap no Jira (projeto JI),
+# pelo POST /api/teams?tipo=roadmap-jira (regras em api/_lib/roadmapJira.js). Secrets: CRON_SECRET (o mesmo da Vercel) e, opcional,
+# TEAMS_CRON_URL (dela se tira só o endereço do site; sem ela vale https://jirainsight.vercel.app). Sem CRON_SECRET só avisa e termina verde.
 
 on:
   push:
@@ -51,3 +55,33 @@ jobs:
           ARGS=()
           if [ "${DRY:-0}" = "1" ]; then ARGS+=(--dry); fi
           node scripts/roadmap-notion.mjs "${ARGS[@]}"
+
+  jira:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Manter as Histórias do roadmap no Jira (JI)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TEAMS_CRON_URL: ${{ secrets.TEAMS_CRON_URL }}
+          DRY: ${{ github.event.inputs.dry }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::notice::CRON_SECRET não configurado — as Histórias do roadmap no Jira seguem atualizadas pela entrega (MCP). Para ligar a sincronização automática, crie o secret CRON_SECRET (o mesmo da Vercel)."
+            exit 0
+          fi
+          BASE="$(node -e 'try{process.stdout.write(new URL(process.env.TEAMS_CRON_URL).origin)}catch(e){}')"
+          BASE="${BASE:-https://jirainsight.vercel.app}"
+          node scripts/roadmap-jira-payload.mjs > itens.json
+          SUF="&confirmar=1"
+          if [ "${DRY:-0}" = "1" ]; then SUF="&dry=1"; fi
+          CODIGO="$(curl -sS -o resposta.json -w '%{http_code}' -X POST "$BASE/api/teams?tipo=roadmap-jira$SUF" \
+            -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data @itens.json || true)"
+          # Só contagens no log (a resposta não tem títulos nem descrições, mas nada além disso é impresso).
+          node -e 'try{const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));console.log(JSON.stringify({ok:j.ok,dry:j.dry,contagens:j.contagens,avisos:j.avisos,erro:j.erro}))}catch(e){console.log("resposta ilegível")}'
+          echo "HTTP $CODIGO"
+          case "$CODIGO" in 2*) ;; *) exit 1 ;; esac
