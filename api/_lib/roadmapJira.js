@@ -232,7 +232,9 @@ const descCriar = (item) => adfDoc([
 const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
 // Retry-After não numérico (ou ausente) = 1 s; teto de 5 s.
 export const rjEsperaRetry = (v) => { const n = (v === null || v === undefined || String(v).trim() === '') ? NaN : Number(v); return (Number.isFinite(n) && n >= 0 ? Math.min(5, n) : 1) * 1000; };
-async function reqPadrao(metodo, caminho, corpo, tentativa = 0) {
+// `ate` = instante-limite (ms) da requisição da função: se esperar o Retry-After e refazer a chamada (espera + timeout) não cabe até lá, NÃO tenta de novo
+// e devolve `adiar:true` (a ação fica para a próxima rodada, com o motivo 429).
+async function reqPadrao(metodo, caminho, corpo, tentativa = 0, ate = 0) {
   let r;
   try {
     r = await fetch(`${jiraBase()}${caminho}`, {
@@ -242,7 +244,12 @@ async function reqPadrao(metodo, caminho, corpo, tentativa = 0) {
       signal: AbortSignal.timeout(RJ_DEPS.timeoutMs || RJ_TIMEOUT_MS),
     });
   } catch (e) { return { status: 0, json: null }; }   // tempo esgotado / rede: quem chama decide (erro do item)
-  if (r.status === 429 && tentativa < 2) { await dorme(rjEsperaRetry(r.headers.get('retry-after'))); return reqPadrao(metodo, caminho, corpo, tentativa + 1); }
+  if (r.status === 429 && tentativa < 2) {
+    const espera = rjEsperaRetry(r.headers.get('retry-after'));
+    if (ate && Date.now() + espera + (RJ_DEPS.timeoutMs || RJ_TIMEOUT_MS) > ate) return { status: 429, json: null, adiar: true };
+    await dorme(espera); return reqPadrao(metodo, caminho, corpo, tentativa + 1, ate);
+  }
+  if (r.status === 429) return { status: 429, json: null, adiar: !!ate };
   const txt = await r.text().catch(() => '');
   let j = null; try { j = txt ? JSON.parse(txt) : null; } catch (e) { j = null; }
   return { status: r.status, json: j };
@@ -261,18 +268,18 @@ async function buscaPadrao(jql, fields, props, req = reqPadrao) {
 }
 // Ganchos de teste: o que for posto aqui vence as dependências padrão.
 export const RJ_DEPS = {};
-const depsPadrao = () => {
-  const d = { req: reqPadrao, pausa: () => dorme(150), ...RJ_DEPS };
+const depsPadrao = (ate = 0) => {
+  const d = { req: (m, c, b) => reqPadrao(m, c, b, 0, ate), pausa: () => dorme(150), ...RJ_DEPS };
   return { busca: (jql, fields, props) => buscaPadrao(jql, fields, props, d.req), ...d };
 };
 const falhou = (r) => !r || r.status < 200 || r.status >= 300;
-class ErroJira extends Error { constructor(status) { super(`Jira HTTP ${status}`); this.status = status; } }
-const exige = (r) => { if (falhou(r)) throw new ErroJira(r ? r.status : 0); return r; };
+class ErroJira extends Error { constructor(status, adiar = false) { super(`Jira HTTP ${status}`); this.status = status; this.adiar = adiar; } }
+const exige = (r) => { if (falhou(r)) throw new ErroJira(r ? r.status : 0, !!(r && r.adiar)); return r; };
 
 export const RJ_JQL = `project = ${RJ_PROJETO} AND labels = roadmap AND labels = dexterity-hub AND issuetype = "História"`;
 // Lê as histórias do roadmap já no Jira. Lança se a leitura vier cortada (agir sobre uma lista parcial criaria duplicatas).
-export async function rjLeHistorias(deps) {
-  const d = { ...depsPadrao(), ...(deps || {}) };
+export async function rjLeHistorias(deps, t0 = 0) {
+  const d = { ...depsPadrao(t0 ? t0 + RJ_ORCAMENTO_MS : 0), ...(deps || {}) };
   const { issues, truncado } = await d.busca(RJ_JQL, ['summary', 'status', 'labels', 'description', 'updated'], [RJ_PROP]);
   if (truncado) throw new Error('Leitura das histórias cortada pelo limite de páginas — nada foi feito.');
   const out = [];
@@ -307,9 +314,9 @@ export async function rjLeHistorias(deps) {
 // Executa o plano em série (pausa curta entre as chamadas). Erro num item não para os outros. Devolve SÓ contagens + ids de roadmap
 // (nada de título nem de descrição). Com `dry` nada é escrito: as contagens são as do plano. `t0` = início da requisição (o orçamento conta dele).
 export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCAMENTO_MS, t0 = Date.now() } = {}) {
-  const d = { ...depsPadrao(), ...(deps || {}) };
+  const d = { ...depsPadrao(t0 + orcamentoMs), ...(deps || {}) };
   const feitas = []; const ids = {}; const erros = [];
-  const avisos = { semResolucao: 0, semLimparResolucao: 0, semComentario: 0, semTransicao: 0, semPropriedade: 0, jaExistia: 0, adiadas: 0 };
+  const avisos = { semResolucao: 0, semLimparResolucao: 0, semComentario: 0, semTransicao: 0, semPropriedade: 0, jaExistia: 0, adiadas: 0, motivo429: 0 };
   const criadas = {};
   const marca = (a) => { (ids[a.tipo] = ids[a.tipo] || []).push(a.id); };
   if (dry) { for (const a of acoes) { feitas.push(a); marca(a); } return { contagens: rjContagens(feitas, 0), ids, avisos }; }
@@ -384,6 +391,8 @@ export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCA
       }
       feitas.push(a); marca(a);
     } catch (e) {
+      // 429 sem tempo para esperar e refazer: não é falha do item — devolve esta ação e as seguintes para a próxima rodada (a CI repete)
+      if (e && e.status === 429 && e.adiar) { avisos.adiadas = acoes.length - i; avisos.motivo429 = 1; console.error(`roadmap-jira: 429 do Jira em ${a.tipo} ${a.id} — restante adiado`); break; }
       erros.push({ id: a.id, tipo: a.tipo, status: e && e.status ? e.status : 0 });
       console.error(`roadmap-jira: ${a.tipo} ${a.id} falhou (HTTP ${e && e.status ? e.status : '?'})`);
     }
@@ -395,7 +404,7 @@ export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCA
 
 // Orquestra: lê, planeja, protege (freios), aplica. `forcar` libera os freios de saídas e de edições em massa.
 export async function rjSincroniza(itens, { saidas = [], criadas = {}, dry = false, forcar = false, deps, t0 = Date.now() } = {}) {
-  const historias = await rjLeHistorias(deps);
+  const historias = await rjLeHistorias(deps, t0);
   const plano = rjPlano(itens, historias, saidas);
   const { avisos } = plano;
   // `criadas` {R###: JI-n} = o que a rodada anterior da CI acabou de criar (a busca pode ainda não mostrar): não cria de novo
