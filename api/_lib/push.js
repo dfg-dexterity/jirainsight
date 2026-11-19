@@ -1,19 +1,19 @@
 // 🔔 Inscrições de Web Push por pessoa (2026-11-09, camada iPad). UMA linha por pessoa em `jirainsight_config`, id `push_<accountId>`
 // (como as `sr_`/`dia_`/`semanal_`: NUNCA na cfg compartilhada — ela desce inteira para o navegador de todo o time, e o endpoint de push
 // é uma credencial de envio). Formato v1:
-//   { v:1, subs:[{ id, endpoint, keys:{p256dh,auth}, ua, em, ultimoOk, falhas }], prefs:{convites,reunioes,sexta,plano}, em }
+//   { v:1, subs:[{ id, endpoint, keys:{p256dh,auth}, ua, em, ultimoOk, falhas }], prefs:{convites,reunioes,sexta,plano,bloqueios}, em }
 // Conta de serviço = SUPABASE_URL + SUPABASE_ANON_KEY (o mesmo caminho das outras linhas). Gravação com trava otimista pelo updated_at.
 // O payload que viaja NUNCA leva R$, e-mail nem texto de comentário (a notificação aparece na tela bloqueada).
 import crypto from 'node:crypto';
 import { enviaPush, vapidDeEnv, vapidConfigurado, deB64u } from './webpush.js';
 
-export const PUSH_TIPOS = ['convites', 'reunioes', 'sexta', 'plano'];
+export const PUSH_TIPOS = ['convites', 'reunioes', 'sexta', 'plano', 'bloqueios'];
 export const PUSH_MAX_SUBS = 8;
 export const PUSH_FALHAS_MAX = 5;
 export const PUSH_TIMEOUT_MS = 4000;
 const TABELA = 'jirainsight_config';
 const RE_ACC = /^[A-Za-z0-9:_-]{1,80}$/;
-const PREFS_PADRAO = { convites: true, reunioes: true, sexta: true, plano: true };
+const PREFS_PADRAO = { convites: true, reunioes: true, sexta: true, plano: true, bloqueios: true };
 
 export const pushConfigurado = (env = process.env) => vapidConfigurado(env);
 export const pushChavePublica = (env = process.env) => vapidDeEnv(env).pub;

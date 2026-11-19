@@ -62,6 +62,7 @@ function renderVista(){
   if(estado.vista==='gestao') return renderGestao();
   if(estado.vista==='gp') return renderGp();
   if(estado.vista==='statusrep') return renderSr();
+  if(estado.vista==='bloqueios') return renderBloqueios();   // 🚧 pendências e bloqueios (20d, aba do 📥 Inbox)
   if(estado.vista==='alertas') return renderAlertas();
   if(estado.vista==='ams') return renderAMS();
   if(estado.vista==='receita') return renderReceita();
@@ -84,6 +85,7 @@ function abreModal(html){
   document.getElementById('modal').hidden=false;
 }
 function fechaModal(){ document.getElementById('modal').hidden=true; if(typeof srAoFecharModal==='function') srAoFecharModal();   // 📝 status report: zera o estado do modal
+  if(typeof bqAoFecharModal==='function') bqAoFecharModal();   // 🚧 bloqueios: idem
   if(estado.vista==='gestao'){ try{ renderGestao(); }catch(e){} } }
 
 // Troca de aba programática (mantém os botões e a URL em sincronia). Usada pelo
@@ -105,7 +107,7 @@ function fechaModal(){ document.getElementById('modal').hidden=true; if(typeof s
 const ABAS=[
   // 2026-10-21 (📆 Hoje — o planejamento do dia como ponto central): o meu dia e, para gestores, o dia do time.
   { id:'hoje',         rot:'📆 Hoje',                   abas:[ {v:'hoje',rot:'📆 Meu dia'}, {v:'hojetime',rot:'👥 Dia do time'} ] },
-  { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'} ] },
+  { id:'inbox',        rot:'📥 Inbox',                  abas:[ {v:'inbox',rot:'📥 Pendências'}, {v:'mencoes',rot:'💬 Menções'}, {v:'bloqueios',rot:'🚧 Bloqueios'} ] },
   { id:'apontar',      rot:'⏱ Apontar',                abas:[ {v:'apontar',rot:'⏱ Chamados'}, {v:'rateio',rot:'➗ Rateio (vários tickets)'}, {v:'meudia',rot:'📍 Sugestões do dia'} ] },
   // 2026-10-02 (a pedido do usuário: "o controle poluía a tela"): os eventos e o 🎫 Controle de tickets viraram abas.
   { id:'agenda',       rot:'📅 Agenda',                 abas:[ {v:'agenda',rot:'📅 Eventos (Outlook → ticket)'}, {v:'agcontrole',rot:'🎫 Controle de tickets'}, {v:'chamadas',rot:'📞 Ligações'} ] },
@@ -147,6 +149,7 @@ const ABAS_N={
   hoje:    { n:()=>(typeof hjPendentesN==='function')?hjPendentesN():null, tip:'item(ns) do seu dia ainda não feito(s)' },
   inbox:   { n:()=>(typeof inboxPend==='function'&&estado.inbox&&estado.inbox.carregou)?inboxPend():null, tip:'pendência(s) aguardando você (convites, menções, planos para aprovar)' },
   mencoes: { n:()=>(typeof mencoesPend==='function')?mencoesPend():null, tip:'menção(ões) sem resposta' },
+  bloqueios: { n:()=>(typeof bqParaMimN==='function')?bqParaMimN():null, tip:'bloqueio(s) esperando você destravar' },
   gestao:  { n:()=>(typeof gestaoVencidos==='function')?gestaoVencidos():null, tip:'ticket(s) vencido(s) entre os abertos' },
   gp:      { n:()=>(typeof gpPendN==='function')?gpPendN():null, tip:'ticket(s) vencido(s) ou parado(s) nos projetos em foco' },
   statusrep: { n:()=>(typeof srPendN==='function')?srPendN():null, tip:'item(ns) vencido(s) no status report do projeto em foco' },
@@ -269,6 +272,8 @@ const NAVCAT=[
   ['rateio','⏱ Apontar › ➗ Rateio de horas','hub','rateio ratear horas em varios tickets massa lote dividir horas percentual fatias slices apontamento varios tickets status conjunto meu trabalho novo'],
   ['meudia','⏱ Apontar › 📍 Sugestões do dia (Meu dia)','hub','timetracking dia atividade sugestoes ia meu trabalho meu dia'],
   ['mencoes','📥 Inbox › 💬 Menções','hub','comentarios marcado responder citacoes meu trabalho'],
+  ['bloqueios','📥 Inbox › 🚧 Pendências e bloqueios','hub','bloqueio bloqueado impedimento pendencia travado destravar desbloquear critico importante ciencia prazo escalar quem destrava flag sinalizado'],
+  ['acao:bloqueio','⛔ Registrar bloqueio num ticket…','hub','bloqueio impedimento registrar travado'],
   ['meutempo','⏳ Como estou gastando meu tempo?','hub','meu tempo ver como gasto meu tempo como estou gastando historico apontamentos analise ia hora do dia dia da semana tipo ticket projeto epico colaboracao comentarios qualidade dados rotina foco fragmentacao meu trabalho minha semana'],
   ['planejar','📝 Criar ticket › 📝 Criar (lote, IA, voz)','hub','criar tickets lote criacao de ticket linguagem natural voz novo planejamento botao verde'],
   ['ondecrio','📝 Criar ticket › 🌳 Passo 0 · Onde crio?','hub','arvore decisao projeto duvida novo planejamento onde crio o ticket descobrir em que projeto criar'],
@@ -399,6 +404,7 @@ function navAcao(a){
     case 'buscar': abreBuscaTickets(); return;
     case 'transferir': comId('transferir um ticket com todo o histórico', ()=>abreBuscaTickets('', (k)=>abreTransferir(k), '🔗 Transferir: escolha o ticket de origem')); return;
     case 'convidar': comId('convidar colegas a apontar num ticket', ()=>abreBuscaTickets('', (k,info)=>abreConvidarApontar(k, info), '📨 Convidar a apontar: escolha o ticket')); return;
+    case 'bloqueio': comId('registrar um bloqueio no Jira', ()=>abreBuscaTickets('', (k)=>abreBloqueio(k), '⛔ Registrar bloqueio: escolha o ticket')); return;
     case 'transformar': comId('transformar um chamado em atividade', ()=>abreTransformar('')); return;
     case 'meusproj': abreMeusTicketsProjeto(); return;
     case 'projficha': abreEscolheProjeto({ titulo:'🔎 Abrir a ficha de um projeto', sub:'escolha o projeto — abre 📁 Projetos já na ficha dele (a 🦴 espinha leva a Contrato, Parceria, Plano, Cronograma, Execução, Apuração e Resultado)', aoEscolher:(k)=>{ if(typeof projAbreFicha==='function') projAbreFicha(k); } }); return;

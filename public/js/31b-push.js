@@ -9,7 +9,8 @@ const PSH_DISP_KEY='jirainsight_push_dispensado_v1';
 const PSH_TIPOS=[['convites','🤝 Convites para apontar','alguém te convida a apontar horas num ticket'],
   ['reunioes','⏰ Reunião sem ticket','você organizou uma reunião e ninguém criou o ticket até o fim do dia'],
   ['sexta','🧭 Pendências de sexta','o resumo das pendências dos seus projetos (só para gerentes e gestores)'],
-  ['plano','📋 Plano da semana','seu plano foi aprovado ou devolvido']];
+  ['plano','📋 Plano da semana','seu plano foi aprovado ou devolvido'],
+  ['bloqueios','⛔ Bloqueios','um bloqueio depende de você, foi destravado ou passou do prazo']];
 const psh={ cfg:null, carregou:false, carregando:false, erro:'', sub:false, e:'', ocupado:'', msg:'', msgTipo:'', idk:'', badge:null };
 
 function pshSuporte(){

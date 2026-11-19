@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp','statusrep','portal','dash','dashfin','dashhoras','dashsaude','dashtime','dashdisc'];
+const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp','statusrep','bloqueios','portal','dash','dashfin','dashhoras','dashsaude','dashtime','dashdisc'];
 // 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
 // favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
 const VISTA_ALIAS={
@@ -52,6 +52,12 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   if(vURL==='minhasemana'&&/^\d{4}-\d{2}-\d{2}$/.test(p.get('w')||'')&&estado.minhasemana){ const mp=estado.minhasemana; mp.w=semChave(p.get('w')); mp.aba='plano'; }   // 📋 Meu Planejamento: a semana do link (aviso de aprovação/devolução no Teams ou no push)
+  if(vURL==='bloqueios'&&estado.bq){ const bq=estado.bq;   // 🚧 Bloqueios: bqe/bqp/bqn/bqv/bqk (nomes próprios, não disputam proj/cat)
+    if(p.get('bqe')==='time') bq.escopo='time';
+    if(/^[A-Za-z][A-Za-z0-9_]*$/.test(p.get('bqp')||'')) bq.fil.proj=p.get('bqp').toUpperCase();
+    if(['crit','imp','cien'].includes(p.get('bqn'))) bq.fil.nivel=p.get('bqn');
+    if(p.get('bqv')==='1') bq.fil.venc=true;
+    if(/^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(p.get('bqk')||'')) bq.foco=p.get('bqk').toUpperCase(); }
   if(estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: nomes próprios (kgran/kmeses/kcat/kproj) para não disputar o cat/proj globais
     if(['sem','mes'].includes(p.get('kgran'))) dh.gran=p.get('kgran');
     if([3,6,12].includes(+p.get('kmeses'))) dh.meses=+p.get('kmeses');
@@ -106,6 +112,8 @@ function estadoParaURL(){
   if(estado.vista==='cronograma' && estado.cronograma.proj) p.set('cproj',estado.cronograma.proj);
   if(estado.vista==='statusrep' && estado.sr && estado.sr.proj) p.set('srproj',estado.sr.proj);   // 📋 Status report: projeto
   if(estado.vista==='semanal' && estado.semanal && estado.semanal.sel) p.set('semana',estado.semanal.sel);
+  if(estado.vista==='bloqueios' && estado.bq){ const bq=estado.bq;   // 🚧 Bloqueios: só o que foge do padrão (bqk é lido e consumido, não regravado)
+    if(bq.escopo==='time') p.set('bqe','time'); if(bq.fil.proj) p.set('bqp',bq.fil.proj); if(bq.fil.nivel) p.set('bqn',bq.fil.nivel); if(bq.fil.venc) p.set('bqv','1'); }
   if(/^dash/.test(estado.vista) && estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: só o que foge do padrão vai para o link
     if(dh.gran!=='sem') p.set('kgran',dh.gran); if(dh.meses!==12) p.set('kmeses',String(dh.meses));
     if(dh.cat) p.set('kcat',dh.cat); if(dh.proj) p.set('kproj',dh.proj);
@@ -195,6 +203,7 @@ document.getElementById('seg-vista').addEventListener('click', (ev)=>{
   // Item de aba (solo ou dentro do menu).
   const b=ev.target.closest('[data-v]'); if(!b) return;
   let v=b.dataset.v;
+  if(b.dataset.bqEscopo&&estado.bq){ estado.bq.escopo=b.dataset.bqEscopo==='time'?'time':'meus'; estado.bq.foco=''; }   // 🚧 as duas entradas do menu (👤 meus · Entrega time)
   if(b.dataset.aud) estado.planrel.aud=b.dataset.aud;   // visões por audiência (menu Planejamento)
   else {
     // a entrada SEM audiência do 📊 planrel é a do time (Dexterity Insights desde 2026-11-02): a audiência "minha" que o 👤 › 📈 deixou

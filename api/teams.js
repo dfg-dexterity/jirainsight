@@ -36,6 +36,12 @@
 // discRetro; a resposta do cron traz SÓ contagens (nenhum nome). Manual: ?tipo=disciplina[&dia=AAAA-MM-DD][&dry=1][&confirmar=1][&forcar=1] (exige
 // CRON_SECRET; sem dry grava; não carimba o agendador; com dry=1 devolve a `foto` inteira — é a prévia de quem tem o segredo).
 //
+// 🚧 BLOQUEIOS (2026-11-19, issue #230): no cron a fase `bloqueios` roda 1× por dia útil (1º tique ≥ BQ_ESCALA_HORA, 09:00), depois do ⏰ alerta da agenda:
+// lembra quem destrava no dia do prazo e ESCALA ao gerente do projeto (cfg.projGerentes; sem ele, cfg.gestores) o bloqueio 🔴/🟡 com prazo vencido — uma
+// mensagem agregada por destinatário (Teams DM + push), reescala a cada 3 dias (máx. 3). Cursor teams_estado.ultimaEscalaBloq só com a leitura e o estado
+// gravados; a resposta do cron traz SÓ contagens (nenhuma chave de ticket, nome ou texto). Manual: ?tipo=bloqueios[&dry=1][&confirmar=1] (exige CRON_SECRET;
+// sem dry envia e grava `bloq_estado`; não carimba o agendador; com dry=1 devolve o `detalhe` — chaves e destinatários — para quem tem o segredo).
+//
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
 import crypto from 'node:crypto';
@@ -50,6 +56,7 @@ import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
 import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
 import { fotosKpi, kpisPendentes, leIdsKpi, KPI_HORA, KPI_MAX_TIQUE } from './_lib/kpi.js';
+import { bqEscalaRoda, BQ_ESCALA_HORA } from './_lib/bloqueios.js';
 import { discPublico, discAlvo, discEhUtil, fotoDisc, leIdsDisc, leDisc, discCompara, discDiaSP, discHoraSP, discPendentesRetro, DISC_RETRO_TIQUE, DISC_NOITE_ATE, DISC_MEDIA_DIAS } from './_lib/disciplina.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
@@ -1182,6 +1189,16 @@ export default async function handler(req, res) {
       return json(res, rD.ok ? 200 : 502, { dry, ...contaD, ...(dry && fotoD ? { foto: fotoD } : {}) });
     }
 
+    // ---- 🚧 Bloqueios, chamada manual: ?tipo=bloqueios[&dry=1][&confirmar=1] ----
+    // A mesma rodada da fase `bloqueios` do cron, na hora. Tem chaves de ticket e nomes: EXIGE o CRON_SECRET (503 sem a env). Sem dry=1 ENVIA os avisos e
+    // grava `bloq_estado` → exige &confirmar=1. NÃO carimba o agendador.
+    if (String(q.tipo || '') === 'bloqueios') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — a rodada de bloqueios tem chaves de ticket e nomes e só roda com o segredo do cron (defina a env na Vercel).' });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada ENVIA os avisos de bloqueio e grava bloq_estado — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      const rB = await bqEscalaRoda({ cfg: await configCompartilhada(), hoje: spDate(new Date()), dry, painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
+      return json(res, rB.ok ? 200 : 502, { dry, ...rB });
+    }
+
     // ---- 💵 Custo/h do Odoo, chamada manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] ----
     // A mesma sincronização do cron (fase `custos`) e do botão ↻ da Controladoria, na hora. Tem o custo/h por pessoa: EXIGE o
     // CRON_SECRET (503 sem a env). Sem dry=1 GRAVA cfg.custosPessoa/cfg.custosOdoo → exige &confirmar=1. NÃO carimba o agendador.
@@ -1351,6 +1368,23 @@ export default async function handler(req, res) {
             const { detalhe, ...conta } = r;
             out.agendaAlerta = { enviado: completo, desde, ate, ...conta };
           } catch (e) { out.agendaAlerta = { enviado: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
+        }
+      }
+      // 🚧 Bloqueios (2026-11-19): 1× por dia útil, no 1º tique ≥ BQ_ESCALA_HORA — lembretes do prazo e escalonamento ao gerente. Só CONTAGENS na resposta.
+      // O cursor só avança quando a leitura do Jira e a gravação do estado deram certo (falha → o próximo tique refaz; o estado evita mensagem repetida).
+      const gastoBq = Date.now() - t0;
+      if (semSupabase) out.bloqueios = { feito: false, motivo: 'Supabase não configurado (o estado do escalonamento mora nele)' };
+      else if (pesado || gastoBq > 30000) out.bloqueios = { feito: false, motivo: `adiado para o próximo tique (este já rodou ${pesado ? 'o resumo IA' : `${Math.round(gastoBq / 1000)} s`})` };
+      else {
+        const gb = gateHorario(BQ_ESCALA_HORA, agora, hoje, ult('ultimaEscalaBloq'));
+        if (!gb.pronto) out.bloqueios = { feito: false, motivo: gb.motivo, hora: BQ_ESCALA_HORA };
+        else {
+          try {
+            const rb = await bqEscalaRoda({ cfg, hoje, dry: false, painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
+            if (rb.ok) await gravaTeamsEstado({ ultimaEscalaBloq: hoje }, estado);
+            out.bloqueios = { feito: !!rb.ok, abertos: rb.abertos, vencidos: rb.vencidos, lembrados: rb.lembrados, escalados: rb.escalados, destinatarios: rb.destinatarios, falhas: rb.falhas,
+              ...(rb.semCanal ? { semCanal: true } : {}), ...(rb.ok ? {} : { erro: String(rb.erro || '').slice(0, 200) }) };
+          } catch (e) { out.bloqueios = { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
         }
       }
       // 📸 Fotos da Rentabilidade (2026-11-02): no 1º tique ≥ RENTAB_FOTO_HORA de cada dia útil, fotografa os dias que faltam até ONTEM (a partir do dia

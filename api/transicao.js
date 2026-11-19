@@ -12,9 +12,12 @@
 //       "Dexterity - AMS" / "Parceria - AMS" entra como NOTA INTERNA do JSM
 //       (propriedade sd.public.comment — invisível no portal do cliente)
 //     + interno:true -> o mesmo tratamento (📋 status report em projeto AMS, 2026-11-05)
+//   { bloqueio:{acao:'abrir'|'atualizar'|'resolver'|'reabrir', id, nivel, quem, prazo, texto, interno}, issue, email, token } -> 🚧 escreve UM evento de
+//     bloqueio (comentário marcado + label + flag + avisos); o formato e as regras moram em api/_lib/bloqueios.js
 //   { atribuir:true, issue, accountId, email, token } -> transfere o responsável (accountId vazio/null = sem responsável)
 //   { excluir:true, issue, email, token }             -> EXCLUI o ticket (irreversível; permissão "Excluir itens")
 import { jiraBase, cacheClear, cacheGet, cacheSetTTL, json } from './_lib/util.js';
+import { bqEscreve } from './_lib/bloqueios.js';
 
 // Categorias de projeto cujo comentário de REPROGRAMAÇÃO vira nota interna do JSM.
 const RE_CAT_NOTA_INTERNA = /(dexterity|parceria)\s*[-–—]\s*ams/i;
@@ -32,6 +35,23 @@ function adf(texto) {
       content: l ? [{ type: 'text', text: l }] : [],
     })),
   };
+}
+
+// Projeto AMS (Dexterity - AMS / Parceria - AMS)? Resolve (e cacheia) a categoria pela chave do ticket; só guarda em sucesso: uma falha do Jira
+// não pode virar "sem categoria" por 10 h (o comentário sairia público no portal). Usada pelo `comentar` e pelo 🚧 bloqueio.
+async function ehNotaInterna(issue, headers, base) {
+  const projKey = issue.split('-')[0];
+  const ckCat = `catproj:${projKey}`;
+  let cat = cacheGet(ckCat);
+  if (cat == null) {
+    const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projKey)}`, { headers });
+    if (rp.ok) {
+      const jp = await rp.json().catch(() => ({}));
+      cat = (jp.projectCategory && jp.projectCategory.name) || '';
+      cacheSetTTL(ckCat, cat, 600);
+    } else cat = '';
+  }
+  return RE_CAT_NOTA_INTERNA.test(cat);
 }
 
 function lerBody(req) {
@@ -199,6 +219,19 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true, issue, duedate });
     }
 
+    // ---- Modo bloqueio (🚧, 2026-11-19): um evento de bloqueio (abrir/atualizar/resolver/reabrir) no ticket ----
+    // Monta o comentário marcado, reconcilia a label `bloqueio-aberto` e o flag de impedimento e avisa quem precisa agir (Teams DM + push).
+    // Cada função da Vercel tem o seu cache: o do /api/vencimentos NÃO é limpo daqui — a tela relê com nocache=1.
+    if (b.bloqueio && typeof b.bloqueio === 'object') {
+      const { acao, ...dados } = b.bloqueio;
+      const r = await bqEscreve({ issue, acao, dados, headers, base, ehInterno: () => ehNotaInterna(issue, headers, base),
+        painel: `https://${(req.headers && req.headers.host) || 'jirainsight.vercel.app'}` });
+      cacheClear('venc:');
+      cacheClear('atividade:');
+      const { http, ...corpo } = r;
+      return json(res, http || 200, corpo);
+    }
+
     // ---- Modo comentar: adiciona um comentário ao chamado ----
     if (b.comentar) {
       const texto = String(b.texto || '').trim();
@@ -222,20 +255,7 @@ export default async function handler(req, res) {
       // entra como NOTA INTERNA do JSM. A categoria do projeto é resolvida (e cacheada)
       // pela chave do ticket; em projetos que não são JSM a propriedade é inócua.
       let interno = false;
-      if (b.reprogramacao || b.interno) {
-        const projKey = issue.split('-')[0];
-        const ckCat = `catproj:${projKey}`;
-        let cat = cacheGet(ckCat);
-        if (cat == null) {
-          const rp = await fetch(`${base}/rest/api/3/project/${encodeURIComponent(projKey)}`, { headers });
-          if (rp.ok) {   // só guarda em sucesso: uma falha do Jira não pode virar "sem categoria" por 10 h (comentário sairia público no portal)
-            const jp = await rp.json().catch(() => ({}));
-            cat = (jp.projectCategory && jp.projectCategory.name) || '';
-            cacheSetTTL(ckCat, cat, 600);
-          } else cat = '';
-        }
-        interno = RE_CAT_NOTA_INTERNA.test(cat);
-      }
+      if (b.reprogramacao || b.interno) interno = await ehNotaInterna(issue, headers, base);
       const payload = { body: corpo };
       if (interno) payload.properties = [{ key: 'sd.public.comment', value: { internal: true } }];
       const r = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}/comment`, {

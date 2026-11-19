@@ -18,7 +18,8 @@ const SR_SO_GESTORES=false;                   // espelho da constante do servido
 // Tipos fixos: são o "semáforo" do item e o que a tela reconhece no marcador do comentário.
 const SR_TIPOS={ concluido:{ic:'✅',rot:'Concluído',cor:'good'}, andamento:{ic:'▶️',rot:'Em andamento',cor:''},
   aguardando:{ic:'⏳',rot:'Aguardando cliente',cor:'warn'}, bloqueado:{ic:'⛔',rot:'Bloqueado',cor:'bad'},
-  replanejado:{ic:'📅',rot:'Nova data prevista',cor:'warn'}, bug:{ic:'🐞',rot:'Bug',cor:''} };
+  replanejado:{ic:'📅',rot:'Nova data prevista',cor:'warn'}, bug:{ic:'🐞',rot:'Bug',cor:''},
+  noprazo:{ic:'🟢',rot:'No prazo, sem risco',cor:'good'} };   // 👍 No prazo (2026-11-19): marca de um clique na linha
 const SR_CAMPOS={ proximo:{rot:'Próximo passo',tipo:'text'}, data:{rot:'Data',tipo:'date'}, prazo:{rot:'Prazo',tipo:'date'},
   quem:{rot:'Quem',tipo:'pessoa'}, motivo:{rot:'Motivo',tipo:'text'}, detalhe:{rot:'Detalhe',tipo:'text'}, impacto:{rot:'Impacto',tipo:'text'} };
 const SR_TPLS_PADRAO=[
@@ -30,6 +31,7 @@ const SR_TPLS_PADRAO=[
   { id:'t-bug-analise', tipo:'bug',         rot:'Bug — em análise',               texto:'Bug em análise: {detalhe}. Próximo passo: {proximo}.' },
   { id:'t-bug-corr',    tipo:'bug',         rot:'Bug — correção em andamento',    texto:'Correção em andamento: {detalhe}. Previsão de entrega: {data}.' },
   { id:'t-bug-valid',   tipo:'bug',         rot:'Bug — aguardando validação',     texto:'Correção entregue, aguardando validação de {quem} até {data}.' },
+  { id:'t-noprazo',     tipo:'noprazo',     rot:'No prazo, sem risco',            texto:'Planejado e sem risco: segue no prazo de {data}.' },
 ];
 const SR_SEMAFORO={ verde:{ic:'🟢',rot:'No rumo'}, amarelo:{ic:'🟡',rot:'Atenção'}, vermelho:{ic:'🔴',rot:'Crítico'} };
 // ---- 🧩 Tipos de item fora do relatório (2026-11-05, a pedido do usuário: "excluir alguns tipos de itens que não precisam
@@ -185,7 +187,13 @@ function srAcoesLinhaHTML(k){
   const K=escA(k);
   // Só `title` + `aria-label` (sem data-tip: os dois juntos mostravam dois tooltips no desktop).
   const bt=(attr,cls,ic,rot,tip)=>`<button class="gp-mini ${cls}" ${attr}="${K}" title="${escA(tip)}" aria-label="${escA(rot+' '+k)}">${ic} <span class="sr-rot">${esc(rot)}</span></button>`;
-  return bt('data-sr-at','sr-at','📝','Atualizar','Publica um status report no ticket: escolha o modelo, preencha e publique (comentário, nova data e status no mesmo passo)')
+  // 👍 No prazo: só para o que ainda não venceu (vencido não está "no prazo") e não foi marcado hoje.
+  const t=srItem(k); const hoje=hojeSP();
+  const okJa=!!(t&&t.sr&&t.sr.dia===hoje&&srTipoDe(t.sr.rot)==='noprazo');
+  const okVale=!!t&&!(t.venc&&t.venc<hoje)&&!okJa;
+  const ok=okVale?bt('data-sr-ok','sr-ok','👍','No prazo','Marca com um clique que o item está planejado, no prazo e sem risco: publica um status report curto no ticket ("🟢 No prazo, sem risco")')
+    :(okJa?`<span class="gp-mini sr-ok-feito" title="Marcado hoje como no prazo e sem risco" aria-label="${escA('Marcado hoje como no prazo: '+k)}">👍 <span class="sr-rot">Marcado</span></span>`:'');
+  return ok+bt('data-sr-at','sr-at','📝','Atualizar','Publica um status report no ticket: escolha o modelo, preencha e publique (comentário, nova data e status no mesmo passo)')
     +bt('data-sr-fim','sr-fim','✅','Concluir','Conclui o ticket no Jira, com um comentário de status report já pronto (você pode editar ou apagar)')
     +bt('data-sr-resp','sr-resp','👤','Transferir','Passa o ticket para outra pessoa, com um comentário que a marca (o Jira avisa)')
     +`<button class="gp-mini sr-mais-b" data-sr-mais="${K}" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações de ${escA(k)}" title="Mais ações: mudar status, apontar horas, comentar, reagendar">⋯</button>`;
@@ -207,7 +215,7 @@ function srLinhaHTML(t,c){
   const dup=srDiasDesde(c.hoje,t.up);
   if(dup!=null&&dup>=c.N) selos.push(`<span class="sr-sel" data-tip="Última movimentação no Jira (campo 'atualizado').">🕓 mexido há ${dup} d</span>`);
   return `<div class="sr-row" data-sr-k="${escA(t.k)}">
-    <div class="sr-c-k"><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a> <button class="gp-mini" data-gx-det="${escA(t.k)}" data-tip="Ficha completa do ticket (descrição, comentários, horas) sem abrir o Jira">🔍</button></div>
+    <div class="sr-c-k"><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>${typeof bqSeloHTML==='function'?' '+bqSeloHTML(t.k):''} <button class="gp-mini" data-gx-det="${escA(t.k)}" data-tip="Ficha completa do ticket (descrição, comentários, horas) sem abrir o Jira">🔍</button></div>
     <div class="sr-c-res" title="${escA(t.resumo||'')}">${t.bug?'<span class="sr-bug" data-tip="Tipo do ticket: '+escA(t.t||'bug')+'">🐞</span> ':''}${esc(t.resumo||'—')}${t.pai?` <span class="muted small" data-tip="Ticket pai">🧩 ${esc(t.pai)}</span>`:''}</div>
     <div class="sr-c-resp">${t.resp?esc(srPrimeiro(t.resp)):'<span class="muted">—</span>'}</div>
     <div class="sr-c-venc">${venc}</div>
@@ -667,6 +675,36 @@ async function srPublica(){
       <div class="alx-modal-acoes">${prox?`<button class="btn primario" data-sr-prox="${escA(prox.k)}">⏭ Próximo item (${esc(prox.k)})</button>`:''}<button class="btn" id="gx-fechar">Fechar</button></div>`);
   } else toast(`Status report publicado em ${k}.`,'ok');
 }
+// ---- 👍 No prazo, sem risco (2026-11-19, a pedido do usuário: "um botão para itens que estão todos ok e sem risco — só
+// marcar que está planejado e sem risco"): UM clique publica o status report curto do modelo de tipo `noprazo` (o
+// personalizado em cfg.srTemplates, se houver, senão o padrão), com {data} = vencimento; em projeto AMS sai como 🔒 nota
+// interna (a mesma regra do 📝). Sem modal; a linha e o selo "sem status report" mudam na hora (otimista).
+const _srOkEmVoo={};
+async function srOkRapido(k){
+  if(_srOkEmVoo[k]) return;
+  const id=idApontar();
+  if(!id){ abreIdentidade('marcar o item como no prazo no Jira',{ depois:()=>srOkRapido(k) }); return; }
+  const t=srItem(k); if(!t) return;
+  const hoje=hojeSP(); if(t.venc&&t.venc<hoje){ toast(`${k} já venceu — use 📝 Atualizar ou 📅 Reagendar.`,'warn'); return; }
+  const tpl=srTemplates().find(x=>x.tipo==='noprazo')||SR_TPLS_PADRAO.find(x=>x.tipo==='noprazo');
+  let txt=srMontaComentario(tpl,{ data:t.venc?dataBR(t.venc):'' });
+  txt=txt.replace(/\s*de \{data\}/,'').replace(/\{\w+\}/g,'').replace(/[ \t]+\./g,'.');
+  const ams=/ams/i.test((estado.sr.dados&&estado.sr.dados.meta&&estado.sr.dados.meta.categoria)||'');
+  _srOkEmVoo[k]=true;
+  const slot=document.querySelector(`[data-sr-ok="${CSS.escape(k)}"]`); if(slot) ocupado(slot,true);
+  let j=null;
+  try{ const r=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ comentar:true, texto:txt, ...(ams?{interno:true}:{}), issue:k, email:id.email, token:id.token })});
+    j=await r.json(); }catch(e){ j={ ok:false, erro:humanizaErro(e) }; }
+  delete _srOkEmVoo[k];
+  if(!j||!j.ok){ if(slot&&document.body.contains(slot)) ocupado(slot,false); toast(`Não consegui marcar ${k}: ${(j&&j.erro)||'o Jira recusou.'}`,'warn'); return; }
+  logAcao({ acao:'status-report', t:k, para:tpl.rot, motivo:'👍 no prazo, sem risco', ok:true },false);
+  salvaCfg();
+  const agora=new Date().toISOString();
+  srAplicaLocal(k,{ sr:{ rot:txt.split('\n')[0].slice(SR_MARCA.length).trim(), por:id.nome||id.email, porId:id.accountId||'', dia:hoje, quando:`${hoje} ${agora.slice(11,16)}`, texto:txt.split('\n').slice(2).join('\n').trim() } });
+  estado.sr.sujo=true; if(estado.gp) estado.gp.cache={}; invalidaCacheDados();
+  if(estado.vista==='statusrep') renderSr();
+  toast(`👍 ${k} marcado como no prazo, sem risco${(ams||j.interno)?' (🔒 nota interna)':''}.`,'ok');
+}
 // ---- ✅ Concluir · 👤 Transferir · ⋯ (status, apontar, comentar, reagendar): ações por item, no token da pessoa ----
 // Um modal só (srAcaoAbre/srAcaoExecuta) para os 5 modos; estado só do modal aberto em _srA (zerado em srAoFecharModal).
 // Ordem no Jira: concluir/status/reagendar = comentário e depois a mudança; transferir = troca de responsável e depois o comentário.
@@ -924,7 +962,7 @@ function srMaisAbre(btn){
   estado.sr.mais=k; btn.setAttribute('aria-expanded','true');
   const K=escA(k);
   const it=(a,txt)=>`<button type="button" role="menuitem" data-sr-acao="${a}" data-sr-k="${K}">${txt}</button>`;
-  btn.insertAdjacentHTML('afterend',`<div class="sr-mais" role="menu" aria-label="Mais ações de ${K}">${it('status','🔁 Mudar status')}${it('apontar','⏱ Apontar horas')}${it('comentar','💬 Comentar')}${it('reagendar','📅 Reagendar')}</div>`);
+  btn.insertAdjacentHTML('afterend',`<div class="sr-mais" role="menu" aria-label="Mais ações de ${K}">${it('status','🔁 Mudar status')}${it('apontar','⏱ Apontar horas')}${it('comentar','💬 Comentar')}${it('reagendar','📅 Reagendar')}${typeof bqAbre==='function'?it('bloqueio','⛔ Registrar bloqueio'):''}</div>`);
   const p=btn.nextElementSibling&&btn.nextElementSibling.querySelector('button'); if(p) p.focus();
 }
 function srMaisEscolhe(a,k){
@@ -933,6 +971,7 @@ function srMaisEscolhe(a,k){
     if(!idApontar()){ abreIdentidade('apontar horas no ticket',{ depois:()=>{ if(estado.vista==='statusrep') abreModalApontarGx(k); } }); return; }
     abreModalApontarGx(k); return;
   }
+  if(a==='bloqueio'){ if(typeof bqAbre==='function') bqAbre(k); return; }
   srAcaoAbre(k,a);
 }
 // ---- ⚙️ Modelos: editor dos modelos de comentário (gestor/admin) — grava cfg.srTemplates (T4) ----
@@ -1102,6 +1141,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
       srCarrega(false);   // com o projeto no cache da tela, a lista volta AGORA (sem fetch, sem continuação): procura já
       if(s.dados&&s.chave===pj){ renderSr(); srAchar(q); } else { s.acharRele=q; renderSr(); } } else renderSr(); return; }
   const at=cl('[data-sr-at]'); if(at){ srAbreAtualizar(at.getAttribute('data-sr-at')); return; }
+  const okb=cl('[data-sr-ok]'); if(okb){ srOkRapido(okb.getAttribute('data-sr-ok')); return; }
   const fm=cl('[data-sr-fim]'); if(fm){ srAcaoAbre(fm.getAttribute('data-sr-fim'),'concluir'); return; }
   const rs=cl('[data-sr-resp]'); if(rs){ srAcaoAbre(rs.getAttribute('data-sr-resp'),'transferir'); return; }
   const mb=cl('[data-sr-mais]'); if(mb){ srMaisAbre(mb); return; }

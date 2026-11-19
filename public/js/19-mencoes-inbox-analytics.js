@@ -237,7 +237,7 @@ function mencoesPend(){
 }
 function inboxPend(){
   const conv=(estado.apontar.convites||[]).length;
-  return conv+mencoesPend()+inboxAprovacoes().length+inboxAvisosAgenda().length+inboxAlertasAgenda().length+((estado.inbox.planos)||[]).length;
+  return conv+mencoesPend()+inboxAprovacoes().length+inboxAvisosAgenda().length+inboxAlertasAgenda().length+((estado.inbox.planos)||[]).length+((typeof bqInboxN==='function')?bqInboxN():0);
 }
 function pintaBadgeInbox(){
   const n=inboxPend();
@@ -270,6 +270,7 @@ function carregaInbox(forca){
   const pA=(typeof agTravaPost==='function')
     ? agTravaPost({agalertas:'ler'}).then(j=>{ ib.agAlertas=(j&&j.ok&&Array.isArray(j.avisos))?j.avisos:[]; }).catch(()=>{ ib.agAlertas=ib.agAlertas||[]; })
     : Promise.resolve();
+  if(typeof bqGarante==='function') try{ bqGarante(!!forca); }catch(e){}   // ⛔ bloqueios (20d): uma leitura em voo, redesenha sozinha
   Promise.all([pC,pM,pP,pA]).then(()=>{ ib.carregando=false; ib.carregou=true; pintaBadgeInbox();
     if(typeof pshBadge==='function') pshBadge(estado.vista==='inbox'?0:inboxPend());   // 🔔 selo do ícone do app instalado (zerado com o Inbox aberto)
     if(estado.vista==='inbox') renderInbox(); else agendaRenderAcoes(); });   // o card 💬 Aguardando sua resposta da Início lê as menções
@@ -296,7 +297,9 @@ function renderInbox(){
   const avsGp=avsTodos.filter(a=>a&&a.gp);      // 🧭 pendências de projeto — o gerente cobrou pela tela 🧭 (20b)
   const plns=(souAprovador()&&ib.planos)||[];
   const als=inboxAlertasAgenda();               // ⏰ reuniões que você organizou e ninguém criou o ticket até o fim do dia
-  const total=cvs.length+mens.length+aprs.length+avs.length+avsGp.length+als.length+plns.length;
+  const bqN=(typeof bqInboxN==='function')?bqInboxN():0;   // ⛔ bloqueios que dependem de você (+ vencidos dos seus projetos, se gerente)
+  const secBq=(typeof bqInboxHTML==='function')?bqInboxHTML():'';
+  const total=cvs.length+mens.length+aprs.length+avs.length+avsGp.length+als.length+plns.length+bqN;
 
   const kpis=`<div class="kpis ts-kpis">
     <div class="kpi ${total?'w':'t'}"><div class="v">${total}</div><div class="l">📥 Pendências aguardando você</div></div>
@@ -436,7 +439,7 @@ function renderInbox(){
     ${ib.erro?`<div class="aviso">Parte da caixa pode estar incompleta: ${esc(ib.erro)} <button class="btn" id="ib-retry">tentar de novo</button></div>`:''}
     ${kpis}
     ${total?'':'<div class="alx-vazio" style="margin-bottom:12px">🎉 Caixa limpa — nada aguardando você.</div>'}
-    ${secGp}${secAl}${secAg}
+    ${secBq}${secGp}${secAl}${secAg}
     ${secPl}
     ${secConv}
     ${secMen}

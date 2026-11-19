@@ -5,9 +5,13 @@
 // GET /api/vencimentos?statusrep=KEY[&excl=tipo,tipo][&nocache=1] -> 📋 status report do projeto (abertos até o domingo
 // da próxima semana + bugs abertos, com o último comentário e o último comentário com o marcador do status report;
 // `excl` = tipos de item que não entram no relatório).
+// GET /api/vencimentos?bloqueios=1[&resolvidos=1][&nocache=1] -> 🚧 tickets com bloqueio aberto (ou os desbloqueados nos últimos 30 dias): comentários marcados
+// + flag de impedimento + label `bloqueio-aberto` (formato e regras em api/_lib/bloqueios.js). Cache de 3 min; erro do Jira = 502 sem cache.
 import {
   cacheGet, cacheSetTTL, jiraSearchAll, jiraBase, jiraAuthHeader, json, configCompartilhada,
 } from './_lib/util.js';
+
+import { bqLista, bqEstado, bqComentarios } from './_lib/bloqueios.js';
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -442,6 +446,12 @@ async function detalheTicket(q, res) {
     comentarios, anexos,
     worklogs: { totalSeg, porPessoa, ultimos },
   };
+  // 🚧 bloqueios: os comentários já lidos bastam, salvo quando o Jira paginou o campo `comment` (total > lidos) — aí lê o histórico inteiro
+  try {
+    const totC = (f.comment && Number(f.comment.total)) || comAll.length;
+    if (totC > comAll.length) { const c = await bqComentarios(d.key); payload.bloqueios = bqEstado(c.lista).bloqueios; if (c.truncado) payload.bloqTruncado = true; }
+    else payload.bloqueios = bqEstado(comAll).bloqueios;
+  } catch (e) { payload.bloqueios = []; payload.bloqErro = true; }
   return json(res, 200, cacheSetTTL(ck, payload, 3));
 }
 
@@ -713,10 +723,25 @@ async function statusReport(q, res) {
   return json(res, 200, cacheSetTTL(ck, payload, 3));
 }
 
+// 🚧 GET ?bloqueios=1 — a lista de bloqueios (conta de serviço). A escrita é o POST /api/transicao {bloqueio}.
+async function bloqueiosRota(q, res) {
+  const resolvidos = q.resolvidos === '1';
+  const ck = `venc:bloq:${resolvidos ? 'r' : 'a'}`;
+  if (q.nocache !== '1') {
+    const cached = cacheGet(ck);
+    if (cached) return json(res, 200, cached);
+  }
+  let out;
+  try { out = await bqLista({ resolvidos }); }
+  catch (e) { return json(res, 502, { erro: `Não consegui ler os bloqueios no Jira: ${String(e && e.message ? e.message : e).slice(0, 200)}` }); }
+  return json(res, 200, cacheSetTTL(ck, out, 3));
+}
+
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
     if (q.statusrep) return await statusReport(q, res);
+    if (q.bloqueios === '1') return await bloqueiosRota(q, res);
     if (q.mencoes === '1') return await mencoesDe(q, res);
     if (q.reuniao === '1') return await baseReuniao(q, res);
     if (q.detalhe) return await detalheTicket(q, res);

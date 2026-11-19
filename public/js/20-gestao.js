@@ -406,7 +406,8 @@ function abreModalTicket(k, volta){
   const meu=()=>{ const m=document.getElementById('modal');
     return !!(_gxDet&&_gxDet.k===k&&document.getElementById('gx-det-carregando')&&m&&!m.hidden); };
   const volt=()=>(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:'';
-  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json()).then(j=>{
+  const bqSujo=!!(typeof estado!=='undefined'&&estado.bq&&estado.bq.sujoK&&estado.bq.sujoK[k]);
+  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}${bqSujo?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!meu()) return;
     if(j.erro){ abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">${esc(j.erro)}</div>
       <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
@@ -441,6 +442,7 @@ function renderModalTicket(d){
     <details ${(wl.porPessoa||[]).length?'open':''}><summary>⏱ Horas apontadas — ${fmtH(wl.totalSeg||0)}</summary>
       <div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap">${pessoas||'<span class="muted small">nenhum apontamento</span>'}</div>
       ${lancs?`<div class="muted small" style="margin:4px 0 2px">Últimos lançamentos:</div>${lancs}`:''}</details>
+    ${typeof bqFichaHTML==='function'?bqFichaHTML(d):''}
     <details ${(d.comentarios||[]).length?'open':''}><summary>💬 Comentários (${d.nComentarios||0})</summary>
       ${coms||'<div class="muted small" style="margin-top:6px">Nenhum comentário.</div>'}</details>
     <details><summary>📎 Anexos (${(d.anexos||[]).length})</summary>
@@ -450,6 +452,7 @@ function renderModalTicket(d){
       <button class="btn" data-hj-timer-k="${escA(d.k)}" data-hj-timer-t="${escA((d.resumo||'').slice(0,120))}" data-tip="Inicia o cronômetro neste ticket (pílula em todas as telas; ■ vira apontamento com a hora real)">▶ Cronômetro</button>
       <button class="btn" data-gx-st="${escA(d.k)}">🔁 Status</button>
       <button class="btn" data-gx-det-com="${escA(d.k)}">💬 Comentar</button>
+      ${typeof bqBotaoHTML==='function'?bqBotaoHTML(d.k,'btn','⛔ Bloqueio'):''}
       <button class="btn" data-gx-trf="${escA(d.k)}" data-tip="Levar este chamado para dentro de outro: vira sub-tarefa (se o destino aceitar) ou apontamento de horas">🔀 Transformar em atividade</button>
       <button class="btn" data-tft-abre="${escA(d.k)}" data-tip="Transferir ticket: leva TODO o histórico (comentários, anexos, vínculos, filhos, horas e status) para outro ticket, de qualquer projeto — e exclui este">🔗 Transferir ticket</button>
       <button class="btn" data-gx-conv="${escA(d.k)}" data-tip="Convida pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique e o aviso vai por chat individual do Teams">📨 Convidar para apontar</button>
@@ -697,7 +700,7 @@ function renderGestao(){
   const nSel=gxSelKeys().length;
   const todosVis=lista.length>0&&lista.every(t=>g.sel[t.k]);
   const chk=(t)=>`<input type="checkbox" class="gx-chk" data-k="${escA(t.k)}" ${g.sel[t.k]?'checked':''} aria-label="selecionar ${escA(t.k)}">`;
-  const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener" title="Abrir no Jira">${esc(t.k)} ↗</a>`;
+  const linkK=(t)=>`<a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener" title="Abrir no Jira">${esc(t.k)} ↗</a>${typeof bqSeloHTML==='function'?bqSeloHTML(t.k):''}`;
   const tratado=(t)=>((cfg.tratados||{})[t.k]?` <span class="gx-trat" title="Marcado como tratado no painel">✓ tratado</span>`:'');
   const riscoBadge=(t)=>{ const r=gxRiscoM(t,hoje);
     return `<span class="aloc-badge ${r.cls}" title="Score ${r.s}/100 — considera atraso, falta de atualização, prioridade, estouro de estimativa e ausência de responsável">${r.rot}</span>`; };
@@ -708,6 +711,7 @@ function renderGestao(){
     <button data-gx-r="${escA(t.k)}|PROX" title="Reprogramar para a próxima segunda">próx. sem</button>
     <button data-gx-r="${escA(t.k)}|DATA" title="Escolher a data no modal">📅</button>
     <button data-gx-msg="${escA(t.k)}" title="Pedir atualização (comentário no Jira)">💬</button>
+    ${typeof bqBotaoHTML==='function'?bqBotaoHTML(t.k,'gx-bq','⛔ bloqueio'):''}
     <button data-gx-st="${escA(t.k)}" title="Alterar o status deste ticket no Jira (transição no seu usuário)">🔁 status</button>
     <button data-gx-trf="${escA(t.k)}" title="Transformar em atividade: levar este chamado para dentro de outro (sub-tarefa ou apontamento)">🔀 transformar</button>
     <button data-gx-conv="${escA(t.k)}" title="Convidar pessoas do time a apontar horas neste ticket (aviso por chat individual)">📨 convidar</button>

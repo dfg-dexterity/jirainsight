@@ -2,6 +2,36 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🚧 Pendências e bloqueios (2026-11-19, issue #230 / JI-301, a pedido do usuário via 🐞 Reportar no ⏱ Apontar: bloqueios ficavam em
+  comentários soltos, sem resposta e sem dizer o que é crítico e o que é só ciência; o responsável pelo entregável precisa de
+  rastreabilidade total e de gerir o bloqueio):** decisões — **D1** o bloqueio mora **no ticket do Jira**: comentário com marcador na 1ª
+  linha + o flag de impedimento + a label `bloqueio-aberto`; o Hub lê do Jira, **nada na `cfg`** · **D2** três níveis 🔴 Crítico · 🟡 Importante
+  · 🔵 Ciência · **D3** todo bloqueio diz **quem destrava** (pessoas do time ou cliente) e o **prazo**; aviso por 📥 Inbox + Teams DM + Web Push;
+  prazo vencido escala ao gerente · **D4** o responsável gere (registrar, atualizar, resolver, reabrir). (1) **Lib `api/_lib/bloqueios.js`** = fonte
+  ÚNICA (formato v1 no cabeçalho): o **servidor monta e interpreta** o comentário (`bqMarcador`, `bqMontaADF`, `bqParseComentario` tolerante — tipo
+  pela palavra, não pelo emoji; o marcador do status report NÃO é evento —, `bqEstado` com id por bloqueio e idempotência), `bqValida`,
+  `bqDestinatarios` (o "outro lado", menos o ator; 🔴 avisa o gerente), `bqEscalaCalcula`/`bqEscalaRoda`, `bqCampoFlag` (`JIRA_CF_FLAGGED` ou
+  catálogo, cache 6 h), `bqLista`, `bqEscreve`; deps trocáveis em `BQ_DEPS`; a lib não importa `transicao.js` (a decisão de nota interna AMS entra
+  por parâmetro; `ehNotaInterna` foi extraída em `api/transicao.js`). (2) **Rotas** (sem função nova — 12): `POST /api/transicao {bloqueio:{acao,…}}`
+  (token da pessoa; comentário → label → flag → avisos; `abrir` repetido = `ja:true`, `atualizar`/`resolver` em resolvido = `conflito`), `GET
+  /api/vencimentos?bloqueios=1[&resolvidos=1]` (cache 3 min, 502 sem cache), ficha `?detalhe=` com `bloqueios`; linhas `bloq_idx` (tickets em que a
+  label não pôde ser gravada) e `bloq_estado` (dedupe do escalonamento) em `jirainsight_config`, nunca na `cfg`. **Leitura = label OU flag**, 🔵
+  Ciência não liga o flag, ticket concluído sai da lista (R218). (3) **Cron:** fase `bloqueios` do `api/teams.js` a partir das 09:00 (cursor
+  `ultimaEscalaBloq`, só com sucesso): lembrete 1× por `id+prazo`, escala de 🔴/🟡 vencidos ao gerente (`cfg.projGerentes`, senão `cfg.gestores`) a cada
+  3 dias, até 3 vezes; resposta SÓ com contagens; manual `?tipo=bloqueios[&dry=1][&confirmar=1]` exige `CRON_SECRET`; `PUSH_TIPOS` e `PREFS_PADRAO`
+  ganharam `bloqueios` (o push leva só chave, nível, prazo e nome de quem registrou). (4) **Tela** `public/js/20d-bloqueios.js` (prefixo `bq`, vista
+  `bloqueios`, aba do grupo 📥 Inbox, escopo 🙋 Meus × 👥 Time, URL `bqe/bqp/bqn/bqv/bqk`): contrato público `bqGarante`, `bqDe`, `bqSeloHTML`,
+  `bqBotaoHTML`, `[data-bq-abre]`, `[data-bq-ver]`, `bqParaMim`, `bqCardInicioHTML`, `bqInboxHTML`, `bqFichaHTML`, `abreBloqueio`; modal único `bqAbre`
+  (`abrir|atualizar|nota|resolver|reabrir`, id gerado ao abrir e reusado após erro de rede); pontos de entrada só com guarda `typeof`: ⏱ Apontar, 🛠 Gestão,
+  ficha 🔍, 📋 Status report, 🧭 Pendências, 🏠 Início, 📥 Inbox, menus e Ctrl+K (`acao:bloqueio`). **Regras:** depois de escrever, `sujo` só faz a próxima
+  leitura ir com `nocache=1` (o índice de busca do Jira atrasa alguns segundos e sobrescreveria a atualização otimista); a vista redesenha sempre quando a
+  leitura chega, as demais só se os dados mudaram; azul da Ciência = `--bq-azul` (não havia azul nos tokens); tela nova que mostre bloqueio = chamar
+  `bqSeloHTML`, nunca montar o selo. Testes (scratchpad `bloq-plano/`, porta 8797, runner `roda.sh`): `bloq-servidor-test.mjs` (`node --test`, 73 casos — os 5 últimos são da revisão do PR #236 (avisos conferidos por destinatário, uma chamada por pessoa; a chave só fica marcada quando todos receberam): aviso que não chegou a ninguém não fica marcado e o cursor não avança; comentário ilegível não poda o dedupe; ficha com `comment` paginado lê o histórico inteiro; histórico truncado nunca tira label nem impedimento),
+  `bloq-smoke-test.mjs` (Playwright, 29 asserções) e `bloq-tela-test.mjs` (Playwright, 201 asserções, blocos A–K); auditorias mobile (393/360 px) e iPad (6 tamanhos) da vista com 0 ofensores; regressão `sr-servidor-test` 47, `push-servidor-test` 14,
+  `disc-servidor-test` 49, `status-report-acoes-test` 179, `menus-test` 185, `push-tela-test` 93. Documento: `docs/bloqueios-2026-11-19.md`. **[Manual step]:** conferir Labels e Flagged na tela dos projetos (e `JIRA_CF_FLAGGED`
+  se o campo tiver outro nome), rodar `?tipo=bloqueios&dry=1` com o segredo depois do merge e testar um 🔴 real. Desdobramentos no roadmap: R218 (limpar ao
+  concluir o ticket), R219 (📆 Hoje, 🚨 Alertas, 📅 Cronograma), R220 (indicadores no Dashboard e na sexta), R221 (portal do cliente), R222 (lote e unificação
+  com o "⛔ Bloqueado" do status report), R223 (prazos e escalonamento configuráveis); R204 reescrito (o push do Inbox já avisa bloqueios).
 - **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
   fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
   com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**
@@ -331,6 +361,14 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   breakpoints 1100→1300 e 760→880, tooltip duplicado, setas do ⋯ presas com o foco fora, contador da aba velho,
   ⏱ do ⋯ sem motivo de identidade, `listar` falho sem saída, `para` do histórico com o rótulo da option — todos
   corrigidos. Desdobramentos: R191 (aviso no Teams ao transferir) e R192 (concluir com horas e em lote).
+  **👍 No prazo num clique (2026-11-19, a pedido do usuário: "um botão no Status report para itens que estão todos ok e sem risco
+  — só marcar que está planejado e sem risco"):** tipo novo `noprazo` em `SR_TIPOS` (🟢 "No prazo, sem risco", `cor:'good'`) e modelo
+  padrão `t-noprazo` ("Planejado e sem risco: segue no prazo de {data}."); o botão `[data-sr-ok]` (primeiro da coluna de ação,
+  `srAcoesLinhaHTML`) chama **`srOkRapido(k)`**: SEM modal, publica o comentário com o marcador (o modelo `noprazo` de
+  `cfg.srTemplates` se houver, senão o padrão; `{data}` = vencimento; sem data some o "de {data}"), em projeto AMS como 🔒 nota
+  interna, `logAcao('status-report',…,false)` + UMA `salvaCfg()`, `srAplicaLocal` + `sujo`; falha = toast e nada gravado.
+  Item **vencido não tem o botão** (não está "no prazo") e o marcado hoje vira `.sr-ok-feito` "👍 Marcado". Teste:
+  `status-report-ok-test.mjs` (Playwright, 23 casos, contra o `servidor-sr.mjs`). Desdobramento: R224 (em lote).
 - **🔗 Custo/h das pessoas vindo do Odoo (2026-11-06, a pedido do usuário: "onde está o custo dos funcionários usado no
   Jira Insight? É para vir do Odoo"):** o custo/h morava SÓ em `cfg.custosPessoa` (R$/h por accountId), digitado no ⚙️ da
   🏦 Controladoria — a rota `GET /api/usuarios?custos=1` lia o `hourly_cost` do `hr.employee`, mas o único botão que a
@@ -1198,6 +1236,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
   | TI-14-027 | Dashboard de KPIs em Insights: fotos semanais/mensais dos indicadores, linha do tempo e 🏦 Controladoria rápida por ano | `411c6937-1e17-8196-9b04-c38185acfaae` |
   | TI-14-028 | Dexterity Hub de classe iPad: camada iPad, barra lateral, Web Push e offline de leitura | `413c6937-1e17-815a-88f7-fb381e20dfe8` |
+| TI-14-029 | Pendências e bloqueios: nível, quem destrava e prazo no ticket do Jira, avisos e escalonamento | `PREENCHER-PELO-ORQUESTRADOR` |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
