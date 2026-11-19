@@ -1,7 +1,7 @@
 // Jira Insights · 29 · 🔗 ESTADO NA URL (links compartilháveis), PERIODOS/VISTAS, recarrega(), gaveta e menus do topo.
 // ---- Estado na URL (links compartilháveis) ----
 const PERIODOS=['hoje','ontem','estaSemana','semanaPassada','7d','esteMes','mesPassado','30d','esteAno','anoPassado'];
-const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','parcerias','config','uso','semanal','gp','statusrep','portal','dash','dashfin','dashhoras','dashsaude','dashtime','dashdisc'];
+const VISTAS=['visao','acoes','hoje','hojetime','inbox','projetos','agenda','agcontrole','chamadas','minhasemana','planrel','prioridades','roadmap','resumo','timesheet','ranking','tickets','qualidade','audit','analytics','relatorios','metricas','rentab','meutempo','cronograma','apontar','rateio','meudia','mencoes','planejar','ondecrio','meustickets','reclassificar','reuvinc','gestao','alertas','ams','receita','controladoria','admin','clficha','parcerias','config','uso','semanal','gp','statusrep','portal','dash','dashfin','dashhoras','dashsaude','dashtime','dashdisc'];
 // 🔗 Links antigos nunca quebram: slug aposentado → tela que o substitui (+ aviso na tela). Vale para ?v=,
 // favoritos salvos e links do Teams/Notion. Cada fusão futura entra aqui ANTES de a tela antiga sumir.
 const VISTA_ALIAS={
@@ -49,6 +49,9 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('mproj')||'')) estado.metricas.proj=p.get('mproj');   // 📈 Métricas: projeto em foco
   if(/^rp[a-z0-9]+$/.test(p.get('rpid')||'')) estado.rentab.sel=p.get('rpid');   // 💹 Rentabilidade: plano aberto
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
+  if(vURL==='clficha'&&estado.clf){ const cf=estado.clf; const ci=p.get('cli')||'';   // 📇 Ficha do cliente: cli (id), clp (período) e, no livre, clde/clate
+    cf.cli=(typeof CLF_RE_ID!=='undefined'&&CLF_RE_ID.test(ci))?ci:''; const cp=p.get('clp'); cf.per=(typeof CLF_PERS!=='undefined'&&CLF_PERS.some(x=>x[0]===cp))?cp:'ciclo';
+    const okD=(x)=>(typeof clfDataValida==='function'?clfDataValida(x):/^\d{4}-\d{2}-\d{2}$/.test(x)); cf.de=okD(p.get('clde')||'')?p.get('clde'):''; cf.ate=okD(p.get('clate')||'')?p.get('clate'):''; }
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   if(vURL==='minhasemana'&&/^\d{4}-\d{2}-\d{2}$/.test(p.get('w')||'')&&estado.minhasemana){ const mp=estado.minhasemana; mp.w=semChave(p.get('w')); mp.aba='plano'; }   // 📋 Meu Planejamento: a semana do link (aviso de aprovação/devolução no Teams ou no push)
@@ -106,6 +109,8 @@ function estadoParaURL(){
   if(estado.vista==='cronograma' && estado.cronograma.proj) p.set('cproj',estado.cronograma.proj);
   if(estado.vista==='statusrep' && estado.sr && estado.sr.proj) p.set('srproj',estado.sr.proj);   // 📋 Status report: projeto
   if(estado.vista==='semanal' && estado.semanal && estado.semanal.sel) p.set('semana',estado.semanal.sel);
+  if(estado.vista==='clficha' && estado.clf){ const cf=estado.clf;   // 📇 Ficha do cliente: só o que foge do padrão
+    if(cf.cli){ p.set('cli',cf.cli); if(cf.per!=='ciclo') p.set('clp',cf.per); if(cf.per==='livre'){ if(cf.de) p.set('clde',cf.de); if(cf.ate) p.set('clate',cf.ate); } } }
   if(/^dash/.test(estado.vista) && estado.dash){ const dh=estado.dash;   // 📊 Dashboard de KPIs: só o que foge do padrão vai para o link
     if(dh.gran!=='sem') p.set('kgran',dh.gran); if(dh.meses!==12) p.set('kmeses',String(dh.meses));
     if(dh.cat) p.set('kcat',dh.cat); if(dh.proj) p.set('kproj',dh.proj);

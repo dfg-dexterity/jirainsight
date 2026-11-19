@@ -225,10 +225,10 @@ function rpCalc(p, c){
 // ---- realizado (Clockwork) do projeto vinculado ----
 function rpRealChave(p){ if(!p.projeto) return ''; const h=hojeSP(); let de=p.inicio, ate=rpFim(p)<h?rpFim(p):h; if(ate<de) return '';
   if(de<voltaDias(ate,365)) de=voltaDias(ate,365); return `${p.projeto}|${de}|${ate}`; }
-function rpGaranteReal(p){
+function rpGaranteReal(p, forca){
   const r=estado.rentab; const k=rpRealChave(p); if(!k||r.tempo[k]||r.tempoB[k]||r.tempoErro[k]) return;
   const [,de,ate]=k.split('|'); r.tempoB[k]=true;
-  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(x=>x.json()).then(j=>{ r.tempoB[k]=false;
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`).then(x=>x.json()).then(j=>{ r.tempoB[k]=false;
     if(j&&!j.erro) r.tempo[k]=j; else r.tempoErro[k]=(j&&j.erro)||'Falha ao ler as horas.'; rpReRender();
   }).catch(e=>{ r.tempoB[k]=false; r.tempoErro[k]=humanizaErro(e); rpReRender(); });
 }
@@ -283,7 +283,7 @@ function rpAloca(al, meses, diasUteis, modo, valor, de, ate){
   else if(modo==='mes') alvo.forEach(m=>{ al.h[m]=Math.round(Math.max(0,valor)*10)/10; });
   else { const cada=Math.round(Math.max(0,valor)/alvo.length*10)/10; alvo.forEach(m=>{ al.h[m]=cada; }); }
 }
-function rpReRender(){ if(estado.vista==='rentab') renderRentab(); }
+function rpReRender(){ if(estado.vista==='rentab') renderRentab(); else if(estado.vista==='clficha'&&typeof clfRender==='function') clfRender(); }
 // ---- 🕓 histórico do plano: quem gravou/alterou o quê (pedido de 2026-09-13). Edições seguidas da mesma
 // pessoa e do mesmo tipo em 10 min viram um registro só (com o contador), para a grade não gerar ruído. ----
 const RP_HIST_MAX=60;

@@ -123,6 +123,7 @@ function clCardHTML(c, pode, hoje){
   return `<div class="cl-card${aberto?' cl-aberto':''}" data-cl-card="${escA(c.id)}">
     <div class="cl-top"><strong>${esc(c.nome||'(sem nome)')}</strong> <span class="badge">${esc(clFechaRot(c))}</span><span class="spacer"></span>
       ${pode?`<button class="btn" data-cl-edit="${escA(c.id)}">✏️ editar</button>`:''}
+      <button class="btn" data-clf-abre="${escA(c.id)}" data-tip="Abre a ficha deste cliente: contratos, projetos, planos, horas e próximas notas">📇 ficha</button>
       <button class="btn" data-cl-cal="${escA(c.id)}" aria-expanded="${aberto?'true':'false'}">📅 ${aberto?'fechar ciclos':'ciclos'}</button>
       ${pode?`<button class="btn" data-cl-imp="${escA(c.id)}" data-tip="Cole as datas dos ciclos (uma linha por ciclo, direto da planilha do cliente) e o painel confere se são contíguos">📋 colar ciclos</button><button class="btn" data-cl-del="${escA(c.id)}" data-tip="${escA(nU?'Ligado a '+nU+' plano(s)/contrato(s): desligue antes de excluir':'Excluir este cliente')}">🗑</button>`:''}</div>
     <div class="ams-dgrid">${dl('Fechamento',esc(clFechaRot(c)))}${dl('Nota',esc(clNotaRot(c)))}${dl('1º ciclo',c.inicio?dataBR(c.inicio):'—')}${dl('Ciclos ajustados',String(clNAjustes(c)))}

@@ -4,9 +4,9 @@
 const fmtBRL=(v)=> 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 // Consumo (horas e valor estimado) de um contrato, somando os worklogs dos projetos
 // mapeados no período carregado.
-function consumoContrato(c){
+function consumoContrato(c, wl0){
   const set=new Set(c.projetos||[]); let seg=0;
-  ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(set.has(w.p)) seg+=(Number(w.s)||0); });
+  (wl0||(estado.tempo&&estado.tempo.worklogs)||[]).forEach(w=>{ if(set.has(w.p)) seg+=(Number(w.s)||0); });
   return { seg, valor:(seg/3600)*(Number(c.valorHora)||0) };
 }
 const TIPOS_CONTRATO=[['ams','AMS (pacote por ciclo)'],['bolsa','Bolsa de horas (total)'],['projeto','Projeto (horas fechadas)'],['horas','Horas abertas (alocar por projeto)']];
@@ -58,8 +58,8 @@ function amsLabelCiclo(cyc){ if(!cyc.meses.length) return '';
   const a=cyc.meses[0], b=cyc.meses[cyc.meses.length-1];
   return cyc.meses.length===1?labelMesAbbr(a):`${labelMesAbbr(a)}–${labelMesAbbr(b)}`; }
 // Consumo do ciclo (worklogs do intervalo carregados em estado.ams), por mês.
-function amsConsumoCiclo(c, cyc){
-  const set=new Set(c.projetos||[]); const wl=(estado.ams&&estado.ams.dados)||[];
+function amsConsumoCiclo(c, cyc, wl0){
+  const set=new Set(c.projetos||[]); const wl=wl0||(estado.ams&&estado.ams.dados)||[];
   // seg = todas as horas do ciclo; segFat = só as faturáveis (estas consomem o pacote/excedente).
   let seg=0, segFat=0; const porMes={}; cyc.meses.forEach(m=>{ porMes[m]=0; });
   wl.forEach(w=>{ if(!set.has(w.p)) return; const dia=(w.d||'').slice(0,10);
@@ -465,11 +465,11 @@ function ctAlocResumo(){
 // estado.ctReal; sem início cadastrado, cai para o período do topo e a tela diz isso.
 function ctRealChave(c){ if(!c||!/^\d{4}-\d{2}-\d{2}$/.test(c.inicio||'')) return ''; const h=hojeSP();
   const ate=(c.fim&&c.fim<h)?c.fim:h; let de=c.inicio; if(ate<de) return ''; if(de<voltaDias(ate,365)) de=voltaDias(ate,365); return `${de}|${ate}`; }
-function ctGaranteReal(c){
+function ctGaranteReal(c, forca){
   const k=ctRealChave(c); const R=estado.ctReal||(estado.ctReal={dados:{},busy:{},erro:{}}); if(!k||R.dados[k]||R.busy[k]||R.erro[k]) return;
   const [de,ate]=k.split('|'); R.busy[k]=true;
-  const volta=()=>{ if(estado.vista==='admin') renderAdmin(); else if(estado.vista==='receita') renderReceita(); };
-  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{ R.busy[k]=false;
+  const volta=()=>{ if(estado.vista==='admin') renderAdmin(); else if(estado.vista==='receita') renderReceita(); else if(estado.vista==='clficha'&&typeof clfRender==='function') clfRender(); };
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`).then(r=>r.json()).then(j=>{ R.busy[k]=false;
     if(j&&!j.erro) R.dados[k]=j; else R.erro[k]=(j&&j.erro)||'Falha ao ler as horas.'; volta();
   }).catch(e=>{ R.busy[k]=false; R.erro[k]=String(e.message||e); volta(); });
 }
@@ -978,7 +978,7 @@ function renderAMS(){
   const contratos=(cfg.contratos||[]);
   const hoje=hojeSP();
   // ---- AMS: apuração por ciclo, UM contrato por vez (selecione o cliente) ----
-  const amsList=contratos.filter(c=>c.tipo==='ams' && (c.projetos||[]).length);
+  const amsList=contratos.filter(c=>c&&c.tipo==='ams' && (c.projetos||[]).length);
   const cSel=amsContratoSel(amsList);
   if(cSel && (estado.ams.sel||'')!==cSel.id) estado.ams.sel=cSel.id;   // fixa a seleção efetiva
   const refSel=amsRefSel();

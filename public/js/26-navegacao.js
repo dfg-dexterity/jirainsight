@@ -68,6 +68,7 @@ function renderVista(){
   if(estado.vista==='controladoria') return renderControladoria();
   if(estado.vista==='planrel') return renderPlanRel();
   if(estado.vista==='admin') return renderAdmin();
+  if(estado.vista==='clficha') return clfRender();   // 📇 Ficha do cliente (16h)
   if(estado.vista==='parcerias') return renderParcerias();
   if(estado.vista==='uso') return renderUso();
   if(estado.vista==='semanal') return renderSemanal();
@@ -118,7 +119,7 @@ const ABAS=[
   { id:'timesheet',    rot:'⏱ Horas do time',           abas:[ {v:'timesheet',rot:'⏱ Timesheet'}, {v:'ranking',rot:'🏆 Ranking'} ] },
   { id:'planrel',      rot:'📊 Planejamento do time',   abas:[ {v:'planrel',aud:'gestor',rot:'👥 Por gestor'}, {v:'planrel',aud:'exec',rot:'👔 Visão executiva'}, {v:'planrel',aud:'proj',rot:'📁 Por projetos'} ] },
   // fase 3 — Dexterity Negócio
-  { id:'admin',        rot:'📑 Contratos',              abas:[ {v:'admin',rot:'🏢 Clientes'}, {v:'parcerias',rot:'🤝 Parceiros (consultorias)'} ] },
+  { id:'admin',        rot:'📑 Contratos',              abas:[ {v:'admin',rot:'🏢 Clientes'}, {v:'clficha',rot:'📇 Ficha do cliente'}, {v:'parcerias',rot:'🤝 Parceiros (consultorias)'} ] },
   { id:'ams',          rot:'🛡 Apuração de contratos',  abas:[ {v:'ams',rot:'🛡 AMS (por ciclo)'}, {v:'receita',rot:'💰 Bolsa de horas & projetos'} ] },
   // fase 3 — Dexterity Insights
   // 2026-11-07 (📊 Dashboard de KPIs): a visão geral e as 4 visões por indicador, lidas das fotos semanais/mensais do servidor.
@@ -299,6 +300,7 @@ const NAVCAT=[
   ['portal','🌐 Portal do cliente','entrega','portal cliente publicar riscos faq decisoes reunioes sharepoint teams visao externa pendencias time do projeto equipe links pre-visualizar convidar acessos area do cliente progresso epicos marcos'],
   // Dexterity Negócio — comercial, financeiro e controladoria
   ['admin','📑 Contratos › 🏢 Clientes','negocio','valores contratos admin clientes ams bolsa projeto configuracoes cadastro contratos clientes'],
+  ['clficha','📑 Contratos › 📇 Ficha do cliente','negocio','ficha do cliente como esta o cliente contratos vigentes saldo de horas projetos semaforo status report planos vendido gasto horas receita ciclo de faturamento proximas notas visao 360'],
   ['parcerias','📑 Contratos › 🤝 Parceiros (consultorias)','negocio','contratos parceria consultoria parceira modalidade horas abertas ams demanda fechada valor hora negociada aviso previo validade faturamento fechamento dia nota conta bancaria calendario configuracoes odoo ordem de venda faturamentos sincronizar horas extras objeto de resultado rateio conta analitica proximas notas'],
   ['ams','🛡 Apuração de contratos › 🛡 AMS (por ciclo)','negocio','ciclo faturado banco horas chamados gestao apuracao ams governanca'],
   ['receita','🛡 Apuração de contratos › 💰 Bolsa de horas & projetos (Receita)','negocio','bolsa horas projetos consumo contratado gestao receita apuracao'],
