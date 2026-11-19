@@ -1732,6 +1732,13 @@
   .vw-admin #ad-ams>label.check input{vertical-align:-3px;margin:0 6px 0 0}
   .vw-admin .rg-pessoas{grid-template-columns:minmax(0,1fr)}
   .vw-admin .rg-pessoas .check{font-size:14px;text-transform:none;letter-spacing:0;color:inherit;padding:5px 0}
+  /* 🗓 ciclo de faturamento no formulário do contrato (JI-299): select e sub-campos em coluna, alvos de 44px */
+  .vw-admin .ad-ciclo>select{max-width:none;width:100%}
+  .vw-admin .ad-ciclo>select#ad-cliente-id,.vw-admin .ad-ciclo-novo select,.vw-admin .ad-ciclo-novo input:not([type=checkbox]):not([type=radio]){min-height:44px}
+  .vw-admin .ad-ciclo-novo{flex-direction:column;align-items:stretch;padding:10px}
+  .vw-admin .ad-ciclo-novo :is(input,select){width:100%!important;min-width:0;box-sizing:border-box}
+  .vw-admin [data-ad-ciclo-ver],.vw-admin [data-ad-ciclo-def]{min-height:44px;min-width:44px}
+  .vw-admin .ad-proj-outro{white-space:normal}
   /* 🗓 ciclos de faturamento por cliente (16g): cartões em coluna única, formulário em 2 colunas, calendário rola no cartão */
   .vw-admin .cl-bloco .cl-grid{grid-template-columns:minmax(0,1fr);gap:10px}
   .vw-admin .cl-card{padding:10px 12px}

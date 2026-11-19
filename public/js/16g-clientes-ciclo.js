@@ -23,7 +23,12 @@ function clDe(id){ return id?(clLista().find(c=>c.id===id)||null):null; }
 function clPorNome(nome, exceto){ const n=ctNorm(String(nome||'').trim()); if(!n) return null; return clLista().find(c=>c.id!==exceto&&ctNorm(String(c.nome||'').trim())===n)||null; }
 // só o setter cria a lista (logo antes de um push)
 function clGaranteLista(){ if(!Array.isArray(cfg.clientes)) cfg.clientes=[]; return cfg.clientes; }
-function clPodeEditar(){ return souAprovador(); }
+// Quem cadastra e ajusta os ciclos: todo mundo identificado (2026-11-18, JI-299) — o contrato de cliente e o plano da
+// Rentabilidade nunca tiveram trava, e travar só o ciclo deixava o campo do contrato sem opção para quem não é gestor.
+// CL_SO_GESTORES=true religa a restrição a cfg.gestores (R045).
+const CL_SO_GESTORES=false;
+function clPodeEditar(){ return CL_SO_GESTORES ? souAprovador() : !!idApontar(); }
+function clSoLeituraTxt(){ return CL_SO_GESTORES ? 'Somente gestores cadastram e ajustam' : 'Identifique-se no ⏱ Apontar para cadastrar e ajustar'; }
 const clFechaDia=(c)=>Math.max(1,Math.min(31,Math.round(Number(c&&c.fatFecha)||31)));
 const clFechaRot=(c)=>{ const n=clFechaDia(c); return n>=31?'fecha no último dia do mês':`fecha dia ${n}`; };
 const clNotaRot=(c)=>{ const n=Math.round(Number(c&&c.fatDia)||0); return n>0?`nota dia ${n}`:'nota no fechamento'; };
@@ -95,7 +100,7 @@ function clCalHTML(c, pode, hoje){
       <td>${pode&&P.ajustado?`<button class="btn rt-step" data-cl-aj-rm="${escA(c.id)}|${escA(P.ym)}" data-tip="Volta às datas padrão do cliente neste ciclo (${esc(clFechaRot(c))})">↺ padrão</button>`:''}</td></tr>`; }).join('');
   return `<div class="cl-cal"><div class="mp-h3">📅 Ciclos de ${esc(c.nome||'')} <span class="mp-dim">início · fim (fechamento) · dia da nota · dias úteis (feriados descontados) · dias corridos</span></div>
     <div class="scroll-x"><table class="mp-tab-mini cl-cal-tab"><thead><tr><th>Ciclo</th><th>Início</th><th>Fim</th><th>Nota</th><th class="num">Dias úteis</th><th class="num">Dias</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="muted small">Cada ciclo leva o <b>nome do mês em que termina</b> (Jan/26 fecha em janeiro de 2026). ${pode?`O padrão vem do cadastro (${esc(clFechaRot(c))}, ${esc(clNotaRot(c))}); digite o <b>início</b> ou o <b>fim</b> de um ciclo para ele ter as suas próprias datas. Os ciclos são <b>contíguos</b>: mudar o início de um muda o fim do anterior, e o seguinte começa no dia seguinte ao fim — datas que se cruzam são recusadas. ↺ padrão desfaz.`:'Somente gestores ajustam as datas.'}</div></div>`;
+    <div class="muted small">Cada ciclo leva o <b>nome do mês em que termina</b> (Jan/26 fecha em janeiro de 2026). ${pode?`O padrão vem do cadastro (${esc(clFechaRot(c))}, ${esc(clNotaRot(c))}); digite o <b>início</b> ou o <b>fim</b> de um ciclo para ele ter as suas próprias datas. Os ciclos são <b>contíguos</b>: mudar o início de um muda o fim do anterior, e o seguinte começa no dia seguinte ao fim — datas que se cruzam são recusadas. ↺ padrão desfaz.`:clSoLeituraTxt()+' as datas.'}</div></div>`;
 }
 function clFormHTML(c, novo){
   const v=c||{}; const campo=(l,html,dica)=>`<div class="campo"><label>${l}</label>${html}${dica?`<div class="muted small">${dica}</div>`:''}</div>`;
@@ -132,7 +137,7 @@ function clBlocoHTML(pode){
     if(_clSt.form&&_clSt.form!=='novo'&&!clDe(_clSt.form)) _clSt.form=''; if(_clSt.cal&&!clDe(_clSt.cal)) _clSt.cal='';
     const emEdicao=_clSt.form&&_clSt.form!=='novo'?clDe(_clSt.form):null;
     return `<section class="card full cl-bloco" id="cl-bloco"><h2>🗓 Ciclos de faturamento por cliente <span>${lista.length} cliente(s)</span></h2>
-      <div class="muted small">Cada cliente fecha o ciclo no seu dia — o <b>NTT</b>, por exemplo, fecha dia 25 e chama o ciclo pelo mês do fechamento: <b>Jan/26</b> = 26/12/2025 → 25/01/2026. Cadastre o calendário aqui uma vez e a 💹 Rentabilidade passa a quebrar a receita dos planos ligados a ele nesses períodos de faturamento. <b>O nosso ciclo é o mês civil</b> (planner, horas vendidas e tabela mensal). Na Rentabilidade vale primeiro o ciclo do <b>cliente</b>, depois o do 🤝 <b>contrato de parceria</b> e, sem nenhum dos dois, o mês civil.${pode?'':' <b>Somente gestores cadastram e ajustam</b> — você está vendo em modo leitura.'}</div>
+      <div class="muted small">Cada cliente fecha o ciclo no seu dia — o <b>NTT</b>, por exemplo, fecha dia 25 e chama o ciclo pelo mês do fechamento: <b>Jan/26</b> = 26/12/2025 → 25/01/2026. Cadastre o calendário aqui uma vez e a 💹 Rentabilidade passa a quebrar a receita dos planos ligados a ele nesses períodos de faturamento. <b>O nosso ciclo é o mês civil</b> (planner, horas vendidas e tabela mensal). Na Rentabilidade vale primeiro o ciclo do <b>cliente</b>, depois o do 🤝 <b>contrato de parceria</b> e, sem nenhum dos dois, o mês civil.${pode?'':' <b>'+esc(clSoLeituraTxt())+'</b> — você está vendo em modo leitura.'}</div>
       ${pode&&!_clSt.form?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn primario" data-cl-novo="1">＋ Novo cliente</button></div>':''}
       ${pode&&_clSt.form==='novo'?clFormHTML(null,true):''}${pode&&emEdicao?clFormHTML(emEdicao,false):''}
       ${lista.length?`<div class="cl-grid" style="margin-top:12px">${lista.map(c=>{ try{ return clCardHTML(c,pode,hoje); }catch(e){ return `<div class="cl-card"><strong>${esc(c.nome||c.id)}</strong> <div class="aviso">⚠ Não consegui montar este cliente (${esc(String((e&&e.message)||e))}).</div></div>`; } }).join('')}</div>`
@@ -141,7 +146,7 @@ function clBlocoHTML(pode){
   }catch(e){ return `<section class="card full cl-bloco" id="cl-bloco"><h2>🗓 Ciclos de faturamento por cliente</h2><div class="aviso">⚠ Não consegui montar este bloco (${esc(String((e&&e.message)||e))}). Os contratos abaixo continuam funcionando.</div></section>`; }
 }
 // Redesenha só o bloco (o resto da tela — por exemplo, um contrato aberto no formulário — fica como está).
-function clRender(){ if(estado.vista!=='admin') return; const w=document.getElementById('cl-bloco'); if(!w){ renderAdmin(); return; } w.replaceWith(el(clBlocoHTML(clPodeEditar()))); }
+function clRender(){ if(estado.vista!=='admin') return; const w=document.getElementById('cl-bloco'); if(!w){ renderAdmin(); return; } w.replaceWith(el(clBlocoHTML(clPodeEditar()))); if(typeof ctCicloAtualiza==='function') ctCicloAtualiza(); }
 
 // ---- ações ----
 function clFb(msg){ const fb=document.getElementById('cl-f-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb err'; fb.textContent=msg; } }

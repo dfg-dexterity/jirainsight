@@ -186,6 +186,36 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   acontecer de novo. (4) **🛟 `render()`** (26) = `try{ renderVista() }catch{ telaComErro(e) }` — tela que quebra mostra o
   cartão `.tela-erro` (↻ tentar de novo · 🏠 Início) e o erro é relançado com `setTimeout` para seguir no pageerror dos testes.
   Teste: `contratos-fat-test.mjs` (Playwright, 52 casos, 8790).
+- **📑 Contratos de clientes: manutenção (AMS · horas abertas · horas fechadas) + JI-299 (2026-11-18, a pedido do usuário: "verificar as funções
+  de editar e fazer manutenção dos contratos de AMS e de horas abertas e fechadas, resolva também esse issue JI-299"):** o JI-299 (🐞 Reportar:
+  "não consigo mudar o campo do ciclo de faturamento — não aparecem opções … no cadastramento de novo contrato") tinha duas causas: o `<select>` só
+  listava `cfg.clientes` (sem cliente cadastrado só existia "— nenhum —") e `clPodeEditar()` era `souAprovador()` — quem não é gestor cadastrava
+  contrato mas nunca criava o ciclo. **D1** `CL_SO_GESTORES=false` (16g): `clPodeEditar()` = qualquer pessoa identificada, como o contrato e como
+  `PC_SO_GESTORES` das parcerias; o servidor nunca protegeu `clientes`/`contratos`, então a trava era só aparência (R045 reescrito: religar na
+  tela **e** em `CHAVES_PAPEL`). **O campo do ciclo** (`#ad-ciclo`, `ctCicloCampoHTML`, estado em `estado.admin.form.ciclo`): `<select
+  id="ad-cliente-id">` com "mês civil", um ciclo por cliente e **`__novo` "＋ Novo ciclo para este cliente"** (`#ad-cl-fecha`, `#ad-cl-fatdia`,
+  `#ad-cl-inicio`, prévia `#ad-ciclo-previa` sem gravar nada, dica `#ad-ciclo-dica`); **o cliente só nasce no salvar do contrato**, depois de todas
+  as validações e confirmações, com o nome digitado em Cliente (`clPorNome(nome) || clCria(...)` — mesmo nome reusa), na MESMA `salvaCfg()` do
+  contrato; digitar um nome que casa sugere o ciclo (só com `tocado===false` e sem vínculo de origem); `clRender()` chama `ctCicloAtualiza()` (o
+  select do formulário aberto acompanha o bloco 🗓); o cartão ganha a linha `[data-ad-ciclo-l]` com 📅 `[data-ad-ciclo-ver]` ou "definir"
+  `[data-ad-ciclo-def]`. A dica separa "Ciclo de apuração" (pacote do AMS) do ciclo de faturamento do cliente (usado também pela 💹 Rentabilidade,
+  `17b` lê `c.clienteId`). **Formulário à prova de redesenho:** todos os campos moram em `estado.admin.form.campos` (mapa `CT_FORM_IDS` — **campo
+  novo no formulário = entrada no mapa**), `renderAdmin` desenha a partir dele e devolve foco e cursor (`ctFocoGuarda`/`ctFocoRestaura`); antes
+  qualquer redesenho (consumo das horas abertas chegando, mescla de conflito da config) apagava o digitado. **Regras do salvar** (`salvaContrato`):
+  trocar o tipo limpa o que era só do tipo anterior (AMS: `apuracao`, `horasCiclo`, `minMes`, `tetoMes`, `bancoHoras`; alocação) e os consumidores só
+  olham AMS (`08-inicio.js` mínimo/teto; `portalHorasContrato` em `api/config.js`, que usa `horasCiclo` só em AMS); `fim` existe em **todos os
+  tipos** (`fim < início` recusado) mas **não muda conta nenhuma** (R215); teto < mínimo recusado; AMS sem horas/sem início só avisa
+  (`.ad-avisos`); mudar a apuração ou o início de um AMS que tem ciclo já faturado pede confirmação com a contagem (`ctFaturadosOrfaos`, as marcas
+  ficam guardadas); contrato removido por outra sessão durante a edição → mensagem e "Salvar como novo contrato" com os dados mantidos; editar
+  confirma com o que mudou (`ctDifTxt`); remover lista o que está ligado (`ctRemoveTxt`: link e contas do cliente, ciclos faturados, projetos —
+  a limpeza no servidor é o R217); a lista de projetos etiqueta "já em CT-00x" (`.ad-proj-outro`); "Editar no Admin" rola até o formulário
+  (`ctVaiProForm`). **Histórico:** `contrato-criar`, `contrato-editar`, `contrato-remover`, `ciclo-cliente-criar` (`logAcao(…, false)` + uma
+  `salvaCfg()`; sem R$ no texto); o faturamento de ciclo grava `c.cliente` (era `c.nome`, que não existe). Mobile: cinco regras no bloco
+  `📱 grupo: config` do `mobile.css`. **Ficou de fora (de propósito):** consumo de bolsa/projeto desde o início (R214), contrato encerrado fora das
+  contas (R215), AMS com aditivo por vigência (R216), revogar portal ao remover (R217); R040 e R184 reescritos. Testes (scratchpad
+  `contratos-plano/`, porta 8796, runner `roda.sh`): `contratos-manut-test.mjs` (Playwright, 122 asserções: A–K — ciclo, redesenho, campo não mexido segue a versão do colega na mescla, trocas de tipo,
+  AMS faturado, conflito, remover, duplicar, celular 360 px) contra `servidor-contratos.mjs`, e `contratos-servidor-test.mjs` (`node --test`, 8
+  casos do `portalHorasContrato`). Documento: `docs/contratos-manutencao-2026-11-18.md`.
 - **💹 Rentabilidade: terceirizado interno · ciclo por cliente · faturamento pelo vendido · ⚖️ vendido × gasto · 📖
   indicadores explicados · 📸 fotos diárias/semanais (2026-11-02, a pedido do usuário; planejado por um modelo e
   executado por outro mais barato em 5 tarefas, plano em `rentab-plano/plano-fable.md` no scratchpad):** decisões do

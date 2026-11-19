@@ -387,7 +387,7 @@ function renderAcoes(){
   const ax=estado.acoes; const hoje=hojeSP();
   if(!ax.venc && !ax.carregando && !ax.erro) axCarregaVenc(false);
   else if(axVencEnvelheceu(ax, hoje)) axCarregaVenc(false);   // relê por trás; os cards seguem com o que têm
-  const temContratos=(cfg.contratos||[]).some(c=>c&&(Number(c.tetoMes)>0||Number(c.minMes)>0)&&(c.projetos||[]).length);
+  const temContratos=(cfg.contratos||[]).some(c=>c&&c.tipo==='ams'&&(Number(c.tetoMes)>0||Number(c.minMes)>0)&&(c.projetos||[]).length);
   if(temContratos && !ax.mes && !ax.mesCarr && !ax.mesErro) axCarregaMes();
   const tks=(ax.venc&&ax.venc.tickets)||null;
   // ---- contagens ----
@@ -406,7 +406,7 @@ function renderAcoes(){
   else if(ax.mes){
     const porProj={}; ax.mes.forEach(w=>{ if(w.f) porProj[w.p]=(porProj[w.p]||0)+(Number(w.s)||0); });
     const diaFrac=Math.min(1,(+hoje.slice(8,10))/28); const nomes=[];
-    (cfg.contratos||[]).forEach(c=>{ if(!c||!(c.projetos||[]).length) return;
+    (cfg.contratos||[]).forEach(c=>{ if(!c||c.tipo!=='ams'||!(c.projetos||[]).length) return;
       const teto=Number(c.tetoMes)||0, min=Number(c.minMes)||0; if(!teto&&!min) return;
       const h=(c.projetos||[]).reduce((sm,p)=>sm+(porProj[p]||0),0)/3600;
       if(teto>0 && h>teto*0.9) nomes.push(`${c.cliente||'?'} perto do teto (${Math.round(h)}h/${teto}h)`);
