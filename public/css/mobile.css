@@ -2205,3 +2205,30 @@
   .dsh-q-row,.ct-rapida .btn{min-height:44px}
   .dsh-glossario summary{min-height:44px;display:flex;align-items:center}
 }
+
+/* ---- 📱 grupo: bloqueios (🚧 Pendências e bloqueios) ---- */
+@media (max-width:760px){
+  .bq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bq-fl .campo{flex:1 1 100%;min-width:0}
+  .bq-fl select,.bq-fl input[type=text]{min-height:44px;font-size:16px}
+  .bq-item{padding:10px}
+  .bq-l1,.bq-l2{flex-direction:column;align-items:flex-start}
+  .bq-acoes .btn{min-height:44px;flex:1 1 auto;justify-content:center}
+  .bq-escopo .chip{min-height:44px;flex:1 1 auto;justify-content:center}
+  .bq-niveis{grid-template-columns:1fr}
+  .bq-nv{min-height:44px}
+  #bq-texto,#bq-cliente,#bq-prazo,#bq-pessoa-add{font-size:16px;min-height:44px}
+  .bq-selo{min-height:32px;padding:0 10px}
+  .bq-row-ib .btn{min-height:44px}
+  .bq-res-row .btn{min-height:44px}
+  .bq-item a.k{display:inline-flex;align-items:center;min-height:44px}
+  .bq-prazo{font-size:12px}
+  .bq-barra .btn{min-height:44px}
+  #modal-body:has(#bq-root) .btn,#modal-body:has(#bq-root) .chip,#modal-body:has(#bq-root) select{min-height:44px}
+}
+@media (pointer:coarse){
+  .bq-selo,.bq-x{min-width:32px;min-height:32px}
+  .bq-acoes .btn,.bq-row-ib .btn,.bq-res-row .btn,.bq-resolv>summary{min-height:44px}
+  .bq-quemtipo label,.bq-venc-l{min-height:44px}
+}
+/* ---- fim: bloqueios ---- */

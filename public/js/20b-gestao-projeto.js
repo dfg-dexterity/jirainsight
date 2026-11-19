@@ -320,7 +320,7 @@ function renderGp(){
   const pessoas=`<div class="card full gp-pessoas"><h2>👥 Por pessoa <span>pior caso primeiro · ${todosP.length} pessoa(s) com pendência</span></h2>${pessoasHTML||'<div class="gp-vazio">✓ Ninguém com pendência no escopo.</div>'}</div>`;
   // Blocos 1–7: cada um agrupado por pessoa.
   const multi=!c.keys||c.keys.length>1;
-  const linha=(t,met,cls)=>`<div class="gp-row"><div class="gp-c-k"><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a></div>
+  const linha=(t,met,cls)=>`<div class="gp-row"><div class="gp-c-k"><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>${typeof bqSeloHTML==='function'?' '+bqSeloHTML(t.k):''}</div>
     <div class="gp-c-res" title="${escA(t.resumo||'')}">${esc(t.resumo||'—')}</div>
     <div class="gp-c-st"><span class="badge">${esc(t.status||t.resol||'—')}</span>${multi?` <span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span>`:''}</div>
     <div class="gp-c-m ${cls||''}">${met}</div>

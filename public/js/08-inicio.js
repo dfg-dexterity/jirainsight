@@ -593,6 +593,7 @@ function renderAcoes(){
       :pcard(nResp?(nResp>3?'crit':'aten'):'ok','💬','Aguardando sua resposta',
         `<div class="ax-num">${nResp}</div><div class="ax-det">${nResp?esc(partesResp.join(' · ')):'ninguém está esperando resposta sua 👌'}</div>`,
         'aguardando-resposta', nResp?'Responder →':'Ver menções →');
+    const cBq=(typeof bqCardInicioHTML==='function')?bqCardInicioHTML(pcard):'';   // ⛔ Bloqueios (20d)
     // ⏳ COM O CLIENTE: meus tickets parados num status que aguarda o cliente (mesma régua do preset da 🛠 Gestão)
     const meusCli=tks?tks.filter(t=>t.respId===acc&&/aguard|pendente.*client|waiting/i.test(t.status||'')):null;
     ax.cliKeys=(meusCli||[]).map(t=>t.k);
@@ -713,7 +714,7 @@ function renderAcoes(){
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Meu Planejamento →</button></div></div>`;
     heroHtml=`<div class="card full">
       <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoje}${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cCli}${cRank}${cAg}${cIb}</div>
+      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoje}${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cBq}${cCli}${cRank}${cAg}${cIb}</div>
       <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
     </div>`;
   } else {
@@ -991,6 +992,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   // 📆 Seu dia (24b): abre o Hoje — e já com o ritual quando o card pediu
   if(g==='hoje-planejar'||g==='hoje-fechar'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); setTimeout(()=>{ try{ if(g==='hoje-planejar') hjRitualPlanejar(hojeSP()); else hjRitualFechar(hojeSP()); }catch(e){} },80); return; }
   if(g==='hoje'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); return; }
+  if(g==='bloqueios'){ if(typeof bqVai==='function') bqVai('meus'); else vaiPara('bloqueios'); return; }   // ⛔ card Bloqueios (20d)
   // 💬 Aguardando sua resposta / ⏳ Com o cliente: abre a 🛠 Gestão na ▤ Lista só com esses tickets (como os vencidos por projeto)
   if(g==='aguardando-resposta'||g==='gestao-cliente'){ const ax=estado.acoes; const ks=(g==='gestao-cliente'?ax.cliKeys:ax.respKeys)||[];
     if(ks.length){ const gs=estado.gestao; gs.soKeys=ks.slice(0,200); gs.origem=g==='gestao-cliente'?'⏳ Com o cliente':'💬 Aguardando sua resposta';

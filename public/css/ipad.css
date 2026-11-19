@@ -690,3 +690,23 @@
   #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
 }}
 /* ---- fim: hoje ---- */
+
+/* ---- 🍎 grupo: bloqueios (🚧 Pendências e bloqueios) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .bq-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #conteudo .bq-acoes .btn,#conteudo .bq-row-ib .btn,#conteudo .bq-res-row .btn{min-height:44px}
+  #conteudo .bq-selo{min-height:32px}
+  #conteudo .bq-escopo .chip{min-height:44px}
+  #modal-body .bq-quemtipo label{min-height:44px}
+  #conteudo .bq-item a.k{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .bq-prazo{font-size:12px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .bq-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #conteudo .bq-acoes .btn,#conteudo .bq-row-ib .btn,#conteudo .bq-res-row .btn{min-height:44px}
+  #conteudo .bq-escopo .chip{min-height:44px}
+  #conteudo .bq-item a.k{display:inline-flex;align-items:center;min-height:44px}
+  #conteudo .bq-prazo{font-size:12px}
+}}
+/* ---- fim: bloqueios ---- */

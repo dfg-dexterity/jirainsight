@@ -525,6 +525,7 @@ function renderApontar(){
       ${aphCadeiaHTML(t, pula)}
       <div class="ap-l1">
         <a href="${url}" target="_blank" rel="noopener">${esc(t.k)} ↗</a>
+        ${typeof bqSeloHTML==='function'?bqSeloHTML(t.k):''}
         <span class="ap-resumo">${esc(t.resumo||'')}</span>
         <span class="spacer"></span>
         ${pilulaHoras(t.seg)}${extras||''}
@@ -538,6 +539,7 @@ function renderApontar(){
         ${id?reagBtn(t):badgeVenc(t.venc)}
         ${id?respBtn(t):(t.resp?`<span class="badge" data-tip="Responsável">${esc(t.resp)}</span>`:'<span class="badge">sem responsável</span>')}
         ${id?`<button class="badge st-btn" data-ap-coment="${escA(t.k)}" data-tip="Adicionar um comentário ao chamado">💬 comentar</button>`:''}
+        ${id&&typeof bqBotaoHTML==='function'?bqBotaoHTML(t.k,'badge st-btn'):''}
         ${id?`<button class="badge st-btn" data-ap-conv="${escA(t.k)}" data-tip="Convidar pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique (aviso por chat individual do Teams)">📨 convidar</button>`:''}
         ${id?`<button class="badge st-btn" data-ap-mover="${escA(t.k)}" data-tip="Reclassificar: mover este chamado para outro projeto">🔀 mover</button>`:''}
         ${id?`<button class="badge st-btn" data-tft-abre="${escA(t.k)}" data-tip="Transferir ticket: leva todo o histórico (comentários, anexos, vínculos, horas e status) para outro ticket e exclui este">🔗 transferir</button>`:''}

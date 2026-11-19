@@ -149,6 +149,8 @@
           <button type="button" data-acao="meusproj" title="Escolha o projeto e veja os seus tickets abertos nele — vencendo até 30 dias ou sem vencimento (abre o ⏱ Apontar já filtrado; mude o 'até' lá para ver mais)"><svg class="nav-ic"><use href="#ic-tickets"/></svg>🎫 Ver meus tickets de um projeto…</button>
           <button type="button" data-acao="transferir" title="Leva comentários, anexos, vínculos, subtarefas, horas e o histórico para outro ticket e exclui o original — pede o ticket de origem primeiro"><svg class="nav-ic"><use href="#ic-reclass"/></svg>🔗 Transferir ticket com o histórico…</button>
           <button type="button" data-acao="convidar" title="Convide colegas a apontar horas num ticket: cada um confirma e as horas ficam no nome dele — pede o ticket primeiro"><svg class="nav-ic"><use href="#ic-alertas"/></svg>📨 Convidar colegas a apontar…</button>
+          <button data-v="bloqueios" data-exata data-bq-escopo="meus" title="Pendências e bloqueios: o que espera você destravar e o que está travando os seus tickets — nível, quem destrava e prazo, tudo registrado no ticket do Jira (aba do 📥 Inbox)"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚧 Tratar pendências e bloqueios</button>
+          <button type="button" data-acao="bloqueio" title="Registra um bloqueio num ticket: nível (crítico, importante, ciência), quem destrava e o prazo — pede o ticket primeiro"><svg class="nav-ic"><use href="#ic-alertas"/></svg>⛔ Registrar bloqueio num ticket…</button>
           <div class="navg-sec">Criar tickets</div>
           <button data-v="planejar" data-exata title="Criar ticket — um por linha ou vários de uma vez (colando do Excel ou a estrutura Épico → História → Task). A criação rápida com IA fica na 🏠 Início"><svg class="nav-ic"><use href="#ic-planejar"/></svg>📝 Criar ticket</button>
           <button data-v="ondecrio" data-exata class="nav-sub" title="A árvore de decisão: responda para quem é o trabalho e o app diz o projeto certo (Onde crio o ticket?)">🌳 Descobrir em que projeto criar</button>
@@ -186,6 +188,7 @@
           <button data-v="qualidade" data-exata class="nav-sub" title="Qualidade (IA): auditoria dos tickets criados no período contra as boas práticas TI-04-006 — nota, violações e ações por ticket (aba do 🛠 Tickets do time)">🔎 Qualidade dos tickets (IA)</button>
           <button data-v="audit" data-exata class="nav-sub" title="Regras TI-04-014: validações objetivas por pessoa (datas, estimativas, descrição, épico…) com drill-down (aba do 🛠 Tickets do time)">✅ Regras TI-04-014 (auditoria)</button>
           <button data-v="alertas" data-exata title="Alertas: a central dos tickets atrasados e críticos, com reprogramação justificada em lote (nova data + comentário no Jira)"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚨 Alertas: atrasados e críticos</button>
+          <button data-v="bloqueios" data-exata data-bq-escopo="time" title="Bloqueios do time: tudo o que está travado nos projetos, por nível e prazo — quem destrava, há quantos dias e o que já venceu (aba do 📥 Inbox)"><svg class="nav-ic"><use href="#ic-alertas"/></svg>🚧 Bloqueios do time: quem destrava o quê</button>
           <div class="navg-sec">Horas e reuniões do time</div>
           <button data-v="timesheet" data-exata title="Horas do time — Timesheet: pessoa × dia com as lacunas até a meta e o drill por dia; ⬇ exporta em vários recortes"><svg class="nav-ic"><use href="#ic-timesheet"/></svg>⏱ Horas do time: Timesheet</button>
           <button data-v="ranking" data-exata class="nav-sub" title="Ranking de apontamento por semana, mês e ano — 🏆 pódio, ⭐ metas batidas, 🔥 sequências — e o engajamento no Jira (aba do ⏱ Horas do time)">🏆 Ranking de apontamento</button>
@@ -378,6 +381,7 @@
 <script defer src="/js/20-gestao.js"></script>
 <script defer src="/js/20b-gestao-projeto.js"></script>
 <script defer src="/js/20c-status-report.js"></script>
+<script defer src="/js/20d-bloqueios.js"></script>
 <script defer src="/js/21-criacao-rapida-convidar.js"></script>
 <script defer src="/js/22-rateio.js"></script>
 <script defer src="/js/23-transformar.js"></script>

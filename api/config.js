@@ -1654,7 +1654,7 @@ async function discRota(req, res, base, headers) {
 // 🔔 Web Push (2026-11-09, camada iPad) — /api/config?push=1
 //   GET  [&e=<sha256(endpoint).slice(0,16)>] -> { ok, configurado, chave, inscrito, n, prefs, podeSexta }   (+ motivo quando faltam as envs VAPID)
 //   POST {acao:'inscrever', sub:{endpoint,keys:{p256dh,auth}}, ua} -> { ok, id, n, prefs }
-//        {acao:'cancelar', endpoint} -> { ok, n }   ·  {acao:'prefs', prefs:{convites,reunioes,sexta,plano}} -> { ok, prefs }
+//        {acao:'cancelar', endpoint} -> { ok, n }   ·  {acao:'prefs', prefs:{convites,reunioes,sexta,plano,bloqueios}} -> { ok, prefs }
 //        {acao:'testar'} -> { ok, enviados }  (1 por minuto por pessoa, em memória; só as inscrições da PRÓPRIA pessoa)
 // Identidade pelo Jira (planAuth); 401 sem ela; 503 + motivo sem VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY. Nunca devolve endpoint (nem de outra pessoa:
 // o GET só diz se o `e` pedido está entre as inscrições da própria pessoa). As inscrições moram em `push_<accountId>` (api/_lib/push.js).
