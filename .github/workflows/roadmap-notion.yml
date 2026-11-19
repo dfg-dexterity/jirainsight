@@ -14,20 +14,33 @@ name: Roadmap → Notion
 # Sem eles o job só avisa e termina verde: a sincronização fica por conta da entrega (MCP do Notion).
 #
 # Segundo job (`jira`, independente do Notion — roda mesmo sem NOTION_TOKEN): manutenção das Histórias do roadmap no Jira (projeto JI),
-# pelo POST /api/teams?tipo=roadmap-jira (regras em api/_lib/roadmapJira.js). Secrets: CRON_SECRET (o mesmo da Vercel) e, opcional,
-# TEAMS_CRON_URL (dela se tira só o endereço do site; sem ela vale https://jirainsight.vercel.app). Sem CRON_SECRET só avisa e termina verde.
+# pelo POST /api/teams?tipo=roadmap-jira (regras em api/_lib/roadmapJira.js). Gatilhos do job:
+#   · deployment_status (state success, ambiente Production da Vercel): só roda DEPOIS que o deploy do SHA está no ar — a rota é a do site, então
+#     chamar antes do deploy rodaria a versão ANTIGA da rota. O `saidas` do corpo sai do diff do ROADMAP entre SHA^ e o SHA do deploy.
+#   · schedule diário: rede de segurança (reconcilia o que um deploy perdido deixou); sem `saidas` (só criar/atualizar/classificar).
+#   · workflow_dispatch: dry=1 por padrão; `antes` = commit de referência para o diff de `saidas` (vazio = sem saídas).
+# Secrets: CRON_SECRET (o mesmo da Vercel) e, opcional, TEAMS_CRON_URL (dela se tira só o endereço do site; sem ela vale https://jirainsight.vercel.app).
+# Variável do repositório (Settings › Variables): ROADMAP_JIRA_ESCREVER=1 liga a ESCRITA. Sem ela a CI chama com dry=1 e só imprime contagens e os R### afetados.
+# Sem CRON_SECRET só avisa e termina verde.
 
 on:
   push:
     branches: [main]
     paths:
       - 'public/js/05-novidades-roadmap.js'
+  deployment_status:
+  schedule:
+    - cron: '17 9 * * *'
   workflow_dispatch:
     inputs:
       dry:
         description: 'dry=1 só mostra o que criaria/atualizaria (não grava)'
         required: false
         default: '1'
+      antes:
+        description: 'Jira: commit de referência para calcular as saídas do roadmap (vazio = sem saídas)'
+        required: false
+        default: ''
 
 concurrency:
   group: roadmap-notion
@@ -35,6 +48,7 @@ concurrency:
 
 jobs:
   sincronizar:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,9 +71,16 @@ jobs:
           node scripts/roadmap-notion.mjs "${ARGS[@]}"
 
   jira:
+    # push NÃO dispara este job (o deploy ainda não está no ar): ele espera o deployment_status de sucesso em Production.
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || '' }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -67,7 +88,10 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TEAMS_CRON_URL: ${{ secrets.TEAMS_CRON_URL }}
-          DRY: ${{ github.event.inputs.dry }}
+          ESCREVER: ${{ vars.ROADMAP_JIRA_ESCREVER }}
+          EVENTO: ${{ github.event_name }}
+          DRY_MANUAL: ${{ github.event.inputs.dry }}
+          ANTES_MANUAL: ${{ github.event.inputs.antes }}
         run: |
           set -euo pipefail
           if [ -z "${CRON_SECRET:-}" ]; then
@@ -76,12 +100,27 @@ jobs:
           fi
           BASE="$(node -e 'try{process.stdout.write(new URL(process.env.TEAMS_CRON_URL).origin)}catch(e){}')"
           BASE="${BASE:-https://jirainsight.vercel.app}"
-          node scripts/roadmap-jira-payload.mjs > itens.json
-          SUF="&confirmar=1"
-          if [ "${DRY:-0}" = "1" ]; then SUF="&dry=1"; fi
-          CODIGO="$(curl -sS -o resposta.json -w '%{http_code}' -X POST "$BASE/api/teams?tipo=roadmap-jira$SUF" \
-            -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data @itens.json || true)"
-          # Só contagens no log (a resposta não tem títulos nem descrições, mas nada além disso é impresso).
-          node -e 'try{const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));console.log(JSON.stringify({ok:j.ok,dry:j.dry,contagens:j.contagens,avisos:j.avisos,erro:j.erro}))}catch(e){console.log("resposta ilegível")}'
-          echo "HTTP $CODIGO"
-          case "$CODIGO" in 2*) ;; *) exit 1 ;; esac
+          # `saidas`: só no deploy (SHA^ → SHA) e no dispatch com `antes`. No agendamento diário não há diff confiável: sem saídas.
+          case "$EVENTO" in
+            deployment_status) node scripts/roadmap-jira-payload.mjs --antes "HEAD^" > itens.json ;;
+            workflow_dispatch) if [ -n "${ANTES_MANUAL:-}" ]; then node scripts/roadmap-jira-payload.mjs --antes "$ANTES_MANUAL" > itens.json; else node scripts/roadmap-jira-payload.mjs --antes "HEAD" > itens.json; fi ;;
+            *) node scripts/roadmap-jira-payload.mjs --antes "HEAD" > itens.json ;;
+          esac
+          # Escrita só com a variável ROADMAP_JIRA_ESCREVER=1 (e, no dispatch manual, dry=0). Do contrário: dry=1.
+          SUF="&dry=1"
+          if [ "${ESCREVER:-}" = "1" ] && { [ "$EVENTO" != "workflow_dispatch" ] || [ "${DRY_MANUAL:-1}" = "0" ]; }; then SUF="&confirmar=1"; fi
+          [ "$SUF" = "&dry=1" ] && echo "::notice::ROADMAP_JIRA_ESCREVER != 1 (ou dispatch com dry=1): chamada em dry=1, nada é gravado no Jira."
+          # Repete enquanto houver `adiadas` (orçamento de ~40 s por chamada), no máximo 3 chamadas.
+          for TENTATIVA in 1 2 3; do
+            CODIGO="$(curl -sS -m 70 -o resposta.json -w '%{http_code}' -X POST "$BASE/api/teams?tipo=roadmap-jira$SUF" \
+              -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" --data @itens.json || echo 000)"
+            # Log: só contagens e ids R### (a resposta não traz títulos nem descrições; nada além disso é impresso).
+            node -e 'try{const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));const i=j.ids||{};const l={};for(const k of ["desc","resumo","cancelar","entregue","reabrir","criar","erros"]) if(i[k]&&i[k].length) l[k]=i[k];console.log(JSON.stringify({ok:j.ok,dry:j.dry,contagens:j.contagens,avisos:j.avisos,ids:l,erro:j.erro}))}catch(e){console.log("resposta ilegível")}'
+            echo "HTTP $CODIGO (chamada $TENTATIVA)"
+            case "$CODIGO" in 2*) ;; *) exit 1 ;; esac
+            # Sem `contagens` a resposta não é a da rota nova (deploy antigo / rota errada): falha.
+            node -e 'const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));if(!j.contagens){console.error("::error::resposta sem contagens — a rota roadmap-jira não respondeu (deploy ainda antigo?)");process.exit(1)}'
+            ADIADAS="$(node -e 'const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));process.stdout.write(String((j.avisos&&j.avisos.adiadas)||0))')"
+            if [ "$ADIADAS" = "0" ] || [ "$SUF" = "&dry=1" ]; then break; fi
+            echo "::notice::$ADIADAS ação(ões) adiada(s) pelo orçamento — repetindo."
+          done
