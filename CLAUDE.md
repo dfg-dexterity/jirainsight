@@ -2,6 +2,34 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🕑 Continuar de onde parei + chips "até a meta" / "desde" no ⏱ Apontar (2026-11-18, R003, JI-312; pedido do roadmap de 2026-10-20: "o
+  caso mais comum — o mesmo ticket de ontem ou da manhã — exige rolar até o fim da tela; e fechar o dia certinho exige conta de
+  cabeça"):** módulo **`public/js/13c-apontar-continuar.js`** (prefixo `apc`, depois do 13b), sem endpoint novo — o `/api/apontar` já
+  aceitava `hora`. (1) **Faixa `#apc-faixa`** no topo (dentro de `#apc-bloco`, entre `.ap-id` e o banner de convites): `apcRecentes(3)` =
+  os tickets mais recentes da janela `meusLogs` + `extraLogs` (chave `d|0|dt` worklog, `d|1|índice` extra, `d|2|` marca da sessão);
+  chips `[data-apc-ir]` abrem a linha de apontamento COMPLETA (`linhaTicket`) em `#apc-linha`, mesmo para ticket fora da lista
+  (`garanteDet` = a busca `?detalhe=` extraída do `recRow`, uma por chave); `estado.apontar.apcAberto={k,tempo,foco,a}` (leva o
+  accountId; ignorado para outra identidade), `apcDepoisRender` preenche o tempo e leva o foco uma vez (no toque, ao botão
+  Apontar). (2) **Chips dinâmicos** `[data-apc="meta"|"desde"]` (classe `apc-chip`, mesmo `data-ap-chip` dos fixos) dentro do `.ap-chips`
+  de cada linha: **meta** = meta do dia (`apcMetaDia`: dia útil, sem feriado/ausência/fora de vigência; `metaSegDe||8h`) menos
+  `minhasHorasPorDia()[d]`, só com base do dia (`apMeusLogsCobre||apTempoCobre`, a régua da Início) e falta ≥ 1 min; **desde** = só hoje,
+  do fim do último lançamento (`apcUltimoFim`) até agora (`apAgoraMinSP`), entre 5 min e 10 h. **Regras:** 09:00 é a hora padrão de quem
+  aponta sem hora, logo **hora DESCONHECIDA** (não é âncora); a âncora é o **maior** entre o fim real do último worklog com hora e a
+  marca **`jirainsight_ap_ultfim_v1`** `{d,a,min,k}` (gravada por `apcMarcaFim` no `registraExtraDia`, só hoje e só da mesma pessoa);
+  o chip **só preenche** o tempo (nada grava até Apontar) e é **recalculado no clique** (aba aberta há horas; `null` vira toast
+  "Esse atalho não vale mais"); a **`hora` só vai no POST com o chip intacto** (`dataset.apcHora`/`apcVal` iguais ao texto do campo) e o
+  dia de hoje — digitar por cima ou escolher outro chip apaga. `fazApontamento` só **reobtém a linha se ela saiu do DOM** e dentro da
+  mesma zona (`naFaixa`: faixa do topo × lista), porque agora o mesmo ticket pode ter duas linhas com o mesmo `data-k`. Ganchos no 13:
+  `registraExtraDia`→`apcMarcaFim`, `atualizaPainelHoras`→`apcAtualizaTudo` (só DOM, sem leitura, memo por dia), `renderApontar`→
+  `apcChipsHTML` (uma vez por render) / `apcFaixaHTML` / `apcDepoisRender`. Mudou a data da linha → `apcAtualizaLinha` e, se o dia
+  não está coberto, `apGaranteMeusLogs(dia)` e atualiza de novo. `visibilitychange` recalcula. Nada local chamado `esc`/`el`/`toast`
+  (TDZ). **CSS por camada:** `app.css` (`.apc-*`, `#apc-slot:empty{display:none}`), `mobile.css` bloco apontar (os dois chips dinâmicos
+  ACIMA dos fixos, com `order:-1`; faixa compacta, resumo escondido; alvos 36 px no toque) e `ipad.css` nas duas cópias do bloco apontar
+  (44 px). **Teste** (scratchpad `r003-plano/`, porta 8798, `roda.sh`): `servidor-r003.mjs` (fixture com cenários `manha`, `sohora9`,
+  `vazio`, `metabatida`, `falhaTempo`, `atrasoTempoMs`, `atrasoDetalheMs`) e `r003-test.mjs` (Playwright, 55 asserções, relógio fixo em
+  18/11/2026 15:40). Plano em `r003-plano/plano-fable.md`. Desdobramentos no roadmap: R230 (faixa na Início/📆 Hoje/Ctrl+K), R231
+  ("desde" descontando Agenda e almoço), R232 (fim do último lançamento no servidor); R031 reescrito (falta o campo de hora na
+  linha) e R006 passou a citar `hora`/`apcMarcaFim`.
 - **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
   fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
   com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**

@@ -28,7 +28,7 @@ const estado = { periodo:'7d', vista:'acoes', tempo:null, atividade:null, usuari
   // Tela "Apontar": data-limite de vencimento, filtros, busca e cache por data.
   // convites = apontamentos de reunião aguardando a confirmação desta pessoa.
   apontar:{ ate:'', fil:'todos', soMeus:true, semVenc:false, busca:'', cat:'', proj:'', vis:'lista', porData:{}, carregando:false, recolhidos:{}, extraPorDia:{},
-    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{},
+    convites:null, convitesBusca:false, recentes:null, recCarr:false, recFechado:true, recDet:{}, recDetB:{}, apcAberto:null,
     meusLogs:null, meusLogsP:null, meusLogsSujo:false, meusLogsErro:0 },   // ⏱ janela própria das MINHAS horas por dia (13)
   // 🏦 Controladoria de Projetos: período próprio, categoria ativa e caches
   // (worklogs do período + consolidado do Jira p/ execução do esforço).

@@ -948,6 +948,18 @@
   .ap-rec-tgl{border:1px solid var(--linha);background:var(--cartao);border-radius:7px;cursor:pointer;
     font-size:12px;line-height:1;padding:3px 7px;margin-right:2px;color:var(--texto)}
   .ap-rec-tgl:hover{background:var(--hoverbg)}
+  /* 🕑 13c: Continuar de onde parei */
+  #apc-slot:empty{display:none}
+  .apc-faixa{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;border:1px solid var(--linha);border-radius:10px;
+    background:var(--cartao);padding:9px 14px;margin-bottom:14px;font-size:13px}
+  .apc-tit{font-weight:600}
+  .apc-ult{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:1 1 260px}
+  .apc-k{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--cerceta);cursor:pointer;text-decoration:underline}
+  .apc-res{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  .apc-qd{white-space:nowrap}
+  .apc-acoes,.apc-outros{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .apc-linha{margin-bottom:14px}
+  .apc-chip{border-style:dashed;white-space:nowrap}
   .ap-row:hover{box-shadow:var(--sombra)}
   .ap-row.feito{border-color:#A7F3D0;background:#F0FDF4}
   /* Faixa lateral: verde = já tem horas apontadas · âmbar = ainda sem horas. */
