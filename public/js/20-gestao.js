@@ -10,9 +10,10 @@ const GX_RE_AGUARDA_CLIENTE=/aguard|pendente.*client|waiting/i;
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
   g.carregando=true; g.erro='';
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+  const nc=forca||g.paiSujo;   // 🧩 depois de trocar um pai, a próxima leitura não pode vir do cache antigo do servidor
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${nc?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ g.carregando=false;
-      if(j.erro){ g.erro=j.erro; } else { g.dados=j; }
+      if(j.erro){ g.erro=j.erro; } else { if(typeof aphReaplica==='function') aphReaplica(j); g.dados=j; if(nc) g.paiSujo=false; }
       if(estado.vista==='gestao') renderGestao();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador de vencidos na aba 🛠 Ações em massa (fase 4)
     }).catch(e=>{ g.carregando=false; g.erro=String(e.message||e); if(estado.vista==='gestao') renderGestao(); });
@@ -146,7 +147,7 @@ function gxGrupoDe(t, hoje){
     case 'tipo': return { k:t.t||'—', rot:t.t||'—' };
     case 'status': return { k:t.status||'—', rot:t.status||'—' };
     case 'prio': return { k:t.prio||'__sem__', rot:t.prio||'sem prioridade' };
-    case 'epico': return { k:t.pai||'__sem__', rot:t.pai?`🧩 ${t.pai}`:'sem épico' };
+    case 'epico':{ const nd=t.pai?aphNodo(t.pai):null; return { k:t.pai||'__sem__', rot:t.pai?`🧩 ${t.pai}${nd&&nd.r?' — '+nd.r:''}`:'sem épico' }; }
     case 'venc':{
       if(!t.venc) return { k:'5-sem', rot:'sem vencimento' };
       if(t.venc<hoje) return { k:'1-atras', rot:'⚠ vencidos' };
@@ -397,22 +398,29 @@ let _gxDet=null;
 // `volta` (2026-09-15): quando a ficha foi aberta pela 🎫 busca de tickets, ela ganha o botão
 // "↩ Voltar à busca" com o projeto de onde veio ('' = passo de escolher o projeto). Sem o
 // parâmetro (null), a ficha continua exatamente como era nas outras telas.
-function abreModalTicket(k, volta){
-  _gxDet={ k, volta:(volta===undefined?null:volta) };
+// R156: `opts.pilha` = as fichas de onde se subiu (↩ Voltar a KEY, teto 8); `opts.seletor` = abre já com o painel 🧩.
+function abreModalTicket(k, volta, opts){
+  const o=opts||{};
+  _gxDet={ k, volta:(volta===undefined?null:volta), pilha:(o.pilha||[]).slice(-8), seletor:!!o.seletor, d:null };
   abreModal(`<h2>🔍 ${esc(k)}</h2><div class="estado" id="gx-det-carregando">Carregando a ficha do ticket…</div>`);
   // A ficha demora 1–3 s. Se nesse meio-tempo a pessoa fechou o modal (Esc, ×, clique fora) ou abriu
   // OUTRO modal (Ctrl+K, apontar…), a resposta não pode ressuscitar a ficha por cima: o marcador
   // #gx-det-carregando só existe enquanto este modal ainda é o desta ficha.
   const meu=()=>{ const m=document.getElementById('modal');
     return !!(_gxDet&&_gxDet.k===k&&document.getElementById('gx-det-carregando')&&m&&!m.hidden); };
+  const voltaFicha=()=>(_gxDet&&_gxDet.pilha&&_gxDet.pilha.length)?`<button class="btn" data-gx-det-volta>↩ Voltar a ${esc(_gxDet.pilha[_gxDet.pilha.length-1])}</button>`:'';
   const volt=()=>(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:'';
-  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}`).then(r=>r.json()).then(j=>{
+  fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}${(typeof aphFichaSuja==='function'&&aphFichaSuja())?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!meu()) return;
     if(j.erro){ abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">${esc(j.erro)}</div>
-      <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
-    renderModalTicket(j);
+      <div class="alx-modal-acoes">${volt()}${voltaFicha()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+    if(typeof aphReaplica==='function') aphReaplica(j);
+    _gxDet.d=j; renderModalTicket(j);
+    if(_gxDet.seletor){ _gxDet.seletor=false;
+      const bt=document.querySelector('#gx-det-hier [data-aph-pai]');
+      if(bt) aphTogglePainel(bt); else toast('Épico e iniciativa não trocam de pai por aqui.','info'); }
   }).catch(e=>{ if(meu()) abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">Erro de rede: ${esc(String(e.message||e))}</div>
-    <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); });
+    <div class="alx-modal-acoes">${volt()}${voltaFicha()}<button class="btn" id="gx-fechar">Fechar</button></div>`); });
 }
 function renderModalTicket(d){
   const link=`${jiraBase()}/browse/${encodeURIComponent(d.k)}`;
@@ -427,9 +435,10 @@ function renderModalTicket(d){
     <h2>🔍 Ficha do ticket <span class="muted small">${esc(d.pNome||d.p)}</span></h2>
     <div class="rv-met"><span class="k"><a href="${link}" target="_blank" rel="noopener">${esc(d.k)} ↗</a></span> — ${esc(d.resumo)}
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-        ${badge(d.t)}${badge(d.status)}${badge(d.prio,'⚑ ')}${d.pai?`<span class="badge" title="${escA(d.paiResumo||'')}">🧩 ${esc(d.pai)}</span>`:''}
+        ${badge(d.t)}${badge(d.status)}${badge(d.prio,'⚑ ')}
         ${(d.labels||[]).map(l=>`<span class="badge">🏷 ${esc(l)}</span>`).join('')}
       </div></div>
+    <div id="gx-det-hier" data-aph-host data-aph-sem-lote data-k="${escA(d.k)}">${gxFichaHierHTML(d)}</div>
     <div class="gx-det-grid">
       ${m('Responsável',d.resp||'sem responsável')}${m('Relator',d.relator)}
       ${m('Criado',d.criado?alxDataBR(d.criado):'')}${m('Atualizado',d.atualizado?alxDataBR(d.atualizado):'')}
@@ -454,9 +463,37 @@ function renderModalTicket(d){
       <button class="btn" data-tft-abre="${escA(d.k)}" data-tip="Transferir ticket: leva TODO o histórico (comentários, anexos, vínculos, filhos, horas e status) para outro ticket, de qualquer projeto — e exclui este">🔗 Transferir ticket</button>
       <button class="btn" data-gx-conv="${escA(d.k)}" data-tip="Convida pessoas do time a apontar horas neste ticket — cada uma confirma com 1 clique e o aviso vai por chat individual do Teams">📨 Convidar para apontar</button>
       <a class="btn" href="${link}" target="_blank" rel="noopener">Abrir no Jira ↗</a>
+      ${(_gxDet&&_gxDet.pilha&&_gxDet.pilha.length)?`<button class="btn" data-gx-det-volta>↩ Voltar a ${esc(_gxDet.pilha[_gxDet.pilha.length-1])}</button>`:''}
       ${(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:''}
       <span class="spacer"></span><button class="btn" id="gx-fechar">Fechar</button>
     </div>`);
+}
+// R156 — o bloco 🧩 da ficha: o caminho até o ticket + o botão do seletor (o MESMO painel do Apontar, embutido).
+function gxFichaHierHTML(d){
+  const cad=aphCadeiaHTML(d, 0, {tickets:[d], pais:d.pais||{}});
+  const vazio=(!cad && aphNivel(d)<1)?'<div class="aph-vazio muted small">Este ticket não está em nenhum épico/pai.</div>':'';
+  return `${cad}${vazio}<div class="aph-acoes" data-aph-ancora>${aphBotaoHTML(d)}</div>`;
+}
+// A ficha aberta (null se o modal fechou ou já é outra): é a fonte `extra` do seletor dentro do modal.
+function gxFichaAtual(){
+  if(!_gxDet||!_gxDet.d) return null;
+  const m=document.getElementById('modal'); if(!m||m.hidden) return null;
+  const e=document.getElementById('gx-det-hier'); if(!e||e.getAttribute('data-k')!==_gxDet.d.k) return null;
+  return _gxDet.d;
+}
+function gxFichaHierPinta(){
+  const d=gxFichaAtual(); if(!d) return;
+  const e=document.getElementById('gx-det-hier'); if(e) e.innerHTML=gxFichaHierHTML(d);
+}
+// Clicar numa chave do caminho troca a ficha pela do pai (com ↩ Voltar); a volta à busca é preservada.
+function gxFichaVai(k){
+  if(!_gxDet||!k||k===_gxDet.k) return;
+  abreModalTicket(k, _gxDet.volta, {pilha:[...(_gxDet.pilha||[]), _gxDet.k]});
+}
+function gxFichaVolta(){
+  if(!_gxDet||!(_gxDet.pilha||[]).length) return;
+  const pilha=_gxDet.pilha.slice(); const k=pilha.pop();
+  abreModalTicket(k, _gxDet.volta, {pilha});
 }
 // ---- Apontar horas em 1 ticket (modal) — usado pela Gestão e pelo drill do Analytics ----
 let _gxApont=null;
@@ -668,7 +705,9 @@ async function gxAplicaEpico(p){
     }
     const okSet=new Set(j.oks||[]);
     (((estado.gestao.dados||{}).tickets)||[]).forEach(t=>{ if(okSet.has(t.k)) t.pai=paiKey; });
-    if(ctx.depois) try{ ctx.depois([...okSet], paiKey, (ctx.epicos[p]||[]).find(e=>e.k===paiKey)||null); }catch(e){}
+    const ep=(ctx.epicos[p]||[]).find(e=>e.k===paiKey)||null;
+    if(ctx.depois) try{ ctx.depois([...okSet], paiKey, ep); }catch(e){}
+    else { aphDepoisDeVincular([...okSet], paiKey, ep?{r:ep.resumo, t:ep.tipo, st:ep.status, n:1}:null); if(estado.vista==='gestao') renderGestao(); }
     (j.oks||[]).forEach(k=>logAcao({acao:'epico', t:k, para:paiKey, ok:true}, false));
     salvaCfg();
     toast(`✓ ${j.ajustados} ticket(s) vinculados ao épico ${paiKey}.`+((j.falhas||[]).length?` ⚠ ${j.falhas.length} falharam.`:''), (j.falhas||[]).length?'warn':'ok');
@@ -720,7 +759,7 @@ function renderGestao(){
       return `<tr class="${g.sel[t.k]?'gx-on':''}">
         <td class="c">${chk(t)}</td>
         <td>${linkK(t)}${tratado(t)}</td>
-        <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}</td>
+        <td class="rc-resumo" title="${escA(t.resumo)}">${esc(t.resumo||'—')}${aphLinhaHTML(t, null, {semAcao:!idAp})}</td>
         <td><span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></td>
         <td><span class="badge">${esc(t.status)}</span></td>
         <td>${esc(t.resp||'—')}</td>
@@ -756,13 +795,15 @@ function renderGestao(){
       const ehReuniao=RE_ROTINA.test(t.t||'')||/reuni/i.test(t.resumo||'');
       return `<div class="gx-lrow ${g.sel[t.k]?'sel':''}">
         ${chk(t)}
-        <div class="ap-row gx-emb" data-k="${escA(t.k)}" style="flex:1;min-width:0">
+        <div class="ap-row gx-emb${t.pai?' aph-com-pai':''}" data-k="${escA(t.k)}" style="flex:1;min-width:0">
+          ${aphCadeiaHTML(t)}
           <div class="ap-l1">${linkK(t)}<span class="ap-resumo">${esc(t.resumo||'—')}</span>${tratado(t)}<span class="spacer"></span>${riscoBadge(t)}</div>
           <div class="ap-l2">
             <span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span>
             <span class="badge">${t.tIcon?`<img class="ji-ic" src="${escA(t.tIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.t||'—')}</span>
             ${idAp?`<button class="badge st-btn" data-ap-st="${escA(t.k)}" data-tip="Status atual — clique para mover o ticket">${esc(t.status)} ▾</button>`:`<span class="badge">${esc(t.status)}</span>`}
             ${t.prio?`<span class="badge">${t.prioIcon?`<img class="ji-ic" src="${escA(t.prioIcon)}" alt="" loading="lazy" onerror="this.remove()">`:''}${esc(t.prio)}</span>`:''}
+            ${idAp?aphBotaoHTML(t):''}
             ${gxVencBtn(t,atras)}
             ${(!t.venc||t.venc<=hoje)?`<span class="badge" data-tip="Última movimentação no Jira (comentário/alteração) — NÃO é atraso de vencimento">🕓 sem atualização: ${esc(upTxt(t))}</span>`:''}
             <span class="badge" title="Horas apontadas${t.est?' / estimativa':''}">⏱ ${t.seg?fmtH(t.seg):'0h'}${t.est?` / ${fmtH(t.est)}`:''}</span>
@@ -797,6 +838,7 @@ function renderGestao(){
           return `<div class="kb-card gx-card ${g.sel[t.k]?'sel':''}" data-gx-card="${escA(t.k)}">
           <div class="kb-top"><span class="kb-k">${chk(t)} ${linkK(t)}</span><span class="badge" data-tip="${escA(t.p)}">${esc(projNome(t.p))}</span></div>
           <div class="kb-res">${esc(t.resumo||'')}</div>
+          ${aphLinhaHTML(t, null, {semAcao:true})}
           <div class="kb-meta">
             ${riscoBadge(t)}
             ${t.venc?`<span class="badge ${atras?'venc-passado':(t.venc===hoje?'venc-hoje':'')}">${atras?'⚠ ':''}${esc(alxDataBR(t.venc))}</span>`:''}
@@ -950,4 +992,9 @@ document.getElementById('conteudo').addEventListener('change',(e)=>{
 });
 document.getElementById('conteudo').addEventListener('input',(e)=>{
   if(e.target&&e.target.id==='gx-busca'){ buscaComposta(e,(v)=>{ estado.gestao.busca=v; },renderGestao,'gx-busca'); }
+});
+// R156 — ↩ Voltar a KEY na ficha (pilha de fichas pelas quais se subiu de pai em pai).
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const b=e.target.closest&&e.target.closest('[data-gx-det-volta]'); if(!b) return;
+  gxFichaVolta();
 });

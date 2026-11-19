@@ -487,6 +487,31 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   retorno do apontar ignoram o painel 🧩 (`.ap-trans:not(.aph-painel)`, `.ap-log .ap-fb`). Testes: `hierarquia-test.mjs`
   (Playwright, 91 casos; fixture `POST /api/_hier {ligar|falha|limpar}` no `servidor-mini.mjs`, desligada por padrão) e
   `agsem/hier-servidor-test.mjs` (handlers reais, Jira falso, 25 casos).
+  **R156 (2026-11-18) — o mesmo caminho e o mesmo seletor na 🛠 Gestão (Lista, Tabela, Quadro), na ficha 🔍 e no 📆 Hoje:** o
+  13b deixou de ler só o mapa do Apontar. `aphFontes(extra)` devolve as fontes de pais na ordem **extra → mapa da tela
+  aberta (Gestão se a vista é `gestao`, senão `aphDados()`) → `aphDados()` → fichas de `recDet` → demais `porData` →
+  `g.dados` → `acoes.venc` → a ficha aberta → `_aphFichas`**; `aphNodo/aphTicketDe/aphCadeia(t, extra)/aphCadeiaHTML/
+  aphLinhaHTML` varrem essa lista, e `aphGuardaNodo` grava em todo `pais` que já existe (só cria o de `aphDados()`) —
+  leitor nunca cria nada na `cfg`. O `extra` é a ficha aberta (`aphExtraDe(elm)` dentro de `#modal-body`; `gxFichaAtual()`).
+  **Vínculo:** `aphDepoisDeVincular` atualiza `t.pai`/`paiResumo` e `pais[k].pai` em todas as fontes e acende três
+  `paiSujo` (`estado.apontar`, `estado.gestao`, `estado.acoes`; o `carregaGestao` e o `axCarregaVenc` leem e apagam) e o
+  `aphFichaSuja()` (4 min): a próxima leitura da lista, dos candidatos e da ficha (`?detalhe=`) vai com `nocache=1`. Uma
+  gravação da config por ação, `logAcao` antes. **Painel único** (`.aph-painel`, delegado no `document`, só age dentro de
+  `#conteudo`/`#modal-body`): o hospedeiro é `[data-aph-host]` (ou `.ap-row`), o ponto de ancoragem `[data-aph-ancora]` (ou
+  `.ap-l2`), `data-aph-sem-lote` tira o "vários soltos" (a ficha não o tem). `[data-aph-pai-ficha=K]` (Tabela, ⋯ do Hoje,
+  "trocar" da linha) abre a ficha com o seletor (`abreModalTicket(k,null,{seletor:true})`); sem identidade, a ficha pede
+  a identidade e reabre sozinha. **Ficha:** `#gx-det-hier` (`gxFichaHierHTML`, repintado por `gxFichaHierPinta` depois do
+  vínculo, sem fechar o `<details>`); subir de pai em pai empilha (`_gxDet.pilha`, `gxFichaVai`) e "↩ Voltar a KEY"
+  (`gxFichaVolta`) desempilha; épico e iniciativa não têm botão (o Jira não os reparenta por aqui). **Hoje:** o item do dia
+  NÃO guarda o pai (o contrato `?dia=1` não muda); o pai vem das fontes em memória e, para o que não está nelas,
+  `aphGaranteFichas(ks)` lê `?detalhe=` (até 24 por voo, 4 em paralelo, uma vez por chave — `_aphFichas`, erro
+  também fica marcado) com a guarda `h._hierP`; nunca grava o dia. Ficou de fora (R157, R235–R238): tirar do épico e
+  virar sub-tarefa, Dia do time/Pendências/Inbox/Analytics, leitura de pais em lote, agrupar a Gestão por épico raiz, o
+  seletor direto na linha do Hoje. CSS: `.aph-linha`/`.aph-troca` no `app.css`; o toque (44 px) no `mobile.css`/`ipad.css`
+  dentro dos @media do grupo. **Teste:** fora do repositório (`r156-plano/`: `servidor-r156.mjs` + `hierarquia-test.mjs`,
+  blocos A Apontar, G Gestão, F ficha, H Hoje, M celular 360×740 — 65 casos; `bash roda.sh 8797 hierarquia-test.mjs` sobe e
+  derruba a fixture no mesmo comando). Processo em 4 tarefas, um commit cada (T1 13b por fontes, T2 telas e CSS, T3 teste,
+  T4 guias/Novidades/Roadmap/este parágrafo).
 - **🤝 Contratos de parceria (2026-09-15, a pedido do usuário):** além do cadastro, cada contrato guarda a
   **📂 pasta do SharePoint** e os **📄 documentos** (`c.pasta`, `c.docs[]`) — só **links** validados por `pcUrl`
   (http/https), abertos em nova aba com a conta de quem clica: **o painel nunca guarda o arquivo nem

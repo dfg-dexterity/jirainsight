@@ -1060,6 +1060,20 @@
   .aph-cand-pai,.aph-cand-st{font-size:11px;color:var(--muted);white-space:nowrap;flex:0 0 auto}
   .aph-p-outra{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .aph-tab-cad{font-size:11px;color:var(--muted);margin-top:2px}
+  /* 🧩 R156 (2026-11-18): o mesmo caminho na Gestão (Tabela e Quadro), no 📆 Hoje e na ficha — linha compacta, ação que abre a
+     ficha com o seletor, o bloco da ficha e o painel do seletor fora de um cartão do Apontar */
+  .aph-linha{display:flex;align-items:center;gap:4px 6px;flex-wrap:wrap;min-width:0;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .aph-sep{color:var(--muted2);flex:0 0 auto}
+  .aph-troca{border:0;background:none;padding:0 2px;font-family:var(--corpo);font-size:11.5px;color:var(--cerceta);cursor:pointer;white-space:nowrap}
+  .aph-troca:hover{text-decoration:underline}
+  .aph-troca.aph-sem{font-weight:700;color:var(--amarelo)}
+  .aph-acoes{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .aph-vazio{padding:2px 0}
+  #gx-det-hier{margin:0 0 12px}
+  #gx-det-hier .aph-painel{margin-top:8px}
+  #gx-det-hier .ap-fb{font-size:12px;margin-top:4px}
+  .rc-resumo .aph-linha,.kb-card .aph-linha{flex-wrap:nowrap;overflow:hidden}
+  .rc-resumo .aph-linha .aph-res,.kb-card .aph-linha .aph-res{flex:1 1 auto}
   /* 💬 comentar: seletor de @menções dentro do painel (linha própria) */
   .ap-com-menc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-basis:100%;margin-top:2px}
   .ap-com-menc .ap-com-add{font-family:var(--corpo);font-size:12px;padding:5px 8px;border:1px solid var(--linha);

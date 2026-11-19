@@ -19,6 +19,10 @@ const APH_CAND_TTL_MS=2*60*1000;
 const _aphCand={};                                    // `P|nivel` → {ts, itens, truncado, semTipo} | {p: Promise}
 let _aphFiltro={};                                    // chave do ticket → texto do filtro do seletor aberto
 let _aphForca=false;                                  // depois de um vínculo, os candidatos são relidos sem o cache do servidor
+const _aphFichas={};                                  // R156: K → ficha mínima lida do ?detalhe= | {pend:true} | {erro:true,ts}
+let _aphFichaSujaAte=0;                               // R156: até quando a leitura da ficha vai com nocache=1 (depois de um vínculo)
+let _aphFichasP=null;                                 // R156: leitura em voo de aphGaranteFichas
+const _aphIdxC=new WeakMap();                         // R156: lista de tickets → {n, mapa}
 
 function aphDados(){ const ap=estado.apontar; return (ap&&ap.porData&&ap.porData[chaveVenc()])||null; }
 function aphAgrupaLigado(){
@@ -35,27 +39,66 @@ function aphNivel(t){
   if(t && t.sub) return -1;
   return /épico|epic/i.test((t&&t.t)||'')?1:0;
 }
-// Nó de um ancestral. Fontes: o mapa de pais da lista, as fichas dos 🕑 recentes e o próprio ticket (da lista ou ficha).
-// Regra da revisão (2026-10-27): o TICKET manda no próprio `pai` — é a cópia que o vínculo atualiza na hora; o nó do
-// mapa só completa resumo/tipo/ícone/nível. Senão, mover uma história que também é pai de uma sub-tarefa da lista
-// deixava a sub-tarefa (e o agrupado) no épico antigo até reler a lista.
-function aphNodo(k){
-  if(!k) return null;
-  const d=aphDados();
-  let mp=(d && d.pais && d.pais[k]) || null;
-  if(!mp){ const rd=(estado.apontar.recDet)||{}; for(const kk in rd){ const f=rd[kk]; if(f && f.pais && f.pais[k]){ mp=f.pais[k]; break; } } }
-  const tk=(d && (d.tickets||[]).find(x=>x.k===k)) || ((estado.apontar.recDet||{})[k]) || null;
-  if(!mp && !tk) return null;
-  const m=mp||{};
-  if(!tk) return Object.assign({k}, m);
-  return {k, r:tk.resumo||m.r||'', t:tk.t||m.t||'', ic:tk.tIcon||m.ic||'', n:(typeof tk.n==='number')?tk.n:(typeof m.n==='number'?m.n:aphNivel(tk)),
-    st:tk.status||m.st||'', pai:tk.pai||''};
+// R156 — FONTES. As cópias do que se sabe sobre os tickets vivem em vários lugares (a lista do Apontar, a da Gestão, a
+// base da Início, as fichas dos 🕑 recentes, a ficha aberta no modal e as lidas por aphGaranteFichas). `aphFontes(extra)`
+// as devolve numa ordem só — `extra` primeiro, depois a tela aberta — cada uma como {tickets:[…], pais:{…}}.
+function aphFichaAtualFonte(){
+  const d=(typeof gxFichaAtual==='function')?gxFichaAtual():null;
+  return d?{tickets:[d], pais:d.pais||{}}:null;
 }
-// Grava/atualiza um nó no mapa de pais da lista (sem apagar o `pai` que já se sabia).
+function aphFontes(extra){
+  const out=[]; const add=(f)=>{ if(f && typeof f==='object' && out.indexOf(f)<0) out.push(f); };
+  const ap=estado.apontar||{}; const g=estado.gestao||{}; const ac=estado.acoes||{};
+  add(extra);
+  if(estado.vista==='gestao') add(g.dados); else if(estado.vista==='hoje'||estado.vista==='hojetime') add(ac.venc); else add(aphDados());
+  add(aphDados());
+  Object.values(ap.recDet||{}).forEach(f=>{ if(f) add({tickets:[f], pais:f.pais||{}}); });
+  Object.values(ap.porData||{}).forEach(add);
+  add(g.dados);
+  add(ac.venc);
+  add(aphFichaAtualFonte());
+  Object.values(_aphFichas).forEach(f=>{ if(f && f.k) add({tickets:[f], pais:f.pais||{}}); });
+  return out;
+}
+// Índice K → ticket de uma lista (reconstruído quando o tamanho muda).
+function aphIdx(tickets){
+  let c=_aphIdxC.get(tickets);
+  if(!c || c.n!==tickets.length){ const mapa=new Map(); tickets.forEach(t=>{ if(t && t.k && !mapa.has(t.k)) mapa.set(t.k,t); }); c={n:tickets.length, mapa}; _aphIdxC.set(tickets,c); }
+  return c.mapa;
+}
+function aphTicketDe(k, extra){
+  if(!k) return null;
+  for(const f of aphFontes(extra)){ if(f.tickets){ const x=aphIdx(f.tickets).get(k); if(x) return x; } }
+  return null;
+}
+// Nó de um ancestral. Regra da revisão (2026-10-27): o TICKET manda no próprio `pai` — é a cópia que o vínculo atualiza na
+// hora; o nó do mapa só completa resumo/tipo/ícone/nível. Senão, mover uma história que também é pai de uma sub-tarefa da
+// lista deixava a sub-tarefa (e o agrupado) no épico antigo até reler a lista.
+function aphNodo(k, extra){
+  if(!k) return null;
+  // A PRIMEIRA fonte que sabe do ticket OU do nó decide o `pai` (é a mais próxima da tela aberta); as seguintes só
+  // completam resumo/tipo/ícone/nível. Assim uma cópia velha (a lista da Gestão de horas atrás) não passa por cima do mapa
+  // fresco da tela aberta.
+  let mp=null, tk=null, achou=false, pai='';
+  for(const f of aphFontes(extra)){
+    const x=f.tickets?aphIdx(f.tickets).get(k):null; const m=(f.pais&&f.pais[k])||null;
+    if(!x && !m) continue;
+    if(!achou){ achou=true; pai=x?(x.pai||''):(m.pai||''); }
+    if(x && !tk) tk=x;
+    if(m && !mp) mp=m;
+    if(tk && mp) break;
+  }
+  if(!achou) return null;
+  const m=mp||{};
+  if(!tk) return Object.assign({k}, m, {pai});
+  return {k, r:tk.resumo||m.r||'', t:tk.t||m.t||'', ic:tk.tIcon||m.ic||'', n:(typeof tk.n==='number')?tk.n:(typeof m.n==='number'?m.n:aphNivel(tk)),
+    st:tk.status||m.st||'', pai};
+}
+// Grava/atualiza um nó nos mapas de pais (sem apagar o `pai` que já se sabia). Só cria `pais` na lista do Apontar.
 function aphGuardaNodo(k, nodo){
-  const d=aphDados(); if(!d||!k) return;
-  d.pais=d.pais||{};
-  const velho=d.pais[k]||aphNodo(k)||{};          // parte do que já se sabe (mapa, ficha ou o ticket da lista)
+  if(!k) return;
+  const d=aphDados(); if(d) d.pais=d.pais||{};
+  const velho=((d&&d.pais&&d.pais[k])||aphNodo(k)||{});   // parte do que já se sabe (mapa, ficha ou o ticket da lista)
   const novo=Object.assign({r:'', t:'', ic:'', n:null, st:'', pai:null}, velho); delete novo.k;
   Object.keys(nodo||{}).forEach(c=>{
     const v=nodo[c];
@@ -63,15 +106,15 @@ function aphGuardaNodo(k, nodo){
     if(c!=='pai' && v==='') return;
     novo[c]=v;
   });
-  d.pais[k]=novo;
+  aphFontes().forEach(f=>{ if(f.pais && typeof f.pais==='object') f.pais[k]=Object.assign({}, novo); });
 }
 // A cadeia do ticket, da RAIZ até o pai imediato. Para no `pai` desconhecido (null), em ciclo ou no teto de 6.
-function aphCadeia(t){
+function aphCadeia(t, extra){
   const out=[]; if(!t||!t.pai) return out;
   const vistos=new Set([t.k]); let k=t.pai;
   while(k && !vistos.has(k) && out.length<6){
     vistos.add(k);
-    const n=aphNodo(k);
+    const n=aphNodo(k, extra);
     if(!n){ out.push({k, r:(out.length===0&&t.paiResumo)||'', t:'', ic:'', n:null, st:'', pai:null}); break; }
     out.push(n);
     k=n.pai||'';
@@ -84,8 +127,8 @@ function aphRotTipo(n){
   return n&&n.n===1?'Épico':n&&n.n===2?'Iniciativa':'Pai';
 }
 // 🧭 O caminho no cartão. `pula` = quantos níveis do topo não repetir (no agrupado, a raiz já é o cabeçalho do bloco).
-function aphCadeiaHTML(t, pula){
-  const cad=aphCadeia(t).slice(pula||0);
+function aphCadeiaHTML(t, pula, extra){
+  const cad=aphCadeia(t, extra).slice(pula||0);
   if(!cad.length) return '';
   const linhas=cad.map((n,i)=>`<div class="aph-cad" style="--aph-i:${i}">
       ${i?'<span class="aph-ramo" aria-hidden="true">└</span>':''}
@@ -105,6 +148,26 @@ function aphBotaoHTML(t){
   return t.pai
     ? `<button class="badge st-btn" data-aph-pai="${escA(t.k)}" data-tip="Trocar o épico deste ticket">🧩 trocar o épico ▾</button>`
     : `<button class="badge st-btn sem-venc" data-aph-pai="${escA(t.k)}" data-tip="Este ticket não está em nenhum épico — clique para escolher">🧩 sem épico · vincular ▾</button>`;
+}
+
+// R156 — linha COMPACTA do caminho (Gestão: Tabela e Quadro; 📆 Hoje): `🧩 ACME-1 › ACME-10 › ACME-20  resumo do pai` e, no
+// fim, a ação que abre a ficha já com o seletor (`data-aph-pai-ficha`). '' quando não há o que dizer. `extra` = fontes
+// extras (aphFontes); `opts.semAcao` = só o caminho (Quadro, ou sem identidade).
+function aphLinhaHTML(t, extra, opts){
+  const o=opts||{}; if(!t||!t.k) return '';
+  const cad=aphCadeia(t, extra);
+  const nivel=aphNivel(t);
+  const acao=!o.semAcao && nivel<1;
+  if(!cad.length && !(acao && nivel===0)) return '';
+  const nos=cad.map(n=>`<button type="button" class="aph-k" data-aph-ver="${escA(n.k)}" title="Ver a ficha de ${escA(n.k)}${n.r?' — '+escA(n.r):''}">${esc(n.k)}</button>`).join('<span class="aph-sep">›</span>');
+  const pai=cad.length?cad[cad.length-1]:null;
+  let fim='';
+  if(acao){
+    fim=cad.length
+      ? `<button type="button" class="aph-troca" data-aph-pai-ficha="${escA(t.k)}" title="Trocar o épico/pai">🧩 trocar</button>`
+      : `<button type="button" class="aph-troca aph-sem" data-aph-pai-ficha="${escA(t.k)}" title="Este ticket não está em nenhum épico — clique para escolher">🧩 sem épico · vincular</button>`;
+  }
+  return `<div class="aph-linha" aria-label="Caminho: ${escA(cad.map(n=>n.k).concat([t.k]).join(' › '))}">${cad.length?'<span aria-hidden="true">🧩</span>':''}${nos}${pai&&pai.r?`<span class="aph-res" title="${escA(pai.r)}">${esc(pai.r)}</span>`:''}${fim}</div>`;
 }
 
 // ---- 🧩 Agrupar por épico/pai ----
@@ -175,34 +238,46 @@ function aphCandidatos(p, nivel, forca){
   _aphCand[ck]={p:pr};
   return pr;
 }
-function aphTicketDe(k){
-  const d=aphDados();
-  return (d&&(d.tickets||[]).find(x=>x.k===k)) || ((estado.apontar.recDet||{})[k]) || null;
-}
 function aphPainelTexto(t){
   const n=aphNivel(t);
   return n===-1
     ? 'Sub-tarefa fica sob uma <b>história ou tarefa do mesmo projeto</b>.'
     : 'Tarefa e história ficam sob um <b>épico</b> — é o épico que agrupa o trabalho no Jira.';
 }
+// R156 — o hospedeiro do painel: o cartão do Apontar/Gestão (`.ap-row`) ou o bloco da ficha (`[data-aph-host]`).
+function aphHostDe(elm){ return elm&&elm.closest?elm.closest('[data-aph-host], .ap-row'):null; }
+// Dentro da ficha aberta no modal, o ticket que o painel manda é o da ficha (ela pode ter saído de qualquer lista).
+function aphExtraDe(elm){
+  if(!elm||!elm.closest||!elm.closest('#modal-body')) return null;
+  return aphFichaAtualFonte();
+}
 function aphTogglePainel(btn){
-  const row=btn.closest('.ap-row'); if(!row) return;
+  const host=aphHostDe(btn); if(!host) return;
   const k=btn.getAttribute('data-aph-pai');
-  const id=idApontar(); if(!id){ abreIdentidade('trocar o épico/pai do ticket'); return; }
-  const aberto=row.querySelector('.aph-painel'); if(aberto){ aberto.remove(); return; }
-  const t=aphTicketDe(k); if(!t) return;
+  const emModal=!!btn.closest('#modal-body');
+  const id=idApontar();
+  if(!id){
+    if(emModal){ const dt=(typeof _gxDet!=='undefined'&&_gxDet&&_gxDet.k===k)?{volta:_gxDet.volta, pilha:(_gxDet.pilha||[]).slice()}:{volta:null, pilha:[]};   // a identidade não pode perder o "↩ Voltar"
+      abreIdentidade('trocar o épico/pai do ticket', {depois:()=>abreModalTicket(k, dt.volta, {seletor:true, pilha:dt.pilha})}); }
+    else abreIdentidade('trocar o épico/pai do ticket');
+    return;
+  }
+  const aberto=host.querySelector('.aph-painel'); if(aberto){ aberto.remove(); return; }
+  const t=aphTicketDe(k, aphExtraDe(btn)); if(!t) return;
   const nivel=aphNivelPai(t);
+  const idCh='aph-ch-'+k+(emModal?'-m':'');   // o mesmo ticket no cartão e na ficha ao mesmo tempo: ids distintos
   const area=document.createElement('div'); area.className='ap-trans aph-painel'; area.dataset.k=k;
   area.innerHTML=`<div class="aph-p-top"><span class="ap-trans-rot">${nivel===0?'História/tarefa':'Épico'} de ${esc(k)}</span>
       <span class="muted small">${aphPainelTexto(t)}</span></div>
     <input type="search" class="aph-filtro" placeholder="filtrar por nome ou chave…" aria-label="Filtrar ${nivel===0?'histórias e tarefas':'épicos'}" value="${escA(_aphFiltro[k]||'')}">
     <div class="aph-lista" role="list"><div class="muted small">Carregando ${nivel===0?'histórias e tarefas':'épicos'} abertos de ${esc(projNome(t.p))}…</div></div>
-    <div class="aph-p-outra"><label class="muted small" for="aph-ch-${escA(k)}">Outra chave${nivel===1?' (épico de outro projeto)':''}:</label>
-      <input type="text" class="aph-chave" id="aph-ch-${escA(k)}" placeholder="${escA(t.p)}-123" autocomplete="off" spellcheck="false">
+    <div class="aph-p-outra"><label class="muted small" for="${escA(idCh)}">Outra chave${nivel===1?' (épico de outro projeto)':''}:</label>
+      <input type="text" class="aph-chave" id="${escA(idCh)}" placeholder="${escA(t.p)}-123" autocomplete="off" spellcheck="false">
       <button class="chip primario-chip" data-aph-chave-do="${escA(k)}">Usar →</button>
-      ${nivel===1?`<button class="chip" data-aph-lote="${escA(t.p)}" data-tip="Escolher um épico para vários tickets soltos deste projeto de uma vez">🧩 vários soltos de uma vez…</button>`:''}</div>
+      ${nivel===1&&!host.hasAttribute('data-aph-sem-lote')?`<button class="chip" data-aph-lote="${escA(t.p)}" data-tip="Escolher um épico para vários tickets soltos deste projeto de uma vez">🧩 vários soltos de uma vez…</button>`:''}</div>
     <div class="ap-fb" hidden></div>`;
-  row.querySelector('.ap-l2').after(area);
+  const ancora=host.querySelector('[data-aph-ancora]')||host.querySelector('.ap-l2'); if(!ancora) return;
+  ancora.after(area);
   aphCandidatos(t.p, nivel).then(()=>aphPintaLista(area)).catch(e=>{
     const l=area.querySelector('.aph-lista');
     if(l) l.innerHTML=`<div class="ap-fb err">Não consegui ler os candidatos: ${esc(e.message||e)} <button class="chip" data-aph-recarrega="${escA(k)}">↻ tentar de novo</button></div>`;
@@ -211,7 +286,7 @@ function aphTogglePainel(btn){
 }
 function aphPintaLista(area){
   if(!area || !area.isConnected) return;
-  const k=area.dataset.k; const t=aphTicketDe(k); if(!t) return;
+  const k=area.dataset.k; const t=aphTicketDe(k, aphExtraDe(area)); if(!t) return;
   const nivel=aphNivelPai(t);
   const c=_aphCand[t.p+'|'+nivel]; const l=area.querySelector('.aph-lista');
   if(!c || !c.itens || !l) return;
@@ -253,24 +328,50 @@ async function aphAplica(k, paiKey, info, area){
     logAcao({acao:'epico', t:k, para:paiKey, ok:true}, false);
     salvaCfg();
     toast(`✓ ${k} agora está sob ${paiKey}${info&&info.r?` — ${info.r}`:''}.`,'ok');
-    if(estado.vista==='apontar') renderApontar();
+    aphRedesenha();
   }catch(e){ diz('err','Erro de rede: '+(e.message||e)); trava(false); }
 }
-// Depois do vínculo (um ticket ou o lote): `pai` nas cópias do ticket + o nó do pai (e o pai DELE, se veio) no mapa.
+function aphFichaSuja(){ return Date.now()<_aphFichaSujaAte; }
+// Depois do vínculo (um ticket ou o lote): `pai` nas cópias do ticket de TODAS as fontes + o nó do pai (e o pai DELE, se
+// veio) no mapa. R156: as fontes vêm de aphFontes (Apontar, Gestão, Início, recentes, ficha aberta e fichas lidas).
+// R156 — registro curto dos vínculos feitos (4 min): uma leitura que já estava em voo, ou o índice do Jira atrasado, devolve
+// o pai ANTIGO; toda lista/ficha que chega passa por aphReaplica e volta a ter o pai novo.
+let _aphVinculos=[];
+function aphReaplica(p){
+  if(!p || typeof p!=='object') return p;
+  const agora=Date.now(); _aphVinculos=_aphVinculos.filter(v=>agora-v.ts<4*60*1000);
+  _aphVinculos.forEach(v=>{
+    const set=new Set(v.ks); const res=v.res||'';
+    const lista=Array.isArray(p.tickets)?p.tickets:(p.k?[p]:[]);
+    let tocou=false;
+    lista.forEach(t=>{ if(t && set.has(t.k)){ t.pai=v.paiKey; if('paiResumo' in t) t.paiResumo=res; tocou=true; } });
+    if(p.pais && typeof p.pais==='object'){
+      v.ks.forEach(k=>{ if(p.pais[k]){ p.pais[k].pai=v.paiKey; tocou=true; } });
+      if(tocou) Object.keys(v.nodos||{}).forEach(c=>{ if(!p.pais[c]) p.pais[c]=Object.assign({}, v.nodos[c]); else if(c===v.paiKey && v.nodos[c].pai) p.pais[c].pai=v.nodos[c].pai; });
+    }
+  });
+  return p;
+}
 function aphDepoisDeVincular(ks, paiKey, info){
   const set=new Set(ks);
-  const d=aphDados();
-  ((d&&d.tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; });
-  Object.values(estado.apontar.porData||{}).forEach(dd=>((dd&&dd.tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; }));
-  const rd=estado.apontar.recDet||{}; ks.forEach(k=>{ if(rd[k]) rd[k].pai=paiKey; });
-  // o ticket movido também pode ser NÓ de algum mapa (é pai de outro da lista ou de um 🕑 recente): o pai dele muda lá também
-  const mapas=[...Object.values(estado.apontar.porData||{}).map(dd=>dd&&dd.pais), ...Object.values(rd).map(f=>f&&f.pais)].filter(Boolean);
-  mapas.forEach(m=>ks.forEach(k=>{ if(m[k]) m[k].pai=paiKey; }));
+  {
+    const avo=info&&info.pai&&info.pai.k?info.pai:null; const nodos={};
+    if(info){ nodos[paiKey]={r:info.r||info.resumo||'', t:info.t||info.tipo||'', ic:info.ic||'', n:typeof info.n==='number'?info.n:0, st:info.st||info.status||'', pai:avo?avo.k:''};
+      if(avo) nodos[avo.k]={r:avo.r||'', t:avo.t||'', ic:avo.ic||'', n:typeof avo.n==='number'?avo.n:1, st:avo.st||'', pai:''}; }
+    _aphVinculos.push({ks:ks.slice(), paiKey, res:(info&&(info.r||info.resumo))||'', nodos, ts:Date.now()});
+  }
+  const resumoPai=(info&&(info.r||info.resumo))||'';
+  aphFontes().forEach(f=>{
+    (f.tickets||[]).forEach(t=>{ if(t && set.has(t.k)){ t.pai=paiKey; if('paiResumo' in t) t.paiResumo=resumoPai; } });
+    // o ticket movido também pode ser NÓ de algum mapa (é pai de outro da lista ou de um 🕑 recente): o pai dele muda lá também
+    if(f.pais && typeof f.pais==='object') ks.forEach(k=>{ if(f.pais[k]) f.pais[k].pai=paiKey; });
+  });
   // candidatos guardados trazem o pai de cada um (o movido pode estar entre eles) → relê; e a próxima leitura da lista vai
   // sem o cache do servidor (cada função da Vercel tem o seu: o /api/transicao não limpa o do /api/vencimentos)
   Object.keys(_aphCand).forEach(c=>{ delete _aphCand[c]; });
-  _aphForca=true; estado.apontar.paiSujo=true;
-  (((estado.gestao&&estado.gestao.dados||{}).tickets)||[]).forEach(t=>{ if(set.has(t.k)) t.pai=paiKey; });
+  _aphForca=true;
+  ['apontar','gestao','acoes'].forEach(c=>{ if(estado[c]) estado[c].paiSujo=true; });
+  _aphFichaSujaAte=Date.now()+4*60*1000;
   if(info){
     const avo=info.pai&&info.pai.k?info.pai:null;
     aphGuardaNodo(paiKey, {r:info.r||info.resumo||'', t:info.t||info.tipo||'', ic:info.ic||'', n:typeof info.n==='number'?info.n:null, st:info.st||info.status||'',
@@ -297,46 +398,96 @@ async function aphUsaChave(btn){
   btn.disabled=false;
   aphAplica(k, alvo, info, area);
 }
+// R156 — a lista da tela aberta (tickets inteiros + as chaves à vista) para o lote.
+function aphListaTela(){
+  if(estado.vista==='gestao'){
+    const g=estado.gestao||{};
+    return {tickets:((g.dados||{}).tickets)||[], visiveis:(typeof gxLista==='function'?gxLista():[]).map(t=>t.k)};
+  }
+  return {tickets:((aphDados()||{}).tickets)||[], visiveis:(estado.apontar.listaVisivel||[]).slice()};
+}
 function aphAbreLote(btn){
   const p=btn.getAttribute('data-aph-lote');
   let ks=String(btn.getAttribute('data-aph-lote-ks')||'').split(',').filter(Boolean);
   // sem lista no botão (o do seletor do cartão): os tickets À VISTA na tela — filtros e "Só os meus" valem aqui também
-  if(!ks.length) ks=(estado.apontar.listaVisivel||[]).slice();
+  if(!ks.length) ks=aphListaTela().visiveis;
   const so=new Set(ks);
   abreModalEpicos({
-    lista:()=>((aphDados()||{}).tickets||[]).filter(t=>t.p===p && so.has(t.k)),
+    lista:()=>aphListaTela().tickets.filter(t=>t.p===p && so.has(t.k)),
     depois:(oks, paiKey, ep)=>{ aphDepoisDeVincular(oks, paiKey, ep?{r:ep.resumo, t:ep.tipo, st:ep.status, n:1}:null);
-      if(estado.vista==='apontar') renderApontar(); },
+      aphRedesenha(); },
   });
 }
+// R156 — redesenha o que a tela aberta mostra (e o bloco da ficha, se aberta) depois de um vínculo.
+function aphRedesenha(){
+  if(typeof gxFichaHierPinta==='function') gxFichaHierPinta();
+  if(estado.vista==='apontar') renderApontar();
+  else if(estado.vista==='gestao') renderGestao();
+  else if(typeof hjVistaAberta==='function' && hjVistaAberta()) renderHoje();
+}
 
-// ---- Listeners delegados desta tela ----
-document.getElementById('conteudo').addEventListener('click',(e)=>{
-  if(estado.vista!=='apontar') return;
-  const b=e.target.closest&&e.target.closest('button'); if(!b) return;
+// R156 — ficha mínima dos tickets que nenhuma fonte conhece (o 📆 Hoje lê só o `?dia=1`, que não traz o pai). Até 24 por
+// voo, 4 leituras de cada vez, cada chave no máximo UMA vez por sessão (erro não insiste). true = alguma ficha chegou.
+function aphGaranteFichas(ks){
+  if(_aphFichasP) return _aphFichasP;
+  const vistos=new Set(); const falt=[];   // ficha com erro de leitura: tenta de novo depois de ~60 s
+  (ks||[]).forEach(k=>{ if(!k||vistos.has(k)) return; vistos.add(k); if(aphTicketDe(k)) return; const f=_aphFichas[k]; if(f && !(f.erro && Date.now()-(f.ts||0)>60000)) return; falt.push(k); });
+  if(!falt.length) return Promise.resolve(false);
+  const lote=falt.slice(0,24);
+  lote.forEach(k=>{ _aphFichas[k]={pend:true}; });
+  _aphFichasP=(async()=>{
+    let mudou=false;
+    for(let i=0;i<lote.length;i+=4){
+      await Promise.all(lote.slice(i,i+4).map(async k=>{
+        try{
+          const r=await fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}${aphFichaSuja()?'&nocache=1':''}`);
+          const j=await r.json();
+          if(!j || j.erro || !j.k) throw new Error((j&&j.erro)||'ficha inválida');
+          _aphFichas[k]={k:j.k, resumo:j.resumo||'', p:j.p||'', t:j.t||'', tIcon:j.tIcon||'', status:j.status||'', n:(typeof j.n==='number')?j.n:undefined,
+            sub:!!j.sub, pai:j.pai||'', paiResumo:j.paiResumo||'', pais:j.pais||{}};
+          aphReaplica(_aphFichas[k]);
+          mudou=true;
+        }catch(e){ _aphFichas[k]={erro:true, ts:Date.now()}; }
+      }));
+    }
+    return mudou;
+  })().finally(()=>{ _aphFichasP=null; });
+  return _aphFichasP;
+}
+
+// ---- Listeners delegados (R156: no document — valem na tela (#conteudo) e na ficha (#modal-body)) ----
+function aphAlvoValido(e){ const a=e.target; return !!(a && a.closest && a.closest('#conteudo, #modal-body')); }
+document.addEventListener('click',(e)=>{
+  if(!aphAlvoValido(e)) return;
+  const b=e.target.closest('button'); if(!b) return;
+  const emModal=!!b.closest('#modal-body');
   if(b.hasAttribute('data-aph-pai')){ escondeTip(); aphTogglePainel(b); }
-  else if(b.hasAttribute('data-aph-ver')){ escondeTip(); abreModalTicket(b.getAttribute('data-aph-ver')); }
+  else if(b.hasAttribute('data-aph-ver')){ escondeTip(); const k=b.getAttribute('data-aph-ver');
+    if(emModal && typeof gxFichaVai==='function') gxFichaVai(k); else abreModalTicket(k); }
+  else if(b.hasAttribute('data-aph-pai-ficha')){ escondeTip(); abreModalTicket(b.getAttribute('data-aph-pai-ficha'), null, {seletor:true}); }
   else if(b.hasAttribute('data-aph-esc')){ const area=b.closest('.aph-painel'); if(!area) return;
-    const k=area.dataset.k; const t=aphTicketDe(k); if(!t) return;
+    const k=area.dataset.k; const t=aphTicketDe(k, aphExtraDe(area)); if(!t) return;
     const c=_aphCand[t.p+'|'+aphNivelPai(t)]; const x=c&&c.itens&&c.itens.find(i=>i.k===b.getAttribute('data-aph-esc'));
     aphAplica(k, b.getAttribute('data-aph-esc'), x?{r:x.r, t:x.t, ic:x.ic, st:x.st, n:aphNivelPai(t), pai:x.pai||null}:null, area); }
   else if(b.hasAttribute('data-aph-chave-do')){ aphUsaChave(b); }
   else if(b.hasAttribute('data-aph-lote')){ escondeTip(); aphAbreLote(b); }
-  else if(b.hasAttribute('data-aph-agrupa')){ escondeTip(); aphAgrupaGrava(!aphAgrupaLigado()); renderApontar(); }
+  else if(b.hasAttribute('data-aph-agrupa')){ if(estado.vista!=='apontar') return; escondeTip(); aphAgrupaGrava(!aphAgrupaLigado()); renderApontar(); }
   else if(b.hasAttribute('data-aph-recarrega')){ const area=b.closest('.aph-painel'); const k=b.getAttribute('data-aph-recarrega');
-    const t=aphTicketDe(k); if(!area||!t) return; const l=area.querySelector('.aph-lista'); if(l) l.innerHTML='<div class="muted small">Carregando…</div>';
+    const t=aphTicketDe(k, aphExtraDe(b)); if(!area||!t) return; const l=area.querySelector('.aph-lista'); if(l) l.innerHTML='<div class="muted small">Carregando…</div>';
     aphCandidatos(t.p, aphNivelPai(t), true).then(()=>aphPintaLista(area)).catch(err=>{ if(l) l.innerHTML=`<div class="ap-fb err">Não consegui ler os candidatos: ${esc(err.message||err)}</div>`; }); }
 });
-document.getElementById('conteudo').addEventListener('input',(e)=>{
+document.addEventListener('input',(e)=>{
+  if(!aphAlvoValido(e)) return;
   const f=e.target; if(!f||!f.classList||!f.classList.contains('aph-filtro')) return;
   const area=f.closest('.aph-painel'); if(!area) return;
   _aphFiltro[area.dataset.k]=f.value; aphPintaLista(area);
 });
-document.getElementById('conteudo').addEventListener('keydown',(e)=>{
+document.addEventListener('keydown',(e)=>{
+  if(!aphAlvoValido(e)) return;
   const f=e.target; if(e.key!=='Enter'||!f||!f.classList) return;
   const area=f.closest&&f.closest('.aph-painel'); if(!area) return;
-  if(f.classList.contains('aph-chave')){ e.preventDefault(); const b=area.querySelector('[data-aph-chave-do]'); if(b) aphUsaChave(b); }
-  else if(f.classList.contains('aph-filtro')){ e.preventDefault();
+  if(f.classList.contains('aph-chave')){ e.preventDefault(); e.stopPropagation(); const b=area.querySelector('[data-aph-chave-do]'); if(b) aphUsaChave(b); }
+  else if(f.classList.contains('aph-filtro')){ e.preventDefault(); e.stopPropagation();
     // Enter só escolhe quando o filtro deixou UM candidato — Enter "de reflexo" com a lista inteira gravaria um épico qualquer
     const cs=[...area.querySelectorAll('.aph-cand:not(.atual)')];
     if(String(f.value||'').trim() && cs.length===1) cs[0].click();
