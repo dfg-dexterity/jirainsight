@@ -29,7 +29,7 @@ const CLF_NOTAS_FRENTE=60;
 const CLF_PC_POR_NOME=true;    // parceria cuja consultoria tem o nome do cliente entra "pelo nome" (rotulada); false desliga
 const CLF_RE_ID=/^[A-Za-z0-9_-]{1,60}$/;   // pcId('cl') gera 'cl'+base36; a fixture dos testes usa ids curtos
 const CLF_RE_PROJ=/^[A-Z][A-Z0-9_]*$/;
-estado.clf=estado.clf||{ cli:'', per:'ciclo', de:'', ate:'', tempo:{}, tempoB:{}, tempoErro:{}, sr:{}, srB:{}, srLim:CLF_SR_LOTE, busca:'' };
+estado.clf=estado.clf||{ cli:'', per:'ciclo', de:'', ate:'', tempo:{}, tempoB:{}, tempoErro:{}, sr:{}, srB:{}, srLim:CLF_SR_LOTE, busca:'', forca:false };
 
 // ---- utilidades ----
 const clfMsg=(e)=>String((e&&e.message)||e||'erro');
@@ -45,7 +45,8 @@ const CLF_CHAVES_CFG=['parcerias','pessoasPlanejadas','rentab','clientes','contr
 const CLF_LISTAS_ITENS=[()=>cfg.parcerias,()=>cfg.contratos,()=>cfg.clientes,()=>cfg.rentab&&cfg.rentab.planos];
 // {top:{chave:existia}, itens:[[obj, Set(chaves que tinha)]]} — os itens também: pcEquipe/pcPrev/pcExtras (parceria) e afins criam [] / {} no objeto.
 function clfSnap(){ const top={}; CLF_CHAVES_CFG.forEach(k=>{ top[k]=(k in cfg)&&cfg[k]!==undefined; }); const itens=[];
-  CLF_LISTAS_ITENS.forEach(f=>{ let l; try{ l=f(); }catch(e){ l=null; } if(!Array.isArray(l)) return; l.forEach(o=>{ if(o&&typeof o==='object'&&!Array.isArray(o)) itens.push([o,new Set(Object.keys(o))]); }); });
+  CLF_LISTAS_ITENS.forEach(f=>{ let l; try{ l=f(); }catch(e){ l=null; } if(!Array.isArray(l)) return; l.forEach(o=>{ if(o&&typeof o==='object'&&!Array.isArray(o)){ itens.push([o,new Set(Object.keys(o))]);
+      if(Array.isArray(o.equipe)) o.equipe.forEach(e=>{ if(e&&typeof e==='object'&&!Array.isArray(e)) itens.push([e,new Set(Object.keys(e))]); }); } }); });   // equipe[].regras nasce em pcRegras
   return { top, itens }; }
 function clfVazio(v){ if(v==null) return true; if(Array.isArray(v)) return v.length===0;
   if(typeof v==='object'){ const ks=Object.keys(v); if(!ks.length) return true; return ks.every(k=>clfVazio(v[k])); } return false; }
@@ -53,6 +54,9 @@ function clfRestaura(s){ CLF_CHAVES_CFG.forEach(k=>{ if(!s.top[k]&&(k in cfg)&&c
   s.itens.forEach(([o,ks])=>{ Object.keys(o).forEach(k=>{ if(!ks.has(k)&&clfVazio(o[k])) delete o[k]; }); }); }
 
 // ---- período ----
+// Data AAAA-MM-DD possível (vai e volta pelo calendário) e de ano razoável: 0000-00-00, 2026-13-45 e 0002-… não valem.
+function clfDataValida(s){ if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; if(Number(s.slice(0,4))<2000) return false;
+  const d=new Date(s+'T00:00:00Z'); return !isNaN(d.getTime())&&d.toISOString().slice(0,10)===s; }
 function clfDiasNoMes(ym){ return pcUltimoDia(ym); }
 // {id, de, ate, ateLido, rot, ciclo, futuro, cortado, invalido}
 function clfPeriodo(cl, per, hoje, de, ate){
@@ -60,7 +64,7 @@ function clfPeriodo(cl, per, hoje, de, ate){
   if(id==='ciclo'||id==='ciclo-1'){ let ym=pcYmDaData(cl,hoje); if(id==='ciclo-1') ym=pcYmSoma(ym,-1);
     const P=pcPeriodo(cl,ym); d=P.ini; a=P.fim; ciclo=P; rot=`Ciclo ${labelMesAbbr(ym)}`; }
   else if(id==='mes'||id==='mes-1'){ let ym=hoje.slice(0,7); if(id==='mes-1') ym=pcYmSoma(ym,-1); d=ym+'-01'; a=clfDiasNoMes(ym); rot=id==='mes'?'Este mês':'Mês passado'; }
-  else { d=pcData(de)?de:''; a=pcData(ate)?ate:'';
+  else { d=clfDataValida(de)?de:''; a=clfDataValida(ate)?ate:'';
     if(!d&&!a){ a=hoje; d=pcMaisDias(hoje,-29); invalido=true; } else if(!d) d=pcMaisDias(a,-29); else if(!a) a=clfMin(hoje,pcMaisDias(d,29));
     if(a<d){ const t=d; d=a; a=t; }
     if(pcDias(d,a)+1>CLF_MAX_DIAS){ a=pcMaisDias(d,CLF_MAX_DIAS-1); cortado=true; }
@@ -110,7 +114,7 @@ const clfChaveT=(de,ate)=>de+'|'+ate;
 function clfTempoAcha(de, ate){ const C=estado.clf; const exato=clfChaveT(de,ate);
   const ks=Object.keys(C.tempo||{});
   for(let i=0;i<ks.length;i++){ const [d0,a0]=ks[i].split('|'); if(d0<=de&&a0>=ate) return { st:'ok', t:C.tempo[ks[i]] }; }
-  const ct=estado.ctrl; if(ct&&ct.tempo&&ct.chaveT){ const [d0,a0]=String(ct.chaveT).split('|'); if(d0&&a0&&d0<=de&&a0>=ate) return { st:'ok', t:ct.tempo }; }
+  const ct=estado.ctrl; if(!C.forca&&ct&&ct.tempo&&ct.chaveT){ const [d0,a0]=String(ct.chaveT).split('|'); if(d0&&a0&&d0<=de&&a0>=ate) return { st:'ok', t:ct.tempo }; }
   const bs=Object.keys(C.tempoB||{}); for(let i=0;i<bs.length;i++){ if(!C.tempoB[bs[i]]) continue; const [d0,a0]=bs[i].split('|'); if(d0<=de&&a0>=ate) return { st:'lendo' }; }   // leitura em voo que cobre: espera por ela, não pede outra
   if((C.tempoErro||{})[exato]) return { st:'erro', erro:C.tempoErro[exato] };
   return { st:'falta' }; }
@@ -147,12 +151,14 @@ function clfContratoLinha(c, hoje, P, tPer){
   const tipo=c.tipo||'ams'; const L={ c, cod:ctCodCli(c), tipo, sit:clfSitContrato(c,hoje), vh:Number(c.valorHora)||0, contratado:0, unid:'', consumo:clfConsumoVazio('vazio'), saldo:null, pct:null, ciclo:null, faturado:null, alocado:null, lerChave:null };
   const projetos=clfItens(c.projetos);
   if(tipo==='ams'){
+    L.contratado=amsHorasCiclo(c); L.unid='/ciclo';
+    if(L.sit.k==='fut'||L.sit.k==='enc'){ L.consumo=clfConsumoVazio('fora',{ rot:'fora da vigência' }); return L; }   // sem ciclo vigente: não calcula nem lê nada
     const cyc=amsCicloVigente(c,hoje); const ate=clfMin(cyc.end,hoje); const key=`${c.id}|${cyc.start}|${ate}`;
-    L.contratado=amsHorasCiclo(c); L.unid='/ciclo'; L.ciclo={ start:cyc.start, end:cyc.end, ate, rot:amsLabelCiclo(cyc), n:cyc.n }; L.faturado=amsCicloFaturado(c,cyc);
+    if(pcDias(cyc.start,ate)<0){ L.consumo=clfConsumoVazio('fora',{ rot:'fora da vigência' }); return L; } L.ciclo={ start:cyc.start, end:cyc.end, ate, rot:amsLabelCiclo(cyc), n:cyc.n }; L.faturado=amsCicloFaturado(c,cyc);
     const dias=pcDias(cyc.start,ate)+1; L.lerChave={ de:cyc.start, ate, auto:dias<=CLF_AUTO_DIAS, dias };
     if(!projetos.length) return L;
     const am=estado.ams; let wl=null; let T=null;
-    if(am&&am.dados&&am.range===key) wl=am.dados; else { T=clfTempoAcha(cyc.start,ate); if(T.st==='ok') wl=clfItens(T.t.worklogs); }
+    if(!estado.clf.forca&&am&&am.dados&&am.range===key) wl=am.dados; else { T=clfTempoAcha(cyc.start,ate); if(T.st==='ok') wl=clfItens(T.t.worklogs); }
     if(wl){ const k=amsConsumoCiclo(c,cyc,wl); const h=k.segFat/3600;
       L.consumo={ st:'ok', h, hFat:h, hTotal:k.seg/3600, rot:`ciclo ${L.ciclo.rot} · ${dataBR(cyc.start)} → ${dataBR(ate)}, só horas faturáveis`, de:cyc.start, ate };
       L.saldo=L.contratado-h; L.pct=L.contratado>0?h/L.contratado*100:null; }
@@ -209,9 +215,12 @@ function clfPlanoLinha(p, hoje, P, tPer){
 // Lista ordenada por data, janela [hoje−31, hoje+60]. {data, origem, rot, ym, de, ate, horas, valor, st:{k,rot}, atrasada, alvo}
 function clfNotas(V, hoje){
   const de=pcSomaDias(hoje,-CLF_NOTAS_ATRAS), ate=pcSomaDias(hoje,CLF_NOTAS_FRENTE); const out=[]; const parIds=new Set(clfItens(V.parcerias).map(x=>x.c.id));
+  // projeto de frente de parceria ligada: o plano de horas dele sem p.contrato também fatura pela nota da parceria (não conta duas vezes)
+  const frDe={}; clfItens(V.parcerias).forEach(x=>{ frDe[x.c.id]=new Set(pcFrentes(x.c).map(f=>String(f.proj||'').trim().toUpperCase()).filter(Boolean)); }); const incl={};
+  const donoPar=(p)=>{ if(p.contrato&&parIds.has(p.contrato)) return p.contrato; const k=String(p.projeto||'').trim().toUpperCase(); if(!k) return null; const x=clfItens(V.parcerias).find(y=>frDe[y.c.id].has(k)); return x?x.c.id:null; };
   clfItens(V.planos).forEach(p=>{
     try{ const cen=clfCenario(p); if(!cen) return; const tipo=rpTipo(p); const calc=rpCalc(p,cen);
-      if(tipo==='horas'){ if(p.contrato&&parIds.has(p.contrato)) return;   // a nota deste plano é a do contrato de parceria (bloco 🤝): não conta duas vezes
+      if(tipo==='horas'){ const dono=donoPar(p); if(dono){ (incl[dono]=incl[dono]||[]).push(p.nome||'(plano sem nome)'); return; }   // a nota deste plano é a do contrato de parceria (bloco 🤝): não conta duas vezes
         const per=rpPeriodosFat(p,calc); const itens=rpOdooItens(p,per);
         per.forEach((Q,i)=>{ if(!(Q.horas>0)||Q.encerrado||Q.nota<de||Q.nota>ate) return;
           const st=p.odoo&&p.odoo.id?rpOdooStatusItem(p,itens[i]):{ k:'sem', rot:'sem ordem no Odoo' }; if(st.k==='faturado'||st.k==='pago') return;
@@ -222,7 +231,7 @@ function clfNotas(V, hoje){
     }catch(e){ try{ console.error('[ficha] notas do plano', p&&p.id, e); }catch(_){} } });
   if(Array.isArray(cfg.parcerias)&&cfg.parcerias.length&&parIds.size){
     pcNotasPendentes(hoje,CLF_NOTAS_ATRAS,CLF_NOTAS_FRENTE).filter(x=>parIds.has(x.c.id)).forEach(x=>{
-      out.push({ data:x.P.nota, origem:'parceria', rot:`${clfPcCod(x.c)} · ${x.c.consultoria||''} · ${labelMesAbbr(x.ym)}`, ym:x.ym, de:x.P.iniPlano, ate:x.P.fimPlano, horas:x.horas, valor:x.total, st:x.st, atrasada:x.atrasada, alvo:{ t:'parceria', id:x.c.id } }); }); }
+      out.push({ data:x.P.nota, origem:'parceria', rot:`${clfPcCod(x.c)} · ${x.c.consultoria||''} · ${labelMesAbbr(x.ym)}${incl[x.c.id]?` (inclui o plano ${incl[x.c.id].join(', ')})`:''}`, ym:x.ym, de:x.P.iniPlano, ate:x.P.fimPlano, horas:x.horas, valor:x.total, st:x.st, atrasada:x.atrasada, alvo:{ t:'parceria', id:x.c.id } }); }); }
   return out.sort((a,b)=>a.data.localeCompare(b.data)||a.rot.localeCompare(b.rot,'pt')); }
 
 // ---- semáforo do status report (só o manual da linha sr_<KEY>; sem escolha = automático) ----
@@ -273,7 +282,7 @@ const CLF_IND={
   rec:{ rot:'Receita do período', oque:'Horas faturáveis × valor-hora do contrato 🏢 do projeto — a regra da 🏦 Controladoria. Não é o faturamento emitido nem o previsto dos planos.', ler:'Projeto sem contrato 🏢 com valor-hora entra com receita zero (aparece como "sem valor-hora"). O previsto a faturar está em "Próximas notas".' },
   custo:{ rot:'Custo do período', oque:'Horas × custo/h de cada pessoa (Odoo ou digitado); sem custo cadastrado usa o custo padrão da Controladoria.', ler:'É custo de mão de obra apontada; não inclui terceirizados fora do Jira nem despesas.' },
   margem:{ rot:'Margem do período', oque:'Receita − custo do período e a margem percentual.', ler:'Semáforo da Controladoria: ≥ 30% saudável · 10–30% apertada · abaixo de 10% no vermelho.' },
-  contratos:{ rot:'Contratos vigentes', oque:'Contratos 🏢 ligados a este cliente que estão vigentes hoje, sobre o total ligado.', ler:'Contrato sem cliente ligado não entra: ligue no ✏️ editar do contrato.' },
+  contratos:{ rot:'Contratos vigentes', oque:'Contratos 🏢 ligados a este cliente que estão vigentes hoje, sobre o total ligado.', ler:'Contrato sem cliente ligado não entra: ligue no ✏️ editar do contrato (campo 🗓 Ciclo de faturamento do cliente).' },
   projetos:{ rot:'Projetos', oque:'Projetos do Jira do cliente: dos contratos, dos planos e das parcerias (estas "pelo nome" da consultoria).', ler:'Projeto de outro cliente que apareça aqui = revise o vínculo do contrato ou do plano.' },
   nota:{ rot:'Próxima nota', oque:'A nota mais próxima a emitir, entre planos de horas, marcos de escopo fechado e contratos de parceria do cliente.', ler:'Atrasada aparece em vermelho. O valor só aparece para quem vê R$.' },
 };
@@ -281,13 +290,13 @@ const CLF_PER_ROT=Object.fromEntries(CLF_PERS);
 const clfTipAttr=(k)=>{ const e=CLF_IND[k]; return e?` data-clf-ind="${escA(k)}" data-tip="${escA(e.oque)}" data-tip2="${escA('Como ler: '+e.ler)}"`:''; };
 const clfH=(h)=>(typeof fmtHd==='function'?fmtHd(h):(Math.round((Number(h)||0)*10)/10)+'h');
 const clfR=(v)=>(typeof fmtBRL==='function'?fmtBRL(v):'R$ '+(Number(v)||0).toFixed(2));
-const clfDtBR=(d)=>(typeof dataBR==='function'&&d?dataBR(d):(d||'—'));
+const clfDtBR=(d)=>esc(typeof dataBR==='function'&&/^\d{4}-\d{2}-\d{2}/.test(String(d||''))?dataBR(d):(d||'—'));
 
 // ---- leituras (só aqui há fetch) ----
-function clfTempoPede(de, ate){ const C=estado.clf; const k=clfChaveT(de,ate); if(C.tempo[k]||C.tempoErro[k]) return;
+function clfTempoPede(de, ate){ const C=estado.clf; if(!clfDataValida(de)||!clfDataValida(ate)||de>ate) return; const k=clfChaveT(de,ate); if(C.tempo[k]||C.tempoErro[k]) return;
   if(clfTempoAcha(de,ate).st!=='falta') return;   // já coberto (cache ou leitura em voo)
   C.tempoB[k]=true;
-  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{ C.tempoB[k]=false;
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}${C.forca?'&nocache=1':''}`).then(r=>r.json()).then(j=>{ C.tempoB[k]=false;
     if(j&&!j.erro&&Array.isArray(j.worklogs)) C.tempo[k]=j; else C.tempoErro[k]=(j&&j.erro)||'Falha ao ler as horas.'; })
     .catch(e=>{ C.tempoB[k]=false; C.tempoErro[k]=(typeof humanizaErro==='function'?humanizaErro(e):clfMsg(e)); })
     .finally(()=>clfRenderAdia()); }
@@ -304,8 +313,10 @@ function clfSrGarante(keys){ const C=estado.clf; C._srFila=C._srFila||[];
 function clfGarante(F){ try{ const C=estado.clf; const P=F.periodo; if(!P) return;
   if(F.tempo&&F.tempo.st==='falta'&&F.projetos.length&&!P.futuro&&(pcDias(P.de,P.ateLido)+1)<=CLF_AUTO_DIAS) clfTempoPede(P.de,P.ateLido);
   clfItens(F.contratos).forEach(L=>{ if(L&&L.consumo&&L.consumo.st==='falta'&&L.lerChave&&L.lerChave.auto){
-    if(L.lerChave.real){ if(typeof ctGaranteReal==='function') ctGaranteReal(L.c); } else clfTempoPede(L.lerChave.de,L.lerChave.ate); } });
-  clfSrGarante(F.projetos.map(x=>x.k).slice(0,C.srLim||CLF_SR_LOTE)); }catch(e){ try{ console.error('[ficha] garante', e); }catch(_){} } }
+    if(L.lerChave.real){ if(typeof ctGaranteReal==='function') ctGaranteReal(L.c,C.forca); } else clfTempoPede(L.lerChave.de,L.lerChave.ate); } });
+  clfSrGarante(F.projetos.map(x=>x.k).slice(0,C.srLim||CLF_SR_LOTE));
+  if(C.forca){ const R=estado.ctReal; const voo=Object.keys(C.tempoB||{}).some(k=>C.tempoB[k])||(R&&R.busy&&Object.keys(R.busy).some(k=>R.busy[k])); if(!voo) C.forca=false; }   // ↻ vale só até as leituras dele chegarem
+  }catch(e){ try{ console.error('[ficha] garante', e); }catch(_){} } }
 let _clfAdiaT=0;
 function clfRenderAdia(){ if(_clfAdiaT) return; _clfAdiaT=setTimeout(()=>{ _clfAdiaT=0; if(estado.vista==='clficha') clfRender(); },80); }
 
@@ -318,7 +329,9 @@ function clfBloco(id, titulo, sub, fn, F){
 const clfTile=(id,v,s,cls,extra)=>`<div class="vg-k ${cls||''}"${clfTipAttr(id)}${extra||''}><div class="v">${v}</div><div class="l">${esc(CLF_IND[id].rot)}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
 function clfKpisHTML(F){
   const t=F.tempo||{ st:'erro' }; const fin=F.fin; const fo=F.veFin; const st=t.st; let tiles=[];
-  const semLer=(id)=>{ if(st==='lendo'||st==='falta') return clfTile(id,'…','lendo as horas…','',' aria-busy="true"');
+  const dP=F.periodo?pcDias(F.periodo.de,F.periodo.ateLido)+1:0;
+  const semLer=(id)=>{ if(st==='falta'&&dP>CLF_AUTO_DIAS) return clfTile(id,'—',`período de ${dP} dias: <button class="btn" data-clf-ler-per>↻ ler as horas</button>`,'');
+    if(st==='lendo'||st==='falta') return clfTile(id,'…','lendo as horas…','',' aria-busy="true"');
     if(st==='erro') return clfTile(id,'⚠',`não consegui ler as horas <button class="btn" data-clf-tempo-retry>↻ tentar de novo</button>`,'bad');
     if(st==='vazio') return clfTile(id,'—','sem projetos ligados','');
     if(st==='futuro') return clfTile(id,'—','o período ainda não começou',''); return null; };
@@ -338,7 +351,7 @@ function clfKpisHTML(F){
 
 function clfContratosHTML(F){
   const ls=clfItens(F.contratos); const V=F.vinc; let h='';
-  if(!ls.length) h+=`<div class="muted small">Nenhum contrato 🏢 está ligado a este cliente ainda. Para ligar: abra <button class="lnk-ficha" data-goto="admin">📑 Contratos › 🏢 Clientes</button>, ✏️ edite o contrato e escolha o cliente.</div>`;
+  if(!ls.length) h+=`<div class="muted small">Nenhum contrato 🏢 está ligado a este cliente ainda. Para ligar: abra <button class="lnk-ficha" data-goto="admin">📑 Contratos › 🏢 Clientes</button>, ✏️ edite o contrato e escolha o cliente no campo 🗓 Ciclo de faturamento do cliente.</div>`;
   else { const rows=ls.map(L=>{ if(L.erro) return `<tr><td colspan="${F.veFin?9:8}"><span class="badge">${esc(L.c&&L.c.id||'')}</span> <span class="muted small">⚠ não consegui montar este contrato (${esc(L.erro)})</span></td></tr>`;
       const c=L.c; const co=L.consumo||{}; let cons, saldo='—', barra='';
       if(co.st==='ok'){ cons=`${clfH(co.h)}<div class="muted small">${esc(co.rot||'')}</div>`;
@@ -346,15 +359,16 @@ function clfContratosHTML(F){
       else if(co.st==='lendo') cons='<span aria-busy="true">…</span>';
       else if(co.st==='erro') cons=`<span class="clf-neg">⚠ ${esc(co.erro||'erro')}</span> <button class="btn rt-step" data-clf-ler="${escA(c.id)}">↻ tentar de novo</button>`;
       else if(co.st==='falta') cons=(L.lerChave&&L.lerChave.auto)?'<span aria-busy="true">…</span>':`<button class="btn rt-step" data-clf-ler="${escA(c.id)}">↻ ler o ${L.tipo==='ams'?'ciclo':'consumo'} ${esc(L.ciclo?L.ciclo.rot:'')}</button><div class="muted small">${L.lerChave?L.lerChave.dias+' dias de leitura':''}</div>`;
+      else if(co.st==='fora') cons='<span class="muted small">fora da vigência</span>';
       else cons='<span class="muted small">—</span>';
-      const ams=L.tipo==='ams'?(L.faturado?'<span class="ct-sem ok">✓ ciclo faturado</span>':'<span class="ct-sem na">● pendente</span>'):'';
+      const ams=(L.tipo==='ams'&&co.st!=='fora')?(L.faturado?'<span class="ct-sem ok">✓ ciclo faturado</span>':'<span class="ct-sem na">● pendente</span>'):'';
       return `<tr data-clf-ct="${escA(c.id)}"><td data-rot="ID"><b>${esc(L.cod||'')}</b></td><td data-rot="Tipo">${esc(typeof rotuloTipo==='function'?rotuloTipo(L.tipo):L.tipo)}</td><td data-rot="Situação"><span class="ct-sem ${L.sit.k==='vig'?'ok':L.sit.k==='enc'?'crit':'na'}">${esc(L.sit.rot)}</span></td>`
         +(F.veFin?`<td class="num" data-rot="Valor-hora">${L.vh?clfR(L.vh):'—'}</td>`:'')
         +`<td class="num" data-rot="Contratado">${L.contratado?clfH(L.contratado)+'<span class="muted small">'+esc(L.unid||'')+'</span>':'—'}${L.alocado!=null?`<div class="muted small">alocado ${clfH(L.alocado)}</div>`:''}</td><td class="num" data-rot="Consumido">${cons}</td><td class="num" data-rot="Saldo">${saldo}${ams?'<div>'+ams+'</div>':''}</td><td data-rot="Uso">${barra}</td>`
-        +`<td data-rot="Ações"><button class="btn" data-clf-contrato="${escA(c.id)}">✏️ editar</button> <button class="btn" data-clf-apur="${escA(c.id)}">🛡 apuração</button></td></tr>`; }).join('');
+        +`<td data-rot="Ações"><button class="btn" data-clf-contrato="${escA(c.id)}">✏️ editar</button>${L.tipo==='ams'?` <button class="btn" data-clf-apur="${escA(c.id)}">🛡 apuração</button>`:''}</td></tr>`; }).join('');
     h+=`<div class="scroll-x"><table class="mp-tab-mini clf-tab"><thead><tr><th>ID</th><th>Tipo</th><th>Situação</th>${F.veFin?'<th class="num">Valor-hora</th>':''}<th class="num">Contratado</th><th class="num">Consumido</th><th class="num">Saldo</th><th>Uso</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`; }
   const sg=V&&V.sugeridos?clfItens(V.sugeridos.contratos):[];
-  if(sg.length) h+=`<div class="aviso" style="margin-top:8px">💡 ${sg.length===1?'Este contrato tem':'Estes contratos têm'} o nome do cliente mas não ${sg.length===1?'está ligado':'estão ligados'} a ele (por isso ${sg.length===1?'não entra':'não entram'} nos números): ${sg.map(c=>`<button class="lnk-ficha" data-clf-contrato="${escA(c.id)}">${esc(ctCodCli(c))}</button>`).join(' ')} — ligue no ✏️ editar.</div>`;
+  if(sg.length) h+=`<div class="aviso" style="margin-top:8px">💡 ${sg.length===1?'Este contrato tem':'Estes contratos têm'} o nome do cliente mas não ${sg.length===1?'está ligado':'estão ligados'} a ele (por isso ${sg.length===1?'não entra':'não entram'} nos números): ${sg.map(c=>`<button class="lnk-ficha" data-clf-contrato="${escA(c.id)}">${esc(ctCodCli(c))}</button>`).join(' ')} — ligue no ✏️ editar, campo 🗓 Ciclo de faturamento do cliente.</div>`;
   return h; }
 
 function clfSrCelula(k, ativo){
@@ -446,7 +460,7 @@ function clfSeletorHTML(aviso){
   const cards=cls.map(c=>clfResumoCliente(c,hoje)).filter(r=>!q||ctNorm(r.nome).includes(q)).map(r=>`<button class="clf-pick-card" data-clf-abre="${escA(r.id)}"><b>${esc(r.nome)}</b> <span class="badge">${esc(clFechaRot(clDe(r.id)||{}))}</span><div class="small">${r.nContratos} contrato(s) · ${r.nPlanos} plano(s) · ${r.nProjetos} projeto(s)${r.nParcerias?` · ${r.nParcerias} parceria(s)`:''}</div><div class="muted small">${r.ciclo?`Ciclo de hoje: ${esc(labelMesAbbr(r.ciclo.ym))} · ${clfDtBR(r.ciclo.ini)} → ${clfDtBR(r.ciclo.fim)}`:''}</div></button>`).join('');
   const busca=cls.length>8?`<input type="search" id="clf-busca" placeholder="Buscar cliente…" value="${escA(C.busca||'')}" aria-label="Buscar cliente">`:'';
   const sem=clfSemCliente(); const nomes=[...new Set(sem.contratos.map(c=>ctCodCli(c)+(c.cliente?' · '+c.cliente:'')).concat(sem.planos.map(p=>p.nome||'(plano sem nome)')))];
-  const semH=nomes.length?`<div class="card full"><h3>Sem cliente ligado <span class="muted small">${sem.contratos.length} contrato(s) · ${sem.planos.length} plano(s)</span></h3><div class="small">${nomes.slice(0,8).map(esc).join(' · ')}${nomes.length>8?` e mais ${nomes.length-8}`:''}</div><div class="muted small">Para entrar na ficha, ligue ao cliente no ✏️ editar do contrato (📑 Contratos › 🏢 Clientes) ou nos ✏️ Dados do projeto do plano (💹 Rentabilidade).</div></div>`:'';
+  const semH=nomes.length?`<div class="card full"><h3>Sem cliente ligado <span class="muted small">${sem.contratos.length} contrato(s) · ${sem.planos.length} plano(s)</span></h3><div class="small">${nomes.slice(0,8).map(esc).join(' · ')}${nomes.length>8?` e mais ${nomes.length-8}`:''}</div><div class="muted small">Para entrar na ficha, ligue ao cliente no ✏️ editar do contrato (📑 Contratos › 🏢 Clientes, campo 🗓 Ciclo de faturamento do cliente) ou nos ✏️ Dados do projeto do plano (💹 Rentabilidade).</div></div>`:'';
   return `<div class="clf-tela vw-clficha">${h}<div class="card full"><h2>📇 Ficha do cliente — escolha o cliente</h2>${busca}<div class="clf-pick" id="clf-pick">${cards||'<div class="muted small">Nenhum cliente com esse nome.</div>'}</div></div>${semH}</div>`; }
 
 function clfRender(){
@@ -468,9 +482,13 @@ function clfAbre(id){ const C=estado.clf; C.cli=id; C.srLim=CLF_SR_LOTE;
   if(estado.vista==='clficha'){ clfRender(); estadoParaURL(); window.scrollTo({ top:0 }); } else vaiPara('clficha'); }
 document.addEventListener('click',(ev)=>{ const b=ev.target.closest&&ev.target.closest('[data-clf-abre]'); if(!b) return; ev.preventDefault(); try{ escondeTip(); }catch(e){} clfAbre(b.getAttribute('data-clf-abre')); });
 const clfSync=()=>{ clfRender(); estadoParaURL(); };
+let _clfDataT=0;
 function clfContratoPorId(id){ return clfItens(cfg.contratos).filter(ctItemValido).find(c=>c.id===id)||null; }
 document.addEventListener('click',(ev)=>{ if(estado.vista!=='clficha') return; const t=ev.target; if(!t.closest) return; const C=estado.clf; let b;
-  if((b=t.closest('[data-clf-atualiza]'))){ C.tempo={}; C.tempoErro={}; C.sr={}; C.srLim=CLF_SR_LOTE; if(estado.ctReal){ estado.ctReal.erro={}; } clfRender(); return; }
+  if((b=t.closest('[data-clf-atualiza]'))){ C.tempo={}; C.tempoErro={}; C.sr={}; C.srLim=CLF_SR_LOTE; C.forca=true;   // as leituras seguintes vão com nocache=1 e não aproveitam o cache de outras telas
+    try{ const R=estado.ctReal; if(R){ const F0=clFicha(C.cli,C.per,{ de:C.de, ate:C.ate }); clfItens(F0&&F0.contratos).forEach(L=>{ if(L&&L.lerChave&&L.lerChave.real){ const k=ctRealChave(L.c); if(R.dados) delete R.dados[k]; if(R.erro) delete R.erro[k]; } }); R.erro=R.erro||{}; } }catch(e){}
+    clfRender(); return; }
+  if(t.closest('[data-clf-ler-per]')){ const F0=clFicha(C.cli,C.per,{ de:C.de, ate:C.ate }); if(F0&&F0.ok&&F0.periodo){ delete C.tempoErro[clfChaveT(F0.periodo.de,F0.periodo.ateLido)]; clfTempoPede(F0.periodo.de,F0.periodo.ateLido); } clfRender(); return; }
   if((b=t.closest('[data-clf-ciclos]'))){ if(typeof _clSt!=='undefined') _clSt.cal=b.getAttribute('data-clf-ciclos'); vaiPara('admin'); return; }
   if(t.closest('[data-clf-link]')){ const u=location.href; try{ navigator.clipboard.writeText(u).then(()=>toast('🔗 Link da ficha copiado.'),()=>toast(u)); }catch(e){ toast(u); } return; }
   if(t.closest('[data-clf-trocar]')){ C.cli=''; clfSync(); window.scrollTo({ top:0 }); return; }
@@ -478,15 +496,16 @@ document.addEventListener('click',(ev)=>{ if(estado.vista!=='clficha') return; c
   if((b=t.closest('[data-clf-sr-retry]'))){ delete C.sr[b.getAttribute('data-clf-sr-retry')]; clfRender(); return; }
   if(t.closest('[data-clf-sr-mais]')){ C.srLim=(C.srLim||CLF_SR_LOTE)+CLF_SR_LOTE; clfRender(); return; }
   if((b=t.closest('[data-clf-ler]'))){ const c=clfContratoPorId(b.getAttribute('data-clf-ler')); if(!c) return; const F=clFicha(C.cli,C.per,{ de:C.de, ate:C.ate }); const L=clfItens(F.contratos).find(x=>x&&x.c&&x.c.id===c.id);
-    if(L&&L.lerChave){ if(L.lerChave.real){ if(estado.ctReal&&estado.ctReal.erro) delete estado.ctReal.erro[ctRealChave(c)]; ctGaranteReal(c); } else { delete C.tempoErro[clfChaveT(L.lerChave.de,L.lerChave.ate)]; clfTempoPede(L.lerChave.de,L.lerChave.ate); } } clfRender(); return; }
+    if(L&&L.lerChave){ if(L.lerChave.real){ if(estado.ctReal&&estado.ctReal.erro) delete estado.ctReal.erro[ctRealChave(c)]; ctGaranteReal(c,C.forca); } else { delete C.tempoErro[clfChaveT(L.lerChave.de,L.lerChave.ate)]; clfTempoPede(L.lerChave.de,L.lerChave.ate); } } clfRender(); return; }
   if((b=t.closest('[data-clf-contrato]'))){ estado.admin.editId=b.getAttribute('data-clf-contrato'); vaiPara('admin'); return; }
-  if((b=t.closest('[data-clf-apur]'))){ const c=clfContratoPorId(b.getAttribute('data-clf-apur')); if(!c) return; if((c.tipo||'ams')==='ams'){ estado.ams.sel=c.id; estado.ams.ref=''; vaiPara('ams'); } else vaiPara('receita'); return; }
+  if((b=t.closest('[data-clf-apur]'))){ const c=clfContratoPorId(b.getAttribute('data-clf-apur')); if(!c) return; if((c.tipo||'ams')!=='ams') return; estado.ams.sel=c.id; estado.ams.ref=''; vaiPara('ams'); return; }
   if((b=t.closest('[data-clf-sr]'))){ srProjSet(b.getAttribute('data-clf-sr')); vaiPara('statusrep'); return; }
   if((b=t.closest('[data-clf-plano-real]'))){ const p=clfItens(cfg.rentab&&cfg.rentab.planos).find(x=>x&&x.id===b.getAttribute('data-clf-plano-real')); if(!p) return; const k=rpRealChave(p); if(k&&estado.rentab&&estado.rentab.tempoErro) delete estado.rentab.tempoErro[k]; rpGaranteReal(p); clfRender(); return; }
   if((b=t.closest('[data-clf-plano]'))){ const rr=estado.rentab; rr.sel=b.getAttribute('data-clf-plano'); rr.edit=false; rr.novo=false; vaiPara('rentab'); return; }
   if((b=t.closest('[data-clf-parceria]'))){ const st=estado.parcerias=estado.parcerias||{}; st.novo=false; st.editId=null; st.rasc=null; st.destaque=b.getAttribute('data-clf-parceria'); st.cal=''; vaiPara('parcerias'); return; } });
 document.addEventListener('change',(ev)=>{ if(estado.vista!=='clficha') return; const t=ev.target; if(!t||!t.id) return; const C=estado.clf;
   if(t.id==='clf-cli'){ C.cli=t.value; C.srLim=CLF_SR_LOTE; clfSync(); return; }
-  if(t.id==='clf-per'){ C.per=t.value; if(C.per==='livre'&&!(pcData(C.de)&&pcData(C.ate))){ C.ate=hojeSP(); C.de=pcMaisDias(C.ate,-29); } clfSync(); return; }
-  if(t.id==='clf-de'||t.id==='clf-ate'){ if(t.id==='clf-de') C.de=t.value; else C.ate=t.value; clfSync(); return; } });
+  if(t.id==='clf-per'){ C.per=t.value; if(C.per==='livre'&&!(clfDataValida(C.de)&&clfDataValida(C.ate))){ C.ate=hojeSP(); C.de=pcMaisDias(C.ate,-29); } clfSync(); return; }
+  if(t.id==='clf-de'||t.id==='clf-ate'){ const v=t.value, id=t.id; if(!clfDataValida(v)) return;   // digitando o ano (0002, 0020, 0202…) não lê nada
+    clearTimeout(_clfDataT); _clfDataT=setTimeout(()=>{ if(estado.vista!=='clficha') return; if(id==='clf-de') C.de=v; else C.ate=v; clfSync(); },400); return; } });
 document.addEventListener('input',(ev)=>{ if(estado.vista!=='clficha') return; const t=ev.target; if(!t||t.id!=='clf-busca') return; estado.clf.busca=t.value; clfRender(); });

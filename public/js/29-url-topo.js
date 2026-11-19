@@ -51,7 +51,7 @@ function leURL(){
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(vURL==='clficha'&&estado.clf){ const cf=estado.clf; const ci=p.get('cli')||'';   // 📇 Ficha do cliente: cli (id), clp (período) e, no livre, clde/clate
     cf.cli=(typeof CLF_RE_ID!=='undefined'&&CLF_RE_ID.test(ci))?ci:''; const cp=p.get('clp'); cf.per=(typeof CLF_PERS!=='undefined'&&CLF_PERS.some(x=>x[0]===cp))?cp:'ciclo';
-    cf.de=/^\d{4}-\d{2}-\d{2}$/.test(p.get('clde')||'')?p.get('clde'):''; cf.ate=/^\d{4}-\d{2}-\d{2}$/.test(p.get('clate')||'')?p.get('clate'):''; }
+    const okD=(x)=>(typeof clfDataValida==='function'?clfDataValida(x):/^\d{4}-\d{2}-\d{2}$/.test(x)); cf.de=okD(p.get('clde')||'')?p.get('clde'):''; cf.ate=okD(p.get('clate')||'')?p.get('clate'):''; }
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   if(vURL==='minhasemana'&&/^\d{4}-\d{2}-\d{2}$/.test(p.get('w')||'')&&estado.minhasemana){ const mp=estado.minhasemana; mp.w=semChave(p.get('w')); mp.aba='plano'; }   // 📋 Meu Planejamento: a semana do link (aviso de aprovação/devolução no Teams ou no push)

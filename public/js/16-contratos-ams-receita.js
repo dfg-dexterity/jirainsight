@@ -465,11 +465,11 @@ function ctAlocResumo(){
 // estado.ctReal; sem início cadastrado, cai para o período do topo e a tela diz isso.
 function ctRealChave(c){ if(!c||!/^\d{4}-\d{2}-\d{2}$/.test(c.inicio||'')) return ''; const h=hojeSP();
   const ate=(c.fim&&c.fim<h)?c.fim:h; let de=c.inicio; if(ate<de) return ''; if(de<voltaDias(ate,365)) de=voltaDias(ate,365); return `${de}|${ate}`; }
-function ctGaranteReal(c){
+function ctGaranteReal(c, forca){
   const k=ctRealChave(c); const R=estado.ctReal||(estado.ctReal={dados:{},busy:{},erro:{}}); if(!k||R.dados[k]||R.busy[k]||R.erro[k]) return;
   const [de,ate]=k.split('|'); R.busy[k]=true;
   const volta=()=>{ if(estado.vista==='admin') renderAdmin(); else if(estado.vista==='receita') renderReceita(); else if(estado.vista==='clficha'&&typeof clfRender==='function') clfRender(); };
-  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(r=>r.json()).then(j=>{ R.busy[k]=false;
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`).then(r=>r.json()).then(j=>{ R.busy[k]=false;
     if(j&&!j.erro) R.dados[k]=j; else R.erro[k]=(j&&j.erro)||'Falha ao ler as horas.'; volta();
   }).catch(e=>{ R.busy[k]=false; R.erro[k]=String(e.message||e); volta(); });
 }
