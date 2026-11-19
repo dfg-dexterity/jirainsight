@@ -283,7 +283,7 @@ function rpAloca(al, meses, diasUteis, modo, valor, de, ate){
   else if(modo==='mes') alvo.forEach(m=>{ al.h[m]=Math.round(Math.max(0,valor)*10)/10; });
   else { const cada=Math.round(Math.max(0,valor)/alvo.length*10)/10; alvo.forEach(m=>{ al.h[m]=cada; }); }
 }
-function rpReRender(){ if(estado.vista==='rentab') renderRentab(); }
+function rpReRender(){ if(estado.vista==='rentab') renderRentab(); else if(estado.vista==='clficha'&&typeof clfRender==='function') clfRender(); }
 // ---- 🕓 histórico do plano: quem gravou/alterou o quê (pedido de 2026-09-13). Edições seguidas da mesma
 // pessoa e do mesmo tipo em 10 min viram um registro só (com o contador), para a grade não gerar ruído. ----
 const RP_HIST_MAX=60;
