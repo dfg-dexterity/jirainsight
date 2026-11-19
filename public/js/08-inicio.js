@@ -148,9 +148,10 @@ function axVencEnvelheceu(ax, hoje){
 function axCarregaVenc(forca){
   const ax=estado.acoes; ax.carregando=true; ax.erro='';
   const ate=somaDias(hojeSP(),30);
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+  const nc=forca||ax.paiSujo;   // 🧩 (R156) depois de trocar um pai em qualquer tela, a próxima leitura vai sem o cache do servidor
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${nc?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
-      if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; }
+      if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; if(nc) ax.paiSujo=false; }
       if(typeof hjVistaAberta==='function'&&hjVistaAberta()){ try{ renderHoje(); }catch(e){} }   // 📆 Hoje: as sugestões leem esta base
       agendaRenderAcoes();
     }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); agendaRenderAcoes(); });

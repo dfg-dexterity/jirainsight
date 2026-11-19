@@ -213,6 +213,9 @@
     .cf-papeis label.cf-pap-alvo{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin:0}
   }
 }
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #modal-body .aph-k,#modal-body .aph-troca,#modal-body .aph-cand{min-height:44px}
+}
 /* ---- fim: global ---- */
 
 /* ---- 🍎 grupo: reportar (🐞 reportar bug ou melhoria — 25b) ---- */
@@ -445,6 +448,9 @@
     #conteudo .alx-filtros{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center}
     #conteudo .alx-filtros select{width:100%}
   }
+}
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .aph-k,#conteudo .aph-troca,#conteudo .aph-cand{min-height:44px}
 }
 /* ---- fim: time ---- */
 
@@ -689,4 +695,7 @@
   #conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo select,#conteudo textarea{min-height:44px;box-sizing:border-box}
   #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
 }}
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .aph-k,#conteudo .aph-troca,#conteudo .aph-cand{min-height:44px}
+}
 /* ---- fim: hoje ---- */

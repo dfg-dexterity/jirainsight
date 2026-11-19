@@ -144,6 +144,26 @@ function aphBotaoHTML(t){
     : `<button class="badge st-btn sem-venc" data-aph-pai="${escA(t.k)}" data-tip="Este ticket não está em nenhum épico — clique para escolher">🧩 sem épico · vincular ▾</button>`;
 }
 
+// R156 — linha COMPACTA do caminho (Gestão: Tabela e Quadro; 📆 Hoje): `🧩 ACME-1 › ACME-10 › ACME-20  resumo do pai` e, no
+// fim, a ação que abre a ficha já com o seletor (`data-aph-pai-ficha`). '' quando não há o que dizer. `extra` = fontes
+// extras (aphFontes); `opts.semAcao` = só o caminho (Quadro, ou sem identidade).
+function aphLinhaHTML(t, extra, opts){
+  const o=opts||{}; if(!t||!t.k) return '';
+  const cad=aphCadeia(t, extra);
+  const nivel=aphNivel(t);
+  const acao=!o.semAcao && nivel<1;
+  if(!cad.length && !(acao && nivel===0)) return '';
+  const nos=cad.map(n=>`<button type="button" class="aph-k" data-aph-ver="${escA(n.k)}" title="Ver a ficha de ${escA(n.k)}${n.r?' — '+escA(n.r):''}">${esc(n.k)}</button>`).join('<span class="aph-sep">›</span>');
+  const pai=cad.length?cad[cad.length-1]:null;
+  let fim='';
+  if(acao){
+    fim=cad.length
+      ? `<button type="button" class="aph-troca" data-aph-pai-ficha="${escA(t.k)}" title="Trocar o épico/pai">🧩 trocar</button>`
+      : `<button type="button" class="aph-troca aph-sem" data-aph-pai-ficha="${escA(t.k)}" title="Este ticket não está em nenhum épico — clique para escolher">🧩 sem épico · vincular</button>`;
+  }
+  return `<div class="aph-linha" aria-label="Caminho: ${escA(cad.map(n=>n.k).concat([t.k]).join(' › '))}">${cad.length?'<span aria-hidden="true">🧩</span>':''}${nos}${pai&&pai.r?`<span class="aph-res" title="${escA(pai.r)}">${esc(pai.r)}</span>`:''}${fim}</div>`;
+}
+
 // ---- 🧩 Agrupar por épico/pai ----
 // Dentro de UM projeto: bloco por raiz (o ancestral mais alto; ou o próprio ticket, se ele é pai de outros da lista).
 // Os filhos aparecem logo depois do pai que está na lista, recuados; entre irmãos vale a ordem da lista (vencimento).

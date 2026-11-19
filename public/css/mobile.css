@@ -1103,6 +1103,17 @@
   .vtm-rk .rk-pod-pct{font-size:20px}
   .vtm-gx .gx-modos>.muted:first-child{display:none}
 }
+@media (max-width:600px){
+  /* 🧩 R156: a linha do caminho (Tabela/Quadro) e o painel do seletor também na 🛠 Gestão */
+  .vtm-gx .aph-cad{padding-left:calc(var(--aph-i,0) * 10px);flex-wrap:wrap;row-gap:0}
+  .vtm-gx .aph-cad .aph-res{flex:1 1 150px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .vtm-gx .aph-k,.vtm-gx .aph-troca{min-height:32px}
+  .vtm-gx .aph-cand{min-height:44px;flex-wrap:wrap;row-gap:2px}
+  .vtm-gx .aph-cand .aph-res{flex:1 1 100%;order:3;white-space:normal}
+  .vtm-gx .aph-filtro{width:100%;min-height:42px}
+  .vtm-gx .aph-chave{flex:1 1 120px;min-height:42px}
+  .vtm-gx .aph-linha{flex-wrap:wrap}
+}
 /* ---- fim: time ---- */
 
 /* ---- 📱 grupo: analises (Analytics, Central de Relatórios, Métricas, Meu tempo, Uso) ---- */
@@ -1975,6 +1986,14 @@
   /* chip "🧭 guia" nos títulos da Ajuda (17px de altura) */
   .aj-g{display:inline-flex;align-items:center;min-height:32px;padding:4px 10px;font-size:12px;vertical-align:middle}
 }
+@media (max-width:600px){
+  /* 🧩 R156: a ficha 🔍 ganhou o caminho e o seletor de épico/pai */
+  #modal-body .aph-cand{min-height:44px}
+  #modal-body .aph-filtro{width:100%;min-height:42px}
+  #modal-body .aph-chave{flex:1 1 120px;min-height:42px}
+  #modal-body .aph-cad{flex-wrap:wrap;row-gap:0}
+  #modal-body .aph-cad .aph-res{flex:1 1 140px;white-space:normal}
+}
 /* ---- fim: global ---- */
 
 /* ---- 📱 grupo: semanal ---- */
@@ -2188,6 +2207,11 @@
   .hj-sug-t .lnk,.hj-grp>summary .lnk{min-height:32px;display:inline-flex;align-items:center;padding:0 6px}
   .hj-mini input{width:24px;height:24px}
   .hj-timer-stop{min-width:44px;min-height:36px}
+}
+@media (max-width:600px){
+  /* 🧩 R156: a linha do caminho abaixo do título do item */
+  .hj-tela .aph-linha{flex:1 1 100%}
+  .hj-tela .aph-k,.hj-tela .aph-troca{min-height:32px;display:inline-flex;align-items:center}
 }
 /* ---- fim: hoje ---- */
 /* ---- 📊 Dashboard de KPIs: a tela (2026-11-07) ---- */

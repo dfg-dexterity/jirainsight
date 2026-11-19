@@ -34,7 +34,7 @@ const HJ_EXP_INI=8*60, HJ_EXP_FIM=18*60;   // expediente para procurar lacunas (
 
 // ---------------- estado, identidade e leitura ----------------
 function hjSt(){ const h=estado.hoje; const id=idApontar(); const acc=(id&&id.accountId)||'';
-  if(h.a!==acc){ h.a=acc; h.dias={}; h.diasB={}; h.erro=''; h.erroEm=0; h.ritual=null; h.sug={}; h.time={}; h.timeB={}; h.timeErro=''; h.sv={}; h.sujo={}; h.salvando=0; h._salvaT={}; h._logsP=''; }   // trocou de identidade: nada da outra pessoa vale (gravação em voo da anterior é descartada pelo `acc` capturado)
+  if(h.a!==acc){ h.a=acc; h.dias={}; h.diasB={}; h.erro=''; h.erroEm=0; h.ritual=null; h.sug={}; h.time={}; h.timeB={}; h.timeErro=''; h.sv={}; h.sujo={}; h.salvando=0; h._salvaT={}; h._logsP=''; h._hierP=false; }   // trocou de identidade: nada da outra pessoa vale (gravação em voo da anterior é descartada pelo `acc` capturado)
   if(!h.sv) h.sv={}; if(!h.sujo||typeof h.sujo!=='object') h.sujo={}; if(!h._salvaT||typeof h._salvaT!=='object') h._salvaT={};
   return h; }
 function hjAcc(){ const id=idApontar(); return (id&&id.accountId)||''; }
@@ -829,12 +829,14 @@ function hjItemHTML(d, it, idx, ctx){
   const ev=it.ev?((estado.agenda.dados||{}).eventos||[]).find(e=>e.id===it.ev):null;
   const timer=hjTimerLe(); const rodando=!!(timer&&it.k&&timer.k===it.k);
   const foco=idx<HJ_FOCO&&!it.feito;
+  const tk=it.k?aphTicketDe(it.k):null;
   const tit=it.k?`<a class="hj-k" href="${jiraBase()}/browse/${encodeURIComponent(it.k)}" target="_blank" rel="noopener" title="Abrir no Jira">${esc(it.k)}</a> `:'';
   return `<div class="hj-it${it.feito?' feito':''}${foco?' foco':''}${it.movido?' movido':''}" data-hj-id="${escA(it.id)}" data-hj-d="${escA(d)}" draggable="${it.feito?'false':'true'}">
     <span class="hj-drag" title="Arraste para reordenar ou para a linha do tempo">⠿</span>
     <input type="checkbox" class="hj-chk" data-hj-feito="${escA(it.id)}" data-hj-d="${escA(d)}" ${it.feito?'checked':''} aria-label="Feito">
     <div class="hj-main">
       <div class="hj-t">${tit}<span class="hj-txt">${esc(it.t||'')}</span>${it.movido?`<span class="badge" title="Movido para ${escA(fmtBR(it.movido))}">↪ ${esc(fmtBR(it.movido))}</span>`:''}</div>
+      ${tk?aphLinhaHTML(tk):''}
       <div class="hj-sub">${it.p?`<span class="badge hj-p" title="${escA(it.p)}">${esc(projNome(it.p))}</span>`:''}<span class="badge hj-orig">${esc(HJ_ORIG_ROT[it.orig]||it.orig)}</span>
         ${it.ini?`<button class="badge hj-bloco${conf?' conf':''}" data-hj-agendar="${escA(it.id)}" title="${conf?'⚠ Em cima de '+escA(conf.tipo==='ev'?conf.ev.titulo:(conf.it.k||conf.it.t)):'Mudar o horário'}">🕘 ${esc(it.ini)}–${esc(hjHHMM(hjItemFim(it)))}${conf?' ⚠':''}</button>`:''}
         ${ap?`<span class="badge com-horas" title="Apontado hoje neste ticket">⏱ ${hjH(ap)} hoje</span>`:''}${ev&&!it.k&&!hjEvTicket(ev,d)?`<button class="badge ms-b-atra" data-hj-ev-ticket="${escA(ev.id)}" title="Reunião sem ticket — criar/vincular">📝 sem ticket</button>`:''}
@@ -939,6 +941,7 @@ function renderHoje(){
   // o redesenho só acontece quando a leitura passou a cobrir o dia — e o apGaranteMeusLogs tem folga de 30 s na falha.
   if(precisaLogs&&h._logsP!==d){ h._logsP=d; apGaranteMeusLogs(d).then(x=>{ h._logsP=''; if(x&&apMeusLogsCobre(d)&&!apx.meusLogsEscreveu&&!apx.meusLogsSujo&&hjVistaAberta()) renderHoje(); }); }
   const dia=hjDia(d); if(dia===undefined) hjGarante(d);
+  if(!time) hjGaranteHier(d);   // 🧩 R156: o pai dos tickets do dia que nenhuma lista conhece
   // Foco: quem redesenha a tela devolve o foco ao MESMO controle (pelo id ou pelo atributo data-hj-*) — ↵ no "+ Adicionar",
   // ✓ feito, ↑↓ e a estimativa inline não jogam o foco para o body.
   const foco=hjFocoSel(cont);
@@ -969,6 +972,17 @@ function renderHoje(){
 }
 
 // Seletor do controle com foco dentro de `cont` (id ou o 1º atributo data-hj-*) e a volta do foco depois do redesenho.
+// 🧩 R156 — o `?dia=1` não traz o pai dos itens (e não ganha: o contrato do dia não muda). O pai vem das fontes em memória e,
+// para o que faltar, de UMA leitura lazy de ficha (aphGaranteFichas: cache da sessão, no máximo uma vez por chave, 24 por voo).
+// Mesma guarda do _logsP: só redesenha quando chegou ficha nova, e a guarda solta em qualquer desfecho.
+function hjGaranteHier(d){
+  const h=hjSt(); if(h._hierP) return;
+  const ax=estado.acoes; if(!ax.venc && !ax.erro) return;   // a base da Início ainda vem: espera, senão leria ficha de quem a lista já conhece
+  const ks=hjItens(d).filter(i=>i.k&&!i.movido).map(i=>i.k);
+  if(!ks.length) return;
+  h._hierP=true;
+  aphGaranteFichas(ks).then(mudou=>{ h._hierP=false; if(mudou&&estado.vista==='hoje'&&hjD()===d) renderHoje(); }, ()=>{ h._hierP=false; });
+}
 function hjFocoSel(cont){
   const ae=document.activeElement; if(!ae||ae===document.body||!cont.contains(ae)) return '';
   if(ae.id) return '#'+CSS.escape(ae.id);
@@ -1073,7 +1087,7 @@ document.addEventListener('click', async (e)=>{
   const menu=t.closest('[data-hj-menu]'); if(menu){ const id=menu.getAttribute('data-hj-menu'); const it=hjItem(hjD(), id); if(!it) return;
     abreModal(`<div class="hj-modal"><h2>⋯ ${esc(it.k||it.t)}</h2><div class="hj-menu">
       <button class="btn" data-hj-amanha="${escA(id)}">↪ Mover para o próximo dia útil (${esc(fmtBR(hjProxUtil(hjD())))})</button>
-      ${it.k?`<button class="btn" data-hj-ficha="${escA(it.k)}">🔍 Ficha do ticket</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(it.k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>`:`${it.ev?'':`<button class="btn" data-hj-criar-item="${escA(id)}">📝 Criar o ticket deste item</button>`}<button class="btn" data-hj-ligar="${escA(id)}">🎫 Ligar a um ticket</button>`}
+      ${it.k?`<button class="btn" data-hj-ficha="${escA(it.k)}">🔍 Ficha do ticket</button><button class="btn" data-aph-pai-ficha="${escA(it.k)}">🧩 Épico/pai: ver o caminho e trocar…</button><a class="btn" href="${jiraBase()}/browse/${encodeURIComponent(it.k)}" target="_blank" rel="noopener">Abrir no Jira ↗</a>`:`${it.ev?'':`<button class="btn" data-hj-criar-item="${escA(id)}">📝 Criar o ticket deste item</button>`}<button class="btn" data-hj-ligar="${escA(id)}">🎫 Ligar a um ticket</button>`}
       ${it.ini?`<a class="btn" href="${escA(hjOutlookUrl(hjD(),it))}" target="_blank" rel="noopener">🗓 Reservar no Outlook (${esc(it.ini)})</a>`:''}
       <button class="btn" data-hj-remover="${escA(id)}">✕ Tirar do dia</button></div>
       <div class="alx-modal-acoes"><button class="btn" data-hj-fecha>Fechar</button></div></div>`); return; }
