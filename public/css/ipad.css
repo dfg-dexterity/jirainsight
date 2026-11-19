@@ -450,7 +450,7 @@
   }
 }
 @media (hover:none) and (pointer:coarse) and (min-width:761px){
-  #conteudo .aph-k,#conteudo .aph-troca,#conteudo .aph-cand{min-height:44px}
+  .vtm-gx .aph-k,.vtm-gx .aph-troca,.vtm-gx .aph-cand{min-height:44px}
 }
 /* ---- fim: time ---- */
 
@@ -696,6 +696,6 @@
   #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
 }}
 @media (hover:none) and (pointer:coarse) and (min-width:761px){
-  #conteudo .aph-k,#conteudo .aph-troca,#conteudo .aph-cand{min-height:44px}
+  .hj-tela .aph-k,.hj-tela .aph-troca,.hj-tela .aph-cand{min-height:44px}
 }
 /* ---- fim: hoje ---- */

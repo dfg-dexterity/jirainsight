@@ -151,7 +151,7 @@ function axCarregaVenc(forca){
   const nc=forca||ax.paiSujo;   // 🧩 (R156) depois de trocar um pai em qualquer tela, a próxima leitura vai sem o cache do servidor
   fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${nc?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
-      if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; if(nc) ax.paiSujo=false; }
+      if(j.erro){ ax.erro=humanizaErro(j.erro); } else { if(typeof aphReaplica==='function') aphReaplica(j); ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; if(nc) ax.paiSujo=false; }
       if(typeof hjVistaAberta==='function'&&hjVistaAberta()){ try{ renderHoje(); }catch(e){} }   // 📆 Hoje: as sugestões leem esta base
       agendaRenderAcoes();
     }).catch(e=>{ ax.carregando=false; ax.erro=humanizaErro(e); agendaRenderAcoes(); });

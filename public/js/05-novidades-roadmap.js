@@ -13,7 +13,7 @@
 //   • scripts/check-roadmap-commits.mjs — o commit que mexe no app sem mudar ROADMAP nem ROADMAP_REV;
 //   • scripts/check-entrega.mjs — ROADMAP_REV para trás da última entrada de NOVIDADES.
 // É a garantia de que o roadmap não envelhece calado.
-const ROADMAP_REV='2026-11-18.7';   // 🧩 R156 T4 (guias, Novidades, R235–R238 e a R156 sai do roadmap); T3 (alvo de toque do botão do pai na ficha); T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 T3 (alvo de toque do botão do pai na ficha); T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 em andamento (hierarquia na Gestão, no Hoje e na ficha: T1 fontes do 13b) · antes: // 🔀 o nome do 
+const ROADMAP_REV='2026-11-18.8';   // 🧩 R156 revisão (fontes por idade, vínculo reaplicado, toque, Hoje ao trocar de dia) · antes: // 🧩 R156 T4 (guias, Novidades, R235–R238 e a R156 sai do roadmap); T3 (alvo de toque do botão do pai na ficha); T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 T3 (alvo de toque do botão do pai na ficha); T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 T2: caminho e seletor na Gestão, na ficha 🔍 e no 📆 Hoje · antes: // 🧩 R156 em andamento (hierarquia na Gestão, no Hoje e na ficha: T1 fontes do 13b) · antes: // 🔀 o nome do 
 // Cada item tem um `id` ESTÁVEL (R###): é a chave que liga este array à base "Roadmap da solução" no Notion
 // (processo TI-14-024, scripts/roadmap-notion.mjs). Item novo = próximo número livre; o id nunca muda nem é
 // reaproveitado, mesmo que o título seja reescrito — scripts/check-entrega.mjs reprova id ausente ou repetido.

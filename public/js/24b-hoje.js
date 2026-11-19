@@ -971,7 +971,6 @@ function renderHoje(){
   clearInterval(h._tick); h._tick=setInterval(()=>{ if(!hjVistaAberta()){ clearInterval(h._tick); return; } const a=document.querySelector('.hj-lt-agora'); const lt=document.querySelector('[data-hj-lt]'); if(a&&lt){ const h0=+lt.getAttribute('data-hj-h0'); a.style.top=Math.max(0,(hjAgoraMin()-h0*60)*HJ_PX_HORA/60)+'px'; a.querySelector('span').textContent=hjHHMM(hjAgoraMin()); } hjTimerPinta(); },60000);
 }
 
-// Seletor do controle com foco dentro de `cont` (id ou o 1º atributo data-hj-*) e a volta do foco depois do redesenho.
 // 🧩 R156 — o `?dia=1` não traz o pai dos itens (e não ganha: o contrato do dia não muda). O pai vem das fontes em memória e,
 // para o que faltar, de UMA leitura lazy de ficha (aphGaranteFichas: cache da sessão, no máximo uma vez por chave, 24 por voo).
 // Mesma guarda do _logsP: só redesenha quando chegou ficha nova, e a guarda solta em qualquer desfecho.
@@ -981,8 +980,12 @@ function hjGaranteHier(d){
   const ks=hjItens(d).filter(i=>i.k&&!i.movido).map(i=>i.k);
   if(!ks.length) return;
   h._hierP=true;
-  aphGaranteFichas(ks).then(mudou=>{ h._hierP=false; if(mudou&&estado.vista==='hoje'&&hjD()===d) renderHoje(); }, ()=>{ h._hierP=false; });
+  const fim=(mudou)=>{ h._hierP=false;
+    // trocou de dia enquanto as fichas vinham: o renderHoje (que chama hjGaranteHier do dia NOVO) roda também sem ficha nova
+    if(estado.vista==='hoje' && (mudou || hjD()!==d)) renderHoje(); };
+  aphGaranteFichas(ks).then(fim, ()=>fim(false));
 }
+// Seletor do controle com foco dentro de `cont` (id ou o 1º atributo data-hj-*) e a volta do foco depois do redesenho.
 function hjFocoSel(cont){
   const ae=document.activeElement; if(!ae||ae===document.body||!cont.contains(ae)) return '';
   if(ae.id) return '#'+CSS.escape(ae.id);

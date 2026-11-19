@@ -1988,6 +1988,7 @@
 }
 @media (max-width:600px){
   /* 🧩 R156: a ficha 🔍 ganhou o caminho e o seletor de épico/pai */
+  #modal-body .aph-k{min-height:40px;display:inline-flex;align-items:center}
   #modal-body .aph-acoes .st-btn{min-height:40px;display:inline-flex;align-items:center}
   #modal-body .aph-cand{min-height:44px}
   #modal-body .aph-filtro{width:100%;min-height:42px}

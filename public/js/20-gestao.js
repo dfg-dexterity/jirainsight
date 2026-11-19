@@ -13,7 +13,7 @@ function carregaGestao(forca){
   const nc=forca||g.paiSujo;   // 🧩 depois de trocar um pai, a próxima leitura não pode vir do cache antigo do servidor
   fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${nc?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ g.carregando=false;
-      if(j.erro){ g.erro=j.erro; } else { g.dados=j; if(nc) g.paiSujo=false; }
+      if(j.erro){ g.erro=j.erro; } else { if(typeof aphReaplica==='function') aphReaplica(j); g.dados=j; if(nc) g.paiSujo=false; }
       if(estado.vista==='gestao') renderGestao();
       if(typeof renderAbas==='function') try{ renderAbas(); }catch(e){}   // 🔢 contador de vencidos na aba 🛠 Ações em massa (fase 4)
     }).catch(e=>{ g.carregando=false; g.erro=String(e.message||e); if(estado.vista==='gestao') renderGestao(); });
@@ -408,17 +408,19 @@ function abreModalTicket(k, volta, opts){
   // #gx-det-carregando só existe enquanto este modal ainda é o desta ficha.
   const meu=()=>{ const m=document.getElementById('modal');
     return !!(_gxDet&&_gxDet.k===k&&document.getElementById('gx-det-carregando')&&m&&!m.hidden); };
+  const voltaFicha=()=>(_gxDet&&_gxDet.pilha&&_gxDet.pilha.length)?`<button class="btn" data-gx-det-volta>↩ Voltar a ${esc(_gxDet.pilha[_gxDet.pilha.length-1])}</button>`:'';
   const volt=()=>(_gxDet&&_gxDet.volta!=null)?`<button class="btn" data-tkb-volta="${escA(_gxDet.volta)}">↩ Voltar à busca</button>`:'';
   fetch(`/api/vencimentos?detalhe=${encodeURIComponent(k)}${(typeof aphFichaSuja==='function'&&aphFichaSuja())?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!meu()) return;
     if(j.erro){ abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">${esc(j.erro)}</div>
-      <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+      <div class="alx-modal-acoes">${volt()}${voltaFicha()}<button class="btn" id="gx-fechar">Fechar</button></div>`); return; }
+    if(typeof aphReaplica==='function') aphReaplica(j);
     _gxDet.d=j; renderModalTicket(j);
     if(_gxDet.seletor){ _gxDet.seletor=false;
       const bt=document.querySelector('#gx-det-hier [data-aph-pai]');
       if(bt) aphTogglePainel(bt); else toast('Épico e iniciativa não trocam de pai por aqui.','info'); }
   }).catch(e=>{ if(meu()) abreModal(`<h2>🔍 ${esc(k)}</h2><div class="erro">Erro de rede: ${esc(String(e.message||e))}</div>
-    <div class="alx-modal-acoes">${volt()}<button class="btn" id="gx-fechar">Fechar</button></div>`); });
+    <div class="alx-modal-acoes">${volt()}${voltaFicha()}<button class="btn" id="gx-fechar">Fechar</button></div>`); });
 }
 function renderModalTicket(d){
   const link=`${jiraBase()}/browse/${encodeURIComponent(d.k)}`;

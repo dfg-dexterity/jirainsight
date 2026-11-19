@@ -54,6 +54,7 @@ async function carregaVenc(ate, forca){
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
   if(nc) ap.paiSujo=false;
+  if(typeof aphReaplica==='function') aphReaplica(j);   // 🧩 vínculo recente que o servidor ainda não reflete
   j.lidoEm=hojeSP();      // dia (SP) em que o navegador leu — a lista de ontem não serve para o "vencido" de hoje
   j.lidoTs=Date.now();    // e a hora: o seletor 🎫 Ver meus tickets… relê quando a contagem tem mais de 5 min
   ap.porData[key]=j;
