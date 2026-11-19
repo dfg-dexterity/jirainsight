@@ -2,6 +2,53 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🎫 Roadmap do app → Jira, manutenção automática (2026-11-18, a pedido do usuário: "Sincronize o roadmap do Notion com o Jira, crie e
+  mantenha sincronizado os dois; se não formos criar determinada funcionalidade do roadmap nós cancelamos no Jira"):** decisões do usuário —
+  um **ÉPICO por área do app**, uma **HISTÓRIA por item do roadmap** (resumo `R### <título>`, rótulos `dexterity-hub`, `roadmap`,
+  `roadmap-R###`), **SUBTAREFAS** com a construção; **cancelado = Feito + resolução "Won't Do"** (ou "Não será feito") **+ rótulo `cancelado`**
+  (o fluxo do JI não tem status Cancelado — há um [Manual step] para criá-lo). A carga inicial (épicos JI-303..JI-310, uma História por item)
+  foi feita pelo MCP; esta entrega é a **manutenção**. (1) **Lib `api/_lib/roadmapJira.js`** = fonte ÚNICA (formato e regras no cabeçalho; deps
+  trocáveis em `RJ_DEPS`, como `DISC_DEPS`): `rjPlano(itens, historias, saidas)` (PURA: ações `criar` · `transicao` · `rotulo` · `resumo` · `desc` ·
+  `adotar` · `entregue` · `cancelar` · `reabrir` + `avisos`), `rjLeHistorias` (JQL `project = JI AND labels = roadmap AND labels = dexterity-hub AND
+  issuetype = "História"`, paginada, pede a propriedade `dexhub.roadmap`; **lança se a leitura vier cortada**), `rjAplica` (em série, pausa curta,
+  `AbortSignal.timeout(8 s)` em CADA chamada ao Jira, orçamento de 55 s contado do INÍCIO da requisição: a ação só começa se `agora + pior caso
+  dela (chamadas × 8 s)` couber — o que sobra vira `avisos.adiadas` e a CI repete (20 s depois, máx. 3 vezes, repassando `criadas:{R###:JI-n}`; `criar` ainda
+  faz uma busca ESPECÍFICA pelo rótulo `roadmap-R###` antes, porque a listagem pode não mostrar o recém-criado) —, Retry-After não numérico = 1 s; 429 só é retentado se `agora + espera + timeout` couber nos 55 s — senão a ação e as seguintes vão para `adiadas` (`avisos.motivo429`), sem virar erro, erro num item não para os outros, devolve só contagens + ids `R###`), `rjSincroniza` e
+  o parser `literalDe`/`leRoadmapApp` (o `roadmap-notion.mjs` o importa). **Regras do plano:** item sem história → `criar` no épico **JI-307** com
+  `sem-area` (já com a propriedade); `fazendo` + A fazer → transição 21; `planejado`/`avaliacao` com a história em andamento **não rebaixa** (só
+  aviso); `avaliacao` ↔ rótulo `em-avaliacao` **só em História que ainda não começou** (nunca em andamento nem Feita);
+  **SAÍDAS EXPLÍCITAS:** só vira `entregue` (em andamento, transição 41 + resolução de Feito: "Done"/"Feito"/"Concluído", a que o Jira aceitar) ou
+  `cancelar` (A fazer: rótulo `cancelado` primeiro, transição 41, resolução "Won't Do"/"Não será feito", comentário) o item que está em
+  `saidas:[R###]` no corpo — a CI calcula a lista pelo diff do ROADMAP entre SHA^ e o SHA (`scripts/roadmap-jira-payload.mjs --antes REF`). História
+  aberta que NÃO está no array e NÃO está em `saidas` (ex.: R214–R217, que nunca estiveram no array, ou uma entrega com a História "A fazer"
+  esquecida) fica **intocada** e só gera `avisos.foraDoArray` (com os ids); **Feito nunca é tocado**, exceto a com rótulo `cancelado` que **voltou
+  ao array** → `reabrir` (transição 11 **e PUT `resolution:null`**, o Jira não limpa sozinho — recusa vira `avisos.semLimparResolucao` —, tira o
+  rótulo, comentário). **Resumo e descrição por PROPRIEDADE:** a propriedade da issue `dexhub.roadmap` = `{h, r}` guarda o hash (só letras e
+  dígitos) do último texto que o app mandou; só se reescreve quando o hash do app **muda** em relação à propriedade — nunca se compara com o texto
+  do Jira. **Sem a propriedade = ADOTA** (grava o hash atual, ação `adotar`, sempre por ÚLTIMO na lista, e NÃO reescreve; se mais de 50% das Histórias vierem sem ela, a lib lê `GET /issue/{key}/properties/dexhub.roadmap` de uma — se houver valor lá, erro "a busca do Jira não devolve properties"; só 404 é ausência — timeout/403/5xx abortam a rodada): é o estado das 207 Stories da carga inicial (a carga
+  usou a descrição do Notion e pôs "Origem: JI-xxx" acima do `---` em 12). A descrição só é reescrita **acima da 1ª `---`**; sem a linha `---` na
+  História é só aviso (`semRegua`), nunca reescrita. Nunca apaga nada nem mexe em épico, responsável, subtarefas ou worklogs. (2) **Rota** `POST
+  /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1][&forcar=1]` com `{itens:[{id,s,t,d}], saidas:['R###']}` (até 400; id `^R\d{3,4}$`, s ∈
+  fazendo|planejado|avaliacao, t ≤ 300, d ≤ 4000; **`d` vazio em mais de 10% dos itens = 400**, corpo truncado): **exige `CRON_SECRET`** (503 sem a
+  env; comparação do Bearer em tempo constante, `crypto.timingSafeEqual`), só POST, sem `dry` exige `confirmar=1`, **não entra no `?cron=1`**;
+  resposta `{ok, dry, contagens:{criar,transicao,rotulo,resumo,desc,adotar,entregue,cancelar,reabrir,erros}, ids, avisos}` — nunca título nem
+  descrição; 502 com mensagem FIXA (o detalhe só no `console.error`). **Dois freios (409 sem `forcar=1`, e a resposta traz os ids):** saídas
+  (entregue+cancelar) acima de 15 **ou** de 20% das histórias; edições (desc+resumo) acima de 25. **`?tipo=` desconhecido em qualquer rota do
+  `api/teams.js` = 400** (nunca cai no ranking/cron; conhecidos: aviso, semanal, rentab, kpis, disciplina, custos-odoo, roadmap-jira, agenda-alerta,
+  prioridades, resumo — rota nova = incluir em `TIPOS_CONHECIDOS`). Sem função serverless nova (12). (3) **CI:** job `jira` do
+  `.github/workflows/roadmap-notion.yml`, independente do Notion. **Gatilho:** `deployment_status` (state `success`, ambiente `Production`; `concurrency` fica DENTRO de cada job, e o job só segue se o SHA do deploy for a ponta de `origin/main`) — só
+  depois do deploy do SHA no ar, porque a rota é a do site (chamar no `push` rodaria a rota ANTIGA); mais `schedule` diário (rede de segurança, sem
+  `saidas`) e `workflow_dispatch` (`dry=1` por padrão; input `antes` = commit de referência das saídas). **Escrita só com a variável do repositório
+  `ROADMAP_JIRA_ESCREVER=1`** (Settings › Variables, `vars.*`); sem ela a CI chama com `dry=1` e imprime contagens + os R### de desc/resumo/cancelar/
+  entregue. A CI **falha** se a resposta não tiver `contagens` (deploy antigo) e repete a chamada enquanto `avisos.adiadas` > 0 (máx. 3). `BASE` sai
+  do secret `TEAMS_CRON_URL` ou `https://jirainsight.vercel.app`; sem `CRON_SECRET` só avisa; o log mostra só contagens e ids. (4) **Teste** (fora do
+  repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 51 casos): `rjPlano`, saídas explícitas (R214–R217 intocadas), freios,
+  adoção por propriedade, resolução (reabrir limpa, entregue grava), tempo limite e orçamento, 502 fixo, Bearer, tipo desconhecido, o script do
+  payload num repo git temporário e o workflow, além do handler REAL do `api/teams.js` contra um Jira falso por HTTP. **[Manual step]:** criar o
+  secret `CRON_SECRET` e a variável `ROADMAP_JIRA_ESCREVER=1` no repositório do GitHub (secret = o da Vercel) e o status **Cancelado** no fluxo do JI.
+  **Não verificado contra o Jira real:** o parâmetro `properties` do `search/jql`, o nome do ambiente do deploy da Vercel ("Production") e as
+  transições globais 11/21/41; rode antes um disparo manual com `dry=1`. Desdobramentos no roadmap: R240 (status Cancelado), R241 (chave JI no card do 🗺️), R242 (área
+  automática), R243 (aviso no Teams do que o sync fechou), R244 (esforço estimado × horas por História).
 - **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
   fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
   com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**
@@ -816,7 +863,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   falha reverte + toast; sucesso = `↩ Desfazer` 10 s + `crReleFicha` (nocache, debounce). `crLinhas` NÃO muda (gate de
   paridade). Servidor: `editaLote` aceita `resumo`, `inicio`, `links:[{acao:'add',de,para}|{acao:'rm',id}]`; a ficha traz
   o `id` dos links. Regra aprendida: clique simples no nome espera 300 ms pelo duplo (abrir o épico no 1º clique engolia
-  o 2º no modal). Teste: `cronograma-test.mjs` (41 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
+  o 2º no modal). Teste: `cronograma-test.mjs` (51 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
   **Revisão do 📆 Hoje (mesmo dia):** fila de gravação POR DIA (`h.sv[d]`), destino gravado antes de marcar `movido`
   (`hjLevaPara`), `hjEstClamp`/`HJ_MAX_ITENS` no cliente, reuniões fora do Planejado, ↻ + `visibilitychange`, cronômetro
   com `a`=accountId, foco devolvido pelo seletor (`hjFocoSel`), `:has(:focus-visible)` para ↑↓ (o `:focus-within` deslocava
@@ -987,7 +1034,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   lado não derruba o outro. Contexto técnico só com a caixa marcada, montado por UMA função (`repContexto`) para a
   prévia e o envio; o servidor corta parâmetro com cara de segredo na URL e limita os erros a 8. Prefixo `rep` no
   front (o `rp` é da Rentabilidade). O formulário antigo da Ajuda saiu; `{feedback:true}` segue aceito para abas
-  antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 45 casos).
+  antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 51 casos).
 - **⏱ Contrato de cliente "Horas abertas" (2026-10-04, a pedido do usuário: "um tipo horas abertas; informar o
   número de horas contratado e depois alocar essas horas para projetos do Jira; hoje nem consigo selecionar esses
   projetos"):** a causa do "não consigo selecionar" era o seletor do 🏢 Clientes filtrar SEMPRE pela categoria AMS.
@@ -1241,6 +1288,12 @@ schemas via `ToolSearch` quando necessário.
 > **NÃO recopiar essas horas** — a transferência está completa; as horas do TAD-829
 > são duplicatas históricas (a API não move nem apaga worklogs; limpeza só pela UI).
 
+> **Mudança de 2026-11-18 (a pedido do usuário):** a entrega de **item do roadmap** NÃO cria mais Tarefa solta sob JI-7..JI-13: usa a **História
+> `R###`** do item (`labels = roadmap-R###`) — as **SUBTAREFAS** da construção e o **worklog** vão nela — e, ao entregar, marca a História como Feito.
+> Entrega **fora do roadmap** (correção, ajuste pedido na hora) → **Tarefa sob o épico da área** (JI-303 Hub · JI-304 Entrega · JI-305 Negócio ·
+> JI-306 Insights · JI-307 Plataforma · JI-308 Teams e bot · JI-309 Mac e detector · JI-310 Portal do cliente). O **[Manual step]** segue igual, no
+> mesmo épico.
+
 A cada **entrega/commit** desta ferramenta:
 
 1. **Criar uma TAREFA no projeto `JI`** (tipo "Tarefa" — id `11112`; em 2026-08-28 o
@@ -1377,7 +1430,7 @@ push na main, `.github/workflows/check.yml`, com `fetch-depth: 0`):
 Na tela, o card do Roadmap mostra **"🔄 Lista revisada em DD/MM/AAAA"** com a contagem
 de itens — quem lê sabe se está olhando algo atual.
 
-## 🗂 Roadmap no Notion — MANTER SINCRONIZADO (acordo de 2026-10-21, a pedido do usuário)
+## 🗂 Roadmap no Notion e no Jira — MANTER SINCRONIZADO (acordo de 2026-10-21 no Notion; 2026-11-18 no Jira, a pedido do usuário)
 
 > Pedido literal: *"crie uma página vinculada a essa igual às demais do Notion; nessa página crie uma base
 > de dados do Notion com o Roadmap, com mais campos — categoria da melhoria, esforço em tokens estimado,
@@ -1409,5 +1462,21 @@ de itens — quem lê sabe se está olhando algo atual.
   ambiente: o script é testado contra um Notion falso (`roadmap-notion-test.mjs` no scratchpad; o servidor falso vive
   no mesmo processo, por isso o script roda com `execFile` assíncrono — `execFileSync` bloqueia o laço e o filho
   nunca recebe resposta).
+- **No Jira (desde 2026-11-18):** cada item do roadmap tem uma **História** no projeto `JI` (tipo "História", id 11113), com os rótulos
+  `dexterity-hub`, `roadmap` e **`roadmap-R###`** (a chave que liga o item à História), sob o **épico da sua área**: Hub (pessoa) JI-303 ·
+  Entrega (gestão) JI-304 · Negócio JI-305 · Insights JI-306 · Plataforma JI-307 · Teams e bot JI-308 · Mac e detector JI-309 · Portal do cliente
+  JI-310. Transições do JI: 11 A fazer · 21 Fazendo · 31 Em análise · 41 Feito.
+- **Quem manda em quê (as três pontas):** o **app** manda em título (resumo `R### <título>`), descrição **acima da linha `---`** e estágio; o
+  **Notion** manda nas dimensões de planejamento; o **Jira** manda no épico certo, nas subtarefas, nas horas e no status Feito da entrega. Tudo da
+  linha `---` para baixo na descrição da História é do Notion/da entrega e a sincronização nunca toca.
+- **Regra de cancelamento:** se não vamos criar a funcionalidade, ela **sai do array `ROADMAP`** (a CI manda o id em `saidas`) e o Jira acompanha: História A fazer → **cancelada**
+  (Feito + resolução "Won't Do"/"Não será feito" + rótulo `cancelado` + comentário); em andamento → tratada como **entregue** (Feito + comentário "confira
+  a entrega"); Feito nunca muda. Se o item **voltar** ao array, a História cancelada é **reaberta**. No Notion a linha vira "Fora do roadmap" como antes.
+- **Rota** `POST /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1]` (`CRON_SECRET`), chamada pelo job `jira` da CI **depois do deploy** (gatilho
+  `deployment_status`; escrita só com a variável `ROADMAP_JIRA_ESCREVER=1`) — detalhes e regras do plano em `api/_lib/roadmapJira.js` e no primeiro bullet deste arquivo.
+- **O que a entrega faz pelo MCP** (a CI só mantém título/descrição/estágio): (a) **classifica** a História nova (rótulo `sem-area`, no JI-307) no
+  **épico da área** e preenche a **parte de baixo da descrição** (a linha `---` com categoria, onda, tamanho, impacto, áreas, telas, Notion);
+  (b) cria as **SUBTAREFAS da construção** (tipo "Subtarefa", id 10010) sob a História do item e aponta as horas nelas/na História; (c) marca a
+  História como **Feito** e grava `Ticket Jira` + `Entregue em` no Notion.
 - **Para o time:** a tela 🗺️ Roadmap do app mostra o id de cada item e linka a base (`[data-rm-notion]`); mudar o
   estágio de um item é mudança no app (pedir na entrega ou pelo 🐞 Reportar), não no Notion.

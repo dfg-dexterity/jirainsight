@@ -7,7 +7,7 @@
 // Configuração:
 //   TEAMS_WEBHOOK_URL  (obrigatória)  URL do webhook do canal
 //   CRON_SECRET        (opcional)     se definida, exige Authorization: Bearer <segredo>
-//                                     (OBRIGATÓRIA para o ?tipo=semanal, ?tipo=rentab, ?tipo=kpis e ?tipo=agenda-alerta — dados por pessoa / custo e R$)
+//                                     (OBRIGATÓRIA para o ?tipo=semanal, ?tipo=rentab, ?tipo=kpis, ?tipo=roadmap-jira e ?tipo=agenda-alerta — dados por pessoa / custo e R$)
 //   ANTHROPIC_API_KEY  (p/ o resumo)  chave da API do Claude (opcional no relatório semanal)
 //   TEAMS_GESTORES_WEBHOOK_URL        canal dos gestores (cartão do relatório semanal; sem ela, não envia)
 //   TEAMS_DM_WEBHOOK_URL              fluxo de mensagem direta (pendências para cada gerente de projeto)
@@ -50,6 +50,7 @@ import { rentabFotos, RPFOTO_DIAS_MAX } from './_lib/rentabFoto.js';
 import { alertaFimDoDia } from './_lib/agenda.js';
 import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
 import { fotosKpi, kpisPendentes, leIdsKpi, KPI_HORA, KPI_MAX_TIQUE } from './_lib/kpi.js';
+import { rjValidaCorpo, rjSincroniza } from './_lib/roadmapJira.js';
 import { discPublico, discAlvo, discEhUtil, fotoDisc, leIdsDisc, leDisc, discCompara, discDiaSP, discHoraSP, discPendentesRetro, DISC_RETRO_TIQUE, DISC_NOITE_ATE, DISC_MEDIA_DIAS } from './_lib/disciplina.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
@@ -1031,9 +1032,16 @@ function lerCorpo(req) {
   });
 }
 
+// Comparação do Bearer em tempo constante (hash dos dois lados: tamanhos diferentes não vazam por tempo nem derrubam o timingSafeEqual).
+const sha = (t) => crypto.createHash('sha256').update(String(t)).digest();
+export const bearerOk = (auth, segredo) => !!segredo && crypto.timingSafeEqual(sha(auth), sha(`Bearer ${segredo}`));
+// ?tipo= conhecidos: um tipo explícito e desconhecido é 400 (nunca cai no ranking/cron por engano).
+const TIPOS_CONHECIDOS = new Set(['aviso', 'semanal', 'rentab', 'kpis', 'disciplina', 'custos-odoo', 'roadmap-jira', 'agenda-alerta', 'prioridades', 'resumo']);
+
 export default async function handler(req, res) {
   try {
     const q = req.query || {};
+    const t0 = Date.now();
     const dry = q.dry === '1' || q.dry === 'true';   // "dry=true" também é prévia (antes gravava/enviava)
     const { raw, body: corpo } = await lerCorpo(req);
     const auth = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
@@ -1060,12 +1068,13 @@ export default async function handler(req, res) {
     }
     // Teste sem o Teams: /api/teams?bot=1&texto=... (exige o Bearer normal abaixo).
     if (q.bot === '1') {
-      if (segredo && auth !== `Bearer ${segredo}`) return json(res, 401, { erro: 'Não autorizado.' });
+      if (segredo && !bearerOk(auth, segredo)) return json(res, 401, { erro: 'Não autorizado.' });
       return await botHandler(res, { texto: String(q.texto || ''),
         usuario: { nome: String(q.nome || 'Teste'), email: String(q.email || '') } });
     }
 
-    if (segredo && auth !== `Bearer ${segredo}`) return json(res, 401, { erro: 'Não autorizado.' });
+    if (segredo && !bearerOk(auth, segredo)) return json(res, 401, { erro: 'Não autorizado.' });
+    if (q.tipo !== undefined && q.tipo !== '' && !TIPOS_CONHECIDOS.has(String(q.tipo))) return json(res, 400, { erro: `tipo desconhecido: ${String(q.tipo).slice(0, 40)}.` });
     const webhook = process.env.TEAMS_WEBHOOK_URL || '';
 
     // ---- 📣 Aviso de melhorias (POST {aviso:{titulo,linhas[,link]}} ou GET ?tipo=aviso&dry=1) ----
@@ -1193,6 +1202,26 @@ export default async function handler(req, res) {
       const rC = await sincronizaCustos({ sb: sbC, pessoas: await jiraUsuariosAtivos(), agora: new Date().toISOString(), dry });
       const { data: _cfgGravada, ...semData } = rC; void _cfgGravada;   // a config inteira não precisa voltar na resposta manual
       return json(res, rC.ok || rC.configurado === false ? 200 : 502, { dry, ...semData });
+    }
+
+    // ---- 🗺️→🎫 ROADMAP do app → Jira (JI), manutenção: POST ?tipo=roadmap-jira[&dry=1][&confirmar=1][&forcar=1] com { itens:[{id,s,t,d}] } ----
+    // Chamada pela CI (job `jira` do roadmap-notion.yml); NÃO entra no ?cron=1. Regras e formato em api/_lib/roadmapJira.js. Escreve no Jira com a conta de
+    // serviço: EXIGE o CRON_SECRET (503 sem a env), POST e — sem dry=1 — &confirmar=1. `forcar=1` libera o freio de saídas em massa (payload suspeito).
+    // A resposta traz só contagens e ids R### — nunca título nem descrição.
+    if (String(q.tipo || '') === 'roadmap-jira') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — a sincronização escreve no Jira e só roda com o segredo do cron (defina a env na Vercel).' });
+      if (req.method !== 'POST') return json(res, 405, { erro: 'Use POST com { itens: [{ id, s, t, d }] }.' });
+      const vRJ = rjValidaCorpo(corpo);
+      if (vRJ.erro) return json(res, 400, { erro: vRJ.erro });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada ESCREVE no Jira (histórias do roadmap) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      let rRJ;
+      try { rRJ = await rjSincroniza(vRJ.itens, { saidas: vRJ.saidas, criadas: vRJ.criadas, dry, forcar: q.forcar === '1', t0 }); }
+      catch (e) { console.error('roadmap-jira: falha na sincronização:', e && e.message ? e.message : e); return json(res, 502, { ok: false, erro: 'Falha ao falar com o Jira — veja o log da função.' }); }
+      const { ok: okRJ, ...restoRJ } = rRJ;
+      if (rRJ.bloqueado) return json(res, 409, { ok: false, erro: rRJ.bloqueado === 'saidas'
+        ? 'Saídas em massa do roadmap (entregue/cancelar) acima do limite — confira o payload; use &forcar=1 se for de propósito.'
+        : 'Edições em massa (descrição/resumo) acima do limite — confira o payload; use &forcar=1 se for de propósito.', ...restoRJ });
+      return json(res, okRJ ? 200 : 502, { ok: okRJ, ...restoRJ });
     }
 
     // O tique noturno da disciplina (?cron=1&so=disciplina) não envia nada ao Teams: não depende do webhook.
