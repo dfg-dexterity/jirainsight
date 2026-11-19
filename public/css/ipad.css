@@ -512,6 +512,11 @@
   :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) .lnk-ficha{min-height:var(--ipad-alvo);padding:6px 14px;font-size:13px}
   :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) details>summary{min-height:var(--ipad-alvo);display:flex;align-items:center;box-sizing:border-box}
   .vw-admin button[data-cl-del]{min-width:var(--ipad-alvo)}
+  /* 📇 Ficha do cliente (R183): alvos de 44, selects altos e texto miúdo a 12 px */
+  .clf-tela :is(.btn,.lnk-ficha,.clf-pick-card){min-height:var(--ipad-alvo);box-sizing:border-box}
+  .clf-tela :is(select,input[type=date],input[type=search]){min-height:var(--ipad-alvo);box-sizing:border-box}
+  .clf-tela :is(.small,.badge,th,.muted,.vg-k .s,.vg-k .l){font-size:12px}
+  .clf-tela details>summary{min-height:var(--ipad-alvo);display:flex;align-items:center;box-sizing:border-box}
   /* texto miúdo sobe para 12 px (rótulos de KPI, selos, cabeçalhos de tabela, notas) */
   :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin) :is(.ams-dl .dt,.rp-mini .dt,.ams-k .l,.rc2-fl,.ams-ch-b,.ams-nav-cur,.ams-note,.badge,.ct-kl,.rp-vg .vg-k .s,.ams-mc .mm,.rc-tela .kpi .l,.rc-tela .rc2-card .l,.rc-tela .rc2-card span,.ams-tp-b,.ams-tp-h,.ams-ch-t,.ams-rel-cum,.ams-tela .tsc-yl,.ams-tela .tsc-xl,.rc-tela h2 span){font-size:12px}
   :is(.ams-tela,.rc-tela,.ct-tela,.rp-tela,.pc-tela,.vw-admin,.vw-config,.uso-card,.uso-mini) :is(th,.mp-tab-mini th,.mp-tab-cmp th){font-size:12px}

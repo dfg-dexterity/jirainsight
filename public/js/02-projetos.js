@@ -349,7 +349,10 @@ function projEspinha(key, d) {
   const ciclo = (c) => ((typeof amsLabelApur === 'function') ? amsLabelApur(c.apuracao || 'trimestral').toLowerCase() : 'ciclo');
   const odoo = plano && plano.odoo && plano.odoo.id ? ` · 🧾 ${plano.odoo.name || 'Odoo'}` : '';
   const gerentes = projGerentesDe(key); const pessN = pessoasUnidas(); const nomeDe = (a) => ((pessN[a] && pessN[a].nome) || a);
+  const cliE = (typeof clfClienteDoProjeto === 'function') ? clfClienteDoProjeto(key) : null;   // 📇 cliente do projeto (contrato › plano › parceria pelo nome)
   const chips = [
+    chip('cliente', 'negocio', '🏢 Cliente', cliE ? `${cliE.cl.nome || '(sem nome)'} · ${(typeof clFechaRot === 'function') ? clFechaRot(cliE.cl) : ''}` : 'sem cliente ligado',
+      cliE ? `Abre a 📇 Ficha do cliente ${cliE.cl.nome || ''}: contratos e saldo, projetos com o semáforo, planos, horas e receita do ciclo e próximas notas` : 'Este projeto ainda não está ligado a um cliente — ligue no ✏️ editar do contrato ou nos Dados do projeto do plano'),
     chip('contrato', 'negocio', '📑 Contrato', contrato ? `${contrato.cliente || '(sem nome)'} · ${rotTipo(contrato.tipo)}` : 'nenhum cadastrado',
       contrato ? 'Abre o contrato deste projeto em 📑 Contratos › 🏢 Clientes (valor-hora, horas, vigência)' : 'Nenhum contrato do Admin mapeia este projeto — abre 📑 Contratos › 🏢 Clientes para cadastrar'),
     chip('parceria', 'negocio', '🤝 Parceria', parceria ? `${parceria.consultoria || '(sem nome)'} · ${frente ? '🗂 ' + ((typeof pcFrCurto === 'function') ? pcFrCurto(frente) : (frente.nome || 'projeto')) : 'fecha dia ' + (parceria.fatFecha || 31)}` : (plano ? 'plano sem contrato de parceria' : 'sem contrato de parceria'),
@@ -411,6 +414,11 @@ function projGerenteMuda(key, a, add) {
 function projEspinhaVai(id, key) {
   const { contrato, plano, parceria, frente } = projEspinhaDados(key);
   const ficha = (estado.projetos.fichas || {})[key] || {};
+  if (id === 'cliente') {
+    const x = (typeof clfClienteDoProjeto === 'function') ? clfClienteDoProjeto(key) : null;
+    if (x) { clfAbre(x.cl.id); return; }
+    toast('Este projeto ainda não está ligado a um cliente — ligue no contrato ou no plano.'); estado.clf.cli = ''; vaiPara('clficha'); return;
+  }
   if (id === 'statusrep') { if (typeof srProjSet === 'function') srProjSet(key); vaiPara('statusrep'); return; }
   if (id === 'gp') { if (estado.gp) { estado.gp.proj = key; estado.gp.meus = false; estado.gp.resp = ''; } vaiPara('gp'); return; }
   if (id === 'contrato') { estado.admin.editId = contrato ? contrato.id : null; vaiPara('admin'); return; }

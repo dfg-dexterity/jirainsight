@@ -1664,6 +1664,24 @@
   /* 🔗 custo/h do Odoo (2026-11-06): o ↺ "voltar ao Odoo" é alvo de dedo também no tablet (a regra de 600 px não o alcançava) */
   .ct-cfg .ct-orig-volta{min-width:32px;min-height:32px}
 }
+/* 📇 Ficha do cliente (R183): KPIs em 2 colunas, campos de 16 px, alvos de 44 px e tabelas viram cartões */
+@media (max-width:760px){
+  .clf-tela .clf-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .clf-tela .clf-cab-sel{flex-direction:column;align-items:stretch}
+  .clf-tela .clf-cab-sel label{flex-direction:column;align-items:stretch}
+  .clf-tela :is(select,input[type=date],input[type=search]){width:100%;max-width:100%;font-size:16px;min-height:44px;box-sizing:border-box}
+  .clf-tela .btn,.clf-tela .lnk-ficha,.clf-tela .clf-pick-card{min-height:44px;box-sizing:border-box}
+  .clf-tela .clf-cab-top .btn{flex:1 1 auto}
+  .clf-tela .clf-resumo{max-width:none}
+  .clf-tela .clf-tab thead{display:none}
+  .clf-tela .clf-tab,.clf-tela .clf-tab tbody{display:block;width:100%}
+  .clf-tela .clf-tab tr{display:block;padding:8px 0;border-bottom:1px solid var(--linha)}
+  .clf-tela .clf-tab td{display:flex;justify-content:space-between;gap:10px;border:0;padding:3px 0;text-align:right}
+  .clf-tela .clf-tab td::before{content:attr(data-rot);flex:0 0 auto;color:var(--muted);font-size:12px;text-align:left}
+  .clf-tela .clf-tab td[colspan]::before{content:none}
+  .clf-tela .clf-tab td.num{white-space:normal}
+  .clf-tela .pc-nt-row{flex-wrap:wrap}
+}
 /* ---- fim: negocio ---- */
 
 /* ---- 📱 grupo: config (Admin, Central de configurações, Criar ticket, Onde crio, Reclassificar, Reuniões) ---- */
