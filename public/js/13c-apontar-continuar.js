@@ -159,8 +159,18 @@ function apcAtualizaTudo(){
   const memo={};
   document.querySelectorAll('#conteudo .ap-row').forEach(r=>{ if(r.querySelector('.ap-log')) apcAtualizaLinha(r, memo); });
   const slot=document.getElementById('apc-slot'); if(slot) slot.innerHTML=apcFaixaHTML();
-  const ab=estado.apontar.apcAberto; const t=document.querySelector('#apc-linha .ap-tempo');
-  if(ab&&t) ab.tempo=t.value;
+  apcGuardaCampos();
+}
+// Guarda TODOS os campos da linha aberta no topo (tempo, dia, comentário e a hora do chip "desde"): o renderApontar
+// recria a linha do zero, e sem isso só o tempo voltava — o próximo apontamento perdia o comentário e o dia escolhido
+// e, sem a marca do chip, gravava às 09:00 em vez da hora real (achado da revisão automática do PR #232).
+function apcGuardaCampos(){
+  const ab=estado.apontar.apcAberto; const row=document.querySelector('#apc-linha .ap-row');
+  if(!ab||!row) return;
+  const t=row.querySelector('.ap-tempo'), d=row.querySelector('.ap-data'), c=row.querySelector('.ap-coment');
+  if(!t) return;   /* ficha ainda carregando: nada para guardar */
+  ab.tempo=t.value; ab.dia=d?d.value:''; ab.coment=c?c.value:'';
+  ab.apcHora=t.dataset.apcHora||''; ab.apcVal=t.dataset.apcVal||'';
 }
 function apcAbre(k, tempo){
   const id=idApontar(); if(!(id&&id.accountId)||!k) return;
@@ -172,7 +182,12 @@ function apcFecha(){ estado.apontar.apcAberto=null; renderApontar(); }
 function apcDepoisRender(){
   const ab=estado.apontar.apcAberto; if(!ab) return;
   const campo=document.querySelector('#apc-linha .ap-tempo'); if(!campo) return;   // ficha ainda carregando: o foco espera
+  const row0=campo.closest('.ap-row');
   if(!campo.value&&ab.tempo) campo.value=ab.tempo;
+  const dEl=row0.querySelector('.ap-data'), cEl=row0.querySelector('.ap-coment');
+  if(dEl&&ab.dia&&dEl.value!==ab.dia&&(!dEl.max||ab.dia<=dEl.max)){ dEl.value=ab.dia; apcAtualizaLinha(row0); }
+  if(cEl&&!cEl.value&&ab.coment) cEl.value=ab.coment;
+  if(ab.apcHora&&ab.apcVal&&campo.value===ab.apcVal){ campo.dataset.apcHora=ab.apcHora; campo.dataset.apcVal=ab.apcVal; }
   if(ab.foco){
     ab.foco=false;
     const row=campo.closest('.ap-row');
@@ -205,19 +220,21 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   inp.value=fmtH(seg);
   if(tipo==='desde'){ inp.dataset.apcHora=hora; inp.dataset.apcVal=inp.value; }
   apcAtualizaLinha(row);
-  const ab=estado.apontar.apcAberto; if(ab&&row.closest('#apc-linha')) ab.tempo=inp.value;
+  if(row.closest('#apc-linha')) apcGuardaCampos();
 });
 document.getElementById('conteudo').addEventListener('input', (e)=>{
   if(estado.vista!=='apontar') return;
-  const t=e.target; if(!(t&&t.classList&&t.classList.contains('ap-tempo'))) return;
-  delete t.dataset.apcHora; delete t.dataset.apcVal;
-  const ab=estado.apontar.apcAberto; if(ab&&t.closest('#apc-linha')) ab.tempo=t.value;
+  const t=e.target; if(!(t&&t.classList)) return;
+  if(t.classList.contains('ap-tempo')){ delete t.dataset.apcHora; delete t.dataset.apcVal; }
+  else if(!t.classList.contains('ap-coment')) return;
+  if(t.closest('#apc-linha')) apcGuardaCampos();
 });
 document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(estado.vista!=='apontar') return;
   const campo=e.target; if(!(campo&&campo.classList&&campo.classList.contains('ap-data'))) return;
   const row=campo.closest('.ap-row'); if(!row) return;
   apcAtualizaLinha(row);
+  if(row.closest('#apc-linha')) apcGuardaCampos();
   const dia=campo.value;
   if(dia&&!(apMeusLogsCobre(dia)||apTempoCobre(dia))){
     apGaranteMeusLogs(dia).then(()=>{ if(row.isConnected&&campo.value===dia) apcAtualizaLinha(row); });
