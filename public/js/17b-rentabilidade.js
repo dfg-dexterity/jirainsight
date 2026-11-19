@@ -225,10 +225,10 @@ function rpCalc(p, c){
 // ---- realizado (Clockwork) do projeto vinculado ----
 function rpRealChave(p){ if(!p.projeto) return ''; const h=hojeSP(); let de=p.inicio, ate=rpFim(p)<h?rpFim(p):h; if(ate<de) return '';
   if(de<voltaDias(ate,365)) de=voltaDias(ate,365); return `${p.projeto}|${de}|${ate}`; }
-function rpGaranteReal(p){
+function rpGaranteReal(p, forca){
   const r=estado.rentab; const k=rpRealChave(p); if(!k||r.tempo[k]||r.tempoB[k]||r.tempoErro[k]) return;
   const [,de,ate]=k.split('|'); r.tempoB[k]=true;
-  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`).then(x=>x.json()).then(j=>{ r.tempoB[k]=false;
+  fetch(`/api/tempo?desde=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}${forca?'&nocache=1':''}`).then(x=>x.json()).then(j=>{ r.tempoB[k]=false;
     if(j&&!j.erro) r.tempo[k]=j; else r.tempoErro[k]=(j&&j.erro)||'Falha ao ler as horas.'; rpReRender();
   }).catch(e=>{ r.tempoB[k]=false; r.tempoErro[k]=humanizaErro(e); rpReRender(); });
 }

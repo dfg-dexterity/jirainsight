@@ -93,7 +93,7 @@ function clfProjetosDe(V){ const m={};
   const add=(k,o)=>{ k=String(k||'').trim().toUpperCase(); if(!CLF_RE_PROJ.test(k)) return; (m[k]=m[k]||[]).push(o); };
   clfItens(V.contratos).forEach(c=>clfItens(c.projetos).forEach(k=>add(k,{ t:'contrato', id:c.id, rot:ctCodCli(c) })));
   clfItens(V.planos).forEach(p=>add(p.projeto,{ t:'plano', id:p.id, rot:p.nome||'(plano sem nome)' }));
-  clfItens(V.parcerias).filter(x=>x.via==='nome').forEach(x=>pcFrentes(x.c).forEach(f=>add(f.proj,{ t:'parceria', id:x.c.id, rot:`${clfPcCod(x.c)} · ${f.nome||''}`.trim(), pelo:'nome' })));
+  clfItens(V.parcerias).forEach(x=>pcFrentes(x.c).forEach(f=>add(f.proj,{ t:'parceria', id:x.c.id, rot:`${clfPcCod(x.c)} · ${f.nome||''}`.trim(), pelo:x.via==='nome'?'nome':'plano' })));   // a parceria entra inteira, uma vez, venha pelo nome ou pelo plano
   return Object.keys(m).sort().map(k=>({ k, origens:m[k] })); }
 // O cliente de um projeto (a espinha do projeto usa): contrato com clienteId válido vence o plano, e este a parceria pelo nome.
 // {cl, via:'contrato'|'plano'|'nome', outros:[clientes]} ou null.
@@ -315,7 +315,7 @@ function clfGarante(F){ try{ const C=estado.clf; const P=F.periodo; if(!P) retur
   clfItens(F.contratos).forEach(L=>{ if(L&&L.consumo&&L.consumo.st==='falta'&&L.lerChave&&L.lerChave.auto){
     if(L.lerChave.real){ if(typeof ctGaranteReal==='function') ctGaranteReal(L.c,C.forca); } else clfTempoPede(L.lerChave.de,L.lerChave.ate); } });
   clfSrGarante(F.projetos.map(x=>x.k).slice(0,C.srLim||CLF_SR_LOTE));
-  if(C.forca){ const R=estado.ctReal; const voo=Object.keys(C.tempoB||{}).some(k=>C.tempoB[k])||(R&&R.busy&&Object.keys(R.busy).some(k=>R.busy[k])); if(!voo) C.forca=false; }   // ↻ vale só até as leituras dele chegarem
+  if(C.forca){ const R=estado.ctReal; const RP=estado.rentab; const voo=Object.keys(C.tempoB||{}).some(k=>C.tempoB[k])||(R&&R.busy&&Object.keys(R.busy).some(k=>R.busy[k]))||(RP&&RP.tempoB&&Object.keys(RP.tempoB).some(k=>RP.tempoB[k])); if(!voo) C.forca=false; }   // ↻ vale só até as leituras dele chegarem
   }catch(e){ try{ console.error('[ficha] garante', e); }catch(_){} } }
 let _clfAdiaT=0;
 function clfRenderAdia(){ if(_clfAdiaT) return; _clfAdiaT=setTimeout(()=>{ _clfAdiaT=0; if(estado.vista==='clficha') clfRender(); },80); }
@@ -382,7 +382,7 @@ function clfProjetosHTML(F){
   const ps=clfItens(F.projetos); if(!ps.length) return `<div class="muted small">Nenhum projeto do Jira ligado a este cliente: os projetos vêm dos contratos 🏢, dos planos 💹 e das parcerias 🤝 do cliente.</div>`;
   const C=estado.clf; const lim=C.srLim||CLF_SR_LOTE; const meta=(F.tempo&&F.tempo.st==='ok'&&F.tempo.t&&F.tempo.t.projetos)||{}; const fo=F.veFin;
   const rows=ps.map((x,i)=>{ const k=x.k; const m=(F.fin&&F.fin.porProj[k])||null; const cat=(meta[k]&&meta[k].categoria)||'—'; const sr=clfSrDe(k); const ativo=i<lim;
-    const org=x.origens.map(o=>`${o.t==='contrato'?'📑':o.t==='plano'?'💹':'🤝'} ${esc(o.rot)}${o.pelo?' <span class="badge">pelo nome</span>':''}`).join('<br>');
+    const org=x.origens.map(o=>`${o.t==='contrato'?'📑':o.t==='plano'?'💹':'🤝'} ${esc(o.rot)}${o.pelo?` <span class="badge">pelo ${o.pelo==='nome'?'nome':'plano'}</span>`:''}`).join('<br>');
     let resumo=''; if(ativo&&sr.st==='ok'&&!sr.sem&&sr.resumo){ const dias=sr.em?pcDias(String(sr.em).slice(0,10),F.hoje):null; const txt=sr.resumo.length>140?sr.resumo.slice(0,137)+'…':sr.resumo;
       resumo=`<div class="clf-resumo">${esc(txt)}</div><div class="muted small">${sr.por?'por '+esc(sr.por):''}${dias!=null&&dias>=0?(sr.por?' · ':'')+'há '+dias+' dia(s)':''}</div>`; }
     const horas=m?clfH(m.seg/3600):(F.tempo&&F.tempo.st==='ok'?clfH(0):'…'); const fat=m?clfH(m.segFat/3600):(F.tempo&&F.tempo.st==='ok'?clfH(0):'…');
@@ -487,6 +487,7 @@ function clfContratoPorId(id){ return clfItens(cfg.contratos).filter(ctItemValid
 document.addEventListener('click',(ev)=>{ if(estado.vista!=='clficha') return; const t=ev.target; if(!t.closest) return; const C=estado.clf; let b;
   if((b=t.closest('[data-clf-atualiza]'))){ C.tempo={}; C.tempoErro={}; C.sr={}; C.srLim=CLF_SR_LOTE; C.forca=true;   // as leituras seguintes vão com nocache=1 e não aproveitam o cache de outras telas
     try{ const R=estado.ctReal; if(R){ const F0=clFicha(C.cli,C.per,{ de:C.de, ate:C.ate }); clfItens(F0&&F0.contratos).forEach(L=>{ if(L&&L.lerChave&&L.lerChave.real){ const k=ctRealChave(L.c); if(R.dados) delete R.dados[k]; if(R.erro) delete R.erro[k]; } }); R.erro=R.erro||{}; } }catch(e){}
+    try{ const rr=estado.rentab; if(rr&&rr.tempo){ clfItens(clfVinculos(C.cli).planos).forEach(p=>{ const k=rpRealChave(p); if(k&&rr.tempo[k]){ delete rr.tempo[k]; if(rr.tempoErro) delete rr.tempoErro[k]; rpGaranteReal(p,true); } }); } }catch(e){}   // acumulado "desde o início" que já tinha sido lido: relê
     clfRender(); return; }
   if(t.closest('[data-clf-ler-per]')){ const F0=clFicha(C.cli,C.per,{ de:C.de, ate:C.ate }); if(F0&&F0.ok&&F0.periodo){ delete C.tempoErro[clfChaveT(F0.periodo.de,F0.periodo.ateLido)]; clfTempoPede(F0.periodo.de,F0.periodo.ateLido); } clfRender(); return; }
   if((b=t.closest('[data-clf-ciclos]'))){ if(typeof _clSt!=='undefined') _clSt.cal=b.getAttribute('data-clf-ciclos'); vaiPara('admin'); return; }
