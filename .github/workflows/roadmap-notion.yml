@@ -135,5 +135,8 @@ jobs:
             node -e 'const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));if(!j.contagens){console.error("::error::resposta sem contagens — a rota roadmap-jira não respondeu (deploy ainda antigo?)");process.exit(1)}'
             ADIADAS="$(node -e 'const j=JSON.parse(require("fs").readFileSync("resposta.json","utf8"));process.stdout.write(String((j.avisos&&j.avisos.adiadas)||0))')"
             if [ "$ADIADAS" = "0" ] || [ "$SUF" = "&dry=1" ]; then break; fi
-            echo "::notice::$ADIADAS ação(ões) adiada(s) pelo orçamento — repetindo."
+            echo "::notice::$ADIADAS ação(ões) adiada(s) pelo orçamento — repetindo em 20 s (o índice de busca do Jira precisa alcançar o que foi criado)."
+            # Passa adiante o que acabou de ser criado ({R###: JI-n}): a rodada seguinte não cria de novo mesmo que a busca ainda não mostre.
+            node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("resposta.json","utf8"));const c=JSON.parse(fs.readFileSync("itens.json","utf8"));c.criadas=Object.assign({},c.criadas||{},j.criadas||{});fs.writeFileSync("itens.json",JSON.stringify(c))'
+            sleep 20
           done

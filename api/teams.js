@@ -1215,7 +1215,7 @@ export default async function handler(req, res) {
       if (vRJ.erro) return json(res, 400, { erro: vRJ.erro });
       if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada ESCREVE no Jira (histórias do roadmap) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
       let rRJ;
-      try { rRJ = await rjSincroniza(vRJ.itens, { saidas: vRJ.saidas, dry, forcar: q.forcar === '1', t0 }); }
+      try { rRJ = await rjSincroniza(vRJ.itens, { saidas: vRJ.saidas, criadas: vRJ.criadas, dry, forcar: q.forcar === '1', t0 }); }
       catch (e) { console.error('roadmap-jira: falha na sincronização:', e && e.message ? e.message : e); return json(res, 502, { ok: false, erro: 'Falha ao falar com o Jira — veja o log da função.' }); }
       const { ok: okRJ, ...restoRJ } = rRJ;
       if (rRJ.bloqueado) return json(res, 409, { ok: false, erro: rRJ.bloqueado === 'saidas'

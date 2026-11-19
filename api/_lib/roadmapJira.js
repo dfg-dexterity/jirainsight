@@ -43,8 +43,10 @@ export const RJ_D_MAX = 4000;
 export const RJ_SAIDAS_LIMITE = 15;              // entregue + cancelar acima disso OU de 20% das histórias = 409 sem forcar
 export const RJ_EDICOES_LIMITE = 25;             // desc + resumo reescritos de uma vez acima disso = 409 sem forcar
 export const RJ_D_VAZIO_MAX = 0.1;               // mais de 10% dos itens com `d` vazio = corpo suspeito (400)
-export const RJ_ORCAMENTO_MS = 40000;            // a função tem 60 s; contado desde o início da requisição; o que sobrar fica para a próxima rodada
-export const RJ_TIMEOUT_MS = 10000;              // por chamada ao Jira
+export const RJ_ORCAMENTO_MS = 55000;            // a função tem 60 s; contado desde o início da requisição. Uma ação só começa se `agora + pior caso dela (chamadas × timeout)` couber aqui; o resto fica para a próxima rodada
+export const RJ_TIMEOUT_MS = 8000;               // por chamada ao Jira (a ação mais longa, `entregue`, faz até 6 chamadas: 6 × 8 s = 48 s cabe nos 55 s)
+// Pior caso de chamadas ao Jira por ação (retentativas de 429 não entram: são raras e limitadas a 5 s)
+const RJ_PIOR_CHAMADAS = { criar: 3, transicao: 1, rotulo: 1, resumo: 2, desc: 3, adotar: 1, entregue: 6, cancelar: 5, reabrir: 4 };
 export const RJ_PROP = 'dexhub.roadmap';
 const RJ_RESPONSAVEL = process.env.ROADMAP_JIRA_RESPONSAVEL || '712020:3a98a142-a5ce-443c-b3f2-32cd080d2583';
 const ESTAGIOS = new Set(['fazendo', 'planejado', 'avaliacao']);
@@ -120,7 +122,14 @@ export function rjValidaCorpo(corpo) {
     if (ids.has(id)) return { erro: `saidas: ${id} também está em itens.` };
     if (!saidas.includes(id)) saidas.push(id);
   }
-  return { itens, saidas };
+  const cri = corpo.criadas === undefined ? {} : corpo.criadas;
+  if (!cri || typeof cri !== 'object' || Array.isArray(cri) || Object.keys(cri).length > RJ_ITENS_MAX) return { erro: 'criadas deve ser um objeto { R###: JI-n }.' };
+  const criadas = {};
+  for (const [k, v] of Object.entries(cri)) {
+    if (!RE_ID.test(k) || typeof v !== 'string' || !/^JI-\d{1,7}$/.test(v)) return { erro: 'criadas: use { R###: JI-n }.' };
+    criadas[k] = v;
+  }
+  return { itens, saidas, criadas };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -288,7 +297,9 @@ export async function rjLeHistorias(deps) {
   if (out.length && sem.length > out.length * 0.5) {
     const alvo = [...sem].sort((a, b) => (a.updated < b.updated ? 1 : a.updated > b.updated ? -1 : 0))[0];
     const g = await d.req('GET', `/rest/api/3/issue/${encodeURIComponent(alvo.key)}/properties/${RJ_PROP}`);
-    if (!falhou(g) && g.json && g.json.value !== undefined && g.json.value !== null) throw new Error('a busca do Jira não devolve properties — nada foi feito.');
+    if (g && g.status === 404) { /* ausência de verdade: é a carga inicial, segue adotando */ }
+    else if (falhou(g)) throw new Error(`leitura de sanidade da propriedade inconclusiva (HTTP ${g ? g.status : 0}) — nada foi feito.`);
+    else if (g.json && g.json.value !== undefined && g.json.value !== null) throw new Error('a busca do Jira não devolve properties — nada foi feito.');
   }
   return out;
 }
@@ -298,7 +309,8 @@ export async function rjLeHistorias(deps) {
 export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCAMENTO_MS, t0 = Date.now() } = {}) {
   const d = { ...depsPadrao(), ...(deps || {}) };
   const feitas = []; const ids = {}; const erros = [];
-  const avisos = { semResolucao: 0, semLimparResolucao: 0, semComentario: 0, semTransicao: 0, semPropriedade: 0, adiadas: 0 };
+  const avisos = { semResolucao: 0, semLimparResolucao: 0, semComentario: 0, semTransicao: 0, semPropriedade: 0, jaExistia: 0, adiadas: 0 };
+  const criadas = {};
   const marca = (a) => { (ids[a.tipo] = ids[a.tipo] || []).push(a.id); };
   if (dry) { for (const a of acoes) { feitas.push(a); marca(a); } return { contagens: rjContagens(feitas, 0), ids, avisos }; }
   const K = (key) => encodeURIComponent(key);
@@ -319,16 +331,21 @@ export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCA
   };
   for (let i = 0; i < acoes.length; i += 1) {
     const a = acoes[i];
-    if (Date.now() - t0 > orcamentoMs) { avisos.adiadas = acoes.length - i; break; }
+    const pior = (RJ_PIOR_CHAMADAS[a.tipo] || 3) * (RJ_DEPS.timeoutMs || RJ_TIMEOUT_MS);
+    if (Date.now() - t0 + pior > orcamentoMs) { avisos.adiadas = acoes.length - i; break; }
     try {
       if (a.tipo === 'criar') {
         const it = a.item;
+        // A listagem inicial pode não mostrar ainda a História criada há instantes (índice do Jira): antes de criar, busca ESPECÍFICA pelo rótulo do item.
+        const ja = exige(await d.req('POST', '/rest/api/3/search/jql', { jql: `project = ${RJ_PROJETO} AND labels = "roadmap-${it.id}"`, fields: ['summary'], maxResults: 1 }));
+        if (ja.json && Array.isArray(ja.json.issues) && ja.json.issues.length) { avisos.jaExistia += 1; criadas[it.id] = ja.json.issues[0].key; continue; }
         const labels = [...RJ_ROT.base, `roadmap-${it.id}`, RJ_ROT.semArea, ...(it.s === 'avaliacao' ? [RJ_ROT.avaliacao] : [])];
         const r = exige(await d.req('POST', '/rest/api/3/issue', { fields: {
           project: { key: RJ_PROJETO }, issuetype: { id: RJ_TIPO_HISTORIA }, summary: rjResumoDe(it), parent: { key: RJ_EPICO_PADRAO },
           labels, description: descCriar(it), assignee: { accountId: RJ_RESPONSAVEL },
         }, properties: [{ key: RJ_PROP, value: { h: rjHashDesc(it.d), r: rjHashResumo(rjResumoDe(it)) } }] }));
         const key = r.json && r.json.key;
+        if (key) criadas[it.id] = key;
         if (it.s === 'fazendo' && key) { await d.pausa(150); try { await transiciona(key, RJ_TR.fazendo); } catch (e) { avisos.semTransicao += 1; } }
       } else if (a.tipo === 'transicao') {
         await transiciona(a.key, a.para);
@@ -373,13 +390,17 @@ export async function rjAplica(acoes, deps, { dry = false, orcamentoMs = RJ_ORCA
     await d.pausa(150);
   }
   if (erros.length) ids.erros = erros;
-  return { contagens: rjContagens(feitas, erros.length), ids, avisos };
+  return { contagens: rjContagens(feitas, erros.length), ids, avisos, criadas };
 }
 
 // Orquestra: lê, planeja, protege (freios), aplica. `forcar` libera os freios de saídas e de edições em massa.
-export async function rjSincroniza(itens, { saidas = [], dry = false, forcar = false, deps, t0 = Date.now() } = {}) {
+export async function rjSincroniza(itens, { saidas = [], criadas = {}, dry = false, forcar = false, deps, t0 = Date.now() } = {}) {
   const historias = await rjLeHistorias(deps);
-  const { acoes, avisos } = rjPlano(itens, historias, saidas);
+  const plano = rjPlano(itens, historias, saidas);
+  const { avisos } = plano;
+  // `criadas` {R###: JI-n} = o que a rodada anterior da CI acabou de criar (a busca pode ainda não mostrar): não cria de novo
+  const acoes = plano.acoes.filter((a) => !(a.tipo === 'criar' && criadas && criadas[a.id]));
+  const recentes = plano.acoes.length - acoes.length;
   const nAvisos = {}; const idsAvisos = {};
   for (const a of avisos) { nAvisos[a.tipo] = (nAvisos[a.tipo] || 0) + 1; (idsAvisos[a.tipo] = idsAvisos[a.tipo] || []).push(a.id); }
   const sai = acoes.filter((a) => a.tipo === 'entregue' || a.tipo === 'cancelar').length;
@@ -390,5 +411,5 @@ export async function rjSincroniza(itens, { saidas = [], dry = false, forcar = f
   }
   const r = await rjAplica(acoes, deps, { dry, t0 });
   const ids = { ...r.ids, ...idsAvisos };
-  return { ok: !r.contagens.erros, dry, historias: historias.length, itens: itens.length, contagens: r.contagens, ids, avisos: { ...r.avisos, ...nAvisos } };
+  return { ok: !r.contagens.erros, dry, historias: historias.length, itens: itens.length, contagens: r.contagens, ids, avisos: { ...r.avisos, ...nAvisos, ...(recentes ? { criadaRecente: recentes } : {}) }, criadas: { ...(criadas || {}), ...(r.criadas || {}) } };
 }

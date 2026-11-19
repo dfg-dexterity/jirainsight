@@ -11,8 +11,9 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   trocáveis em `RJ_DEPS`, como `DISC_DEPS`): `rjPlano(itens, historias, saidas)` (PURA: ações `criar` · `transicao` · `rotulo` · `resumo` · `desc` ·
   `adotar` · `entregue` · `cancelar` · `reabrir` + `avisos`), `rjLeHistorias` (JQL `project = JI AND labels = roadmap AND labels = dexterity-hub AND
   issuetype = "História"`, paginada, pede a propriedade `dexhub.roadmap`; **lança se a leitura vier cortada**), `rjAplica` (em série, pausa curta,
-  `AbortSignal.timeout(10 s)` em CADA chamada ao Jira, orçamento de ~40 s contado do INÍCIO da requisição — o que sobra vira `avisos.adiadas` e a CI
-  repete, no máximo 3 vezes —, Retry-After não numérico = 1 s, erro num item não para os outros, devolve só contagens + ids `R###`), `rjSincroniza` e
+  `AbortSignal.timeout(8 s)` em CADA chamada ao Jira, orçamento de 55 s contado do INÍCIO da requisição: a ação só começa se `agora + pior caso
+  dela (chamadas × 8 s)` couber — o que sobra vira `avisos.adiadas` e a CI repete (20 s depois, máx. 3 vezes, repassando `criadas:{R###:JI-n}`; `criar` ainda
+  faz uma busca ESPECÍFICA pelo rótulo `roadmap-R###` antes, porque a listagem pode não mostrar o recém-criado) —, Retry-After não numérico = 1 s, erro num item não para os outros, devolve só contagens + ids `R###`), `rjSincroniza` e
   o parser `literalDe`/`leRoadmapApp` (o `roadmap-notion.mjs` o importa). **Regras do plano:** item sem história → `criar` no épico **JI-307** com
   `sem-area` (já com a propriedade); `fazendo` + A fazer → transição 21; `planejado`/`avaliacao` com a história em andamento **não rebaixa** (só
   aviso); `avaliacao` ↔ rótulo `em-avaliacao` **só em História que ainda não começou** (nunca em andamento nem Feita);
@@ -24,7 +25,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   ao array** → `reabrir` (transição 11 **e PUT `resolution:null`**, o Jira não limpa sozinho — recusa vira `avisos.semLimparResolucao` —, tira o
   rótulo, comentário). **Resumo e descrição por PROPRIEDADE:** a propriedade da issue `dexhub.roadmap` = `{h, r}` guarda o hash (só letras e
   dígitos) do último texto que o app mandou; só se reescreve quando o hash do app **muda** em relação à propriedade — nunca se compara com o texto
-  do Jira. **Sem a propriedade = ADOTA** (grava o hash atual, ação `adotar`, sempre por ÚLTIMO na lista, e NÃO reescreve; se mais de 50% das Histórias vierem sem ela, a lib lê `GET /issue/{key}/properties/dexhub.roadmap` de uma — se houver valor lá, erro "a busca do Jira não devolve properties"): é o estado das 207 Stories da carga inicial (a carga
+  do Jira. **Sem a propriedade = ADOTA** (grava o hash atual, ação `adotar`, sempre por ÚLTIMO na lista, e NÃO reescreve; se mais de 50% das Histórias vierem sem ela, a lib lê `GET /issue/{key}/properties/dexhub.roadmap` de uma — se houver valor lá, erro "a busca do Jira não devolve properties"; só 404 é ausência — timeout/403/5xx abortam a rodada): é o estado das 207 Stories da carga inicial (a carga
   usou a descrição do Notion e pôs "Origem: JI-xxx" acima do `---` em 12). A descrição só é reescrita **acima da 1ª `---`**; sem a linha `---` na
   História é só aviso (`semRegua`), nunca reescrita. Nunca apaga nada nem mexe em épico, responsável, subtarefas ou worklogs. (2) **Rota** `POST
   /api/teams?tipo=roadmap-jira[&dry=1][&confirmar=1][&forcar=1]` com `{itens:[{id,s,t,d}], saidas:['R###']}` (até 400; id `^R\d{3,4}$`, s ∈
@@ -41,7 +42,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `ROADMAP_JIRA_ESCREVER=1`** (Settings › Variables, `vars.*`); sem ela a CI chama com `dry=1` e imprime contagens + os R### de desc/resumo/cancelar/
   entregue. A CI **falha** se a resposta não tiver `contagens` (deploy antigo) e repete a chamada enquanto `avisos.adiadas` > 0 (máx. 3). `BASE` sai
   do secret `TEAMS_CRON_URL` ou `https://jirainsight.vercel.app`; sem `CRON_SECRET` só avisa; o log mostra só contagens e ids. (4) **Teste** (fora do
-  repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 45 casos): `rjPlano`, saídas explícitas (R214–R217 intocadas), freios,
+  repo, scratchpad `roadmap-jira/teste/roadmap-jira-test.mjs`, `node --test`, 49 casos): `rjPlano`, saídas explícitas (R214–R217 intocadas), freios,
   adoção por propriedade, resolução (reabrir limpa, entregue grava), tempo limite e orçamento, 502 fixo, Bearer, tipo desconhecido, o script do
   payload num repo git temporário e o workflow, além do handler REAL do `api/teams.js` contra um Jira falso por HTTP. **[Manual step]:** criar o
   secret `CRON_SECRET` e a variável `ROADMAP_JIRA_ESCREVER=1` no repositório do GitHub (secret = o da Vercel) e o status **Cancelado** no fluxo do JI.
@@ -862,7 +863,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   falha reverte + toast; sucesso = `↩ Desfazer` 10 s + `crReleFicha` (nocache, debounce). `crLinhas` NÃO muda (gate de
   paridade). Servidor: `editaLote` aceita `resumo`, `inicio`, `links:[{acao:'add',de,para}|{acao:'rm',id}]`; a ficha traz
   o `id` dos links. Regra aprendida: clique simples no nome espera 300 ms pelo duplo (abrir o épico no 1º clique engolia
-  o 2º no modal). Teste: `cronograma-test.mjs` (45 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
+  o 2º no modal). Teste: `cronograma-test.mjs` (49 casos; fixture `FICHA_ACME`/`/api/_edicoes` no `servidor-mini.mjs`).
   **Revisão do 📆 Hoje (mesmo dia):** fila de gravação POR DIA (`h.sv[d]`), destino gravado antes de marcar `movido`
   (`hjLevaPara`), `hjEstClamp`/`HJ_MAX_ITENS` no cliente, reuniões fora do Planejado, ↻ + `visibilitychange`, cronômetro
   com `a`=accountId, foco devolvido pelo seletor (`hjFocoSel`), `:has(:focus-visible)` para ↑↓ (o `:focus-within` deslocava
@@ -1033,7 +1034,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   lado não derruba o outro. Contexto técnico só com a caixa marcada, montado por UMA função (`repContexto`) para a
   prévia e o envio; o servidor corta parâmetro com cara de segredo na URL e limita os erros a 8. Prefixo `rep` no
   front (o `rp` é da Rentabilidade). O formulário antigo da Ajuda saiu; `{feedback:true}` segue aceito para abas
-  antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 45 casos).
+  antigas. Testes: `meus-tmp/reportar-test.mjs` (unidade, 25 casos) e `entrega-1003-test.mjs` (Playwright, 49 casos).
 - **⏱ Contrato de cliente "Horas abertas" (2026-10-04, a pedido do usuário: "um tipo horas abertas; informar o
   número de horas contratado e depois alocar essas horas para projetos do Jira; hoje nem consigo selecionar esses
   projetos"):** a causa do "não consigo selecionar" era o seletor do 🏢 Clientes filtrar SEMPRE pela categoria AMS.
