@@ -662,6 +662,27 @@
     #conteudo .sr-row .sr-c-sit{order:6;flex:0 0 100%}
   }
 }
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .sr-h-dia,#conteudo .sr-h-leg,#conteudo .sr-h-av{font-size:12px}
+  #conteudo .sr-h-nav .gp-mini,#conteudo .sr-horas>summary,#conteudo .sr-h-leg .lnk-ficha,#conteudo .sr-h-tab tr[data-sr-h-p]{min-height:44px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .sr-h-dia,#conteudo .sr-h-leg,#conteudo .sr-h-av{font-size:12px}
+  #conteudo .sr-h-nav .gp-mini,#conteudo .sr-horas>summary,#conteudo .sr-h-leg .lnk-ficha{min-height:44px}
+}}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  /* conteúdo estreito com a barra lateral: a tabela de horas vira cartão por pessoa, como no celular */
+  @container conteudo (max-width:780px){
+    #conteudo .sr-h-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #conteudo .sr-h-tab,#conteudo .sr-h-tab tbody,#conteudo .sr-h-tab tfoot{display:block}
+    #conteudo .sr-h-tab thead{display:none}
+    #conteudo .sr-h-tab tr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha)}
+    #conteudo .sr-h-tab th,#conteudo .sr-h-tab td{display:inline-flex;align-items:center;gap:6px;border-bottom:0;padding:1px 0;text-align:left}
+    #conteudo .sr-h-tab tbody th{flex:0 0 100%}
+    #conteudo .sr-h-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
+  }
+}
 /* ---- fim: statusrep ---- */
 
 /* ---- 🍎 grupo: portal (🌐 Portal do cliente) ---- */

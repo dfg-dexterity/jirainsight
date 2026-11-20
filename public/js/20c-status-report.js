@@ -11,6 +11,7 @@
 // Nesta etapa a tela é só LEITURA: o 📝 Atualizar (modelos de comentário) e a edição da situação entram depois e
 // se encaixam nos ganchos marcados com data-sr-slot (coluna de ação da linha e rodapé da situação).
 estado.sr=estado.sr||{ proj:'', dados:null, chave:'', carregando:'', erro:'', cache:{}, sujo:false, cab:null, cabB:false,
+  horas:{aberto:false,w:'',cache:{},carregando:'',erro:{}},
   cabErro:'', cabProj:'', cabRev:'', edit:false, rasc:null, cabConf:null, cabSalvando:false, histAberto:false, resp:'', soSem:false, catB:false, mais:'', achar:null, acharRele:'' };
 const SR_PROJ_KEY='jirainsight_sr_proj_v1';   // último projeto aberto, só neste navegador
 const SR_CACHE_MIN=3;
@@ -365,6 +366,120 @@ function srCabHTML(sub,c){
   const proj=srProjAtual();
   return `<div class="card full sr-topo"><h2>📋 Status report <span>${sub}</span></h2>${srFiltrosHTML(c)}${proj?srAcoesHTML(proj):''}</div>`;
 }
+// ---- ⏱ Horas da semana — planejado × apontado (2026-11-20; dados e conta em 20e-status-horas.js) ----
+// A seção é um <details> recolhido: NADA é lido enquanto fechado. `srhPinta` troca só o corpo e o resumo (nunca chama renderSr:
+// não pode fechar o ⋯, o formulário da situação nem tirar o foco do campo de busca).
+const SRH_DIAS=['dom','seg','ter','qua','qui','sex','sáb'];
+function srhIdOk(){ const id=(typeof idApontar==='function')?idApontar():null; return !!(id&&id.accountId); }
+function srhDiaRot(d){ return `${SRH_DIAS[diaSemana(d)]} ${srDm(d)}`; }
+function srhPct(v){ return v==null?'—':`${Math.round(v)}%`; }
+function srhContexto(){
+  if(typeof srhCalc!=='function') return null;
+  const h=srhEstado(); const proj=srProjAtual(); if(!proj) return null;
+  const jan=srhJanela(hojeSP(), h.w);
+  const dd=srhDados(jan.w);
+  return { h, proj, jan, dd, c:dd?srhCalc(proj,jan,dd):null };
+}
+function srhResumoTxt(x){
+  const j=x.jan; const base=`semana de ${srDm(j.de)} · até ${j.atual?'ontem, ':''}${srDm(j.ate)}`;
+  if(!x.c) return base;
+  const r=srhResumo(x.c);
+  return `${base} · ${mpH(r.real)} de ${mpH(r.plan)}${r.exec!=null?` (${srhPct(r.exec)})`:''}`;
+}
+function srhSecaoHTML(){
+  if(typeof srhCalc!=='function') return '';
+  const x=srhContexto(); if(!x) return '';
+  return `<details class="card full sr-horas" id="sr-horas"${x.h.aberto?' open':''}>
+    <summary><b>⏱ Horas da semana — planejado × apontado</b> <span class="muted small" id="sr-horas-res">${esc(srhResumoTxt(x))}</span></summary>
+    <div id="sr-horas-corpo">${x.h.aberto?srhCorpoHTML():''}</div></details>`;
+}
+function srhCelulaHTML(c,d){
+  const rot=srhDiaRot(d);
+  const tipTot=`${mpH(c.tot)} no dia em todos os projetos`;
+  let inner, cls='', tip;
+  if(c.aus&&!c.re&&!(c.pl>0)){ inner='<span class="muted small">aus.</span>'; tip=`${rot}: ausente, feriado ou fora do plano — ${tipTot}`; }
+  else if(c.pl==null){
+    inner=c.re>0?`<span class="ct-sem na">${esc(mpH(c.re))}</span> <i class="muted small">/ —</i>`:'<span class="muted">·</span>';
+    tip=`Sem plano · apontado ${mpH(c.re)} neste projeto · ${tipTot}`;
+  } else if(c.cor===''){ inner='<span class="muted">·</span>'; tip=`Nada planejado nem apontado neste projeto · ${tipTot}`; }
+  else {
+    cls={ok:'ok',medio:'aten',ruim:'crit'}[c.cor]||'na';
+    const sym=(c.pl>0&&c.re===0)?'∅':(c.cor==='ok'?'✓':(c.re>c.pl?'▲':'▼'));
+    inner=`<span class="ct-sem ${cls}">${sym} ${esc(mpH(c.re))}</span> <i class="muted small">/ ${esc(mpH(c.pl))}</i>`;
+    tip=`Planejado ${mpH(c.pl)} · apontado ${mpH(c.re)} neste projeto${c.desvio!=null?` (${c.desvio>0?'+':''}${Math.round(c.desvio)}%)`:''} · ${tipTot}`;
+  }
+  return `<td data-rot="${escA(rot)}" data-tip="${escA(tip)}">${inner}<small class="sr-h-dia">dia ${esc(mpH(c.tot))}</small></td>`;
+}
+function srhCorpoHTML(){
+  const x=srhContexto(); if(!x) return '';
+  const { h, proj, jan }=x; const w=jan.w;
+  if(!srhIdOk()) return `<div class="estado">Para ver o planejado × apontado do time, identifique-se.</div>
+    <button class="btn" data-sr-h-id="1">🔑 Identificar-me</button>`;
+  const nav=`<div class="sr-h-nav">
+    <button class="gp-mini" data-sr-h-nav="-1" aria-label="Semana anterior"${w<=mtsSoma(jan.wPad,-7*SRH_SEMANAS_MAX)?' disabled':''}>‹</button>
+    <b>Semana de ${esc(srDm(jan.de))} a ${esc(srDm(mtsSoma(jan.de,6)))}</b> <span class="muted small">${jan.atual?`até ontem, ${esc(srDm(jan.ate))}`:'semana fechada'}</span>
+    <button class="gp-mini" data-sr-h-nav="1" aria-label="Semana seguinte"${jan.padrao?' disabled':''}>›</button>
+    ${jan.padrao?'':'<button class="gp-mini" data-sr-h-nav="0">esta semana</button>'}
+    <button class="gp-mini" data-sr-h-refresh="1" aria-label="Atualizar as horas" data-tip="Relê os planos e os apontamentos da semana">↻</button></div>`;
+  if(h.erro[w]) return `${nav}<div class="erro"><strong>Falha ao carregar.</strong> ${esc(h.erro[w])} <button class="btn" data-sr-h-retry="1" style="margin-left:10px">Tentar de novo</button></div>`;
+  if(!x.c) return `${nav}<div class="estado">Lendo os planos e os apontamentos da semana…</div>`;
+  const c=x.c; const t=c.tot;
+  const avisos=[];
+  if(jan.padrao&&jan.w!==semChave(jan.hoje)) avisos.push('A semana corrente ainda não tem dia fechado — mostrando a semana passada.');
+  if(!c.temPlanos) avisos.push(`Não consegui ler os planos (${x.dd.planoErro||'erro'}): só o apontado aparece.`);
+  if(c.antesVig) avisos.push('O Meu Planejamento ainda não era usado nesta semana: só o apontado é mostrado.');
+  avisos.push('Hoje não entra: o dia ainda não acabou.');
+  const kpi=(v,l,tip)=>`<div class="vg-k"${tip?` data-tip="${escA(tip)}"`:''}><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const kpis=`<div class="sr-h-kpis">${kpi(esc(mpH(t.plan)),'Planejado')}${kpi(esc(mpH(t.real)),'Apontado')}${kpi(srhPct(t.exec),'Execução')}
+    ${kpi(esc(mpH(t.foraDoPlano)),'Fora do plano','Horas apontadas neste projeto em dias sem atividade planejada nele (ou por quem não tem plano na semana)')}</div>
+    ${t.semPlano?`<div class="muted small">${t.semPlano} pessoa(s) sem plano na semana.</div>`:''}`;
+  let tabela;
+  if(!c.pessoas.length) tabela='<div class="sr-vazio">Ninguém planejou nem apontou neste projeto nesta semana.</div>';
+  else {
+    const head=`<tr><th scope="col">Pessoa</th>${c.dias.map(d=>`<th scope="col">${esc(srhDiaRot(d.d))}</th>`).join('')}<th scope="col">Projeto (apontado / planejado)</th><th scope="col">Dia todo</th><th scope="col">Outros projetos</th></tr>`;
+    const linhas=c.pessoas.map(p=>{
+      const selo=p.temPlano?`<span class="sr-sel">${esc(MP_STATUS[p.status]||p.status||'plano')}${(p.status==='elaboracao'||p.status==='devolvido')?' ✎':''}</span>`:'<span class="sr-sel">sem plano</span>';
+      const sit=p.temPlano&&p.plan>0?mpSitDe(p.plan,p.real):null;
+      const clsP=sit?({ok:'ok',medio:'aten',ruim:'crit'}[sit.cor]||'na'):'na';
+      return `<tr data-sr-h-p="${escA(p.a)}" role="button" tabindex="0" aria-label="${escA(p.nome)}: ver onde foi o tempo">
+        <th scope="row">${esc(p.nome)} ${selo}</th>${c.dias.map(d=>srhCelulaHTML(p.dias[d.d],d.d)).join('')}
+        <td data-rot="Projeto">${esc(mpH(p.real))}${p.temPlano?` <i class="muted small">/ ${esc(mpH(p.plan))}</i> <span class="ct-sem ${clsP}">${srhPct(p.exec)}</span>`:' <i class="muted small">/ —</i>'}</td>
+        <td data-rot="Dia todo" data-tip="${escA(p.temPlano?`de ${mpH(p.planTot)} planejadas em todos os projetos`:'sem plano na semana')}">${esc(mpH(p.tot))}</td>
+        <td data-rot="Outros projetos">${esc(mpH(p.outros))} <span class="muted small">ver ›</span></td></tr>`; }).join('');
+    const foot=`<tr><th scope="row">Total</th>${c.dias.map(d=>{ const q=t.porDia[d.d]; return `<td data-rot="${escA(srhDiaRot(d.d))}">${esc(mpH(q.re))} <i class="muted small">/ ${esc(mpH(q.pl))}</i></td>`; }).join('')}
+      <td data-rot="Projeto">${esc(mpH(t.real))} <i class="muted small">/ ${esc(mpH(t.plan))}</i></td><td></td><td></td></tr>`;
+    tabela=`<div class="scroll-x"><table class="mp-tab-mini sr-h-tab"><caption class="sr-h-sronly">Horas planejadas e apontadas por pessoa e por dia neste projeto</caption>
+      <thead>${head}</thead><tbody>${linhas}</tbody><tfoot>${foot}</tfoot></table></div>`;
+  }
+  const leg=`<div class="muted small sr-h-leg">✓ até ±10% do planejado · ▲▼ até ±40% (amarelo) · além disso, vermelho · ∅ planejado sem apontamento · — sem plano.
+    <button class="lnk-ficha" data-sr-h-planrel="1">📊 abrir no Planejamento do time</button></div>`;
+  return `${nav}${avisos.map(a=>`<div class="muted small sr-h-av">${esc(a)}</div>`).join('')}${kpis}${tabela}${leg}`;
+}
+function srhPinta(){
+  const corpo=document.getElementById('sr-horas-corpo'); const res=document.getElementById('sr-horas-res');
+  const x=srhContexto(); if(!x) return;
+  if(res) res.textContent=srhResumoTxt(x);
+  if(corpo&&x.h.aberto) corpo.innerHTML=srhCorpoHTML();
+}
+function srhAoChegar(){ if(estado.vista==='statusrep') srhPinta(); }
+function srhLeSemana(forca){ const x=srhContexto(); if(x&&x.h.aberto&&srhIdOk()) srhCarrega(x.jan.w,!!forca); }
+function srhAbrePessoa(a){
+  const x=srhContexto(); if(!x||!x.c) return;
+  const p=x.c.pessoas.find(q=>q.a===a); if(!p) return;
+  const jan=x.jan;
+  const tks=p.tickets.length?p.tickets.map(t=>`<li><button class="gp-mini" data-gx-det="${escA(t.k)}">🔍</button> <b>${esc(t.k)}</b> ${esc(t.resumo||'')} <span class="muted">· ${esc(mpH(t.h))}</span></li>`).join(''):'<li class="muted">Nada apontado neste projeto na janela.</li>';
+  const itens=p.itensPlano.length?p.itensPlano.map(i=>`<li>${esc(srhDiaRot(i.d))} · ${esc(i.desc||'(sem descrição)')} <span class="muted">· ${esc(mpH(i.h))}</span></li>`).join(''):`<li class="muted">${p.temPlano?'Nenhuma atividade planejada neste projeto.':'Sem plano na semana.'}</li>`;
+  const base=p.tot||0;
+  const outros=p.outrosProj.length?p.outrosProj.map(o=>`<div class="sr-h-o"><div class="sr-h-o-l"><b>${esc(o.pj)}</b> <span class="muted">${esc(mpH(o.h))} · ${base>0?Math.round(o.h/base*100):0}%</span></div>
+      <div class="sr-h-bar"><i style="width:${base>0?Math.min(100,Math.round(o.h/base*100)):0}%"></i></div>
+      ${o.tks.length?`<div class="muted small">${o.tks.map(t=>`${esc(t.k)} ${esc(mpH(t.h))}`).join(' · ')}</div>`:''}</div>`).join(''):'<div class="muted">Nenhum outro projeto na janela.</div>';
+  abreModal(`<div class="sr-h-modal"><h2>⏱ ${esc(p.nome)} · semana de ${esc(srDm(jan.de))}</h2>
+    <h3>Neste projeto</h3><ul class="sr-h-ul">${tks}</ul>
+    <div class="muted small">Atividades do plano neste projeto</div><ul class="sr-h-ul">${itens}</ul>
+    <h3>Onde mais foi o tempo</h3>${outros}
+    <div class="muted small" style="margin-top:8px">Total na janela: ${esc(mpH(p.tot))} (${esc(mpH(p.real))} neste projeto = ${base>0?Math.round(p.real/base*100):0}%).</div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div></div>`);
+}
 function renderSr(){
   const cont=document.getElementById('conteudo'); const s=estado.sr;
   s.mais='';
@@ -399,7 +514,8 @@ function renderSr(){
     srBlocoHTML('sem','📅 Esta semana',`vence até ${esc(srDm(c.fimSemana))}`,c.g.semana,c),
     srBlocoHTML('prox','📅 Próxima semana',`vence de ${esc(srDm(somaDias(c.fimSemana,1)))} a ${esc(srDm(c.ate))}`,c.g.proxima,c),
     srBlocoHTML('bug','🐞 Bugs abertos sem data no horizonte','sem data, ou com data depois do horizonte',c.g.bugs,c)].join(''):'';
-  cont.replaceChildren(el(`<div>${srCabHTML(sub,c)}${aviso.length?`<div class="card full sr-aviso">${aviso.map(esc).join('<br>')}</div>`:''}${srSituacaoHTML(c)}${c.todos.length?srKpisHTML(c):''}${vazio}${blocos}${rodape}</div>`));
+  cont.replaceChildren(el(`<div>${srCabHTML(sub,c)}${aviso.length?`<div class="card full sr-aviso">${aviso.map(esc).join('<br>')}</div>`:''}${srSituacaoHTML(c)}${c.todos.length?srKpisHTML(c):''}${srhSecaoHTML()}${vazio}${blocos}${rodape}</div>`));
+  srhLeSemana(false);
   estadoParaURL();
 }
 // ---- 🔎 Achar ticket — "por que não aparece?" (2026-11-12, JI-285: "não aparece o ticket COP-1155 no status report") ----
@@ -484,6 +600,10 @@ function srTextoRelatorio(c){
       else if(t.ult) sit=`💬 ${srPrimeiro(t.ult.por)} ${srDm(t.ult.dia)}: ${(t.ult.texto||'').slice(0,140)}`;
       L.push(`• ${t.k} — ${t.resumo||'—'} (${t.resp?srPrimeiro(t.resp):'sem responsável'})${t.venc?` · vence ${srDm(t.venc)}`:''} · ${t.status||'—'} · ${sit}`); }); };
   bloco('⏰ Vencidos',c.g.vencidos); bloco('📅 Esta semana',c.g.semana); bloco('📅 Próxima semana',c.g.proxima); bloco('🐞 Bugs abertos sem data no horizonte',c.g.bugs);
+  try{ const hx=(typeof srhContexto==='function')?srhContexto():null;
+    if(hx&&hx.h.aberto&&hx.c){ const r=srhResumo(hx.c);
+      L.push('',`⏱ Horas (semana de ${srDm(hx.jan.de)}, até ${srDm(hx.jan.ate)}): ${mpH(r.real)} apontadas de ${mpH(r.plan)} planejadas${r.exec!=null?` (${srhPct(r.exec)})`:''}`);
+      hx.c.pessoas.forEach(p=>L.push(p.temPlano?`• ${srPrimeiro(p.nome)}: ${mpH(p.real)} / ${mpH(p.plan)} (${srhPct(p.exec)})${p.outros>0?` · outros projetos ${mpH(p.outros)}`:''}`:`• ${srPrimeiro(p.nome)}: ${mpH(p.real)} (sem plano)`)); } }catch(e){}
   L.push('',srLinkTela(proj));
   return L.join('\n');
 }
@@ -1148,6 +1268,13 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const ma=cl('[data-sr-acao]'); if(ma){ srMaisEscolhe(ma.getAttribute('data-sr-acao'),ma.getAttribute('data-sr-k')); return; }
   const ir=cl('[data-sr-ir]'); if(ir){ const b=document.getElementById('sr-'+ir.getAttribute('data-sr-ir')); if(b) b.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const so=cl('[data-sr-so-sem]'); if(so){ s.soSem=!s.soSem; renderSr(); return; }
+  const hn=cl('[data-sr-h-nav]'); if(hn){ if(hn.disabled) return; const x=srhContexto(); if(!x) return; const n=+hn.getAttribute('data-sr-h-nav');
+    x.h.w=n===0?'':(n<0?mtsSoma(x.jan.w,-7):mtsSoma(x.jan.w,7)); if(x.h.w===srhJanela(hojeSP(),'').w) x.h.w=''; srhLeSemana(false); srhPinta(); estadoParaURL(); return; }
+  const hr=cl('[data-sr-h-refresh],[data-sr-h-retry]'); if(hr){ const x=srhContexto(); if(x){ delete x.h.erro[x.jan.w]; srhLeSemana(true); srhPinta(); } return; }
+  const hi=cl('[data-sr-h-id]'); if(hi){ abreIdentidade('ver o planejado × apontado do time',{leitura:true,depois:()=>{ srhLeSemana(false); srhPinta(); }}); return; }
+  const hp=cl('[data-sr-h-planrel]'); if(hp){ const x=srhContexto(); const mp=estado.minhasemana;
+    if(x&&mp){ mp.relF={de:x.jan.w,ate:x.jan.w,usuario:'',projeto:x.proj,status:''}; mp.rel=null; if(estado.planrel) estado.planrel.aud='proj'; vaiPara('planrel'); } return; }
+  const hl=cl('tr[data-sr-h-p]'); if(hl&&!e.target.closest('[data-gx-det]')){ srhAbrePessoa(hl.getAttribute('data-sr-h-p')); return; }
   const cp=cl('[data-sr-copiar]'); if(cp){ const c=srCalc(); if(c) gpCopia(srTextoRelatorio(c),'📋 Relatório copiado — cole na ata, no Teams ou no e-mail.'); return; }
   const lk=cl('[data-sr-link]'); if(lk){ const p=srProjAtual(); if(p) gpCopia(srLinkTela(p),'🔗 Link copiado — todo mundo abre a mesma visão.'); return; }
   const gp=cl('[data-sr-gp]'); if(gp){ const p=srProjAtual(); if(p&&estado.gp){ estado.gp.proj=p; estado.gp.meus=false; estado.gp.resp=''; } vaiPara('gp'); return; }
@@ -1164,10 +1291,15 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
 }));
 document.getElementById('conteudo').addEventListener('toggle',(e)=>{
   const d=e.target; if(d&&d.matches&&d.matches('[data-sr-hist]')) estado.sr.histAberto=!!d.open;
+  if(d&&d.id==='sr-horas'&&typeof srhEstado==='function'){   // ⏱ Horas: a guarda é obrigatória — o replaceChildren do renderSr recria o <details open> e dispara `toggle` de novo
+    const h=srhEstado(); if(h.aberto===d.open) return;
+    h.aberto=d.open; if(d.open){ srhLeSemana(false); srhPinta(); } estadoParaURL(); }
 },true);
 // 🔎 Enter no campo "Achar ticket" busca (o Esc limpa só o campo, sem fechar nada).
 document.getElementById('conteudo').addEventListener('keydown',(e)=>{
-  if(estado.vista!=='statusrep'||!e.target||e.target.id!=='sr-achar') return;
+  if(estado.vista!=='statusrep'||!e.target) return;
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('tr[data-sr-h-p]')&&typeof srhAbrePessoa==='function'){ e.preventDefault(); srhAbrePessoa(e.target.getAttribute('data-sr-h-p')); return; }   // ⏱ Horas: a linha da pessoa é role=button (teclado)
+  if(e.target.id!=='sr-achar') return;
   if(e.key==='Enter'){ e.preventDefault(); srAchar(e.target.value); }
   else if(e.key==='Escape'&&e.target.value){ e.preventDefault(); e.stopPropagation(); e.target.value=''; }
 });

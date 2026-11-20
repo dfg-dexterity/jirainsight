@@ -50,6 +50,10 @@ function leURL(){
   if(/^rp[a-z0-9]+$/.test(p.get('rpid')||'')) estado.rentab.sel=p.get('rpid');   // 💹 Rentabilidade: plano aberto
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('cproj')||'')) estado.cronograma.proj=p.get('cproj');   // 📅 Cronograma: projeto
   if(/^[A-Z][A-Z0-9_]*$/.test((p.get('srproj')||'').toUpperCase())&&estado.sr) estado.sr.proj=p.get('srproj').toUpperCase();   // 📋 Status report: projeto
+  if(vURL==='statusrep'&&estado.sr&&typeof srhEstado==='function'){ const h=srhEstado();   // ⏱ Horas da semana: srh=1 abre, srhw = a semana (segunda)
+    if(p.get('srh')==='1') h.aberto=true;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(p.get('srhw')||'')) h.w=semChave(p.get('srhw'));
+    if(h.w&&typeof srhJanela==='function'){ const j=srhJanela(hojeSP(),h.w); h.w=j.padrao?'':j.w; } }   // semana futura/antiga demais cai na padrão
   if(['exec','gestor','minha','proj'].includes(p.get('paud'))) estado.planrel.aud=p.get('paud');
   if(vURL==='minhasemana'&&/^\d{4}-\d{2}-\d{2}$/.test(p.get('w')||'')&&estado.minhasemana){ const mp=estado.minhasemana; mp.w=semChave(p.get('w')); mp.aba='plano'; }   // 📋 Meu Planejamento: a semana do link (aviso de aprovação/devolução no Teams ou no push)
   if(vURL==='bloqueios'&&estado.bq){ const bq=estado.bq;   // 🚧 Bloqueios: bqe/bqp/bqn/bqv/bqk (nomes próprios, não disputam proj/cat)
@@ -111,6 +115,8 @@ function estadoParaURL(){
   if(estado.vista==='rentab' && estado.rentab.sel) p.set('rpid',estado.rentab.sel);
   if(estado.vista==='cronograma' && estado.cronograma.proj) p.set('cproj',estado.cronograma.proj);
   if(estado.vista==='statusrep' && estado.sr && estado.sr.proj) p.set('srproj',estado.sr.proj);   // 📋 Status report: projeto
+  if(estado.vista==='statusrep' && estado.sr && estado.sr.horas && estado.sr.horas.aberto){ p.set('srh','1');   // ⏱ Horas da semana (srhw só quando ≠ semana padrão)
+    if(estado.sr.horas.w&&typeof srhJanela==='function'&&estado.sr.horas.w!==srhJanela(hojeSP(),'').w) p.set('srhw',estado.sr.horas.w); }
   if(estado.vista==='semanal' && estado.semanal && estado.semanal.sel) p.set('semana',estado.semanal.sel);
   if(estado.vista==='bloqueios' && estado.bq){ const bq=estado.bq;   // 🚧 Bloqueios: só o que foge do padrão (bqk é lido e consumido, não regravado)
     if(bq.escopo==='time') p.set('bqe','time'); if(bq.fil.proj) p.set('bqp',bq.fil.proj); if(bq.fil.nivel) p.set('bqn',bq.fil.nivel); if(bq.fil.venc) p.set('bqv','1'); }

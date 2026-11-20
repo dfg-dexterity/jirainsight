@@ -2108,6 +2108,19 @@
   .srx-lista{grid-template-columns:1fr}
   .srx-add input{font-size:16px;min-height:44px}
 }
+@media (max-width:760px){
+  /* ⏱ Horas da semana: cada pessoa vira um cartão, os dias quebram em linha */
+  .sr-h-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .sr-h-tab,.sr-h-tab tbody,.sr-h-tab tfoot{display:block}
+  .scroll-x>.sr-h-tab{min-width:0;width:100%}
+  .sr-h-tab thead{display:none}
+  .sr-h-tab tr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha);min-height:44px}
+  .sr-h-tab th,.sr-h-tab td{display:inline-flex;align-items:center;gap:6px;border-bottom:0;padding:1px 0;text-align:left}
+  .sr-h-tab tbody th{flex:0 0 100%}
+  .sr-h-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
+  .sr-h-nav .gp-mini,.sr-horas>summary{min-height:44px;min-width:44px}
+  .sr-h-modal .gp-mini,.sr-h-modal .btn{min-height:44px}
+}
 /* ---- fim: statusrep ---- */
 
 /* ---- 📱 grupo: portal (🌐 Portal do cliente: seções, formulário, tabelas editáveis, prévia) ---- */

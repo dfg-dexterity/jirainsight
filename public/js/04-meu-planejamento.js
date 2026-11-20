@@ -124,6 +124,19 @@ function mpCategorias(){
 
 // ---------------- comparação planejado × realizado ----------------
 // Unidade de comparação: accountId + DATA + PROJETO (nunca por ticket).
+// Régua ÚNICA de "planejado × realizado" (±10% conforme · até ±40% médio · além ruim). Usada pelo Meu Planejamento, pelo
+// 📊 planrel e pela seção ⏱ Horas da semana do 📋 Status report (srhCalc, 20e): o mesmo desvio tem a mesma cor em todo lugar.
+function mpSitDe(pl, re){
+  const desvio=(pl>0&&re!=null)?((re-pl)/pl*100):null;
+  let sit, cor;
+  if(pl>0&&re!=null&&re>0){
+    if(Math.abs(desvio)<=10){ sit='Conforme planejado'; cor='ok'; }
+    else if(desvio<0){ sit='Abaixo do planejado'; cor=desvio<-40?'ruim':'medio'; }
+    else { sit='Acima do planejado'; cor=desvio>40?'ruim':'medio'; }
+  } else if(pl>0){ sit=re==null?'Aguardando realizado':'Planejado não realizado'; cor=re==null?'nd':'nd'; }
+  else { sit='Realizado não planejado'; cor='medio'; }
+  return { sit, cor, desvio };
+}
 function mpComparativo(w, acc){
   const p=mpPlano(w); const itens=(p&&p.itens)||[];
   const real=mpRealGrupo(w, acc);
@@ -135,14 +148,7 @@ function mpComparativo(w, acc){
     const [d,proj]=k.split('|');
     const pl=plan[k]||0; const re=real?(real.por[k]||0):null;
     const dif=re==null?null:re-pl;
-    const desvio=(pl>0&&re!=null)?((re-pl)/pl*100):null;
-    let sit, cor;
-    if(pl>0&&re!=null&&re>0){
-      if(Math.abs(desvio)<=10){ sit='Conforme planejado'; cor='ok'; }
-      else if(desvio<0){ sit='Abaixo do planejado'; cor=desvio<-40?'ruim':'medio'; }
-      else { sit='Acima do planejado'; cor=desvio>40?'ruim':'medio'; }
-    } else if(pl>0){ sit=re==null?'Aguardando realizado':'Planejado não realizado'; cor=re==null?'nd':'nd'; }
-    else { sit='Realizado não planejado'; cor='medio'; }
+    const {sit,cor,desvio}=mpSitDe(pl,re);
     return { data:d, projeto:proj, desc:(planDesc[k]||[]).join(' · '), plan:pl, real:re, dif, desvio, sit, cor };
   });
   const totPlan=Object.values(plan).reduce((s,h)=>s+h,0);
