@@ -389,7 +389,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   e dispara `toggle` de novo (laço). Cor nunca é o único sinal (✓ ▲ ▼ ∅); no celular a tabela vira cartão por pessoa (`mobile.css`,
   `ipad.css`). URL `srh=1` e `srhw` (só quando ≠ semana padrão; futuro cai na padrão). O texto do 📋 Copiar leva o bloco ⏱ só com a
   seção aberta e carregada. Teste (scratchpad `status-plano/`, contra `servidor-sr.mjs`, porta 8791): `status-report-horas-test.mjs`
-  (Playwright, 105 asserções, blocos A–L; achou e corrigiu Enter/Espaço na linha da pessoa e `srhw` no futuro); regressão `status-report-test` 28, `-at` 47, `-cab` 34, `-acoes` 179, `-tipos` 37, `-ok` 23, `sr-achar` 28, `boot` 6 verdes. Documento: `docs/status-horas-2026-11-20.md`.
+  (Playwright, 106 asserções, blocos A–L; achou e corrigiu Enter/Espaço na linha da pessoa e `srhw` no futuro; o E10 é da revisão do PR #238: o total da pessoa conta todos os dias da janela, inclusive sábado só em outro projeto, e o % do modal nunca passa de 100); regressão `status-report-test` 28, `-at` 47, `-cab` 34, `-acoes` 179, `-tipos` 37, `-ok` 23, `sr-achar` 28, `boot` 6 verdes. Documento: `docs/status-horas-2026-11-20.md`.
   Desdobramentos no roadmap: R252 (recorte por papel e "só planos enviados"), R253 (na 🧭 Pendências e na sexta), R254 (tendência de
   várias semanas), R255 (hoje parcial e alerta de desvio).
 - **🔗 Custo/h das pessoas vindo do Odoo (2026-11-06, a pedido do usuário: "onde está o custo dos funcionários usado no

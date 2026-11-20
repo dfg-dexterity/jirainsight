@@ -136,9 +136,11 @@ function srhCalc(proj, jan, dd){
       cel[d]={ pl:p, re, tot:t, cap, sit, cor, desvio, aus:(x.util&&cap===0) };
       if(p!=null) plan+=p;
       if(temPlano) planTot+=(plTot[d]||0);
-      tot+=t;
       if(p==null||p===0) foraDoPlano+=re;
     });
+    // o total da pessoa conta TODOS os dias da janela, inclusive sábado/feriado só com outro projeto (sem coluna):
+    // é a mesma base dos outrosProj do modal, então "neste projeto" + "outros" fecham e o % nunca passa de 100 (revisão PR #238)
+    tot=Object.keys(L.tot).reduce((s,d)=>s+L.tot[d],0);
     const dif=temPlano?real-plan:null;
     const exec=(temPlano&&plan>0)?(real/plan*100):null;
     const tickets=Object.keys(L.tks).map(k=>({ k, resumo:resumosDd[k]||'', h:L.tks[k].h, dias:L.tks[k].dias }))
