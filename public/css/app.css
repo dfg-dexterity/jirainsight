@@ -1091,6 +1091,14 @@
   [data-theme="dark"] #mh-card{--mts-s1:#3987e5;--mts-s2:#d95926;--mts-s3:#199e70;--mts-s4:#c98500;
     --mts-s5:#d55181;--mts-s6:#008300;--mts-s7:#9085e9;--mts-s8:#e66767}
   .mts-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  /* recolher o timesheet: título + ▾/▸ na mesma linha; recolhido vira uma faixa-resumo */
+  .mts-tit{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+  .mts-tit h2{flex:1;min-width:0}
+  .mts-abre{flex:none;padding:4px 10px;font-size:12px;white-space:nowrap}
+  .mh-card.mts-fechado .mts-tit h2{margin-bottom:6px}
+  .mts-resumo{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .mts-over{color:#B45309;font-weight:600}
+  [data-theme="dark"] .mts-over{color:#F59E0B}
   .mts-nav{display:flex;gap:6px;align-items:center}
   .mts-nav .btn{padding:4px 10px;font-size:12px}
   .mts-alvo{display:flex;gap:8px;align-items:center;font-size:13px}

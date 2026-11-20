@@ -505,6 +505,7 @@
   /* ===== ⏱ Meu timesheet (grade semanal) ===== */
   #mh-card .mts-head{gap:8px 10px}
   #mh-card .mts-nav .btn{min-width:40px;font-size:14px}
+  #mh-card .mts-abre{min-height:44px;min-width:44px;font-size:14px}
   /* legenda: uma faixa que rola de lado em vez de 5 linhas (o nome e as horas de cada
      projeto também estão nas linhas da grade) */
   #mh-card .mts-leg{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 8px;padding-bottom:2px;scrollbar-width:none}
