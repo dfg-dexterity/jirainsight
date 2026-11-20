@@ -369,6 +369,29 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   interna, `logAcao('status-report',…,false)` + UMA `salvaCfg()`, `srAplicaLocal` + `sujo`; falha = toast e nada gravado.
   Item **vencido não tem o botão** (não está "no prazo") e o marcado hoje vira `.sr-ok-feito` "👍 Marcado". Teste:
   `status-report-ok-test.mjs` (Playwright, 23 casos, contra o `servidor-sr.mjs`). Desdobramento: R251 (em lote).
+  **⏱ Horas da semana no status report (2026-11-20, a pedido do usuário: "uma visão de quantas horas o pessoal apontou nos dias
+  anteriores vs o que está planejado no planejamento semanal; ver como o pessoal vem gastando seu tempo"):** decisões — **D1** aparece
+  quem tem atividade NESTE projeto no 📋 plano da semana OU apontou nele na janela, com as horas do projeto e, ao lado, o total do dia
+  da pessoa em todos os projetos · **D2** janela = semana corrente até ontem, dia a dia, com ‹ › (até 26 semanas) · **D3** por pessoa e
+  dia planejado × apontado no projeto, colorido pelo desvio, e o detalhe "onde mais foi o tempo". **Sem servidor novo, nada na `cfg`,
+  sem R$** — só leitura: `POST /api/config?plan=1 {acao:'relatorio'}` (aberto a todo identificado, como o 📊 planrel) + `GET
+  /api/tempo?desde=<segunda>&ate=<domingo>` (MESMA URL de semana cheia do planrel, para dividir o cache do servidor). Módulo
+  `public/js/20e-status-horas.js` (prefixo `srh`, sem DOM nem listeners): `srhJanela(hoje,w)` (semana padrão = a do último dia útil
+  antes de hoje, então **na segunda — ou no 1º dia útil depois de feriado — mostra a semana passada inteira**; hoje nunca entra),
+  `srhCarrega(w,forca)` (uma leitura por SEMANA, não por projeto: trocar de projeto só recalcula; TTL `SRH_CACHE_MIN`=5; `/api/tempo`
+  que cai nos 7 dias em silêncio vira erro por `meta.janela!=='custom'`/`startDate`; plano que falha = estado parcial só com o
+  apontado; falha não insiste sozinha; cache de outra identidade descartado), `srhCalc(proj,jan,dd)` (PURA, fonte ÚNICA da conta;
+  "sem plano" ≠ 0h planejadas — a célula fica sem cor de desvio) e `srhResumo`. **`mpSitDe(pl,re)`** (04) é a régua extraída do
+  `mpComparativo`: o mesmo desvio tem a mesma cor aqui, no Meu Planejamento e no planrel. Tela no `20c` (`srhSecaoHTML`/
+  `srhCorpoHTML`/`srhPinta`/`srhAoChegar`/`srhAbrePessoa`): `<details id="sr-horas">` recolhido por padrão, **nada é lido enquanto
+  fechado**; `srhPinta` troca só `#sr-horas-corpo` e `#sr-horas-res` (não chama `renderSr`: não fecha o ⋯ nem rouba foco). **Guarda
+  obrigatória** no listener de `toggle`: `h.aberto===d.open` → sai, porque o `replaceChildren` do `renderSr` recria o `<details open>`
+  e dispara `toggle` de novo (laço). Cor nunca é o único sinal (✓ ▲ ▼ ∅); no celular a tabela vira cartão por pessoa (`mobile.css`,
+  `ipad.css`). URL `srh=1` e `srhw` (só quando ≠ semana padrão; futuro cai na padrão). O texto do 📋 Copiar leva o bloco ⏱ só com a
+  seção aberta e carregada. Teste (scratchpad `status-plano/`, contra `servidor-sr.mjs`, porta 8791): `status-report-horas-test.mjs`
+  (Playwright, 106 asserções, blocos A–L; achou e corrigiu Enter/Espaço na linha da pessoa e `srhw` no futuro; o E10 é da revisão do PR #238: o total da pessoa conta todos os dias da janela, inclusive sábado só em outro projeto, e o % do modal nunca passa de 100); regressão `status-report-test` 28, `-at` 47, `-cab` 34, `-acoes` 179, `-tipos` 37, `-ok` 23, `sr-achar` 28, `boot` 6 verdes. Documento: `docs/status-horas-2026-11-20.md`.
+  Desdobramentos no roadmap: R252 (recorte por papel e "só planos enviados"), R253 (na 🧭 Pendências e na sexta), R254 (tendência de
+  várias semanas), R255 (hoje parcial e alerta de desvio).
 - **🔗 Custo/h das pessoas vindo do Odoo (2026-11-06, a pedido do usuário: "onde está o custo dos funcionários usado no
   Jira Insight? É para vir do Odoo"):** o custo/h morava SÓ em `cfg.custosPessoa` (R$/h por accountId), digitado no ⚙️ da
   🏦 Controladoria — a rota `GET /api/usuarios?custos=1` lia o `hourly_cost` do `hr.employee`, mas o único botão que a
