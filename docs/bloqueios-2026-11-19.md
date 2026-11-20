@@ -19,7 +19,7 @@ sequência de comentários marcados.
 | P2 | Índice de leitura = label `bloqueio-aberto` **ou** flag preenchido; label permanente `bloqueio` guarda o histórico | `BQ_LABEL_ABERTO`, `BQ_LABEL_HIST` |
 | P3 | 🔵 Ciência **não** liga o flag (não pinta o quadro de vermelho); 🔴/🟡 ligam | `BQ_FLAG_NIVEIS` |
 | P4 | 🔴 Crítico avisa **também o gerente** do projeto na hora do registro | `BQ_CRITICO_AVISA_GERENTE` |
-| P5 | Ticket concluído sai da lista mesmo com bloqueio aberto (limpeza automática = R218) | — |
+| P5 | Ticket concluído sai da lista mesmo com bloqueio aberto (limpeza automática = R245) | — |
 | P6 | Qualquer pessoa identificada com permissão de comentar no Jira escreve eventos (lente, nunca permissão) | — |
 | P7 | Vista `bloqueios`, aba do grupo 📥 Inbox, escopo 🙋 Meus × 👥 Todo o time | — |
 | P8 | Escalonamento 1× por dia útil às 09:00; repete a cada 3 dias corridos, no máximo 3 vezes por prazo | `BQ_ESCALA_HORA`, `BQ_REESCALA_DIAS`, `BQ_ESCALA_MAX` |
@@ -98,9 +98,9 @@ somam **uma leitura** a mais na abertura (`bqGarante`, cache de 3 min).
 
 ## Ficou de fora (roadmap)
 
-R218 limpar ao concluir o ticket · R219 📆 Hoje, 🚨 Alertas e 📅 Cronograma · R220 indicadores (tempo para destravar, por projeto) no
-Dashboard e no relatório de sexta · R221 visível ao cliente no 🌐 Portal · R222 registro em lote e unificação com o "⛔ Bloqueado" do
-status report · R223 prazos e escalonamento configuráveis.
+R245 limpar ao concluir o ticket · R246 📆 Hoje, 🚨 Alertas e 📅 Cronograma · R247 indicadores (tempo para destravar, por projeto) no
+Dashboard e no relatório de sexta · R248 visível ao cliente no 🌐 Portal · R249 registro em lote e unificação com o "⛔ Bloqueado" do
+status report · R250 prazos e escalonamento configuráveis.
 
 ## Testes (scratchpad `bloq-plano/`, fixture na porta 8797, runner `roda.sh`)
 

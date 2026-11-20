@@ -208,6 +208,14 @@ function mtsMinSP(dt){
   }catch(e){ return null; }
 }
 const MTS_CORES=8;   // slots categóricos validados (dataviz); além disso vira cinza
+// Recolher o timesheet (2026-11-20, a pedido do usuário: "com bastante apontamento eu tenho que rolar até o fim dele
+// para ver meus tickets abertos"). Sem escolha da pessoa, nasce RECOLHIDO quando a grade da semana passa de
+// MTS_RECOLHE_LINHAS linhas (projetos + tickets); a escolha (▾/▸ do título) fica no navegador e vale daí em diante.
+const MTS_RECOLHE_LINHAS=8, MTS_ABERTO_KEY='jirainsight_ap_timesheet_v1';
+function mtsEscolha(){ try{ const v=localStorage.getItem(MTS_ABERTO_KEY); return v==='1'?true:(v==='0'?false:null); }catch(e){ return null; } }
+function mtsGuardaEscolha(aberto){ try{ localStorage.setItem(MTS_ABERTO_KEY, aberto?'1':'0'); }catch(e){} }
+// Aberto? A escolha da pessoa manda; sem ela, a regra das linhas.
+function mtsAberto(nLinhas){ const e=mtsEscolha(); return e!==null ? e : nLinhas<=MTS_RECOLHE_LINHAS; }
 function htmlPainelHoras(){
   const id=idApontar(); if(!id||!id.accountId) return '';
   const ap=mtsEstado();
@@ -315,8 +323,26 @@ function htmlPainelHoras(){
       ${comHora.length?'':'<div class="muted small" style="margin-top:6px">ℹ Estes worklogs não trazem hora de início — os blocos foram empilhados a partir das 08:00 na ordem do dia.</div>'}`;
   }
 
+  const nLinhas=projs.reduce((n,[,pj])=>n+1+pj.tks.size,0);
+  const aberto=mtsAberto(nLinhas);
+  const autoTxt=mtsEscolha()===null&&!aberto?` · recolhido sozinho: ${nLinhas} linhas na semana`:'';
+  const tgl=`<button class="btn mts-abre" data-mts-abre="${aberto?'0':'1'}" aria-expanded="${aberto}" aria-controls="mts-corpo"
+      data-tip="${aberto?'Recolher o timesheet — a lista de tickets sobe':'Mostrar a grade/calendário da semana'}">${aberto?'▾ Recolher':'▸ Mostrar'}</button>`;
+  if(!aberto){
+    return `<div class="card full mh-card mts-fechado" id="mh-card">
+    <div class="mts-tit"><h2>⏱ Meu timesheet</h2>${tgl}</div>
+    <div class="mts-resumo" data-tip="Apontado na semana ÷ meta (${fmtH(metaSeg)} × ${uteis.length} dia(s) útil(eis), já sem feriados e ausências)">
+      <span>Semana ${esc(fmtBR(seg0).slice(0,5))} – ${esc(fmtBR(mtsSoma(seg0,6)).slice(0,5))}</span>
+      <span><strong>${fmtH(totalSem)}</strong> de ${fmtH(alvoSem)}</span>
+      <span class="mts-prog"><i style="width:${pct}%"></i></span><span class="muted small">${pct}%</span>
+      ${over.length?`<span class="mts-over">⚠ acima da meta em ${over.length} dia(s)</span>`:''}
+      <span class="muted small">${projs.length} projeto(s)${esc(autoTxt)}</span>
+    </div>
+  </div>`;
+  }
   return `<div class="card full mh-card" id="mh-card">
-    <h2>⏱ Meu timesheet <span>meta ${fmtH(metaSeg)}/dia · seus apontamentos, independente do período do topo</span></h2>
+    <div class="mts-tit"><h2>⏱ Meu timesheet <span>meta ${fmtH(metaSeg)}/dia · seus apontamentos, independente do período do topo</span></h2>${tgl}</div>
+    <div id="mts-corpo">
     <div class="mts-head">
       <div class="mts-nav">
         <button class="btn" data-mts-nav="-1" data-tip="Semana anterior">‹</button>
@@ -337,6 +363,7 @@ function htmlPainelHoras(){
     ${over.length?`<div class="aviso">⚠ Você passou da meta de <strong>${fmtH(metaSeg)}/dia</strong> em: ${over.map(d=>`${esc(fmtBR(d))} (<strong>${fmtH(porDia[d])}</strong>)`).join(' · ')}.</div>`:''}
     ${legenda}
     ${grade}${cal}
+    </div>
   </div>`;
 }
 // Atualiza só o painel (sem re-renderizar a lista) após um apontamento.
@@ -1386,6 +1413,8 @@ document.getElementById('conteudo').addEventListener('click', (e)=>{
   else if(t.id==='qk-siri'){ qkSiriModal(); }
   else if(t.hasAttribute('data-ap-coment-do')){ executaComentar(t); }
   // ---- ⏱ Meu timesheet (grade × calendário, navegação de semana, recolher projeto) ----
+  else if(t.hasAttribute('data-mts-abre')){ const ab=t.getAttribute('data-mts-abre')==='1'; mtsGuardaEscolha(ab); escondeTip(); atualizaPainelHoras();
+    const b=document.querySelector('#mh-card [data-mts-abre]'); if(b) b.focus(); }
   else if(t.hasAttribute('data-mts-modo')){ mtsEstado().mtsModo=t.getAttribute('data-mts-modo'); escondeTip(); atualizaPainelHoras(); }
   else if(t.hasAttribute('data-mts-nav')){ const ap=mtsEstado(); const n=+t.getAttribute('data-mts-nav');
     ap.mtsSem=n===0?mtsSegunda(hojeSP()):mtsSoma(ap.mtsSem, n*7); escondeTip();

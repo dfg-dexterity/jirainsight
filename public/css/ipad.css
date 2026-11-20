@@ -292,6 +292,7 @@
   #conteudo .tela-apontar .ap-proj-head{display:flex}
   #conteudo .tela-apontar .ap-rec-tgl{min-width:44px;min-height:44px}
   #mh-card .mts-nav .btn{min-width:44px;min-height:44px;font-size:16px}
+  #mh-card .mts-abre{min-width:44px;min-height:44px;font-size:14px}
   #mh-card .mts-tgl{min-width:44px;min-height:44px;padding:0;margin:-14px -14px;font-size:14px}
   #mh-card .mts-c1 a,#mh-card .mts-lchip{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
   #mh-card .mts-lchip{min-height:36px}
@@ -337,6 +338,7 @@
   #conteudo .tela-apontar .ap-proj-head{display:flex}
   #conteudo .tela-apontar .ap-rec-tgl{min-width:44px;min-height:44px}
   #mh-card .mts-nav .btn{min-width:44px;min-height:44px;font-size:16px}
+  #mh-card .mts-abre{min-width:44px;min-height:44px;font-size:14px}
   #mh-card .mts-tgl{min-width:44px;min-height:44px;padding:0;margin:-14px -14px;font-size:14px}
   #mh-card .mts-c1 a,#mh-card .mts-lchip{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}
   #mh-card .mts-lchip{min-height:36px}

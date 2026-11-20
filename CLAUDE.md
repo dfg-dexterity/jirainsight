@@ -16,7 +16,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (token da pessoa; comentário → label → flag → avisos; `abrir` repetido = `ja:true`, `atualizar`/`resolver` em resolvido = `conflito`), `GET
   /api/vencimentos?bloqueios=1[&resolvidos=1]` (cache 3 min, 502 sem cache), ficha `?detalhe=` com `bloqueios`; linhas `bloq_idx` (tickets em que a
   label não pôde ser gravada) e `bloq_estado` (dedupe do escalonamento) em `jirainsight_config`, nunca na `cfg`. **Leitura = label OU flag**, 🔵
-  Ciência não liga o flag, ticket concluído sai da lista (R218). (3) **Cron:** fase `bloqueios` do `api/teams.js` a partir das 09:00 (cursor
+  Ciência não liga o flag, ticket concluído sai da lista (R245). (3) **Cron:** fase `bloqueios` do `api/teams.js` a partir das 09:00 (cursor
   `ultimaEscalaBloq`, só com sucesso): lembrete 1× por `id+prazo`, escala de 🔴/🟡 vencidos ao gerente (`cfg.projGerentes`, senão `cfg.gestores`) a cada
   3 dias, até 3 vezes; resposta SÓ com contagens; manual `?tipo=bloqueios[&dry=1][&confirmar=1]` exige `CRON_SECRET`; `PUSH_TIPOS` e `PREFS_PADRAO`
   ganharam `bloqueios` (o push leva só chave, nível, prazo e nome de quem registrou). (4) **Tela** `public/js/20d-bloqueios.js` (prefixo `bq`, vista
@@ -29,9 +29,9 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `bqSeloHTML`, nunca montar o selo. Testes (scratchpad `bloq-plano/`, porta 8797, runner `roda.sh`): `bloq-servidor-test.mjs` (`node --test`, 73 casos — os 5 últimos são da revisão do PR #236 (avisos conferidos por destinatário, uma chamada por pessoa; a chave só fica marcada quando todos receberam): aviso que não chegou a ninguém não fica marcado e o cursor não avança; comentário ilegível não poda o dedupe; ficha com `comment` paginado lê o histórico inteiro; histórico truncado nunca tira label nem impedimento),
   `bloq-smoke-test.mjs` (Playwright, 29 asserções) e `bloq-tela-test.mjs` (Playwright, 201 asserções, blocos A–K); auditorias mobile (393/360 px) e iPad (6 tamanhos) da vista com 0 ofensores; regressão `sr-servidor-test` 47, `push-servidor-test` 14,
   `disc-servidor-test` 49, `status-report-acoes-test` 179, `menus-test` 185, `push-tela-test` 93. Documento: `docs/bloqueios-2026-11-19.md`. **[Manual step]:** conferir Labels e Flagged na tela dos projetos (e `JIRA_CF_FLAGGED`
-  se o campo tiver outro nome), rodar `?tipo=bloqueios&dry=1` com o segredo depois do merge e testar um 🔴 real. Desdobramentos no roadmap: R218 (limpar ao
-  concluir o ticket), R219 (📆 Hoje, 🚨 Alertas, 📅 Cronograma), R220 (indicadores no Dashboard e na sexta), R221 (portal do cliente), R222 (lote e unificação
-  com o "⛔ Bloqueado" do status report), R223 (prazos e escalonamento configuráveis); R204 reescrito (o push do Inbox já avisa bloqueios).
+  se o campo tiver outro nome), rodar `?tipo=bloqueios&dry=1` com o segredo depois do merge e testar um 🔴 real. Desdobramentos no roadmap: R245 (limpar ao
+  concluir o ticket), R246 (📆 Hoje, 🚨 Alertas, 📅 Cronograma), R247 (indicadores no Dashboard e na sexta), R248 (portal do cliente), R249 (lote e unificação
+  com o "⛔ Bloqueado" do status report), R250 (prazos e escalonamento configuráveis); R204 reescrito (o push do Inbox já avisa bloqueios).
 - **🧭 Disciplina do time (2026-11-16, a pedido do usuário: "indicadores enviados juntos com o aviso diário do Teams — ticket que
   fica vencido de um dia para o outro, se a pessoa usou o menu meu dia para planejar —; uma foto à meia-noite; mostrar a evolução
   com o passar do tempo"):** decisões do usuário — **D1** vai no cartão geral do ranking diário, totais + nomes, nada de R$ · **D2**
@@ -368,7 +368,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `cfg.srTemplates` se houver, senão o padrão; `{data}` = vencimento; sem data some o "de {data}"), em projeto AMS como 🔒 nota
   interna, `logAcao('status-report',…,false)` + UMA `salvaCfg()`, `srAplicaLocal` + `sujo`; falha = toast e nada gravado.
   Item **vencido não tem o botão** (não está "no prazo") e o marcado hoje vira `.sr-ok-feito` "👍 Marcado". Teste:
-  `status-report-ok-test.mjs` (Playwright, 23 casos, contra o `servidor-sr.mjs`). Desdobramento: R224 (em lote).
+  `status-report-ok-test.mjs` (Playwright, 23 casos, contra o `servidor-sr.mjs`). Desdobramento: R251 (em lote).
 - **🔗 Custo/h das pessoas vindo do Odoo (2026-11-06, a pedido do usuário: "onde está o custo dos funcionários usado no
   Jira Insight? É para vir do Odoo"):** o custo/h morava SÓ em `cfg.custosPessoa` (R$/h por accountId), digitado no ⚙️ da
   🏦 Controladoria — a rota `GET /api/usuarios?custos=1` lia o `hourly_cost` do `hr.employee`, mas o único botão que a
@@ -1236,7 +1236,7 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   | TI-14-026 | Status report do projeto: situação, itens da semana e bugs, atualização por modelo de comentário | `40fc6937-1e17-81b6-8a6e-f578ee7e8190` |
   | TI-14-027 | Dashboard de KPIs em Insights: fotos semanais/mensais dos indicadores, linha do tempo e 🏦 Controladoria rápida por ano | `411c6937-1e17-8196-9b04-c38185acfaae` |
   | TI-14-028 | Dexterity Hub de classe iPad: camada iPad, barra lateral, Web Push e offline de leitura | `413c6937-1e17-815a-88f7-fb381e20dfe8` |
-| TI-14-029 | Pendências e bloqueios: nível, quem destrava e prazo no ticket do Jira, avisos e escalonamento | `PREENCHER-PELO-ORQUESTRADOR` |
+| TI-14-029 | Pendências e bloqueios: nível, quem destrava e prazo no ticket do Jira, avisos e escalonamento | `41ec6937-1e17-81d9-9a45-ccdb2eb602bf` |
 
   (O 📅 Marcos e Cronograma — inclusive a edição na própria tela, 2026-10-21 — mora na seção 6 do TI-14-012.)
 
