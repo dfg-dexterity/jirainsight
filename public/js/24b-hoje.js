@@ -796,7 +796,7 @@ function hjTimeHTML(d){
   if(!souAprovador()&&!temPapel('admin')&&!temPapel('gestor')) return `<div class="card full"><h2>👥 Dia do time</h2><div class="estado">Esta aba é para gestores: mostra quem planejou e fechou o dia. O seu dia fica em <button class="lnk" data-hj-aba="hoje">📆 Meu dia</button>.</div></div>`;
   if(!t&&h.timeErro) return `<div class="card full"><h2>👥 Dia do time</h2><div class="erro">${esc(h.timeErro)}</div><div style="margin-top:8px"><button class="btn" data-hj-time-retry>Tentar de novo</button></div></div>`;
   if(!t) return `<div class="card full"><h2>👥 Dia do time</h2><div class="estado">Carregando o dia do time…</div></div>`;
-  const pessoas=pessoasUnidas(); const ocultos=new Set(cfg.ocultos||[]);
+  const pessoas=pessoasUnidas(); const ocultos=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o).filter(Boolean));
   const porAcc=new Map(t.pessoas.map(p=>[p.accountId,p]));
   const todos=new Set([...Object.keys(pessoas), ...porAcc.keys()].filter(a=>!ocultos.has(a)&&!String(a).startsWith('plan_')));
   const linhas=[...todos].map(a=>{ const p=porAcc.get(a)||null; const nome=(p&&p.nome)||(pessoas[a]&&pessoas[a].nome)||(t.pessoasTp[a]&&t.pessoasTp[a].nome)||a;

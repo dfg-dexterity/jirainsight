@@ -263,13 +263,28 @@ function radPrefs(){
   return ax.rad;   // sem identidade o cálculo cai para "time" (sem mutar a preferência)
 }
 function radSalva(){ try{ localStorage.setItem(RAD_KEY, JSON.stringify(estado.acoes.rad)); }catch(e){} }
+// 2026-11-21 (Início por intenção): a atividade de 7 dias é a MESMA do boot quando o período do topo é 7d — a Início
+// reusa `estado.atividade` e só lê à parte com outro período (ou se a do boot falhou). Fonte ÚNICA para o Radar,
+// os recém-criados e o 💬 Aguardando sua resposta; `ax.radAtv` é só a leitura própria.
+function axAtividade(){
+  const a=estado.atividade;
+  if(estado.periodo==='7d' && a && !estado.avisoAtiv && Array.isArray(a.eventos)) return a;
+  return estado.acoes.radAtv||null;
+}
+function axGaranteAtividade(){
+  const ax=estado.acoes;
+  if(axAtividade()||ax.radAtvB||ax.radAtvErro) return;
+  if(estado.periodo==='7d'&&!estado.atividade) return;   // o boot ainda está lendo: o render seguinte já terá a dele
+  ax.radAtvB=true;
+  fetch('/api/atividade?janela=7d').then(r=>r.json()).then(j=>{ ax.radAtvB=false;
+    if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
+    agendaRenderAcoes();
+  }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); agendaRenderAcoes(); });
+}
+// As horas dos últimos 7 dias do Radar: SÓ com a seção 🧭 Explorar aberta (nada é lido enquanto fechada).
 function radGarante(){
   const ax=estado.acoes;
-  if(!ax.radAtv&&!ax.radAtvB&&!ax.radAtvErro){ ax.radAtvB=true;
-    fetch('/api/atividade?janela=7d').then(r=>r.json()).then(j=>{ ax.radAtvB=false;
-      if(j&&!j.erro) ax.radAtv=j; else ax.radAtvErro=(j&&j.erro)||'Falha ao ler a atividade do Jira.';
-      agendaRenderAcoes();
-    }).catch(e=>{ ax.radAtvB=false; ax.radAtvErro=String(e.message||e); agendaRenderAcoes(); }); }
+  axGaranteAtividade();
   if(!ax.radT&&!ax.radTB&&!ax.radTErro){ ax.radTB=true;
     const h=hojeSP();
     fetch(`/api/tempo?desde=${voltaDias(h,6)}&ate=${h}`).then(r=>r.json()).then(j=>{ ax.radTB=false;
@@ -311,7 +326,7 @@ function novSemanaIni(){                    // segunda-feira desta semana (SP)
 }
 function novCriados(){
   const ax=estado.acoes; const acc=(idApontar()||{}).accountId||'';
-  const evs=(((ax.radAtv&&ax.radAtv.eventos))||[]).filter(e=>e.e==='criado');
+  const evs=(((axAtividade()||{}).eventos)||[]).filter(e=>e.e==='criado');
   const vistos=new Set(); const lista=[];
   // um ticket aparece uma vez, pelo evento de criação mais recente
   evs.slice().sort((x,y)=>String(y.d||'').localeCompare(String(x.d||''))).forEach(e=>{
@@ -341,7 +356,7 @@ function radDados(){
   const por={}; const cont={}; RAD_EVS.forEach(([e])=>{ cont[e]=0; });
   const abre=(k,p)=>por[k]||(por[k]={k,p:p||'',evs:{},seg:0,ult:'',venc:''});
   const EV_DE={criado:'criados',concluido:'concluidos',transicao:'status',alteracao:'editados',comentario:'comentados'};
-  (((ax.radAtv&&ax.radAtv.eventos))||[]).forEach(ev=>{
+  (((axAtividade()||{}).eventos)||[]).forEach(ev=>{
     const dia=String(ev.d||'').slice(0,10); if(dia<de||dia>ate) return;
     if(meu&&ev.a!==acc) return;
     const nome=EV_DE[ev.e]; if(!nome) return;
@@ -366,6 +381,87 @@ function radDados(){
     .sort((a,b)=>String(b.ult).localeCompare(String(a.ult)));
   return {cont,lista,de,ate};
 }
+// ===========================================================================
+// 🏠 INÍCIO POR INTENÇÃO (2026-11-21, a pedido do usuário: "a página inicial não está tão intuitiva como deve")
+// Três zonas: AGORA (3 tiles de estado + a fila ▶ Precisa de você) → MEU DIA (agenda · meus tickets · minha semana)
+// → seções por intenção, recolhíveis (👥 Meu time hoje · 📆 Fechamento · 🎫 Criar rápido · 🧭 Explorar).
+// Nenhuma regra de número mudou: cada `pcard(...)` do renderAcoes vira um ITEM e `axFilaOrdena` é a régua ÚNICA de
+// urgência (pesos em AX_PRIO). Lente, nunca permissão: o papel decide só o que nasce ABERTO (axSecPadrao).
+// ===========================================================================
+// peso base por destino (`goto`) do item; severidade soma 1000 (crítico) ou 500 (atenção); empate = ordem desta tabela
+const AX_PRIO={ 'bloqueios':95, 'aguardando-resposta':90, 'bloqueios-vencidos':88, 'apontar-vencidos':85, 'minhasemana':80,
+  'apontar-vencehoje':75, 'inbox':70, 'hoje-fechar':65, 'agcontrole':60, 'time-sem-apontar':55, 'hoje-planejar':45,
+  'apontar':40, 'gestao-cliente':30, 'apontar-semdata':25 };
+const AX_SEV={ crit:1000, aten:500 };
+const AX_FILA_N=5;
+// destinos que JÁ têm tile de estado no topo: não viram chip "Em dia"
+const AX_SEM_CHIP=['apontar','minhasemana','minhasemana-projetos','hoje','hoje-planejar','hoje-fechar'];
+// itens = [{cls,ic,t,corpo,goto,btn}]; ctx = {horaSP, folga, planUrgente}. Só `crit`/`aten` entram; `ok` vai para os
+// chips, `load` vira esqueleto, ranking e a linha "projetos da semana" nunca entram na fila.
+function axFilaOrdena(itens, ctx){
+  ctx=ctx||{}; const hora=Number(ctx.horaSP)||0;
+  const peso=(it)=>{
+    let b=AX_PRIO[it.goto]; if(b==null||!AX_SEV[it.cls]) return null;
+    if(it.goto==='minhasemana'&&ctx.planUrgente) b+=100;
+    if(it.goto==='apontar'){ if(ctx.folga) return null; if(hora>=16) b+=50; }
+    if(it.goto==='hoje-planejar'&&hora>=14) b-=30;
+    return b+AX_SEV[it.cls];
+  };
+  return (itens||[]).map((it,i)=>({it,i,w:peso(it)})).filter(x=>x.w!=null)
+    .sort((a,b)=>b.w-a.w||a.i-b.i).map(x=>x.it);
+}
+function axFilaHTML(lista, o){
+  o=o||{}; lista=lista||[];
+  const nCrit=lista.filter(i=>i.cls==='crit').length;
+  const corte=Math.max(AX_FILA_N, nCrit);                  // "mais N" nunca esconde um item crítico
+  const vis=o.todos?lista:lista.slice(0,corte); const resto=lista.length-vis.length;
+  const btnTxt=(b)=>esc(b||'Ver →').replace(/ →$/,' →');
+  const linhas=vis.map(it=>`<li class="ax-fila-l ${escA(it.cls)}" data-ax-item="${escA(it.goto)}"><span class="ax-sev">${it.cls==='crit'?'crítico':'atenção'}</span><span class="ax-fila-t">${esc(it.ic)} ${esc(it.t)}</span>${it.corpo}<button type="button" class="btn primario" id="ax-b-${escA(it.goto)}" data-hx-goto="${escA(it.goto)}">${btnTxt(it.btn)}</button></li>`).join('');
+  let corpo='';
+  if(lista.length) corpo=`<ul class="ax-fila" id="ax-fila" role="list">${linhas}</ul>${(resto>0||o.todos&&lista.length>corte)?`<button type="button" class="ax-fila-mais" id="ax-mais" data-ax-mais aria-expanded="${o.todos?'true':'false'}">${o.todos?'▲ mostrar só as '+corte+' primeiras':`▾ mais ${resto}`}</button>`:''}`;
+  else if(o.carregando) corpo=`<ul class="ax-fila" id="ax-fila" role="list" aria-busy="true"><li class="ax-fila-esq" aria-hidden="true"></li><li class="ax-fila-esq" aria-hidden="true"></li><li class="ax-fila-esq" aria-hidden="true"></li></ul>`;
+  else if(!o.erro){ const px=o.proximo;
+    corpo=`<div class="ax-fila-vazia" id="ax-fila">✅ <b>Nada pede você agora.</b>${px?` ${esc(px.pre||'Próximo passo:')} <button type="button" class="btn" id="ax-b-prox" data-hx-goto="${escA(px.goto)}">${esc(px.txt)} →</button>`:''}</div>`; }
+  // a leitura dos tickets no Jira falhou: a fila não pode parecer "completa" (consultor tem 👥 Meu time hoje fechada e nunca veria o #ax-retry de lá)
+  const aviso=o.erro?`<div class="erro ax-fila-erro" role="alert">⚠ Não consegui ler os seus tickets no Jira — vencidos e prazos podem estar faltando aqui. ${esc(o.erro)} <button type="button" class="btn" id="ax-fila-retry">Tentar de novo</button></div>`:'';
+  return `<section class="card full ax-fila-sec" style="margin-top:14px"><h2>▶ Precisa de você ${lista.length?`<span>(${lista.length})</span>`:''}</h2>${aviso}${corpo}</section>`;
+}
+// ✅ Em dia: o que está sem pendência vira chip clicável (o número sai do 1º `.ax-num` do corpo do item)
+function axEmDiaHTML(itens){
+  const oks=(itens||[]).filter(it=>it.cls!=='load'&&(it.cls==='ok'||it.goto==='ranking')&&it.goto!=='minhasemana-projetos'&&!(it.goto!=='ranking'&&AX_SEM_CHIP.includes(it.goto)));
+  if(!oks.length) return '';
+  const chips=oks.map(it=>{
+    const m=/class="ax-num[^"]*"[^>]*>([^<]*)/.exec(it.corpo||''); let num=m?m[1].replace(/\s+/g,' ').trim():'';
+    if(/^[—…-]*$/.test(num)) num='';
+    const rot=`${it.t}${num?': '+num:''} — ${String(it.btn||'abrir').replace(/ →$/,'')}`;
+    return `<button type="button" class="ax-chip" id="ax-c-${escA(it.goto)}" data-hx-goto="${escA(it.goto)}" aria-label="${escA(rot)}">${esc(it.ic)} ${esc(it.t)}${num?` · ${esc(num)}`:''}</button>`; }).join('');
+  return `<div class="ax-emdia" id="ax-emdia"><span>✅ Em dia:</span> ${chips}</div>`;
+}
+// ---- seções recolhíveis (<details> nativo): fechada = SEM corpo e SEM leitura de rede ----
+const AX_SECS_KEY='jirainsight_inicio_secs_v1';
+function axSecPadrao(id){
+  const idn=idApontar(); const logado=!!(idn&&idn.accountId);
+  if(id==='time') return !logado||temPapel('gestor')||temPapel('admin');   // consultor: fechada; sem identidade: é o único conteúdo útil
+  if(id==='criar') return true;
+  if(id==='fech') return temPapel('negocio');
+  return false;                                                             // explorar
+}
+function axSecLe(){ let sv=null; try{ sv=JSON.parse(localStorage.getItem(AX_SECS_KEY)||'null'); }catch(e){} return (sv&&typeof sv==='object')?sv:{}; }
+function axSecAberta(id){ const sv=axSecLe(); return sv[id]!=null?!!Number(sv[id]):axSecPadrao(id); }
+function axSecSalva(id,aberto){ const sv=axSecLe(); sv[id]=aberto?1:0; try{ localStorage.setItem(AX_SECS_KEY, JSON.stringify(sv)); }catch(e){} }
+function axSec(id, titulo, resumo, corpo, aberto){
+  return `<details class="card full ax-sec" data-ax-sec="${escA(id)}"${aberto?' open':''}><summary id="ax-sum-${escA(id)}"><b>${esc(titulo)}</b> <span class="muted small ax-sec-res">${esc(resumo||'')}</span></summary>${aberto?`<div class="ax-sec-corpo">${typeof corpo==='function'?corpo():corpo}</div>`:''}</details>`;
+}
+// foco e cursor sobrevivem ao redesenho (cada resposta que chega refaz a tela inteira e tirava o cursor do campo)
+function axFocoGuarda(cont){
+  const a=document.activeElement; if(!a||a===document.body||!cont.contains(a)||!a.id) return null;
+  const f={id:a.id}; try{ if(typeof a.selectionStart==='number'){ f.ini=a.selectionStart; f.fim=a.selectionEnd; } }catch(e){}
+  return f;
+}
+function axFocoRestaura(f){
+  if(!f) return; const n=document.getElementById(f.id); if(!n) return;
+  try{ n.focus({preventScroll:true}); if(f.ini!=null&&n.setSelectionRange) n.setSelectionRange(f.ini,f.fim); }catch(e){}
+}
 // Na abertura da Início chegam ~10 respostas quase juntas; cada uma refazia a tela
 // inteira. agendaRenderAcoes() junta tudo num único render por quadro.
 let _axRaf=0;
@@ -385,10 +481,11 @@ function axGaranteMeusLogs(hoje){
 function renderAcoes(){
   const cont=document.getElementById('conteudo');
   const ax=estado.acoes; const hoje=hojeSP();
+  const abTime=axSecAberta('time'), abCriar=axSecAberta('criar'), abFech=axSecAberta('fech'), abExp=axSecAberta('explorar');   // fechada = nada é lido
   if(!ax.venc && !ax.carregando && !ax.erro) axCarregaVenc(false);
   else if(axVencEnvelheceu(ax, hoje)) axCarregaVenc(false);   // relê por trás; os cards seguem com o que têm
   const temContratos=(cfg.contratos||[]).some(c=>c&&c.tipo==='ams'&&(Number(c.tetoMes)>0||Number(c.minMes)>0)&&(c.projetos||[]).length);
-  if(temContratos && !ax.mes && !ax.mesCarr && !ax.mesErro) axCarregaMes();
+  if(temContratos && abTime && !ax.mes && !ax.mesCarr && !ax.mesErro) axCarregaMes();   // só alimenta o 🏢 da seção 👥 Meu time hoje
   const tks=(ax.venc&&ax.venc.tickets)||null;
   // ---- contagens ----
   const nAtras = tks? tks.filter(t=>t.venc&&t.venc<hoje).length : null;
@@ -453,13 +550,13 @@ function renderAcoes(){
   // ainda não foram vistas (mesma marca NOV_VER do modal ✨ Novidades).
   let novVisto=''; try{ novVisto=localStorage.getItem('jirainsight_nov_visto')||''; }catch(e){}
   const novNovas = novVisto!==NOV_VER;
-  const novItens = NOVIDADES.slice(0,6).map(([d,txt])=>`<div class="nov-item">
+  const novItens = NOVIDADES.slice(0,3).map(([d,txt])=>`<div class="nov-item">
     <span class="nov-data">${esc(d)}</span><span class="nov-txt">${txt}</span></div>`).join('');
-  const cardNov = `<div class="card full" style="margin-top:14px">
-    <h2>✨ Novidades ${novNovas?'<span class="nov-dot" style="margin-left:2px"></span>':''}<span>últimas melhorias do painel</span></h2>
+  const cardNov = novNovas ? `<div class="card full" style="margin-top:14px">
+    <h2>✨ Novidades <span class="nov-dot" style="margin-left:2px"></span><span>as 3 últimas melhorias do painel</span></h2>
     <div class="nov-lista" style="margin-top:6px">${novItens}</div>
     <div style="margin-top:12px"><button class="btn" data-nov-todas>Ver todas as novidades (${NOVIDADES.length})</button></div>
-  </div>`;
+  </div>` : `<div class="ax-nov-linha"><button type="button" class="btn" data-nov-todas>✨ Novidades (${NOVIDADES.length}) →</button></div>`;
   // ---- micro-gráficos modernos da home (SVG puro, sem libs, cores do tema) ----
   // Gauge radial de progresso vs meta (status verde/laranja SEMPRE acompanha texto).
   const hxDonut=(pct,cor)=>{ const r=24,c=2*Math.PI*r,p=Math.max(0,Math.min(100,pct));
@@ -500,7 +597,9 @@ function renderAcoes(){
   // ---- 👋 SEU dia num relance (hero pessoal acionável) ----
   const id=idApontar();
   let heroHtml='';
-  const pcard=(cls,ic,t,corpo,goto,btn)=>`<div class="ax-card ${cls}"><div class="ax-top"><span>${ic}</span> ${esc(t)}</div>${corpo}<div class="ax-foot"><button class="btn ${(cls==='crit'||cls==='aten')?'primario':''}" data-hx-goto="${escA(goto)}">${esc(btn).replace(/ →$/,'\u00a0→')}</button></div></div>`;
+  const itens=[];   // coletor da fila ▶ Precisa de você: cada pcard(...) abaixo registra um item (e devolve '' — o tile é só dos 3 de estado)
+  const tileHTML=(it)=>{ const {cls,ic,t,corpo,goto,btn}=it; return `<div class="ax-card ${cls}"><div class="ax-top"><span>${ic}</span> ${esc(t)}</div>${corpo}<div class="ax-foot"><button class="btn ${(cls==='crit'||cls==='aten')?'primario':''}" data-hx-goto="${escA(goto)}">${esc(btn).replace(/ →$/,'\u00a0→')}</button>${it.extra||''}</div></div>`; };
+  const pcard=(cls,ic,t,corpo,goto,btn)=>{ itens.push({cls,ic,t,corpo,goto,btn}); return ''; };
   if(id&&id.accountId){
     const acc=id.accountId;
     const hSP=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date()));
@@ -518,8 +617,15 @@ function renderAcoes(){
     // 📆 Seu dia (24b, 2026-10-21): o plano do dia — os 3 do foco com ✓ na hora, feitos/apontado, Planejar/Fechar o dia
     const cHoje=(typeof hjCardInicio==='function')?hjCardInicio(hoje):'';
     let cHoras;
-    if(meuSeg==null&&logsFalhou) cHoras=pcard('aten','⏱','Suas horas de hoje','<div class="ax-num muted">—</div><div class="ax-det">não consegui ler as suas horas de hoje no Clockwork — use o ↻ para tentar de novo</div>','apontar','Apontar horas →');
-    else if(meuSeg==null) cHoras=pcard('load','⏱','Suas horas de hoje','<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>','apontar','Apontar horas →');
+    const folgaHoje=axFolga(acc,hoje);
+    if(meuSeg==null&&logsFalhou) cHoras=tileHTML({cls:'aten',ic:'⏱',t:'Suas horas de hoje',corpo:'<div class="ax-num muted">—</div><div class="ax-det">não consegui ler as suas horas de hoje no Clockwork — use o ↻ para tentar de novo</div>',goto:'apontar',btn:'Apontar horas →'});
+    else if(meuSeg==null) cHoras=tileHTML({cls:'load',ic:'⏱',t:'Suas horas de hoje',corpo:'<div class="ax-num muted">…</div><div class="ax-det">Carregando o Clockwork…</div>',goto:'apontar',btn:'Apontar horas →'});
+    else if(folgaHoje){
+      // fim de semana, feriado, ausência ou fora da vigência: não há meta nem "faltam" (2026-11-21) — e não entra na fila
+      cHoras=`<div class="ax-card ok"><div class="ax-top"><span>⏱</span> Suas horas de hoje</div>
+        <div class="ax-num">${meuSeg?fmtH(meuSeg):'—'}</div>
+        <div class="ax-det">hoje não é dia útil para você${meuSeg?' · apontado hoje':''}</div>
+        <div class="ax-foot"><button class="btn" data-hx-goto="apontar">Ver apontamentos\u00a0→</button></div></div>`; }
     else{ const falta=Math.max(0,metaSeg-meuSeg); const pc=Math.min(100,Math.round(meuSeg/metaSeg*100));
       const cls=meuSeg>=metaSeg?'ok':(pc>=50?'aten':'crit');
       cHoras=`<div class="ax-card ${cls}"><div class="ax-top"><span>⏱</span> Suas horas de hoje</div>
@@ -530,7 +636,10 @@ function renderAcoes(){
           </div>
           ${hxDonut(pc, meuSeg>=metaSeg?'#188918':'#E76500')}
         </div>
-        <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora\u00a0→':'Ver apontamentos\u00a0→'}</button></div></div>`; }
+        <div class="ax-foot"><button class="btn ${falta?'primario':''}" data-hx-goto="apontar">${falta?'Apontar agora\u00a0→':'Ver apontamentos\u00a0→'}</button></div></div>`;
+      // item-espelho da fila: só a partir do meio-dia (de manhã "0h de 8h" não é urgência) e crítico só depois das 16h
+      if(falta&&hSP>=12) itens.push({cls:(cls==='crit'&&hSP>=16)?'crit':'aten',ic:'⏱',t:'Suas horas de hoje',
+        corpo:`<div class="ax-num">${fmtH(meuSeg)} <span class="muted" style="font-size:14px;font-weight:400">de ${fmtH(metaSeg)}</span></div><div class="ax-det">faltam <b>${fmtH(falta)}</b> para a sua meta</div>`,goto:'apontar',btn:'Apontar agora →'}); }
     // ⚠ meus tickets vencidos
     const meusVenc=tks?tks.filter(t=>t.respId===acc&&t.venc&&t.venc<hoje).length:null;
     const cVenc=meusVenc==null
@@ -553,9 +662,11 @@ function renderAcoes(){
       :!meuPl||!itensP.length?'você ainda não planejou esta semana'
       :{elaboracao:'em elaboração — envie para aprovação', enviado:'enviado — aguardando aprovação',
         aprovado:'aprovado', devolvido:'devolvido para ajustes — corrija e reenvie'}[stP]||'';
+    const clsPl=stP==='aprovado'?'ok':stP==='devolvido'?'crit':(gateBloq&&!plEnviado)?'crit':itensP.length&&stP==='enviado'?'ok':'aten';
+    const planUrgente=stP==='devolvido'||(gateBloq&&!plEnviado);   // sobe o item "minhasemana" da fila (+100)
     const cPlano=meuPl===undefined
       ?pcard('load','📋','Seu planejamento','<div class="ax-num muted">…</div><div class="ax-det">Carregando…</div>','minhasemana','Abrir Meu Planejamento →')
-      :pcard(stP==='aprovado'?'ok':stP==='devolvido'?'crit':(gateBloq&&!plEnviado)?'crit':itensP.length&&stP==='enviado'?'ok':'aten','📋','Seu planejamento',
+      :pcard(clsPl,'📋','Seu planejamento',
         `<div class="ax-num">${fmtHd(planH)}</div><div class="ax-det">${esc(stTxt+gateTxt)}</div>`,'minhasemana', itensP.length?'Abrir Meu Planejamento →':'Planejar agora →');
     // 📅 reuniões sem ticket
     if(!estado.agenda.dados && !estado.agenda.carregando && !estado.agenda.erro) carregaAgenda(false);
@@ -573,8 +684,10 @@ function renderAcoes(){
           'agcontrole', agp.length?'Resolver no 🎫 Controle →':'Abrir o 🎫 Controle →');   // a aba 🎫 Controle de tickets da Agenda
     // 📥 inbox
     const nIb=(typeof inboxPend==='function')?inboxPend():0;
-    const cIb=pcard(nIb?'aten':'ok','📥','Suas pendências',
-      `<div class="ax-num">${nIb}</div><div class="ax-det">${nIb?'convites, menções e aprovações esperando você':'caixa de entrada limpa ✅'}</div>`,'inbox', nIb?'Resolver →':'Abrir Inbox →');
+    // 2026-11-21: "Convites e aprovações" — as menções já contam no 💬 Aguardando sua resposta (único número que mudou de definição)
+    const nIbConv=Math.max(0, nIb-((typeof mencoesPend==='function')?mencoesPend():0));
+    const cIb=pcard(nIbConv?'aten':'ok','📥','Convites e aprovações',
+      `<div class="ax-num">${nIbConv}</div><div class="ax-det">${nIbConv?'convites de apontamento, aprovações e avisos esperando você':'nenhum convite ou aprovação esperando você ✅'}</div>`,'inbox', nIbConv?'Resolver →':'Abrir Inbox →');
     // 💬 AGUARDANDO SUA RESPOSTA (2026-10-20, a pedido do usuário): menções sem resposta + comentários de OUTRAS pessoas
     // nos SEUS tickets sem nenhuma ação sua depois (atividade de 7 dias do Radar, já carregada) + plano devolvido. Sem
     // leitura nova. O clique abre a 🛠 Gestão nesses tickets (ou as 💬 Menções, quando é só menção).
@@ -582,13 +695,13 @@ function renderAcoes(){
     const menKeys=new Set((((estado.inbox||{}).mencoes||{}).mencoes||[]).filter(m=>!m.respondido).map(m=>m.k));
     const meusKeys=new Set((tks||[]).filter(t=>t.respId===acc).map(t=>t.k));
     const ultPorK={};   // último evento de cada ticket meu: quem fez e quando
-    (((ax.radAtv||{}).eventos)||[]).forEach(ev=>{ if(!meusKeys.has(ev.k)) return; const u=ultPorK[ev.k]; if(!u||String(ev.d||'')>String(u.d||'')) ultPorK[ev.k]=ev; });
+    (((axAtividade()||{}).eventos)||[]).forEach(ev=>{ if(!meusKeys.has(ev.k)) return; const u=ultPorK[ev.k]; if(!u||String(ev.d||'')>String(u.d||'')) ultPorK[ev.k]=ev; });
     const respKeys=Object.keys(ultPorK).filter(k=>{ const u=ultPorK[k]; return u.e==='comentario'&&u.a&&u.a!==acc&&!menKeys.has(k); });
     const plDev=!!(meuPl&&meuPl.status==='devolvido');
     const nResp=nMen+respKeys.length+(plDev?1:0);
     const partesResp=[nMen?`${nMen} menção(ões)`:'', respKeys.length?`${respKeys.length} comentário(s) nos seus tickets`:'', plDev?'seu planejamento devolvido':''].filter(Boolean);
     ax.respKeys=respKeys; ax.respGoto=respKeys.length?'gestao':(nMen?'mencoes':(plDev?'minhasemana':'mencoes'));
-    const cResp=(tks==null&&!ax.radAtv)
+    const cResp=(tks==null&&!axAtividade())
       ?pcard('load','💬','Aguardando sua resposta','<div class="ax-num muted">…</div><div class="ax-det">Carregando…</div>','aguardando-resposta','Ver →')
       :pcard(nResp?(nResp>3?'crit':'aten'):'ok','💬','Aguardando sua resposta',
         `<div class="ax-num">${nResp}</div><div class="ax-det">${nResp?esc(partesResp.join(' · ')):'ninguém está esperando resposta sua 👌'}</div>`,
@@ -638,7 +751,7 @@ function renderAcoes(){
     const porPessoaSem={};
     ((estado.tempo&&estado.tempo.worklogs)||[]).forEach(w2=>{ const d2=(w2.d||'').slice(0,10);
       if(d2<wAtual||d2>hoje) return; porPessoaSem[w2.a]=(porPessoaSem[w2.a]||0)+(Number(w2.s)||0); });
-    const ocultosSet=new Set(cfg.ocultos||[]);
+    const ocultosSet=new Set((cfg.ocultos||[]).map(o=>(o&&o.a)||o).filter(Boolean));   // cfg.ocultos é lista de {a,nome}: o Set de objetos nunca casava
     const rankLista=Object.keys(pessoasUnidas()).filter(a2=>!ocultosSet.has(a2)).map(a2=>{
         let metaAte=0; rankDias.forEach(d2=>{ if(ehUtil(d2)&&!ehFeriado(d2)&&!ehAusencia(a2,d2)) metaAte+=metaSegDe(a2); });
         return { a:a2, pct: metaAte?((porPessoaSem[a2]||0)/metaAte):null };
@@ -679,7 +792,7 @@ function renderAcoes(){
       :t.venc<hoje?`<span class="badge ms-b-atra" data-tip="Vencido — reagende ou conclua">venceu ${esc(alxDataBR(t.venc))}</span>`
       :t.venc===hoje?'<span class="badge ms-b-atra" style="background:#FBF0DC;color:#8A5200" data-tip="Vence hoje">vence hoje</span>'
       :`<span class="badge">${esc(alxDataBR(t.venc))}</span>`;
-    const tkRow=(t)=>`<div class="hxd-row"><a href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener"><strong>${esc(t.k)}</strong> ↗</a>
+    const tkRow=(t)=>`<div class="hxd-row"><button type="button" class="lnk-ficha" data-gx-det="${escA(t.k)}" aria-label="Abrir a ficha de ${escA(t.k)}" data-tip="Ficha completa sem abrir o Jira"><strong>${esc(t.k)}</strong></button><a class="small" href="${jiraBase()}/browse/${encodeURIComponent(t.k)}" target="_blank" rel="noopener" aria-label="Abrir ${escA(t.k)} no Jira" data-tip="Abrir no Jira">↗</a>
       <span class="hxd-tit" title="${escA(t.resumo||'')}">${esc(t.resumo||'')}</span>${tkBadge(t)}</div>`;
     const blocoTk=`<div class="hxd-col"><h3>🎯 Meus tickets <span class="muted small">${meusTk?`(${meusTk.length} abertos)`:''}</span></h3>
       ${!tks?'<div class="muted small">Carregando o Jira…</div>'
@@ -712,22 +825,63 @@ function renderAcoes(){
         <div class="muted small" style="margin-top:6px">planejamento: ${esc(stTxt)}</div>`
         :'<div class="muted small">Sem planejamento nem horas nesta semana ainda — comece pelo Meu Planejamento.</div>'}
       <div style="margin-top:8px"><button class="btn" data-hx-goto="minhasemana">Abrir Meu Planejamento →</button></div></div>`;
-    heroHtml=`<div class="card full">
-      <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)} · seu dia num relance — tudo clicável</span></h2>
-      <div class="ax-grid ax-hero" style="margin-top:8px">${cHoje}${cHoras}${cVenc}${cVHoje}${cSemData}${cPlano}${cAloc}${cResp}${cBq}${cCli}${cRank}${cAg}${cIb}</div>
-      <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div>
-    </div>`;
+    // 📋 SUA SEMANA — fusão de "Seu planejamento" + "Projetos da semana" (2026-11-21): feito × planejado, o status do plano
+    // (com o aviso da 🚧 trava) e os 3 maiores projetos. Os pcard de cPlano/cAloc seguem sendo chamados só para a fila.
+    const projsTxt=projsPl.slice(0,3).map(([p2,h2])=>`${p2} ${fmtHd(h2)}`).join(' · ')+(projsPl.length>3?' …':'');
+    // leitura do plano que falhou: o mpGaranteMeu tenta de novo sozinho em 30 s — o tile diz que falhou em vez de "Carregando…" para sempre
+    const plFalhou=meuPl===undefined&&!!(estado.minhasemana&&estado.minhasemana.meuErrAt&&estado.minhasemana.meuErrAt[wAtual]);
+    const cSemana=meuPl===undefined
+      ?tileHTML({cls:plFalhou?'aten':'load',ic:'📋',t:'Sua semana',corpo:plFalhou
+          ?'<div class="ax-num muted">—</div><div class="ax-det">não consegui ler seu planejamento — tento de novo em instantes</div>'
+          :'<div class="ax-num muted">…</div><div class="ax-det">Carregando seu planejamento…</div>',goto:'minhasemana',btn:'Abrir Meu Planejamento →'})
+      :tileHTML({cls:clsPl,ic:'📋',t:'Sua semana',
+        corpo:`<div class="ax-num">${fmtH(realSemSeg)} <span class="muted" style="font-size:14px;font-weight:400">de ${fmtHd(planH)}</span></div>
+          <div class="ax-det" title="${escA(projsPl.map(([p2,h2])=>`${p2}: ${fmtHd(h2)} planejadas · ${fmtHd(feitoProjs[p2]||0)} feitas`).join(' · '))}">${esc(stTxt+gateTxt)}${projsTxt?` — ${esc(projsTxt)}`:(gateOn?'':' — planeje para o time saber onde você está')}</div>`,
+        goto:'minhasemana',btn:itensP.length?'Abrir Meu Planejamento →':'Planejar agora →',
+        extra:'<button type="button" class="btn ax-foot-2" data-hx-goto="minhasemana-projetos">📁 por projeto</button>'});
+    // ---- itens que só a Início conhece: o 📆 Seu dia (24b), o time sem apontar (gestor) e bloqueios vencidos (gerente) ----
+    if(typeof hjDia==='function'){ try{
+      const dia=hjDia(hoje);
+      if(dia!==undefined){ const its=(dia&&dia.itens||[]).filter(i=>!i.movido);
+        if(!its.length) itens.push({cls:'aten',ic:'📆',t:'Seu dia sem plano',corpo:'<div class="ax-num">—</div><div class="ax-det">você ainda não planejou o dia</div>',goto:'hoje-planejar',btn:'Planejar o dia →'});
+        else if(dia.st!=='fechado'&&hSP>=17) itens.push({cls:'aten',ic:'🌙',t:'Fechar o dia',corpo:`<div class="ax-num">${its.filter(i=>i.feito).length}<span class="muted" style="font-size:14px;font-weight:400">/${its.length} feitos</span></div><div class="ax-det">feche o dia: o que ficou vai para amanhã ou é descartado</div>`,goto:'hoje-fechar',btn:'Fechar o dia →'}); }
+    }catch(e){} }
+    if((temPapel('gestor')||temPapel('admin'))&&ax.sem&&hSP>=15){ try{ const ar=axApontResumo();
+      if(ar.nVazio>0) itens.push({cls:'aten',ic:'👥',t:'Pessoas sem apontar hoje',corpo:`<div class="ax-num">${ar.nVazio}</div><div class="ax-det">${esc(ar.linhas.filter(l=>l.st==='vazio').slice(0,4).map(l=>String(l.nome).split(' ')[0]).join(' · '))}${ar.nVazio>4?' …':''}</div>`,goto:'time-sem-apontar',btn:'Ver no Timesheet →'});
+    }catch(e){} }
+    if(typeof bqVencidosGerente==='function'){ try{ const bv=bqVencidosGerente();
+      if(bv.length) itens.push({cls:bv.some(x=>x.b&&x.b.nivel==='crit')?'crit':'aten',ic:'⛔',t:'Bloqueios vencidos nos seus projetos',corpo:`<div class="ax-num">${bv.length}</div><div class="ax-det">prazo vencido — cobre quem destrava ou escale</div>`,goto:'bloqueios-vencidos',btn:'Cobrar →'});
+    }catch(e){} }
+    // ▶ a fila (uma régua só) e o que está em dia
+    const fila=axFilaOrdena(itens,{horaSP:hSP,folga:folgaHoje,planUrgente});
+    const algumLoad=itens.some(i=>i.cls==='load')||tks==null;
+    const diaAtv=(typeof hjDia==='function'&&(()=>{ try{ const d2=hjDia(hoje); return d2&&(d2.itens||[]).filter(i=>!i.movido&&!i.feito)[0]; }catch(e){ return null; } })())||null;
+    const proximo=diaAtv?{pre:'Próximo no seu dia:',txt:`${diaAtv.k?diaAtv.k+' ':''}${String(diaAtv.t||'').slice(0,50)}`,goto:'hoje'}
+      :ordTk[0]?{pre:'Próximo ticket por vencimento:',txt:`${ordTk[0].k} ${String(ordTk[0].resumo||'').slice(0,40)}`,goto:'apontar-meus'}
+      :{pre:'Que tal começar o dia?',txt:'Planejar o dia',goto:'hoje-planejar'};
+    heroHtml=`<button type="button" class="ax-pula" id="ax-pula" data-ax-pula>▶ Ir direto para o que precisa de você</button>
+    <div class="card full ax-topo">
+      <h2>👋 ${esc(sauda)}, ${esc(String(id.nome||id.email).split(' ')[0])} <span>${esc(dataExt)}</span></h2>
+      <div class="ax-topo-btns"><button type="button" class="btn primario" data-hx-goto="apontar">⏱ Apontar horas</button><button type="button" class="btn" data-hx-goto="hoje">📆 Abrir meu dia</button></div>
+    </div>
+    <div class="ax-grid ax-hero ax-estado">${cHoje}${cHoras}${cSemana}</div>
+    ${axFilaHTML(fila,{todos:!!ax.filaTodos,carregando:!fila.length&&algumLoad&&!ax.erro,proximo,erro:ax.erro})}
+    ${axEmDiaHTML(itens)}
+    <section class="card full ax-meudia" style="margin-top:14px"><h2>🗓 Meu dia <span>agenda · seus tickets · sua semana</span></h2>
+      <div class="hxd-grid">${blocoAgenda}${blocoTk}${blocoPlano}</div></section>`;
   } else {
-    heroHtml=`<div class="card full"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance (horas, vencidos, plano da semana…)</span></h2>
-      <div style="margin-top:8px"><button class="btn primario" data-ap-act="config-id">Identificar-se (e-mail + token do Jira)</button></div></div>`;
+    heroHtml=`<div class="card full ax-topo"><h2>👋 Bem-vindo(a) <span>identifique-se para ver o SEU dia num relance</span></h2>
+      <div class="ax-topo-btns"><button type="button" class="btn primario" data-ap-act="config-id">Identificar-se (e-mail + token do Jira)</button></div>
+      <ul class="muted small" style="flex-basis:100%;margin:6px 0 0;padding-left:18px"><li>a fila <b>▶ Precisa de você</b>: o que vence, espera resposta ou trava, em ordem de urgência</li><li>as suas horas de hoje, o seu dia e o plano da semana</li><li>os seus tickets e a agenda de hoje</li></ul></div>`;
   }
   // ---- 🧭 Radar do dia: combinador de informações ----
-  radGarante();
+  axGaranteAtividade();   // só lê à parte se o boot não trouxe os 7 dias (período do topo ≠ 7d, ou a leitura do boot falhou)
+  if(abExp) radGarante();   // as horas dos 7 dias do Radar: só com 🧭 Explorar aberta
   const rad=radPrefs(); const rd=radDados();
-  const radResumoDe=(k)=>((ax.radAtv&&ax.radAtv.resumos&&ax.radAtv.resumos[k])
+  const radResumoDe=(k)=>((axAtividade()&&axAtividade().resumos&&axAtividade().resumos[k])
     ||(ax.radT&&ax.radT.resumos&&ax.radT.resumos[k])
     ||(((tks||[]).find(t2=>t2.k===k)||{}).resumo)||'');
-  const radCarr=(!ax.radAtv&&!ax.radAtvErro)||(!ax.radT&&ax.radTB);
+  const radCarr=(!axAtividade()&&!ax.radAtvErro)||(!ax.radT&&ax.radTB);
   const radEscEf=id?rad.esc:'time';   // efetivo: sem identidade só existe "time"
   const chipsEsc=[['meus','👤 Meus'],['time','👥 Time']].map(([v,r])=>
     `<button class="chip" aria-pressed="${radEscEf===v}" data-rad-esc="${v}" ${v==='meus'&&!id?'disabled data-tip="Identifique-se para combinar as SUAS informações"':''}>${r}</button>`).join(' ');
@@ -752,7 +906,7 @@ function renderAcoes(){
   const radKeys=rd.lista.map(r=>r.k);
   // ---- 🆕 Meus tickets recém criados · 📅 Criados nesta semana ----
   const nv=novCriados();
-  const pess=(a2)=>{ const p2=(ax.radAtv&&ax.radAtv.pessoas&&ax.radAtv.pessoas[a2]);
+  const pess=(a2)=>{ const p2=(axAtividade()&&axAtividade().pessoas&&axAtividade().pessoas[a2]);
     return (p2&&(p2.nome||p2))||'—'; };
   const quando=(d2)=>{ const dia=String(d2||'').slice(0,10); const hm=String(d2||'').slice(11,16);
     return dia===hoje?`hoje ${hm}`:(dia===voltaDias(hoje,1)?`ontem ${hm}`:alxDataBR(dia)); };
@@ -764,7 +918,7 @@ function renderAcoes(){
   // por projeto e por pessoa na semana (top 4 de cada, para a leitura rápida)
   const porProjSem={}; const porPessSem={};
   nv.semana.forEach(e2=>{ porProjSem[e2.p]=(porProjSem[e2.p]||0)+1; porPessSem[e2.a]=(porPessSem[e2.a]||0)+1; });
-  const radProjNome=(k)=>{ const pj=((ax.radAtv&&ax.radAtv.projetos)||{})[k];
+  const radProjNome=(k)=>{ const pj=((axAtividade()&&axAtividade().projetos)||{})[k];
     const n=(pj&&(pj.nome||pj))||''; return n?String(n):projNome(k); };
   const topProj=Object.entries(porProjSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
   const topPess=Object.entries(porPessSem).sort((x,y)=>y[1]-x[1]).slice(0,4);
@@ -793,8 +947,7 @@ function renderAcoes(){
             <button class="btn" data-hx-goto="alertas" data-tip="Central de atrasados com reprogramação em massa">🚨 Alertas</button></div>`
         :'<div class="muted small" style="margin-top:8px">✅ Nenhum ticket vencido — o time está em dia.</div>')}
   </div>`;
-  const cardsNovos=`<div class="nv-cards">
-    <div class="card full" style="margin:0">
+  const cardMeusNovos=`<div class="card full" style="margin:0">
       <h2>🆕 Meus tickets recém criados <span>os últimos que <b>você</b> abriu (7 dias) — clique para ver a ficha</span></h2>
       ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>'
         :(nv.meus.length?`<div style="margin-top:8px">${nv.meus.slice(0,6).map(linhaNov).join('')}</div>
@@ -804,8 +957,8 @@ function renderAcoes(){
               <button class="btn" data-nv-gestao="meus" data-tip="Abrir todos na 🛠 Gestão para tratar em massa">🛠 abrir na Gestão</button>
               <button class="btn" data-hx-goto="planejar" data-tip="Criar mais tickets (lote, épicos, colar do Excel)">📝 criar mais</button></div>`
           :`<div class="muted small" style="margin-top:8px">${(idApontar()?'Você não criou tickets nos últimos 7 dias.':'Identifique-se para ver os seus tickets.')}</div>`)}
-    </div>
-    <div class="card full" style="margin:0">
+    </div>`;
+  const cardSemNovos=`<div class="card full" style="margin:0">
       <h2>📅 Criados nesta semana <span>o time todo, de ${esc(semIniBR)} até hoje</span></h2>
       ${radCarr?'<div class="muted small" style="margin-top:8px">Lendo a atividade do Jira…</div>':`
       <div class="ax-num" style="margin-top:6px">${nv.semana.length}</div>
@@ -815,12 +968,10 @@ function renderAcoes(){
       <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="btn" data-nv-gestao="semana" data-tip="Abrir na 🛠 Gestão os tickets criados nesta semana">🛠 abrir na Gestão</button>
         <button class="btn" data-hx-goto="tickets" data-tip="Análise completa dos tickets do período">📊 análise de tickets</button></div>`}
-    </div></div>`;
+    </div>`;
   // 🎫 Criação rápida: descreva em português (ou dite) e a IA monta o ticket.
   const temMic=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
-  const cardTicket=`<div class="card full" style="margin-top:14px">
-    <h2>🎫 Criar ticket rápido <span>descreva em português — a IA resolve projeto, épico, responsável, prazo, horas, comentário e status; você confirma a prévia</span></h2>
-    <textarea id="qk-texto" class="pl-texto" style="min-height:74px;margin-top:8px" oninput="estado.qk.texto=this.value"
+  const cardTicket=`<textarea id="qk-texto" class="pl-texto" style="min-height:74px;margin-top:8px" oninput="estado.qk.texto=this.value"
       placeholder='Ex.: "Crie um ticket no nome da Jéssica dentro do épico de gestão do projeto da Copel com vencimento hoje e a descrição alinhamento de estratégia; marque o Diego no comentário &quot;esse é o ticket da nossa conversa&quot;, aponte 30 minutos e passe para finalizado"'>${esc(estado.qk.texto||'')}</textarea>
     <div class="ap-vis" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
       <button class="btn primario" id="qk-criar" ${estado.qk.criando?'disabled':''}>${estado.qk.criando?'✨ Interpretando…':'✨ Criar com IA'}</button>
@@ -831,7 +982,7 @@ function renderAcoes(){
       <button class="btn" data-hx-goto="ondecrio" data-tip="Não sabe o projeto certo? A árvore de decisão te leva">🌳 Onde crio?</button></div>
     <div class="muted small" style="margin-top:6px">💡 O pedido pode ser <b>acionável</b>: <b>atribuir a alguém</b> ("no nome da Jéssica"),
       <b>apontar horas</b> ("aponte 30 minutos" — sai no seu usuário), <b>comentar marcando gente</b> ("marque o Diego no comentário…")
-      e <b>mudar o status</b> ("passe para finalizado"). A prévia sempre aparece antes, e você ajusta tudo lá.</div></div>`;
+      e <b>mudar o status</b> ("passe para finalizado"). A prévia sempre aparece antes, e você ajusta tudo lá.</div>`;
   const cardRadar=`<div class="card full" style="margin-top:14px">
     <h2>🧭 Radar — combine as informações <span>escopo × eventos × período — ex.: "meus tickets criados hoje" (a combinação fica salva)</span></h2>
     <div class="ap-vis" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -848,29 +999,11 @@ function renderAcoes(){
       <button class="btn" data-rad-rateio="${escA(radKeys.slice(0,100).join(','))}" data-tip="Leva esta combinação para o ➗ Rateio: divida horas ou mude o status em conjunto">➗ Enviar para o Rateio</button>
     </div>`:''}
   </div>`;
-  // ---- 🚀 atalhos por área (só as áreas do seu perfil, como a barra — lente, não permissão) ----
-  const ATALHOS=[
-    ['hub','prioridades','🎯 Prioridades do time','as 5 prioridades da semana + o Modo reunião de 35 minutos'],
-    ['hub','minhasemana','📋 Meu Planejamento','planeje as atividades da semana e envie para aprovação'],
-    ['hub','apontar','⏱ Apontar','lance horas, mova status e reagende com 1 clique'],
-    ['hub','meustickets','🧾 Preciso criar meus tickets','conte o que fez por projeto: o app acha ou cria os tickets, aponta as horas e atualiza o status'],
-    ['hub','agenda','📅 Agenda','reuniões do Outlook viram tickets com convites ao time'],
-    ['entrega','projetos','📁 Projetos','ficha com a 🦴 espinha do projeto: contrato, parceria, plano, cronograma, execução, apuração, resultado'],
-    ['entrega','gestao','🛠 Gestão de Tickets','ações em massa: atribuir, mover, reprogramar'],
-    ['entrega','alertas','🚨 Alertas','atrasados e críticos com reprogramação em lote'],
-    ['negocio','rentab','💹 Rentabilidade','planos, cenários, períodos de faturamento e Odoo'],
-    ['negocio','controladoria','🏦 Controladoria','margem por categoria e o 📁 resultado de cada projeto (nível, pessoa, vendido × realizado, plano)'],
-    ['negocio','parcerias','📑 Contratos › 🤝 Parceiros','consultorias parceiras: validade, equipe, 🧾 faturamentos com a ordem de venda no Odoo, horas extras e próximas notas'],
-    ['insights','relatorios','📚 Central de Relatórios','a porta única das análises: catálogo R01–R29, Analytics e Métricas por tipo'],
-    ['insights','analytics','📚 Central › 📈 Analytics','26 visões de governança para investigar'],
-    ['mais','roadmap','🗺️ Roadmap','o que está chegando na ferramenta'],
-  ].filter(x=>areaVisivel(x[0]));
-  const atalhosHtml=`<div class="card full" style="margin-top:14px"><h2>🚀 Ir para <span>as telas mais usadas do seu perfil — busca completa no 🔍 (Ctrl+K)</span></h2>
-    <div class="hx-atalhos">${ATALHOS.map(([a,v,t,d])=>`<div class="hx-atalho" data-hx-goto="${escA(v)}" role="button" tabindex="0"><b>${esc(t)}</b><span class="muted small">${esc(d)}</span><span class="hx-area">${esc((AREAS[a]&&AREAS[a].rot)||'')}</span></div>`).join('')}</div></div>`;
+  // (2026-11-21) saíram da Início o bloco 🚀 Ir para e a 🌳 árvore embutida: o menu por perfil, o Ctrl+K e o botão 🌳 Onde crio? do Criar rápido fazem o mesmo.
   // ---- 📆 Fechamento do mês (Dexterity Negócio): o que pede ação de quem fatura — contratos de parceria no
   // período de aviso, notas a emitir (períodos de faturamento dos planos de horas sem fatura no Odoo) e
   // ciclos AMS fechando. Cards, não tela nova: vira tela só se provar uso (🗺️ Roadmap). ----
-  let cardFech='';
+  let cardFech='', nFech=null;
   if(temPapel('negocio')||temPapel('admin')){
     const somaDias=(s,n)=>{ const [y,m,d]=String(s).split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); };
     const aviso=pcLista().map(c=>({c,s:pcStatus(c)})).filter(x=>x.s.k==='avencer');
@@ -884,9 +1017,9 @@ function renderAcoes(){
     // do Odoo (a cada 10 min) acontece aqui também, para a nota já faturada não aparecer como "atrasada"
     let notasC=[]; if(typeof pcNotasPendentes==='function'){ try{ pcLista().forEach(c=>{ if(pcOdoo(c)) pcOdooGaranteLeitura(c); }); notasC=pcNotasPendentes(hoje,31,15); }catch(e){ notasC=[]; } }
     const ciclos=(cfg.contratos||[]).filter(c=>c&&c.tipo==='ams'&&(c.projetos||[]).length).map(c=>({c,cyc:amsCicloVigente(c,hoje)})).filter(x=>x.cyc.end>=hoje&&x.cyc.end<=somaDias(hoje,10));
-    const n=aviso.length+notas.length+notasC.length+ciclos.length;
+    const n=aviso.length+notas.length+notasC.length+ciclos.length; nFech=n;
     const linha=(ic,txt,goto,extra,cls)=>`<div class="fx-row ${cls||''}"><span>${ic}</span><span class="fx-txt">${txt}</span><span class="spacer"></span><button class="btn" ${goto}>${extra||'Abrir →'}</button></div>`;
-    cardFech=`<div class="card full fx-card" style="margin-top:14px"><h2>📆 Fechamento do mês <span>Dexterity Negócio · ${n?`${n} item(ns) pedem ação`:'nada pendente agora'}</span></h2>
+    cardFech=`<div class="fx-card">
       <div class="fx-lista">
         ${aviso.map(x=>linha('🤝',`<b>${esc(x.c.consultoria||'')}</b> vence em ${dataBR(x.c.fim)} — aviso prévio ${x.s.avisoPassou?'<span class="rp-neg">deveria ter sido dado até':'até'} ${dataBR(x.s.avisoAte)}${x.s.avisoPassou?'</span>':''}`,'data-hx-goto="parcerias"','Contratos →',x.s.avisoPassou?'crit':'aten')).join('')}
         ${notas.slice(0,8).map(x=>linha('🧾',`<b>${esc(x.p.nome||x.p.projeto||'')}</b> · período ${dataBR(x.P.iniPlano)} → ${dataBR(x.P.fimPlano)} · nota ${dataBR(x.P.nota)} · ${fmtBRL(x.P.valor)} <span class="muted small">${esc(x.st.k==='sem'?'sem ordem de venda no Odoo':x.st.rot)}</span>`,`data-hx-plano="${escA(x.p.id)}"`,x.atrasada?'Nota atrasada →':'Ver plano →',x.atrasada?'crit':'')).join('')}
@@ -901,9 +1034,10 @@ function renderAcoes(){
   }
   // ⏱ Apontamento do time — o card mais importante da Início: quem já lançou as
   // horas de HOJE e como está a SEMANA de cada pessoa (segunda → hoje).
-  if(!ax.sem && !ax.semCarr && !ax.semErro) axCarregaSemana();
-  let cardApont;
-  if(ax.semErro){
+  if(abTime && !ax.sem && !ax.semCarr && !ax.semErro) axCarregaSemana();   // só com 👥 Meu time hoje aberta
+  let cardApont='';
+  if(!abTime){ /* seção fechada: nada é montado nem lido */ }
+  else if(ax.semErro){
     cardApont=`<div class="card full"><h2>⏱ Apontamento do time <span>hoje e nesta semana</span></h2>
       <div class="muted small" style="margin-top:8px;color:#B91C1C">${esc(ax.semErro)}
         <button class="btn" id="apr-retry" style="margin-left:8px">Tentar de novo</button></div></div>`;
@@ -956,28 +1090,51 @@ function renderAcoes(){
       <div class="muted small" style="margin-top:6px">A meta é a jornada de cada pessoa (<b>Configurações → 🎯 Metas</b>), descontando fins de semana, feriados, ausências e vigência. <b>Hoje não conta como dia em branco</b> — o dia ainda está correndo.</div>
     </div>`;
   }
-  // 🌳 A árvore de decisão TAMBÉM na home — mesmo estado da vista 'ondecrio'.
-  const cardArv=`<div class="card full" style="margin-top:14px">
-    <h2>🌳 Onde crio meu ticket? <span>responda e crie no lugar certo — sem sair daqui</span></h2>
-    <div id="arv-home">${arvHTML()}</div>
-  </div>`;
-  cont.replaceChildren(el(`<div class="ax-home">
-    ${heroHtml}
-    <div style="margin-top:14px">${cardApont}</div>
-    ${cardTicket}
-    ${cardsNovos}
-    ${cardVenc}
-    ${cardFech}
-    ${cardRadar}
+  // ---- seções por intenção (2026-11-21): <details> nativo, fechada = sem corpo, sem leitura e sem montagem ----
+  const resTime=[tks?`${nAtras} atrasado(s)`:'', ax.sem?(()=>{ try{ const ar=axApontResumo(); return `${ar.nCobrados-ar.nVazio}/${ar.nCobrados} apontaram hoje`; }catch(e){ return ''; } })():''].filter(Boolean).join(' · ')||'apontamento, atrasos e criações do time';
+  const corpoTime=()=>`${cardApont}
     <div class="card full" style="margin-top:14px">
       <h2>🏢 Time — ações de hoje <span>${esc(alxDataBR(hoje))} · o que exige atenção agora</span></h2>
       <div class="ax-fontes"><span>${esc(fJira)}</span><span>${esc(fClock)}</span>${fMes?`<span>${esc(fMes)}</span>`:''}<span class="spacer"></span><button class="btn" data-hx-goto="visao">📊 Painel executivo completo →</button></div>
       <div class="ax-grid">${CARDS.map(cardHtml).join('')}</div>
     </div>
-    ${cardArv}
-    ${atalhosHtml}
+    <div style="margin-top:14px">${cardVenc}</div>
+    <div style="margin-top:14px">${cardSemNovos}</div>`;
+  const secTime=axSec('time','👥 Meu time hoje',resTime,corpoTime,abTime);
+  const secFech=(nFech==null)?'':axSec('fech','📆 Fechamento do mês',`Dexterity Negócio · ${nFech?`${nFech} item(ns) pedem ação`:'nada pendente agora'}`,cardFech,abFech);
+  const secCriar=axSec('criar','🎫 Criar ticket rápido','descreva em português — a IA resolve projeto, épico, responsável, prazo, horas, comentário e status; você confirma a prévia',cardTicket,abCriar);
+  const secExplorar=axSec('explorar','🧭 Explorar','Radar do dia e os tickets que você criou por último',()=>`${cardMeusNovos}${cardRadar}`,abExp);
+  const focoAnt=axFocoGuarda(cont);
+  cont.replaceChildren(el(`<div class="ax-home">
+    ${heroHtml}
+    ${id&&id.accountId?'':'<div style="margin-top:14px"></div>'}
+    ${secTime}
+    ${secFech}
+    ${secCriar}
+    ${secExplorar}
     ${cardNov}</div>`));
+  axFocoRestaura(focoAnt);
 }
+// ▾ seções da Início: abrir/fechar fica salvo no navegador (padrão = o do papel). O evento `toggle` não borbulha, por
+// isso o listener é de captura. GUARDA obrigatória (`atual===d.open`): o replaceChildren recria o <details open> e
+// dispara `toggle` de novo — sem ela o render entra em laço (a mesma lição do #sr-horas do status report).
+document.getElementById('conteudo').addEventListener('toggle',(e)=>{
+  if(estado.vista!=='acoes') return;
+  const d=e.target; if(!d||!d.matches||!d.matches('details[data-ax-sec]')) return;
+  const id=d.getAttribute('data-ax-sec'); if(axSecAberta(id)===d.open) return;
+  axSecSalva(id,d.open); renderAcoes();
+},true);
+// teclado: o 1º tab da Início é o atalho "ir direto para a fila" (antes dela ficam os botões do topo e os 3 tiles, ~9 paradas)
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='acoes'||!(e.target.closest&&e.target.closest('[data-ax-pula]'))) return;
+  const alvo=document.querySelector('#ax-fila button, #ax-fila-retry, #ax-b-prox'); if(alvo){ alvo.focus(); try{ alvo.scrollIntoView({block:'center'}); }catch(x){} }
+});
+// ▶ fila: "mais N" alterna a lista inteira (só na sessão)
+document.getElementById('conteudo').addEventListener('click',(e)=>{
+  if(estado.vista!=='acoes') return;
+  if(!(e.target.closest&&e.target.closest('[data-ax-mais]'))) return;
+  estado.acoes.filaTodos=!estado.acoes.filaTodos; renderAcoes();
+});
 // Cliques da home (hero pessoal + atalhos)
 document.getElementById('conteudo').addEventListener('click',(e)=>{
   const pl=e.target.closest&&e.target.closest('[data-hx-plano]'); if(pl){ estado.rentab.sel=pl.getAttribute('data-hx-plano'); estado.rentab.edit=false; vaiPara('rentab'); return; }   // 📆 Fechamento do mês → plano
@@ -992,6 +1149,8 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   // 📆 Seu dia (24b): abre o Hoje — e já com o ritual quando o card pediu
   if(g==='hoje-planejar'||g==='hoje-fechar'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); setTimeout(()=>{ try{ if(g==='hoje-planejar') hjRitualPlanejar(hojeSP()); else hjRitualFechar(hojeSP()); }catch(e){} },80); return; }
   if(g==='hoje'){ estado.hoje.d=hojeSP(); vaiPara('hoje'); return; }
+  if(g==='time-sem-apontar'){ vaiPara('timesheet'); return; }   // item da fila (chave própria na tabela AX_PRIO) → destino real
+  if(g==='bloqueios-vencidos'){ if(typeof bqVai==='function') bqVai('time',{venc:true}); else vaiPara('bloqueios'); return; }   // ⛔ vencidos dos MEUS projetos: escopo 👥 Time só com os vencidos
   if(g==='bloqueios'){ if(typeof bqVai==='function') bqVai('meus'); else vaiPara('bloqueios'); return; }   // ⛔ card Bloqueios (20d)
   // 💬 Aguardando sua resposta / ⏳ Com o cliente: abre a 🛠 Gestão na ▤ Lista só com esses tickets (como os vencidos por projeto)
   if(g==='aguardando-resposta'||g==='gestao-cliente'){ const ax=estado.acoes; const ks=(g==='gestao-cliente'?ax.cliKeys:ax.respKeys)||[];
@@ -1604,7 +1763,7 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     estado.gestao.preset={atras:'atrasados',sematu:'sematu',semresp:'semresp',cli:'cliente'}[k]||'';
     vaiPara('gestao'); return; }
   const t=e.target.closest&&e.target.closest('button'); if(!t) return;
-  if(t.id==='ax-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
+  if(t.id==='ax-retry'||t.id==='ax-fila-retry'){ estado.acoes.erro=''; estado.acoes.venc=null; renderAcoes(); }
   else if(t.id==='ax-mes-retry'){ estado.acoes.mesErro=''; estado.acoes.mes=null; renderAcoes(); }
 });
 // ⏰ Vencidos por projeto: Enter/Espaço abrem a linha (mesma ação do clique)

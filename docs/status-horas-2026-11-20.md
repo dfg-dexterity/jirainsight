@@ -29,8 +29,27 @@ planejamento semanal; a ideia é ver como o pessoal vem gastando seu tempo."
 ## Ficou de fora (roadmap)
 - R252 recorte por papel no servidor e filtro "só planos enviados/aprovados" (hoje todo identificado vê todos).
 - R253 a mesma visão na 🧭 Pendências e no relatório de sexta.
-- R254 tendência de várias semanas por pessoa.
+- R254 tendência de várias semanas por pessoa — **entregue em 2026-11-21** (seção abaixo).
 - R255 hoje parcial e alerta de desvio.
 
 ## Testes
 `status-report-horas-test.mjs` (Playwright, contra `servidor-sr.mjs`) e regressões do status report e do Meu Planejamento; ver CLAUDE.md.
+
+---
+
+## 📈 Tendência (2026-11-21, R254)
+
+**Pedido:** "Vamos fazer o 254" — ver como o time vem gastando o tempo ao longo de várias semanas, não só uma. Decisões (todas as recomendadas): **D3** 8 semanas por padrão, chips 4 · 8 · 12; **D4** grade pessoa × semana + gráfico da pessoa ao clicar.
+
+**Onde:** dentro da seção ⏱ Horas da semana, uma alternância `📅 Semana | 📈 Tendência` (`.sr-h-modos`, `[data-sr-h-modo]`). Estado `estado.sr.horas.modo` (`'semana'` padrão) e `tn` (4·8·12). URL: `srhm=t` (só em tendência) e `srhn` (só quando ≠ 8).
+
+**Dados (sem servidor novo, nada na `cfg`, sem R$):** as N semanas terminam na semana padrão (`wPad`: a corrente até ontem, ou a passada na segunda). A leitura é em **blocos de 4 semanas** alinhados a `wPad`: por bloco, um `POST /api/config?plan=1 {acao:'relatorio', de, ate}` e um `GET /api/tempo?desde&ate` de 28 dias (abaixo dos 62 dias que o app trata como "rápido" e dos 400 do limite). 8 semanas = 2 blocos = 4 requisições; 12 = 6; no máximo 2 blocos em voo. Cache por bloco com identidade e TTL (5 min na semana corrente, 30 min nos fechados). Nada é lido com a seção fechada nem no modo 📅. Trocar de projeto só recalcula (os blocos são do time inteiro). Por que não as alternativas: N leituras semanais (16–24 requisições); uma leitura única de 84 dias (acima do limiar e um erro perde tudo); fotos `kpis_` (guardam pessoa, não projeto).
+
+**Funções (20e, sem DOM):** `srhTendSemanas`, `srhTendBlocos`, `srhTendDadosBloco`, `srhTendCarrega`, `srhTendCalc` (pura; `srhCalc` por semana, mesma régua `mpSitDe`), `srhTendResumo`. **Tela (20c):** `srhModosHTML`, `srhTendContexto`, `srhTendCorpoHTML`, `srhTendGraficosHTML`, `srhTendGradeHTML`, `srhTendCelulaHTML`, `srhTendVaiSemana`, `srhTendAbrePessoa`; o corpo antigo virou `srhSemanaCorpoHTML`. Seletores: `.sr-t-barra`, `.sr-t-graf`, `.sr-t-tab`, `.sr-t-c`, `[data-sr-t-n]`, `[data-sr-t-refresh]`, `[data-sr-t-retry]`, `[data-sr-t-p]`, `[data-sr-t-w]`.
+
+**Tela:** dois cartões de gráfico (nunca dois eixos no mesmo): "Horas no projeto" (apontado em barras, planejado em linha) e "Execução" (% com linha de 100%; semana sem plano é buraco, não zero), com ▦ tabela acessível e a última semana marcada como parcial. Grade pessoa × semana com cor e símbolo da régua (✓ ▲ ▼ ∅, "—" sem plano, "?" sem leitura); coluna abre 📅 Semana naquela semana; linha (clique ou Enter/Espaço) abre o modal com o gráfico da pessoa. Falha de um bloco = semanas "?" e "Tentar de novo" só dele; plano que falha = parcial só com o apontado. 📋 Copiar leva o bloco "📈 Tendência (N semanas)" com a seção aberta em 📈.
+
+**Desvios do plano:** os dois cartões foram montados com `tsChart` direto (o `dshSmallMultiples` não repassa `metaY`); classe da célula `.sr-t-c ok|medio|ruim|nd`; no celular (≤ 560 px) com 12 semanas só a grade corta nas últimas 8 (com nota). **Correção junto:** `cfg.ocultos` é lista de objetos `{a,nome}`; o `srhCalc` (e o Dia do time, 24b) usavam `new Set(cfg.ocultos)` e nunca casavam — agora `.map(o=>(o&&o.a)||o)`.
+
+**Testes:** `status-report-tend-test.mjs` (Playwright, 124 asserções) e regressão `status-report-horas-test` (106). **Roadmap:** R259 (além de 12 semanas, fotos por projeto × pessoa, comparação entre projetos), R260 (na 🧭 Pendências e na sexta); R253 e R255 reescritos.
+

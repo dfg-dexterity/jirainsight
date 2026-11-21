@@ -410,7 +410,7 @@ function srhCelulaHTML(c,d){
   }
   return `<td data-rot="${escA(rot)}" data-tip="${escA(tip)}">${inner}<small class="sr-h-dia">dia ${esc(mpH(c.tot))}</small></td>`;
 }
-function srhCorpoHTML(){
+function srhSemanaCorpoHTML(){
   const x=srhContexto(); if(!x) return '';
   const { h, proj, jan }=x; const w=jan.w;
   if(!srhIdOk()) return `<div class="estado">Para ver o planejado × apontado do time, identifique-se.</div>
@@ -462,7 +462,9 @@ function srhPinta(){
   if(corpo&&x.h.aberto) corpo.innerHTML=srhCorpoHTML();
 }
 function srhAoChegar(){ if(estado.vista==='statusrep') srhPinta(); }
-function srhLeSemana(forca){ const x=srhContexto(); if(x&&x.h.aberto&&srhIdOk()) srhCarrega(x.jan.w,!!forca); }
+function srhLeSemana(forca){ const x=srhContexto(); if(!x||!x.h.aberto||!srhIdOk()) return;
+  if(x.h.modo==='tend'){ if(typeof srhTendCarrega==='function') srhTendCarrega(hojeSP(),x.h.tn,!!forca); return; }   // 📈 em blocos de 4 semanas
+  srhCarrega(x.jan.w,!!forca); }
 function srhAbrePessoa(a){
   const x=srhContexto(); if(!x||!x.c) return;
   const p=x.c.pessoas.find(q=>q.a===a); if(!p) return;
@@ -478,6 +480,122 @@ function srhAbrePessoa(a){
     <div class="muted small">Atividades do plano neste projeto</div><ul class="sr-h-ul">${itens}</ul>
     <h3>Onde mais foi o tempo</h3>${outros}
     <div class="muted small" style="margin-top:8px">Total na janela: ${esc(mpH(p.tot))} (${esc(mpH(p.real))} neste projeto = ${base>0?Math.round(p.real/base*100):0}%).</div>
+    <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div></div>`);
+}
+// ---- R254 · 📈 Tendência das horas do projeto (2026-11-21; dados e conta em 20e-status-horas.js) ----
+// Alternância 📅 Semana | 📈 Tendência no topo do corpo. Nada é lido com a seção fechada nem no modo 📅 Semana.
+function srhModosHTML(h){
+  const b=(m,t)=>`<button type="button" role="tab" data-sr-h-modo="${m}" aria-selected="${h.modo===m?'true':'false'}">${t}</button>`;
+  return `<div class="sr-h-modos" role="tablist" aria-label="Modo da seção de horas">${b('semana','📅 Semana')}${b('tend','📈 Tendência')}</div>`;
+}
+function srhCorpoHTML(){
+  const x=srhContexto(); if(!x) return '';
+  if(!srhIdOk()) return srhSemanaCorpoHTML();
+  return srhModosHTML(x.h)+(x.h.modo==='tend'?srhTendCorpoHTML(x):srhSemanaCorpoHTML());
+}
+// Conta da tendência com o que há em cache (blocos ausentes = semanas "sem leitura").
+function srhTendContexto(x){
+  x=x||srhContexto(); if(!x) return null;
+  const h=x.h, hoje=hojeSP(); const blocos=srhTendBlocos(hoje,h.tn); const dd={};
+  blocos.forEach(b=>{ dd[b.k]=srhTendDadosBloco(b.k,b.corrente); });
+  const t=srhTendCalc(x.proj,hoje,h.tn,dd);
+  const erros=blocos.filter(b=>h.tend.erro[b.k]).map(b=>({ k:b.k, msg:h.tend.erro[b.k] }));
+  const lendo=blocos.some(b=>!dd[b.k]&&!h.tend.erro[b.k]);
+  return { x, h, hoje, blocos, t, erros, lendo, algum:blocos.some(b=>!!dd[b.k]) };
+}
+function srhTendPeriodoTxt(t){ const s=t.semanas; return s.length?`${srDm(s[0].de)} a ${srDm(s[s.length-1].ate)}`:''; }
+function srhTendCorpoHTML(x){
+  const C=srhTendContexto(x); if(!C) return '';
+  const { h, t, erros }=C;
+  const chips=SRH_TEND_OPCOES.map(n=>`<button type="button" class="chip" data-sr-t-n="${n}" aria-pressed="${h.tn===n?'true':'false'}">${n} semanas</button>`).join('');
+  const barra=`<div class="sr-t-barra">${chips}<button class="gp-mini" data-sr-t-refresh="1" aria-label="Atualizar a tendência" data-tip="Relê o bloco da semana corrente e os que falharam">↻</button></div>`;
+  const av=[];
+  const ult=t.semanas[t.semanas.length-1];
+  if(ult&&ult.parcial) av.push('A última semana está em andamento — conta só até ontem.');
+  const antes=t.semanas.filter(s=>s.lido&&s.antesVig).length;
+  if(antes) av.push(`${antes} semana(s) antes do início do Meu Planejamento: só o apontado.`);
+  const semPl=t.semanas.filter(s=>s.lido&&s.parcialPlano).length;
+  if(semPl) av.push(`Não consegui ler os planos de ${semPl} semana(s): só o apontado aparece nelas.`);
+  const falt=t.faltam.length;
+  const avH=()=>av.map(a=>`<div class="muted small sr-h-av">${esc(a)}</div>`).join('');
+  if(!C.algum){
+    if(erros.length) return `${barra}<div class="erro"><strong>Falha ao carregar.</strong> ${esc(erros[0].msg)} <button class="btn" data-sr-t-retry="1" style="margin-left:10px">Tentar de novo</button></div>`;
+    return `${barra}<div class="estado">Lendo ${h.tn} semanas de planos e apontamentos…</div>`;
+  }
+  if(falt) av.push(erros.length?`Não consegui ler ${falt} semana(s) — aparecem como "?" na grade.`:`Lendo mais ${falt} semana(s)…`);
+  const retry=erros.length?`<div class="erro">${esc(erros[0].msg)} <button class="btn" data-sr-t-retry="1" style="margin-left:10px">Tentar de novo</button></div>`:'';
+  const cel=window.innerWidth<=560&&h.tn>8;
+  const kpi=(v,l)=>`<div class="vg-k"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  const kpis=`<div class="sr-h-kpis">${kpi(esc(mpH(t.tot.plan)),'Planejado')}${kpi(esc(mpH(t.tot.real)),'Apontado')}${kpi(srhPct(t.tot.exec),'Execução')}${kpi(esc(mpH(t.tot.fora)),'Fora do plano')}</div>`;
+  const nota=`<div class="muted small sr-h-av">${esc(srhTendPeriodoTxt(t))} · ${t.n} semanas, uma coluna por semana (segunda a domingo)${cel?' · no celular a grade mostra as últimas 8':''}.</div>`;
+  const leg=`<div class="muted small sr-h-leg">✓ até ±10% do planejado · ▲▼ até ±40% (amarelo) · além disso, vermelho · ∅ planejado sem apontamento · — sem plano · ? semana sem leitura. Clique numa semana ou numa pessoa para detalhar.
+    <button class="lnk-ficha" data-sr-h-planrel="1">📊 abrir no Planejamento do time</button></div>`;
+  return `${barra}${avH()}${av.length?'':''}${retry}${nota}${kpis}${srhTendGraficosHTML(C)}${srhTendGradeHTML(C,cel)}${leg}`;
+}
+function srhTendGraficosHTML(C){
+  const t=C.t;
+  if(typeof tsChart!=='function') return '';
+  const ultParcial=t.semanas.length&&t.semanas[t.semanas.length-1].parcial;
+  const xs=t.semanas;
+  const opts={ altura:'150px', h:140, grupo:'srht', reta:true, tabela:true, fimParcial:!!ultParcial, xlabel:(x)=>srDm(x), readX:(x)=>`sem. ${srDm(x)}`, tituloX:'Semana',
+    drill:(x)=>srhTendVaiSemana(x) };
+  const cor0=(typeof DSH_CORES!=='undefined')?DSH_CORES[0]:'var(--cerceta)', cor1=(typeof DSH_CORES!=='undefined')?DSH_CORES[1]:'var(--muted)';
+  const horas=[
+    { nome:'Apontado', cor:cor0, tipo:'bar', vals:xs.map(s=>({ x:s.w, v:s.lido?s.real:null })) },
+    { nome:'Planejado', cor:cor1, tipo:'line', dash:'5 4', vals:xs.map(s=>({ x:s.w, v:(s.lido&&!s.parcialPlano&&!s.antesVig)?s.plan:null })) } ];
+  const exec=[ { nome:'Execução', cor:cor0, tipo:'line', vals:xs.map(s=>({ x:s.w, v:s.lido&&s.exec!=null&&!s.parcialPlano&&!s.antesVig?s.exec:null })) } ];
+  const card=(nome,graf)=>`<div class="dsh-sm-c"><div class="dsh-sm-h"><span class="dsh-sm-n">${esc(nome)}</span></div>${graf}</div>`;
+  return `<div class="sr-t-graf">${card('Horas no projeto, por semana',tsChart(horas,Object.assign({ unidade:'h', legenda:true, titulo:'Horas apontadas e planejadas neste projeto, por semana' },opts)))}
+    ${card('Execução (apontado ÷ planejado)',tsChart(exec,Object.assign({ unidade:'%', legenda:false, metaY:{ v:100, label:'100% do planejado' }, titulo:'Execução do planejado neste projeto, por semana' },opts,{ tabela:true })))}</div>`;
+}
+function srhTendCelulaHTML(pt,s){
+  const rot=`sem. ${srDm(s.w)}`;
+  if(!pt||!pt.lido) return `<td data-rot="${escA(rot)}" data-tip="Semana sem leitura"><span class="sr-t-c nd">?</span></td>`;
+  if(pt.plan==null){
+    if(pt.real>0) return `<td data-rot="${escA(rot)}" data-tip="${escA(`Sem plano · apontado ${mpH(pt.real)} neste projeto`)}"><span class="sr-t-c nd">${esc(mpH(pt.real))}</span> <i class="muted small">/ —</i></td>`;
+    return `<td data-rot="${escA(rot)}"><span class="muted">—</span></td>`;
+  }
+  if(pt.cor==='') return `<td data-rot="${escA(rot)}"><span class="muted">·</span></td>`;
+  const sym=(pt.plan>0&&pt.real===0)?'∅':(pt.cor==='ok'?'✓':(pt.real>pt.plan?'▲':'▼'));
+  const tip=`Planejado ${mpH(pt.plan)} · apontado ${mpH(pt.real)} neste projeto${pt.exec!=null?` (${Math.round(pt.exec)}%)`:''} · ${pt.sit||''}`;
+  return `<td data-rot="${escA(rot)}" data-tip="${escA(tip)}"><span class="sr-t-c ${escA(pt.cor||'nd')}">${sym} ${pt.exec!=null?srhPct(pt.exec):esc(mpH(pt.real))}</span></td>`;
+}
+function srhTendGradeHTML(C,cel){
+  const t=C.t;
+  if(!t.pessoas.length) return '<div class="sr-vazio">Ninguém planejou nem apontou neste projeto nestas semanas.</div>';
+  const ini=cel?Math.max(0,t.semanas.length-8):0; const sem=t.semanas.slice(ini);
+  const head=`<tr><th scope="col">Pessoa</th>${sem.map(s=>`<th scope="col" tabindex="0" role="button" data-sr-t-w="${escA(s.w)}" aria-label="${escA(`Ver a semana de ${srDm(s.w)}`)}" data-tip="Abrir a semana de ${escA(srDm(s.w))}">${esc(srDm(s.w))}</th>`).join('')}<th scope="col">Janela (apontado / planejado)</th></tr>`;
+  const linhas=t.pessoas.map(p=>{
+    const clsP=p.plan>0?({ok:'ok',medio:'medio',ruim:'ruim'}[mpSitDe(p.plan,p.real).cor]||'nd'):'nd';
+    return `<tr data-sr-t-p="${escA(p.a)}" role="button" tabindex="0" aria-label="${escA(p.nome)}: ver o gráfico da pessoa">
+      <th scope="row">${esc(p.nome)}</th>${sem.map((s,i)=>srhTendCelulaHTML(p.pts[ini+i],s)).join('')}
+      <td data-rot="Janela">${esc(mpH(p.real))}${p.plan>0?` <i class="muted small">/ ${esc(mpH(p.plan))}</i> <span class="sr-t-c ${clsP}">${srhPct(p.exec)}</span>`:' <i class="muted small">/ —</i>'}</td></tr>`; }).join('');
+  const foot=`<tr><th scope="row">Total</th>${sem.map(s=>`<td data-rot="${escA(`sem. ${srDm(s.w)}`)}">${s.lido?`${esc(mpH(s.real))} <i class="muted small">/ ${esc(mpH(s.plan))}</i>`:'?'}</td>`).join('')}
+    <td data-rot="Janela">${esc(mpH(t.tot.real))} <i class="muted small">/ ${esc(mpH(t.tot.plan))}</i></td></tr>`;
+  return `<div class="scroll-x"><table class="mp-tab-mini sr-t-tab"><caption class="sr-h-sronly">Execução do planejado por pessoa e por semana neste projeto</caption>
+    <thead>${head}</thead><tbody>${linhas}</tbody><tfoot>${foot}</tfoot></table></div>`;
+}
+// Vai para o modo 📅 Semana na semana pedida (coluna da grade, ponto do gráfico, linha do modal).
+function srhTendVaiSemana(w){
+  const h=srhEstado(); if(!/^\d{4}-\d{2}-\d{2}$/.test(w||'')) return;
+  const j=srhJanela(hojeSP(),w); h.w=j.padrao?'':j.w; h.modo='semana';
+  if(typeof fechaModal==='function'&&!document.getElementById('modal').hidden) fechaModal();
+  srhLeSemana(false); srhPinta(); estadoParaURL();
+}
+function srhTendAbrePessoa(a){
+  const C=srhTendContexto(); if(!C) return;
+  const p=C.t.pessoas.find(q=>q.a===a); if(!p) return;
+  const xs=C.t.semanas;
+  const cor0=(typeof DSH_CORES!=='undefined')?DSH_CORES[0]:'var(--cerceta)', cor1=(typeof DSH_CORES!=='undefined')?DSH_CORES[1]:'var(--muted)';
+  const graf=(typeof tsChart==='function')?tsChart([
+    { nome:'Apontado', cor:cor0, tipo:'bar', vals:p.pts.map((q,i)=>({ x:xs[i].w, v:q.lido?q.real:null })) },
+    { nome:'Planejado', cor:cor1, tipo:'line', dash:'5 4', vals:p.pts.map((q,i)=>({ x:xs[i].w, v:q.lido&&q.plan!=null?q.plan:null })) } ],
+    { unidade:'h', altura:'150px', h:140, legenda:true, reta:true, tabela:true, tituloX:'Semana', xlabel:(x)=>srDm(x), readX:(x)=>`sem. ${srDm(x)}`, titulo:`Horas de ${p.nome} neste projeto, por semana`,
+      fimParcial:!!(xs.length&&xs[xs.length-1].parcial) }):'';
+  const linhas=p.pts.map((q,i)=>`<li><button class="gp-mini" data-sr-t-w="${escA(xs[i].w)}">ver esta semana</button> sem. ${esc(srDm(xs[i].w))} · ${!q.lido?'<span class="muted">sem leitura</span>':(q.plan==null?`${esc(mpH(q.real))} <span class="muted">(sem plano)</span>`:`${esc(mpH(q.real))} <span class="muted">de ${esc(mpH(q.plan))}${q.exec!=null?` · ${srhPct(q.exec)}`:''}</span>`)}</li>`).join('');
+  abreModal(`<div class="sr-h-modal"><h2>📈 ${esc(p.nome)} · ${C.t.n} semanas</h2>
+    <div class="muted small">${esc(C.x.proj)} · ${esc(srhTendPeriodoTxt(C.t))} · total ${esc(mpH(p.real))}${p.plan>0?` de ${esc(mpH(p.plan))} planejadas (${srhPct(p.exec)})`:''}</div>
+    ${graf}<ul class="sr-h-ul">${linhas}</ul>
     <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div></div>`);
 }
 function renderSr(){
@@ -604,6 +722,9 @@ function srTextoRelatorio(c){
     if(hx&&hx.h.aberto&&hx.c){ const r=srhResumo(hx.c);
       L.push('',`⏱ Horas (semana de ${srDm(hx.jan.de)}, até ${srDm(hx.jan.ate)}): ${mpH(r.real)} apontadas de ${mpH(r.plan)} planejadas${r.exec!=null?` (${srhPct(r.exec)})`:''}`);
       hx.c.pessoas.forEach(p=>L.push(p.temPlano?`• ${srPrimeiro(p.nome)}: ${mpH(p.real)} / ${mpH(p.plan)} (${srhPct(p.exec)})${p.outros>0?` · outros projetos ${mpH(p.outros)}`:''}`:`• ${srPrimeiro(p.nome)}: ${mpH(p.real)} (sem plano)`)); } }catch(e){}
+  try{ const hx=(typeof srhTendContexto==='function')?srhTendContexto():null;   // 📈 tendência (modo 📈 com dados lidos)
+    if(hx&&hx.h.aberto&&hx.h.modo==='tend'&&hx.algum){ L.push('',`📈 Tendência (${hx.t.n} semanas)`);
+      hx.t.semanas.forEach(w=>L.push(w.lido?`• sem. ${srDm(w.w)}: ${mpH(w.real)} de ${mpH(w.plan)}${w.exec!=null?` (${srhPct(w.exec)})`:''}${w.parcial?' (em andamento)':''}`:`• sem. ${srDm(w.w)}: sem leitura`)); } }catch(e){}
   L.push('',srLinkTela(proj));
   return L.join('\n');
 }
@@ -1274,6 +1395,12 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
   const hi=cl('[data-sr-h-id]'); if(hi){ abreIdentidade('ver o planejado × apontado do time',{leitura:true,depois:()=>{ srhLeSemana(false); srhPinta(); }}); return; }
   const hp=cl('[data-sr-h-planrel]'); if(hp){ const x=srhContexto(); const mp=estado.minhasemana;
     if(x&&mp){ mp.relF={de:x.jan.w,ate:x.jan.w,usuario:'',projeto:x.proj,status:''}; mp.rel=null; if(estado.planrel) estado.planrel.aud='proj'; vaiPara('planrel'); } return; }
+  const hm=cl('[data-sr-h-modo]'); if(hm){ const x=srhContexto(); if(!x) return; const m=hm.getAttribute('data-sr-h-modo'); if(x.h.modo!==m){ x.h.modo=m; srhLeSemana(false); srhPinta(); estadoParaURL(); } return; }
+  const tn=cl('[data-sr-t-n]'); if(tn){ const x=srhContexto(); if(!x) return; const n=+tn.getAttribute('data-sr-t-n'); if(SRH_TEND_OPCOES.indexOf(n)>=0&&x.h.tn!==n){ x.h.tn=n; srhLeSemana(false); srhPinta(); estadoParaURL(); } return; }
+  const tre=cl('[data-sr-t-retry]'); if(tre){ const x=srhContexto(); if(x){ Object.keys(x.h.tend.erro).forEach(k=>{ delete x.h.tend.erro[k]; }); srhLeSemana(false); srhPinta(); } return; }   // "Tentar de novo" relê SÓ os blocos que falharam (o ↻ também refaz o corrente)
+  const tr=cl('[data-sr-t-refresh]'); if(tr){ const x=srhContexto(); if(x){ srhLeSemana(true); srhPinta(); } return; }
+  const tw=cl('[data-sr-t-w]'); if(tw){ srhTendVaiSemana(tw.getAttribute('data-sr-t-w')); return; }
+  const tpe=cl('tr[data-sr-t-p]'); if(tpe){ srhTendAbrePessoa(tpe.getAttribute('data-sr-t-p')); return; }
   const hl=cl('tr[data-sr-h-p]'); if(hl&&!e.target.closest('[data-gx-det]')){ srhAbrePessoa(hl.getAttribute('data-sr-h-p')); return; }
   const cp=cl('[data-sr-copiar]'); if(cp){ const c=srCalc(); if(c) gpCopia(srTextoRelatorio(c),'📋 Relatório copiado — cole na ata, no Teams ou no e-mail.'); return; }
   const lk=cl('[data-sr-link]'); if(lk){ const p=srProjAtual(); if(p) gpCopia(srLinkTela(p),'🔗 Link copiado — todo mundo abre a mesma visão.'); return; }
@@ -1298,6 +1425,8 @@ document.getElementById('conteudo').addEventListener('toggle',(e)=>{
 // 🔎 Enter no campo "Achar ticket" busca (o Esc limpa só o campo, sem fechar nada).
 document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   if(estado.vista!=='statusrep'||!e.target) return;
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('tr[data-sr-t-p]')&&typeof srhTendAbrePessoa==='function'){ e.preventDefault(); srhTendAbrePessoa(e.target.getAttribute('data-sr-t-p')); return; }
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('th[data-sr-t-w]')&&typeof srhTendVaiSemana==='function'){ e.preventDefault(); srhTendVaiSemana(e.target.getAttribute('data-sr-t-w')); return; }
   if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('tr[data-sr-h-p]')&&typeof srhAbrePessoa==='function'){ e.preventDefault(); srhAbrePessoa(e.target.getAttribute('data-sr-h-p')); return; }   // ⏱ Horas: a linha da pessoa é role=button (teclado)
   if(e.target.id!=='sr-achar') return;
   if(e.key==='Enter'){ e.preventDefault(); srAchar(e.target.value); }
@@ -1423,3 +1552,7 @@ document.getElementById('modal-body').addEventListener('change',(e)=>{
   else if(t.id==='sr-ac-data'){ S.semData=false; document.querySelectorAll('#modal-body [data-sr-ac-dia="rm"]').forEach(b=>{ b.setAttribute('aria-pressed','false'); b.classList.remove('on'); }); }
   else if(t.id==='mn-add-pessoa') S.mencMan=true;
 });
+// 📈 O modal da pessoa fica fora do #conteudo: "ver esta semana" volta ao modo 📅 Semana (R254).
+document.getElementById('modal-body').addEventListener('click',(e)=>{
+  const b=e.target.closest&&e.target.closest('[data-sr-t-w]'); if(!b||estado.vista!=='statusrep'||typeof srhTendVaiSemana!=='function') return;
+  srhTendVaiSemana(b.getAttribute('data-sr-t-w')); });

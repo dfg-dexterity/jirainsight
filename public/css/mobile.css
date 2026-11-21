@@ -93,7 +93,35 @@
   /* cards do "seu dia" em 2 colunas; o de horas (com o anel) ocupa a linha toda */
   .ax-grid.ax-hero{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   /* linha inteira: o card de horas (com o anel) — que desde o 📆 Hoje é o 2º, atrás do card "Seu dia" — e o próprio "Seu dia" */
-  .ax-grid.ax-hero>.ax-card:first-child,.ax-grid.ax-hero>.hj-card-inicio+.ax-card{grid-column:1/-1}
+  .ax-grid.ax-hero:not(.ax-estado)>.ax-card:first-child,.ax-grid.ax-hero:not(.ax-estado)>.hj-card-inicio+.ax-card{grid-column:1/-1}
+  /* 🏠 3 tiles de estado: "Seu dia" em linha inteira, horas e semana lado a lado */
+  .ax-grid.ax-estado{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .ax-grid.ax-estado>.hj-card-inicio{grid-column:1/-1}
+  .ax-estado .ax-card{padding:12px 12px 8px;min-height:0;gap:4px;border-radius:12px}
+  .ax-estado .ax-top{font-size:12.5px;line-height:1.3;padding-right:4px}
+  .ax-estado .ax-top>span:first-child{display:none}
+  .ax-estado .ax-num{font-size:30px}
+  .ax-estado .ax-det{max-width:none;font-size:12px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ax-estado .ax-foot .btn{font-size:13px;text-align:left;white-space:normal;line-height:1.3}
+  .ax-estado .ax-foot .btn::before{content:'';position:absolute;inset:0;z-index:1}
+  .ax-estado .ax-card a,.ax-estado .ax-card button:not(.ax-foot .btn){position:relative;z-index:2}
+  /* topo: dois botões lado a lado, 44 px */
+  .ax-topo{flex-direction:column;align-items:stretch;gap:8px}
+  .ax-topo-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .ax-topo-btns .btn{min-height:44px;justify-content:center;text-align:center}
+  /* fila: cada linha vira cartão (título + número, detalhe, botão); a linha inteira é o alvo */
+  .ax-fila-l{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"s s" "t n" "d d" "b b";row-gap:4px;column-gap:10px;padding:10px 12px;min-height:44px}
+  .ax-fila-l>.ax-sev{grid-area:s;justify-self:start;font-size:12px}
+  .ax-fila-l>.ax-fila-t{grid-area:t;white-space:normal}
+  .ax-fila-l>.ax-num{grid-area:n}
+  .ax-fila-l>.ax-det{grid-area:d;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .ax-fila-l>.btn{grid-area:b;min-height:44px;justify-content:center;white-space:normal}
+  .ax-fila-mais{min-height:44px}
+  /* "Em dia": chips rolam na horizontal em vez de empilhar */
+  .ax-emdia{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+  .ax-chip{flex:0 0 auto;min-height:44px}
+  .ax-sec>summary{min-height:44px}
+  .ax-sec-res{max-width:45%}
   .ax-hero .ax-card{padding:12px 12px 8px;min-height:0;gap:4px;border-radius:12px}
   .ax-hero .ax-top{font-size:12.5px;line-height:1.3;padding-right:4px}
   .ax-hero .ax-top>span:first-child{display:none}   /* marca d'água: em meia largura caía em cima do link */
@@ -199,7 +227,9 @@
   .ax-home .nv-cards .ax-num{font-size:30px}
   .ax-home .hxd-row .badge{font-size:12px}
   /* chave do ticket e "entrar ↗": área de toque maior sem mexer na altura da linha */
-  .ax-home .hxd-row>a:first-child,.ax-home .hxd-row>a.small{padding:9px 0;margin:-9px 0}
+  .ax-home .hxd-row>a:first-child,.ax-home .hxd-row>.lnk-ficha:first-child{padding:11px 0;margin:-11px 0}
+  .ax-home .hxd-row>a.small{padding:14px 18px;margin:-14px -18px}
+  .ax-home .hxd-row .lnk-ficha strong{font-size:12px}
   /* 🔍 da ficha: 36×36 (o min-height de 42px do toque abria um vão em cada linha) */
   .ax-home .hxd-row>.rt-step{min-height:36px;min-width:36px;padding:0 6px}
   /* Radar: com 2+ selos a 🔍 caía sozinha numa linha — chave + 🔍 em cima, título,
@@ -2120,6 +2150,19 @@
   .sr-h-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
   .sr-h-nav .gp-mini,.sr-horas>summary{min-height:44px;min-width:44px}
   .sr-h-modal .gp-mini,.sr-h-modal .btn{min-height:44px}
+}
+@media (max-width:760px){
+  /* 📈 Tendência: abas e chips com 44 px; a grade pessoa × semana vira cartão por pessoa com as semanas roláveis */
+  .sr-h-modos button,.sr-t-barra .chip,.sr-t-barra .gp-mini,.sr-t-barra .btn{min-height:44px}
+  .sr-t-graf{grid-template-columns:minmax(0,1fr)}
+  .sr-t-tab,.sr-t-tab tbody,.sr-t-tab tfoot{display:block}
+  .sr-t-tab thead{display:none}
+  .scroll-x>.sr-t-tab{min-width:0;width:100%}
+  .sr-t-tab tr{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha);min-height:44px}
+  .sr-t-tab th,.sr-t-tab td{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-bottom:0;padding:1px 0;min-width:44px;flex:0 0 auto}
+  .sr-t-tab tbody th{flex:0 0 100%;justify-content:flex-start}
+  .sr-t-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
+  .sr-t-tab td{flex-direction:column;min-height:44px}
 }
 /* ---- fim: statusrep ---- */
 
