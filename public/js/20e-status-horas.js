@@ -193,10 +193,12 @@ function srhTendSemanas(hoje, n){
 
 // Blocos de 4 semanas alinhados a wPad: [{k:<1ª segunda>, de, ate:<domingo da última>, semanas, corrente}], do mais antigo ao mais novo. Pura.
 function srhTendBlocos(hoje, n){
-  const sem=srhTendSemanas(hoje,n); const cur=semChave(hoje); const blocos=[];
+  const sem=srhTendSemanas(hoje,n); const blocos=[];
+  // "corrente" = o bloco MAIS NOVO (o que termina na semana padrão wPad): é ele que o ↻ relê e que tem o TTL curto. Antes era
+  // "contém a semana de hoje" — na segunda a semana padrão é a passada, nenhum bloco a continha e o ↻ não relia nada (revisão PR #239).
   for(let i=sem.length;i>0;i-=SRH_TEND_BLOCO){
     const fim=i, ini=Math.max(0,i-SRH_TEND_BLOCO); const ws=sem.slice(ini,fim);
-    blocos.unshift({ k:ws[0], de:ws[0], ate:mtsSoma(ws[ws.length-1],6), semanas:ws, corrente:ws.indexOf(cur)>=0 });
+    blocos.unshift({ k:ws[0], de:ws[0], ate:mtsSoma(ws[ws.length-1],6), semanas:ws, corrente:fim===sem.length });
   }
   return blocos;
 }
@@ -219,6 +221,9 @@ function srhTendCarrega(hoje, n, forca){
   const acc=(id&&id.accountId)||'';
   if(!acc) return false;
   const blocos=srhTendBlocos(hoje,n);
+  // o horizonte pedido por ÚLTIMO: quem termina uma leitura continua a fila por ele, não pelo horizonte da chamada que a lançou
+  // (trocar 8 → 12 com 2 blocos em voo deixava o 3º bloco sem pedido — revisão PR #239)
+  h.tend.alvo={hoje, n};
   if(forca) blocos.forEach(b=>{ if(b.corrente||h.tend.erro[b.k]){ h.tend.forca[b.k]=true; delete h.tend.erro[b.k]; } });
   const aviso=()=>{ if(typeof srhAoChegar==='function'){ try{ srhAoChegar(); }catch(e){} } };
   const falta=()=>blocos.filter(b=>(h.tend.forca[b.k]||!srhTendDadosBloco(b.k,b.corrente)) && !h.tend.voo[b.k] && !h.tend.erro[b.k]);
@@ -241,9 +246,11 @@ function srhTendCarrega(hoje, n, forca){
           planoErro: okPlano?'':humanizaErro((pj&&pj.erro)||'não consegui ler os planos'),
           wl:Array.isArray(tj.worklogs)?tj.worklogs:[], pessoas:tj.pessoas||{}, projetos:tj.projetos||{}, resumos:tj.resumos||{} };
       }
-      bombeia(); aviso();
-    }).catch(e=>{ delete h.tend.voo[b.k]; h.tend.erro[b.k]=humanizaErro(e); bombeia(); aviso(); });
+      segue(); aviso();
+    }).catch(e=>{ delete h.tend.voo[b.k]; h.tend.erro[b.k]=humanizaErro(e); segue(); aviso(); });
   };
+  // ao terminar uma leitura: continua pelo horizonte mais recente (h.tend.alvo), relendo o que faltar dele
+  const segue=()=>{ const al=h.tend.alvo; if(al&&(al.hoje!==hoje||al.n!==n)) srhTendCarrega(al.hoje, al.n, false); else bombeia(); };
   const bombeia=()=>{
     const ids=Object.keys(h.tend.voo).length;
     falta().slice(0,Math.max(0,SRH_TEND_VOO-ids)).forEach(lanca);

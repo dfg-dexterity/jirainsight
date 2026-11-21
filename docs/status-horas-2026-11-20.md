@@ -51,5 +51,5 @@ planejamento semanal; a ideia é ver como o pessoal vem gastando seu tempo."
 
 **Desvios do plano:** os dois cartões foram montados com `tsChart` direto (o `dshSmallMultiples` não repassa `metaY`); classe da célula `.sr-t-c ok|medio|ruim|nd`; no celular (≤ 560 px) com 12 semanas só a grade corta nas últimas 8 (com nota). **Correção junto:** `cfg.ocultos` é lista de objetos `{a,nome}`; o `srhCalc` (e o Dia do time, 24b) usavam `new Set(cfg.ocultos)` e nunca casavam — agora `.map(o=>(o&&o.a)||o)`.
 
-**Testes:** `status-report-tend-test.mjs` (Playwright, 121 asserções) e regressão `status-report-horas-test` (106). **Roadmap:** R259 (além de 12 semanas, fotos por projeto × pessoa, comparação entre projetos), R260 (na 🧭 Pendências e na sexta); R253 e R255 reescritos.
+**Testes:** `status-report-tend-test.mjs` (Playwright, 124 asserções) e regressão `status-report-horas-test` (106). **Roadmap:** R259 (além de 12 semanas, fotos por projeto × pessoa, comparação entre projetos), R260 (na 🧭 Pendências e na sexta); R253 e R255 reescritos.
 
