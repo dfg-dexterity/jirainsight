@@ -7,7 +7,10 @@
 // D3 por pessoa e dia: planejado NESTE projeto × apontado NESTE projeto, colorido pela régua ÚNICA `mpSitDe` (04) e o detalhe
 // "onde mais foi o tempo". Leitura: `POST /api/config?plan=1 {acao:'relatorio'}` (aberta a qualquer identificado, como o 📊 planrel) +
 // `GET /api/tempo?desde&ate` com a MESMA URL de semana cheia do planrel (divide o cache do servidor). Nada na cfg, nada é gravado, sem R$.
+// R254 (2026-11-21, 📈 tendência): as N semanas que terminam na semana padrão são lidas em BLOCOS de 4 semanas (28 dias por /api/tempo,
+// abaixo do limiar de 62 dias), no máximo 2 blocos em voo, cache por bloco; a conta é a MESMA `srhCalc` por semana. Só dados, sem DOM.
 const SRH_CACHE_MIN=5, SRH_SEMANAS_MAX=26;
+const SRH_TEND_PADRAO=8, SRH_TEND_OPCOES=[4,8,12], SRH_TEND_BLOCO=4, SRH_TEND_CACHE_MIN=30, SRH_TEND_VOO=2;
 
 // Estado só da sessão: { aberto, w, cache:{[semana]:{em,idk,planos|null,planoErro,wl,pessoas,projetos,resumos}}, carregando, erro:{[semana]} }
 function srhEstado(){
@@ -18,6 +21,10 @@ function srhEstado(){
   if(!h.cache||typeof h.cache!=='object') h.cache={};
   if(typeof h.carregando!=='string') h.carregando='';
   if(!h.erro||typeof h.erro!=='object') h.erro={};
+  if(h.modo!=='semana'&&h.modo!=='tend') h.modo='semana';
+  if(typeof h.tn!=='number'||SRH_TEND_OPCOES.indexOf(h.tn)<0) h.tn=SRH_TEND_PADRAO;
+  if(!h.tend||typeof h.tend!=='object') h.tend={};
+  ['cache','voo','erro','forca'].forEach(k=>{ if(!h.tend[k]||typeof h.tend[k]!=='object') h.tend[k]={}; });
   return h;
 }
 
@@ -80,7 +87,7 @@ function srhCarrega(w, forca){
 // Conta da seção (pura em relação a `dd`). Ver o formato de saída no plano (srhoras-plano/plano-fable.md, T1).
 function srhCalc(proj, jan, dd){
   dd=dd||{}; const wl=Array.isArray(dd.wl)?dd.wl:[]; const pessoasDd=dd.pessoas||{}; const resumosDd=dd.resumos||{};
-  const ocultos=new Set((cfg&&cfg.ocultos)||[]);
+  const ocultos=new Set(((cfg&&cfg.ocultos)||[]).map(o=>(o&&o.a)||o).filter(Boolean));
   const ini=(typeof mpInicioVig==='function')?mpInicioVig():'';
   const temPlanos=dd.planos!=null;
   const planos=temPlanos?mpPlanosVigentes(dd.planos).filter(p=>p&&p.semana===jan.w):[];
@@ -172,4 +179,125 @@ function srhCalc(proj, jan, dd){
 // Resumo curto para o <summary> da seção e para o texto copiado do relatório.
 function srhResumo(c){
   const t=(c&&c.tot)||{}; return { plan:t.plan||0, real:t.real||0, exec:t.exec==null?null:t.exec };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// R254 · 📈 Tendência: as `n` semanas terminando na semana padrão, lidas em blocos de 4 semanas.
+
+// Segundas das `n` semanas (da mais antiga à mais nova), a última = srhJanela(hoje,'').wPad. Pura.
+function srhTendSemanas(hoje, n){
+  const wPad=srhJanela(hoje,'').wPad; const q=Math.max(1,Math.min(SRH_SEMANAS_MAX,Number(n)||SRH_TEND_PADRAO)); const r=[];
+  for(let i=q-1;i>=0;i--) r.push(mtsSoma(wPad,-7*i));
+  return r;
+}
+
+// Blocos de 4 semanas alinhados a wPad: [{k:<1ª segunda>, de, ate:<domingo da última>, semanas, corrente}], do mais antigo ao mais novo. Pura.
+function srhTendBlocos(hoje, n){
+  const sem=srhTendSemanas(hoje,n); const cur=semChave(hoje); const blocos=[];
+  for(let i=sem.length;i>0;i-=SRH_TEND_BLOCO){
+    const fim=i, ini=Math.max(0,i-SRH_TEND_BLOCO); const ws=sem.slice(ini,fim);
+    blocos.unshift({ k:ws[0], de:ws[0], ate:mtsSoma(ws[ws.length-1],6), semanas:ws, corrente:ws.indexOf(cur)>=0 });
+  }
+  return blocos;
+}
+
+// Cache válido do bloco (mesma identidade, dentro do TTL conforme corrente) ou null.
+function srhTendDadosBloco(k, corrente){
+  const h=srhEstado(); const c=h.tend.cache[k]; if(!c) return null;
+  const id=(typeof idApontar==='function')?idApontar():null;
+  const acc=(id&&id.accountId)||'';
+  if(!acc||c.idk!==acc) return null;
+  const ttl=(corrente?SRH_CACHE_MIN:SRH_TEND_CACHE_MIN)*60000;
+  if(Date.now()-(c.em||0)>ttl) return null;
+  return c;
+}
+
+// Dispara os blocos que faltam (no máximo SRH_TEND_VOO em voo). true = tudo já em cache. `forca` relê só o bloco corrente e os com erro.
+function srhTendCarrega(hoje, n, forca){
+  const h=srhEstado();
+  const id=(typeof idApontar==='function')?idApontar():null;
+  const acc=(id&&id.accountId)||'';
+  if(!acc) return false;
+  const blocos=srhTendBlocos(hoje,n);
+  if(forca) blocos.forEach(b=>{ if(b.corrente||h.tend.erro[b.k]){ h.tend.forca[b.k]=true; delete h.tend.erro[b.k]; } });
+  const aviso=()=>{ if(typeof srhAoChegar==='function'){ try{ srhAoChegar(); }catch(e){} } };
+  const falta=()=>blocos.filter(b=>(h.tend.forca[b.k]||!srhTendDadosBloco(b.k,b.corrente)) && !h.tend.voo[b.k] && !h.tend.erro[b.k]);
+  const lanca=(b)=>{
+    const nc=!!h.tend.forca[b.k]; delete h.tend.forca[b.k]; h.tend.voo[b.k]=true;
+    const ultima=b.semanas[b.semanas.length-1];
+    const planP=mpApi({acao:'relatorio', de:b.de, ate:ultima}).catch(e=>({ok:false, erro:humanizaErro(e)}));
+    const tempoP=fetch('/api/tempo?desde='+encodeURIComponent(b.de)+'&ate='+encodeURIComponent(b.ate)+(nc?'&nocache=1':''))
+      .then(jsonOuErro).catch(e=>({erro:humanizaErro(e)}));
+    Promise.all([planP,tempoP]).then(([pj,tj])=>{
+      delete h.tend.voo[b.k];
+      const idAgora=(typeof idApontar==='function')?idApontar():null;
+      if(!idAgora||idAgora.accountId!==acc){ aviso(); return; }       // trocou de identidade no meio: descarta
+      if(!tj||tj.erro||!tj.meta||tj.meta.janela!=='custom'||tj.meta.startDate!==b.de){
+        h.tend.erro[b.k]=(tj&&tj.erro)?humanizaErro(tj.erro):'o servidor não devolveu os apontamentos destas semanas';
+      } else {
+        const okPlano=!!(pj&&pj.ok===true);
+        h.tend.cache[b.k]={ em:Date.now(), idk:acc,
+          planos: okPlano?(Array.isArray(pj.planos)?pj.planos:[]):null,
+          planoErro: okPlano?'':humanizaErro((pj&&pj.erro)||'não consegui ler os planos'),
+          wl:Array.isArray(tj.worklogs)?tj.worklogs:[], pessoas:tj.pessoas||{}, projetos:tj.projetos||{}, resumos:tj.resumos||{} };
+      }
+      bombeia(); aviso();
+    }).catch(e=>{ delete h.tend.voo[b.k]; h.tend.erro[b.k]=humanizaErro(e); bombeia(); aviso(); });
+  };
+  const bombeia=()=>{
+    const ids=Object.keys(h.tend.voo).length;
+    falta().slice(0,Math.max(0,SRH_TEND_VOO-ids)).forEach(lanca);
+  };
+  const pend=falta();
+  if(!pend.length) return !blocos.some(b=>h.tend.voo[b.k]);
+  bombeia();
+  return false;
+}
+
+// Conta da tendência (pura). `blocosDd` = {[k]:dd|null}. Formato: ver o plano (inicio-plano/plano-fable.md, 2.9).
+function srhTendCalc(proj, hoje, n, blocosDd){
+  blocosDd=blocosDd||{};
+  const sem=srhTendSemanas(hoje,n); const blocos=srhTendBlocos(hoje,n);
+  const kDe={}; blocos.forEach(b=>b.semanas.forEach(w=>{ kDe[w]=b.k; }));
+  const semanas=[], faltam=[], porPessoa={};
+  sem.forEach(w=>{
+    const jan=srhJanela(hoje,w); const dd=blocosDd[kDe[w]]||null;
+    if(!dd){
+      faltam.push(w);
+      semanas.push({ w, de:jan.de, ate:jan.ate, parcial:!!jan.atual, lido:false, parcialPlano:false, antesVig:false, plan:0, real:0, exec:null, fora:0, semPlano:0 });
+      return;
+    }
+    const c=srhCalc(proj,jan,dd);
+    semanas.push({ w, de:jan.de, ate:jan.ate, parcial:!!jan.atual, lido:true, parcialPlano:dd.planos==null, antesVig:!!c.antesVig,
+      plan:c.tot.plan, real:c.tot.real, exec:c.tot.exec, fora:c.tot.foraDoPlano, semPlano:c.tot.semPlano });
+    c.pessoas.forEach(p=>{
+      const R=porPessoa[p.a]=porPessoa[p.a]||{ a:p.a, nome:p.nome, pts:{} };
+      let sit, cor; const pl=p.temPlano?p.plan:null;
+      if(pl==null){ sit='sem plano'; cor='nd'; }
+      else if(pl===0&&p.real===0){ sit=''; cor=''; }
+      else { const r=mpSitDe(pl,p.real); sit=r.sit; cor=r.cor; }
+      R.pts[w]={ w, lido:true, plan:pl, real:p.real, exec:(pl!=null&&pl>0)?(p.real/pl*100):null, cor, sit };
+    });
+  });
+  const pessoas=Object.keys(porPessoa).map(a=>{
+    const R=porPessoa[a]; let plan=0, real=0, semanasCom=0;
+    const pts=sem.map(w=>{
+      const pt=R.pts[w];
+      if(pt){ semanasCom++; real+=pt.real; if(pt.plan!=null) plan+=pt.plan; return pt; }
+      const lido=semanas[sem.indexOf(w)].lido;
+      return { w, lido, plan:null, real:0, exec:null, cor:'', sit:'' };
+    });
+    return { a, nome:R.nome, pts, plan, real, exec:plan>0?(real/plan*100):null, semanasCom };
+  });
+  pessoas.sort((x,y)=>(y.plan-x.plan)||(y.real-x.real)||String(x.nome).localeCompare(String(y.nome),'pt-BR'));
+  const tot={ plan:0, real:0, exec:null, fora:0 };
+  semanas.forEach(s=>{ if(s.lido){ tot.plan+=s.plan; tot.real+=s.real; tot.fora+=s.fora; } });
+  tot.exec=tot.plan>0?(tot.real/tot.plan*100):null;
+  return { proj, n:sem.length, semanas, pessoas, tot, faltam };
+}
+
+// Resumo curto da tendência para o texto do 📋 Copiar.
+function srhTendResumo(t){
+  const s=(t&&t.semanas)||[]; const x=(t&&t.tot)||{};
+  return { plan:x.plan||0, real:x.real||0, exec:x.exec==null?null:x.exec, n:s.length, lidas:s.filter(w=>w.lido).length };
 }

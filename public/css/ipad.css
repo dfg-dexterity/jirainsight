@@ -230,23 +230,40 @@
 
 /* ---- 🍎 grupo: inicio (⚡ Ações de hoje) ---- */
 @media (hover:none) and (pointer:coarse) and (min-width:761px){
-  .hxd-row a{display:flex;align-items:center;min-height:44px}
+  .hxd-row a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px}
   #conteudo .apr-l,#conteudo .vp-row{min-height:44px;box-sizing:border-box;align-items:center}
   #conteudo details>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
-  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
+  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-pct,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
   #conteudo [style*="font-size:11.5px"]{font-size:12px!important}
+  #conteudo .ax-fila-l{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-fila-l>.btn,#conteudo .ax-chip,#conteudo .ax-fila-mais,#conteudo .ax-topo-btns .btn{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-sec>summary{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-sev,#conteudo .ax-sec-res,#conteudo .ax-fila-l .ax-det{font-size:12px}
+  #conteudo .ax-grid.ax-estado{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media (pointer:coarse){
 @media (min-width:601px) and (max-width:760px){
-  .hxd-row a{display:flex;align-items:center;min-height:44px}
+  .hxd-row a{display:flex;align-items:center;justify-content:center;min-height:44px;min-width:44px}
   #conteudo .apr-l,#conteudo .vp-row{min-height:44px;box-sizing:border-box;align-items:center}
   #conteudo details>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
-  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
+  #conteudo .badge,#conteudo .hx-atalho .hx-area,#conteudo .apr-pct,#conteudo .apr-st,#conteudo .apr-eu,#conteudo .apr-kpi span,#conteudo .ax-fontes span,#conteudo .apr-cab span,#conteudo .nov-data{font-size:12px}
   #conteudo [style*="font-size:11.5px"]{font-size:12px!important}
   #conteudo .btn,#abas .aba,#conteudo .aba{min-height:44px;box-sizing:border-box}
   #conteudo input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=hidden]),#conteudo select,#conteudo textarea{min-height:44px;box-sizing:border-box}
   #conteudo a.small,#conteudo .hxd-row a{min-height:44px}
+  #conteudo .ax-fila-l{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-fila-l>.btn,#conteudo .ax-chip,#conteudo .ax-fila-mais,#conteudo .ax-topo-btns .btn{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-sec>summary{min-height:44px;box-sizing:border-box}
+  #conteudo .ax-sev,#conteudo .ax-sec-res,#conteudo .ax-fila-l .ax-det{font-size:12px}
 }}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  /* com a barra lateral o conteúdo perde 272 px: a grade "Meu dia" e a fila medem o CONTEÚDO, não a janela */
+  @container conteudo (max-width:780px){
+    #conteudo .hxd-grid{grid-template-columns:minmax(0,1fr)}
+    #conteudo .ax-fila-l{grid-template-columns:auto minmax(0,1fr) auto auto}
+    #conteudo .ax-fila-l>.ax-det{grid-column:1/-1;grid-row:2;white-space:normal}
+  }
+}
 /* ---- fim: inicio ---- */
 
 /* ---- 🍎 grupo: pessoal (Inbox, Menções, Meu dia, Roadmap, Meu Planejamento, Planejado × realizado, 🎯 Prioridades) ---- */
@@ -256,7 +273,7 @@
   #conteudo .mp-btn.mp-add{display:flex}
   #conteudo button.chip,#conteudo .ap-vis .chip{min-height:44px;box-sizing:border-box}
   #conteudo label:has(input[type=checkbox]),#conteudo label:has(input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
-  #conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
+  #conteudo .mp-tag,#conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
   #conteudo .mp-2col>*{min-width:0;overflow-x:auto}
   #conteudo .pr-selo,#conteudo .pr-chip{font-size:12px}
   #abas .abas-tela .abas-rot,.abas-tela .abas-rot{font-size:12px}
@@ -269,7 +286,7 @@
   #conteudo .mp-btn.mp-add{display:flex}
   #conteudo button.chip,#conteudo .ap-vis .chip{min-height:44px;box-sizing:border-box}
   #conteudo label:has(input[type=checkbox]),#conteudo label:has(input[type=radio]){min-height:44px;display:inline-flex;align-items:center;gap:8px}
-  #conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
+  #conteudo .mp-tag,#conteudo .mp-kpi .l,#conteudo .kpi .l,#conteudo .mpg-sub,#conteudo .mp-ferr label,#conteudo .mn-ferr label,#conteudo .mp-tab-cmp th,#conteudo .mp-tab-mini th,#conteudo .mp-dim,#conteudo code{font-size:12px}
   #conteudo .mp-2col>*{min-width:0;overflow-x:auto}
   #conteudo .pr-selo,#conteudo .pr-chip{font-size:12px}
   #abas .abas-tela .abas-rot,.abas-tela .abas-rot{font-size:12px}
@@ -681,6 +698,28 @@
     #conteudo .sr-h-tab th,#conteudo .sr-h-tab td{display:inline-flex;align-items:center;gap:6px;border-bottom:0;padding:1px 0;text-align:left}
     #conteudo .sr-h-tab tbody th{flex:0 0 100%}
     #conteudo .sr-h-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
+  }
+}
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  #conteudo .sr-h-modos button,#conteudo .sr-t-barra .chip,#conteudo .sr-t-barra .gp-mini,#conteudo .sr-t-barra .btn,#conteudo .sr-t-tab thead th[data-sr-t-w],#conteudo .sr-t-tab tr[data-sr-t-p]{min-height:44px;box-sizing:border-box}
+  #conteudo .sr-t-c,#conteudo .sr-t-tab thead th{font-size:12px}
+}
+@media (pointer:coarse){
+@media (min-width:601px) and (max-width:760px){
+  #conteudo .sr-h-modos button,#conteudo .sr-t-barra .chip,#conteudo .sr-t-barra .gp-mini,#conteudo .sr-t-barra .btn,#conteudo .sr-t-tab thead th[data-sr-t-w],#conteudo .sr-t-tab tr[data-sr-t-p]{min-height:44px;box-sizing:border-box}
+  #conteudo .sr-t-c,#conteudo .sr-t-tab thead th{font-size:12px}
+}}
+@media screen and (hover:none) and (pointer:coarse) and (min-width:1024px){
+  /* conteúdo estreito com a barra lateral: os gráficos da tendência em 1 coluna e a grade vira cartão por pessoa */
+  @container conteudo (max-width:780px){
+    #conteudo .sr-t-graf{grid-template-columns:minmax(0,1fr)}
+    #conteudo .sr-t-tab,#conteudo .sr-t-tab tbody,#conteudo .sr-t-tab tfoot{display:block}
+    #conteudo .sr-t-tab thead{display:none}
+    #conteudo .sr-t-tab tr{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--linha)}
+    #conteudo .sr-t-tab th,#conteudo .sr-t-tab td{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-bottom:0;padding:1px 0;min-width:44px;flex:0 0 auto}
+    #conteudo .sr-t-tab tbody th{flex:0 0 100%;justify-content:flex-start}
+    #conteudo .sr-t-tab td{flex-direction:column;min-height:44px}
+    #conteudo .sr-t-tab td::before{content:attr(data-rot);font-size:11px;color:var(--muted)}
   }
 }
 /* ---- fim: statusrep ---- */
