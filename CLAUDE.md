@@ -2,6 +2,18 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🧭 Plano do acompanhamento do gerente de projeto (2026-11-22, a pedido do usuário: "pesquisa de mercado para ver como meu
+  gerente pode acompanhar os projetos de forma mais eficiente — como o pessoal usa o tempo no projeto, se faz update dos tickets;
+  crie itens no roadmap do Notion, depois eu escolho"):** só planejamento, nada no app mudou. Pesquisa de mercado (web, ~40 buscas,
+  com URLs) + inventário do que o gerente já tem (conferido no código) + plano do Fable → **`docs/acompanhamento-gerente-2026-11-22.md`**.
+  Entraram no `ROADMAP` (e na base do Notion) **R262–R275**: cockpit "Meus projetos", horas no término, tempo por épico, apontamento em
+  dia, envelhecimento em dias úteis, status incoerente, ritmo semanal do status report, check-in do consultor, modo reunião, semáforo
+  com fatores, registro de riscos, escopo, previsão em faixa e financeiro do projeto. Foram reescritos R182, R257, R165 (absorve o aviso
+  do R041), R041, R255, R090, R174, R181, R176, R175, R251, R115 e R130. Princípios que valem para a execução: lembrete à pessoa antes
+  do gerente; sem vigilância (só ticket e apontamento, a pessoa vê o mesmo número, sem ranking novo); risco sempre explicado; resumo
+  semanal com o crítico fora dele; dado faltando ≠ zero; dias úteis; reusar `srhCalc`/`mpSitDe`/`srSaudeAuto`/`rpVendEntre`/`crLinhas`.
+  Ordem sugerida (o dono escolhe): pacote 1 = R262 + R267 + R266; pacote 2 = R269 + R268 + R271 (+ R090, R181); pacote 3 = R263 + R264 +
+  R165, depois R274, R273, R272, R275.
 - **🌸 Iconografia dos apps no Hub (2026-11-22, a pedido do usuário: "atualize com a nova iconografia que criamos para o app"):**
   a fonte é o projeto do Claude Design **"Ícones Dexterity com pétalas coloridas"** (artifact `Hq8iYCRBovq5AwSoU18wzh`): quatro
   apps, quatro pétalas — People sup.esq roxo, **Hub sup.dir cerceta `#009994`**, Assessment inf.esq musgo, Controlling inf.dir
