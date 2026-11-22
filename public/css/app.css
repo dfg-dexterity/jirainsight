@@ -154,29 +154,36 @@
   .brand:hover{opacity:.85}
   .brand:focus-visible{outline:2px solid var(--cerceta);outline-offset:2px}
   .brand .mark{width:36px;height:36px;flex:0 0 auto;display:block;object-fit:contain}
-  /* ---- Marca Dexterity ANIMADA no cabeçalho (geometria oficial do moinho) ----
-     Três estados, cada um com uma função — nada de laço rodando à toa:
-       • dx-entra    → "pivô": cada pétala gira no próprio canto interno ao abrir o painel;
-       • carregando  → "ciclo": a luz percorre as pétalas enquanto há chamada à API no ar
-                       (o cabeçalho vira o indicador de atividade do painel);
-       • ímã         → as pétalas acompanham de leve o ponteiro sobre a marca (JS).
-     As pétalas usam as variáveis do tema, então a marca acompanha claro/escuro.
-     Tudo desligado em prefers-reduced-motion. */
-  .dxlogo{overflow:visible}
-  .dxp{transform-box:view-box;transform-origin:312.3px 96.6px;
-    transition:transform .38s cubic-bezier(.22,1,.3,1),opacity .3s ease}
-  .dx-entra .dxp{opacity:0;animation:dx-pivo 1.05s cubic-bezier(.16,1,.3,1) forwards}
-  .dx-entra .dxp--tl{transform-origin:306.6px 90.7px;animation-delay:0s}
-  .dx-entra .dxp--bl{transform-origin:306.6px 102.1px;animation-delay:.08s}
-  .dx-entra .dxp--br{transform-origin:318px 102.5px;animation-delay:.16s}
-  .dx-entra .dxp--tr{transform-origin:318px 91px;animation-delay:.26s}
-  @keyframes dx-pivo{from{opacity:0;transform:rotate(-26deg) scale(.9)}to{opacity:1;transform:none}}
-  .dxlogo.carregando .dxp{opacity:.16;animation:dx-ciclo 1.9s cubic-bezier(.4,0,.2,1) infinite}
-  .dxlogo.carregando .dxp--tr{animation-delay:0s}
-  .dxlogo.carregando .dxp--br{animation-delay:.24s}
-  .dxlogo.carregando .dxp--bl{animation-delay:.48s}
-  .dxlogo.carregando .dxp--tl{animation-delay:.72s}
-  @keyframes dx-ciclo{0%,55%,100%{opacity:.16;transform:none}18%{opacity:1;transform:scale(1.05)}}
+  /* ---- Marca do Dexterity Hub no cabeçalho — iconografia dos apps Dexterity (2026-11-22) ----
+     Quatro apps, quatro pétalas: o Hub fala pela pétala SUPERIOR DIREITA, em cerceta; as outras três ficam
+     neutras (a cor do texto do tema). Geometria oficial, sem um ponto alterado. Os movimentos são os do
+     pacote de ícones (public/icons/marca/dexterity-app-icons.css), presos às variáveis do tema:
+       • dx-entra    → abertura, uma vez: as pétalas chegam do centro (0,9 s cada) e a do Hub entra por último;
+       • carregando  → laço: a cor dá a volta nas pétalas (1,6 s) enquanto há chamada à API no ar
+                       e para na pétala do Hub (o cabeçalho é o indicador de atividade do painel);
+       • onda        → passar o mouse ou focar a marca: a cor atravessa o símbolo;
+       • dx-inativo  → versão tonal, sem cor, enquanto o app está sem rede (faixa "Sem conexão").
+     Tudo parado em prefers-reduced-motion. */
+  .dxlogo{--mk:var(--grafite);--acc:var(--marca);overflow:visible}
+  .dxlogo.dx-inativo{--mk:#A5A099;--acc:#6E6A64}
+  [data-theme="dark"] .dxlogo.dx-inativo,[data-theme="dexterity"] .dxlogo.dx-inativo{--mk:#6E6A64;--acc:#A5A099}
+  .dxp{--a:var(--mk);--b:var(--acc);fill:var(--a);transform-box:view-box;transform-origin:312.3px 96.6px;transition:fill .25s}
+  /* --o: ordem na abertura · --volta: quarto do laço · --w: atraso da onda (a pétala do Hub é a última e a que tem cor) */
+  .dxp--tl{--dx:26px;--dy:22px;--w:0s;--o:0;--volta:dx-volta-1}
+  .dxp--bl{--dx:26px;--dy:-22px;--w:.045s;--o:1;--volta:dx-volta-2}
+  .dxp--br{--dx:-26px;--dy:-22px;--w:.135s;--o:2;--volta:dx-volta-3}
+  .dxp--tr{--dx:-26px;--dy:22px;--w:.09s;--o:3;--x:.02s;--volta:dx-volta-0;--a:var(--acc);--b:var(--mk)}
+  .dx-entra .dxp{animation:dx-abre .9s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(.05s + var(--o,0)*.09s + var(--x,0s))}
+  @keyframes dx-abre{from{opacity:0;transform:scale(.86) translate(var(--dx),var(--dy))}to{opacity:1;transform:none}}
+  /* o laço espera a abertura terminar (na entrada do app as leituras começam junto) */
+  .dxlogo.carregando:not(.dx-entra) .dxp{animation:1.6s linear infinite;animation-name:var(--volta)}
+  @keyframes dx-volta-0{0%,15%{fill:var(--acc)}25%,90%{fill:var(--mk)}100%{fill:var(--acc)}}
+  @keyframes dx-volta-1{0%,15%{fill:var(--mk)}25%,40%{fill:var(--acc)}50%,100%{fill:var(--mk)}}
+  @keyframes dx-volta-2{0%,40%{fill:var(--mk)}50%,65%{fill:var(--acc)}75%,100%{fill:var(--mk)}}
+  @keyframes dx-volta-3{0%,65%{fill:var(--mk)}75%,90%{fill:var(--acc)}100%{fill:var(--mk)}}
+  .brand:hover .dxlogo:not(.dx-entra):not(.carregando):not(.dx-inativo) .dxp,
+  .brand:focus-visible .dxlogo:not(.dx-entra):not(.carregando):not(.dx-inativo) .dxp{animation:dx-onda .95s ease var(--w,0s) both}
+  @keyframes dx-onda{0%,100%{fill:var(--a)}45%{fill:var(--b)}}
   @media (prefers-reduced-motion:reduce){
     .dxp{transition:none!important;animation:none!important;opacity:1!important;transform:none!important}
   }
@@ -3275,8 +3282,8 @@
   [data-theme="dexterity"] .chip[aria-pressed="true"],[data-theme="dexterity"] .chip.on{background:rgba(0,153,148,.14);border-color:rgba(0,179,172,.5);color:var(--cerceta)}
   [data-theme="dexterity"] input,[data-theme="dexterity"] select,[data-theme="dexterity"] textarea{background:var(--cartao);color:var(--grafite);border-color:var(--linha)}
   [data-theme="dexterity"] :focus-visible{outline:2px solid var(--amarelo);outline-offset:2px}
-  /* A marca no cabeçalho: pétalas off-white com a de cima à direita em cerceta, como no site. */
-  [data-theme="dexterity"] .dxp{fill:var(--grafite)} [data-theme="dexterity"] .dxp--tr{fill:var(--marca)}
+  /* A marca no cabeçalho: pétalas off-white com a de cima à direita em cerceta, como no site — vem das variáveis
+     do tema (--grafite/--marca) pela regra da marca no topo deste arquivo; uma regra de fill aqui venceria o laço e o tonal. */
   /* Cantos retos: tudo que era cartão ou pílula (8–16px e 999px) vira 2px; os círculos (50%) ficam. */
   [data-theme="dexterity"] .btn,[data-theme="dexterity"] input,[data-theme="dexterity"] select,[data-theme="dexterity"] textarea,[data-theme="dexterity"] .seg button,[data-theme="dexterity"] .badge,
   [data-theme="dexterity"] #print-doc .doc-k,

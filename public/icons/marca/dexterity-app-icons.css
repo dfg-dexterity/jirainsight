@@ -1,0 +1,66 @@
+@charset "UTF-8";
+/* Dexterity · ícones de aplicativo: movimento e estados para SVG inline
+   ----------------------------------------------------------------------
+   Marcação (a mesma do site, com a classe do app no <svg>):
+
+     <svg class="dx-appmark dx-appmark--hub" viewBox="206.8 19 195.4 155.1" role="img" aria-label="Dexterity Hub">
+       <path class="dx-pt dx-pt--tl" d="..."/>
+       <path class="dx-pt dx-pt--tr" d="..."/>
+       <path class="dx-pt dx-pt--bl" d="..."/>
+       <path class="dx-pt dx-pt--br" d="..."/>
+     </svg>
+
+   App        dx-appmark--people | dx-appmark--hub | dx-appmark--assessment | dx-appmark--controlling
+   Fundo      escuro por padrão; dx-appmark--claro para superfície clara
+   Abertura   dx-appmark--abre      toca uma vez; a pétala do app entra por último
+   Laço       dx-appmark--carrega   a cor dá a volta e para na pétala do app
+   Inativo    dx-appmark--inativo   versão tonal, sem cor
+   Onda       dx-appmark-hit no link ou botão que envolve o símbolo (hover e foco),
+              ou dx-appmark--onda no próprio <svg>
+
+   Os arquivos -opening.svg e -loading.svg trazem estas regras dentro e
+   funcionam em <img>. Com prefers-reduced-motion: reduce nada se move. */
+
+.dx-appmark{--mk:#F7F3E7;--acc:#009994;display:block;overflow:visible}
+.dx-appmark--claro{--mk:#4D4D4D}
+.dx-appmark--people{--acc:#98569A}
+.dx-appmark--hub{--acc:#009994}
+.dx-appmark--assessment{--acc:#597C59}
+.dx-appmark--controlling{--acc:#FFA436}
+.dx-appmark.dx-appmark--inativo{--mk:#6E6A64;--acc:#A5A099}
+.dx-appmark.dx-appmark--claro.dx-appmark--inativo{--mk:#A5A099;--acc:#6E6A64}
+
+/* pétalas: --a é a tinta de repouso, --b a tinta da onda */
+.dx-appmark .dx-pt{--a:var(--mk);--b:var(--acc);fill:var(--a);transform-box:view-box;transform-origin:312.3px 96.6px;transition:fill .25s}
+.dx-appmark .dx-pt--tl{--dx:26px;--dy:22px;--w:0s}
+.dx-appmark .dx-pt--bl{--dx:26px;--dy:-22px;--w:.045s}
+.dx-appmark .dx-pt--tr{--dx:-26px;--dy:22px;--w:.09s}
+.dx-appmark .dx-pt--br{--dx:-26px;--dy:-22px;--w:.135s}
+
+/* ordem de entrada (--o) e quarto do laço (--volta); a última linha é a pétala do app */
+.dx-appmark--people .dx-pt--bl,.dx-appmark--hub .dx-pt--tl,.dx-appmark--assessment .dx-pt--br,.dx-appmark--controlling .dx-pt--tr{--o:0;--volta:dxa-volta-1}
+.dx-appmark--people .dx-pt--br,.dx-appmark--hub .dx-pt--bl,.dx-appmark--assessment .dx-pt--tr,.dx-appmark--controlling .dx-pt--tl{--o:1;--volta:dxa-volta-2}
+.dx-appmark--people .dx-pt--tr,.dx-appmark--hub .dx-pt--br,.dx-appmark--assessment .dx-pt--tl,.dx-appmark--controlling .dx-pt--bl{--o:2;--volta:dxa-volta-3}
+.dx-appmark--people .dx-pt--tl,.dx-appmark--hub .dx-pt--tr,.dx-appmark--assessment .dx-pt--bl,.dx-appmark--controlling .dx-pt--br{--o:3;--x:.02s;--volta:dxa-volta-0;--a:var(--acc);--b:var(--mk)}
+
+/* abertura: a do site, 0,9 s por pétala, atrasos de 0,05 / 0,14 / 0,23 / 0,34 s */
+.dx-appmark--abre .dx-pt{animation:dxa-abre .9s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(.05s + var(--o,0)*.09s + var(--x,0s))}
+@keyframes dxa-abre{from{opacity:0;transform:scale(.86) translate(var(--dx),var(--dy))}to{opacity:1;transform:none}}
+
+/* laço de carregamento: 1,6 s por volta, 0,4 s em cada pétala */
+.dx-appmark--carrega .dx-pt{animation:1.6s linear infinite;animation-name:var(--volta)}
+@keyframes dxa-volta-0{0%,15%{fill:var(--acc)}25%,90%{fill:var(--mk)}100%{fill:var(--acc)}}
+@keyframes dxa-volta-1{0%,15%{fill:var(--mk)}25%,40%{fill:var(--acc)}50%,100%{fill:var(--mk)}}
+@keyframes dxa-volta-2{0%,40%{fill:var(--mk)}50%,65%{fill:var(--acc)}75%,100%{fill:var(--mk)}}
+@keyframes dxa-volta-3{0%,65%{fill:var(--mk)}75%,90%{fill:var(--acc)}100%{fill:var(--mk)}}
+
+/* onda de hover e foco: a do site, 0,95 s, 45 ms entre pétalas */
+.dx-appmark-hit:hover .dx-appmark:not(.dx-appmark--abre):not(.dx-appmark--carrega):not(.dx-appmark--inativo) .dx-pt,
+.dx-appmark-hit:focus-visible .dx-appmark:not(.dx-appmark--abre):not(.dx-appmark--carrega):not(.dx-appmark--inativo) .dx-pt,
+.dx-appmark--onda:not(.dx-appmark--abre):not(.dx-appmark--carrega):not(.dx-appmark--inativo):hover .dx-pt{animation:dxa-onda .95s ease var(--w,0s) both}
+.dx-appmark-hit:hover .dx-appmark--abre .dx-pt,
+.dx-appmark-hit:focus-visible .dx-appmark--abre .dx-pt,
+.dx-appmark--abre.dx-appmark--onda:hover .dx-pt{animation:dxa-abre .9s cubic-bezier(.16,1,.3,1) both,dxa-onda .95s ease both;animation-delay:calc(.05s + var(--o,0)*.09s + var(--x,0s)),var(--w,0s)}
+@keyframes dxa-onda{0%,100%{fill:var(--a)}45%{fill:var(--b)}}
+
+@media (prefers-reduced-motion:reduce){.dx-appmark .dx-pt{animation:none!important;transition:none}}
