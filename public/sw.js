@@ -21,10 +21,10 @@
 //     {tipo:'navegar', url} (ou abre a janela); 'pushsubscriptionchange' reinscreve com a chave pública guardada em 'ji-push'
 //     e entrega a inscrição nova à página (a página tem a identidade; o SW não guarda token).
 //  3) /icons/ (splash, selo) em cache-first por prefixo, só quando pedidos.
-const VERSAO = 'ji-pwa-v3';
+const VERSAO = 'ji-pwa-v4';   // v4 (2026-11-22): ícones da iconografia dos apps (o cache-first de /icons/ precisa de cache novo)
 const DADOS = 'ji-dados-v2';
 const PUSHC = 'ji-push';
-const ESTATICOS = ['/manifest.webmanifest', '/logo.svg',
+const ESTATICOS = ['/manifest.webmanifest', '/logo.svg', '/icons/marca/dexterity-hub-favicon.svg',
   '/icons/icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 const DADOS_ROTAS = ['/api/config', '/api/vencimentos', '/api/tempo', '/api/atividade', '/api/usuarios', '/api/projetos', '/api/reunioes', '/api/resumo'];
 const DADOS_PARAM_PROIBIDO = ['uso', 'pcli', 'push', 'custos', 'portal', 'ct', 'ref', 'dec', 'kpis', 'rentabhist', 'semanal', 'sr', 'disc'];

@@ -601,7 +601,7 @@ dos cartões. Funciona em qualquer aba (ideal na Visão Geral).
   fica sublinhado e as linhas com algo esperando ação mostram o número (`navMenuContadores`). Desenho em
   `docs/menus-areas-2026-11-05.md` e `docs/menu-meu-trabalho-2026-10-27.md`. Cada item usa **ícones de linha** (SVG
   monocromático, sprite `#ic-*`).
-- **Logo (canto superior esquerdo):** a **marca Dexterity** (pinwheel oficial em SVG, `public/logo.svg`) — clicável, volta para o início (Visão Geral).
+- **Logo (canto superior esquerdo):** a **marca do Dexterity Hub** (iconografia dos apps, pétala superior direita em cerceta) — clicável, volta para a tela inicial; a cor dá a volta nas pétalas enquanto o painel busca dados e fica cinza sem conexão.
 - **✨ Novidades:** botão no topo abre a lista do que há de novo (com indicador quando há algo não visto; persiste em `localStorage`).
 - **↑ Topo:** botão flutuante que aparece ao rolar e volta ao topo da página.
 - **Aba ⏱ Apontar:** lista **agrupada por projeto** com cabeçalho **clicável** (expande/recolhe; “Expandir/Recolher todos”) e **ícones do Jira** para tipo (épico/tarefa/bug…) e prioridade (`/api/vencimentos` devolve `tIcon`/`prioIcon`).
@@ -1227,10 +1227,15 @@ senha. Todos do time acessam o painel com a mesma senha. (Recurso de planos pago
 - Cores e tipografia oficiais já estão aplicadas. As fontes **Proxima Soft** (títulos) e
   **Boston** (corpo) são proprietárias: se tiver os webfonts, coloque em `public/fonts/` e
   descomente os `@font-face` no topo do `index.html`. Sem eles, usa-se um fallback neutro.
-- O logo no cabeçalho é a **marca Dexterity** (pinwheel) em `public/logo.svg` — uma pétala única
-  replicada com rotações de 90° (3 grafite `#404040` + 1 cerceta `#17A398` no topo-direita).
-  O cabeçalho usa `<img src="/logo.svg">` e o mesmo arquivo serve de **favicon**; para trocar a
-  marca, basta substituir o `logo.svg`.
+- **Iconografia dos apps Dexterity (2026-11-22):** quatro apps, quatro pétalas — o **Hub** fala pela pétala
+  **superior direita, em cerceta `#009994`**; as outras três ficam neutras. Os arquivos do pacote estão em
+  `public/icons/marca/` (`dexterity-hub-favicon.svg` = aba do navegador; `-dark/-light` = ícone do app;
+  `-mark-dark/-mark-light` = a marca sem fundo; `-opening`, `-loading`, `-tonal` = abertura, laço e versão sem cor;
+  `dexterity-app-icons.css` = os movimentos de referência). Os PNG do app (`icon-180/192/512`, maskable) e as telas de
+  abertura do iOS saem de `node scripts/gera-splash.mjs` (fundo escuro `#1B1B1B`). A marca do cabeçalho é SVG inline
+  (`#dx-logo`) com as cores do tema e os movimentos do pacote: abertura (a pétala do Hub por último), laço enquanto há
+  chamada à `/api/`, onda no hover/foco e tonal sem rede. `public/logo.svg` (marca neutra) segue no 🌐 portal, no PDF e
+  no badge do push.
 
 ## Limitações conhecidas (v1)
 

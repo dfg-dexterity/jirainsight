@@ -152,16 +152,16 @@ document.getElementById('brand-home').addEventListener('click', ()=>{ dxLogoEntr
 document.getElementById('brand-home').addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); dxLogoEntra(); vaiPara(homePadrao()); } });
 
 // ===========================================================================
-// 🌀 MARCA DEXTERITY ANIMADA (cabeçalho) — a logo com movimento, com função:
-//   1) ENTRADA "pivô": ao abrir o painel (e ao clicar na marca) cada pétala
-//      gira no próprio canto interno, como uma íris abrindo;
-//   2) "CICLO" enquanto o painel busca dados: a luz percorre as pétalas
-//      enquanto houver chamada a /api/ no ar — o cabeçalho vira o indicador de
-//      atividade, sem spinner extra na tela;
-//   3) "ÍMÃ": passando o ponteiro sobre a marca, as pétalas acompanham de leve
-//      e voltam ao lugar — vida no cabeçalho sem laço rodando o tempo todo.
+// 🌀 MARCA DO DEXTERITY HUB (cabeçalho) — a iconografia dos apps Dexterity (2026-11-22):
+//   1) ABERTURA: ao abrir o painel (e ao clicar na marca) as pétalas chegam do centro
+//      e a pétala do Hub (superior direita, cerceta) entra por último — dx-entra;
+//   2) LAÇO enquanto o painel busca dados: a cor dá a volta nas pétalas enquanto
+//      houver chamada a /api/ no ar e para na pétala do Hub — o cabeçalho é o
+//      indicador de atividade, sem spinner extra na tela;
+//   3) ONDA no hover e no foco (só CSS: .brand:hover / :focus-visible);
+//   4) TONAL sem rede: offlinePinta (01) põe dx-inativo.
 // Quem pede menos movimento no sistema (prefers-reduced-motion) não recebe
-// nenhuma das três — o CSS zera tudo e o ímã nem é ligado.
+// nenhuma — o CSS zera tudo.
 // ===========================================================================
 const dxCalmo = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let _dxEntraT=null;
@@ -175,12 +175,10 @@ function dxLogoEntra(){
   _dxEntraT=setTimeout(()=>l.classList.remove('dx-entra'), 1400);
   if(dxCalmo){ l.classList.remove('dx-entra'); return; }
 
-  // --- ciclo enquanto carrega: conta as chamadas a /api/ no ar ---
-  const pts=[...l.querySelectorAll('.dxp')];
+  // --- laço enquanto carrega: conta as chamadas a /api/ no ar ---
   let noAr=0, liga=null;
-  const limpaIma=()=>pts.forEach(p=>{ p.style.transform=''; });
   const pinta=()=>{
-    if(noAr>0){ if(!liga) liga=setTimeout(()=>{ limpaIma(); l.classList.add('carregando'); }, 180); }
+    if(noAr>0){ if(!liga) liga=setTimeout(()=>{ l.classList.add('carregando'); }, 180); }
     else { clearTimeout(liga); liga=null; l.classList.remove('carregando'); }
   };
   const fetchOrig=window.fetch.bind(window);
@@ -191,25 +189,6 @@ function dxLogoEntra(){
     noAr+=1; pinta();
     return fetchOrig(...args).finally(()=>{ noAr=Math.max(0,noAr-1); pinta(); });
   };
-
-  // --- ímã: as pétalas acompanham o ponteiro (só em telas com ponteiro fino) ---
-  if(!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches)) return;
-  const C={tl:[256.7,54.85],tr:[360.1,55.2],bl:[256.7,138.1],br:[360.1,138.3]};
-  const quem=(el)=>(([...el.classList].find(c=>c.startsWith('dxp--'))||'').slice(5));
-  const brand=document.getElementById('brand-home');
-  brand.addEventListener('pointermove',(ev)=>{
-    if(l.classList.contains('dx-entra')||l.classList.contains('carregando')) return;
-    const r=l.getBoundingClientRect(); if(!r.width) return;
-    const x=206.8+((ev.clientX-r.left)/r.width)*195.4;
-    const y=-1.15+((ev.clientY-r.top)/r.height)*195.4;
-    pts.forEach(p=>{
-      const c=C[quem(p)]; if(!c) return;
-      const dx=x-c[0], dy=y-c[1], d=Math.hypot(dx,dy)||1, puxa=Math.min(13,520/d);
-      p.style.transform=`translate(${(dx/d*puxa).toFixed(2)}px,${(dy/d*puxa).toFixed(2)}px)`;
-    });
-  });
-  brand.addEventListener('pointerleave',limpaIma);
-  brand.addEventListener('pointercancel',limpaIma);
 })();
 // Botão "voltar ao topo": aparece após rolar a página.
 (function(){ const b=document.getElementById('to-top'); if(!b) return;

@@ -376,12 +376,14 @@ function toast(msg, tipo){
   setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>{ if(t.parentNode) t.remove(); },280); }, dur);
 }
 // 📡 OFFLINE DE LEITURA (2026-11-09, camada iPad): UM embrulho do window.fetch para /api/ da MESMA origem.
-// O service worker (sw.js v3) guarda a cópia dos GET da lista fechada e, sem rede, a devolve com o cabeçalho
+// O service worker (sw.js v3; v4 desde 2026-11-22) guarda a cópia dos GET da lista fechada e, sem rede, a devolve com o cabeçalho
 // X-JI-Offline (ISO de quando foi guardada). Aqui: GET que volta com o cabeçalho (ou navigator.onLine falso) liga
 // estado.offline={em,desde} e a faixa #offline-faixa; escrita (POST/PUT/PATCH/DELETE) sem rede é recusada ANTES da
 // rede com uma frase clara (os try/catch das telas já mostram o erro) — nada é gravado nem enfileirado.
 const OFFLINE_FRASE='📡 Sem conexão — nada foi gravado. Tente quando a internet voltar.';
 function offlinePinta(){
+  // a marca do cabeçalho fica na versão tonal (sem cor) enquanto não há rede — o "app inativo" da iconografia
+  const lg=document.getElementById('dx-logo'); if(lg) lg.classList.toggle('dx-inativo', !!estado.offline);
   const f=document.getElementById('offline-faixa'); if(!f) return;
   const o=estado.offline;
   if(!o){ f.hidden=true; f.textContent=''; return; }
