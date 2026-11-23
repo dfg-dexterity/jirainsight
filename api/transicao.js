@@ -5,7 +5,7 @@
 //
 // Corpos aceitos:
 //   { listar:true, issue, email, token }             -> { ok, transicoes:[{id,nome,para,categoria}] }
-//   { issue, transitionId, email, token }            -> executa a transição de status
+//   { issue, transitionId, email, token }            -> executa a transição de status; devolve { ok, issue, status:{nome,categoria} } (o status RESULTANTE)
 //   { reagendar:true, issue, duedate, email, token }  -> muda a data de vencimento (duedate: 'YYYY-MM-DD' ou null/'' p/ remover)
 //   { comentar:true, issue, texto, email, token }     -> adiciona um comentário ao chamado
 //     + reprogramacao:true -> comentário de REPROGRAMAÇÃO: em projetos das categorias
@@ -347,7 +347,16 @@ export default async function handler(req, res) {
     // O status mudou: derruba caches desta instância (lista de vencimentos e atividade).
     cacheClear('venc:');
     cacheClear('atividade:');
-    return json(res, 200, { ok: true, issue });
+    // O status RESULTANTE vai na resposta (2026-11-23, "fecho um ticket e ele continua aberto na ferramenta"): é por
+    // `status.categoria` que o painel sabe, num lugar só, que o ticket saiu dos abertos (done) ou voltou — o cache de
+    // /api/vencimentos mora em OUTRA função e não é limpo por este cacheClear. Falha da leitura não derruba a
+    // transição (que já aconteceu): a resposta só sai sem `status`.
+    let status = null;
+    try {
+      const ri = await fetch(`${base}/rest/api/3/issue/${encodeURIComponent(issue)}?fields=status`, { headers });
+      if (ri.ok) { const st = ((await ri.json()).fields || {}).status; if (st) status = { nome: st.name || '', categoria: (st.statusCategory && st.statusCategory.key) || '' }; }
+    } catch (e) { status = null; }
+    return json(res, 200, status ? { ok: true, issue, status } : { ok: true, issue });
   } catch (err) {
     return json(res, 500, { erro: String(err && err.message ? err.message : err) });
   }

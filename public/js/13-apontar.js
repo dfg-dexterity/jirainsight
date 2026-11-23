@@ -50,7 +50,7 @@ async function carregaVenc(ate, forca){
   const ap=estado.apontar;
   const key=ate+'|'+(ap.semVenc?1:0);
   if(!forca && ap.porData[key]) return ap.porData[key];
-  const nc=forca||ap.paiSujo;   // 🧩 depois de trocar um pai, a próxima leitura não pode vir do cache antigo do servidor
+  const nc=forca||ap.paiSujo||tkNocache();   // 🧩 depois de trocar um pai — e 🪦 depois de qualquer escrita (concluir, reagendar…) — a leitura não pode vir do cache antigo do servidor
   const r=await fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}${ap.semVenc?'&incluirSemVenc=1':''}${nc?'&nocache=1':''}`);
   const j=await r.json();
   if(j.erro) throw new Error(j.erro);
@@ -59,6 +59,35 @@ async function carregaVenc(ate, forca){
   j.lidoTs=Date.now();    // e a hora: o seletor 🎫 Ver meus tickets… relê quando a contagem tem mais de 5 min
   ap.porData[key]=j;
   return j;
+}
+
+// ---- 🔄 A lista não envelhece na tela (2026-11-23, "eu fecho um ticket e ele continua aberto na ferramenta") ----
+// A lista do Apontar vivia a sessão inteira: ticket concluído direto no Jira (ou por um colega) seguia "aberto" até o
+// ↻. Agora ela é relida em segundo plano, sem o cache do servidor, quando a pessoa VOLTA à aba (lista com mais de
+// 1 min) ou quando a tela é desenhada com a lista com mais de 5 min. Regras: uma leitura em voo; nunca por baixo de
+// quem está digitando, de quem trocou o dia/horas/comentário de uma linha ou com um painel/modal aberto (`apEditando`);
+// só redesenha se a lista MUDOU (`apAssinatura`).
+const AP_REVALIDA_VOLTA_MS=60*1000, AP_REVALIDA_TELA_MS=5*60*1000;
+function apAssinatura(d){ return ((d&&d.tickets)||[]).map(t=>[t.k,t.status,t.venc,t.respId,t.seg,t.resumo,t.pai].join('|')).join('\n'); }
+function apEditando(){
+  const m=document.getElementById('modal'); if(m&&!m.hidden) return true;
+  if(document.querySelector('.pg-bg')) return true;                       // 🚧 aviso do planejamento aberto
+  const c=document.getElementById('conteudo'); if(!c) return false;
+  if(c.querySelector('.ap-trans')) return true;                           // painel de status / reagendar / comentar / 🧩 pai aberto numa linha
+  const a=document.activeElement; if(a&&c.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox') return true;
+  // qualquer campo de uma linha que saiu do valor com que foi desenhado: horas, comentário e também o DIA (revisão do
+  // PR #243 — só o dia trocado, já sem foco, voltava para hoje no redesenho e as horas seguintes iam para o dia errado)
+  return [...c.querySelectorAll('.ap-row input, .ap-row textarea')].some(i=>i.type!=='checkbox'&&i.value!==i.defaultValue);
+}
+function apRevalida(minMs){
+  const ap=estado.apontar; if(estado.vista!=='apontar'||ap.carregando||ap.revalidando) return;
+  const chave=chaveVenc(); const d=ap.porData[chave]; if(!d||!d.lidoTs) return;
+  if(Date.now()-d.lidoTs<minMs||apEditando()) return;
+  ap.revalidando=true; const antes=apAssinatura(d); const ate=ap.ate;
+  carregaVenc(ate,true).then(j=>{ ap.revalidando=false;
+    if(estado.vista!=='apontar'||chaveVenc()!==chave||apAssinatura(j)===antes||apEditando()) return;   // igual, ou a pessoa começou a digitar: o próximo desenho já usa a lista nova
+    renderApontar();
+  }).catch(()=>{ ap.revalidando=false; });   // falhou: a lista da tela segue valendo; o ↻ e a próxima volta tentam de novo
 }
 
 // ---- Base das MINHAS horas por dia (2026-10-20, a pedido do usuário: "apontei num dia que já passou e o painel
@@ -83,6 +112,7 @@ function minhasLogsEntre(de, ate){
 // Ticket que saiu do Jira ou mudou de chave (reclassificar, vincular): o otimista dele não reconcilia nunca — sai.
 function apExtrasRemoveTicket(k){
   const ap=estado.apontar; if(!k) return;
+  tkSaiu(k);   // 🪦 a chave deixou de existir: sai das listas de abertos em memória e não volta pela releitura (cache do servidor)
   ap.extraLogs=(ap.extraLogs||[]).filter(x=>x.k!==k);
   const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
 }
@@ -406,6 +436,7 @@ function renderApontar(){
     return;
   }
 
+  setTimeout(()=>apRevalida(AP_REVALIDA_TELA_MS),0);   // 🔄 lista com mais de 5 min: relê por trás (só redesenha se mudou)
   const hoje=dados.meta.hoje||hojeSP();
   const id=idApontar();
   const projs=dados.projetos||{};
@@ -868,15 +899,19 @@ async function executaTransicao(btn){
       body:JSON.stringify({issue:k,transitionId:tid,email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
       const stBtn=row.querySelector('[data-ap-st]'); if(stBtn) stBtn.textContent=`${novo} ▾`;
-      const dados=estado.apontar.porData[chaveVenc()];
-      const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===k); if(t) t.status=novo;
+      Object.values(estado.apontar.porData).forEach(d=>{   // todas as datas em memória, não só a da tela
+        const t=d&&d.tickets&&d.tickets.find(x=>x.k===k); if(t) t.status=novo; });
       const tg=((estado.gestao&&estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k); if(tg) tg.status=novo;
-      const fechou=(catg==='done');
+      // 🪦 O status em que o ticket FICOU manda (a resposta traz `status`; sem ele vale a categoria do botão):
+      // concluído sai de TODAS as cópias em memória (Apontar de qualquer data, Início, Gestão…) e ganha a lápide —
+      // antes só a lista desta data perdia o ticket, e qualquer releitura o trazia de volta como aberto.
+      const catFinal=(j.status&&j.status.categoria)||catg;
+      tkStatusMudou(k, catFinal);
+      const fechou=(catFinal==='done');
       invalidaCacheDados();   // painéis recarregam dados frescos na próxima navegação
       if(fechou){
         // Concluído: o chamado SOME da lista (a tela mostra só abertos). Mostra o ✓,
         // esmaece a linha e re-renderiza (KPIs e contadores atualizam juntos).
-        if(dados&&dados.tickets) dados.tickets=dados.tickets.filter(x=>x.k!==k);
         row.classList.add('feito');
         area.innerHTML=`<span class="ap-fb ok">✓ ${esc(k)} concluído — saindo da lista…</span>`;
         row.style.transition='opacity .5s ease'; row.style.opacity='.35';
@@ -1474,3 +1509,5 @@ document.getElementById('conteudo').addEventListener('change', (e)=>{
   if(estado.vista!=='apontar') return; const t=e.target;
   if(t&&t.classList&&t.classList.contains('ap-data')&&t.value) apGaranteMeusLogs(t.value);
 });
+// 🔄 Voltou à aba (do Jira, de outra janela): a lista com mais de 1 min é relida por trás — ticket concluído lá fora sai sozinho.
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') apRevalida(AP_REVALIDA_VOLTA_MS); });

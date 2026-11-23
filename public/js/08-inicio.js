@@ -148,7 +148,8 @@ function axVencEnvelheceu(ax, hoje){
 function axCarregaVenc(forca){
   const ax=estado.acoes; ax.carregando=true; ax.erro='';
   const ate=somaDias(hojeSP(),30);
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+  // 🪦 depois de uma escrita (concluir, reagendar, apontar…) a releitura vai sem o cache de 5 min do servidor
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(ate)}&incluirSemVenc=1${(forca||tkNocache())?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.carregando=false;
       if(j.erro){ ax.erro=humanizaErro(j.erro); } else { ax.venc=j; ax.vencEm=Date.now(); ax.vencDia=hojeSP(); ax.vencSujo=false; }
       if(typeof hjVistaAberta==='function'&&hjVistaAberta()){ try{ renderHoje(); }catch(e){} }   // 📆 Hoje: as sugestões leem esta base
@@ -1771,4 +1772,10 @@ document.getElementById('conteudo').addEventListener('keydown',(e)=>{
   if(e.key!=='Enter'&&e.key!==' ') return;
   const r=e.target.closest&&e.target.closest('[data-vp-proj]');
   if(r){ e.preventDefault(); r.click(); }
+});
+// 🔄 Voltou à aba com a 🏠 Início aberta: a base de vencimentos com mais de 1 min é relida sem o cache do servidor
+// (ticket concluído direto no Jira sai dos cards sem esperar os 5 min) — os números da tela ficam até a leitura chegar.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||estado.vista!=='acoes') return;
+  const ax=estado.acoes; if(ax&&ax.venc&&!ax.carregando&&Date.now()-(ax.vencEm||0)>60000) axCarregaVenc(true);
 });

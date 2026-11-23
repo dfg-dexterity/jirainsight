@@ -10,7 +10,7 @@ const GX_RE_AGUARDA_CLIENTE=/aguard|pendente.*client|waiting/i;
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
   g.carregando=true; g.erro='';
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${(forca||tkNocache())?'&nocache=1':''}`)   // 🪦 depois de uma escrita, sem o cache do servidor
     .then(r=>r.json()).then(j=>{ g.carregando=false;
       if(j.erro){ g.erro=j.erro; } else { g.dados=j; }
       if(estado.vista==='gestao') renderGestao();
@@ -330,13 +330,14 @@ async function gxStatusLote(){
         body:JSON.stringify({listar:true,issue:k,email:id.email,token:id.token})}).then(x=>x.json());
       const tr=((lj&&lj.transicoes)||[]).find(t=>String(t.nome||'').toLowerCase()===nome.toLowerCase());
       if(!tr){ erros.push(`${k}: não tem a transição "${nome}" no status atual`); continue; }
+      // lido ANTES da transição: o ticket concluído sai da base assim que a resposta chega (🪦 tkSaiu, 01) e o histórico perderia o "de"
+      const gtk=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k);
       const ej=await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({issue:k,transitionId:tr.id,email:id.email,token:id.token})}).then(x=>x.json());
       if(!ej.ok){ erros.push(`${k}: ${ej.erro||'transição falhou'}`); continue; }
       if(texto){ try{ await fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({comentar:true,issue:k,texto,email:id.email,token:id.token})}); }catch(e){} }
       ok++;
-      const gtk=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k);
       logAcao({acao:'status', t:k, de:(gtk&&gtk.status)||'—', para:tr.para||nome, ok:true}, false);
       if(gtk&&tr.para) gtk.status=tr.para;
       delete estado.gestao.sel[k];

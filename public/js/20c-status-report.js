@@ -876,6 +876,7 @@ async function srPublica(){
   const aberto=()=>_sr===S;
   const diz=(msg,cls)=>{ const f=document.getElementById('sr-fb'); if(aberto()&&f){ f.hidden=false; f.className='alx-fb ap-fb'+(cls?' '+cls:''); f.textContent=msg; } };
   S.pub=true; if(btn) ocupado(btn,true); diz('Publicando o comentário…','');
+  const prox=srProximo(k);   // ANTES das chamadas: se a transição concluir o ticket, ele sai da lista assim que a resposta chega (🪦 tkSaiu, 01) e o "próximo" não teria de onde partir
   const post=(b)=>fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,issue:k,email:id.email,token:id.token})}).then(r=>r.json()).catch(e=>({ ok:false, erro:humanizaErro(e) }));
   // (a) o comentário: falhou, PARA (nada de data/status sem o status report).
   const j1=await post({ comentar:true, texto:txt, ...(menc.length?{mencionar:menc}:{}), ...(interno?{interno:true}:{}) });
@@ -897,7 +898,6 @@ async function srPublica(){
   if(res.st&&res.st.ok){ const trL=(S.trans||[]).find(x=>String(x.id)===String(stId)); logAcao({ acao:'status', t:k, de:t.status||'—', para:(trL&&trL.para)||stNome, motivo:'📋 status report', ok:true },false); }
   salvaCfg();
   // otimista: a linha (e o grupo) já refletem; a próxima leitura real vai sem o cache do servidor
-  const prox=srProximo(k);
   const agora=new Date().toISOString(); const hoje=S.hoje;
   const patch={ sr:{ rot:txt.split('\n')[0].slice(SR_MARCA.length).trim(), por:id.nome||id.email, porId:id.accountId||'', dia:hoje, quando:`${hoje} ${agora.slice(11,16)}`, texto:txt.split('\n').slice(2).join('\n').trim() } };
   if(res.data&&res.data.ok) patch.venc=novaData;
@@ -1105,6 +1105,7 @@ async function srAcaoExecuta(){
   const menc=(modo==='transferir'||modo==='comentar')?mnPickerIds():[];
   const btn=document.getElementById('sr-ac-ok');
   S.pub=true; if(btn) ocupado(btn,true);
+  const prox=srProximo(k);   // ANTES das chamadas (o concluído sai da lista quando a resposta da transição chega — 🪦 tkSaiu, 01)
   const post=(b)=>fetch('/api/transicao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...b,issue:k,email:id.email,token:id.token})}).then(r=>r.json()).catch(e=>({ ok:false, erro:humanizaErro(e) }));
   const pComent=txt?{ id:'coment', msg:'Publicando o comentário…', body:{ comentar:true, texto:txt, ...(menc.length?{mencionar:menc}:{}), ...(interno?{interno:true}:{}) } }:null;
   let pMain=null;
@@ -1137,7 +1138,6 @@ async function srAcaoExecuta(){
     else if(modo==='reagendar') logAcao({ acao:'reprogramar', t:k, de:t.venc||'—', para:novaData||'sem data', motivo:'📋 status report', ok:true },false);
   }
   salvaCfg();
-  const prox=srProximo(k);
   const id2=id; const agora=new Date().toISOString();
   const patch={};
   if(feitoC){

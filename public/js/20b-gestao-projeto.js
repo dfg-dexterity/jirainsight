@@ -43,7 +43,7 @@ function gpCarrega(forca){
   if(!forca&&c&&(Date.now()-c.em)<GP_CACHE_MIN*60000){ gp.dados=c.dados; gp.chave=chave; gp.erro=''; return; }
   if(gp.carregando===chave) return;
   gp.carregando=chave; gp.erro='';
-  fetch(`/api/vencimentos?analytics=1&dias=${gpDiasFetch()}${ks?`&projetos=${encodeURIComponent(ks.join(','))}`:''}${forca?'&nocache=1':''}`)
+  fetch(`/api/vencimentos?analytics=1&dias=${gpDiasFetch()}${ks?`&projetos=${encodeURIComponent(ks.join(','))}`:''}${(forca||tkNocache())?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ if(gp.carregando===chave) gp.carregando=false;
       if(!j||j.erro){ gp.erro=(j&&j.erro)||'resposta vazia'; }
       else { gp.cache[chave]={ dados:j, em:Date.now() }; if(gpChave()===chave){ gp.dados=j; gp.chave=chave; } }
