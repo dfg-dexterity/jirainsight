@@ -846,6 +846,7 @@ function aplicaChrome(){
   mostra('#grp-exportar', !!c.exp);
   mostra('#btn-novidades', !!(c.per||c.exp));   // novidades só nas telas de análise
   try{ atualizaBotaoGuia(); }catch(e){}          // 🧭 guia da tela (botão flutuante)
+  try{ if(typeof ajdAoTrocarTela==='function') ajdAoTrocarTela(); }catch(e){}   // ❓ painel de ajuda: acompanha a tela (25c)
 }
 
 // ---- Datas digitadas/coladas (dd/mm, dd/mm/aa, ISO, serial do Excel) — usadas pelos campos de data ----

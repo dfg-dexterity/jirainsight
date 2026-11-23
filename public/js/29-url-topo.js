@@ -83,6 +83,7 @@ function leURL(){
   // 🌐 Portal do cliente: projeto em foco e seção (pproj/psec — `proj` já é o filtro global de projeto)
   if(/^[A-Z][A-Z0-9_]*$/.test(p.get('pproj')||'')) estado.portal.proj=p.get('pproj');
   if(PT_SECS.includes(p.get('psec')||'')) estado.portal.sec=p.get('psec');
+  if(/^ti-14-\d{3}$/.test(p.get('ajp')||'')&&typeof ajdDeURL==='function') ajdDeURL(p.get('ajp'), p.get('ajs')||'');   // ❓ ?ajp=<processo>&ajs=<seção>: abre o painel de ajuda (25c)
   _pendentesURL = { pessoa:p.get('u')||'', categoria:p.get('cat')||'', projeto:gpCompat?'':(p.get('proj')||''),
     tipo:p.get('tipo')||'' };
 }

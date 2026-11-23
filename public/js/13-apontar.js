@@ -18,6 +18,7 @@ function idMudou(ant, nova){ return !!ant && (!nova || String(ant.email||'').tri
 function idTrocou(ant, nova){   // só em evento (o 31b carrega depois): guard typeof
   if(!idMudou(ant, nova)) return;
   apagaCopiaOffline();
+  try{ if(typeof ajdZeraCache==='function'){ ajdZeraCache(); if(typeof ajdRender==='function') ajdRender(); } }catch(e){}   // ❓ a documentação em memória é da identidade anterior
   const mesmaPessoa=!!nova&&String(ant.email||'').trim().toLowerCase()===String(nova.email||'').trim().toLowerCase();   // só trocou o token: o push segue
   try{ if(!mesmaPessoa&&typeof pshSolta==='function') pshSolta(ant); }catch(e){}
 }

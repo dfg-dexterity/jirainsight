@@ -72,11 +72,21 @@
 //                                           RECORTE POR PAPEL no servidor: gestor/negócio/diretoria/admin veem a lista por pessoa; os demais recebem os
 //                                           totais do time e só a PRÓPRIA linha. Identidade (planAuth) — 401 sem; config ilegível → 502; só GET; nunca cacheado.
 //
+// GET  /api/config?ajuda=indice|proc&p=ti-14-007|busca -> 📘 AJUDA COM A DOCUMENTAÇÃO DO NOTION (2026-11-22): a cópia dos processos TI-14-0NN que o cron do
+//                                           api/teams.js grava em `ajuda_indice` / `ajuda_p_<arq>` (formato em api/_lib/ajuda.js; nunca na config). Identidade
+//                                           (planAuth) — 401 sem; Supabase fora → 502; sempre `no-store`. indice → { ok, estado:'ok'|'vazio'|'sem-chave', em,
+//                                           okEm, raiz, procs, soLink, podeSinc, semChave?, diag? (só gestor/admin) } · proc → a linha sem `busca` (404 se não
+//                                           existe, 400 se `p` inválido) · busca → { ok, itens:[{p,pt,s,st,x}] }.
+// POST /api/config?ajuda=1 {acao:'sincronizar', forcar?} -> o ↻ "Atualizar a documentação agora": gestor/admin (papeisDe), 1 chamada a cada 30 s por
+//                                           instância, orçamento de 45 s; devolve as contagens ({ok, verificadas, atualizadas, iguais, falhas, pendentes, completo,
+//                                           erros}) — a tela repete enquanto `pendentes > 0`. Sem NOTION_TOKEN → 200 { ok:false, semChave:true }.
+//
 // Guarda um único registro (id='default') na tabela `jirainsight_config` do Supabase.
 import crypto from 'node:crypto';
 import {
   json, jiraBase, jiraSearchAll, worklogsEnriquecidos, cacheGet, cacheSetTTL, jiraUsuariosAtivos,
 } from './_lib/util.js';
+import { ajudaLeIndice, ajudaLeProc, ajudaLeBusca, ajudaRecorteIndice, ajudaSincroniza, RE_ARQ_AJUDA } from './_lib/ajuda.js';
 import { leFotos, papeisDe, recorteParaPapel, segundaDe, dataValida, meusProjetos } from './_lib/semanal.js';
 import { sincronizaCustos } from './_lib/custosOdoo.js';
 import { notificaPessoas } from './_lib/notifica.js';
@@ -1651,6 +1661,63 @@ async function discRota(req, res, base, headers) {
 }
 
 // ============================================================================
+// 📘 AJUDA COM A DOCUMENTAÇÃO DO NOTION (2026-11-22) — GET ?ajuda=indice|proc&p=|busca e POST ?ajuda=1 {acao:'sincronizar'}. As linhas `ajuda_indice` e
+// `ajuda_p_<arq>` são escritas pelo cron do api/teams.js (api/_lib/ajuda.js); aqui só a leitura (identidade obrigatória: o texto não é público) e o ↻ do gestor.
+// ============================================================================
+const AJUDA_SINC_ESPERA_MIN = 0.5;    // 30 s entre sincronizações manuais (por instância)
+async function ajudaRota(req, res, base, headers) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { ok: false, erro: 'Use GET ou POST' });
+  const quem = await planAuth(req);
+  if (!quem.ok) return json(res, 401, { ok: false, erro: quem.erro });
+  const q = req.query || {};
+  const sb = { base, headers };
+  // O papel decide só o que se MOSTRA (podeSinc/diag): config que não lê → sem papel, nunca 502 (a leitura da ajuda não depende dele).
+  const papeis = async () => {
+    try { return papeisDe(((await sbRows(await sbFetch(base, headers, `${TABELA}?id=eq.${ID}&select=data`)))[0] || {}).data || {}, quem); } catch (e) { return null; }
+  };
+  const ehGestor = (ps) => !!ps && (ps.includes('gestor') || ps.includes('admin'));
+  if (req.method === 'POST') {
+    if (String(q.ajuda) !== '1') return json(res, 405, { ok: false, erro: 'Use GET para ler a ajuda; o POST é ?ajuda=1.' });
+    const b = await lerBody(req);
+    if (String((b && b.acao) || '') !== 'sincronizar') return json(res, 400, { ok: false, erro: 'Ação desconhecida — use {acao:"sincronizar"}.' });
+    const ps = await papeis();
+    if (!ps) return json(res, 502, { ok: false, erro: 'Não consegui ler a configuração para decidir o seu perfil — tente de novo.' });
+    if (!ehGestor(ps)) return json(res, 403, { ok: false, erro: 'Só gestores ou admin do painel atualizam a documentação agora.' });
+    if (cacheGet('ajuda:sinc')) return json(res, 429, { ok: false, erro: 'A documentação acabou de ser atualizada — aguarde 30 segundos.' });
+    cacheSetTTL('ajuda:sinc', 1, AJUDA_SINC_ESPERA_MIN);   // armada ao COMEÇAR: a tela repete a chamada ao fim desta (> 30 s depois, pelo orçamento)
+    const r = await ajudaSincroniza({ sb, orcamentoMs: 45000, forcar: !!(b && b.forcar) });
+    return json(res, r.ok || r.semChave ? 200 : 502, r);
+  }
+  const modo = String(q.ajuda);
+  try {
+    if (modo === 'indice') {
+      const idx = await ajudaLeIndice(sb);
+      const ps = await papeis();
+      const gestor = ehGestor(ps);
+      const semChave = !process.env.NOTION_TOKEN;
+      const rec = ajudaRecorteIndice(idx || {}, { gestor });
+      const comConteudo = rec.procs.some((p) => p.editadoEm);
+      const estado = comConteudo ? 'ok' : (semChave ? 'sem-chave' : 'vazio');
+      const { v: _v, ...resto } = rec; void _v;
+      return json(res, 200, { ok: true, estado, ...resto, podeSinc: gestor, ...(comConteudo && semChave ? { semChave: true } : {}) });
+    }
+    if (modo === 'proc') {
+      const arq = String(q.p || '').trim().toLowerCase();
+      if (!RE_ARQ_AJUDA.test(arq)) return json(res, 400, { ok: false, erro: 'p inválido — use o arq do processo (ex.: ti-14-007).' });
+      const linha = await ajudaLeProc(sb, arq);
+      if (!linha) return json(res, 404, { ok: false, erro: 'Processo ainda não sincronizado.' });
+      const { busca: _b, ...semBusca } = linha; void _b;
+      return json(res, 200, { ok: true, p: arq, ...semBusca });
+    }
+    if (modo === 'busca') return json(res, 200, { ok: true, itens: await ajudaLeBusca(sb) });
+    return json(res, 400, { ok: false, erro: 'ajuda inválida — use indice, proc&p= ou busca.' });
+  } catch (e) {
+    return json(res, 502, { ok: false, erro: `Não consegui ler a documentação: ${String(e && e.message ? e.message : e).slice(0, 200)}` });
+  }
+}
+
+// ============================================================================
 // 🔔 Web Push (2026-11-09, camada iPad) — /api/config?push=1
 //   GET  [&e=<sha256(endpoint).slice(0,16)>] -> { ok, configurado, chave, inscrito, n, prefs, podeSexta }   (+ motivo quando faltam as envs VAPID)
 //   POST {acao:'inscrever', sub:{endpoint,keys:{p256dh,auth}}, ua} -> { ok, id, n, prefs }
@@ -1793,6 +1860,9 @@ export default async function handler(req, res) {
 
     // 🧭 Disciplina do time: as fotos diárias recortadas pelo papel (GET, com identidade).
     if (req.query && req.query.disc) return await discRota(req, res, base, headers);
+
+    // 📘 Ajuda com a documentação do Notion: leitura (GET) e o ↻ do gestor (POST), sempre com identidade.
+    if (req.query && req.query.ajuda) return await ajudaRota(req, res, base, headers);
 
     // 🔔 Web Push (iPad): inscrição, preferências e teste da PRÓPRIA pessoa (GET/POST, identidade obrigatória).
     if (req.query && req.query.push) return await pushRota(req, res, base, headers);

@@ -85,7 +85,7 @@
       --linha:#cfd8e3; --linha2:#e6ebf2; --muted:#566879; --muted2:#7e8ea0; --trilho:#eef1f8;
       --hoverbg:#f1ede0; --texto2:#5C5850; --cerceta:#00726E; --marca:#00817D; --areia:#fff; --sombra:none; }
     body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    header,.filtros,#to-top,#btn-guia,#btn-reportar,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
+    header,.filtros,#to-top,#btn-guia,#btn-reportar,#ajd,.tip,.tsc-read,.tsc-cross,.tsc-dot{display:none!important}
     .wrap{max-width:none!important;padding:0!important}
     /* PDF da apuração AMS por contrato: esconde a tela e mostra só o documento dedicado. */
     body.doc-print .wrap{display:none!important}
@@ -3042,6 +3042,82 @@
   #btn-guia[hidden]{display:none}
   #btn-guia:hover{background:var(--cerceta);color:#fff}
   #btn-guia .nov-dot{margin-left:4px;vertical-align:middle}
+
+  /* ---- ❓ Painel de ajuda (25c): lateral direita, NÃO modal (abaixo do modal, 50) — celular/iPad ficam no mobile.css/ipad.css ---- */
+  #btn-ajuda-topo[aria-expanded="true"]{background:var(--hoverbg)}
+  .ajd{position:fixed;top:0;right:0;bottom:0;z-index:49;width:440px;max-width:92vw;display:flex;flex-direction:column;background:var(--cartao);color:var(--grafite);
+    border-left:1px solid var(--linha);box-shadow:-6px 0 24px rgba(15,31,51,.18)}
+  .ajd[hidden]{display:none}
+  .ajd-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px 6px}
+  .ajd-cab h2{margin:0;font-size:17px;outline:none}
+  .ajd-x{border:1px solid var(--linha);background:transparent;color:var(--grafite);border-radius:6px;min-width:32px;min-height:32px;cursor:pointer;font-size:14px}
+  .ajd-x:hover{background:var(--hoverbg)}
+  .ajd-busca{padding:0 14px 8px}
+  .ajd-q{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao2);color:var(--grafite);font:inherit;font-size:14px}
+  .ajd-abas{display:flex;gap:4px;padding:0 10px;border-bottom:1px solid var(--linha)}
+  .ajd-aba{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);padding:8px 10px;cursor:pointer;font:inherit;font-size:13px;font-weight:600}
+  .ajd-aba:hover{color:var(--grafite)}
+  .ajd-aba.on{color:var(--cerceta);border-bottom-color:var(--cerceta)}
+  .ajd-corpo{flex:1;min-height:0;overflow:auto;padding:12px 14px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+  .ajd-rodape{border-top:1px solid var(--linha);padding:8px 14px 10px;background:var(--cartao2);font-size:12px}
+  .ajd-rod-l{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:4px 0}
+  .ajd-rodape .btn,.ajd-corpo .btn{border-color:var(--linha)}
+  .ajd-tela-t{margin:0 0 8px;font-size:15px}
+  .ajd-acoes{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .ajd-info{margin:6px 0 10px}
+  .ajd-sec-t,.ajd-mais-t,.ajd-grupo-t{font-size:14px;margin:12px 0 6px}
+  .ajd-grupo-t{color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:11.5px}
+  .ajd-proc-h{font-size:15px;margin:10px 0 4px}
+  .ajd-h{margin:12px 0 4px;font-size:13.5px}
+  .ajd-p{margin:6px 0}
+  .ajd-l{margin:6px 0;padding-left:20px}
+  .ajd-l .ajd-l{margin:2px 0}
+  .ajd-ext{color:var(--cerceta);text-decoration:underline}
+  .ajd-plink{border:0;background:transparent;color:var(--cerceta);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
+  .ajd-corpo code{background:var(--hoverbg);padding:1px 4px;border-radius:4px;font-size:12px}
+  .ajd-cod{margin:6px 0;padding:8px 10px;background:var(--cartao2);border:1px solid var(--linha);border-radius:6px;font-size:12px;white-space:pre}
+  .ajd-cod code{background:transparent;padding:0}
+  .ajd-cit{margin:8px 0;padding:2px 12px;border-left:3px solid var(--linha);color:var(--texto2)}
+  .ajd-hr{border:0;border-top:1px solid var(--linha);margin:12px 0}
+  .ajd-nota{display:flex;gap:8px;margin:8px 0;padding:8px 10px;border-radius:8px;border:1px solid var(--linha);background:var(--cartao2)}
+  .ajd-nota-c{flex:1;min-width:0}
+  .ajd-nota-c>:first-child{margin-top:0}
+  .ajd-nota-azul{border-color:#9CC4F0}
+  .ajd-nota-amarelo{border-color:var(--amarelo)}
+  .ajd-nota-vermelho{border-color:var(--err)}
+  .ajd-nota-verde{border-color:var(--musgo)}
+  .ajd-tab{border-collapse:collapse;font-size:12.5px;min-width:100%}
+  .ajd-tab th,.ajd-tab td{border:1px solid var(--linha);padding:4px 8px;text-align:left;vertical-align:top}
+  .ajd-tab th{background:var(--cartao2)}
+  .ajd-det,.ajd-secd{margin:6px 0;border:1px solid var(--linha);border-radius:8px;background:var(--cartao)}
+  .ajd-det>summary,.ajd-secd>summary{cursor:pointer;padding:7px 10px;font-weight:600}
+  .ajd-det-c,.ajd-secd-c{padding:0 10px 8px}
+  .ajd-mm{margin:8px 0}
+  .ajd-mm .scroll-x{max-width:100%}
+  .ajd-mm-skel{height:90px;border-radius:8px}
+  .ajd-omit{margin:6px 0;color:var(--muted)}
+  .ajd-cartao{margin:10px 0;padding:12px;border:1px dashed var(--linha);border-radius:10px;background:var(--cartao2)}
+  .ajd-cartao-t{margin:0 0 6px;font-weight:600}
+  .ajd-cartao-lk{margin:8px 0 0}
+  .ajd-aviso{margin:6px 0;padding:6px 10px;border:1px solid var(--amarelo);border-radius:8px}
+  .ajd-linha{width:100%;text-align:left;margin:0 0 8px;border:1px solid var(--linha)}
+  .ajd-proc{display:grid;grid-template-columns:auto 1fr;column-gap:8px;width:100%;text-align:left;margin:4px 0;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);cursor:pointer;font:inherit}
+  .ajd-proc:hover{background:var(--hoverbg)}
+  .ajd-proc-cod{font-size:11.5px;color:var(--muted);font-weight:600;align-self:center}
+  .ajd-proc-t{font-weight:600}
+  .ajd-proc-d{grid-column:2}
+  .ajd-indice{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+  .ajd-sec-lk{border:1px solid var(--linha);border-radius:999px;background:var(--cartao);color:var(--grafite);padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
+  .ajd-sec-lk:hover{background:var(--hoverbg)}
+  .ajd-res{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .ajd-res-i{display:flex;flex-direction:column;gap:2px;text-align:left;padding:8px 10px;border:1px solid var(--linha);border-radius:8px;background:var(--cartao);color:var(--grafite);cursor:pointer;font:inherit}
+  .ajd-res-i:hover,.ajd-res-i:focus-visible{background:var(--hoverbg)}
+  .ajd-res-t{font-weight:600}
+  .ajd-corpo mark{background:#FFE58A;color:#222;border-radius:2px;padding:0 1px}
+  .ajd-diag{margin:6px 0}
+  .ajd-diag>summary{cursor:pointer;font-weight:600}
+  .ajd-diag-s{margin:6px 0}
+  .ajd-sinc-msg{min-width:0}
   /* Botão flutuante "🐞 Reportar" (canto oposto ao 🧭): discreto até passar o mouse */
   #btn-reportar{position:fixed;left:18px;bottom:18px;z-index:40;border:1px solid var(--linha2);
     background:var(--cartao);color:var(--texto2);font-family:var(--corpo);font-size:13px;font-weight:600;

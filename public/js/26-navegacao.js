@@ -328,6 +328,8 @@ const NAVCAT=[
   ['acao:metas','⚙️ Central de configurações › 🎯 Metas & ausências','admin','meta horas feriados ferias ocultar configuracoes'],
   ['acao:log','⚙️ Central de configurações › 🗒 Histórico de ações','admin','auditoria log acoes configuracoes'],
   ['roadmap','🗺️ Roadmap','mais','proximas funcionalidades futuro planejado novidades melhorias analise'],
+  ['acao:ajuda','❓ Ajuda — como funciona esta tela','mais','ajuda help manual documentacao notion como funciona duvida f1 guia tour'],
+  ['acao:manual','📘 Manual por assunto (documentação)','mais','manual processos documentacao notion procedimento'],
   ['acao:reportar','🐞 Reportar bug ou melhoria','mais','bug erro problema defeito falha travou melhoria sugestao ideia duvida feedback github jira issue relatar falar com a gente'],
 ];
 // Telas aposentadas que ainda são procuradas pelo nome antigo: a busca mostra "agora é …".
@@ -401,6 +403,8 @@ function navAcao(a){
     case 'metas': abreMetas(); return;
     case 'log': abreLogAcoes(); return;
     case 'reportar': abreReportar(); return;
+    case 'ajuda': ajdAbre({ aba:'tela', foco:true }); return;
+    case 'manual': ajdAbre({ aba:'manual', proc:'', foco:true }); return;
     case 'buscar': abreBuscaTickets(); return;
     case 'transferir': comId('transferir um ticket com todo o histórico', ()=>abreBuscaTickets('', (k)=>abreTransferir(k), '🔗 Transferir: escolha o ticket de origem')); return;
     case 'convidar': comId('convidar colegas a apontar num ticket', ()=>abreBuscaTickets('', (k,info)=>abreConvidarApontar(k, info), '📨 Convidar a apontar: escolha o ticket')); return;

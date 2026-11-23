@@ -126,6 +126,7 @@ o PR se alguém quebrar a ordem — por isso dá para dividir sem medo.
 | `24b-hoje.js` | 📆 Hoje — lista do dia, linha do tempo, rituais 🌅/🌙, ⏱ cronômetro (pílula em todas as telas), 👥 Dia do time, card da Início |
 | `25-ajuda-guias.js` | ❓ Ajuda, tour, 🧭 guias interativos |
 | `25b-reportar.js` | 🐞 Reportar bug ou melhoria (ticket no Jira + issue no GitHub, `POST /api/criar {reportar:1}`) |
+| `25c-ajuda-painel.js` | ❓ **Central de Ajuda** (botão `#btn-ajuda-topo` no cabeçalho, tecla **F1**; painel `#ajd` com abas Esta tela · Manual · Novidades, busca, 🧭 guia/tours, dúvidas e 🐞): o texto dos processos TI-14 do Notion, lido de `GET /api/config?ajuda=indice\|proc&p=\|busca` **só com identidade** (`no-store`, sem cópia no service worker), montado só por `createElement`/`textContent` (links https com `noopener`; mermaid sob demanda com versão exata e SRI, limpo num `<template>` inerte); `AJUDA_MAPA` liga cada vista ao processo/seção (o `scripts/check-ajuda.mjs` reprova vista sem mapa); gestor/admin têm ↻ sincronizar e Diagnóstico; URL `ajp`/`ajs` |
 | `26-navegacao.js` | `render()` (dispatcher), modal, `vaiPara`, menus, `NAVCAT` (catálogo de telas com área), `aplicaLente` (perfil), **`ABAS`** (grupos de abas das fases 2–3: Inbox, Apontar, Meu Planejamento, Criar ticket, Tickets do time, Reuniões, Projetos, Horas do time, Planejamento do time, Central, 📑 Contratos, 🛡 Apuração de contratos, 📊 Visão Geral, 📚 Central de Relatórios — `renderAbas` pinta `#abas` sem mexer nas telas; menus das áreas por seção (2026-11-05: `navMenuContadores`, `abreEscolheProjeto`); fase 4: **memória** `abaLembra`/`abaUltima` — o menu volta à última aba do grupo — e **contadores** `ABAS_N`), favoritos, paleta Ctrl+K |
 | `27-exportacao.js` · `28-config-metas.js` | ⬇️ CSV/PDF · ⚙️ Configurações, metas & ausências |
 | `29-url-topo.js` | estado na URL (links compartilháveis), `recarrega()`, gaveta e menus do topo |
@@ -287,6 +288,7 @@ O Dexterity Hub é um **PWA de classe iPad** (decisão do usuário: o mesmo app,
 | `JIRA_FOLGA_MAP` | não | JSON `{"email":"accountId"}` para exceções de mapeamento Odoo→Jira quando o e-mail não bate |
 | `CLOCKWORK_ESCRITA` | não | `1` habilita o worklog automático (no nome da pessoa) via API do Clockwork — usado pela folga-sync e pelos convites |
 | `CRON_SECRET` | não | protege os endpoints de cron (`/api/teams` e `/api/resumo?acao=folga-sync`) com `Authorization: Bearer` |
+| `NOTION_TOKEN` | não | chave de uma integração interna do Notion com acesso às páginas do TI-14 — a fase `ajuda` do cron (`api/teams.js`, uma rodada por dia, retomável) copia o texto dos processos para `jirainsight_config` (`ajuda_indice`, `ajuda_p_<arq>`; `api/_lib/ajuda.js`) e o painel ❓ Ajuda o lê só para quem está identificado. Sem ela a ajuda mostra os guias e o link do Notion. Manual: `/api/teams?tipo=ajuda[&dry=1][&confirmar=1][&forcar=1]` com o `CRON_SECRET`; `NOTION_API_URL` só para testes |
 
 ### Convites de reunião (apontamento em grupo)
 

@@ -15,7 +15,8 @@
 //     (só o hash truncado entra no nome da entrada: o token NUNCA é guardado; token errado/ausente = outra chave = sem cópia).
 //     Resposta com Cache-Control no-store/private do servidor NUNCA vira cópia (o servidor manda); kpis, rentabhist, semanal
 //     e sr também ficam fora pela lista. Ao trocar/esquecer a identidade a página apaga o cache de dados (v1 e v2).
-//     Nunca: POST/PUT/DELETE, /api/teams, ?uso= ?pcli= ?push= ?custos= ?portal=, resposta que já veio com X-JI-Offline.
+//     Nunca: POST/PUT/DELETE, /api/teams, ?uso= ?pcli= ?push= ?custos= ?portal= ?ajuda= (a documentação do Notion só vale com identidade e
+//     não fica guardada no aparelho — decisão de 2026-11-22), resposta que já veio com X-JI-Offline.
 //     Poda LRU: 150 entradas e 7 dias (no activate e a cada 50 gravações).
 //  2) PUSH — 'push' mostra a notificação (só texto, sem HTML) e põe o selo no ícone; 'notificationclick' foca o app e manda
 //     {tipo:'navegar', url} (ou abre a janela); 'pushsubscriptionchange' reinscreve com a chave pública guardada em 'ji-push'
@@ -27,7 +28,7 @@ const PUSHC = 'ji-push';
 const ESTATICOS = ['/manifest.webmanifest', '/logo.svg', '/icons/marca/dexterity-hub-favicon.svg',
   '/icons/icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png'];
 const DADOS_ROTAS = ['/api/config', '/api/vencimentos', '/api/tempo', '/api/atividade', '/api/usuarios', '/api/projetos', '/api/reunioes', '/api/resumo'];
-const DADOS_PARAM_PROIBIDO = ['uso', 'pcli', 'push', 'custos', 'portal', 'ct', 'ref', 'dec', 'kpis', 'rentabhist', 'semanal', 'sr', 'disc'];
+const DADOS_PARAM_PROIBIDO = ['uso', 'pcli', 'push', 'custos', 'portal', 'ct', 'ref', 'dec', 'kpis', 'rentabhist', 'semanal', 'sr', 'disc', 'ajuda'];
 const DADOS_MAX_BYTES = 2 * 1024 * 1024;
 const DADOS_MAX_ENTRADAS = 150;
 const DADOS_MAX_IDADE_MS = 7 * 24 * 3600 * 1000;

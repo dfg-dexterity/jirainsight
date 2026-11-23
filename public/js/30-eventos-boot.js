@@ -2,10 +2,9 @@
 // 🌀 marca animada e a INICIALIZAÇÃO (leURL → carregaCfgRemota → recarrega). Este arquivo carrega por ÚLTIMO.
 document.getElementById('btn-pdf').addEventListener('click', exportarPDF);
 { const bm=document.getElementById('btn-metas'); if(bm) bm.addEventListener('click', abreMetas); }
-document.getElementById('btn-ajuda').addEventListener('click', abreAjuda);
+document.getElementById('btn-ajuda').addEventListener('click', ()=>{ fechaMenusNav(); if(typeof ajdAbre==='function') ajdAbre({ aba:'tela', foco:true }); else abreAjuda(); });   // ❓ painel de ajuda (25c); o modal antigo segue em abreAjuda()
 // 🧭 Guia interativo da tela: botão flutuante, item do menu ⋯ Mais e a tecla "?".
 document.getElementById('btn-guia').addEventListener('click', ()=>iniciaGuia(estado.vista));
-document.getElementById('btn-guia-tela').addEventListener('click', ()=>{ fechaMenusNav(); iniciaGuia(estado.vista); });
 document.addEventListener('keydown',(e)=>{
   if(e.key!=='?'||e.ctrlKey||e.metaKey||e.altKey) return;
   const a=document.activeElement, tag=a?(a.tagName||'').toLowerCase():'';

@@ -42,6 +42,13 @@
 // gravados; a resposta do cron traz SÓ contagens (nenhuma chave de ticket, nome ou texto). Manual: ?tipo=bloqueios[&dry=1][&confirmar=1] (exige CRON_SECRET;
 // sem dry envia e grava `bloq_estado`; não carimba o agendador; com dry=1 devolve o `detalhe` — chaves e destinatários — para quem tem o segredo).
 //
+// 📘 AJUDA (2026-11-22): no cron a fase `ajuda` copia a documentação dos processos do Notion (TI-14-0NN) para o banco do painel (linhas
+// ajuda_indice / ajuda_p_*, formato em api/_lib/ajuda.js) — 1 rodada por dia de SP, no 1º tique com orçamento (o tique noturno ?so=disciplina também a
+// roda, logo depois da foto) e retomável nos tiques seguintes enquanto houver fila. Precisa de NOTION_TOKEN (sem ele: "sem chave", nada é gravado) e
+// NÃO exige CRON_SECRET (não há dado por pessoa). Cursor teams_estado.ultimaSincAjuda só quando a rodada COMPLETA; a resposta traz SÓ contagens.
+// Manual: ?tipo=ajuda[&dry=1][&confirmar=1][&forcar=1][&so=ti-14-007] (exige CRON_SECRET; sem dry grava → confirmar=1; não carimba o agendador;
+// com dry=1 devolve `diag` por página — estado, nº de seções, bytes, tipos ignorados, trechos mascarados — nunca o texto).
+//
 // 🤖 BOT DO TEAMS (2026-09-01): este mesmo endpoint atende o bot de criação de
 // tickets por IA no chat — ver a seção "BOT DO TEAMS" mais abaixo.
 import crypto from 'node:crypto';
@@ -57,6 +64,7 @@ import { alertaFimDoDia } from './_lib/agenda.js';
 import { sincronizaCustos, odooEnv, CUSTOS_ODOO_HORA } from './_lib/custosOdoo.js';
 import { fotosKpi, kpisPendentes, leIdsKpi, KPI_HORA, KPI_MAX_TIQUE } from './_lib/kpi.js';
 import { bqEscalaRoda, BQ_ESCALA_HORA } from './_lib/bloqueios.js';
+import { ajudaSincroniza, fonteDeAjuda } from './_lib/ajuda.js';
 import { discPublico, discAlvo, discEhUtil, fotoDisc, leIdsDisc, leDisc, discCompara, discDiaSP, discHoraSP, discPendentesRetro, DISC_RETRO_TIQUE, DISC_NOITE_ATE, DISC_MEDIA_DIAS } from './_lib/disciplina.js';
 
 // O corpo é lido CRU (sem body parser) porque a assinatura HMAC do webhook de
@@ -415,6 +423,29 @@ async function faseDisciplina({ cfg, hoje, agora, estado, semSupabase, segredo, 
     }
   } catch (e) { out.erro = String(e && e.message ? e.message : e).slice(0, 200); }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// 📘 AJUDA — a fase do ?cron=1 (diurno e noturno): copia a documentação do Notion para o banco (api/_lib/ajuda.js). 1 rodada por dia de SP;
+// retomável (fila no índice). Só CONTAGENS na resposta. Cursor ultimaSincAjuda só quando a rodada completa e sem falha fatal.
+// ---------------------------------------------------------------------------
+const AJUDA_MIN_MS = 6000;
+async function faseAjuda({ hoje, estado, semSupabase, t0, noturno }) {
+  if (!process.env.NOTION_TOKEN) return { feito: false, motivo: 'sem chave (NOTION_TOKEN)' };
+  if (semSupabase) return { feito: false, motivo: 'Supabase não configurado (a documentação mora nele)' };
+  const ult = String((estado || {}).ultimaSincAjuda || '');
+  if (ult === hoje) return { feito: false, motivo: `em dia (última sincronização: ${ult})` };
+  const gasto = Date.now() - t0;
+  const orcamentoMs = noturno ? 40000 - gasto : Math.min(20000, 45000 - gasto);
+  if (orcamentoMs < AJUDA_MIN_MS) return { feito: false, motivo: 'adiado' };
+  try {
+    const r = await ajudaSincroniza({ sb: sbTeams(), orcamentoMs });
+    if (r.ok && r.completo) await gravaTeamsEstado({ ultimaSincAjuda: hoje }, estado);
+    return {
+      feito: !!r.ok, completo: !!r.completo, verificadas: r.verificadas, atualizadas: r.atualizadas, iguais: r.iguais, falhas: r.falhas, pendentes: r.pendentes, ms: r.ms,
+      ...(r.erro ? { erro: String(r.erro).slice(0, 200) } : {}), ...(r.aviso ? { aviso: r.aviso } : {}),
+    };
+  } catch (e) { return { feito: false, erro: String(e && e.message ? e.message : e).slice(0, 200) }; }
 }
 
 // ---------------------------------------------------------------------------
@@ -1199,6 +1230,21 @@ export default async function handler(req, res) {
       return json(res, rB.ok ? 200 : 502, { dry, ...rB });
     }
 
+    // ---- 📘 Ajuda (documentação do Notion), chamada manual: ?tipo=ajuda[&dry=1][&confirmar=1][&forcar=1][&so=ti-14-007] ----
+    // A mesma rodada da fase `ajuda` do cron, na hora, com orçamento de 50 s. EXIGE o CRON_SECRET (503 sem a env). Sem dry=1 GRAVA ajuda_indice/ajuda_p_* →
+    // exige &confirmar=1. NÃO carimba o agendador. `forcar=1` reprocessa tudo; `so=` processa uma página só. Com dry=1 devolve `diag` (por página: estado,
+    // seções, bytes, tipos ignorados, trechos mascarados) — é a prova contra a API real do Notion; a resposta nunca traz o texto das páginas.
+    if (String(q.tipo || '') === 'ajuda') {
+      if (!segredo) return json(res, 503, { erro: 'CRON_SECRET não configurado — a sincronização da ajuda só roda manualmente com o segredo do cron (defina a env na Vercel).' });
+      if (!dry && q.confirmar !== '1') return json(res, 400, { erro: 'Sem dry=1 esta chamada GRAVA a documentação (ajuda_indice/ajuda_p_*) — repita com &confirmar=1, ou use &dry=1 para a prévia.' });
+      const soA = String(q.so || '').trim().toLowerCase();
+      if (soA && !fonteDeAjuda(soA)) return json(res, 400, { erro: 'so inválido — use o arq de uma fonte (ex.: ti-14-007).' });
+      const sbA = sbTeams();
+      if (!sbA) return json(res, 200, { ok: false, erro: 'Supabase não configurado (a documentação mora nele).' });
+      const rA = await ajudaSincroniza({ sb: sbA, orcamentoMs: 50000, forcar: q.forcar === '1', dry, so: soA });
+      return json(res, rA.ok || rA.semChave ? 200 : 502, { dry, ...rA });
+    }
+
     // ---- 💵 Custo/h do Odoo, chamada manual: ?tipo=custos-odoo[&dry=1][&confirmar=1] ----
     // A mesma sincronização do cron (fase `custos`) e do botão ↻ da Controladoria, na hora. Tem o custo/h por pessoa: EXIGE o
     // CRON_SECRET (503 sem a env). Sem dry=1 GRAVA cfg.custosPessoa/cfg.custosOdoo → exige &confirmar=1. NÃO carimba o agendador.
@@ -1241,9 +1287,11 @@ export default async function handler(req, res) {
       // 🧭 Disciplina do time (2026-11-16): ANTES do ranking (o cartão das 08:00 já acha a foto) e ANTES do teste de dia útil (o sábado/feriado
       // fotografa o último dia útil que terminou). No tique noturno (?so=disciplina) é só isto.
       out.disciplina = await faseDisciplina({ cfg, hoje, agora, estado, semSupabase, segredo, noturno: soDisciplina, t0 });
-      if (soDisciplina) return json(res, 200, { disciplina: out.disciplina });
+      // 📘 Ajuda (2026-11-22): logo depois da foto, no tique noturno e no diurno (feriado e fim de semana também sincronizam).
+      out.ajuda = await faseAjuda({ hoje, estado, semSupabase, t0, noturno: soDisciplina });
+      if (soDisciplina) return json(res, 200, { disciplina: out.disciplina, ajuda: out.ajuda });
       if (!ehUtilBR(hoje, extras, removidos)) {
-        return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.`, disciplina: out.disciplina });
+        return json(res, 200, { enviado: false, motivo: `Hoje (${hoje}) não é dia útil.`, disciplina: out.disciplina, ajuda: out.ajuda });
       }
 
       const gr = gateHorario(horaRank, agora, hoje, ult('ultimoEnvio'));

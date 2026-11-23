@@ -772,3 +772,23 @@
   #conteudo .bq-prazo{font-size:12px}
 }}
 /* ---- fim: bloqueios ---- */
+
+/* ---- 🍎 grupo: ajuda (❓ painel de Ajuda — 25c; fica à DIREITA, sobre o conteúdo, e nunca cobre a barra lateral) ---- */
+@media (hover:none) and (pointer:coarse) and (min-width:761px){
+  .ajd{width:min(440px,calc(100vw - 32px));padding-right:env(safe-area-inset-right,0px);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .ajd-x{min-width:var(--ipad-alvo);min-height:var(--ipad-alvo);font-size:16px}
+  .ajd-q{min-height:var(--ipad-alvo);font-size:16px}
+  .ajd-aba{min-height:var(--ipad-alvo)}
+  .ajd-rodape .btn,.ajd-corpo .btn{min-height:var(--ipad-alvo)}
+  .ajd-rodape summary,.ajd-det>summary,.ajd-secd>summary,.ajd-diag>summary{min-height:var(--ipad-alvo);box-sizing:border-box;padding-top:11px;padding-bottom:11px}
+  .ajd-proc,.ajd-res-i{min-height:var(--ipad-alvo)}
+  .ajd-sec-lk,.ajd-plink{min-height:var(--ipad-alvo);display:inline-flex;align-items:center}
+  .ajd-sec-lk{padding:6px 12px}
+  .ajd-rodape{max-height:35vh;max-height:35dvh;overflow:auto}
+  #btn-ajuda-topo{min-height:var(--ipad-alvo)}
+}
+@media (hover:none) and (pointer:coarse) and (min-width:1024px){
+  /* barra lateral de 272 px: o painel nunca avança sobre ela */
+  body.nav-lateral:not(.nav-recolhida) .ajd{max-width:calc(100vw - var(--ipad-lateral) - 16px)}
+}
+/* ---- fim: ajuda ---- */

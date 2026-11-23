@@ -278,15 +278,14 @@
           <button data-tema="dexterity" role="menuitemradio" aria-pressed="false" title="O visual do site novo da Dexterity">🟢 Dexterity</button>
         </div>
       </div>
+      <button class="btn" id="btn-ajuda-topo" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="ajd" title="Ajuda — como funciona esta tela, manual e novidades (F1)">❓<span class="hdr-rot"> Ajuda</span></button>
       <div class="hdrmenu" id="grp-mais">
         <button class="btn hdrmenu-b" type="button" aria-haspopup="true" aria-expanded="false">⋯ Mais<span class="nov-dot" id="mais-dot" hidden></span></button>
         <div class="hdrmenu-m">
           <button id="btn-mais-tkb" aria-label="Buscar ticket (tecla barra ou Ctrl+J)">🎫 Buscar ticket</button>
           <button id="btn-novidades" aria-label="Novidades">✨ Novidades<span class="nov-dot" id="nov-dot" hidden></span></button>
           <button id="btn-mais-roadmap" aria-label="Roadmap">🗺️ Roadmap</button>
-          <button id="btn-guia-tela" aria-label="Guia interativo desta tela">🧭 Guia desta tela</button>
-          <button id="btn-ajuda" aria-label="Ajuda e feedback">❓ Ajuda &amp; feedback</button>
-          <button id="btn-mais-reportar" aria-label="Reportar bug ou melhoria">🐞 Reportar bug ou melhoria</button>
+          <button id="btn-ajuda" aria-label="Ajuda (guia desta tela, manual, novidades e reportar)">❓ Ajuda</button>
           <button id="btn-instalar" aria-label="Instalar no iPhone, iPad ou computador">📱 Instalar no aparelho</button>
           <button id="btn-mais-notif" aria-label="Notificações neste aparelho">🔔 Notificações</button>
           <div class="hdr-cab">Minha navegação</div>
@@ -332,6 +331,21 @@
     <div id="modal-body"></div>
   </div>
 </div>
+
+<aside id="ajd" class="ajd" role="dialog" aria-modal="false" aria-labelledby="ajd-tit" hidden>
+  <div class="ajd-cab">
+    <h2 id="ajd-tit" tabindex="-1">❓ Ajuda</h2>
+    <button class="ajd-x" id="ajd-x" type="button" aria-label="Fechar a ajuda">✕</button>
+  </div>
+  <div class="ajd-busca"><input id="ajd-q" class="ajd-q" type="search" placeholder="Buscar na documentação…" aria-label="Buscar na documentação" autocomplete="off" spellcheck="false"></div>
+  <div class="ajd-abas" role="tablist" aria-label="Seções da ajuda">
+    <button class="ajd-aba" id="ajd-aba-tela" role="tab" type="button" aria-controls="ajd-corpo" data-ajd-aba="tela">Esta tela</button>
+    <button class="ajd-aba" id="ajd-aba-manual" role="tab" type="button" aria-controls="ajd-corpo" data-ajd-aba="manual">Manual</button>
+    <button class="ajd-aba" id="ajd-aba-novidades" role="tab" type="button" aria-controls="ajd-corpo" data-ajd-aba="novidades">Novidades</button>
+  </div>
+  <div id="ajd-corpo" class="ajd-corpo" role="tabpanel" aria-live="polite"></div>
+  <div id="ajd-rodape" class="ajd-rodape"></div>
+</aside>
 
 <button id="to-top" aria-label="Voltar ao topo" title="Voltar ao topo" hidden>↑<span class="fl-rot"> Topo</span></button>
 <button id="btn-reportar" aria-label="Reportar bug ou melhoria" title="Achou um bug ou tem uma ideia? Vira ticket no Jira e issue no GitHub">🐞<span class="fl-rot"> Reportar</span></button>
@@ -391,6 +405,7 @@
 <script defer src="/js/24b-hoje.js"></script>
 <script defer src="/js/25-ajuda-guias.js"></script>
 <script defer src="/js/25b-reportar.js"></script>
+<script defer src="/js/25c-ajuda-painel.js"></script>
 <script defer src="/js/26-navegacao.js"></script>
 <script defer src="/js/27-exportacao.js"></script>
 <script defer src="/js/28-config-metas.js"></script>
