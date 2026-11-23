@@ -11,7 +11,7 @@
 // null → abre o Resumo do processo (nunca fica vazio). Conferido com os títulos reais lidos do Notion: docs/ajuda-notion-2026-11-22.md.
 
 const AJUDA_MAPA={
-  acoes:['TI-14-019',null], hoje:['TI-14-025',null], hojetime:['TI-14-025',null],
+  acoes:['TI-14-019','inicio por urgencia'], hoje:['TI-14-025',null], hojetime:['TI-14-025',null],
   apontar:['TI-14-007','passo a passo'], rateio:['TI-14-007','rateio'], meudia:['TI-14-007',null],
   inbox:['TI-14-007','reuniao com varias pessoas'], mencoes:['TI-14-007',null],
   bloqueios:['TI-14-029',null], prioridades:['TI-14-014',null],
@@ -23,7 +23,7 @@ const AJUDA_MAPA={
   alertas:['TI-14-009','central de alertas'], gestao:['TI-14-009','em massa'], tickets:['TI-14-009','filtros salvos'],
   qualidade:['TI-14-012','qual tela usar'], audit:['TI-14-012','qual tela usar'],
   projetos:['TI-14-012','qual tela usar'], cronograma:['TI-14-012','marcos e cronograma'], timesheet:['TI-14-012','qual tela usar'], ranking:['TI-14-012','qual tela usar'],
-  statusrep:['TI-14-026',null], gp:['TI-14-021',null], semanal:['TI-14-021',null], portal:['TI-14-022',null],
+  statusrep:['TI-14-026','como usar'], gp:['TI-14-021',null], semanal:['TI-14-021',null], portal:['TI-14-022',null],
   admin:['TI-14-013',null], parcerias:['TI-14-013',null], ams:['TI-14-013',null], receita:['TI-14-013',null], rentab:['TI-14-013',null],
   controladoria:['TI-14-027','controladoria rapida'],
   dash:['TI-14-027','as cinco abas'], dashfin:['TI-14-027','as cinco abas'], dashhoras:['TI-14-027','as cinco abas'], dashsaude:['TI-14-027','as cinco abas'], dashtime:['TI-14-027','as cinco abas'],
