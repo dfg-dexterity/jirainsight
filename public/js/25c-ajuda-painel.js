@@ -420,7 +420,13 @@ function ajdBuscaNodes(){
   ajdGarantaBusca();
   const r=ajdBuscaCalc(A.q); A._res=r.itens;
   out.push(ajdEl('div','muted small',`${r.itens.length} resultado(s) para “${A.q.trim()}”${_ajd.buscaP?' · buscando no texto dos processos…':''}`));
-  if(!r.itens.length&&!_ajd.buscaP){
+  if(_ajd.buscaErro){   // falha da leitura do texto: dizer, e deixar tentar de novo (a busca só olhou os títulos)
+    const av=ajdEl('div','ajd-cartao ajd-busca-erro'); av.setAttribute('role','status');
+    av.appendChild(ajdEl('p','ajd-cartao-t','⚠ Não consegui buscar no texto dos processos.'));
+    av.appendChild(ajdEl('p','muted small',`Só os títulos das seções foram procurados (${_ajd.buscaErro}).`));
+    const ac=ajdEl('div','ajd-acoes'); ac.appendChild(ajdBtn('↻ Tentar de novo',{'data-ajd-acao':'retry-busca'},'btn')); av.appendChild(ac); out.push(av);
+  }
+  if(!r.itens.length&&!_ajd.buscaP&&!_ajd.buscaErro){
     const c=ajdEl('div','ajd-cartao'); c.appendChild(ajdEl('p','ajd-cartao-t','Nada encontrado.'));
     c.appendChild(ajdEl('p','muted small','Tente outras palavras, abra o 🧭 guia desta tela ou avise o que faltou pelo 🐞 Reportar.'));
     const ac=ajdEl('div','ajd-acoes'); ac.appendChild(ajdBtn('🧭 Guia desta tela',{'data-ajd-acao':'guia'})); ac.appendChild(ajdBtn('🐞 Reportar',{'data-ajd-acao':'reportar'})); c.appendChild(ac); out.push(c); return out;
@@ -572,7 +578,8 @@ function ajdClique(e){
     else if(a==='duvidas') abreAjuda();
     else if(a==='reportar') abreReportar();
     else if(a==='roadmap'){ if(ajdMobile()) ajdFecha(); vaiPara('roadmap'); }
-    else if(a==='retry'){ ajdGaranteIndice(true); _ajd.procErro={}; ajdRender(); }
+    else if(a==='retry'){ ajdGaranteIndice(true); _ajd.procErro={}; _ajd.buscaErro=''; ajdRender(); }
+    else if(a==='retry-busca'){ _ajd.buscaErro=''; ajdRender(); }
     else if(a==='ident') abreIdentidade('ler a documentação do painel',{ leitura:true, depois:ajdRecarrega });
     else if(a==='sinc') ajdSincroniza();
     return;

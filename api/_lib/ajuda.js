@@ -563,7 +563,8 @@ export async function notionBlocos(id, { ate, maxChamadas = AJUDA_MAX_CHAMADAS_P
 // Supabase (linhas próprias da jirainsight_config)
 // ===========================================================================
 function sbDe(sb) {
-  if (sb && sb.base && sb.headers) return sb;
+  // O cliente do cron (sbTeams) não manda Content-Type: sem ele o PostgREST recusa o corpo JSON das gravações.
+  if (sb && sb.base && sb.headers) return { base: sb.base, headers: { ...sb.headers, 'Content-Type': 'application/json' } };
   const base = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const key = process.env.SUPABASE_ANON_KEY || '';
   if (!base || !key) return null;
@@ -730,7 +731,8 @@ export async function ajudaSincroniza({ sb, agora, orcamentoMs = 40000, forcar =
     const v = ajudaValidaProc(dados);
     if (!v.ok) throw new AjudaErro('invalida');
     const hash = ajudaHash(conv.secs);
-    const reescreve = !old || old.hash !== hash || old.conv !== AJUDA_CONV_V;
+    // O hash cobre só as seções: título e link também regravam a linha (renomear a página no Notion não mexe nos blocos).
+    const reescreve = !old || old.hash !== hash || old.conv !== AJUDA_CONV_V || old.titulo !== titulo || old.url !== pg.url;
     const entrada = {
       cod: f.cod, arq: f.arq, grupo: f.grupo, titulo, url: pg.url, editadoEm, editadoIso: pg.editadoIso, hash, bytes, omit: conv.omit, masc: conv.masc,
       tipos: conv.tipos, conv: AJUDA_CONV_V, secs: conv.secs.map((s) => ({ id: s.id, t: s.t })), sincEm: iso,
