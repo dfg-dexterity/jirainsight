@@ -65,7 +65,8 @@ async function carregaVenc(ate, forca){
 // A lista do Apontar vivia a sessão inteira: ticket concluído direto no Jira (ou por um colega) seguia "aberto" até o
 // ↻. Agora ela é relida em segundo plano, sem o cache do servidor, quando a pessoa VOLTA à aba (lista com mais de
 // 1 min) ou quando a tela é desenhada com a lista com mais de 5 min. Regras: uma leitura em voo; nunca por baixo de
-// quem está digitando ou com um painel/modal aberto (`apEditando`); só redesenha se a lista MUDOU (`apAssinatura`).
+// quem está digitando, de quem trocou o dia/horas/comentário de uma linha ou com um painel/modal aberto (`apEditando`);
+// só redesenha se a lista MUDOU (`apAssinatura`).
 const AP_REVALIDA_VOLTA_MS=60*1000, AP_REVALIDA_TELA_MS=5*60*1000;
 function apAssinatura(d){ return ((d&&d.tickets)||[]).map(t=>[t.k,t.status,t.venc,t.respId,t.seg,t.resumo,t.pai].join('|')).join('\n'); }
 function apEditando(){
@@ -74,7 +75,9 @@ function apEditando(){
   const c=document.getElementById('conteudo'); if(!c) return false;
   if(c.querySelector('.ap-trans')) return true;                           // painel de status / reagendar / comentar / 🧩 pai aberto numa linha
   const a=document.activeElement; if(a&&c.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox') return true;
-  return [...c.querySelectorAll('.ap-row .ap-tempo, .ap-row .ap-coment')].some(i=>String(i.value||'').trim());
+  // qualquer campo de uma linha que saiu do valor com que foi desenhado: horas, comentário e também o DIA (revisão do
+  // PR #243 — só o dia trocado, já sem foco, voltava para hoje no redesenho e as horas seguintes iam para o dia errado)
+  return [...c.querySelectorAll('.ap-row input, .ap-row textarea')].some(i=>i.type!=='checkbox'&&i.value!==i.defaultValue);
 }
 function apRevalida(minMs){
   const ap=estado.apontar; if(estado.vista!=='apontar'||ap.carregando||ap.revalidando) return;

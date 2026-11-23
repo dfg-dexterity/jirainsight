@@ -21,14 +21,15 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   6 min, `tkNocache()` põe `nocache=1` em `carregaVenc` (13), `axCarregaVenc` (08), `carregaGestao` (20) e `gpCarrega` (20b) — o status
   novo (não só o "concluído") também não volta ao antigo. **Mudança feita FORA (direto no Jira):** `apRevalida(minMs)` (13) relê a lista
   por trás, sem cache, ao voltar à aba (`visibilitychange`, lista com mais de 1 min) e ao desenhar a tela com a lista de mais de 5 min
-  — uma leitura em voo, nunca por baixo de quem digita ou com painel/modal aberto (`apEditando`), e só redesenha se a lista mudou
+  — uma leitura em voo, nunca por baixo de quem digita, de uma linha com qualquer campo fora do valor desenhado (horas, comentário
+  ou o DIA — revisão do PR #243: só o dia trocado voltava para hoje) ou com painel/modal aberto (`apEditando`), e só redesenha se a lista mudou
   (`apAssinatura`); a 🏠 Início relê a base ao voltar à aba. **Cuidado para quem escreve depois de uma transição:** o concluído já
   NÃO está nas listas quando o `await` do `/api/transicao` volta — o que depende dele na lista é lido ANTES do pedido (`srProximo` nos
   dois fluxos do 20c; o `de` do histórico no status em lote do 20); no 📝 Atualizar do status report o item concluído agora também
   sai da lista na hora (antes ficava com "Concluído" até a releitura). Lista nova de abertos em memória = uma linha no `tkPoda`; rota nova de
   lista de abertos = um ramo no `tkCampoDaLista`. Testes (scratchpad `fechar-plano/`, `roda.sh` na 8789, fixture `servidor-fechar.mjs`
-  com tickets com estado, cache de 5 min por chave e atraso do índice): `fechar-test.mjs` (Playwright, 37 — 22 falham no código
-  antigo) e `fechar-servidor-test.mjs` (`node --test`, 5, handler real do `/api/transicao`); o `servidor-sr.mjs` passou a devolver `status`
+  com tickets com estado, cache de 5 min por chave e atraso do índice): `fechar-test.mjs` (Playwright, 39 — 22 falham no código
+  antigo; F2b é da revisão do PR #243) e `fechar-servidor-test.mjs` (`node --test`, 5, handler real do `/api/transicao`); o `servidor-sr.mjs` passou a devolver `status`
   na transição, como a produção; regressão `status-report-acoes` 179, `-at` 47 (16b atualizado), `status-report` 28, `-ok` 23, `-tipos` 37,
   `-cab` 34, `sr-achar` 28, `boot` 6, `menus` 185, `bloq-tela` 201, `inicio-tela` 211, `offline` 36, `ipad-apontar` 637, `ipad-base`
   110, `sw-test` 68. Roadmap: R284 (webhook do Jira) e R285 (cache único entre as funções).
