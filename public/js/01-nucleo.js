@@ -399,6 +399,99 @@ function offlineMarca(emISO){
   offlinePinta();
 }
 function offlineLimpa(){ if(estado.offline){ estado.offline=null; offlinePinta(); } }
+// ---- 🪦 TICKET QUE SAIU DOS ABERTOS (2026-11-23, a pedido do usuário: "eu fecho um ticket e ele continua aberto
+// na ferramenta") ----
+// Por que voltava: a lista de abertos (/api/vencimentos) fica 5 min no cache da função do servidor, e esse cache NÃO é
+// limpo pelo /api/transicao (cada função da Vercel tem a sua memória); o índice de busca do Jira ainda atrasa alguns
+// segundos. Qualquer releitura depois de concluir (voltar da 🏠 Início, trocar a data, F5) trazia o ticket de volta.
+// Regra, num lugar só:
+//   • `tkSaiu(k)` — o ticket foi concluído ou excluído: sai JÁ das listas em memória (`tkPoda`) e ganha uma lápide de
+//     10 min (> cache do servidor + atraso do índice); `tkVoltou(k)` desfaz (reabriu).
+//   • TODA leitura de lista de ABERTOS (`tkCampoDaLista`: /api/vencimentos lista, analytics, status report e
+//     /api/reunioes?abertos=) passa pelo embrulho do fetch, que tira da resposta o ticket com lápide
+//     (`tkFiltraResposta`) — a resposta só é refeita quando um ticket com lápide está nela.
+//   • depois de QUALQUER escrita (`invalidaCacheDados` → `tkEscreveu`) as leituras vão com `nocache=1` por 6 min
+//     (`tkNocache()`), para status/data/responsável também não voltarem ao valor antigo.
+//   • quem alimenta: o embrulho do fetch (logo abaixo) lê a resposta de TODO POST /api/transicao — `status.categoria`
+//     (o status RESULTANTE, devolvido pelo servidor) ou `excluido` — então tela nova que conclua ticket por essa rota
+//     não precisa lembrar de nada. Ticket que deixa de existir por OUTRA rota (transferir, reclassificar) chama `tkSaiu`.
+// A lápide mora no localStorage (vale entre abas e depois do F5); sem localStorage, fica só na memória.
+const TK_SAIU_TTL_MS=10*60*1000;
+const TK_NOCACHE_MS=6*60*1000;
+const TK_SAIU_LS='jirainsight_tk_saiu_v1';
+const TK_RE_CHAVE=/^[A-Z][A-Z0-9_]*-\d+$/;
+let _tkMem={ m:{}, e:0 }; let _tkLsOk=true;
+function tkLe(){
+  let o=_tkMem;
+  if(_tkLsOk){ try{ o=JSON.parse(localStorage.getItem(TK_SAIU_LS)||'null'); }catch(e){ o=_tkMem; } }
+  const agora=Date.now(); const m={}; const src=(o&&typeof o==='object'&&o.m&&typeof o.m==='object')?o.m:{};
+  Object.keys(src).forEach(k=>{ const t=Number(src[k]); if(TK_RE_CHAVE.test(k)&&t>0&&t<=agora+60000&&agora-t<TK_SAIU_TTL_MS) m[k]=t; });
+  const e=Number(o&&o.e)||0;
+  return { m, e:(e>0&&e<=agora+60000)?e:0 };
+}
+function tkGrava(o){
+  _tkMem=o;
+  if(_tkLsOk){ try{ localStorage.setItem(TK_SAIU_LS, JSON.stringify(o)); }catch(e){ _tkLsOk=false; } }
+}
+function tkChave(k){ k=String(k||'').trim().toUpperCase(); return TK_RE_CHAVE.test(k)?k:''; }
+// Tira o ticket das listas de ABERTOS que já estão em memória (todas as cópias: a tela não espera a releitura).
+function tkPoda(k){
+  const fora=(arr)=>arr.filter(x=>!(x&&x.k===k));
+  const poda=(o,campo)=>{ if(o&&Array.isArray(o[campo])&&o[campo].some(x=>x&&x.k===k)) o[campo]=fora(o[campo]); };
+  try{ const ap=estado.apontar; if(ap&&ap.porData) Object.keys(ap.porData).forEach(c=>poda(ap.porData[c],'tickets')); }catch(e){}
+  try{ poda(estado.acoes&&estado.acoes.venc,'tickets'); }catch(e){}
+  try{ const g=estado.gestao; if(g){ poda(g.dados,'tickets'); if(g.sel) delete g.sel[k]; } }catch(e){}
+  try{ poda(estado.alertas&&estado.alertas.dados,'tickets'); }catch(e){}
+  try{ poda(estado.analytics&&estado.analytics.dados,'abertos'); }catch(e){}
+  try{ const gp=estado.gp; if(gp){ poda(gp.dados,'abertos'); Object.keys(gp.cache||{}).forEach(c=>poda(gp.cache[c]&&gp.cache[c].dados,'abertos')); } }catch(e){}
+  try{ const sr=estado.sr; if(sr){ poda(sr.dados,'itens'); Object.keys(sr.cache||{}).forEach(c=>poda(sr.cache[c]&&sr.cache[c].dados,'itens')); } }catch(e){}
+  try{ poda(estado.prioridades&&estado.prioridades.venc,'tickets'); }catch(e){}
+  try{ poda(estado.metricas&&estado.metricas.abertos,'tickets'); }catch(e){}
+  try{ if(typeof _tkbCache!=='undefined') Object.keys(_tkbCache).forEach(c=>poda(_tkbCache[c],'tickets')); }catch(e){}   // 🎫 busca (12b)
+}
+function tkSaiu(k){
+  k=tkChave(k); if(!k) return;
+  const o=tkLe(); o.m[k]=Date.now(); o.e=Date.now(); tkGrava(o);
+  tkPoda(k);
+  if(estado.acoes) estado.acoes.vencSujo=true;
+}
+function tkVoltou(k){
+  k=tkChave(k); if(!k) return;
+  const o=tkLe(); delete o.m[k]; o.e=Date.now(); tkGrava(o);
+}
+// Qual campo da resposta é a lista de ABERTOS ('' = esta rota não é lista de abertos: fichas, concluídos sem horas,
+// menções, base de reunião e bloqueios ficam como vieram).
+function tkCampoDaLista(u){
+  const q=u.searchParams;
+  if(u.pathname==='/api/reunioes') return q.has('abertos')?'tickets':'';
+  if(u.pathname!=='/api/vencimentos') return '';
+  if(q.has('detalhe')||q.has('chaves')||q.has('mencoes')||q.has('semHoras')||q.has('reuniao')||q.has('bloqueios')) return '';
+  if(q.has('statusrep')) return 'itens';
+  if(q.has('analytics')) return 'abertos';
+  return 'tickets';
+}
+// Tira da resposta o ticket com lápide. Sem lápide, sem lista ou sem ticket marcado nela → a MESMA resposta.
+function tkFiltraResposta(u, r){
+  let campo=''; try{ campo=tkCampoDaLista(u); }catch(e){}
+  if(!campo||!r||!r.ok) return r;
+  const m=tkLe().m; if(!Object.keys(m).length) return r;
+  return r.clone().json().then(j=>{
+    if(!j||!Array.isArray(j[campo])||!j[campo].some(t=>t&&m[t.k])) return r;
+    j[campo]=j[campo].filter(t=>!(t&&m[t.k]));
+    const h=new Headers(r.headers); h.delete('content-length'); h.delete('content-encoding');
+    return new Response(JSON.stringify(j), { status:r.status, statusText:r.statusText, headers:h });
+  }, ()=>r);
+}
+// categoria = statusCategory.key do status em que o ticket FICOU (new | indeterminate | done).
+function tkStatusMudou(k, categoria){ if(categoria==='done') tkSaiu(k); else if(categoria) tkVoltou(k); }
+function tkEscreveu(){ const o=tkLe(); o.e=Date.now(); tkGrava(o); }
+function tkNocache(){ const e=tkLe().e; return e>0&&(Date.now()-e)<TK_NOCACHE_MS; }
+// Resposta de um POST /api/transicao (chamado pelo embrulho do fetch, ANTES de a tela continuar).
+function tkDepoisDaTransicao(j){
+  if(!j||j.ok!==true||!j.issue) return;
+  if(j.excluido) tkSaiu(j.issue);
+  else if(j.status&&j.status.categoria) tkStatusMudou(j.issue, j.status.categoria);
+}
 (function fetchApp(){
   if(window.__fetchApp||typeof window.fetch!=='function') return; window.__fetchApp=true;
   const orig=window.fetch.bind(window);
@@ -412,6 +505,11 @@ function offlineLimpa(){ if(estado.offline){ estado.offline=null; offlinePinta()
     if(!u) return orig(input, init);
     if(metodo!=='GET'&&metodo!=='HEAD'){
       if(navigator.onLine===false){ offlineMarca(''); return Promise.reject(new Error(OFFLINE_FRASE)); }
+      // 🪦 a resposta da transição diz em que status o ticket ficou: a lápide nasce AQUI, antes de a tela continuar
+      // (lê uma cópia do corpo; a resposta que a tela recebe segue intacta; falha de leitura não muda nada).
+      if(u.pathname==='/api/transicao'){
+        return orig(input, init).then(r=>r.clone().json().then(j=>{ try{ tkDepoisDaTransicao(j); }catch(e){} return r; }, ()=>r));
+      }
       return orig(input, init);
     }
     return orig(input, init).then(r=>{
@@ -420,7 +518,7 @@ function offlineLimpa(){ if(estado.offline){ estado.offline=null; offlinePinta()
         if(off) offlineMarca(off);
         else if(r.ok && navigator.onLine!==false) offlineLimpa();
       }catch(e){}
-      return r;
+      return tkFiltraResposta(u, r);   // 🪦 lista de abertos sem o ticket que acabou de ser concluído
     });
   };
   window.addEventListener('offline', ()=>{ offlineMarca(''); });
@@ -599,7 +697,8 @@ function invalidaCacheDados(){ estado.cache={}; if(estado.ranking) estado.rankin
   // era lida UMA vez por sessão: depois de concluir/reagendar/apontar no ⏱ Apontar o card continuava com o
   // número antigo ("18 vencidos" com 7 na lista). Marca como suja — a Início mantém o que tem na tela e relê
   // em segundo plano no próximo render (2026-10-01, a pedido do usuário).
-  if(estado.acoes) estado.acoes.vencSujo=true; }
+  if(estado.acoes) estado.acoes.vencSujo=true;
+  tkEscreveu(); }   // 🪦 e as próximas leituras das listas vão sem o cache do servidor (tkNocache)
 function removeUsuariosTecnicos(t, a){
   const raw = Object.assign({}, (a&&a.pessoas)||{}, (t&&t.pessoas)||{});
   const bots = new Set(Object.keys(raw).filter(id => RE_EXCLUIR.test((raw[id]&&raw[id].nome)||'')));

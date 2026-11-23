@@ -2,6 +2,32 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🪦 Ticket concluído que voltava para a lista (2026-11-23, a pedido do usuário: "eu fecho um ticket e ele continua aberto na
+  ferramenta", em `?v=apontar&fil=vencidos`):** causa — a lista de abertos (`/api/vencimentos`) fica 5 min no cache da função, e esse
+  cache NÃO é limpo pelo `/api/transicao` (cada função da Vercel tem a sua memória); o `executaTransicao` só tirava o ticket da lista
+  da data aberta, e qualquer releitura (🏠 Início → card → `hxAbreApontar` zera `porData`; trocar a data; F5) o trazia de volta; na 🛠
+  Gestão ▤ Lista o concluído nem saía (ficava com o status "Concluído"); e a lista do Apontar vivia a sessão inteira (concluído direto
+  no Jira só sumia no ↻). **Regra, num lugar só (`01-nucleo.js`, bloco 🪦):** `tkSaiu(k)` = o ticket foi concluído/excluído → `tkPoda`
+  tira de TODAS as cópias em memória (Apontar de qualquer data, Início, Gestão, Alertas, Analytics, Pendências, Status report,
+  Prioridades, Métricas, busca 🎫) e grava a **lápide de 10 min** (`localStorage jirainsight_tk_saiu_v1`, vale entre abas e depois do
+  F5; maior que o cache do servidor + o atraso do índice de busca do Jira); `tkVoltou(k)` desfaz (reabriu). **Quem alimenta:** o
+  embrulho do fetch lê a resposta de TODO `POST /api/transicao` (`tkDepoisDaTransicao`, antes de a tela continuar) — o servidor agora
+  devolve **`status:{nome,categoria}`** (o status RESULTANTE, lido depois da transição; falha da leitura = resposta sem `status`) e
+  `excluido`; tela nova que conclua ticket por essa rota não precisa lembrar de nada. Ticket que deixa de existir por OUTRA rota
+  (transferir, reclassificar, vincular) passa por `apExtrasRemoveTicket`, que chama `tkSaiu`. **Quem filtra:** o mesmo embrulho, nas
+  leituras de lista de ABERTOS (`tkCampoDaLista`: lista principal `tickets`, `analytics` → `abertos`, `statusrep` → `itens`,
+  `/api/reunioes?abertos=` → `tickets`; fichas, `semHoras`, `mencoes`, `reuniao`, `chaves` e `bloqueios` ficam como vieram) — a resposta
+  só é refeita quando um ticket com lápide está nela. **Sem cache depois de escrever:** `invalidaCacheDados()` → `tkEscreveu()` e, por
+  6 min, `tkNocache()` põe `nocache=1` em `carregaVenc` (13), `axCarregaVenc` (08), `carregaGestao` (20) e `gpCarrega` (20b) — o status
+  novo (não só o "concluído") também não volta ao antigo. **Mudança feita FORA (direto no Jira):** `apRevalida(minMs)` (13) relê a lista
+  por trás, sem cache, ao voltar à aba (`visibilitychange`, lista com mais de 1 min) e ao desenhar a tela com a lista de mais de 5 min
+  — uma leitura em voo, nunca por baixo de quem digita ou com painel/modal aberto (`apEditando`), e só redesenha se a lista mudou
+  (`apAssinatura`); a 🏠 Início relê a base ao voltar à aba. Lista nova de abertos em memória = uma linha no `tkPoda`; rota nova de
+  lista de abertos = um ramo no `tkCampoDaLista`. Testes (scratchpad `fechar-plano/`, `roda.sh` na 8789, fixture `servidor-fechar.mjs`
+  com tickets com estado, cache de 5 min por chave e atraso do índice): `fechar-test.mjs` (Playwright, 37 — 22 falham no código
+  antigo) e `fechar-servidor-test.mjs` (`node --test`, 5, handler real do `/api/transicao`); regressão `status-report-acoes` 179,
+  `status-report` 28, `-ok` 23, `boot` 6, `menus` 185, `bloq-tela` 201, `inicio-tela` 211, `offline` 36, `ipad-apontar` 637, `ipad-base`
+  110, `sw-test` 68. Roadmap: R284 (webhook do Jira) e R285 (cache único entre as funções).
 - **❓ Central de Ajuda com a documentação do Notion (2026-11-23, a pedido do usuário: "deixe mais fácil o acesso da ajuda, que hoje
   está no Notion — um menu de ajuda onde essa alimentação de Notion fica facilmente visível; facilitar o entendimento da ferramenta"):**
   decisões — **D1** o texto aparece DENTRO do app, com "abrir no Notion ↗" ao lado · **D2** botão **❓ Ajuda fixo no topo**

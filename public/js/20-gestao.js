@@ -10,7 +10,7 @@ const GX_RE_AGUARDA_CLIENTE=/aguard|pendente.*client|waiting/i;
 function carregaGestao(forca){
   const g=estado.gestao; if(!g.ate) g.ate=somaDias(hojeSP(),30);
   g.carregando=true; g.erro='';
-  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${forca?'&nocache=1':''}`)
+  fetch(`/api/vencimentos?ate=${encodeURIComponent(g.ate)}&incluirSemVenc=1${(forca||tkNocache())?'&nocache=1':''}`)   // 🪦 depois de uma escrita, sem o cache do servidor
     .then(r=>r.json()).then(j=>{ g.carregando=false;
       if(j.erro){ g.erro=j.erro; } else { g.dados=j; }
       if(estado.vista==='gestao') renderGestao();
