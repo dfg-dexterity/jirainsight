@@ -57,6 +57,9 @@
   .hdr-tools{gap:6px;padding:4px 0 6px}
   .hdr-acoes{flex:0 1 auto;gap:2px}
   .hdr-acoes .btn{padding:7px 10px}
+  /* ❓ Ajuda: só o ícone (o nome fica no aria-label/title) e alvo de dedo */
+  #btn-ajuda-topo .hdr-rot{display:none}
+  #btn-ajuda-topo{min-width:44px;min-height:44px;padding:7px 10px}
   /* ↻ e ⬇ só com o ícone (o nome fica no aria-label). O texto do botão NÃO foi
      partido em <span>: isso mexia 1px no desenho do "Atualizar" no computador. */
   #btn-refresh,#grp-exportar>.hdrmenu-b{font-size:0}
@@ -2289,3 +2292,29 @@
   .bq-quemtipo label,.bq-venc-l{min-height:44px}
 }
 /* ---- fim: bloqueios ---- */
+
+/* ---- 📱 grupo: ajuda (❓ painel de Ajuda — 25c; o corte de 760 px é o MESMO do ajdMobile() do JS) ---- */
+@media (max-width:760px){
+  /* o painel vira tela cheia (sem lateral) e respeita o entalhe e a barra de início do iPhone */
+  .ajd{top:0;right:0;bottom:0;left:0;width:100%;max-width:100%;height:100vh;height:100dvh;border-left:0;box-shadow:none}
+  .ajd-cab{padding:calc(10px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) 6px calc(12px + env(safe-area-inset-left,0px))}
+  .ajd-x{min-width:44px;min-height:44px;font-size:16px}
+  .ajd-busca{padding:0 calc(12px + env(safe-area-inset-right,0px)) 8px calc(12px + env(safe-area-inset-left,0px))}
+  .ajd-q{min-height:44px;font-size:16px}
+  .ajd-abas{padding:0 calc(6px + env(safe-area-inset-right,0px)) 0 calc(6px + env(safe-area-inset-left,0px))}
+  .ajd-aba{flex:1 1 0;min-height:44px;padding:8px 6px}
+  .ajd-corpo{padding:12px calc(12px + env(safe-area-inset-right,0px)) 16px calc(12px + env(safe-area-inset-left,0px));-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  /* rodapé compacto: nunca passa de ~30% da altura (rola dentro dele), botões lado a lado */
+  .ajd-rodape{max-height:30vh;max-height:30dvh;overflow:auto;padding:6px calc(12px + env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px))}
+  .ajd-rod-l{gap:6px;margin:2px 0}
+  .ajd-rodape .btn,.ajd-corpo .btn{min-height:44px}
+  .ajd-rodape summary{min-height:44px;padding:11px 0;box-sizing:border-box}
+  .ajd-proc,.ajd-res-i{min-height:44px}
+  .ajd-sec-lk{min-height:44px;padding:6px 12px;display:inline-flex;align-items:center}
+  .ajd-plink{min-height:44px;display:inline-flex;align-items:center}
+  .ajd-det>summary,.ajd-secd>summary{min-height:44px;box-sizing:border-box;padding-top:11px;padding-bottom:11px}
+  .ajd-diag>summary{min-height:44px;padding:11px 0;box-sizing:border-box}
+  .ajd-indice{gap:6px}
+  .ajd-tab{font-size:12px}
+}
+/* ---- fim: ajuda ---- */

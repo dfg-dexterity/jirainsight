@@ -2,6 +2,45 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **❓ Central de Ajuda com a documentação do Notion (2026-11-23, a pedido do usuário: "deixe mais fácil o acesso da ajuda, que hoje
+  está no Notion — um menu de ajuda onde essa alimentação de Notion fica facilmente visível; facilitar o entendimento da ferramenta"):**
+  decisões — **D1** o texto aparece DENTRO do app, com "abrir no Notion ↗" ao lado · **D2** botão **❓ Ajuda fixo no topo**
+  (`#btn-ajuda-topo`, tecla **F1**) · **D3** **só para quem está identificado** (o repositório é público e o painel abre sem login): nada
+  do Notion vai para o GitHub nem para `public/` (o gate reprova `public/ajuda/`). (1) **`api/_lib/ajuda.js` = fonte ÚNICA** (formato
+  v1 no cabeçalho): `AJUDA_FONTES` (TI-14-002…029 = 28 páginas; TI-14-001 só link — **processo novo = linha aqui**), leitura pela API
+  oficial por blocos (`Notion-Version 2022-06-28`, deps trocáveis em `AJUDA_DEPS`, `NOTION_API_URL` só para teste), `ajudaConverte`
+  (subconjunto seguro: títulos, parágrafos, listas, tabela, toggle, callout, código/mermaid, divisória; imagem = `omit` sem URL; link
+  externo só https; link para outro processo = `p`), **`ajudaMascara`** (tokens, JWT, webhooks, connection strings, chaves privadas
+  viram `•••` e são contados no diagnóstico), `ajudaSincroniza` **retomável** (fila no índice, orçamento de tempo, devolve só contagens
+  e `pendentes`), leitores e `ajudaRecorteIndice` (o `diag` só para gestor/admin). Linhas `ajuda_indice` e `ajuda_p_<arq>` em
+  `jirainsight_config` (nunca na `cfg`; teto 300 KB; grava só quando o hash muda). (2) **Cron:** fase `ajuda` do `api/teams.js` — no
+  tique noturno logo depois da 🧭 Disciplina (retorno `{disciplina, ajuda}`), no diurno antes do teste de dia útil se ainda não rodou
+  hoje; cursor `teams_estado.ultimaSincAjuda` só com a rodada completa; sem `NOTION_TOKEN` = "sem chave", nada gravado; manual
+  `?tipo=ajuda[&dry=1][&confirmar=1][&forcar=1][&so=]` com `CRON_SECRET`. (3) **Rotas** (sem função nova): `GET /api/config?ajuda=
+  indice|proc&p=|busca` (401 sem identidade, 502 sem banco, `no-store` sempre) e `POST ?ajuda=1 {acao:'sincronizar', forcar?}` (gestor/
+  admin, 1 a cada 30 s; a tela repete enquanto houver `pendentes`); `'ajuda'` em `DADOS_PARAM_PROIBIDO` do `sw.js` — **sem cópia
+  offline de propósito** (R282). (4) **Painel** `public/js/25c-ajuda-painel.js` (prefixo `ajd`): `<aside id="ajd">` lateral não modal
+  (tela cheia ≤ 760 px, `ajdMobile()`), abas Esta tela · Manual · Novidades, busca (títulos, depois texto), 🧭 guia/tours, 💬 dúvidas,
+  🐞 Reportar, rodapé "Sincronizada com o Notion em…" e, para gestor/admin, ↻ Atualizar a documentação agora + Diagnóstico; estados
+  sem-id (nenhuma chamada) · carregando · ok · vazio · sem-chave · erro · offline; cache só em memória por identidade (`ajdZeraCache`
+  no `idTrocou` do 13); URL `ajp`/`ajs` (só no boot); NAVCAT `acao:ajuda`/`acao:manual`. **Regras:** conteúdo de fora só por
+  `createElement`/`textContent` (o `innerHTML` só nas linhas `// ajd:casca` e no `ajdMermaidPinta`, que limpa o SVG num `<template>`
+  inerte antes de inserir); mermaid sob demanda com versão exata + SRI e `securityLevel:'strict'` (no celular só por "▶ Ver diagrama");
+  **tela nova = entrada em `AJUDA_MAPA`** (`[processo, palavra-chave do título da seção]`, sem acento; sem casar = Resumo do processo
+  — 34 das 54 conferidas contra o Notion, 20 no Resumo até a 1ª sincronização real, R283). **Gate `scripts/check-ajuda.mjs`** no
+  `npm run check` (vista sem mapa, fonte inválida, mermaid sem versão exata/SRI, `sw.js` sem `'ajuda'`, `public/ajuda/`, `innerHTML`
+  fora do lugar; `--titulos <json>` confere as palavras-chave). O ⋯ Mais ficou só com a linha `#btn-ajuda` "❓ Ajuda" (guias e tour
+  citam esse id); `#btn-guia-tela` e `#btn-mais-reportar` saíram (o 🧭 e o 🐞 moram no painel; a tecla `?` e o `#btn-guia` ficam). CSS:
+  `.ajd-*` no `app.css`, bloco `📱 grupo: ajuda` no `mobile.css` (tela cheia, alvos ≥ 44, busca 16 px, rodapé ≤ 30dvh) e `🍎 grupo: ajuda`
+  no `ipad.css` (à direita sobre o conteúdo, sem cobrir a lateral). **Primeiro conteúdo:** só depois dos [Manual step]s (NOTION_TOKEN na
+  Vercel + acesso da integração às páginas do TI-14 + 1ª sincronização) — o código foi testado contra um Notion falso (o proxy daqui
+  bloqueia `api.notion.com`). Testes (scratchpad `ajuda-plano/`, `roda.sh` na porta 8799, fixture `servidor-ajuda.mjs` com o conversor
+  real): `ajuda-conv-test.mjs` (`node --test`, 44), `ajuda-servidor-test.mjs` (`node --test`, 63, handlers reais com Notion/Supabase/Jira
+  falsos), `ajuda-tela-test.mjs` (Playwright, 243) e `ajuda-mobile-test.mjs` (Playwright, 69: 360/390, tablet 820 e 1180 lateral, desktop
+  1440 idêntico); regressão `disc-servidor-test` 49 (retorno do tique noturno), `bloq-servidor` 73, `kpi-servidor` 75, `sr-servidor` 47,
+  `push-servidor` 14, `custos-servidor` 25, `sw-test` 68, `menus-test` 185 (contagem do ⋯ Mais), `marca-test` 29, `ipad-base` 110,
+  `offline` 36, `push-tela` 93, `inicio-tela` 206 (+5 falhas pré-existentes dependentes da hora). Documento: `docs/ajuda-notion-2026-11-23.md`.
+  Planejado por um modelo e executado por outro mais barato (T1–T5), plano em `ajuda-plano/plano-fable.md`. Roadmap: R276–R283.
 - **🧭 Plano do acompanhamento do gerente de projeto (2026-11-22, a pedido do usuário: "pesquisa de mercado para ver como meu
   gerente pode acompanhar os projetos de forma mais eficiente — como o pessoal usa o tempo no projeto, se faz update dos tickets;
   crie itens no roadmap do Notion, depois eu escolho"):** só planejamento, nada no app mudou. Pesquisa de mercado (web, ~40 buscas,
@@ -1315,6 +1354,10 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
    este ambiente (o proxy bloqueia `api.notion.com` e a saída do shell trunca base64),
    então o caminho prático é o usuário arrastar o PNG na página ou o app ganhar uma URL
    pública que o Notion consiga baixar.
+
+**Desde 2026-11-23 o texto desses processos aparece DENTRO do app** (painel ❓ Ajuda, só para quem está identificado), copiado
+uma vez por dia pela fase `ajuda` do cron — então manter os processos em dia é também manter a ajuda do app em dia; processo novo
+precisa de uma linha em `AJUDA_FONTES` (`api/_lib/ajuda.js`) e de entradas no `AJUDA_MAPA` (`public/js/25c-ajuda-painel.js`).
 
 Ferramentas MCP: `mcp__Notion__notion-fetch` para ler, `mcp__Notion__notion-update-page`
 para editar, `mcp__Notion__notion-create-pages` para criar processos. Carregar os
