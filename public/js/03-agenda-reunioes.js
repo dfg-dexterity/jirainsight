@@ -502,6 +502,10 @@ function agAbreTicket(evId, fixo){
   if(!fixo) agConfereEvento(ev);   // 🔎 já existe o ticket desta reunião (mesmo título, mesmo dia)?
   if(!fixo&&ev.uid) agConfereTravaModal(ev);   // 🔒 alguém criou (ou está criando) enquanto a tela estava aberta?
   agAtualizaModal();
+  // 🙋 a caixa "você" de uma reunião que já tem ticket depende das minhas horas daquele dia: lê a janela e reconfere
+  const m=_agM; const dia=(ev.inicio||'').slice(0,10);
+  if(typeof apGaranteMeusLogs==='function'&&dia&&dia<=hojeSP())
+    Promise.resolve(apGaranteMeusLogs(dia)).then(()=>{ if(_agM===m&&agAgModalAberto()) agAtualizaModal(); }, ()=>{});
 }
 // 🔒 Relê a trava desta reunião ao abrir o 📝: se outra pessoa criou o ticket nesse meio-tempo, o modal já abre no
 // ticket dela ("aponte aqui"); se está criando agora, o modal avisa (o Confirmar recusaria pela reserva de qualquer jeito).
@@ -578,15 +582,32 @@ function agAtualizaModal(){
     const euAcc=String(id.accountId||''); const futura=(ev.inicio||'').slice(0,10)>hojeSP();
     // No 👥 convidar de uma reunião que JÁ tem ticket (m.fixo) você nasce DESMARCADO: as suas horas saíram quando o
     // ticket foi criado — marcado de novo seria um segundo worklog seu no mesmo ticket.
-    const euChk=(primeira||!noDom.has(euAcc))?(!m.fixo||!!m.jaPor):marcados.has(euAcc);   // ticket de OUTRA pessoa: você aponta
+    // 🙋 (2026-11-24, a pedido do usuário: "criei os tickets, coloquei as horas e elas não entram nas minhas horas")
+    // A regra do "você" é UMA, esteja você na lista do Outlook ou não: a reunião está na SUA agenda, então as suas
+    // horas saem — a caixa nasce MARCADA. Antes, quem ORGANIZAVA a reunião (o Outlook não lista o organizador entre os
+    // convidados), quem entrou por convite encaminhado/outro endereço ou ficou além do corte de convidados nascia
+    // DESMARCADO, e o ticket era criado sem as horas de quem o criou. Só nasce desmarcada quando eu JÁ tenho horas
+    // neste ticket neste dia (`apMeuNoTicket` — seria um segundo worklog) ou, no 👥 de um ticket meu, quando não deu
+    // para saber. Quem mexeu na caixa (`m.euTocado`) mantém a escolha nos redesenhos.
+    const diaEv=(ev.inicio||'').slice(0,10);
+    const jaTenho=(m.fixo&&typeof apMeuNoTicket==='function')?apMeuNoTicket(m.fixo, diaEv):null;
+    const euPadrao=jaTenho>0?false:(!m.fixo||!!m.jaPor||jaTenho===0);
+    const euChk=(m.euTocado&&noDom.has(euAcc))?marcados.has(euAcc):euPadrao;
+    const euNaLista=conv.internos.some(p=>p.eu);
+    const euDica=jaTenho>0?`(você — já tem ${fmtH(jaTenho)} neste ticket neste dia; marque só se for lançar mais)`
+      :m.jaPor?'(você — as suas horas saem agora, no seu usuário, no ticket que já existe)'
+      :m.fixo?(jaTenho===0?'(você — ainda sem horas neste ticket neste dia: saem agora, no seu usuário)':'(você — marque só se ainda não lançou as suas horas neste ticket)')
+      :euNaLista?'(você — as suas horas saem agora, no seu usuário, junto com os convites)'
+      :'(você — a reunião está na sua agenda, mas você não aparece entre os convidados do Outlook: as suas horas saem agora, no seu usuário — desmarque se não participou)';
     const euLinha=(nome)=>!euAcc
       ?`<label class="check" style="opacity:.65"><input type="checkbox" disabled> ${esc(nome)} <span class="muted small">(você — identifique-se no ⏱ Apontar para apontar as suas horas daqui)</span></label>`
       :futura?`<label class="check" style="opacity:.65"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" disabled> ${esc(nome)} <span class="muted small">(você — a reunião ainda não aconteceu; as suas horas você aponta depois, pelo ⏱ Apontar ou 📆 Hoje)</span></label>`
-      :`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" ${euChk?'checked':''}> ${esc(nome)} <span class="muted small">${m.jaPor?'(você — as suas horas saem agora, no seu usuário, no ticket que já existe)':m.fixo?'(você — marque só se ainda não lançou as suas horas neste ticket)':'(você — as suas horas saem agora, no seu usuário, junto com os convites)'}</span></label>`;
+      :`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(nome)}" data-agm-eu="1" ${euChk?'checked':''}> ${esc(nome)} <span class="muted small">${esc(euDica)}</span></label>`;
     const linhas=conv.internos.map(p=>p.eu?euLinha(p.nome)
       :`<label class="check"><input type="checkbox" data-agm-p="${escA(p.acc)}" data-agm-nome="${escA(p.nome)}" ${chkDe(p.acc)?'checked':''}> ${esc(p.nome)}</label>`).join('')
-      // você não está no convite (criou o ticket por um colega, ou o e-mail do Outlook não é o do Jira): a linha existe, desmarcada
-      +(euAcc&&!conv.internos.some(p=>p.eu)&&!futura?`<label class="check"><input type="checkbox" data-agm-p="${escA(euAcc)}" data-agm-nome="${escA(id.nome||id.email||'você')}" data-agm-eu="1" ${((primeira||!noDom.has(euAcc))?!!m.jaPor:marcados.has(euAcc))?'checked':''}> ${esc(id.nome||id.email||'você')} <span class="muted small">(você — não está no convite; marque para apontar as suas horas também)</span></label>`:'');
+      // você não aparece entre os convidados (organizador numa resposta antiga do servidor, convite encaminhado, e-mail do
+      // Outlook diferente do do Jira, reunião com convidados demais): a MESMA linha, com a mesma regra — marcada.
+      +(euAcc&&!euNaLista?euLinha(id.nome||id.email||'você'):'');
     const extras=(m.extras||[]).map(x=>`<div class="agm-extra-row"><label class="check"><input type="checkbox" data-agm-p="${escA(x.acc)}" data-agm-nome="${escA(x.nome)}" data-agm-extra="1" ${chkDe(x.acc)?'checked':''}> ${esc(x.nome)} <span class="badge" data-tip="Não está no convite do Outlook — adicionado à mão neste modal; recebe o convite de apontamento como os demais">➕ fora do convite</span></label><button type="button" class="agm-extra-rm" data-agm-extra-rm="${escA(x.acc)}" data-tip="Tirar da lista" aria-label="Tirar ${escA(x.nome)} da lista">✕</button></div>`).join('');
     pessoasHtml=(linhas||'<span class="muted small">Nenhum participante interno.</span>')+extras
       +(conv.externos?`<div class="muted small" style="margin-top:6px">👤 ${conv.externos} participante(s) externo(s) fora da lista — convites de apontamento são só para o time Dexterity.</div>`:'');
@@ -749,6 +770,11 @@ async function agConfirma(){
     let concl=null;
     if(!futura){ concl=await agConcluiReuniao(key, id); if(concl.feito) gravar=true;
       else if(concl.motivo==='erro'||concl.motivo==='sem-transicao') avisos.push(`⚠ Não consegui concluir o ticket${concl.erro?` (${concl.erro})`:' (o fluxo não tem a transição)'} — mude o status no Jira.`); }
+    // 🙋 Nenhuma hora SUA saiu (você estava desmarcado, ou ninguém foi marcado) e você não tem horas neste ticket neste
+    // dia: dito com todas as letras — era assim, calado, que o ticket nascia sem as horas de quem o criou.
+    if(!eu&&!futura&&!((typeof apMeuNoTicket==='function'?apMeuNoTicket(key, dia):0)>0))
+      avisos.push(`ℹ As SUAS horas NÃO foram lançadas no ${key} (você estava desmarcado). Se participou, lance pelo ⏱ Apontar.`);
+    try{ invalidaCacheDados(); }catch(e){}
     if(gravar) salvaCfg();
     toast(`✓ ${key}${meu&&meu.ok?` · ${fmtH(seg)} apontadas no seu usuário`:''}${convidados?` · ${convidados} convite(s) de apontamento enviados${extras.length?` (${extras.length} fora do convite)`:''}`:''}${concl&&concl.feito?` · status ${concl.para}`:''}`,'ok');
     avisos.forEach(a=>toast(a,'warn'));
@@ -1172,3 +1198,5 @@ document.addEventListener('keydown',(e)=>{
   const c=agExtraCandidatos(_agM, ev, _agM.extraBusca||'').itens; if(c.length) agExtraAdiciona(c[0].acc);
 });
 
+// 🙋 a pessoa mexeu na própria caixa do 📝: a escolha dela passa a valer nos redesenhos (senão vale a regra, `euPadrao`)
+document.addEventListener('change', (e)=>{ const t=e.target; if(_agM&&t&&t.matches&&t.matches('[data-agm-eu]')) _agM.euTocado=true; });

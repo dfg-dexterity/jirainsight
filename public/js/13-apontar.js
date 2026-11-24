@@ -113,10 +113,20 @@ function minhasLogsEntre(de, ate){
 function apExtrasRemoveTicket(k){
   const ap=estado.apontar; if(!k) return;
   tkSaiu(k);   // 🪦 a chave deixou de existir: sai das listas de abertos em memória e não volta pela releitura (cache do servidor)
+  try{ tkEscreveuHoras(); }catch(e){}   // ⏱ as horas dela mudaram de ticket: as telas do período releem sem o cache do servidor
   ap.extraLogs=(ap.extraLogs||[]).filter(x=>x.k!==k);
   const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
 }
 function apMeusLogsCobre(d){ const m=apMeusLogs(); return !!(m&&d&&d>=m.de&&d<=m.ate); }
+// Quanto EU já apontei num ticket num dia, em segundos (janela ou período + o que acabei de lançar). `null` = não sei
+// (nem a janela nem o período cobrem o dia). É a régua dos convites (2026-11-24): a caixa "as minhas horas" nasce
+// MARCADA, a não ser que eu já tenha horas naquele ticket naquele dia — aí marcar de novo seria um segundo worklog.
+function apMeuNoTicket(k, dia){
+  const id=idApontar(); if(!(id&&id.accountId&&k&&dia)) return null;
+  const extra=(estado.apontar.extraLogs||[]).reduce((t,x)=>t+((x.d===dia&&x.k===k)?(Number(x.s)||0):0),0);
+  if(!(apMeusLogsCobre(dia)||apTempoCobre(dia))) return extra>0?extra:null;
+  return minhasLogsEntre(dia,dia).reduce((t,w)=>t+(w.k===k?(Number(w.s)||0):0),0)+extra;
+}
 function apTempoCobre(d){ const mt=estado.tempo&&estado.tempo.meta; return !!(mt&&mt.startDate&&mt.endDate&&d>=mt.startDate&&d<=mt.endDate); }
 function minhasHorasPorDia(){
   const id=idApontar(); const out={}; const m=apMeusLogs();
@@ -144,7 +154,9 @@ function apGaranteMeusLogs(dia){
   if(ap.meusLogsErro&&Date.now()-ap.meusLogsErro<30000) return Promise.resolve(null);   // acabou de falhar: não insiste
   ap.meusLogsDe=de;
   // Releitura pedida (↻, dado excluído) ou gravação feita nesta sessão: sem o cache de 20 min do servidor.
-  const fresco=!!(ap.meusLogsSujo||ap.meusLogsEscreveu);
+  // (2026-11-24) e também nos 21 min seguintes a QUALQUER lançamento deste navegador (`tkNocacheHoras`, vale depois do
+  // F5 e entre abas): a janela decide se a caixa "as minhas horas" dos convites nasce marcada — não pode vir velha.
+  const fresco=!!(ap.meusLogsSujo||ap.meusLogsEscreveu||tkNocacheHoras());
   const p=fetch(`/api/tempo?desde=${de}&ate=${hoje}${fresco?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!j||!Array.isArray(j.worklogs)) throw new Error((j&&j.erro)||'tempo');
     const mt=j.meta||{};   // só vale o intervalo que o servidor DEVOLVEU (um pedido inválido viria como "7 dias")
@@ -189,6 +201,7 @@ function registraExtraDia(dia, seg, k){
   ap.extraPorDia[dia]=(ap.extraPorDia[dia]||0)+seg;
   ap.extraLogs=ap.extraLogs||[];
   ap.extraLogs.push({d:dia, s:seg, k:k||'', p:k?String(k).split('-')[0]:'—'});
+  try{ tkEscreveuHoras(); }catch(e){}   // ⏱ as telas do período (Timesheet, Ranking…) releem ao serem abertas (01)
   // ⏱ card "Apontamento do time" da Início: reflete o meu lançamento na hora,
   // sem esperar o Clockwork (o 🔄 atualizar relê tudo do servidor).
   const ax=estado.acoes, id=idApontar();
@@ -1313,7 +1326,9 @@ function abreReuniaoGrupo(preKey){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const hoje=hojeSP();
   let ultima=[]; try{ ultima=JSON.parse(localStorage.getItem(RG_SEL_KEY))||[]; }catch(e){}
-  const marcar=new Set(ultima.length?ultima:[id.accountId]);
+  // Você nasce SEMPRE marcado (2026-11-24): a última seleção guardada podia não ter você — e o texto do modal diz
+  // "você aponta o seu na hora". Quem não quer as próprias horas desmarca o próprio nome (e o resultado diz isso).
+  const marcar=new Set(ultima.length?ultima:[]); marcar.add(id.accountId);
   const pessoas=Object.entries(estado.usuarios||{})
     .filter(([a,p])=>!RE_EXCLUIR.test(p.nome||''))
     .sort((x,y)=>(x[1].nome||'').localeCompare(y[1].nome||'','pt'));
@@ -1393,7 +1408,8 @@ async function enviaReuniaoGrupo(){
         email:id.email,token:id.token})}).then(r=>r.json());
     if(j.ok){
       const partes=[];
-      if(j.proprio) partes.push(j.proprio.ok?'seu apontamento foi registrado':`o seu falhou (${j.proprio.erro})`);
+      if(j.proprio) partes.push(j.proprio.ok?'seu apontamento foi registrado':`⚠ o SEU apontamento NÃO saiu (${j.proprio.erro||'o Jira recusou'}) — lance pelo ⏱ Apontar`);
+      else partes.push('ℹ as SUAS horas não foram lançadas (o seu nome estava desmarcado)');
       if(j.diretos) partes.push(`${j.diretos} apontado(s) direto via Clockwork`);
       if(j.pendentes) partes.push(`${j.pendentes} convite(s) aguardando confirmação`);
       // Aviso no Teams: individual (chat privado) quando configurado; senão, canal.
@@ -1418,7 +1434,9 @@ async function enviaReuniaoGrupo(){
         const t=dados&&dados.tickets&&dados.tickets.find(x=>x.k===j.issue); if(t) t.seg=(t.seg||0)+seg;
         registraExtraDia(inicio, seg, j.issue); atualizaPainelHoras();
       }
-      setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, j.teams==='nao-configurado'?4200:2600);
+      // Só fecha sozinho quando as SUAS horas saíram; sem elas o aviso fica na tela até você fechar.
+      if(j.proprio&&j.proprio.ok) setTimeout(()=>{ fechaModal(); if(estado.vista==='apontar') renderApontar(); }, j.teams==='nao-configurado'?4200:2600);
+      else if(estado.vista==='apontar') renderApontar();   // o botão segue desabilitado: os convites JÁ saíram — reenviar duplicaria
     } else { fb.classList.add('err'); fb.textContent=j.erro||'Falha ao enviar os convites.'; btn.disabled=false; }
   }catch(e){ fb.classList.add('err'); fb.textContent='Erro de rede: '+(e.message||e); btn.disabled=false; }
 }

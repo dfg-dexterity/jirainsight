@@ -102,6 +102,32 @@ async function agendaDonoValido(email, token) {
   cacheSetTTL(ck, quem, 10);
   return { ok: true, ...quem };
 }
+// Quem participa da reunião, para casar com os usuários do Jira e convidar a apontar (2026-11-24, a pedido do usuário:
+// "os convites que estou mandando não estão entrando nas minhas horas apontadas"). Três defeitos da lista antiga
+// (`attendees.slice(0, 20)`), vistos nos dados reais do dia 23/11:
+//   1. o Graph NÃO lista o ORGANIZADOR entre os `attendees` — quem organizava a reunião ficava fora da lista: nem as
+//      próprias horas (na agenda dele), nem o convite (na agenda dos colegas);
+//   2. com mais de 20 convidados (reunião de cliente com 72 pessoas) o corte pegava os 20 primeiros da ordem do
+//      Outlook — o time podia ficar inteiro de fora;
+//   3. o mesmo endereço duas vezes ocupava duas vagas.
+// Agora: organizador primeiro, depois os convidados do MESMO DOMÍNIO da caixa lida (o time, até 40), depois os demais
+// até completar 20 (servem só para a contagem de externos na tela). Sem e-mail não entra.
+const AGENDA_PESSOAS_TIME = 40;
+const AGENDA_PESSOAS_MIN = 20;
+export function agendaPessoas(e, email) {
+  const dom = String(email || '').toLowerCase().split('@')[1] || '';
+  const vistos = new Set(); const time = []; const fora = [];
+  const add = (ea) => {
+    const end = String((ea && ea.address) || '').trim().toLowerCase();
+    if (!end || vistos.has(end)) return;
+    vistos.add(end);
+    ((dom && end.endsWith(`@${dom}`)) ? time : fora).push({ nome: String((ea && ea.name) || ''), email: end });
+  };
+  add(e && e.organizer && e.organizer.emailAddress);
+  ((e && e.attendees) || []).filter((a) => a && a.type !== 'resource').forEach((a) => add(a.emailAddress));
+  const doTime = time.slice(0, AGENDA_PESSOAS_TIME);
+  return [...doTime, ...fora.slice(0, Math.max(0, AGENDA_PESSOAS_MIN - doTime.length))];
+}
 async function agenda(req, res, b) {
   const email = String((b && b.email) || '').trim().toLowerCase();
   const token = String((b && b.token) || '').trim();
@@ -156,10 +182,7 @@ async function agenda(req, res, b) {
     organizador: { nome: (e.organizer && e.organizer.emailAddress && e.organizer.emailAddress.name) || '', email: orgDe(e) },
     participantes: (e.attendees || []).filter((a) => a.type !== 'resource').length,
     // Quem foi convidado (para casar com os usuários do Jira e convidar a apontar).
-    pessoas: (e.attendees || []).filter((a) => a.type !== 'resource').slice(0, 20).map((a) => ({
-      nome: (a.emailAddress && a.emailAddress.name) || '',
-      email: String((a.emailAddress && a.emailAddress.address) || '').toLowerCase(),
-    })),
+    pessoas: agendaPessoas(e, email),
     privado: e.sensitivity === 'private' || e.sensitivity === 'confidential',
     local: (e.location && e.location.displayName) || '',
     link: (e.onlineMeeting && e.onlineMeeting.joinUrl) || e.webLink || '',
