@@ -194,6 +194,29 @@ let _cv=null;
 // 👤 Meu trabalho nenhuma lista do painel tem o ticket, e o resumo é a confirmação de que a pessoa pegou o certo.
 // `pre` (2026-11-03, opcional): { seg, dia, coment } já preenchidos — o 📨 convidar de uma ligação já registrada (📞 14c)
 // traz o tempo, o dia e o comentário da ligação; a pessoa só marca quem estava nela.
+// 🙋 As MINHAS horas no convite (2026-11-24, a pedido do usuário: "os convites que estou mandando não estão entrando nas
+// minhas horas apontadas"). A caixa nascia DESMARCADA: quem convidava o time saía sem as próprias horas — e a mensagem
+// de sucesso nem olhava se o worklog tinha saído. Agora nasce MARCADA, a não ser que (a) eu já tenha horas neste
+// ticket neste dia (seria um segundo worklog) ou (b) o dia esteja no futuro. A dica ao lado diz qual é o caso.
+function cvEuPadrao(k, dia){
+  if(dia>hojeSP()) return { chk:false, dica:'Dia no futuro — marque se quiser lançar as suas horas já.' };
+  const n=(typeof apMeuNoTicket==='function')?apMeuNoTicket(k, dia):null;
+  if(n>0) return { chk:false, dica:`Você já tem ${fmtH(n)} neste ticket em ${dia.split('-').reverse().slice(0,2).join('/')} — marque só se for lançar mais.` };
+  return { chk:true, dica:'Saem agora, no seu usuário, junto com os convites.' };
+}
+// Recalcula a caixa (dia trocado, janela das minhas horas chegando) — só enquanto a pessoa não mexeu nela.
+function cvEuAtualiza(){
+  const c=document.getElementById('cv-eu'); const d=document.getElementById('cv-eu-dica'); if(!_cv||!c) return;
+  const dia=((document.getElementById('cv-dia')||{}).value||'').trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return;
+  const eu=cvEuPadrao(_cv.k, dia);
+  if(!_cv.euTocado) c.checked=eu.chk;
+  if(d) d.textContent=_cv.euTocado?(c.checked?'Saem agora, no seu usuário, junto com os convites.':'As suas horas NÃO serão lançadas.'):eu.dica;
+}
+function cvEuGarante(){
+  const ctx=_cv; const dia=((document.getElementById('cv-dia')||{}).value||'').trim();
+  if(!ctx||typeof apGaranteMeusLogs!=='function'||!/^\d{4}-\d{2}-\d{2}$/.test(dia)||dia>hojeSP()) return;
+  Promise.resolve(apGaranteMeusLogs(dia)).then(()=>{ if(_cv===ctx) cvEuAtualiza(); }, ()=>{});
+}
 function abreConvidarApontar(k, info, pre){
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const p=pre||{}; const preSeg=Number(p.seg)>=60?fmtH(p.seg):''; const preDia=/^\d{4}-\d{2}-\d{2}$/.test(p.dia||'')?p.dia:hojeSP();
@@ -203,7 +226,8 @@ function abreConvidarApontar(k, info, pre){
       &&!foraVigencia(a,hojeSP()))
     .map(([a,o])=>({a, nome:o.nome||o.email, email:String(o.email).toLowerCase()}))
     .sort((x,y)=>x.nome.localeCompare(y.nome,'pt'));
-  _cv={k, us};
+  _cv={k, us, euTocado:false};
+  const eu=cvEuPadrao(k, preDia);
   const apT=((estado.apontar.porData[chaveVenc()]||{}).tickets||[]).find(x=>x.k===k);
   const t=((estado.gestao.dados&&estado.gestao.dados.tickets)||[]).find(x=>x.k===k)||apT||((info&&info.k===k)?info:null)||{};
   abreModal(`<h2>📨 Convidar para apontar · ${esc(k)}</h2>
@@ -219,14 +243,16 @@ function abreConvidarApontar(k, info, pre){
       <div class="campo"><label>Tempo por pessoa <span class="req">*</span></label>
         <input type="text" id="cv-tempo" placeholder="1h30" value="${escA(preSeg)}" style="width:110px" data-tip="Formatos: 1h30 · 1,5h · 45m · 2:15"></div>
       <div class="campo"><label>Dia <span class="req">*</span></label><input type="date" id="cv-dia" value="${escA(preDia)}"></div>
-      <div class="campo"><label>Apontar também para mim?</label>
-        <label class="check" style="margin-top:6px"><input type="checkbox" id="cv-eu"> incluir meu apontamento agora</label></div></div>
+      <div class="campo"><label>As minhas horas</label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="cv-eu" ${eu.chk?'checked':''}> lançar também as minhas horas</label>
+        <div class="muted small" id="cv-eu-dica" aria-live="polite">${esc(eu.dica)}</div></div></div>
     <div class="alx-campo"><label>Comentário do apontamento</label>
       <textarea id="cv-coment" class="alx-coment" placeholder="Ex.: Atividade conjunta — levantamento do processo">${esc(String(p.coment||''))}</textarea></div>
     <div class="alx-fb" id="cv-fb" hidden></div>
     <div class="alx-modal-acoes">
       <button class="btn primario" id="cv-enviar">📨 Enviar convites</button>
       <button class="btn" id="gx-fechar">Cancelar</button></div>`);
+  cvEuGarante();   // a janela das minhas horas pode ainda não cobrir o dia: lê e reconfere a caixa
 }
 async function cvEnviar(){
   const ctx=_cv; const id=idApontar(); if(!ctx||!id) return;
@@ -263,12 +289,29 @@ async function cvEnviar(){
       const url=`https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(p.email)}&message=${encodeURIComponent(msg)}`;
       return `<div class="mt-item"><span>${esc(p.nome)}</span>
         <a class="btn" href="${escA(url)}" target="_blank" rel="noopener">💬 Chamar no chat</a></div>`; }).join('');
+    // 🙋 As minhas horas: o que o SERVIDOR respondeu (`proprio`), nunca o que a caixa dizia. Saiu → entra na conta do
+    // dia na hora (otimista) e as telas do período releem; não saiu → aviso em destaque, com o motivo.
+    const meu=j.proprio||null; const meuOk=!!(inclEu&&meu&&meu.ok);
+    if(meuOk){ try{ registraExtraDia(dia, seg, ctx.k); }catch(e){} }
+    try{ invalidaCacheDados(); }catch(e){}
+    const meuHtml=meuOk
+      ?`<div class="alx-fb ap-fb ok" data-cv-meu="ok" style="display:block">✓ As suas horas (${fmtH(seg)} em ${esc(diaBR)}) foram lançadas no ${esc(ctx.k)}.</div>`
+      :inclEu
+      ?`<div class="alx-fb ap-fb erro" data-cv-meu="falhou" style="display:block">⚠ As SUAS horas NÃO foram lançadas${meu&&meu.erro?`: ${esc(meu.erro)}`:''}. Os convites saíram — lance as suas pelo ⏱ Apontar.</div>`
+      :`<div class="alx-fb ap-fb warn" data-cv-meu="nao" style="display:block">ℹ As suas horas NÃO foram lançadas (a caixa "lançar também as minhas horas" estava desmarcada).</div>`;
     abreModal(`<h2>📨 Convites enviados · ${esc(ctx.k)}</h2>
-      <div class="alx-fb ap-fb ok" style="display:block">✓ ${outros.length} convite(s) de ${fmtH(seg)} em ${esc(diaBR)}${inclEu?' · seu apontamento foi lançado':''}.
+      <div class="alx-fb ap-fb ok" style="display:block">✓ ${outros.length} convite(s) de ${fmtH(seg)} em ${esc(diaBR)}.
         ${tTxt?`<br>${tTxt}`:''}</div>
+      ${meuHtml}
       ${outros.length?`<div class="alx-campo"><label>Reforçar pelo chat individual (abre o Teams com a mensagem pronta)</label>${links}</div>`:''}
       <div class="alx-modal-acoes"><button class="btn" id="gx-fechar">Fechar</button></div>`);
     _cv=null;
   }catch(e){ erroFb(humanizaErro(e)); if(bt) bt.disabled=false; }
 }
 
+// ---- Listeners desta tela: a caixa "as minhas horas" do 📨 Convidar (o clique do Enviar fica no 30) ----
+document.addEventListener('change', (e)=>{
+  const t=e.target; if(!t||!_cv) return;
+  if(t.id==='cv-eu'){ _cv.euTocado=true; cvEuAtualiza(); }
+  else if(t.id==='cv-dia'){ cvEuAtualiza(); cvEuGarante(); }
+});

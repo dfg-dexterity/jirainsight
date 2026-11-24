@@ -2,6 +2,46 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🙋 As minhas horas nos convites + ⏱ horas que aparecem depois de lançar (2026-11-24, a pedido do usuário: "os convites que estou
+  mandando não estão entrando nas minhas horas apontadas… criei os tickets, coloquei as horas neles e eles não aparecem aqui"):**
+  conferido nos dados reais do dia 23/11 (Jira, Outlook e `/api/tempo` de produção) — três causas. **(A) 📝 ticket da reunião (03):** a
+  linha "você" nascia DESMARCADA quando a pessoa não estava entre os 20 primeiros `attendees` — e o Graph **não lista o organizador
+  entre os attendees** (quem organizava ficava sem as próprias horas: RDF-6020), além de convite encaminhado/outro endereço e reunião
+  com dezenas de convidados (PCHM-130: ticket criado, ninguém apontado). **(B) 📨 Convidar para apontar (21):** a caixa "incluir meu
+  apontamento" nascia desmarcada e a mensagem de sucesso não olhava o `proprio` do servidor. **(C) telas do período:** `estado.tempo`
+  não era relido depois de um lançamento e o `/api/tempo` fica 20 min no cache da função — nem o ↻ do topo o furava. **Regras:**
+  (1) **`apMeuNoTicket(k, dia)`** (13) = quanto EU já apontei naquele ticket naquele dia (janela/período + otimista; `null` = não sei) —
+  é a régua ÚNICA do padrão da caixa "as minhas horas": **nasce MARCADA**, a não ser que eu já tenha horas ali (dica diz quanto) ou o
+  dia seja futuro; vale no 📝 (`euPadrao`/`euDica`, uma regra só para "na lista" e "fora da lista"; no 👥 de ticket meu, marcada só com
+  `=== 0` sabido), no 📨 (`cvEuPadrao`/`cvEuAtualiza`/`cvEuGarante`, `#cv-eu` + `#cv-eu-dica`) e no 👥 grupo (o meu accountId entra
+  sempre em `marcar`). Quem mexe na caixa mantém a escolha nos redesenhos (`_agM.euTocado`, `_cv.euTocado` — listeners de `change` no
+  fim do 03 e do 21). (2) **O resultado diz o que o SERVIDOR respondeu**: `[data-cv-meu="ok|falhou|nao"]` no 📨 (com `registraExtraDia`
+  só no ok), aviso "As SUAS horas NÃO foram lançadas" no 📝 quando saí desmarcado e não tenho horas no ticket, e no 👥 o modal só fecha
+  sozinho com `proprio.ok`. (3) **`agendaPessoas(e, email)`** (`api/reunioes.js`, exportada): organizador primeiro, depois os convidados
+  do MESMO domínio da caixa (o time, até 40), depois os demais até completar 20; sem duplicata, sem `resource`, sem e-mail vazio — a
+  organizadora colega também passa a receber o convite. (4) **Horas lançadas** (bloco "⏱ HORAS QUE ACABARAM DE SER LANÇADAS" do 01):
+  `tkEscreveuHoras()` (campo `h` do mesmo `localStorage jirainsight_tk_saiu_v1`; chamado pelo embrulho do fetch em todo `POST
+  /api/apontar` que não é `validar`, pelo `registraExtraDia` e pelo `apExtrasRemoveTicket`) → por **21 min** `tkNocacheHoras()` põe
+  `nocache=1` no `buscaDados` e no `apGaranteMeusLogs` (vale depois do F5 e entre abas); `estado.tempoLidoEm` (hora em que a leitura do
+  período foi PEDIDA; vai junto no `estado.cache[periodo].lidoEm` e o prefetch do boot guarda `em`) e **`tempoPrecisaReler()`** = houve
+  lançamento depois da leitura, ou ela foi feita menos de 90 s depois dele → o **`vaiPara(v)`** (26) relê (`recarrega(true)`) ao ENTRAR
+  numa vista com `VCHROME[v].per`; as demais só redesenham. O **↻ do topo** virou `recarrega(true)` (sempre sem o cache do servidor).
+  Tela nova que grave worklog por OUTRA rota = chamar `registraExtraDia` (ou `tkEscreveuHoras()`). (5) **`sw.js`:** o `nocache` saiu
+  da chave da cópia offline (`dadosChave`) — é recado ao cache do servidor, não identidade do dado; com ele na chave, quem tinha
+  acabado de lançar horas abria o app sem rede sem as horas (a cópia estava sob a outra URL — o `offline-test` pegou).
+  **Ficou de fora (roadmap):** R286
+  (o worklog da reunião na hora real, não às 09:00), R287 (Timesheet/Ranking se atualizarem com a tela já aberta) e R288 (conferir as
+  minhas horas nas reuniões da semana). Testes (scratchpad `convite-plano/`, `roda.sh <porta> <teste>`, fixture `servidor-convite.mjs`
+  — eventos no formato do Graph passados pela `agendaPessoas` REAL, `/api/apontar` com estado, `/api/tempo` com o cache de 20 min
+  simulado e controle `POST /api/_convite {limpar|opc|wl|expira}`): `convite-test.mjs` (Playwright, 77 — 32 falham no código antigo,
+  blocos A 📝 · B 📨 · C 👥 · D Timesheet/↻/F5/21 min · E celular; D10–D11 são da revisão do PR #245: `tempoPrecisaReler()` NÃO tem
+  prazo — o que decide é a hora da leitura, o prazo de 21 min é só do `nocache` —, e **`horasDepoisDe(em)`** invalida as cópias de
+  horas em memória lidas antes de um lançamento: outro período em `estado.cache` (`lidoEm`) e as faixas semana/mês/ano do 🏆 Ranking
+  (`rk.tempoPer[fx]._em`, relidas com `nocache=1` enquanto o lançamento é recente); cópia nova de horas em memória = guardar a hora
+  do pedido e conferir com `horasDepoisDe`) e `convite-servidor-test.mjs` (`node --test`, 7); regressão
+  `ipad-apontar` 637, `ipad-hub` 400, `ipad-base` 110, `offline` 36, `sw-test` 68, `push-tela` 93, `fechar-test` 39,
+  `status-report-acoes` 179, `-at` 47, `status-report` 28, `-horas` 106, `menus` 185, `boot` 6, `inicio-tela` 211, `marca` 29,
+  `bloq-tela` 201.
 - **🪦 Ticket concluído que voltava para a lista (2026-11-23, a pedido do usuário: "eu fecho um ticket e ele continua aberto na
   ferramenta", em `?v=apontar&fil=vencidos`):** causa — a lista de abertos (`/api/vencimentos`) fica 5 min no cache da função, e esse
   cache NÃO é limpo pelo `/api/transicao` (cada função da Vercel tem a sua memória); o `executaTransicao` só tirava o ticket da lista

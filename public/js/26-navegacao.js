@@ -246,6 +246,13 @@ function vaiPara(v){
   if(estado.relCtx&&estado.relCtx.vista!==v) relCtxSet(null);   // 📚 o contexto do relatório vale só na tela dele
   estado.vista=v;
   marcaVista(v); fechaMenusNav();
+  // ⏱ Horas lançadas depois da última leitura do período (pela 📅 Agenda, por um convite, pelo ⏱ Apontar…): a tela
+  // que USA o período (📊 Timesheet, 🏆 Ranking, Resumo…) relê antes de desenhar, sem o cache do servidor — era por
+  // isso que "criei o ticket, coloquei as horas e não aparecem aqui" (2026-11-24). As demais telas só redesenham.
+  if((VCHROME[v]||{per:1}).per && tempoPrecisaReler() && typeof recarrega==='function'){
+    delete estado.cache[estado.periodo]; estadoParaURL(); recarrega(true);
+    window.scrollTo({ top:0, behavior:'smooth' }); return;
+  }
   render(); estadoParaURL();
   window.scrollTo({ top:0, behavior:'smooth' });
 }

@@ -63,7 +63,13 @@ async function dadosChave(req, url) {
   const em = (req.headers.get('x-jira-email') || '').trim().toLowerCase();
   const tk = (req.headers.get('x-jira-token') || '').trim();
   const h = em ? await sha16(em + '|' + tk) : 'anon';
-  return new Request(url.origin + '/__dados/' + h + url.pathname + url.search);
+  // `nocache=1` é só um recado ao cache do SERVIDOR ("leia de novo agora") — não faz parte da identidade do dado. Fora
+  // da chave (2026-11-24): a leitura fresca substitui a cópia da leitura normal e, sem rede, qualquer uma das duas a
+  // encontra. Com ele na chave, quem tinha acabado de lançar horas (as leituras vão com nocache por 21 min) abria o app
+  // offline sem as horas, porque a cópia estava guardada sob a outra URL.
+  const q = new URLSearchParams(url.search); q.delete('nocache');
+  const busca = q.toString();
+  return new Request(url.origin + '/__dados/' + h + url.pathname + (busca ? '?' + busca : ''));
 }
 async function dadosGuarda(chave, resp) {
   try {

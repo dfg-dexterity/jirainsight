@@ -426,8 +426,8 @@ function tkLe(){
   if(_tkLsOk){ try{ o=JSON.parse(localStorage.getItem(TK_SAIU_LS)||'null'); }catch(e){ o=_tkMem; } }
   const agora=Date.now(); const m={}; const src=(o&&typeof o==='object'&&o.m&&typeof o.m==='object')?o.m:{};
   Object.keys(src).forEach(k=>{ const t=Number(src[k]); if(TK_RE_CHAVE.test(k)&&t>0&&t<=agora+60000&&agora-t<TK_SAIU_TTL_MS) m[k]=t; });
-  const e=Number(o&&o.e)||0;
-  return { m, e:(e>0&&e<=agora+60000)?e:0 };
+  const e=Number(o&&o.e)||0; const h=Number(o&&o.h)||0;
+  return { m, e:(e>0&&e<=agora+60000)?e:0, h:(h>0&&h<=agora+60000)?h:0 };
 }
 function tkGrava(o){
   _tkMem=o;
@@ -486,6 +486,32 @@ function tkFiltraResposta(u, r){
 function tkStatusMudou(k, categoria){ if(categoria==='done') tkSaiu(k); else if(categoria) tkVoltou(k); }
 function tkEscreveu(){ const o=tkLe(); o.e=Date.now(); tkGrava(o); }
 function tkNocache(){ const e=tkLe().e; return e>0&&(Date.now()-e)<TK_NOCACHE_MS; }
+// ---- ⏱ HORAS QUE ACABARAM DE SER LANÇADAS (2026-11-24, a pedido do usuário: "criei os tickets, coloquei as horas
+// neles e elas não aparecem aqui") ----
+// As horas do período (📊 Timesheet, 🏆 Ranking, Resumo…) vêm de `estado.tempo`, lido de /api/tempo — que fica 20 min
+// no cache da função do servidor (o cacheClear do /api/apontar não o alcança) e, na tela, não era relido depois de um
+// lançamento: só o ⏱ Apontar tinha a própria janela. Quem lançava horas pela 📅 Agenda ou por um convite abria o
+// Timesheet e não via o que acabara de lançar; nem o ↻ do topo furava o cache do servidor. Regra:
+//   • todo POST /api/apontar que não é só validação (embrulho do fetch) e todo `registraExtraDia` marcam a hora da
+//     escrita (`tkEscreveuHoras`, no mesmo localStorage da lápide — vale entre abas e depois do F5);
+//   • por 21 min (> cache do servidor) as leituras do período vão com `nocache=1` (`tkNocacheHoras`, no `buscaDados`);
+//   • ao ENTRAR numa tela que usa o período (`VCHROME[v].per`), se houve lançamento depois da última leitura — ou a
+//     leitura foi feita menos de 90 s depois dele (o Clockwork pode ainda não ter devolvido) —, o período é relido
+//     (`tempoPrecisaReler`, usado no `vaiPara`). O ↻ do topo passou a ler sempre sem o cache do servidor.
+const TK_HORAS_NOCACHE_MS=21*60*1000;
+const TK_HORAS_ASSENTA_MS=90*1000;
+function tkEscreveuHoras(){ const o=tkLe(); o.h=Date.now(); o.e=o.h; tkGrava(o); }
+function tkNocacheHoras(){ const h=tkLe().h; return h>0&&(Date.now()-h)<TK_HORAS_NOCACHE_MS; }
+// Sem prazo (revisão do PR #245): quem lança horas e só abre o Timesheet 25 min depois ainda está com os dados lidos
+// ANTES do lançamento — o que decide é a hora da leitura, não há quanto tempo foi o lançamento. (O prazo de 21 min é
+// só do `nocache`: depois dele a cópia do servidor anterior ao lançamento já venceu sozinha.)
+function tempoPrecisaReler(){
+  const h=tkLe().h; if(!h) return false;
+  return (Number(estado.tempoLidoEm)||0) < h+TK_HORAS_ASSENTA_MS;
+}
+// Uma leitura de horas pedida em `em` é ANTERIOR ao último lançamento? (cópias em memória: outro período em
+// `estado.cache`, faixas do 🏆 Ranking em `estado.ranking.tempoPer` — valem até haver lançamento depois delas)
+function horasDepoisDe(em){ const h=tkLe().h; return !!h && (Number(em)||0) < h; }
 // Resposta de um POST /api/transicao (chamado pelo embrulho do fetch, ANTES de a tela continuar).
 function tkDepoisDaTransicao(j){
   if(!j||j.ok!==true||!j.issue) return;
@@ -509,6 +535,12 @@ function tkDepoisDaTransicao(j){
       // (lê uma cópia do corpo; a resposta que a tela recebe segue intacta; falha de leitura não muda nada).
       if(u.pathname==='/api/transicao'){
         return orig(input, init).then(r=>r.clone().json().then(j=>{ try{ tkDepoisDaTransicao(j); }catch(e){} return r; }, ()=>r));
+      }
+      // ⏱ lançamento de horas (apontar, convidar com o meu apontamento, confirmar convite): as leituras do período
+      // passam a ir sem o cache do servidor. A validação da identidade usa a mesma rota e não conta.
+      if(u.pathname==='/api/apontar'){
+        let soValida=false; try{ soValida=/"validar"\s*:\s*(true|1)/.test(String((init&&init.body)||'')); }catch(e){}
+        return orig(input, init).then(r=>{ if(!soValida&&r.ok){ try{ tkEscreveuHoras(); }catch(e){} } return r; });
       }
       return orig(input, init);
     }
@@ -643,7 +675,7 @@ async function jsonOuErro(r){
   }
 }
 function buscaDados(periodo, forca){
-  const q = forca ? '&nocache=1' : '';
+  const q = (forca||tkNocacheHoras()) ? '&nocache=1' : '';   // ⏱ horas lançadas há pouco: sem o cache de 20 min do servidor
   return Promise.all([
     fetch(`/api/tempo?janela=${periodo}${q}`).then(jsonOuErro).catch(e=>({erro:String(e.message||e)})),
     fetch(`/api/atividade?janela=${periodo}${q}`).then(jsonOuErro).catch(e=>({erro:String(e.message||e)})),
@@ -651,17 +683,19 @@ function buscaDados(periodo, forca){
   ]);
 }
 let _prefetch=null;   // {periodo, p}: leitura já em voo, iniciada no boot
-function prefetchDados(periodo){ _prefetch={ periodo, p: buscaDados(periodo, false) }; }
+function prefetchDados(periodo){ _prefetch={ periodo, em:Date.now(), p: buscaDados(periodo, false) }; }
 // `forca=true` ignora o cache do navegador E o do servidor (nocache=1): os dados
 // voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
 async function carrega(periodo, forca){
-  if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
-    estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.usuariosInativos=c.inativos||{}; estado.avisoAtiv=c.avisoAtiv||''; return; }
+  if (!forca && estado.cache[periodo] && !horasDepoisDe(estado.cache[periodo].lidoEm)) { const c=estado.cache[periodo];   // cópia lida antes de um lançamento de horas não serve
+    estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.usuariosInativos=c.inativos||{}; estado.avisoAtiv=c.avisoAtiv||''; estado.tempoLidoEm=c.lidoEm||0; return; }
   let pend=null;
-  if(!forca && _prefetch && _prefetch.periodo===periodo) pend=_prefetch.p;   // aproveita o que o boot já pediu
+  let pedidoEm=Date.now();   // ⏱ quando a leitura foi PEDIDA: lançamento posterior pede nova leitura (tempoPrecisaReler)
+  if(!forca && _prefetch && _prefetch.periodo===periodo){ pend=_prefetch.p; pedidoEm=_prefetch.em||0; }   // aproveita o que o boot já pediu
   _prefetch=null;
   let [t,a,u] = await (pend||buscaDados(periodo, forca));
   if (t.erro) throw new Error('Tempo (Clockwork): '+t.erro);   // tempo é essencial
+  estado.tempoLidoEm = pedidoEm;
   let aviso='';
   if (a.erro){                                                // atividade indisponível (ex.: janela muito grande): segue só com horas
     aviso = 'Atividade do Jira indisponível ('+a.erro+'). Mostrando apenas as horas (Clockwork).';
@@ -684,7 +718,7 @@ async function carrega(periodo, forca){
     ap.extraLogs=(ap.extraLogs||[]).filter(x=>cobre(x.d)||!noPeriodo(x.d));
     const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
     ap.meusLogsSujo=true; ap.recentes=null; }
-  estado.cache[periodo]={tempo:t,atividade:a,usuarios,inativos,avisoAtiv:aviso};
+  estado.cache[periodo]={tempo:t,atividade:a,usuarios,inativos,avisoAtiv:aviso,lidoEm:pedidoEm};
 }
 
 // Remove apps/bots do Jira (Automation, BigGantt…) dos dados antes de usar,
