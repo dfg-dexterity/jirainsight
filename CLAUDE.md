@@ -33,8 +33,12 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   (o worklog da reunião na hora real, não às 09:00), R287 (Timesheet/Ranking se atualizarem com a tela já aberta) e R288 (conferir as
   minhas horas nas reuniões da semana). Testes (scratchpad `convite-plano/`, `roda.sh <porta> <teste>`, fixture `servidor-convite.mjs`
   — eventos no formato do Graph passados pela `agendaPessoas` REAL, `/api/apontar` com estado, `/api/tempo` com o cache de 20 min
-  simulado e controle `POST /api/_convite {limpar|opc|wl|expira}`): `convite-test.mjs` (Playwright, 71 — 32 falham no código antigo,
-  blocos A 📝 · B 📨 · C 👥 · D Timesheet/↻/F5/21 min · E celular) e `convite-servidor-test.mjs` (`node --test`, 7); regressão
+  simulado e controle `POST /api/_convite {limpar|opc|wl|expira}`): `convite-test.mjs` (Playwright, 77 — 32 falham no código antigo,
+  blocos A 📝 · B 📨 · C 👥 · D Timesheet/↻/F5/21 min · E celular; D10–D11 são da revisão do PR #245: `tempoPrecisaReler()` NÃO tem
+  prazo — o que decide é a hora da leitura, o prazo de 21 min é só do `nocache` —, e **`horasDepoisDe(em)`** invalida as cópias de
+  horas em memória lidas antes de um lançamento: outro período em `estado.cache` (`lidoEm`) e as faixas semana/mês/ano do 🏆 Ranking
+  (`rk.tempoPer[fx]._em`, relidas com `nocache=1` enquanto o lançamento é recente); cópia nova de horas em memória = guardar a hora
+  do pedido e conferir com `horasDepoisDe`) e `convite-servidor-test.mjs` (`node --test`, 7); regressão
   `ipad-apontar` 637, `ipad-hub` 400, `ipad-base` 110, `offline` 36, `sw-test` 68, `push-tela` 93, `fechar-test` 39,
   `status-report-acoes` 179, `-at` 47, `status-report` 28, `-horas` 106, `menus` 185, `boot` 6, `inicio-tela` 211, `marca` 29,
   `bloq-tela` 201.

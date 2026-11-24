@@ -502,10 +502,16 @@ const TK_HORAS_NOCACHE_MS=21*60*1000;
 const TK_HORAS_ASSENTA_MS=90*1000;
 function tkEscreveuHoras(){ const o=tkLe(); o.h=Date.now(); o.e=o.h; tkGrava(o); }
 function tkNocacheHoras(){ const h=tkLe().h; return h>0&&(Date.now()-h)<TK_HORAS_NOCACHE_MS; }
+// Sem prazo (revisão do PR #245): quem lança horas e só abre o Timesheet 25 min depois ainda está com os dados lidos
+// ANTES do lançamento — o que decide é a hora da leitura, não há quanto tempo foi o lançamento. (O prazo de 21 min é
+// só do `nocache`: depois dele a cópia do servidor anterior ao lançamento já venceu sozinha.)
 function tempoPrecisaReler(){
-  const h=tkLe().h; if(!h||(Date.now()-h)>=TK_HORAS_NOCACHE_MS) return false;
+  const h=tkLe().h; if(!h) return false;
   return (Number(estado.tempoLidoEm)||0) < h+TK_HORAS_ASSENTA_MS;
 }
+// Uma leitura de horas pedida em `em` é ANTERIOR ao último lançamento? (cópias em memória: outro período em
+// `estado.cache`, faixas do 🏆 Ranking em `estado.ranking.tempoPer` — valem até haver lançamento depois delas)
+function horasDepoisDe(em){ const h=tkLe().h; return !!h && (Number(em)||0) < h; }
 // Resposta de um POST /api/transicao (chamado pelo embrulho do fetch, ANTES de a tela continuar).
 function tkDepoisDaTransicao(j){
   if(!j||j.ok!==true||!j.issue) return;
@@ -681,7 +687,7 @@ function prefetchDados(periodo){ _prefetch={ periodo, em:Date.now(), p: buscaDad
 // `forca=true` ignora o cache do navegador E o do servidor (nocache=1): os dados
 // voltam direto do Clockwork/Jira — é o "Forçar atualização" do Timesheet.
 async function carrega(periodo, forca){
-  if (!forca && estado.cache[periodo]) { const c=estado.cache[periodo];
+  if (!forca && estado.cache[periodo] && !horasDepoisDe(estado.cache[periodo].lidoEm)) { const c=estado.cache[periodo];   // cópia lida antes de um lançamento de horas não serve
     estado.tempo=c.tempo; estado.atividade=c.atividade; estado.usuarios=c.usuarios||{}; estado.usuariosInativos=c.inativos||{}; estado.avisoAtiv=c.avisoAtiv||''; estado.tempoLidoEm=c.lidoEm||0; return; }
   let pend=null;
   let pedidoEm=Date.now();   // ⏱ quando a leitura foi PEDIDA: lançamento posterior pede nova leitura (tempoPrecisaReler)

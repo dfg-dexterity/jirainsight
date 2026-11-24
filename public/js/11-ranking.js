@@ -202,15 +202,18 @@ function rkFaixaChips(atual){
 function rkGaranteFaixa(fx){
   const rk=estado.ranking;
   rk.tempoPer=rk.tempoPer||{};
-  if(rk.tempoPer[fx]) return true;
+  // ⏱ (revisão do PR #245) a faixa lida ANTES de um lançamento de horas não serve — e a releitura vai sem o cache de
+  // 20 min do servidor enquanto o lançamento é recente (`tkNocacheHoras`), senão a semana/mês/ano do Ranking seguia
+  // sem as horas que o Timesheet já mostrava. `_em` = quando a leitura foi PEDIDA (a nova é sempre posterior: sem laço).
+  if(rk.tempoPer[fx] && !horasDepoisDe(rk.tempoPer[fx]._em)) return true;
   if(rk.carregandoPer!==fx){
-    rk.carregandoPer=fx;
-    fetch(`/api/tempo?janela=${RK_FAIXAS[fx].jan}`).then(r=>r.json()).then(j=>{
+    rk.carregandoPer=fx; const em=Date.now();
+    fetch(`/api/tempo?janela=${RK_FAIXAS[fx].jan}${tkNocacheHoras()?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
       rk.carregandoPer='';
-      rk.tempoPer[fx]=j&&j.worklogs?j:{erro:(j&&j.erro)||'Resposta inesperada.'};
+      rk.tempoPer[fx]=j&&j.worklogs?j:{erro:(j&&j.erro)||'Resposta inesperada.'}; rk.tempoPer[fx]._em=em;
       if(estado.vista==='ranking') renderRanking();
     }).catch(e=>{ rk.carregandoPer='';
-      rk.tempoPer[fx]={erro:String(e.message||e)};
+      rk.tempoPer[fx]={erro:String(e.message||e), _em:em};
       if(estado.vista==='ranking') renderRanking(); });
   }
   return false;
