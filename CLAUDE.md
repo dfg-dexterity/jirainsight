@@ -2,6 +2,34 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **🔁⏱ A automação das reuniões recorrentes também lança as horas (2026-11-25, a pedido do usuário: "a automação da criação
+  automática dos tickets também aponte as horas para as pessoas que estão convidadas — o CS-892 foi criado sem horas"):** o
+  `agAutoCria` (03) só criava o ticket das reuniões de HOJE com regra 🔁 (`cfg.agendaAuto`) ao carregar a agenda — antes de a reunião
+  acontecer — e parava. **`agAutoHoras()`** (03) é o segundo tempo: quando a reunião TERMINA (`agTerminou`; hora é fato, não previsão —
+  o 📝 também recusa reunião futura) faz o que o 📝 faria com tudo marcado: as MINHAS horas (`agDuracaoSeg`) + o convite para quem do
+  time estava nela (`agPessoasConvite`, inclusive quem organizou) num único `POST /api/apontar {convidar}` + `agConcluiReuniao`. **Quem
+  é alvo (`agAutoHorasAlvos`):** regra 🔁 ligada, ticket registrado POR MIM na trava (`tv.por.acc`), dia ≥ `AG_AUTO_HORAS_DESDE`
+  (2026-11-25: tickets antigos já foram apontados à mão), nunca particular nem de dia inteiro, trava do servidor ligada
+  (`semTrava===false`) e até 3 tentativas por sessão. **Uma vez por reunião, em qualquer aparelho:** a marca **`horas:{acc,nome,em}`**
+  na linha da trava (`api/_lib/agenda.js › travaHoras`, sub-rota `POST /api/reunioes {agtrava:'horas', uid, k[, soltar]}`, PATCH
+  condicional pelo `updated_at` — só UM pedido marca, os outros recebem `feito`; `pub()` a devolve na leitura das travas; religar a
+  reunião a outro ticket recomeça do zero porque o `meta` não a leva) vem ANTES do envio; o 📝/👥 manual (`agConfirma`) também a põe,
+  então a automação não repete o que foi feito à mão. **Regras:** as minhas horas só entram com `apMeuNoTicket(key, dia)===0` sabido
+  (`>0` = só os convites; `null` = fica para a próxima rodada, sem marcar); a 🚧 trava do planejamento vale SEM tela
+  (`agAutoPlanoOk`: `planGateCarrega` + `planGateDia`, dia reprovado = nada sai, nada é marcado, um aviso por sessão); falha CERTA do
+  envio (`ok:false`) solta a marca (`soltar`) e a rodada seguinte tenta; sem resposta a marca fica e o aviso pede para conferir; o
+  meu worklog recusado pelo Jira = convites saem, aviso, sem repetir; UMA `salvaCfg()` no fim. **Gatilhos:** chegada das travas
+  (`agCarregaTravas` — carregar a agenda e voltar à aba), 2,5 s depois do `agAutoCria` e um `setInterval` de 4 min (só olha a memória).
+  **Defeito achado no caminho:** o `agAutoCria` rodava antes de os projetos chegarem e TODA reunião falhava com "projeto sem tipo de
+  reunião" sem nova tentativa no dia — agora aguarda `garanteProjetos()`. Sem função serverless nova. Testes (scratchpad
+  `convite-plano/`, fixture `servidor-convite.mjs` com a trava COM ESTADO — `opc.trava`, `opc.agendada`, `opc.convidarErro`,
+  controle `{cfg, travas}` e saídas `travas/hcalls/apcalls/chamadas` — e as reuniões recorrentes `ev-R1` (terminada) e `ev-R2`):
+  `auto-test.mjs` (Playwright, 33 — 16 falham no código antigo: do zero, sem dobro ao rodar de novo/recarregar/outro aparelho,
+  `feito`, já tenho horas, ticket de colega, falha certa, meu worklog recusado, alvos, 👥 manual marca, trava do planejamento) e
+  `auto-servidor-test.mjs` (`node --test`, 9, `travaHoras` real com Supabase falso e corrida); regressão `convite-test` 77,
+  `ipad-hub` 400, `ipad-apontar` 637, `offline` 36, `bloq-tela` 201, `inicio-tela` 206 (+5 falhas pré-existentes dependentes da
+  hora: B34, B35, B37, B40 e F1 — iguais na `main`).
+  Roadmap: R289 (lançar pelo servidor, sem o painel aberto) e R290 (regra com escolhas: duração real, quem convidar, só criar).
 - **🙋 As minhas horas nos convites + ⏱ horas que aparecem depois de lançar (2026-11-24, a pedido do usuário: "os convites que estou
   mandando não estão entrando nas minhas horas apontadas… criei os tickets, coloquei as horas neles e eles não aparecem aqui"):**
   conferido nos dados reais do dia 23/11 (Jira, Outlook e `/api/tempo` de produção) — três causas. **(A) 📝 ticket da reunião (03):** a

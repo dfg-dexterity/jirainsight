@@ -15,7 +15,7 @@ import {
 } from './_lib/util.js';
 import { transferir } from './_lib/transferir.js';
 import {
-  graphToken, uidOk, travasLer, travaReservar, travaConfirmar, travaLiberar, travaDisponivel,
+  graphToken, uidOk, travasLer, travaReservar, travaConfirmar, travaLiberar, travaHoras, travaDisponivel,
   alertasLer, alertasDispensar, achaTicketsReuniao, tituloBusca,
 } from './_lib/agenda.js';
 // Reexportada para o 🌐 portal (api/_lib/portal.js), que a importava daqui antes de ela ir para api/_lib/agenda.js.
@@ -236,6 +236,7 @@ async function conferirTickets(req, res, b) {
 //   reservar  { uid, titulo, dia, org:{email,nome} }         → {ok,reservado,rotulo} | {ok:false, ja|criando}
 //   confirmar { uid, k, titulo, dia, org }                   → {ok} | {ok:false, ja}   (ticket criado/vinculado)
 //   liberar   { uid[, desvincular] }                         → {ok}  (criação falhou / ✂ desvincular)
+//   horas     { uid, k[, soltar] }                           → {ok,marcado} | {ok:false, feito}  (⏱ as horas já saíram?)
 // Sempre com a identidade verificada no Jira (/myself): a trava grava QUEM reservou — o navegador não escolhe o nome.
 async function agTrava(req, res, b) {
   const email = String((b && b.email) || '').trim().toLowerCase();
@@ -259,6 +260,11 @@ async function agTrava(req, res, b) {
     return json(res, 200, await travaConfirmar(m, k, quem, { migracao: !!b.migracao, tok: String(b.tok || '') }));
   }
   if (acao === 'liberar') return json(res, 200, await travaLiberar(uid, quem, !!b.desvincular, String(b.tok || '')));
+  if (acao === 'horas') {   // ⏱ marca (ou solta) "as horas desta reunião já saíram" — uma vez por reunião
+    const k = String(b.k || '').trim().toUpperCase();
+    if (!RE_ISSUE.test(k)) return json(res, 400, { erro: 'Chave de ticket inválida.' });
+    return json(res, 200, await travaHoras(uid, k, quem, !!b.soltar));
+  }
   return json(res, 400, { erro: 'Ação de trava desconhecida.' });
 }
 // POST { agalertas:'ler'|'dispensar', email, token[, uid] } — ⏰ os alertas de fim do dia DESTA pessoa (organizador).
