@@ -157,6 +157,7 @@ function apGaranteMeusLogs(dia){
   // (2026-11-24) e também nos 21 min seguintes a QUALQUER lançamento deste navegador (`tkNocacheHoras`, vale depois do
   // F5 e entre abas): a janela decide se a caixa "as minhas horas" dos convites nasce marcada — não pode vir velha.
   const fresco=!!(ap.meusLogsSujo||ap.meusLogsEscreveu||tkNocacheHoras());
+  const pedidoEm=Date.now();   // quando ESTA leitura foi pedida (a 🔁 automação das horas só confia numa leitura sem cache feita depois de ela começar)
   const p=fetch(`/api/tempo?desde=${de}&ate=${hoje}${fresco?'&nocache=1':''}`).then(r=>r.json()).then(j=>{
     if(!j||!Array.isArray(j.worklogs)) throw new Error((j&&j.erro)||'tempo');
     const mt=j.meta||{};   // só vale o intervalo que o servidor DEVOLVEU (um pedido inválido viria como "7 dias")
@@ -178,7 +179,7 @@ function apGaranteMeusLogs(dia){
       const i=logs.findIndex((w,i2)=>!usados.has(i2)&&w.d===x.d&&w.k===x.k&&w.s===x.s);
       if(i>=0) usados.add(i); else sobra.push(x); });
     ap.extraLogs=sobra; const por={}; sobra.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
-    ap.meusLogs={ de:deSrv, ate:ateSrv, a:id.accountId, logs }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
+    ap.meusLogs={ de:deSrv, ate:ateSrv, a:id.accountId, logs, em:pedidoEm, nc:fresco }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
     if(fresco) ap.meusLogsEscreveu=false;
     return ap.meusLogs;
   }).catch(()=>{ ap.meusLogsErro=Date.now(); return null; }).then(x=>{ if(ap.meusLogsP===p) ap.meusLogsP=null; return x; });

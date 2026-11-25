@@ -24,9 +24,17 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   reunião" sem nova tentativa no dia — agora aguarda `garanteProjetos()`. Sem função serverless nova. Testes (scratchpad
   `convite-plano/`, fixture `servidor-convite.mjs` com a trava COM ESTADO — `opc.trava`, `opc.agendada`, `opc.convidarErro`,
   controle `{cfg, travas}` e saídas `travas/hcalls/apcalls/chamadas` — e as reuniões recorrentes `ev-R1` (terminada) e `ev-R2`):
-  `auto-test.mjs` (Playwright, 33 — 16 falham no código antigo: do zero, sem dobro ao rodar de novo/recarregar/outro aparelho,
+  `auto-test.mjs` (Playwright, 46 — 16 falham no código antigo: do zero, sem dobro ao rodar de novo/recarregar/outro aparelho,
   `feito`, já tenho horas, ticket de colega, falha certa, meu worklog recusado, alvos, 👥 manual marca, trava do planejamento) e
-  `auto-servidor-test.mjs` (`node --test`, 9, `travaHoras` real com Supabase falso e corrida); regressão `convite-test` 77,
+  `auto-servidor-test.mjs` (`node --test`, 10, `travaHoras` real com Supabase falso e corrida). **Revisão do PR #247 (bloco H,
+  3 achados, todos corrigidos):** (a) **só `ok:true` é envio feito** — um 500 com `{erro}` (sem `ok`) passava por sucesso; falha
+  CERTA = `ok:false` ou HTTP 4xx (solta a marca), 5xx/corpo ilegível/rede = incerto (marca fica, aviso, sem nova tentativa); o
+  `agConfirma` manual usa o mesmo critério; (b) **as minhas horas são relidas SEM cache antes de decidir** — a janela guarda
+  `em` (hora do pedido) e `nc` (foi sem cache) e a automação exige `nc && em >= início da rodada`, senão a rodada não lança nada
+  (quem lançou direto no Jira depois da última leitura ganharia um segundo worklog); toda saída sem marcar conta tentativa (3 por
+  sessão); (c) **só quem REGISTROU o ticket marca** (`travaHoras` devolve `naoDono`; o `agConfirma` só pede a marca com
+  `tv.por.acc === eu`) — o convidado que aponta só as próprias horas pelo 📝 travava a automação de quem criou; e o `updated_at`
+  novo da marca é sempre maior que o lido (dois pedidos no mesmo milissegundo passavam pelo mesmo filtro). Regressão `convite-test` 77,
   `ipad-hub` 400, `ipad-apontar` 637, `offline` 36, `bloq-tela` 201, `inicio-tela` 206 (+5 falhas pré-existentes dependentes da
   hora: B34, B35, B37, B40 e F1 — iguais na `main`).
   Roadmap: R289 (lançar pelo servidor, sem o painel aberto) e R290 (regra com escolhas: duração real, quem convidar, só criar).

@@ -243,7 +243,8 @@ export async function travaLiberar(uid, quem, desvincular, tok) {
 // de um aparelho (e o 📝/👥 manual faz o mesmo envio): sem uma marca comum, as horas e os convites sairiam em dobro.
 // O PATCH é condicional pelo `updated_at` lido — só UM pedido marca; os outros recebem `feito`.
 //   {ok:true, marcado:true, trava}   → pode enviar (a marca é sua)
-//   {ok:false, feito:{acc,nome,em}}  → alguém (ou você, noutro aparelho) já enviou: não envie de novo
+//   {ok:false, feito:{acc,nome,em}}  → você, noutro aparelho (ou no 📝/👥), já enviou: não envie de novo
+//   {ok:false, naoDono:true}         → só quem registrou o ticket da reunião marca
 //   soltar:true                      → o envio FALHOU com certeza: tira a marca (só a de quem a pôs)
 // A marca vale para o ticket `k`: religar a reunião a OUTRO ticket (confirmar) recomeça do zero (o `meta` não a leva).
 export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
@@ -252,7 +253,9 @@ export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
   const d = (atual && atual.data) || {};
   if (!atual || d.estado !== 'ok' || !d.k) return { ok: false, erro: 'A reunião não tem ticket vinculado.' };
   if (d.k !== k) return { ok: false, outro: pub(d), erro: `A reunião está ligada ao ticket ${d.k}, não ao ${k}.` };
-  const agora = new Date().toISOString();
+  // O `updated_at` novo é SEMPRE diferente do lido: se a linha foi gravada neste mesmo milissegundo, dois pedidos
+  // passariam pelo mesmo filtro e os dois marcariam (a trava otimista depende de o carimbo mudar a cada gravação).
+  const agora = new Date(Math.max(Date.now(), msDe(atual.updated_at) + 1)).toISOString();
   const grava = async (dados) => (await sbRows(await sbFetch(
     `jirainsight_config?id=eq.${travaId(uid)}&updated_at=eq.${encodeURIComponent(atual.updated_at)}`,
     { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: dados, updated_at: agora }) }))).length > 0;
@@ -263,6 +266,9 @@ export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
     return (await grava(resto)) ? { ok: true } : deNovo();
   }
   if (d.horas && d.horas.acc) return { ok: false, feito: pub(d).horas };
+  // Só quem REGISTROU o ticket da reunião marca (revisão do PR #247): um convidado que apontou só as próprias horas
+  // não pode dar a reunião por feita — travaria as horas e os convites de quem criou.
+  if (!(d.por && d.por.acc === quem.acc)) return { ok: false, naoDono: true, erro: 'Só quem registrou o ticket da reunião marca as horas dela.' };
   const dados = { ...d, horas: { acc: quem.acc, nome: limpaTxt(quem.nome, 120), em: agora } };
   return (await grava(dados)) ? { ok: true, marcado: true, trava: pub(dados) } : deNovo();
 }
