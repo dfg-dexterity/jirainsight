@@ -2,6 +2,29 @@
 
 Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexterity IT.
 
+- **⏱ Apontamento do time = as mesmas horas de "Suas horas de hoje" (2026-11-26, a pedido do usuário, com print: o card dizia
+  "Diego 40m hoje · 31h45 na semana" e os tiles "1h50" e "37h"):** conferido na produção (`/api/tempo` sem cache da semana) — os
+  tiles estavam certos; o card `axCarregaSemana` (08) era lido UMA vez por sessão, do cache de 20 min do servidor, e nada o relia
+  (nem o ↻ do topo, nem a virada do dia: a aba estava aberta desde a véspera — colegas com horas hoje apareciam "sem apontar").
+  **Regras:** (1) **`axSemEnvelheceu(ax, hoje)`** decide a releitura em segundo plano, SEM apagar a tela: `semSujo` (↻ do topo =
+  `carrega(…, forca)` marca; 🔄 do card), virada do dia (`semDia≠hoje` — aí o `ax.sem` sai da tela, "hoje" de ontem não serve),
+  `horasDepoisDe(semEm)` (lançamento depois da leitura) e `AX_SEM_TTL_MS`=5 min; releitura que falha com dado na tela guarda
+  `semFalhouEm` (1 min sem insistir) e `semErroBg` ("⚠ não consegui atualizar"). (2) `nocache=1` só no ↻/🔄, depois de um
+  lançamento e nos 21 min do `tkNocacheHoras()` — TTL, volta à aba e tique respeitam o cache do servidor (é a semana do time
+  inteiro no Clockwork). (3) **A MINHA linha usa `minhasHorasPorDia()`** (a janela própria do 13 + o otimista) nos dias que ela
+  cobre — o card, "Suas horas de hoje" e "Sua semana" mostram o mesmo número; o `registraExtraDia` continua empurrando no
+  `ax.sem` para os dias fora da janela, sem dobrar. (4) `#apr-lido` "lido às HH:MM" = `meta.geradoEm` do servidor (a idade real
+  do dado), senão a hora do pedido. (5) Gatilhos: render da Início, `visibilitychange` (> 1 min) e **`axSemTique()`** a cada
+  `AX_SEM_TIQUE_MS`=1 min (só Início visível, seção 👥 aberta, sem modal e sem foco em campo da Início). Teste (scratchpad
+  `convite-plano/`, `roda.sh 8787 time-test.mjs`, fixture `servidor-convite.mjs`): `time-test.mjs` (Playwright, 21 — 10 falham
+  no código antigo: a minha linha × tiles, virada do dia, 5 min, ↻/🔄 sem cache, depois de lançar, falha sem laço, tique).
+  R287 reescrito (faltam o 📊 Timesheet e o 🏆 Ranking com a tela aberta). **Revisão do PR #248 (bloco H, 2 achados,
+  corrigidos):** (a) a releitura do card trazia as MINHAS horas lançadas noutro aparelho, mas a minha linha seguia presa à janela
+  antiga — agora, quando a janela é mais velha que a leitura do time, `estado.apontar.meusLogsVelho` (13) faz o
+  `apGaranteMeusLogs` reler (respeitando o cache do servidor; `sujo`/`escreveu` continuam sendo os que pedem `nocache`);
+  (b) o `axGaranteMeusLogs` só redesenhava quando as horas de HOJE mudavam — mudança num dia anterior com a janela chegando
+  depois do card (🔄) deixava a semana velha; a "foto" agora inclui `apMeusLogs().em`. `time-test` 25 (H1–H2 falham sem a
+  correção; a fixture ganhou `opc.lentoDesde/lentoMs`, que atrasa só a leitura com aquele `desde`).
 - **🔁⏱ A automação das reuniões recorrentes também lança as horas (2026-11-25, a pedido do usuário: "a automação da criação
   automática dos tickets também aponte as horas para as pessoas que estão convidadas — o CS-892 foi criado sem horas"):** o
   `agAutoCria` (03) só criava o ticket das reuniões de HOJE com regra 🔁 (`cfg.agendaAuto`) ao carregar a agenda — antes de a reunião

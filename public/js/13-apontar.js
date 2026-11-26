@@ -148,7 +148,9 @@ function apGaranteMeusLogs(dia){
   const hoje=hojeSP(); let de=voltaDias(hoje,13); if(dia&&/^\d{4}-\d{2}-\d{2}$/.test(dia)&&dia<de) de=dia;
   const teto=voltaDias(hoje,399); if(de<teto) de=teto;   // o /api/tempo aceita 400 dias; além disso ele cairia em silêncio nos "7 dias"
   const m=apMeusLogs();
-  if(m&&m.de<=de&&m.ate>=hoje&&!ap.meusLogsSujo&&!ap.meusLogsEscreveu) return Promise.resolve(m);
+  // meusLogsVelho (2026-11-26): o card ⏱ Apontamento do time da Início acabou de reler a semana — a janela é relida junto
+  // (respeitando o cache do servidor, diferente do sujo/escreveu), senão a MINHA linha e os tiles ficavam na leitura antiga
+  if(m&&m.de<=de&&m.ate>=hoje&&!ap.meusLogsSujo&&!ap.meusLogsEscreveu&&!ap.meusLogsVelho) return Promise.resolve(m);
   if(m&&m.de<de) de=m.de;
   if(ap.meusLogsP){ if(ap.meusLogsDe<=de) return ap.meusLogsP; return ap.meusLogsP.then(()=>apGaranteMeusLogs(dia)); }
   if(ap.meusLogsErro&&Date.now()-ap.meusLogsErro<30000) return Promise.resolve(null);   // acabou de falhar: não insiste
@@ -179,7 +181,7 @@ function apGaranteMeusLogs(dia){
       const i=logs.findIndex((w,i2)=>!usados.has(i2)&&w.d===x.d&&w.k===x.k&&w.s===x.s);
       if(i>=0) usados.add(i); else sobra.push(x); });
     ap.extraLogs=sobra; const por={}; sobra.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
-    ap.meusLogs={ de:deSrv, ate:ateSrv, a:id.accountId, logs, em:pedidoEm, nc:fresco }; ap.meusLogsSujo=false; ap.meusLogsErro=0;
+    ap.meusLogs={ de:deSrv, ate:ateSrv, a:id.accountId, logs, em:pedidoEm, nc:fresco }; ap.meusLogsSujo=false; ap.meusLogsVelho=false; ap.meusLogsErro=0;
     if(fresco) ap.meusLogsEscreveu=false;
     return ap.meusLogs;
   }).catch(()=>{ ap.meusLogsErro=Date.now(); return null; }).then(x=>{ if(ap.meusLogsP===p) ap.meusLogsP=null; return x; });
