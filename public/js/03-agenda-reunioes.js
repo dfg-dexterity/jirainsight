@@ -64,6 +64,7 @@ function agCarregaTravas(){
     const ruim=js.find(j=>!(j&&j.ok));
     if(ruim){ ag.travasErro=(ruim&&ruim.erro)||'falha ao ler as travas'; return; }
     ag.travasErro=''; ag.travas=Object.assign({},...js.map(j=>j.travas||{})); ag.semTrava=js.some(j=>j.semTrava); ag.travasLidas=true;
+    setTimeout(()=>{ try{ agAutoHoras(); }catch(e){} }, 0);   // 🔁⏱ reunião recorrente que já terminou: as horas saem sozinhas
     evs.forEach(ev=>{ const tv=ag.travas[ev.uid]; if(tv&&tv.estado==='ok') agTiraAlerta(ev.uid); });
     // Vínculo ANTIGO (da config, pela chave da MINHA agenda) vira trava — sem teto: é o que faz os colegas o enxergarem.
     // Se a reunião já tem OUTRO ticket registrado, avisa (uma vez por sessão) em vez de esconder o conflito.
@@ -320,6 +321,9 @@ async function agAutoCria(){
   ag.autoRodou=true;
   if(!alvos.length) return;
   ag.autoRodando=true; if(agVistaAberta()) renderAgenda();
+  // (2026-11-25) os projetos podem ainda não ter chegado quando a agenda carrega: sem eles TODA reunião automática
+  // falhava com "projeto sem tipo de reunião" e a rodada do dia não era refeita
+  if(!_projetosCache){ try{ await garanteProjetos(); }catch(e){} }
   const criados=[]; const falhas=[];
   for(const ev of alvos){
     const regra=agRegraDe(ev); const proj=regra.projeto;
@@ -349,9 +353,123 @@ async function agAutoCria(){
       falhas.push(`${ev.titulo}: ${e.message||e}`); }
   }
   ag.autoRodando=false;
-  if(criados.length) toast(`🔁 ${criados.length} ticket(s) de reunião recorrente criados: ${criados.join(', ')} — agora é só apontar.`,'ok');
+  if(criados.length) toast(`🔁 ${criados.length} ticket(s) de reunião recorrente criados: ${criados.join(', ')} — as suas horas e os convites dos colegas saem sozinhos quando a reunião terminar.`,'ok');
   if(falhas.length) toast(`⚠ ${falhas.length} reunião(ões) automáticas falharam: ${falhas[0]}`,'warn');
   if(agVistaAberta()) renderAgenda();
+  setTimeout(()=>{ try{ agAutoHoras(); }catch(e){} }, 2500);   // reunião que já terminou: as horas saem logo (a trava do ticket novo precisa confirmar antes)
+}
+// ---- 🔁⏱ Automação: as HORAS da reunião recorrente (2026-11-25, a pedido do usuário: "a automação da criação
+// automática dos tickets também aponte as horas para as pessoas que estão convidadas" — o CS-892 nasceu sem horas) ----
+// A automação criava o ticket no começo do dia e parava: as horas e os convites ficavam para o 📝/👥 manual. Agora,
+// quando a reunião TERMINA (hora é fato, não previsão — o 📝 também recusa reunião futura), o painel faz sozinho o
+// que o 📝 faria com tudo marcado: as MINHAS horas (duração da agenda) + o convite de apontamento para quem do time
+// estava convidado + o ticket sai de "📆 Reunião Agendada". Regras:
+//   • só a reunião com 🔁 regra ligada, cujo ticket fui EU que registrei (trava `por.acc`), a partir de
+//     AG_AUTO_HORAS_DESDE (tickets antigos já foram apontados à mão), nunca particular nem de dia inteiro;
+//   • UMA vez por reunião, em qualquer aparelho: a marca `horas` da trava no servidor (`agtrava:'horas'`, PATCH
+//     condicional) vem ANTES do envio — o 📝/👥 manual também a põe, então a automação não repete o que foi feito à mão;
+//   • as minhas horas só entram quando eu SEI que não tenho horas naquele ticket naquele dia (`apMeuNoTicket===0`);
+//     sem saber (a leitura falhou) a reunião fica para a próxima rodada, sem marcar nada;
+//   • a 🚧 trava do planejamento vale, sem tela: dia reprovado = nada sai e um aviso diz por quê (uma vez por sessão);
+//   • falha CERTA do envio (o servidor respondeu "não enviei") solta a marca; sem resposta a marca fica (não duplica)
+//     e o aviso pede para conferir.
+// Roda ao chegar das travas (carregar a agenda, voltar à aba), depois de criar os tickets do dia e num tique de 4 min.
+const AG_AUTO_HORAS_DESDE='2026-11-25';
+const AG_AUTO_HORAS_TIQUE_MS=4*60*1000;
+const AG_AUTO_HORAS_FOLGA_MS=2*60*1000;   // marca da automação mais nova que isto = ela está enviando AGORA (o 📝/👥 manual espera)
+function agTerminou(ev){ const f=Date.parse(`${ev.fim||ev.inicio}:00-03:00`); return isFinite(f)&&f<=Date.now(); }
+function agAutoHorasAlvos(){
+  const ag=estado.agenda; const eu=(idApontar()||{}).accountId||'';
+  if(!eu||!ag.travasLidas||ag.semTrava!==false) return [];
+  const hoje=hojeSP(); const tent=ag.autoHorasTent||{};
+  return ((ag.dados||{}).eventos||[]).filter(ev=>{
+    if(!ev.uid||ev.privado||ev.diaTodo||!agRegraDe(ev)) return false;
+    if(ag.manualEmVoo&&ag.manualEmVoo[ev.uid]) return false;   // o 📝/👥 desta reunião está enviando agora, nesta aba
+    const dia=(ev.inicio||'').slice(0,10); if(!dia||dia<AG_AUTO_HORAS_DESDE||dia>hoje||!agTerminou(ev)) return false;
+    const tv=agTravaDe(ev);
+    return !!(tv&&tv.estado==='ok'&&tv.k&&tv.por&&tv.por.acc===eu&&!tv.horas)&&(tent[ev.uid]||0)<3;
+  });
+}
+// A 🚧 trava do planejamento sem tela (a automação não abre modal): true = pode lançar. Plano que não deu para ler segue.
+async function agAutoPlanoOk(dia){
+  if(typeof planGateAtivo!=='function'||!planGateAtivo()) return true;
+  try{ await planGateCarrega(semChave(dia)); }catch(e){}
+  return planGateDia(dia).ok!==false;
+}
+async function agAutoHoras(){
+  const ag=estado.agenda; const id=idApontar(); if(!id||ag.autoHorasRodando) return;
+  const alvos=agAutoHorasAlvos(); if(!alvos.length) return;
+  ag.autoHorasRodando=true; ag.autoHorasTent=ag.autoHorasTent||{}; ag.autoHorasAvisos=ag.autoHorasAvisos||{};
+  const feitos=[]; const avisos=[]; let gravar=false;
+  const avisaUma=(uid,txt)=>{ if(!ag.autoHorasAvisos[uid]){ ag.autoHorasAvisos[uid]=1; avisos.push(txt); } };
+  try{
+    // quem do convite é do time (usuários ativos do Jira por e-mail) — sem eles não dá para saber quem convidar
+    if(!ag.usuarios){ try{ const j=await usuariosP(false); if(j&&j.pessoas) ag.usuarios=j.pessoas; }catch(e){} }
+    // As minhas horas são conferidas numa leitura SEM CACHE feita AGORA (revisão do PR #247): a janela em memória pode ser
+    // de horas atrás, e quem lançou direto no Jira (ou noutro aparelho) depois dela ganharia um segundo worklog. Sem a
+    // leitura fresca, a rodada não lança nada (e conta como tentativa, para não ficar relendo a cada tique).
+    const t0=Date.now(); const diaMin=alvos.map(ev=>(ev.inicio||'').slice(0,10)).sort()[0];
+    const fresca=()=>{ const m=apMeusLogs(); return !!(m&&m.nc&&(m.em||0)>=t0); };
+    for(let i=0;i<2&&!fresca();i++){ estado.apontar.meusLogsSujo=true; try{ await apGaranteMeusLogs(diaMin); }catch(e){} }
+    if(!fresca()){ alvos.forEach(ev=>{ ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1; }); return; }
+    for(const ev of alvos){
+      const tv=agTravaDe(ev); const key=tv.k; const dia=(ev.inicio||'').slice(0,10); const tit=String(ev.titulo||'').slice(0,60);
+      const conv=agPessoasConvite(ev); if(!conv) break;   // usuários não chegaram: tenta na próxima rodada
+      // as minhas horas naquele ticket naquele dia (na leitura fresca acima) — só lanço sabendo que não há nenhuma
+      const ja=apMeuNoTicket(key, dia);
+      if(ja===null){ ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1; continue; }   // não deu para saber: próxima rodada, sem marcar
+      if(!(await agAutoPlanoOk(dia))){ ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1; avisaUma(ev.uid, `🔁 "${tit}": o planejamento de ${dia.split('-').reverse().slice(0,2).join('/')} está pendente — a automação não lançou as horas do ${key}. Acerte o plano (ou use o 👥 da reunião).`); continue; }
+      const eu=ja===0;
+      const pessoas=(eu?[{ accountId:id.accountId, nome:id.nome||'' }]:[]).concat(conv.internos.filter(p=>!p.eu).map(p=>({ accountId:p.acc, nome:p.nome })));
+      // 🔒 a marca vem ANTES do envio: outro aparelho (ou o 📝 manual) que já enviou devolve `feito` e nada sai de novo
+      let c=null;
+      if(ag.manualEmVoo&&ag.manualEmVoo[ev.uid]) continue;   // o 📝/👥 manual começou a enviar esta reunião enquanto a rodada andava
+      try{ c=await agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, via:'auto' }); }catch(e){ c=null; }
+      if(c&&c.feito){ agGuardaTrava(ev, Object.assign({}, tv, { horas:c.feito })); continue; }
+      if(!(c&&c.ok&&c.marcado)){ ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1; continue; }   // trava ainda confirmando, rede…: tenta de novo (até 3×)
+      agGuardaTrava(ev, c.trava||Object.assign({}, tv, { horas:{ acc:id.accountId, nome:id.nome||'', em:new Date().toISOString(), via:'auto' } }));
+      const seg=agDuracaoSeg(ev); let convidados=0, meuOk=false;
+      if(pessoas.length){
+        // Só `ok:true` é envio feito (revisão do PR #247: um 500 com {erro}, sem `ok`, passava por sucesso — ticket
+        // concluído e "convites enviados" sem nada ter saído). Falha CERTA = o servidor recusou antes de lançar
+        // (`ok:false` ou HTTP 4xx); 5xx, corpo ilegível ou rede = INCERTO (algum worklog pode ter saído).
+        let jv=null, st=0;
+        try{
+          const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ convidar:true, issue:key, segundos:seg, inicio:dia, comentario:`Reunião: ${ev.titulo}`.slice(0,200),
+              pessoas, avisarTeams:true, email:id.email, token:id.token }) });
+          st=rv.status; jv=await rv.json().catch(()=>null);
+        }catch(e){ jv=null; st=0; }
+        const enviou=!!(jv&&jv.ok===true);
+        const certa=!enviou&&((jv&&jv.ok===false)||(st>=400&&st<500));
+        if(!enviou&&!certa){ ag.autoHorasTent[ev.uid]=3; avisaUma(ev.uid, `⚠ 🔁 "${tit}": não tive uma resposta clara ao lançar as horas do ${key}${jv&&jv.erro?` (${jv.erro})`:''} — confira no Jira antes de lançar à mão (a automação não tenta de novo).`); continue; }
+        if(certa){   // falha CERTA: nada saiu — a marca é solta e a próxima rodada tenta de novo
+          agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, soltar:1 }).catch(()=>{});
+          agGuardaTrava(ev, Object.assign({}, tv, { horas:null })); ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1;
+          avisaUma(ev.uid, `⚠ 🔁 "${tit}": a automação não conseguiu lançar as horas do ${key}${jv&&jv.erro?` (${jv.erro})`:''}.`); continue; }
+        convidados=pessoas.length-(eu?1:0);
+        if(eu){
+          const meu=jv.proprio||null;
+          if(meu&&meu.ok){ meuOk=true;
+            try{ registraExtraDia(dia, seg, key); atualizaPainelHoras(); }catch(e){}
+            estado.apontar.porData={}; estado.apontar.recentes=null;
+            logAcao({ acao:'apontar', t:key, para:`${fmtH(seg)} em ${dia}`, motivo:`🔁 ${String(ev.titulo||'').slice(0,100)}`, ok:true }, false); gravar=true;
+          } else avisaUma(ev.uid, `⚠ 🔁 "${tit}": o SEU apontamento no ${key} não saiu${meu&&meu.erro?` (${meu.erro})`:''} — lance pelo ⏱ Apontar. Os convites dos colegas saíram.`);
+        }
+      }
+      // ✅ reunião realizada → o ticket sai de "📆 Reunião Agendada"
+      let concl=null; try{ concl=await agConcluiReuniao(key, id); }catch(e){ concl=null; }
+      if(concl&&concl.feito) gravar=true;
+      feitos.push(`${key}${meuOk?` · ${fmtH(seg)} suas`:''}${convidados?` · ${convidados} convite(s)`:''}${concl&&concl.feito?` · ${concl.para}`:''}`);
+    }
+  } finally {
+    ag.autoHorasRodando=false;
+    if(gravar) salvaCfg();
+    if(feitos.length){ try{ invalidaCacheDados(); }catch(e){}
+      toast(`🔁 Reunião recorrente — horas lançadas pela automação: ${feitos.join(' | ')}`,'ok'); }
+    avisos.forEach(a=>toast(a,'warn'));
+    if(feitos.length||avisos.length) agRedesenhaTela();
+  }
 }
 // ---- ⏱ Duração REAL (relatório de presença do Teams) ----
 async function agDuracaoReal(evId, btn){
@@ -663,6 +781,8 @@ async function agConfirma(){
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===m.evId); if(!ev) return;
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const fb=document.getElementById('agm-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Processando…'; }
+  // enquanto este envio manual anda, a 🔁 automação desta aba não pega a mesma reunião (agAutoHorasAlvos)
+  const emVoo=estado.agenda.manualEmVoo=estado.agenda.manualEmVoo||{}; if(ev.uid) emVoo[ev.uid]=(emVoo[ev.uid]||0)+1;
   const dia=(ev.inicio||'').slice(0,10);
   // Sem e-mail de propósito: o servidor resolve o e-mail do aviso individual no Teams pelo accountId, no
   // cadastro do Jira (avisaTeamsDM) — um e-mail vindo do navegador poderia mandar o aviso para outra pessoa.
@@ -749,10 +869,33 @@ async function agConfirma(){
     }
     let convidados=0, meu=null, avisos=[], gravar=false;   // gravar = houve logAcao(…,false) → UMA salvaCfg() no fim
     if(pessoas.length){
+      // 🔒 Quem envia é o DONO do ticket (quem o registrou): a marca "as horas desta reunião já saíram" vem ANTES do
+      // envio, como na 🔁 automação (2ª rodada da revisão do PR #247: a marca só depois do POST deixava a automação —
+      // desta aba ou de outro aparelho — lançar as mesmas horas e convites enquanto o envio manual estava no ar).
+      // O convidado que aponta só as próprias horas pelo 📝 NÃO marca (travaria as horas e os convites de quem criou).
+      //   marcado        → envia; falha CERTA do envio solta a marca
+      //   feito, da automação, há menos de 2 min → ela está enviando AGORA: nada sai por aqui
+      //   feito, mais antigo ou manual → envio manual de novo é escolha da pessoa (ex.: 👥 para mais alguém): segue
+      //   sem resposta da trava → segue (a marca é melhor esforço; a automação confere as horas no Jira antes de lançar)
+      const tvM=agTravaDe(ev); let marquei=false;
+      if(ev.uid&&estado.agenda.semTrava===false&&tvM&&tvM.estado==='ok'&&tvM.k===key&&tvM.por&&tvM.por.acc===id.accountId){
+        let c=null; try{ c=await agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, via:'manual' }); }catch(e){ c=null; }
+        if(c&&c.ok&&c.marcado){ marquei=true; agGuardaTrava(ev, c.trava||Object.assign({}, tvM, { horas:{ acc:id.accountId, nome:id.nome||'', em:new Date().toISOString(), via:'manual' } })); }
+        else if(c&&c.feito){
+          agGuardaTrava(ev, Object.assign({}, tvM, { horas:c.feito }));
+          if(c.feito.via==='auto'&&Date.now()-(Date.parse(c.feito.em||'')||0)<AG_AUTO_HORAS_FOLGA_MS)
+            throw new Error(`🔁 A automação está lançando as horas e os convites do ${key} agora mesmo (aqui ou em outro aparelho) — nada foi enviado por aqui. Espere um minuto e confira o ticket antes de enviar de novo.`);
+        }
+      }
+      let jv=null, st=0;
       const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ convidar:true, issue:key, segundos:seg, inicio:dia,
-          comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
-      const jv=await rv.json(); if(!jv||jv.ok===false) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');
+          comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });   // sem resposta (rede): incerto — a marca fica
+      st=rv.status; jv=await rv.json().catch(()=>null);
+      if(!jv||jv.ok!==true){   // só `ok:true` é envio feito (um 500 com {erro} não é)
+        if(marquei&&((jv&&jv.ok===false)||(st>=400&&st<500))){   // falha CERTA: nada saiu — a marca é solta (a automação pode tentar)
+          agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, soltar:1 }).catch(()=>{}); agGuardaTrava(ev, Object.assign({}, agTravaDe(ev)||tvM, { horas:null })); }
+        throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.'); }
       convidados=pessoas.length-(eu?1:0);
       if(eu){
         meu=jv.proprio||null;
@@ -784,6 +927,7 @@ async function agConfirma(){
     if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes();
     else if(estado.vista==='inbox'){ if(typeof renderInbox==='function') renderInbox(); }   // 📝 Criar agora do Inbox: a tela segue sendo o Inbox
   }catch(err){ if(fb){ fb.classList.add('err'); fb.textContent=humanizaErro(err); } }
+  finally{ if(ev.uid){ emVoo[ev.uid]=Math.max(0,(emVoo[ev.uid]||1)-1); if(!emVoo[ev.uid]) delete emVoo[ev.uid]; } }
 }
 function carregaAgenda(forca){
   const ag=estado.agenda; const id=idApontar(); if(!id) return;
@@ -1200,3 +1344,7 @@ document.addEventListener('keydown',(e)=>{
 
 // 🙋 a pessoa mexeu na própria caixa do 📝: a escolha dela passa a valer nos redesenhos (senão vale a regra, `euPadrao`)
 document.addEventListener('change', (e)=>{ const t=e.target; if(_agM&&t&&t.matches&&t.matches('[data-agm-eu]')) _agM.euTocado=true; });
+
+// 🔁⏱ tique da automação das horas: a tela fica aberta o dia todo e a reunião termina no meio dele (só olha a memória;
+// rede só quando há reunião recorrente terminada sem as horas)
+setInterval(()=>{ try{ if(document.visibilityState!=='hidden'&&estado.agenda&&estado.agenda.dados) agAutoHoras(); }catch(e){} }, AG_AUTO_HORAS_TIQUE_MS);

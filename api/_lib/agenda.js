@@ -86,6 +86,8 @@ const pub = (d) => ({
   k: d.k || '', em: d.em || '',
   por: { acc: (d.por && d.por.acc) || '', nome: (d.por && d.por.nome) || '' },
   vencida: estadoDe(d) === 'criando' && Date.now() - msDe(d.em) > TRAVA_TTL_MS,
+  // ⏱ as horas desta reunião (as de quem lançou + os convites dos colegas) já saíram? quem e quando (2026-11-25)
+  horas: (d.estado === 'ok' && d.horas && d.horas.acc) ? { acc: d.horas.acc, nome: d.horas.nome || '', em: d.horas.em || '', via: d.horas.via || '' } : null,
 });
 
 async function travaLe(uid) {
@@ -233,6 +235,45 @@ export async function travaLiberar(uid, quem, desvincular, tok) {
   const r = await sbFetch(filtro, { method: 'DELETE' });
   if (!r.ok) throw new Error(`Supabase ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
   return { ok: true };
+}
+
+// ⏱ "As horas desta reunião já saíram" — marca ÚNICA por reunião com ticket (2026-11-25, a pedido do usuário: "a
+// automação da criação automática dos tickets também aponte as horas para as pessoas que estão convidadas"). A 🔁
+// automação lança as horas de quem criou + os convites dos colegas quando a reunião termina; a tela fica aberta em mais
+// de um aparelho (e o 📝/👥 manual faz o mesmo envio): sem uma marca comum, as horas e os convites sairiam em dobro.
+// O PATCH é condicional pelo `updated_at` lido — só UM pedido marca; os outros recebem `feito`.
+//   {ok:true, marcado:true, trava}   → pode enviar (a marca é sua)
+//   {ok:false, feito:{acc,nome,em,via}} → você, noutro aparelho (ou no 📝/👥), já enviou: não envie de novo
+//   {ok:false, naoDono:true}         → só quem registrou o ticket da reunião marca
+//   soltar:true                      → o envio FALHOU com certeza: tira a marca (só a de quem a pôs)
+// A marca vale para o ticket `k`: religar a reunião a OUTRO ticket (confirmar) recomeça do zero (o `meta` não a leva).
+export async function travaHoras(uid, k, quem, soltar, via = '', tentativa = 0) {
+  if (!sb()) return { ok: true, semTrava: true };
+  const atual = await travaLe(uid);
+  const d = (atual && atual.data) || {};
+  if (!atual || d.estado !== 'ok' || !d.k) return { ok: false, erro: 'A reunião não tem ticket vinculado.' };
+  if (d.k !== k) return { ok: false, outro: pub(d), erro: `A reunião está ligada ao ticket ${d.k}, não ao ${k}.` };
+  // O `updated_at` novo é SEMPRE diferente do lido: se a linha foi gravada neste mesmo milissegundo, dois pedidos
+  // passariam pelo mesmo filtro e os dois marcariam (a trava otimista depende de o carimbo mudar a cada gravação).
+  const agora = new Date(Math.max(Date.now(), msDe(atual.updated_at) + 1)).toISOString();
+  const grava = async (dados) => (await sbRows(await sbFetch(
+    `jirainsight_config?id=eq.${travaId(uid)}&updated_at=eq.${encodeURIComponent(atual.updated_at)}`,
+    { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: dados, updated_at: agora }) }))).length > 0;
+  const deNovo = () => (tentativa < 2 ? travaHoras(uid, k, quem, soltar, via, tentativa + 1) : { ok: false, erro: 'A reunião mudou no meio — tente de novo.' });
+  if (soltar) {
+    if (!(d.horas && d.horas.acc === quem.acc)) return { ok: true, nada: true };
+    const { horas, ...resto } = d; void horas;
+    return (await grava(resto)) ? { ok: true } : deNovo();
+  }
+  if (d.horas && d.horas.acc) return { ok: false, feito: pub(d).horas };
+  // Só quem REGISTROU o ticket da reunião marca (revisão do PR #247): um convidado que apontou só as próprias horas
+  // não pode dar a reunião por feita — travaria as horas e os convites de quem criou.
+  if (!(d.por && d.por.acc === quem.acc)) return { ok: false, naoDono: true, erro: 'Só quem registrou o ticket da reunião marca as horas dela.' };
+  // `via` = quem pôs a marca: 'auto' (a 🔁 automação) ou 'manual' (o 📝/👥). O envio manual que encontra uma marca
+  // RECENTE da automação sabe que ela está lançando AGORA e não envia por cima (revisão do PR #247, 2ª rodada).
+  const v = via === 'auto' || via === 'manual' ? via : '';
+  const dados = { ...d, horas: { acc: quem.acc, nome: limpaTxt(quem.nome, 120), em: agora, ...(v ? { via: v } : {}) } };
+  return (await grava(dados)) ? { ok: true, marcado: true, trava: pub(dados) } : deNovo();
 }
 
 // Higiene: travas e alertas com mais de 120 dias saem (uma vez por partida a frio da função, na 1ª confirmação).
