@@ -36,7 +36,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `tv.por.acc === eu`) — o convidado que aponta só as próprias horas pelo 📝 travava a automação de quem criou; e o `updated_at`
   novo da marca é sempre maior que o lido (dois pedidos no mesmo milissegundo passavam pelo mesmo filtro). Regressão `convite-test` 77,
   `ipad-hub` 400, `ipad-apontar` 637, `offline` 36, `bloq-tela` 201, `inicio-tela` 206 (+5 falhas pré-existentes dependentes da
-  hora: B34, B35, B37, B40 e F1 — iguais na `main`).
+  hora: B34, B35, B37, B40 e F1 — iguais na `main`). **2ª rodada da revisão (bloco I, 1 achado, corrigido):** o envio manual do
+  DONO (`agConfirma`) pedia a marca só DEPOIS do POST — a automação (desta aba ou de outro aparelho) que rodasse com o envio
+  no ar lançava as mesmas horas e convites. Agora **a marca vem ANTES do envio também no manual** (`via:'manual'`; a automação
+  manda `via:'auto'` e a marca guarda `horas.via`): `marcado` → envia e, na falha CERTA, solta; `feito` da automação com menos de
+  `AG_AUTO_HORAS_FOLGA_MS` (2 min) → ela está enviando AGORA, o manual para com a explicação; `feito` mais antigo ou manual →
+  segue (👥 para mais alguém é escolha da pessoa); na mesma aba, `estado.agenda.manualEmVoo[uid]` tira a reunião dos alvos da
+  automação enquanto o 📝/👥 envia. `auto-test` 56 (9 dos novos falham no código anterior), `auto-servidor-test` 11.
   Roadmap: R289 (lançar pelo servidor, sem o painel aberto) e R290 (regra com escolhas: duração real, quem convidar, só criar).
 - **🙋 As minhas horas nos convites + ⏱ horas que aparecem depois de lançar (2026-11-24, a pedido do usuário: "os convites que estou
   mandando não estão entrando nas minhas horas apontadas… criei os tickets, coloquei as horas neles e eles não aparecem aqui"):**

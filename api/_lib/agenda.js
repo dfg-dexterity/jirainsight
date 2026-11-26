@@ -87,7 +87,7 @@ const pub = (d) => ({
   por: { acc: (d.por && d.por.acc) || '', nome: (d.por && d.por.nome) || '' },
   vencida: estadoDe(d) === 'criando' && Date.now() - msDe(d.em) > TRAVA_TTL_MS,
   // ⏱ as horas desta reunião (as de quem lançou + os convites dos colegas) já saíram? quem e quando (2026-11-25)
-  horas: (d.estado === 'ok' && d.horas && d.horas.acc) ? { acc: d.horas.acc, nome: d.horas.nome || '', em: d.horas.em || '' } : null,
+  horas: (d.estado === 'ok' && d.horas && d.horas.acc) ? { acc: d.horas.acc, nome: d.horas.nome || '', em: d.horas.em || '', via: d.horas.via || '' } : null,
 });
 
 async function travaLe(uid) {
@@ -243,11 +243,11 @@ export async function travaLiberar(uid, quem, desvincular, tok) {
 // de um aparelho (e o 📝/👥 manual faz o mesmo envio): sem uma marca comum, as horas e os convites sairiam em dobro.
 // O PATCH é condicional pelo `updated_at` lido — só UM pedido marca; os outros recebem `feito`.
 //   {ok:true, marcado:true, trava}   → pode enviar (a marca é sua)
-//   {ok:false, feito:{acc,nome,em}}  → você, noutro aparelho (ou no 📝/👥), já enviou: não envie de novo
+//   {ok:false, feito:{acc,nome,em,via}} → você, noutro aparelho (ou no 📝/👥), já enviou: não envie de novo
 //   {ok:false, naoDono:true}         → só quem registrou o ticket da reunião marca
 //   soltar:true                      → o envio FALHOU com certeza: tira a marca (só a de quem a pôs)
 // A marca vale para o ticket `k`: religar a reunião a OUTRO ticket (confirmar) recomeça do zero (o `meta` não a leva).
-export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
+export async function travaHoras(uid, k, quem, soltar, via = '', tentativa = 0) {
   if (!sb()) return { ok: true, semTrava: true };
   const atual = await travaLe(uid);
   const d = (atual && atual.data) || {};
@@ -259,7 +259,7 @@ export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
   const grava = async (dados) => (await sbRows(await sbFetch(
     `jirainsight_config?id=eq.${travaId(uid)}&updated_at=eq.${encodeURIComponent(atual.updated_at)}`,
     { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ data: dados, updated_at: agora }) }))).length > 0;
-  const deNovo = () => (tentativa < 2 ? travaHoras(uid, k, quem, soltar, tentativa + 1) : { ok: false, erro: 'A reunião mudou no meio — tente de novo.' });
+  const deNovo = () => (tentativa < 2 ? travaHoras(uid, k, quem, soltar, via, tentativa + 1) : { ok: false, erro: 'A reunião mudou no meio — tente de novo.' });
   if (soltar) {
     if (!(d.horas && d.horas.acc === quem.acc)) return { ok: true, nada: true };
     const { horas, ...resto } = d; void horas;
@@ -269,7 +269,10 @@ export async function travaHoras(uid, k, quem, soltar, tentativa = 0) {
   // Só quem REGISTROU o ticket da reunião marca (revisão do PR #247): um convidado que apontou só as próprias horas
   // não pode dar a reunião por feita — travaria as horas e os convites de quem criou.
   if (!(d.por && d.por.acc === quem.acc)) return { ok: false, naoDono: true, erro: 'Só quem registrou o ticket da reunião marca as horas dela.' };
-  const dados = { ...d, horas: { acc: quem.acc, nome: limpaTxt(quem.nome, 120), em: agora } };
+  // `via` = quem pôs a marca: 'auto' (a 🔁 automação) ou 'manual' (o 📝/👥). O envio manual que encontra uma marca
+  // RECENTE da automação sabe que ela está lançando AGORA e não envia por cima (revisão do PR #247, 2ª rodada).
+  const v = via === 'auto' || via === 'manual' ? via : '';
+  const dados = { ...d, horas: { acc: quem.acc, nome: limpaTxt(quem.nome, 120), em: agora, ...(v ? { via: v } : {}) } };
   return (await grava(dados)) ? { ok: true, marcado: true, trava: pub(dados) } : deNovo();
 }
 

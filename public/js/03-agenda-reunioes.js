@@ -376,6 +376,7 @@ async function agAutoCria(){
 // Roda ao chegar das travas (carregar a agenda, voltar à aba), depois de criar os tickets do dia e num tique de 4 min.
 const AG_AUTO_HORAS_DESDE='2026-11-25';
 const AG_AUTO_HORAS_TIQUE_MS=4*60*1000;
+const AG_AUTO_HORAS_FOLGA_MS=2*60*1000;   // marca da automação mais nova que isto = ela está enviando AGORA (o 📝/👥 manual espera)
 function agTerminou(ev){ const f=Date.parse(`${ev.fim||ev.inicio}:00-03:00`); return isFinite(f)&&f<=Date.now(); }
 function agAutoHorasAlvos(){
   const ag=estado.agenda; const eu=(idApontar()||{}).accountId||'';
@@ -383,6 +384,7 @@ function agAutoHorasAlvos(){
   const hoje=hojeSP(); const tent=ag.autoHorasTent||{};
   return ((ag.dados||{}).eventos||[]).filter(ev=>{
     if(!ev.uid||ev.privado||ev.diaTodo||!agRegraDe(ev)) return false;
+    if(ag.manualEmVoo&&ag.manualEmVoo[ev.uid]) return false;   // o 📝/👥 desta reunião está enviando agora, nesta aba
     const dia=(ev.inicio||'').slice(0,10); if(!dia||dia<AG_AUTO_HORAS_DESDE||dia>hoje||!agTerminou(ev)) return false;
     const tv=agTravaDe(ev);
     return !!(tv&&tv.estado==='ok'&&tv.k&&tv.por&&tv.por.acc===eu&&!tv.horas)&&(tent[ev.uid]||0)<3;
@@ -421,10 +423,11 @@ async function agAutoHoras(){
       const pessoas=(eu?[{ accountId:id.accountId, nome:id.nome||'' }]:[]).concat(conv.internos.filter(p=>!p.eu).map(p=>({ accountId:p.acc, nome:p.nome })));
       // 🔒 a marca vem ANTES do envio: outro aparelho (ou o 📝 manual) que já enviou devolve `feito` e nada sai de novo
       let c=null;
-      try{ c=await agTravaPost({ agtrava:'horas', uid:ev.uid, k:key }); }catch(e){ c=null; }
+      if(ag.manualEmVoo&&ag.manualEmVoo[ev.uid]) continue;   // o 📝/👥 manual começou a enviar esta reunião enquanto a rodada andava
+      try{ c=await agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, via:'auto' }); }catch(e){ c=null; }
       if(c&&c.feito){ agGuardaTrava(ev, Object.assign({}, tv, { horas:c.feito })); continue; }
       if(!(c&&c.ok&&c.marcado)){ ag.autoHorasTent[ev.uid]=(ag.autoHorasTent[ev.uid]||0)+1; continue; }   // trava ainda confirmando, rede…: tenta de novo (até 3×)
-      agGuardaTrava(ev, c.trava||Object.assign({}, tv, { horas:{ acc:id.accountId, nome:id.nome||'', em:new Date().toISOString() } }));
+      agGuardaTrava(ev, c.trava||Object.assign({}, tv, { horas:{ acc:id.accountId, nome:id.nome||'', em:new Date().toISOString(), via:'auto' } }));
       const seg=agDuracaoSeg(ev); let convidados=0, meuOk=false;
       if(pessoas.length){
         // Só `ok:true` é envio feito (revisão do PR #247: um 500 com {erro}, sem `ok`, passava por sucesso — ticket
@@ -778,6 +781,8 @@ async function agConfirma(){
   const ev=((estado.agenda.dados||{}).eventos||[]).find(x=>x.id===m.evId); if(!ev) return;
   const id=idApontar(); if(!id){ abreIdentidade(); return; }
   const fb=document.getElementById('agm-fb'); if(fb){ fb.hidden=false; fb.className='ap-fb'; fb.textContent='Processando…'; }
+  // enquanto este envio manual anda, a 🔁 automação desta aba não pega a mesma reunião (agAutoHorasAlvos)
+  const emVoo=estado.agenda.manualEmVoo=estado.agenda.manualEmVoo||{}; if(ev.uid) emVoo[ev.uid]=(emVoo[ev.uid]||0)+1;
   const dia=(ev.inicio||'').slice(0,10);
   // Sem e-mail de propósito: o servidor resolve o e-mail do aviso individual no Teams pelo accountId, no
   // cadastro do Jira (avisaTeamsDM) — um e-mail vindo do navegador poderia mandar o aviso para outra pessoa.
@@ -864,17 +869,34 @@ async function agConfirma(){
     }
     let convidados=0, meu=null, avisos=[], gravar=false;   // gravar = houve logAcao(…,false) → UMA salvaCfg() no fim
     if(pessoas.length){
+      // 🔒 Quem envia é o DONO do ticket (quem o registrou): a marca "as horas desta reunião já saíram" vem ANTES do
+      // envio, como na 🔁 automação (2ª rodada da revisão do PR #247: a marca só depois do POST deixava a automação —
+      // desta aba ou de outro aparelho — lançar as mesmas horas e convites enquanto o envio manual estava no ar).
+      // O convidado que aponta só as próprias horas pelo 📝 NÃO marca (travaria as horas e os convites de quem criou).
+      //   marcado        → envia; falha CERTA do envio solta a marca
+      //   feito, da automação, há menos de 2 min → ela está enviando AGORA: nada sai por aqui
+      //   feito, mais antigo ou manual → envio manual de novo é escolha da pessoa (ex.: 👥 para mais alguém): segue
+      //   sem resposta da trava → segue (a marca é melhor esforço; a automação confere as horas no Jira antes de lançar)
+      const tvM=agTravaDe(ev); let marquei=false;
+      if(ev.uid&&estado.agenda.semTrava===false&&tvM&&tvM.estado==='ok'&&tvM.k===key&&tvM.por&&tvM.por.acc===id.accountId){
+        let c=null; try{ c=await agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, via:'manual' }); }catch(e){ c=null; }
+        if(c&&c.ok&&c.marcado){ marquei=true; agGuardaTrava(ev, c.trava||Object.assign({}, tvM, { horas:{ acc:id.accountId, nome:id.nome||'', em:new Date().toISOString(), via:'manual' } })); }
+        else if(c&&c.feito){
+          agGuardaTrava(ev, Object.assign({}, tvM, { horas:c.feito }));
+          if(c.feito.via==='auto'&&Date.now()-(Date.parse(c.feito.em||'')||0)<AG_AUTO_HORAS_FOLGA_MS)
+            throw new Error(`🔁 A automação está lançando as horas e os convites do ${key} agora mesmo (aqui ou em outro aparelho) — nada foi enviado por aqui. Espere um minuto e confira o ticket antes de enviar de novo.`);
+        }
+      }
+      let jv=null, st=0;
       const rv=await fetch('/api/apontar',{ method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ convidar:true, issue:key, segundos:seg, inicio:dia,
-          comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });
-      const jv=await rv.json().catch(()=>null); if(!jv||jv.ok!==true) throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.');   // só `ok:true` é envio feito (um 500 com {erro} não é)
+          comentario:`Reunião: ${ev.titulo}`.slice(0,200), pessoas, avisarTeams:true, email:id.email, token:id.token }) });   // sem resposta (rede): incerto — a marca fica
+      st=rv.status; jv=await rv.json().catch(()=>null);
+      if(!jv||jv.ok!==true){   // só `ok:true` é envio feito (um 500 com {erro} não é)
+        if(marquei&&((jv&&jv.ok===false)||(st>=400&&st<500))){   // falha CERTA: nada saiu — a marca é solta (a automação pode tentar)
+          agTravaPost({ agtrava:'horas', uid:ev.uid, k:key, soltar:1 }).catch(()=>{}); agGuardaTrava(ev, Object.assign({}, agTravaDe(ev)||tvM, { horas:null })); }
+        throw new Error((jv&&jv.erro)||'Ticket ok, mas falhou o envio dos convites.'); }
       convidados=pessoas.length-(eu?1:0);
-      // ⏱ as horas desta reunião saíram por aqui: a 🔁 automação não repete (marca na trava, melhor esforço)
-      // … só quando quem envia é o DONO do ticket (revisão do PR #247): o convidado que aponta só as próprias horas pelo
-      // 📝 não pode marcar a reunião inteira — travaria as horas e os convites de quem criou.
-      { const tvM=agTravaDe(ev);
-        if(ev.uid&&estado.agenda.semTrava===false&&tvM&&tvM.estado==='ok'&&tvM.k===key&&tvM.por&&tvM.por.acc===id.accountId)
-          agTravaPost({ agtrava:'horas', uid:ev.uid, k:key }).then(c=>{ if(c&&c.ok&&c.trava) agGuardaTrava(ev, c.trava); }).catch(()=>{}); }
       if(eu){
         meu=jv.proprio||null;
         if(meu&&meu.ok){
@@ -905,6 +927,7 @@ async function agConfirma(){
     if(typeof hjVistaAberta==='function'&&hjVistaAberta()) renderHoje(); else if(agVistaAberta()||estado.vista==='chamadas') renderAgenda(); else if(estado.vista==='acoes') agendaRenderAcoes();
     else if(estado.vista==='inbox'){ if(typeof renderInbox==='function') renderInbox(); }   // 📝 Criar agora do Inbox: a tela segue sendo o Inbox
   }catch(err){ if(fb){ fb.classList.add('err'); fb.textContent=humanizaErro(err); } }
+  finally{ if(ev.uid){ emVoo[ev.uid]=Math.max(0,(emVoo[ev.uid]||1)-1); if(!emVoo[ev.uid]) delete emVoo[ev.uid]; } }
 }
 function carregaAgenda(forca){
   const ag=estado.agenda; const id=idApontar(); if(!id) return;

@@ -263,7 +263,7 @@ async function agTrava(req, res, b) {
   if (acao === 'horas') {   // ⏱ marca (ou solta) "as horas desta reunião já saíram" — uma vez por reunião
     const k = String(b.k || '').trim().toUpperCase();
     if (!RE_ISSUE.test(k)) return json(res, 400, { erro: 'Chave de ticket inválida.' });
-    return json(res, 200, await travaHoras(uid, k, quem, !!b.soltar));
+    return json(res, 200, await travaHoras(uid, k, quem, !!b.soltar, String(b.via || '')));
   }
   return json(res, 400, { erro: 'Ação de trava desconhecida.' });
 }
