@@ -196,7 +196,12 @@ function axCarregaSemana(forca){
     .then(r=>r.json()).then(j=>{ ax.semCarr=false;
       if(!j||j.erro||!Array.isArray(j.worklogs)){ const msg=humanizaErro((j&&j.erro)||'tempo');
         if(ax.sem&&ax.semDia===hoje){ ax.semFalhouEm=Date.now(); ax.semErroBg=msg; } else { ax.sem=null; ax.semErro=msg; } }
-      else { ax.sem=j.worklogs; ax.semPessoas=(j.pessoas)||{}; ax.semEm=pedidoEm; ax.semDadosEm=Date.parse((j.meta&&j.meta.geradoEm)||'')||pedidoEm; ax.semDia=hoje; ax.semSujo=false; ax.semFalhouEm=0; ax.semErroBg=''; }
+      else {
+        // a minha linha vem da janela pessoal (13): se ela é MAIS VELHA que esta leitura, relê junto (revisão do PR #248 —
+        // horas minhas lançadas noutro aparelho chegavam no card do time e a linha seguia presa à janela antiga)
+        { const ap=estado.apontar, m=(typeof apMeusLogs==='function')?apMeusLogs():null;
+          if(ap&&m&&(m.em||0)<pedidoEm-60000&&!ap.meusLogsP) ap.meusLogsVelho=true; }   // > 1 min: na abertura as duas saem juntas — sem leitura a mais
+        ax.sem=j.worklogs; ax.semPessoas=(j.pessoas)||{}; ax.semEm=pedidoEm; ax.semDadosEm=Date.parse((j.meta&&j.meta.geradoEm)||'')||pedidoEm; ax.semDia=hoje; ax.semSujo=false; ax.semFalhouEm=0; ax.semErroBg=''; }
       agendaRenderAcoes();
     }).catch(e=>{ ax.semCarr=false;
       if(ax.sem&&ax.semDia===hoje){ ax.semFalhouEm=Date.now(); ax.semErroBg=humanizaErro(e); } else { ax.sem=null; ax.semErro=humanizaErro(e); }
@@ -503,7 +508,9 @@ function agendaRenderAcoes(){
 // (cobertura de hoje, horas de hoje ou o estado de erro). A falha da leitura não insiste (o 13 segura 30 s).
 function axGaranteMeusLogs(hoje){
   const ax=estado.acoes; if(ax.logsP) return;
-  const foto=()=>`${apMeusLogsCobre(hoje)?1:0}|${minhasHorasPorDia()[hoje]||0}|${estado.apontar.meusLogsErro?1:0}`;
+  // a "foto" inclui a HORA da leitura da janela (revisão do PR #248): mudança só num dia anterior (o 🔄 com a janela
+  // chegando depois da semana do time) também redesenha — antes só as horas de HOJE contavam e a semana ficava velha
+  const foto=()=>`${apMeusLogsCobre(hoje)?1:0}|${minhasHorasPorDia()[hoje]||0}|${estado.apontar.meusLogsErro?1:0}|${(apMeusLogs()||{}).em||0}`;
   const antes=foto(); ax.logsP=true;
   apGaranteMeusLogs(hoje).then(()=>{ ax.logsP=false; if(estado.vista==='acoes'&&foto()!==antes) renderAcoes(); }).catch(()=>{ ax.logsP=false; });
 }
@@ -641,7 +648,7 @@ function renderAcoes(){
     const metaSeg=metaSegDe(acc)||8*3600;
     const apx=estado.apontar; const cobreHoje=apMeusLogsCobre(hoje)||apTempoCobre(hoje);
     const meuSeg=cobreHoje?(minhasHorasPorDia()[hoje]||0):null;
-    if(!apMeusLogsCobre(hoje)||apx.meusLogsSujo||apx.meusLogsEscreveu) axGaranteMeusLogs(hoje);
+    if(!apMeusLogsCobre(hoje)||apx.meusLogsSujo||apx.meusLogsEscreveu||apx.meusLogsVelho) axGaranteMeusLogs(hoje);
     const logsFalhou=!!(apx.meusLogsErro&&!apx.meusLogsP);
     // 📆 Seu dia (24b, 2026-10-21): o plano do dia — os 3 do foco com ✓ na hora, feitos/apontado, Planejar/Fechar o dia
     const cHoje=(typeof hjCardInicio==='function')?hjCardInicio(hoje):'';

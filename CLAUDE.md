@@ -18,7 +18,13 @@ Painel **"Dexterity Hub"** (antes "Insights de Uso (Jira + Clockwork)") da Dexte
   `AX_SEM_TIQUE_MS`=1 min (só Início visível, seção 👥 aberta, sem modal e sem foco em campo da Início). Teste (scratchpad
   `convite-plano/`, `roda.sh 8787 time-test.mjs`, fixture `servidor-convite.mjs`): `time-test.mjs` (Playwright, 21 — 10 falham
   no código antigo: a minha linha × tiles, virada do dia, 5 min, ↻/🔄 sem cache, depois de lançar, falha sem laço, tique).
-  R287 reescrito (faltam o 📊 Timesheet e o 🏆 Ranking com a tela aberta).
+  R287 reescrito (faltam o 📊 Timesheet e o 🏆 Ranking com a tela aberta). **Revisão do PR #248 (bloco H, 2 achados,
+  corrigidos):** (a) a releitura do card trazia as MINHAS horas lançadas noutro aparelho, mas a minha linha seguia presa à janela
+  antiga — agora, quando a janela é mais velha que a leitura do time, `estado.apontar.meusLogsVelho` (13) faz o
+  `apGaranteMeusLogs` reler (respeitando o cache do servidor; `sujo`/`escreveu` continuam sendo os que pedem `nocache`);
+  (b) o `axGaranteMeusLogs` só redesenhava quando as horas de HOJE mudavam — mudança num dia anterior com a janela chegando
+  depois do card (🔄) deixava a semana velha; a "foto" agora inclui `apMeusLogs().em`. `time-test` 25 (H1–H2 falham sem a
+  correção; a fixture ganhou `opc.lentoDesde/lentoMs`, que atrasa só a leitura com aquele `desde`).
 - **🔁⏱ A automação das reuniões recorrentes também lança as horas (2026-11-25, a pedido do usuário: "a automação da criação
   automática dos tickets também aponte as horas para as pessoas que estão convidadas — o CS-892 foi criado sem horas"):** o
   `agAutoCria` (03) só criava o ticket das reuniões de HOJE com regra 🔁 (`cfg.agendaAuto`) ao carregar a agenda — antes de a reunião
