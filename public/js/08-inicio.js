@@ -172,18 +172,39 @@ function axCarregaMes(){
 // hoje), com a fita de dias para ver de relance o dia que ficou em branco.
 // Busca própria (/api/tempo desde a segunda), independente do período do topo.
 // ===========================================================================
-function axCarregaSemana(){
+// A leitura ENVELHECE (2026-11-26, a pedido do usuário: o card dizia "40m hoje / 31h45 na semana" com "Suas horas de hoje"
+// = 1h50 e "Sua semana" = 37h — a aba estava aberta desde a véspera e o card era lido UMA vez por sessão, do cache de 20 min
+// do servidor; nem o ↻ do topo nem a virada do dia o reliam). Relê em segundo plano, SEM apagar a tela, quando: virou o dia
+// (aí a tela antiga sai — "hoje" de ontem não serve), passou de 5 min, houve lançamento de horas depois da leitura
+// (`horasDepoisDe`), o ↻ do topo / 🔄 do card pediu (`semSujo`) ou a aba voltou a ficar visível (listener no fim do arquivo).
+// Sem o cache do servidor só no ↻/🔄 e depois de um lançamento; o "lido às" do card mostra a hora em que o SERVIDOR leu o
+// Clockwork (`meta.geradoEm`), não a do pedido — quem olha sabe a idade real do número.
+const AX_SEM_TTL_MS=5*60*1000;
+function axSemEnvelheceu(ax, hoje){
+  if(!ax.sem||ax.semCarr) return false;
+  if(ax.semFalhouEm&&Date.now()-ax.semFalhouEm<60000) return false;   // a releitura por trás acabou de falhar: não insiste a cada render
+  return !!(ax.semSujo || (ax.semDia&&ax.semDia!==hoje) || horasDepoisDe(ax.semEm) || (Date.now()-(ax.semEm||0))>AX_SEM_TTL_MS);
+}
+function axCarregaSemana(forca){
   const ax=estado.acoes; ax.semCarr=true; ax.semErro='';
   const hoje=hojeSP(); const seg=semChave(hoje);
-  fetch(`/api/tempo?desde=${encodeURIComponent(seg)}&ate=${encodeURIComponent(hoje)}`)
+  // sem o cache de 20 min do servidor quando pedido (↻/🔄), quando houve lançamento depois da última leitura ou nos 21 min
+  // seguintes a qualquer lançamento deste navegador — o mesmo critério da janela das MINHAS horas (13)
+  const nc=!!(forca||ax.semSujo||tkNocacheHoras()||horasDepoisDe(ax.semEm));
+  const pedidoEm=Date.now();   // hora do PEDIDO: um lançamento feito com a leitura no ar ainda vale como "depois"
+  fetch(`/api/tempo?desde=${encodeURIComponent(seg)}&ate=${encodeURIComponent(hoje)}${nc?'&nocache=1':''}`)
     .then(r=>r.json()).then(j=>{ ax.semCarr=false;
-      if(j.erro) ax.semErro=humanizaErro(j.erro);
-      else { ax.sem=j.worklogs||[]; ax.semPessoas=(j.pessoas)||{}; }
+      if(!j||j.erro||!Array.isArray(j.worklogs)){ const msg=humanizaErro((j&&j.erro)||'tempo');
+        if(ax.sem&&ax.semDia===hoje){ ax.semFalhouEm=Date.now(); ax.semErroBg=msg; } else { ax.sem=null; ax.semErro=msg; } }
+      else { ax.sem=j.worklogs; ax.semPessoas=(j.pessoas)||{}; ax.semEm=pedidoEm; ax.semDadosEm=Date.parse((j.meta&&j.meta.geradoEm)||'')||pedidoEm; ax.semDia=hoje; ax.semSujo=false; ax.semFalhouEm=0; ax.semErroBg=''; }
       agendaRenderAcoes();
-    }).catch(e=>{ ax.semCarr=false; ax.semErro=humanizaErro(e); agendaRenderAcoes(); });
+    }).catch(e=>{ ax.semCarr=false;
+      if(ax.sem&&ax.semDia===hoje){ ax.semFalhouEm=Date.now(); ax.semErroBg=humanizaErro(e); } else { ax.sem=null; ax.semErro=humanizaErro(e); }
+      agendaRenderAcoes(); });
 }
 // Um dia em que a pessoa NÃO é cobrada: fim de semana, feriado, ausência
 // cadastrada ou fora da vigência dela na empresa.
+function axHoraBR(ms){ return ms?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}).format(new Date(ms)):''; }
 function axFolga(a, d){ return !ehUtil(d) || ehFeriado(d) || ehAusencia(a,d); }
 function axApontResumo(){
   const ax=estado.acoes, hoje=hojeSP(), seg=semChave(hoje);
@@ -191,6 +212,13 @@ function axApontResumo(){
   const porPessoa={};
   (ax.sem||[]).forEach(w=>{ const d=String(w.d||'').slice(0,10); if(!d) return;
     (porPessoa[w.a]=porPessoa[w.a]||{})[d]=((porPessoa[w.a]||{})[d]||0)+(Number(w.s)||0); });
+  // 🙋 A MINHA linha usa a mesma régua de "Suas horas de hoje" e de "Sua semana" (minhasHorasPorDia, 13: a janela própria,
+  // relida sem cache depois de cada lançamento, + o que esta sessão acabou de apontar) nos dias que ela cobre — as três
+  // telas mostram o mesmo número. Dia que a janela não cobre segue com a leitura do card.
+  { const euA=(idApontar()||{}).accountId;
+    if(euA&&typeof minhasHorasPorDia==='function'){ const hpd=minhasHorasPorDia();
+      const cobre=(d)=>(typeof apMeusLogsCobre==='function'&&apMeusLogsCobre(d))||(typeof apTempoCobre==='function'&&apTempoCobre(d));
+      dias.forEach(d=>{ if(!cobre(d)) return; const p=porPessoa[euA]=porPessoa[euA]||{}; if(hpd[d]) p[d]=hpd[d]; else delete p[d]; }); } }
   const nomes=Object.assign({}, ax.semPessoas||{}, pessoasUnidas(), estado.usuarios||{});
   const elenco=new Set(Object.keys(estado.usuarios||{}));
   Object.keys(porPessoa).forEach(a=>elenco.add(a));
@@ -1035,7 +1063,8 @@ function renderAcoes(){
   }
   // ⏱ Apontamento do time — o card mais importante da Início: quem já lançou as
   // horas de HOJE e como está a SEMANA de cada pessoa (segunda → hoje).
-  if(abTime && !ax.sem && !ax.semCarr && !ax.semErro) axCarregaSemana();   // só com 👥 Meu time hoje aberta
+  if(abTime && ax.sem && ax.semDia && ax.semDia!==hoje && !ax.semCarr){ ax.sem=null; ax.semErro=''; }   // virou o dia: o "hoje" de ontem sai da tela
+  if(abTime && ((!ax.sem && !ax.semCarr && !ax.semErro) || axSemEnvelheceu(ax, hoje))) axCarregaSemana();   // só com 👥 Meu time hoje aberta
   let cardApont='';
   if(!abTime){ /* seção fechada: nada é montado nem lido */ }
   else if(ax.semErro){
@@ -1086,6 +1115,7 @@ function renderAcoes(){
         <button class="btn" data-hx-goto="timesheet" data-tip="Grade completa pessoa × dia, com lacunas">📊 Timesheet completo</button>
         <button class="btn" data-hx-goto="ranking" data-tip="Ranking de apontamento e metas">🏆 Ranking</button>
         <span class="spacer"></span>
+        <span class="muted small" id="apr-lido">${ax.semCarr?'atualizando…':(ax.semErroBg?`⚠ não consegui atualizar (${esc(ax.semErroBg)}) — lido às ${esc(axHoraBR(ax.semDadosEm||ax.semEm))}`:(ax.semEm?`lido às ${esc(axHoraBR(ax.semDadosEm||ax.semEm))}`:''))}</span>
         <button class="btn" id="apr-refresh" data-tip="Reler os apontamentos da semana no Clockwork">🔄 atualizar</button>
       </div>
       <div class="muted small" style="margin-top:6px">A meta é a jornada de cada pessoa (<b>Configurações → 🎯 Metas</b>), descontando fins de semana, feriados, ausências e vigência. <b>Hoje não conta como dia em branco</b> — o dia ainda está correndo.</div>
@@ -1185,7 +1215,9 @@ document.getElementById('conteudo').addEventListener('click',(e)=>{
     radSalva(); renderAcoes(); return; }
   if(t.hasAttribute('data-rad-retry')){ estado.acoes.radAtvErro=''; estado.acoes.radAtv=null; estado.acoes.radTErro=''; renderAcoes(); return; }
   // ⏱ Apontamento do time: recarregar, expandir a lista e abrir o timesheet da pessoa
-  if(t.id==='apr-retry'||t.id==='apr-refresh'){ const ax2=estado.acoes; ax2.sem=null; ax2.semErro=''; renderAcoes(); return; }
+  if(t.id==='apr-retry'||t.id==='apr-refresh'){ const ax2=estado.acoes; ax2.sem=null; ax2.semErro=''; ax2.semSujo=true; ax2.semFalhouEm=0;   // 🔄 = sem o cache do servidor
+    if(estado.apontar) estado.apontar.meusLogsSujo=true;   // e a MINHA linha relê a janela junto
+    renderAcoes(); return; }
   if(t.id==='apr-todos'){ estado.acoes.semTodos=!estado.acoes.semTodos; renderAcoes(); return; }
   if(t.hasAttribute('data-rad-gestao')){ const ks=t.getAttribute('data-rad-gestao').split(',').filter(Boolean);
     const g=estado.gestao; g.soKeys=ks; g.origem='🧭 Radar do dia'; g.preset=''; g.busca=''; g.fProj=''; g.fResp=''; g.fStatus=''; g.semTrat=false;
@@ -1778,4 +1810,18 @@ document.getElementById('conteudo').addEventListener('keydown',(e)=>{
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible'||estado.vista!=='acoes') return;
   const ax=estado.acoes; if(ax&&ax.venc&&!ax.carregando&&Date.now()-(ax.vencEm||0)>60000) axCarregaVenc(true);
+  // ⏱ Apontamento do time: lido há mais de 1 min → relê (os números ficam até a leitura chegar). Respeita o cache do servidor
+  // (é a semana do time inteiro no Clockwork); sem ele só quando houve lançamento de horas depois da leitura.
+  if(ax&&ax.sem&&!ax.semCarr&&Date.now()-(ax.semEm||0)>60000&&axSecAberta('time')){ axCarregaSemana(); agendaRenderAcoes(); }
 });
+// ⏱ Tique de 1 min: com a Início parada na tela (ninguém mexe, nada redesenha), a leitura que envelheceu — 5 min, virada do
+// dia, lançamento feito noutra tela — é relida sozinha. Nunca por baixo de quem está digitando num campo da Início.
+const AX_SEM_TIQUE_MS=60*1000;
+function axSemTique(){
+  if(document.visibilityState!=='visible'||estado.vista!=='acoes'||!axSecAberta('time')) return false;
+  const a=document.activeElement; if(a&&a.closest&&a.closest('#conteudo')&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
+  if(!document.getElementById('modal')||!document.getElementById('modal').hidden) return false;
+  const ax=estado.acoes; if(!axSemEnvelheceu(ax, hojeSP())) return false;
+  agendaRenderAcoes(); return true;   // o render relê (e tira da tela o "hoje" de ontem)
+}
+setInterval(axSemTique, AX_SEM_TIQUE_MS);

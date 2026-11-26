@@ -717,7 +717,8 @@ async function carrega(periodo, forca){
     const noPeriodo=(d)=>!!(mt.startDate&&mt.endDate&&d>=mt.startDate&&d<=mt.endDate);
     ap.extraLogs=(ap.extraLogs||[]).filter(x=>cobre(x.d)||!noPeriodo(x.d));
     const por={}; ap.extraLogs.forEach(x=>{ por[x.d]=(por[x.d]||0)+x.s; }); ap.extraPorDia=por;
-    ap.meusLogsSujo=true; ap.recentes=null; }
+    ap.meusLogsSujo=true; ap.recentes=null;
+    if(forca&&estado.acoes) estado.acoes.semSujo=true; }   // ⏱ Apontamento do time da Início: o ↻ do topo também o relê sem cache
   estado.cache[periodo]={tempo:t,atividade:a,usuarios,inativos,avisoAtiv:aviso,lidoEm:pedidoEm};
 }
 
